@@ -133,6 +133,7 @@ func defaultWorkerOpts() *WorkerOpts {
 	}
 }
 
+// Deprecated: use WithLogger instead
 func WithLogLevel(lvl string) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		logger := logger.NewDefaultLogger("worker")
@@ -185,6 +186,12 @@ func WithMaxRuns(maxRuns int) WorkerOpt {
 func WithLabels(labels map[string]interface{}) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.labels = labels
+	}
+}
+
+func WithLogger(l *zerolog.Logger) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.l = l
 	}
 }
 

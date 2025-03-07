@@ -22,14 +22,12 @@ import (
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
 	var additionalMeta []byte
 
 	if req.AdditionalMetadata != nil {
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
-	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), additionalMeta)
+	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -93,7 +91,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		}
 	}
 
-	createdEvents, err := i.BulkIngestEvent(ctx, tenantId, events)
+	createdEvents, err := i.BulkIngestEvent(ctx, tenant, events)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -129,7 +127,7 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 		return nil, err
 	}
 
-	newEvent, err := i.IngestReplayedEvent(ctx, tenantId, oldEvent)
+	newEvent, err := i.IngestReplayedEvent(ctx, tenant, oldEvent)
 
 	if err != nil {
 		return nil, err
@@ -147,6 +145,17 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.putStreamEventV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.putStreamEventV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "RefreshTimeout is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time
@@ -200,6 +209,17 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.putLogV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.putLogV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "PutLog is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (i *IngestorImpl) putLogV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time

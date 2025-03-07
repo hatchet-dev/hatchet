@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -476,6 +477,8 @@ type WorkflowRunAPIRepository interface {
 	GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error)
 
 	GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*StepRunForJobRun, error)
+
+	GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error)
 }
 
 var (
@@ -537,6 +540,8 @@ type WorkflowRunEngineRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
+
+	DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error
 
 	// TODO maybe we don't need this?
 	GetWorkflowRunByIds(ctx context.Context, tenantId string, runId []string) ([]*dbsqlc.GetWorkflowRunRow, error)

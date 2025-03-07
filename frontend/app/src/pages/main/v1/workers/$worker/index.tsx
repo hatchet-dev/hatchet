@@ -1,12 +1,11 @@
 import { Separator } from '@/components/v1/ui/separator';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { ArrowPathIcon, ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import {
   Tooltip,
@@ -26,7 +25,7 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { useState } from 'react';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
-import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
+import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -88,9 +87,6 @@ export const WorkerStatus = ({
 };
 
 export default function ExpandedWorkflowRun() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   const { handleApiError } = useApiError({});
 
   const params = useParams();
@@ -131,7 +127,7 @@ export default function ExpandedWorkflowRun() {
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link to="/workers">Workers/</Link>
+              <Link to="/v1/workers">Workers/</Link>
               {worker.webhookUrl || worker.name}
             </h2>
           </div>
@@ -225,7 +221,7 @@ export default function ExpandedWorkflowRun() {
             Recent Tasks
           </h3>
         </div>
-        <WorkflowRunsTable
+        <TaskRunsTable
           workerId={worker.metadata.id}
           createdAfter={worker.metadata.createdAt}
           showMetrics={false}

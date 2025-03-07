@@ -44,3 +44,10 @@ WHERE
     "tenantId" = @tenantId::uuid
     AND "revoked" = FALSE
     AND "internal" = FALSE;
+
+-- name: DeleteAPIToken :exec
+DELETE FROM
+    "APIToken"
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "id" = @id::uuid;

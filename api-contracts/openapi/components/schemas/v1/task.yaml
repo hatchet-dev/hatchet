@@ -1,33 +1,72 @@
+V1WorkflowType:
+  type: string
+  enum:
+    - DAG
+    - TASK
+
 V1TaskSummary:
   properties:
     metadata:
       $ref: ".././metadata.yaml#/APIResourceMeta"
-    taskId:
-      type: integer
-      description: The ID of the task.
-    taskExternalId:
-      type: string
-      description: The external ID of the task.
-      format: uuid
-      minLength: 36
-      maxLength: 36
-    taskInsertedAt:
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the task run.
+    children:
+      type: array
+      items:
+        $ref: "#/V1TaskSummary"
+      description: The list of children tasks
+    createdAt:
       type: string
       format: date-time
-      description: The timestamp the task was inserted.
+      description: The timestamp the task was created.
+    displayName:
+      type: string
+      description: The display name of the task run.
+    duration:
+      type: integer
+      description: The duration of the task run, in milliseconds.
+    errorMessage:
+      type: string
+      description: The error message of the task run (for the latest run)
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+    input:
+      type: object
+      description: The input of the task run.
+    numSpawnedChildren:
+      type: integer
+      description: The number of spawned children tasks
+    output:
+      type: object
+      description: The output of the task run (for the latest run)
     status:
       $ref: "#/V1TaskStatus"
     startedAt:
       type: string
       format: date-time
       description: The timestamp the task run started.
-    finishedAt:
+    stepId:
+      type: string
+      description: The step ID of the task.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    taskExternalId:
+      type: string
+      description: The external ID of the task.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    taskId:
+      type: integer
+      description: The ID of the task.
+    taskInsertedAt:
       type: string
       format: date-time
-      description: The timestamp the task run finished.
-    duration:
-      type: integer
-      description: The duration of the task run, in milliseconds.
+      description: The timestamp the task was inserted.
     tenantId:
       type: string
       description: The ID of the tenant.
@@ -35,32 +74,47 @@ V1TaskSummary:
       minLength: 36
       maxLength: 36
       format: uuid
-    additionalMetadata:
-      type: object
-      description: Additional metadata for the task run.
-    displayName:
-      type: string
-      description: The display name of the task run.
+    type:
+      $ref: "#/V1WorkflowType"
+      description: The type of the workflow (whether it's a DAG or a task)
     workflowId:
       type: string
       format: uuid
-    output:
-      type: object
-      description: The output of the task run (for the latest run)
-    errorMessage:
+    workflowName:
       type: string
-      description: The error message of the task run (for the latest run)
+    workflowRunExternalId:
+      type: string
+      format: uuid
+      description: The external ID of the workflow run
+    workflowVersionId:
+      type: string
+      format: uuid
+      description: The version ID of the workflow
   required:
     - metadata
+    - createdAt
+    - displayName
     - id
+    - input
+    - numSpawnedChildren
+    - output
+    - status
+    - taskExternalId
     - taskId
     - taskInsertedAt
-    - status
     - tenantId
-    - displayName
+    - type
     - workflowId
-    - output
-    - taskExternalId
+
+V1WorkflowRunDisplayName:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    displayName:
+      type: string
+  required:
+    - metadata
+    - displayName
 
 V1DagChildren:
   type: object
@@ -87,71 +141,19 @@ V1TaskSummaryList:
     - pagination
     - rows
 
-V1Task:
+V1WorkflowRunDisplayNameList:
+  type: object
   properties:
-    metadata:
-      $ref: ".././metadata.yaml#/APIResourceMeta"
-    taskId:
-      type: integer
-      description: The ID of the task.
-    taskInsertedAt:
-      type: string
-      format: date-time
-      description: The timestamp the task was inserted.
-    status:
-      $ref: "#/V1TaskStatus"
-    startedAt:
-      type: string
-      format: date-time
-      description: The timestamp the task run started.
-    finishedAt:
-      type: string
-      format: date-time
-      description: The timestamp the task run finished.
-    duration:
-      type: integer
-      description: The duration of the task run, in milliseconds.
-    tenantId:
-      type: string
-      description: The ID of the tenant.
-      example: bb214807-246e-43a5-a25d-41761d1cff9e
-      minLength: 36
-      maxLength: 36
-      format: uuid
-    additionalMetadata:
-      type: object
-      description: Additional metadata for the task run.
-    displayName:
-      type: string
-      description: The display name of the task run.
-    workflowId:
-      type: string
-      format: uuid
-    input:
-      type: string
-      description: The input for the task run.
-    output:
-      type: string
-      description: The output of the task run (for the latest run)
-    errorMessage:
-      type: string
-      description: The error message of the task run (for the latest run)
-    workflowRunExternalId:
-      type: string
-      description: The external ID of the workflow run.
-      format: uuid
-      minLength: 36
-      maxLength: 36
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1WorkflowRunDisplayName"
+      description: The list of display names
   required:
-    - metadata
-    - id
-    - taskId
-    - taskInsertedAt
-    - status
-    - tenantId
-    - displayName
-    - workflowId
-    - input
+    - pagination
+    - rows
 
 V1TaskEventList:
   properties:
@@ -264,3 +266,56 @@ V1TaskPointMetrics:
       type: array
       items:
         $ref: "#/V1TaskPointMetric"
+
+V1TaskFilter:
+  type: object
+  properties:
+    since:
+      type: string
+      format: date-time
+    until:
+      type: string
+      format: date-time
+    statuses:
+      type: array
+      items:
+        $ref: "#/V1TaskStatus"
+    workflowIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    additionalMetadata:
+      type: array
+      items:
+        type: string
+  required:
+    - since
+
+V1CancelTaskRequest:
+  type: object
+  properties:
+    externalIds:
+      type: array
+      description: A list of external IDs, which can refer to either task or workflow run external IDs
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    filter:
+      $ref: "#/V1TaskFilter"
+
+V1ReplayTaskRequest:
+  type: object
+  properties:
+    externalIds:
+      type: array
+      description: A list of external IDs, which can refer to either task or workflow run external IDs
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    filter:
+      $ref: "#/V1TaskFilter"

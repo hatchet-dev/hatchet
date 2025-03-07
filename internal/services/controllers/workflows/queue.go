@@ -438,7 +438,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunRequeue(ctx context.Context)
 		wc.l.Debug().Msgf("workflows controller: checking get group key run requeue")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -526,7 +526,7 @@ func (wc *WorkflowsControllerImpl) runGetGroupKeyRunReassign(ctx context.Context
 		wc.l.Debug().Msgf("workflows controller: checking get group key run reassign")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")

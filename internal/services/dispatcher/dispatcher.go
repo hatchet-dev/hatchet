@@ -15,6 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
@@ -26,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -39,14 +41,18 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s            gocron.Scheduler
-	mq           msgqueue.MessageQueue
-	sharedReader *msgqueue.SharedTenantReader
-	l            *zerolog.Logger
-	dv           datautils.DataDecoderValidator
-	v            validator.Validator
-	repo         repository.EngineRepository
-	cache        cache.Cacheable
+	s              gocron.Scheduler
+	mq             msgqueue.MessageQueue
+	mqv1           msgqueuev1.MessageQueue
+	pubBuffer      *msgqueuev1.MQPubBuffer
+	sharedReader   *msgqueue.SharedTenantReader
+	sharedReaderv1 *msgqueuev1.SharedTenantReader
+	l              *zerolog.Logger
+	dv             datautils.DataDecoderValidator
+	v              validator.Validator
+	repo           repository.EngineRepository
+	repov1         v1.Repository
+	cache          cache.Cacheable
 
 	entitlements repository.EntitlementsRepository
 
@@ -120,9 +126,11 @@ type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
 	mq           msgqueue.MessageQueue
+	mqv1         msgqueuev1.MessageQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
 	repo         repository.EngineRepository
+	repov1       v1.Repository
 	entitlements repository.EntitlementsRepository
 	dispatcherId string
 	alerter      hatcheterrors.Alerter
@@ -147,6 +155,12 @@ func WithMessageQueue(mq msgqueue.MessageQueue) DispatcherOpt {
 	}
 }
 
+func WithMessageQueueV1(mqv1 msgqueuev1.MessageQueue) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.mqv1 = mqv1
+	}
+}
+
 func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.alerter = a
@@ -156,6 +170,12 @@ func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
 func WithRepository(r repository.EngineRepository) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.repo = r
+	}
+}
+
+func WithRepositoryV1(r v1.Repository) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.repov1 = r
 	}
 }
 
@@ -200,8 +220,16 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.mqv1 == nil {
+		return nil, fmt.Errorf("v1 task queue is required. use WithMessageQueueV1")
+	}
+
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
+	}
+
+	if opts.repov1 == nil {
+		return nil, fmt.Errorf("v1 repository is required. use WithRepositoryV1")
 	}
 
 	if opts.entitlements == nil {
@@ -225,12 +253,17 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "dispatcher"})
 
+	pubBuffer := msgqueuev1.NewMQPubBuffer(opts.mqv1)
+
 	return &DispatcherImpl{
 		mq:           opts.mq,
+		mqv1:         opts.mqv1,
+		pubBuffer:    pubBuffer,
 		l:            opts.l,
 		dv:           opts.dv,
 		v:            validator.NewDefaultValidator(),
 		repo:         opts.repo,
+		repov1:       opts.repov1,
 		entitlements: opts.entitlements,
 		dispatcherId: opts.dispatcherId,
 		workers:      &workers{},
@@ -246,6 +279,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	heavyReadMQ.SetQOS(1000)
 
 	d.sharedReader = msgqueue.NewSharedTenantReader(heavyReadMQ)
+	d.sharedReaderv1 = msgqueuev1.NewSharedTenantReader(d.mqv1)
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
@@ -295,6 +329,27 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		return nil, err
 	}
 
+	fv1 := func(task *msgqueuev1.Message) error {
+		wg.Add(1)
+		defer wg.Done()
+
+		err := d.handleV1Task(ctx, task)
+		if err != nil {
+			d.l.Error().Err(err).Msgf("could not handle dispatcher task %s", task.ID)
+			return err
+		}
+
+		return nil
+	}
+
+	// subscribe to a task queue with the dispatcher id
+	cleanupQueueV1, err := d.mqv1.Subscribe(msgqueuev1.QueueTypeFromDispatcherID(dispatcherId), fv1, msgqueuev1.NoOpHook)
+
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
 	cleanup := func() error {
 		d.l.Debug().Msgf("dispatcher is shutting down...")
 		cancel()
@@ -305,6 +360,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
+
+		if err := cleanupQueueV1(); err != nil {
+			return fmt.Errorf("could not cleanup queue (v1): %w", err)
 		}
 
 		wg.Wait()
@@ -363,6 +422,29 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message)
 		err = d.a.WrapErr(d.handleStepRunBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-cancelled":
 		err = d.a.WrapErr(d.handleStepRunCancelled(ctx, task), map[string]interface{}{})
+	default:
+		err = fmt.Errorf("unknown task: %s", task.ID)
+	}
+
+	return err
+}
+
+func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueuev1.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoverErr := recoveryutils.RecoverWithAlert(d.l, d.a, r)
+
+			if recoverErr != nil {
+				err = recoverErr
+			}
+		}
+	}()
+
+	switch task.ID {
+	case "task-assigned-bulk":
+		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
+	case "task-cancelled":
+		err = d.a.WrapErr(d.handleTaskCancelled(ctx, task), map[string]interface{}{})
 	default:
 		err = fmt.Errorf("unknown task: %s", task.ID)
 	}

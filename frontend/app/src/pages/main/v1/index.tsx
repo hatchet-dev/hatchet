@@ -20,7 +20,6 @@ import {
 } from '@/lib/outlet';
 import { useTenant } from '@/lib/atoms';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { useSidebar } from '@/components/v1/sidebar-provider';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import {
   Collapsible,
@@ -28,6 +27,8 @@ import {
 } from '@/components/v1/ui/collapsible';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+import { useSidebar } from '@/components/sidebar-provider';
+import invariant from 'tiny-invariant';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -65,6 +66,9 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
+  const { tenant } = useTenant();
+
+  invariant(tenant);
 
   const meta = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
@@ -85,13 +89,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     <SidebarButtonSecondary
       key={1}
       onNavLinkClick={onNavLinkClick}
-      to="/workers/all"
+      to="/v1/workers/all"
       name="All Workers"
     />,
     <SidebarButtonSecondary
       key={1}
       onNavLinkClick={onNavLinkClick}
-      to="/workers/webhook"
+      to="/v1/workers/webhook"
       name="Webhook Workers"
     />,
   ];
@@ -112,7 +116,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             <SidebarButtonPrimary
               key={1}
               onNavLinkClick={onNavLinkClick}
-              to="/workflow-runs"
+              to="/v1/workflow-runs"
               name="Workflow Runs"
               icon={<PlayIcon className="mr-2 h-4 w-4" />}
             />
@@ -125,21 +129,21 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={3}
                 onNavLinkClick={onNavLinkClick}
-                to="/scheduled"
+                to="/v1/scheduled"
                 name="Scheduled Runs"
                 icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={4}
                 onNavLinkClick={onNavLinkClick}
-                to="/cron-jobs"
+                to="/v1/cron-jobs"
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
               {/* <SidebarButtonPrimary
                 key={5}
                 onNavLinkClick={onNavLinkClick}
-                to="/events"
+                to="/v1/events"
                 name="Events"
                 icon={<QueueListIcon className="mr-2 h-4 w-4" />}
               /> */}
@@ -153,24 +157,24 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/workflows"
+                to="/v1/workflows"
                 name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={2}
                 onNavLinkClick={onNavLinkClick}
-                to="/workers/all"
+                to="/v1/workers/all"
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
-                prefix="/workers"
+                prefix="/v1/workers"
                 collapsibleChildren={workers}
               />
               {featureFlags?.data['managed-worker'] && (
                 <SidebarButtonPrimary
                   key={3}
                   onNavLinkClick={onNavLinkClick}
-                  to="/managed-workers"
+                  to="/v1/managed-workers"
                   name="Managed Compute"
                   icon={<CpuChipIcon className="mr-2 h-4 w-4" />}
                 />
@@ -178,7 +182,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={4}
                 onNavLinkClick={onNavLinkClick}
-                to="/rate-limits"
+                to="/v1/rate-limits"
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 h-4 w-4" />}
               />
@@ -192,39 +196,39 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/tenant-settings/overview"
-                prefix="/tenant-settings"
+                to="/v1/tenant-settings/overview"
+                prefix="/v1/tenant-settings"
                 name="General"
                 icon={<GearIcon className="mr-2 h-4 w-4" />}
                 collapsibleChildren={[
                   <SidebarButtonSecondary
                     key={1}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/overview"
+                    to="/v1/tenant-settings/overview"
                     name="Overview"
                   />,
                   <SidebarButtonSecondary
                     key={2}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/api-tokens"
+                    to="/v1/tenant-settings/api-tokens"
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
                     key={3}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/github"
+                    to="/v1/tenant-settings/github"
                     name="Github"
                   />,
                   <SidebarButtonSecondary
                     key={5}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/members"
+                    to="/v1/tenant-settings/members"
                     name="Members"
                   />,
                   <SidebarButtonSecondary
                     key={6}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/billing-and-limits"
+                    to="/v1/tenant-settings/billing-and-limits"
                     name={
                       meta?.data.canBill
                         ? 'Billing & Limits'
@@ -234,13 +238,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   <SidebarButtonSecondary
                     key={7}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/alerting"
+                    to="/v1/tenant-settings/alerting"
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
                     key={8}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/ingestors"
+                    to="/v1/tenant-settings/ingestors"
                     name="Ingestors"
                   />,
                 ]}

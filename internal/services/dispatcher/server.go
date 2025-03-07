@@ -578,6 +578,18 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return s.releaseSlotV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return s.releaseSlotV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "ReleaseSlot is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (s *DispatcherImpl) releaseSlotV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if req.StepRunId == "" {
@@ -594,6 +606,19 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
+	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return s.subscribeToWorkflowEventsV0(request, stream)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return s.subscribeToWorkflowEventsV1(request, stream)
+	default:
+		return status.Errorf(codes.Unimplemented, "SubscribeToWorkflowEvents is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (s *DispatcherImpl) subscribeToWorkflowEventsV0(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	if request.WorkflowRunId != nil {
 		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
@@ -878,8 +903,21 @@ func calculateResultsSize(results []*contracts.StepRunResult) (totalSize int, si
 	return
 }
 
-// SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
+	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return s.subscribeToWorkflowRunsV0(server)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return s.subscribeToWorkflowRunsV1(server)
+	default:
+		return status.Errorf(codes.Unimplemented, "SubscribeToWorkflowRuns is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+// SubscribeToWorkflowEvents registers workflow events with the dispatcher
+func (s *DispatcherImpl) subscribeToWorkflowRunsV0(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
 	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -1061,6 +1099,19 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 }
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return s.sendStepActionEventV0(ctx, request)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return s.sendStepActionEventV1(ctx, request)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "SendStepActionEvent is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (s *DispatcherImpl) sendStepActionEventV0(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		return s.handleStepRunStarted(ctx, request)
@@ -1076,6 +1127,12 @@ func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contr
 }
 
 func (s *DispatcherImpl) SendGroupKeyActionEvent(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	if tenant.Version == dbsqlc.TenantMajorEngineVersionV1 {
+		return nil, status.Errorf(codes.Unimplemented, "SendGroupKeyActionEvent is not implemented in engine version v1")
+	}
+
 	switch request.EventType {
 	case contracts.GroupKeyActionEventType_GROUP_KEY_EVENT_TYPE_STARTED:
 		return s.handleGetGroupKeyRunStarted(ctx, request)
@@ -1130,6 +1187,18 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 
 func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return d.refreshTimeoutV0(ctx, tenant, request)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return d.refreshTimeoutV1(ctx, tenant, request)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "RefreshTimeout is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (d *DispatcherImpl) refreshTimeoutV0(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	opts := repository.RefreshTimeoutBy{
@@ -1156,7 +1225,6 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 	return &contracts.RefreshTimeoutResponse{
 		TimeoutAt: timeoutAt,
 	}, nil
-
 }
 
 func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {

@@ -26,6 +26,7 @@ type PostgresMessageQueue struct {
 
 	upsertedQueues   map[string]bool
 	upsertedQueuesMu sync.RWMutex
+	configFs         []MessageQueueImplOpt
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
@@ -68,6 +69,7 @@ func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImp
 		l:              opts.l,
 		qos:            opts.qos,
 		upsertedQueues: make(map[string]bool),
+		configFs:       fs,
 	}
 }
 
@@ -76,7 +78,7 @@ func (p *PostgresMessageQueue) cleanup() error {
 }
 
 func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue) {
-	pCp := NewPostgresMQ(p.repo)
+	pCp := NewPostgresMQ(p.repo, p.configFs...)
 
 	return pCp.cleanup, pCp
 }

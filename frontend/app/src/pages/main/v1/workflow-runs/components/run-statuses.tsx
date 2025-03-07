@@ -52,7 +52,7 @@ export function createRunStatusVariant(
   }
 }
 
-export function createV2RunStatusVariant(
+export function createV1RunStatusVariant(
   status: V1TaskStatus,
 ): RunStatusVariant {
   switch (status) {
@@ -128,7 +128,7 @@ export function RunStatus({
   );
 }
 
-export function V2RunStatus({
+export function V1RunStatus({
   status,
   errorMessage,
   className,
@@ -137,7 +137,7 @@ export function V2RunStatus({
   errorMessage?: string;
   className?: string;
 }) {
-  const { text, variant } = createV2RunStatusVariant(status);
+  const { text, variant } = createV1RunStatusVariant(status);
 
   const StatusBadge = () => (
     <Badge variant={variant} className={className}>
@@ -151,7 +151,7 @@ export function V2RunStatus({
 
   return (
     <HoverCard>
-      <HoverCardTrigger>
+      <HoverCardTrigger className="hover:cursor-help">
         <StatusBadge />
       </HoverCardTrigger>
       <HoverCardContent className="bg-card max-w-96 overflow-auto z-10 shadow-xl p-4 rounded-md border border-gray-600 border-opacity-50">
@@ -198,7 +198,7 @@ export function RunIndicator({
   );
 }
 
-export function V2RunIndicator({ status }: { status: V1TaskStatus }) {
+export function V1RunIndicator({ status }: { status: V1TaskStatus }) {
   const indicator = createV2IndicatorVariant(status);
 
   return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;

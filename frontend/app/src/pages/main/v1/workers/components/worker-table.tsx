@@ -106,7 +106,7 @@ export function WorkersTable() {
         </div>
         <h3 className="text-lg leading-6 font-medium text-foreground">
           <Link
-            to={`/workers/${data.metadata?.id}`}
+            to={`/v1/workers/${data.metadata?.id}`}
             className="flex flex-row gap-2 hover:underline"
           >
             <SdkInfo runtimeInfo={data?.runtimeInfo} iconOnly={true} />
@@ -131,7 +131,7 @@ export function WorkersTable() {
       </div>
       <div className="px-4 py-4 sm:px-6">
         <div className="text-sm text-background-secondary">
-          <Link to={`/workers/${data.metadata?.id}`}>
+          <Link to={`/v1/workers/${data.metadata?.id}`}>
             <Button>View worker</Button>
           </Link>
         </div>

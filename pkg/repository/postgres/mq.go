@@ -38,8 +38,10 @@ func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func
 
 			return pgxpoolConn.Conn(), nil
 		},
-		LogError: func(ctx context.Context, err error) {
-			m.l.Warn().Err(err).Msg("error in listener")
+		LogError: func(innerCtx context.Context, err error) {
+			if ctx.Err() != nil {
+				m.l.Warn().Err(err).Msg("error in listener")
+			}
 		},
 		ReconnectDelay: 10 * time.Second,
 	}
@@ -57,7 +59,7 @@ func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func
 }
 
 func (m *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
-	_, err := m.pool.Exec(ctx, "select pg_notify($1,$2)", pgx.Identifier{name}.Sanitize(), payload)
+	_, err := m.pool.Exec(ctx, "select pg_notify($1,$2)", name, payload)
 
 	return err
 }

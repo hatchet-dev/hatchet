@@ -15,7 +15,6 @@ import (
 
 type JWTManager interface {
 	GenerateTenantToken(ctx context.Context, tenantId, name string, internal bool, expires *time.Time) (*Token, error)
-	UpsertTenantToken(ctx context.Context, tenantId, name, id string, internal bool, expires *time.Time) (string, error)
 	ValidateTenantToken(ctx context.Context, token string) (string, string, error)
 }
 
@@ -104,27 +103,6 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId, name
 	return token, nil
 }
 
-func (j *jwtManagerImpl) UpsertTenantToken(ctx context.Context, tenantId, name, id string, internal bool, expires *time.Time) (string, error) {
-	token, err := j.createToken(ctx, tenantId, name, &id, expires)
-	if err != nil {
-		return "", err
-	}
-
-	// write the token to the database
-	_, err = j.tokenRepo.CreateAPIToken(ctx, &repository.CreateAPITokenOpts{
-		ID:        id,
-		ExpiresAt: token.ExpiresAt,
-		TenantId:  &tenantId,
-		Name:      &name,
-		Internal:  internal,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to write token to database: %v", err)
-	}
-
-	return token.Token, nil
-}
-
 func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) (tenantId string, tokenUUID string, err error) {
 	// Verify the signed token.
 	audience := j.opts.Audience
@@ -181,7 +159,7 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 		return "", "", fmt.Errorf("token has been revoked")
 	}
 
-	if expiresAt := dbToken.ExpiresAt.Time; expiresAt.Before(time.Now()) {
+	if expiresAt := dbToken.ExpiresAt.Time; expiresAt.Before(time.Now().UTC()) {
 		return "", "", fmt.Errorf("token has expired")
 	}
 

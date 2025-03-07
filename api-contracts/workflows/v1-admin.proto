@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/admin/v1/contracts";
+
+import "google/protobuf/timestamp.proto";
+
+// AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
+service AdminService {
+    rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
+    rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
+    rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
+}
+
+message CancelTasksRequest {
+    repeated string externalIds = 1; // a list of external UUIDs
+    optional TasksFilter filter = 2;
+}
+
+message ReplayTasksRequest {
+    repeated string externalIds = 1; // a list of external UUIDs
+    optional TasksFilter filter = 2;
+}
+
+message TasksFilter {
+    repeated string statuses = 1;
+    google.protobuf.Timestamp since = 2;
+    optional google.protobuf.Timestamp until = 3;
+    repeated string workflow_ids = 4;
+    repeated string additional_metadata = 5;
+}
+
+message CancelTasksResponse {
+    repeated string cancelled_tasks = 1;
+}
+
+message ReplayTasksResponse {
+    repeated string replayed_tasks = 1;
+}
+
+message TriggerWorkflowRunRequest {
+    string workflow_name = 1;
+    bytes input = 2;
+    bytes additional_metadata = 3;
+}
+
+message TriggerWorkflowRunResponse {
+    string external_id = 1;
+}

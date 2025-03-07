@@ -8,7 +8,7 @@ import {
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 
-const routes: RouteObject[] = [
+export const routes: RouteObject[] = [
   {
     path: '/',
     element: <Root />,
@@ -433,16 +433,29 @@ const routes: RouteObject[] = [
               {
                 path: '/v1/workflow-runs',
                 lazy: async () =>
-                  import('./pages/main/v1/workflow-runs').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
+                  import('./pages/main/v1/workflow-runs-v1/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
               },
               {
                 path: '/v1/workflow-runs/:run',
                 lazy: async () =>
-                  import('./pages/main/v1/workflow-runs/$run').then((res) => {
+                  import('./pages/main/v1/workflow-runs-v1/$run').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/task-runs/:run',
+                lazy: async () =>
+                  import('./pages/main/v1/task-runs-v1/$run').then((res) => {
                     return {
                       Component: res.default,
                     };

@@ -133,13 +133,13 @@ export interface APIResourceMeta {
   /**
    * the time that this resource was created
    * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
+   * @example "2022-12-13T15:06:48.888358-05:00"
    */
   createdAt: string;
   /**
    * the time that this resource was last updated
    * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
+   * @example "2022-12-13T15:06:48.888358-05:00"
    */
   updatedAt: string;
 }
@@ -215,6 +215,8 @@ export interface Tenant {
   analyticsOptOut?: boolean;
   /** Whether to alert tenant members. */
   alertMemberEmails?: boolean;
+  /** The version of the tenant. */
+  version: 'V0' | 'V1';
 }
 
 export interface TenantMember {
@@ -409,6 +411,8 @@ export interface UpdateTenantRequest {
   enableTenantResourceLimitAlerts?: boolean;
   /** The max frequency at which to alert. */
   maxAlertingFrequency?: string;
+  /** The version of the tenant. */
+  version?: any;
 }
 
 export interface Event {
@@ -475,6 +479,11 @@ export interface EventWorkflowRunSummary {
    * @format int64
    */
   failed?: number;
+  /**
+   * The number of cancelled runs.
+   * @format int64
+   */
+  cancelled?: number;
 }
 
 export enum EventOrderByField {
@@ -518,7 +527,7 @@ export interface RateLimit {
   /**
    * The last time the rate limit was refilled.
    * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
+   * @example "2022-12-13T15:06:48.888358-05:00"
    */
   lastRefill: string;
 }
@@ -850,6 +859,7 @@ export interface WorkflowRunsMetricsCounts {
   SUCCEEDED?: number;
   FAILED?: number;
   QUEUED?: number;
+  CANCELLED?: number;
 }
 
 export enum WorkflowRunStatus {
@@ -859,6 +869,7 @@ export enum WorkflowRunStatus {
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
   QUEUED = 'QUEUED',
+  BACKOFF = 'BACKOFF',
 }
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
@@ -881,6 +892,7 @@ export enum JobRunStatus {
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
+  BACKOFF = 'BACKOFF',
 }
 
 export enum StepRunStatus {
@@ -892,6 +904,7 @@ export enum StepRunStatus {
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
   CANCELLING = 'CANCELLING',
+  BACKOFF = 'BACKOFF',
 }
 
 export interface JobRun {
@@ -1103,13 +1116,13 @@ export interface Worker {
   /**
    * The time this worker last sent a heartbeat.
    * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
+   * @example "2022-12-13T15:06:48.888358-05:00"
    */
   lastHeartbeatAt?: string;
   /**
    * The time this worker last sent a heartbeat.
    * @format date-time
-   * @example "2022-12-13T20:06:48.888Z"
+   * @example "2022-12-13T15:06:48.888358-05:00"
    */
   lastListenerEstablished?: string;
   /** The actions this worker can perform. */
@@ -1397,4 +1410,288 @@ export interface WebhookWorkerCreateResponse {
 export interface WebhookWorkerListResponse {
   pagination?: PaginationResponse;
   rows?: WebhookWorker[];
+}
+
+export interface V1TaskSummaryList {
+  pagination: PaginationResponse;
+  /** The list of tasks */
+  rows: V1TaskSummary[];
+}
+
+export interface V1TaskSummary {
+  metadata: APIResourceMeta;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /** The input of the task run. */
+  input?: object;
+  /** The type of the workflow (whether it's a DAG or a task) */
+  type: 'DAG' | 'TASK';
+  /**
+   * The version ID of the workflow
+   * @format uuid
+   */
+  workflowVersionId?: string;
+  /**
+   * The timestamp the task was created.
+   * @format date-time
+   */
+  createdAt?: string;
+  /** The list of children tasks */
+  children?: V1TaskSummary[];
+}
+
+export interface V1DagChildren {
+  /** @format uuid */
+  dagId?: string;
+  children?: V1TaskSummary[];
+}
+
+export interface V1Task {
+  metadata: APIResourceMeta;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The input for the task run. */
+  input: string;
+  /** The output of the task run (for the latest run) */
+  output?: string;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The external ID of the workflow run.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowRunExternalId?: string;
+}
+
+export interface V1TaskEventList {
+  pagination?: PaginationResponse;
+  rows?: {
+    id: number;
+    /** @format uuid */
+    taskId: string;
+    /** @format date-time */
+    timestamp: string;
+    eventType:
+      | 'REQUEUED_NO_WORKER'
+      | 'REQUEUED_RATE_LIMIT'
+      | 'SCHEDULING_TIMED_OUT'
+      | 'ASSIGNED'
+      | 'STARTED'
+      | 'FINISHED'
+      | 'FAILED'
+      | 'RETRYING'
+      | 'CANCELLED'
+      | 'TIMED_OUT'
+      | 'REASSIGNED'
+      | 'SLOT_RELEASED'
+      | 'TIMEOUT_REFRESHED'
+      | 'RETRIED_BY_USER'
+      | 'SENT_TO_WORKER'
+      | 'RATE_LIMIT_ERROR'
+      | 'ACKNOWLEDGED'
+      | 'CREATED'
+      | 'QUEUED'
+      | 'SKIPPED';
+    message: string;
+    errorMessage?: string;
+    output?: string;
+    /** @format uuid */
+    workerId?: string;
+    taskDisplayName?: string;
+  }[];
+}
+
+export enum V1TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+}
+
+export type V1TaskRunMetrics = {
+  status: V1TaskStatus;
+  count: number;
+}[];
+
+export interface V1TaskPointMetric {
+  /** @format date-time */
+  time: string;
+  SUCCEEDED: number;
+  FAILED: number;
+}
+
+export interface V1TaskPointMetrics {
+  results?: V1TaskPointMetric[];
+}
+
+export interface V1TaskFilter {
+  /** @format date-time */
+  since: string;
+  /** @format date-time */
+  until?: string;
+  statuses?: V1TaskStatus[];
+  workflowIds?: string[];
+  additionalMetadata?: string[];
+}
+
+export interface V1CancelTaskRequest {
+  /** A list of external IDs, which can refer to either task or workflow run external IDs */
+  externalIds?: string[];
+  filter?: V1TaskFilter;
+}
+
+export interface V1ReplayTaskRequest {
+  /** A list of external IDs, which can refer to either task or workflow run external IDs */
+  externalIds?: string[];
+  filter?: V1TaskFilter;
+}
+
+export interface V1WorkflowRun {
+  metadata: APIResourceMeta;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The ID of the workflow version.
+   * @format uuid
+   */
+  workflowVersionId?: string;
+  /** The input of the task run. */
+  input: object;
+  /**
+   * The timestamp the task run was created.
+   * @format date-time
+   */
+  createdAt?: string;
+}
+
+export interface V1WorkflowRunDetails {
+  run: V1WorkflowRun;
+  /** The list of task events for the workflow run */
+  taskEvents: any[];
+  shape: {
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    taskExternalId: string;
+    childrenExternalIds: string[];
+    taskName: string;
+  }[];
+  tasks: V1TaskSummary[];
+}
+
+export enum V1TaskRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }

@@ -126,7 +126,7 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      navigate(`/workflow-runs/${workflowRun.metadata.id}`);
+      navigate(`/v1/workflow-runs/${workflowRun.metadata.id}`);
     },
     onError: handleApiError,
   });
@@ -162,7 +162,7 @@ export function TriggerWorkflowForm({
         return;
       }
       onClose();
-      navigate(`/scheduled`);
+      navigate(`/v1/scheduled`);
     },
     onError: handleApiError,
   });
@@ -200,7 +200,7 @@ export function TriggerWorkflowForm({
         return;
       }
       onClose();
-      navigate(`/cron-jobs`);
+      navigate(`/v1/cron-jobs`);
     },
     onError: handleApiError,
   });

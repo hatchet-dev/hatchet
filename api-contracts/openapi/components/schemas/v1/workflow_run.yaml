@@ -58,20 +58,6 @@ V1WorkflowRun:
     - output
     - input
 
-V1WorkflowRunList:
-  type: object
-  properties:
-    pagination:
-      $ref: ".././metadata.yaml#/PaginationResponse"
-    rows:
-      type: array
-      items:
-        $ref: "#/V1WorkflowRun"
-      description: The list of workflow runs
-  required:
-    - pagination
-    - rows
-
 WorkflowRunShapeItemForWorkflowRunDetails:
   type: object
   properties:
@@ -80,7 +66,12 @@ WorkflowRunShapeItemForWorkflowRunDetails:
       format: uuid
       minLength: 36
       maxLength: 36
-    childrenExternalIds:
+    stepId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    childrenStepIds:
       type: array
       items:
         type: string
@@ -91,7 +82,8 @@ WorkflowRunShapeItemForWorkflowRunDetails:
       type: string
   required:
     - taskExternalId
-    - childrenExternalIds
+    - stepId
+    - childrenStepIds
     - taskName
 
 WorkflowRunShapeForWorkflowRunDetails:
@@ -119,3 +111,16 @@ V1WorkflowRunDetails:
     - taskEvents
     - shape
     - tasks
+
+V1TriggerWorkflowRunRequest:
+  properties:
+    workflowName:
+      type: string
+      description: The name of the workflow.
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+  required:
+    - workflowName
+    - input

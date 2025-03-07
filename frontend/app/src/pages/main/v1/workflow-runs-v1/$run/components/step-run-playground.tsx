@@ -27,7 +27,7 @@ import {
 import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { TaskRunsTable as WorkflowRunsTable } from '../../components/workflow-runs-table';
+import { TaskRunsTable } from '../../components/task-runs-table';
 import { StepRunEvents } from './step-run-events';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 
@@ -391,7 +391,7 @@ export function StepRunPlayground({
                         <QuestionMarkCircleIcon
                           className={cn('h-4 w-4 mr-2')}
                         />
-                        Help: How to handle cancelation signaling
+                        Help: How to handle cancellation signaling
                       </span>
                     </Button>
                   </a>
@@ -409,8 +409,6 @@ export function StepRunPlayground({
               Child Workflow Runs
             </div>
             <ChildWorkflowRuns
-              stepRun={stepRun}
-              workflowRun={workflowRun}
               refetchInterval={workflowRun.status === 'RUNNING' ? 1000 : 5000}
             />
           </div>
@@ -421,21 +419,15 @@ export function StepRunPlayground({
 }
 
 export function ChildWorkflowRuns({
-  stepRun,
-  workflowRun,
   refetchInterval,
 }: {
-  stepRun: StepRun | undefined;
-  workflowRun: WorkflowRun;
   refetchInterval?: number;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
   return (
-    <WorkflowRunsTable
-      parentWorkflowRunId={workflowRun.metadata.id}
-      parentStepRunId={stepRun?.metadata.id}
+    <TaskRunsTable
       refetchInterval={refetchInterval}
       initColumnVisibility={{
         'Triggered by': false,

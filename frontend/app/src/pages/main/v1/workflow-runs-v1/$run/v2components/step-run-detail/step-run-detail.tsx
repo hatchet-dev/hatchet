@@ -1,16 +1,9 @@
-import React from 'react';
-import {
-  StepRun,
-  StepRunStatus,
-  V1TaskStatus,
-  WorkflowRun,
-  queries,
-} from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
-import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { LinkIcon } from '@heroicons/react/24/outline';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
@@ -19,15 +12,18 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
-import { TaskRunsTable as WorkflowRunsTable } from '../../../components/workflow-runs-table';
+import { Link } from 'react-router-dom';
+import { TaskRunsTable } from '../../../components/task-runs-table';
 import { useTenant } from '@/lib/atoms';
-import { V2RunIndicator } from '../../../components/run-statuses';
+import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
-import { V2StepRunOutput } from './step-run-output';
+import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { TaskRunMiniMap } from '../mini-map';
+import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
+import { StepRunLogs } from './step-run-logs';
 
 export enum TabOption {
   Output = 'output',
@@ -36,54 +32,70 @@ export enum TabOption {
   Logs = 'logs',
 }
 
-interface StepRunDetailProps {
+interface TaskRunDetailProps {
   taskRunId: string;
   defaultOpenTab?: TabOption;
+  showViewTaskRunButton?: boolean;
 }
 
-export const STEP_RUN_TERMINAL_STATUSES = [
-  StepRunStatus.CANCELLING,
-  StepRunStatus.CANCELLED,
-  StepRunStatus.FAILED,
-  StepRunStatus.SUCCEEDED,
+export const TASK_RUN_TERMINAL_STATUSES = [
+  V1TaskStatus.CANCELLED,
+  V1TaskStatus.FAILED,
+  V1TaskStatus.COMPLETED,
 ];
 
-const StepRunDetail: React.FC<StepRunDetailProps> = ({
+const TaskRunPermalinkOrBacklink = ({
+  taskRun,
+  showViewTaskRunButton,
+}: {
+  taskRun: V1TaskSummary;
+  showViewTaskRunButton: boolean;
+}) => {
+  if (showViewTaskRunButton) {
+    return (
+      <Link to={`/v1/task-runs/${taskRun.metadata.id}`}>
+        <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
+          <LinkIcon className="w-4 h-4" />
+          View Task Run
+        </Button>
+      </Link>
+    );
+  } else if (taskRun.workflowRunExternalId) {
+    return (
+      <Link to={`/v1/workflow-runs/${taskRun.workflowRunExternalId}`}>
+        <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
+          <LinkIcon className="w-4 h-4" />
+          View Workflow Run
+        </Button>
+      </Link>
+    );
+  } else {
+    return null;
+  }
+};
+
+export const TaskRunDetail = ({
   taskRunId,
   defaultOpenTab = TabOption.Output,
-}) => {
+  showViewTaskRunButton,
+}: TaskRunDetailProps) => {
   const { tenant } = useTenant();
 
   const tenantId = tenant?.metadata.id;
-
-  if (!tenantId) {
-    throw new Error('Tenant not found');
-  }
-
-  const errors: string[] = [];
-
-  const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenantId, {
-      offset: 0,
-      limit: 50,
-    }),
-    refetchInterval: () => {
-      return 5000;
-    },
-  });
+  invariant(tenantId);
 
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
+    refetchInterval: 5000,
   });
 
-  const events = eventsQuery.data?.rows || [];
   const taskRun = taskRunQuery.data;
 
-  if (eventsQuery.isLoading || taskRunQuery.isLoading) {
+  if (taskRunQuery.isLoading) {
     return <Loading />;
   }
 
-  if (events.length === 0 || !taskRun) {
+  if (!taskRun) {
     return <div>No events found</div>;
   }
 
@@ -92,76 +104,52 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-row justify-between items-center w-full">
           <div className="flex flex-row gap-4 items-center">
-            {taskRun.status && <V2RunIndicator status={taskRun.status} />}
+            {taskRun.status && <V1RunIndicator status={taskRun.status} />}
             <h3 className="text-lg font-mono font-semibold leading-tight tracking-tight text-foreground flex flex-row gap-4 items-center">
               {taskRun.displayName || 'Step Run Detail'}
             </h3>
           </div>
         </div>
       </div>
+
       <div className="flex flex-row gap-2 items-center">
-        <Button
-          size={'sm'}
-          className="px-2 py-2 gap-2"
-          variant={'outline'}
-          // disabled={!STEP_RUN_TERMINAL_STATUSES.includes(stepRun.status)}
-          onClick={() => {
-            // if (!stepRun.input) {
-            //   return;
-            // }
-            // let parsedInput: object;
-            // try {
-            //   parsedInput = JSON.parse(stepRun.input);
-            // } catch (e) {
-            //   return;
-            // }
-            // rerunStepMutation.mutate(parsedInput);
-          }}
-          disabled
-        >
-          <ArrowPathIcon className="w-4 h-4" />
-          Replay
-        </Button>
-        <Button
-          size={'sm'}
-          className="px-2 py-2 gap-2"
-          variant={'outline'}
-          // disabled={STEP_RUN_TERMINAL_STATUSES.includes(stepRun.status)}
-          onClick={() => {
-            // cancelStepMutation.mutate();
-          }}
-          disabled
-        >
-          <XCircleIcon className="w-4 h-4" />
-          Cancel
-        </Button>
+        <TaskRunActionButton
+          actionType="replay"
+          params={{ externalIds: [taskRunId] }}
+          disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          showModal={false}
+        />
+        <TaskRunActionButton
+          actionType="cancel"
+          params={{ externalIds: [taskRunId] }}
+          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          showModal={false}
+        />
+        <TaskRunPermalinkOrBacklink
+          taskRun={taskRun}
+          showViewTaskRunButton={showViewTaskRunButton || false}
+        />
+        <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
       </div>
-      {errors && errors.length > 0 && (
-        <div className="mt-4">
-          {errors.map((error, index) => (
-            <div key={index} className="text-red-500">
-              {error}
-            </div>
-          ))}
-        </div>
-      )}
       <div className="flex flex-row gap-2 items-center">
-        <V2StepRunSummary taskRunId={taskRunId} />
+        <V1StepRunSummary taskRunId={taskRunId} />
+      </div>
+      <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
+        <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
       </div>
       <Tabs defaultValue={defaultOpenTab}>
         <TabsList layout="underlined">
           <TabsTrigger variant="underlined" value={TabOption.Output}>
             Output
           </TabsTrigger>
-          {/* {stepRun.childWorkflowRuns &&
-            stepRun.childWorkflowRuns.length > 0 && (
-              <TabsTrigger
-                variant="underlined"
-                value={TabOption.ChildWorkflowRuns}
-              >
-                Children ({stepRun.childWorkflowRuns.length})
-              </TabsTrigger>
-            )} */}
+          {taskRun.numSpawnedChildren > 0 && (
+            <TabsTrigger
+              variant="underlined"
+              value={TabOption.ChildWorkflowRuns}
+            >
+              Children ({taskRun.numSpawnedChildren})
+            </TabsTrigger>
+          )}
           <TabsTrigger variant="underlined" value={TabOption.Input}>
             Input
           </TabsTrigger>
@@ -170,14 +158,15 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           </TabsTrigger>
         </TabsList>
         <TabsContent value={TabOption.Output}>
-          <V2StepRunOutput taskRunId={taskRunId} />
+          <V1StepRunOutput taskRunId={taskRunId} />
         </TabsContent>
-        <TabsContent value={TabOption.ChildWorkflowRuns}>
-          {/* <ChildWorkflowRuns
-            stepRun={stepRun}
-            workflowRun={workflowRun}
-            refetchInterval={5000}
-          /> */}
+        <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
+          <TaskRunsTable
+            parentTaskExternalId={taskRunId}
+            showCounts={false}
+            showMetrics={false}
+            disableTaskRunPagination={true}
+          />
         </TabsContent>
         <TabsContent value={TabOption.Input}>
           {taskRun.input && (
@@ -186,7 +175,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
               maxHeight="400px"
               minHeight="400px"
               language="json"
-              code={JSON.stringify(JSON.parse(taskRun.input), null, 2)}
+              code={JSON.stringify(taskRun.input, null, 2)}
             />
           )}
         </TabsContent>
@@ -198,7 +187,9 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           /> */}
         </TabsContent>
 
-        <TabsContent value="logs">App Logs</TabsContent>
+        <TabsContent value="logs">
+          <StepRunLogs taskRun={taskRun} />
+        </TabsContent>
       </Tabs>
       <Separator className="my-4" />
       <div className="mb-8">
@@ -207,89 +198,16 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         </h3>
         {/* TODO: Real onclick callback here */}
         <StepRunEvents
+          taskRunId={taskRunId}
           onClick={() => {}}
-          taskDisplayName={taskRun.displayName}
+          fallbackTaskDisplayName={taskRun.displayName}
         />
       </div>
     </div>
   );
 };
 
-export default StepRunDetail;
-
-export const StepRunSummary: React.FC<{ data: StepRun }> = ({ data }) => {
-  const timings = [];
-
-  if (data.startedAt) {
-    timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
-        {'Started '}
-        <RelativeDate date={data.startedAt} />
-      </div>,
-    );
-  } else {
-    timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
-        Running
-      </div>,
-    );
-  }
-
-  if (data.status === StepRunStatus.CANCELLED && data.cancelledAt) {
-    timings.push(
-      <div key="finished" className="text-sm text-muted-foreground">
-        {'Cancelled '}
-        <RelativeDate date={data.cancelledAt} />
-      </div>,
-    );
-  }
-
-  if (data.status === StepRunStatus.FAILED && data.finishedAt) {
-    timings.push(
-      <div key="finished" className="text-sm text-muted-foreground">
-        {'Failed '}
-        <RelativeDate date={data.finishedAt} />
-      </div>,
-    );
-  }
-
-  if (data.status === StepRunStatus.SUCCEEDED && data.finishedAt) {
-    timings.push(
-      <div key="finished" className="text-sm text-muted-foreground">
-        {'Succeeded '}
-        <RelativeDate date={data.finishedAt} />
-      </div>,
-    );
-  }
-
-  if (data.finishedAtEpoch && data.startedAtEpoch) {
-    timings.push(
-      <div key="duration" className="text-sm text-muted-foreground">
-        Run took {formatDuration(data.finishedAtEpoch - data.startedAtEpoch)}
-      </div>,
-    );
-  }
-
-  // interleave the timings with a dot
-  const interleavedTimings: JSX.Element[] = [];
-
-  timings.forEach((timing, index) => {
-    interleavedTimings.push(timing);
-    if (index < timings.length - 1) {
-      interleavedTimings.push(
-        <div key={`dot-${index}`} className="text-sm text-muted-foreground">
-          |
-        </div>,
-      );
-    }
-  });
-
-  return (
-    <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
-  );
-};
-
-const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
+const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   if (!tenantId) {
@@ -313,12 +231,6 @@ const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
       <div key="created" className="text-sm text-muted-foreground">
         {'Started '}
         <RelativeDate date={data.startedAt} />
-      </div>,
-    );
-  } else {
-    timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
-        Running
       </div>,
     );
   }
@@ -367,28 +279,3 @@ const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
     <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
   );
 };
-
-export function ChildWorkflowRuns({
-  stepRun,
-  workflowRun,
-  refetchInterval,
-}: {
-  stepRun: StepRun | undefined;
-  workflowRun: WorkflowRun;
-  refetchInterval?: number;
-}) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  return (
-    <WorkflowRunsTable
-      parentWorkflowRunId={workflowRun.metadata.id}
-      parentStepRunId={stepRun?.metadata.id}
-      refetchInterval={refetchInterval}
-      initColumnVisibility={{
-        'Triggered by': false,
-      }}
-      createdAfter={stepRun?.metadata.createdAt}
-    />
-  );
-}

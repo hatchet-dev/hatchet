@@ -12,7 +12,7 @@ export const columns: ColumnDef<Worker>[] = [
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => (
-      <Link to={`/workers/${row.original.metadata.id}`}>
+      <Link to={`/v1/workers/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.status}
         </div>
@@ -27,7 +27,7 @@ export const columns: ColumnDef<Worker>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <Link to={`/workers/${row.original.metadata.id}`}>
+      <Link to={`/v1/workers/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.webhookUrl || row.original.name}
         </div>

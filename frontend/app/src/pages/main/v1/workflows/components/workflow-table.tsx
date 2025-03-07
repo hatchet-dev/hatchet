@@ -122,7 +122,7 @@ export function WorkflowTable() {
       <div className="px-4 py-5 sm:p-6">
         <div className="flex flex-row justify-between items-center">
           <h3 className="text-lg leading-6 font-medium text-foreground">
-            <Link to={`/workflows/${data.metadata?.id}`}>{data.name}</Link>
+            <Link to={`/v1/workflows/${data.metadata?.id}`}>{data.name}</Link>
           </h3>
           {data.isPaused ? (
             <Badge variant="inProgress">Paused</Badge>
@@ -139,7 +139,7 @@ export function WorkflowTable() {
       </div>
       <div className="px-4 py-4 sm:px-6">
         <div className="text-sm text-background-secondary">
-          <Link to={`/workflows/${data.metadata?.id}`}>
+          <Link to={`/v1/workflows/${data.metadata?.id}`}>
             <Button>View Workflow</Button>
           </Link>
         </div>

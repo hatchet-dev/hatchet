@@ -61,7 +61,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <Link to={`/workflows/${row.original.workflowId}`}>
+            <Link to={`/v1/workflows/${row.original.workflowId}`}>
               {row.original.workflowName}
             </Link>
           </div>

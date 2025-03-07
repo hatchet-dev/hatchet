@@ -83,15 +83,19 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1CancelTaskRequest,
   V1DagChildren,
-  V1Task,
+  V1LogLineList,
+  V1ReplayTaskRequest,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
   V1TaskStatus,
+  V1TaskSummary,
   V1TaskSummaryList,
+  V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
-  V1WorkflowRunList,
+  V1WorkflowRunDisplayNameList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -120,62 +124,6 @@ import { ContentType, HttpClient, RequestParams } from './http-client';
 
 export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
   /**
-   * @description Lists all tasks for a tenant.
-   *
-   * @tags Task
-   * @name V1TaskList
-   * @summary List tasks
-   * @request GET:/api/v1/stable/tenants/{tenant}/tasks
-   * @secure
-   */
-  v1TaskList = (
-    tenant: string,
-    query: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-      /** A list of task statuses to filter by */
-      statuses?: V1TaskStatus[];
-      /**
-       * The earliest date to filter by
-       * @format date-time
-       */
-      since: string;
-      /**
-       * The earliest date to filter by
-       * @format date-time
-       */
-      until?: string;
-      /** Additional metadata k-v pairs to filter by */
-      additional_metadata?: string[];
-      /** The workflow ids to find runs for */
-      workflow_ids?: string[];
-      /**
-       * The worker id to filter by
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      worker_id?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<V1TaskSummaryList, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/tasks`,
-      method: 'GET',
-      query: query,
-      secure: true,
-      format: 'json',
-      ...params,
-    });
-  /**
    * @description Get a task by id
    *
    * @tags Task
@@ -185,7 +133,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1TaskGet = (task: string, params: RequestParams = {}) =>
-    this.request<V1Task, APIErrors>({
+    this.request<V1TaskSummary, APIErrors>({
       path: `/api/v1/stable/tasks/${task}`,
       method: 'GET',
       secure: true,
@@ -223,6 +171,59 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       query: query,
       secure: true,
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists log lines for a task
+   *
+   * @tags Log
+   * @name V1LogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/stable/tasks/{task}/logs
+   * @secure
+   */
+  v1LogLineList = (task: string, params: RequestParams = {}) =>
+    this.request<V1LogLineList, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/logs`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Cancel tasks
+   *
+   * @tags Task
+   * @name V1TaskCancel
+   * @summary Cancel tasks
+   * @request POST:/api/v1/stable/tenants/{tenant}/tasks/cancel
+   * @secure
+   */
+  v1TaskCancel = (tenant: string, data: V1CancelTaskRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Replay tasks
+   *
+   * @tags Task
+   * @name V1TaskReplay
+   * @summary Replay tasks
+   * @request POST:/api/v1/stable/tenants/{tenant}/tasks/replay
+   * @secure
+   */
+  v1TaskReplay = (tenant: string, data: V1ReplayTaskRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**
@@ -294,14 +295,74 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       additional_metadata?: string[];
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
+      /**
+       * The worker id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      worker_id?: string;
+      /** Whether to include DAGs or only to include tasks */
+      only_tasks: boolean;
+      /**
+       * The parent task external id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
     },
     params: RequestParams = {},
   ) =>
-    this.request<V1WorkflowRunList, APIErrors>({
+    this.request<V1TaskSummaryList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
       method: 'GET',
       query: query,
       secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists displayable names of workflow runs for a tenant
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunDisplayNamesList
+   * @summary List workflow runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/display-names
+   * @secure
+   */
+  v1WorkflowRunDisplayNamesList = (
+    tenant: string,
+    query: {
+      /** The external ids of the workflow runs to get display names for */
+      external_ids: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunDisplayNameList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/display-names`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Trigger a new workflow run
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunCreate
+   * @summary Create workflow run
+   * @request POST:/api/v1/stable/tenants/{tenant}/workflow-runs/trigger
+   * @secure
+   */
+  v1WorkflowRunCreate = (tenant: string, data: V1TriggerWorkflowRunRequest, params: RequestParams = {}) =>
+    this.request<V1WorkflowRunDetails, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });
@@ -374,6 +435,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       since: string;
       /** The workflow id to find runs for */
       workflow_ids?: string[];
+      /**
+       * The parent task's external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
     },
     params: RequestParams = {},
   ) =>

@@ -36,6 +36,13 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		updateOpts.Name = request.Body.Name
 	}
 
+	if request.Body.Version != nil {
+		updateOpts.Version = &dbsqlc.NullTenantMajorEngineVersion{
+			Valid:                    true,
+			TenantMajorEngineVersion: dbsqlc.TenantMajorEngineVersion(*request.Body.Version),
+		}
+	}
+
 	// update the tenant
 	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
 

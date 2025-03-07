@@ -171,6 +171,7 @@ from hatchet_sdk.clients.rest.models.tenant_resource_policy import TenantResourc
 from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
     TenantStepRunQueueMetrics,
 )
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
     TriggerWorkflowRunRequest,
 )
@@ -192,6 +193,24 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
     UserTenantMembershipsList,
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
+from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
+from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
+from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
+from hatchet_sdk.clients.rest.models.v1_task import V1Task
+from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
+from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
+from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
+from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
+from hatchet_sdk.clients.rest.models.v1_task_point_metric import V1TaskPointMetric
+from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
+from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
+from hatchet_sdk.clients.rest.models.v1_task_run_status import V1TaskRunStatus
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
+from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
+from hatchet_sdk.clients.rest.models.v1_workflow_type import V1WorkflowType
 from hatchet_sdk.clients.rest.models.webhook_worker import WebhookWorker
 from hatchet_sdk.clients.rest.models.webhook_worker_create_request import (
     WebhookWorkerCreateRequest,
@@ -230,6 +249,9 @@ from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import (
     WorkflowRunOrderByField,
 )
 from hatchet_sdk.clients.rest.models.workflow_run_shape import WorkflowRunShape
+from hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details import (
+    WorkflowRunShapeItemForWorkflowRunDetails,
+)
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import (
     WorkflowRunTriggeredBy,

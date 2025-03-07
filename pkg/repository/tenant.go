@@ -26,6 +26,8 @@ type UpdateTenantOpts struct {
 	AnalyticsOptOut *bool `validate:"omitempty"`
 
 	AlertMemberEmails *bool `validate:"omitempty"`
+
+	Version *dbsqlc.NullTenantMajorEngineVersion `validate:"omitempty"`
 }
 
 type CreateTenantMemberOpts struct {
@@ -104,12 +106,16 @@ type TenantEngineRepository interface {
 	// ListTenants lists all tenants in the instance
 	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
 
+	// Gets the tenant corresponding to the "internal" tenant if it's assigned to this controller.
+	// Returns nil if the tenant is not assigned to this controller.
+	GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*dbsqlc.Tenant, error)
+
 	// ListTenantsByPartition lists all tenants in the given partition
-	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
-	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
-	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
 	// CreateEnginePartition creates a new partition for tenants within the engine
 	CreateControllerPartition(ctx context.Context) (string, error)

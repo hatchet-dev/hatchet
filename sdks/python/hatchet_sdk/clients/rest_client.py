@@ -160,7 +160,7 @@ class RestApi:
 
     async def close(self) -> None:
         # Ensure the aiohttp client session is closed
-        await self.api_client.close()
+        await self.api_client.close()  # type: ignore[no-untyped-call]
 
     async def aio_list_workflows(self) -> WorkflowList:
         return await self.workflow_api.workflow_list(

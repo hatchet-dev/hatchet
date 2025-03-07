@@ -5,7 +5,7 @@ import { memo, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { RunIndicator, RunStatus } from '../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { TabOption } from './step-run-detail/step-run-detail';
+import { TabOption } from '../../../workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
 
 export interface StepRunNodeProps {
   stepRun: StepRun;
@@ -36,7 +36,7 @@ export default memo(({ data }: { data: StepRunNodeProps }) => {
       )}
       <div
         key={step.metadata.id}
-        data-step-id={step.metadata.id}
+        // data-step-id={step.metadata.id}
         className={cn(
           `step-run-card shadow-md rounded-sm py-3 px-2 mb-1 w-full text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
           `transition-all duration-300 ease-in-out`,

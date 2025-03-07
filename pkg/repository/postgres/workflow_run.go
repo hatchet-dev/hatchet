@@ -175,7 +175,7 @@ func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, t
 	return scheduledWorkflows, count, nil
 }
 
-func (w *workflowRunAPIRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error {
+func (w *sharedRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error {
 	return w.queries.DeleteScheduledWorkflow(ctx, w.pool, sqlchelpers.UUIDFromStr(scheduledWorkflowId))
 }
 
@@ -204,6 +204,10 @@ func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, 
 		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
 		Triggerat:  sqlchelpers.TimestampFromTime(triggerAt),
 	})
+}
+
+func (w *workflowRunAPIRepository) GetWorkflowRunShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*dbsqlc.GetWorkflowRunShapeRow, error) {
+	return w.queries.GetWorkflowRunShape(ctx, w.pool, sqlchelpers.UUIDFromStr(workflowVersionId.String()))
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {

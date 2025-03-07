@@ -41,7 +41,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	if err == nil {
 		// just return bad request
 		return gen.TenantCreate400JSONResponse(
-			apierrors.NewAPIErrors("Tenant with the slug already exists."),
+			apierrors.NewAPIErrors("Tenant with that slug already exists."),
 		), nil
 	}
 

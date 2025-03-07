@@ -1,131 +1,181 @@
-import React, { useMemo } from 'react';
-import { Step, StepRun, WorkflowRunShape } from '@/lib/api';
+import { useMemo } from 'react';
+import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
-import { hasChildSteps } from './view-toggle';
-import { cn } from '@/lib/utils';
-
-interface MiniMapProps {
-  shape: WorkflowRunShape;
-  selectedStepRunId?: string;
-  onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;
-}
-
-export const MiniMap: React.FC<MiniMapProps> = ({ shape, onClick }) => {
-  return (
-    <div className={cn('grow', hasChildSteps(shape) && 'pb-12')}>
-      {shape.jobRuns?.map(({ job, stepRuns }, idx) => {
-        const steps = job?.steps;
-
-        if (!steps || !stepRuns) {
-          return null;
-        }
-
-        return (
-          <JobMiniMap
-            steps={steps}
-            stepRuns={stepRuns}
-            key={idx}
-            onClick={(stepRunId, defaultOpenTab) =>
-              onClick(stepRunId, defaultOpenTab)
-            }
-          />
-        );
-      })}
-    </div>
-  );
-};
+import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { useQuery } from '@tanstack/react-query';
 
 interface JobMiniMapProps {
-  steps: Step[];
-  stepRuns: StepRun[];
-  selectedStepRunId?: string;
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;
 }
 
-export const JobMiniMap: React.FC<JobMiniMapProps> = ({
-  steps = [],
-  stepRuns = [],
-  onClick,
-}) => {
+type NodeRelationship = {
+  node: string;
+  children: string[];
+  parents: string[];
+};
+
+export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
+  const { shape, taskRuns: tasks, isLoading, isError } = useWorkflowDetails();
+
+  const taskRunRelationships: NodeRelationship[] = useMemo(() => {
+    if (!shape || !tasks) {
+      return [];
+    }
+
+    return shape.map((shapeItem) => {
+      const node = shapeItem.stepId ?? 'placeholder';
+
+      const children = shapeItem?.childrenStepIds || [];
+      const parents = shape
+        .filter((i) => node && i.childrenStepIds.includes(node))
+        .map((i) => i.stepId);
+
+      return {
+        node,
+        children,
+        parents,
+      };
+    });
+  }, [shape, tasks]);
+
   const columns = useMemo(() => {
-    const columns: Step[][] = [];
+    const columns: WorkflowRunShapeItemForWorkflowRunDetails[][] = [];
     const processed = new Set<string>();
 
-    const addToColumn = (step: Step, columnIndex: number) => {
+    const addToColumn = (
+      shapeItem: WorkflowRunShapeItemForWorkflowRunDetails,
+      columnIndex: number,
+    ) => {
       if (!columns[columnIndex]) {
         columns[columnIndex] = [];
       }
-      columns[columnIndex].push(step);
-      processed.add(step.metadata.id);
+
+      columns[columnIndex].push(shapeItem);
+      processed.add(shapeItem.stepId);
     };
 
-    const processStep = (step: Step) => {
-      if (processed.has(step.metadata.id)) {
+    const processTaskRun = (
+      shapeItem: WorkflowRunShapeItemForWorkflowRunDetails,
+    ) => {
+      if (processed.has(shapeItem.stepId)) {
         return;
       }
 
-      if (!step.parents || step.parents.length === 0) {
-        addToColumn(step, 0);
+      const relationship = taskRunRelationships.find(
+        (r) => r.node == shapeItem.stepId,
+      );
+
+      if (!relationship || relationship.parents.length === 0) {
+        addToColumn(shapeItem, 0);
       } else {
         const maxParentColumn = Math.max(
-          ...step.parents.map((parentId) => {
-            const parentStep = steps.find((s) => s.metadata.id === parentId);
+          ...relationship.parents.map((parentId) => {
+            const parentStep = shape.find((r) => r.stepId === parentId);
+
             return parentStep
               ? columns.findIndex((col) => col.includes(parentStep))
               : -1;
           }),
         );
 
-        addToColumn(step, maxParentColumn + 1);
+        if (maxParentColumn > -1) {
+          addToColumn(shapeItem, maxParentColumn + 1);
+        }
       }
     };
 
-    while (processed.size < steps.length) {
-      steps.forEach(processStep);
+    let iterations = 100;
+
+    while (processed.size < shape.length) {
+      if (iterations === 0) {
+        break;
+      }
+
+      // IMPORTANT: This can cause an infinite loop when rendering if
+      // nothing ever gets added to `processed`. Setting a max iterations to
+      // hopefully prevent that
+      shape.forEach(processTaskRun);
+      iterations -= 1;
     }
 
     return columns;
-  }, [steps]);
+  }, [taskRunRelationships, shape]);
 
-  const normalizedStepRunsByStepId = useMemo(() => {
-    return steps.reduce(
-      (acc, step) => {
-        const stepRun = stepRuns?.find((sr) => sr.stepId === step.metadata.id);
-        if (stepRun) {
-          acc[step.metadata.id] = stepRun;
-        }
-        return acc;
-      },
-      {} as Record<string, StepRun>,
-    );
-  }, [steps, stepRuns]);
+  if (isLoading || isError) {
+    return null;
+  }
 
   return (
-    <div className="flex flex-row p-4 rounded-sm relative gap-1">
+    <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
       {columns.map((column, colIndex) => (
         <div
           key={colIndex}
           className="flex flex-col justify-start h-full min-w-fit grow"
         >
-          {column.map((step) => {
-            const stepRun = normalizedStepRunsByStepId[step.metadata.id];
-
+          {column.map((shapeItem) => {
+            const taskRun = tasks.find(
+              (t) => t.metadata.id === shapeItem.taskExternalId,
+            );
             return (
               <StepRunNode
-                key={step.metadata.id}
+                key={shapeItem.stepId}
                 data={{
-                  step,
-                  stepRun,
+                  taskRun,
                   graphVariant: 'none',
-                  onClick: (tabOption) =>
-                    onClick(stepRun?.metadata.id, tabOption),
+                  onClick: () => onClick(taskRun?.metadata.id),
+                  childWorkflowsCount: taskRun?.numSpawnedChildren || 0,
+                  taskName: shapeItem.taskName,
                 }}
               />
             );
           })}
         </div>
       ))}
+    </div>
+  );
+};
+
+type UseTaskRunProps = {
+  taskRunId: string;
+};
+
+export const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
+  const taskRunQuery = useQuery({
+    ...queries.v1Tasks.get(taskRunId),
+    refetchInterval: 5000,
+  });
+
+  return {
+    taskRun: taskRunQuery.data,
+    isLoading: taskRunQuery.isLoading,
+    isError: taskRunQuery.isError,
+  };
+};
+
+export const TaskRunMiniMap = ({
+  onClick,
+  taskRunId,
+}: JobMiniMapProps & UseTaskRunProps) => {
+  const { taskRun, isLoading, isError } = useTaskRun({ taskRunId });
+
+  if (isLoading || isError || !taskRun) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
+      <div className="flex flex-col justify-start w-full h-fit grow">
+        <StepRunNode
+          data={{
+            taskRun,
+            graphVariant: 'none',
+            onClick: () => onClick(taskRun.metadata.id),
+            childWorkflowsCount: taskRun.numSpawnedChildren,
+            taskName: taskRun.displayName,
+          }}
+        />
+      </div>
     </div>
   );
 };

@@ -31,7 +31,8 @@ UPDATE
 SET
     "name" = COALESCE(sqlc.narg('name')::text, "name"),
     "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
-    "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails")
+    "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
+    "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version")
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
@@ -65,29 +66,32 @@ WHERE
     p."id" = sqlc.arg('workerPartitionId')::text
 RETURNING *;
 
+-- name: GetInternalTenantForController :one
+SELECT
+    *
+FROM
+    "Tenant" as tenants
+WHERE
+    "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
+    AND "slug" = 'internal';
+
 -- name: ListTenantsByControllerPartitionId :many
 SELECT
     *
 FROM
     "Tenant" as tenants
 WHERE
-    "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text;
+    "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
+    AND "version" = @majorVersion::"TenantMajorEngineVersion";
 
 -- name: ListTenantsByTenantWorkerPartitionId :many
-WITH update_partition AS (
-    UPDATE
-        "TenantWorkerPartition"
-    SET
-        "lastHeartbeat" = NOW()
-    WHERE
-        "id" = sqlc.arg('workerPartitionId')::text
-)
 SELECT
     *
 FROM
     "Tenant" as tenants
 WHERE
-    "workerPartitionId" = sqlc.arg('workerPartitionId')::text;
+    "workerPartitionId" = sqlc.arg('workerPartitionId')::text
+    AND "version" = @majorVersion::"TenantMajorEngineVersion";
 
 -- name: GetTenantByID :one
 SELECT
@@ -479,7 +483,8 @@ SELECT
 FROM
     "Tenant" as tenants
 WHERE
-    "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text;
+    "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text
+    AND "version" = @majorVersion::"TenantMajorEngineVersion";
 
 -- name: UpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" (
@@ -594,7 +599,8 @@ SELECT
     t."name" as "tenantName",
     t."slug" as "tenantSlug",
     t."alertMemberEmails" as "alertMemberEmails",
-    t."analyticsOptOut" as "analyticsOptOut"
+    t."analyticsOptOut" as "analyticsOptOut",
+    t."version" as "tenantVersion"
 FROM
     "TenantMember" tm
 JOIN

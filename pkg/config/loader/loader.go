@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
+	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -29,9 +31,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
@@ -40,9 +44,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	pgmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/postgres"
+	rabbitmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/rabbitmq"
+	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -197,6 +208,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
+	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod)
+
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
@@ -211,6 +230,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			ch.Stop()
 			meter.Stop()
+
+			if err := cleanupV1(); err != nil {
+				return err
+			}
+
 			return cleanupApiRepo()
 		},
 		Pool:                  pool,
@@ -219,6 +243,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
+		V1:                    v1,
 		Seed:                  cf.Seed,
 	}, nil
 
@@ -228,12 +253,10 @@ type ServerConfigFileOverride func(*server.ServerConfigFile)
 
 // CreateServerFromConfig loads the server configuration and returns a server
 func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
-
-	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
-	log.Printf("Shared file path: %s", sharedFilePath)
 
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
+
 	if err != nil {
 		return nil, nil, err
 	}
@@ -278,6 +301,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	var mq msgqueue.MessageQueue
+	var mqv1 msgqueuev1.MessageQueue
 	cleanup1 := func() error {
 		return nil
 	}
@@ -294,13 +318,37 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				postgres.WithLogger(&l),
 				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
+
+			mqv1 = pgmqv1.NewPostgresMQ(
+				dc.EngineRepository.MessageQueue(),
+				pgmqv1.WithLogger(&l),
+				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
+			)
 		case "rabbitmq":
-			cleanup1, mq = rabbitmq.New(
+			var cleanupv0 func() error
+			var cleanupv1 func() error
+
+			cleanupv0, mq = rabbitmq.New(
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 			)
+
+			cleanupv1, mqv1 = rabbitmqv1.New(
+				rabbitmqv1.WithURL(cf.MessageQueue.RabbitMQ.URL),
+				rabbitmqv1.WithLogger(&l),
+				rabbitmqv1.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+				rabbitmqv1.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+			)
+
+			cleanup1 = func() error {
+				if err := cleanupv0(); err != nil {
+					return err
+				}
+
+				return cleanupv1()
+			}
 		}
 
 		ing, err = ingestor.NewIngestor(
@@ -308,8 +356,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
 			ingestor.WithLogRepository(dc.EngineRepository.Log()),
 			ingestor.WithMessageQueue(mq),
+			ingestor.WithMessageQueueV1(mqv1),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
+			ingestor.WithRepositoryV1(dc.V1),
 		)
 
 		if err != nil {
@@ -462,7 +512,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
-	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
+	schedulingPool, cleanupSchedulingPool, err := v0.NewSchedulingPool(
 		dc.EngineRepository.Scheduler(),
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
@@ -472,11 +522,25 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
 	}
 
+	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
+		dc.V1.Scheduler(),
+		&queueLogger,
+		cf.Runtime.SingleQueueLimit,
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
+	}
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
 		if err := cleanupSchedulingPool(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
+		}
+
+		if err := cleanupSchedulingPoolV1(); err != nil {
+			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
 
 		if err := cleanup1(); err != nil {
@@ -496,6 +560,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
 
+	internalClientFactory, err := loadInternalClient(&l, &cf.InternalClient, cf.TLS, cf.Runtime.GRPCBroadcastAddress)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not load internal client: %w", err)
+	}
+
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
@@ -506,7 +576,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Encryption:             encryptionSvc,
 		Layer:                  dc,
 		MessageQueue:           mq,
+		MessageQueueV1:         mqv1,
 		Services:               services,
+		InternalClientFactory:  internalClientFactory,
 		Logger:                 &l,
 		TLSConfig:              tls,
 		SessionStore:           ss,
@@ -520,6 +592,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
 		SchedulingPool:         schedulingPool,
+		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
 	}, nil
 }
@@ -613,4 +686,50 @@ func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	}
 
 	return encryptionSvc, nil
+}
+
+func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string) (*clientv1.GRPCClientFactory, error) {
+	// get gRPC broadcast address
+	broadcastAddress := grpcBroadcastAddress
+
+	if conf.InternalGRPCBroadcastAddress != "" {
+		broadcastAddress = conf.InternalGRPCBroadcastAddress
+	}
+
+	tlsServerName := conf.TLSServerName
+
+	if tlsServerName == "" {
+		// parse host from broadcast address
+		host, _, err := net.SplitHostPort(broadcastAddress)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse host from broadcast address %s: %w", broadcastAddress, err)
+		}
+
+		tlsServerName = host
+	}
+
+	// construct TLS config
+	var base shared.TLSConfigFile
+
+	if conf.InheritBase {
+		base = baseServerTLS
+	} else {
+		base = conf.Base
+	}
+
+	tlsConfig, err := loaderutils.LoadClientTLSConfig(&client.ClientTLSConfigFile{
+		Base:          base,
+		TLSServerName: tlsServerName,
+	}, tlsServerName)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not load client TLS config: %w", err)
+	}
+
+	return clientv1.NewGRPCClientFactory(
+		clientv1.WithHostPort(broadcastAddress),
+		clientv1.WithTLS(tlsConfig),
+		clientv1.WithLogger(l),
+	), nil
 }

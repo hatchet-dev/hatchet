@@ -9,7 +9,6 @@ import {
 import CopyToClipboard from './copy-to-clipboard';
 import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { useTheme } from '../theme-provider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +17,7 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { Button } from './button';
 import { CaretSortIcon } from '@radix-ui/react-icons';
+import { useTheme } from '@/components/theme-provider';
 
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('yaml', yaml);

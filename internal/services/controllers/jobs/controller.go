@@ -644,7 +644,7 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.p.GetControllerPartitionId())
+		tenants, err := jc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")

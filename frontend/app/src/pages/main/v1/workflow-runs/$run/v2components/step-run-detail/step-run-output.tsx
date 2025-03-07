@@ -3,8 +3,8 @@ import {
   queries,
   StepRun,
   StepRunStatus,
-  V1Task,
   V1TaskStatus,
+  V1TaskSummary,
   WorkflowRunShape,
 } from '@/lib/api';
 import React from 'react';
@@ -107,14 +107,14 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
-  [StepRunStatus.BACKOFF]: StepRunOutputFailed, // FIXME: Remove this when `Backoff` state is removed
+  [StepRunStatus.BACKOFF]: StepRunOutputPending,
 };
 
-function parseJSONOutput(output: string | undefined) {
-  return output ? JSON.stringify(JSON.parse(output), null, 2) : '{}';
+function parseJSONOutput(output: object | undefined) {
+  return JSON.stringify(output, null, 2);
 }
 
-function formatOutputData(data: V1Task) {
+function formatOutputData(data: V1TaskSummary) {
   switch (data.status) {
     case V1TaskStatus.FAILED:
       return data.errorMessage || parseJSONOutput(data.output);
@@ -128,7 +128,7 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   return <Component {...props} />;
 };
 
-export const V2StepRunOutput = (props: { taskRunId: string }) => {
+export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   const { isLoading, data } = useQuery({

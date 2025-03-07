@@ -1,5 +1,11 @@
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { queries, StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
+import {
+  queries,
+  StepRun,
+  StepRunStatus,
+  V1TaskStatus,
+  WorkflowRunShape,
+} from '@/lib/api';
 import React from 'react';
 import StepRunCodeText from './step-run-error';
 import LoggingComponent from '@/components/v1/cloud/logging/logs';
@@ -100,7 +106,7 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
-  [StepRunStatus.BACKOFF]: StepRunOutputFailed, // TODO: Remove this when we remove backoff
+  [StepRunStatus.BACKOFF]: StepRunOutputPending,
 };
 
 const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
@@ -108,7 +114,7 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   return <Component {...props} />;
 };
 
-export const V2StepRunOutput = (props: { taskRunId: string }) => {
+export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   const { isLoading, data } = useQuery({
@@ -120,9 +126,10 @@ export const V2StepRunOutput = (props: { taskRunId: string }) => {
     return null;
   }
 
-  const outputData = data.output
-    ? JSON.stringify(JSON.parse(data.output), null, 2)
-    : '{}';
+  const outputData =
+    (data.status === V1TaskStatus.FAILED
+      ? data.errorMessage
+      : JSON.stringify(data.output, null, 2)) || '';
 
   return (
     <CodeHighlighter

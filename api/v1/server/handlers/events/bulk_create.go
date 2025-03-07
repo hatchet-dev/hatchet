@@ -44,7 +44,7 @@ func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreate
 			AdditionalMetadata: additionalMetadata,
 		}
 	}
-	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), tenantId, eventOpts)
+	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), tenant, eventOpts)
 
 	if err != nil {
 

@@ -471,6 +471,8 @@ export interface StepActionEvent {
   eventType: StepActionEventType;
   /** the event payload */
   eventPayload: string;
+  /** the retry count */
+  retryCount?: number | undefined;
 }
 
 export interface ActionEventResponse {
@@ -2149,6 +2151,7 @@ function createBaseStepActionEvent(): StepActionEvent {
     eventTimestamp: undefined,
     eventType: 0,
     eventPayload: '',
+    retryCount: undefined,
   };
 }
 
@@ -2180,6 +2183,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     }
     if (message.eventPayload !== '') {
       writer.uint32(74).string(message.eventPayload);
+    }
+    if (message.retryCount !== undefined) {
+      writer.uint32(80).int32(message.retryCount);
     }
     return writer;
   },
@@ -2263,6 +2269,14 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
           message.eventPayload = reader.string();
           continue;
         }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.retryCount = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2285,6 +2299,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
         : undefined,
       eventType: isSet(object.eventType) ? stepActionEventTypeFromJSON(object.eventType) : 0,
       eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : '',
+      retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : undefined,
     };
   },
 
@@ -2317,6 +2332,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.eventPayload !== '') {
       obj.eventPayload = message.eventPayload;
     }
+    if (message.retryCount !== undefined) {
+      obj.retryCount = Math.round(message.retryCount);
+    }
     return obj;
   },
 
@@ -2334,6 +2352,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.eventType = object.eventType ?? 0;
     message.eventPayload = object.eventPayload ?? '';
+    message.retryCount = object.retryCount ?? undefined;
     return message;
   },
 };

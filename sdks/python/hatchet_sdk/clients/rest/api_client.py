@@ -97,7 +97,7 @@ class ApiClient:
     async def __aexit__(self, exc_type, exc_value, traceback):
         await self.close()
 
-    async def close(self) -> None:
+    async def close(self):
         await self.rest_client.close()
 
     @property
@@ -513,7 +513,7 @@ class ApiClient:
             if k in collection_formats:
                 collection_format = collection_formats[k]
                 if collection_format == "multi":
-                    new_params.extend((k, str(value)) for value in v)
+                    new_params.extend((k, quote(str(value))) for value in v)
                 else:
                     if collection_format == "ssv":
                         delimiter = " "

@@ -103,6 +103,10 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 		params.AlertMemberEmails = sqlchelpers.BoolFromBoolean(*opts.AlertMemberEmails)
 	}
 
+	if opts.Version != nil && opts.Version.Valid {
+		params.Version = *opts.Version
+	}
+
 	return r.queries.UpdateTenant(
 		ctx,
 		r.pool,
@@ -459,20 +463,38 @@ func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Cont
 	return partition.ID, nil
 }
 
-func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error) {
+func (r *tenantEngineRepository) GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*dbsqlc.Tenant, error) {
+	tenant, err := r.queries.GetInternalTenantForController(ctx, r.pool, controllerPartitionId)
+
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return tenant, nil
+}
+
+func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
 	if controllerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool, controllerPartitionId)
+	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool, dbsqlc.ListTenantsByControllerPartitionIdParams{
+		ControllerPartitionId: controllerPartitionId,
+		Majorversion:          majorVersion,
+	})
 }
 
-func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error) {
+func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
 	if workerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
+	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, dbsqlc.ListTenantsByTenantWorkerPartitionIdParams{
+		WorkerPartitionId: workerPartitionId,
+		Majorversion:      majorVersion,
+	})
 }
 
 func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context) (string, error) {
@@ -560,12 +582,15 @@ func (r *tenantEngineRepository) UpdateSchedulerPartitionHeartbeat(ctx context.C
 	return partition.ID, nil
 }
 
-func (r *tenantEngineRepository) ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*dbsqlc.Tenant, error) {
+func (r *tenantEngineRepository) ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
 	if schedulerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool, schedulerPartitionId)
+	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool, dbsqlc.ListTenantsBySchedulerPartitionIdParams{
+		SchedulerPartitionId: schedulerPartitionId,
+		Majorversion:         majorVersion,
+	})
 }
 
 func (r *tenantEngineRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {

@@ -78,7 +78,6 @@ func (o *SerialOperation) setRunning(isRunning bool, ql *zerolog.Logger) bool {
 	}
 
 	if isRunning {
-
 		ql.Info().Str("tenant_id", o.id).TimeDiff("last_run", time.Now(), o.lastRun).Msg(o.description)
 
 		o.lastRun = time.Now()
