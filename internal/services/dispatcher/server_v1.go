@@ -499,13 +499,20 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				retries++
+				time.Sleep(1 * time.Second)
 				continue
 			}
 
 			return err
 		}
 
-		if wr.WorkflowRun == nil || sqlchelpers.UUIDToStr(wr.WorkflowRun.TenantID) != tenantId {
+		if wr == nil || wr.WorkflowRun == nil {
+			retries++
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		if sqlchelpers.UUIDToStr(wr.WorkflowRun.TenantID) != tenantId {
 			return status.Errorf(codes.NotFound, "workflow run %s not found", workflowRunId)
 		}
 
@@ -621,7 +628,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	cleanupQueue, err := s.sharedReaderv1.Subscribe(tenantId, f)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not subscribe to shared tenant queue: %w", err)
 	}
 
 	<-ctx.Done()
@@ -806,7 +813,7 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId string, 
 			WorkflowRunId: workflowRunId,
 		}
 
-		if row.AdditionalMetadata != nil {
+		if len(row.AdditionalMetadata) > 0 {
 			var additionalMetaMap map[string]interface{}
 			err = json.Unmarshal(row.AdditionalMetadata, &additionalMetaMap)
 			if err != nil {

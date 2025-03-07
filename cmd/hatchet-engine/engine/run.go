@@ -547,7 +547,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p)
+		wh := webhooks.New(sc, p, l)
 
 		cleanup2, err := wh.Start()
 		if err != nil {
@@ -817,7 +817,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p)
+		wh := webhooks.New(sc, p, l)
 
 		cleanup2, err := wh.Start()
 
