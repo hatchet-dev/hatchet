@@ -224,6 +224,18 @@ export const useColumnFilters = () => {
     [setFilterValues],
   );
 
+  const setParentTaskExternalId = useCallback(
+    (parentTaskExternalId: string | undefined) => {
+      setFilterValues([
+        {
+          key: TaskRunColumn.parentTaskExternalId,
+          value: parentTaskExternalId,
+        },
+      ]);
+    },
+    [setFilterValues],
+  );
+
   const setCreatedAfter = useCallback(
     (createdAfter: string | undefined) => {
       setFilterValues([{ key: 'createdAfter', value: createdAfter }]);
@@ -319,5 +331,6 @@ export const useColumnFilters = () => {
     clearColumnFilters,
     clearParentTaskExternalId,
     setAllAdditionalMetadata,
+    setParentTaskExternalId,
   };
 };
