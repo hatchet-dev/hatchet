@@ -177,12 +177,12 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
     );
 
     return (
-      <>
-        <p className="text-lg">
-          You're about to {label.toLowerCase()} all task runs matching the
-          following filters:
+      <div className="gap-y-4 flex flex-col">
+        <p className="text-md">
+          Confirm to {label.toLowerCase()} all task runs matching the following
+          filters:
         </p>
-        <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4 px-6 mb-4">
+        <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4">
           {statusToolbarFilter && (
             <Combobox
               values={params.filter.statuses}
@@ -245,19 +245,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
           </Select>
         </div>
         {cf.filters.isCustomTimeRange && (
-          <div className="flex flex-row w-full flex-1 gap-x-2 items-start justify-start gap-y-4 px-6">
-            <Button
-              key="clear"
-              onClick={() => {
-                cf.setCustomTimeRange(undefined);
-              }}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 py-2 flex-1"
-            >
-              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
-              Clear
-            </Button>
+          <div className="flex flex-row w-full flex-1 gap-x-2 items-start justify-start gap-y-4">
             <DateTimePicker
               key="after"
               label="After"
@@ -282,9 +270,21 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
                 cf.setFinishedBefore(date?.toISOString());
               }}
             />
+            <Button
+              key="clear"
+              onClick={() => {
+                cf.setCustomTimeRange(undefined);
+              }}
+              variant="outline"
+              size="sm"
+              className="text-xs h-9 py-2 flex-1"
+            >
+              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
+              Clear
+            </Button>{' '}
           </div>
         )}
-      </>
+      </div>
     );
   } else {
     throw new Error(`Unhandled case: ${params}`);
