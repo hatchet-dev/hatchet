@@ -645,7 +645,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.updateConcurrentFactor", "SERVER_UPDATE_CONCURRENT_FACTOR")
 
 	// internal client options
-	_ = v.BindEnv("internalClient.base.inheritBase", "SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE")
+	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")
+	_ = v.BindEnv("internalClient.inheritBase", "SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE")
 	_ = v.BindEnv("internalClient.base.tlsCert", "SERVER_INTERNAL_CLIENT_TLS_BASE_CERT")
 	_ = v.BindEnv("internalClient.base.tlsCertFile", "SERVER_INTERNAL_CLIENT_TLS_BASE_CERT_FILE")
 	_ = v.BindEnv("internalClient.base.tlsKey", "SERVER_INTERNAL_CLIENT_TLS_BASE_KEY")
