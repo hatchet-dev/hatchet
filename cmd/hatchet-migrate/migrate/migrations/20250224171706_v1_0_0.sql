@@ -1658,8 +1658,24 @@ REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_runs_olap_status_update_function();
 
+CREATE TYPE v1_log_line_level AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
+
+CREATE TABLE v1_log_line (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    message TEXT NOT NULL,
+    level v1_log_line_level NOT NULL DEFAULT 'INFO',
+    metadata JSONB,
+
+    PRIMARY KEY (task_id, task_inserted_at, id)
+) PARTITION BY RANGE(task_inserted_at);
+
 SELECT create_v1_range_partition('v1_task', DATE 'today');
 SELECT create_v1_range_partition('v1_task_event', DATE 'today');
 SELECT create_v1_range_partition('v1_dag', DATE 'today');
 SELECT create_v1_range_partition('v1_concurrency_slot', DATE 'today');
+SELECT create_v1_range_partition('v1_log_line', DATE 'today');
 -- +goose StatementEnd

@@ -1655,3 +1655,18 @@ AFTER UPDATE ON v1_runs_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_runs_olap_status_update_function();
+
+CREATE TYPE v1_log_line_level AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
+
+CREATE TABLE v1_log_line (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    message TEXT NOT NULL,
+    level v1_log_line_level NOT NULL DEFAULT 'INFO',
+    metadata JSONB,
+
+    PRIMARY KEY (task_id, task_inserted_at, id)
+) PARTITION BY RANGE(task_inserted_at);

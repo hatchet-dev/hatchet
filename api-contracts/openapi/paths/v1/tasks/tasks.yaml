@@ -403,3 +403,41 @@ replayTasks:
     summary: Replay tasks
     tags:
       - Task
+
+listLogs:
+  get:
+    x-resources: ["tenant", "task"]
+    description: Lists log lines for a task
+    operationId: v1-log-line:list
+    parameters:
+      - description: The task id
+        in: path
+        name: task
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1LogLineList"
+        description: Successfully listed the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List log lines
+    tags:
+      - Log

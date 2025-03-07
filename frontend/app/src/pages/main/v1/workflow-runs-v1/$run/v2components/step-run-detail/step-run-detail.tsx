@@ -24,6 +24,7 @@ import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
+import { StepRunLogs } from './step-run-logs';
 
 export enum TabOption {
   Output = 'output',
@@ -186,7 +187,9 @@ export const TaskRunDetail = ({
           /> */}
         </TabsContent>
 
-        <TabsContent value="logs">App Logs</TabsContent>
+        <TabsContent value="logs">
+          <StepRunLogs taskRun={taskRun} />
+        </TabsContent>
       </Tabs>
       <Separator className="my-4" />
       <div className="mb-8">

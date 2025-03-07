@@ -958,6 +958,50 @@ func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
 	return string(ns.V1EventTypeOlap), nil
 }
 
+type V1LogLineLevel string
+
+const (
+	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
+	V1LogLineLevelINFO  V1LogLineLevel = "INFO"
+	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
+	V1LogLineLevelERROR V1LogLineLevel = "ERROR"
+)
+
+func (e *V1LogLineLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1LogLineLevel(s)
+	case string:
+		*e = V1LogLineLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1LogLineLevel: %T", src)
+	}
+	return nil
+}
+
+type NullV1LogLineLevel struct {
+	V1LogLineLevel V1LogLineLevel `json:"v1_log_line_level"`
+	Valid          bool           `json:"valid"` // Valid is true if V1LogLineLevel is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1LogLineLevel) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1LogLineLevel, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1LogLineLevel.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1LogLineLevel) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1LogLineLevel), nil
+}
+
 type V1MatchConditionAction string
 
 const (
@@ -2360,6 +2404,17 @@ type V1DagsOlap struct {
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+}
+
+type V1LogLine struct {
+	ID             int64              `json:"id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	Message        string             `json:"message"`
+	Level          V1LogLineLevel     `json:"level"`
+	Metadata       []byte             `json:"metadata"`
 }
 
 type V1LookupTable struct {

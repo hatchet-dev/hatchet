@@ -64,7 +64,7 @@ func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	return &MessageQueueImplOpts{
 		l:                         &l,
 		disableTenantExchangePubs: false,
-		deadLetterBackoff:         30 * time.Second,
+		deadLetterBackoff:         5 * time.Second,
 	}
 }
 
