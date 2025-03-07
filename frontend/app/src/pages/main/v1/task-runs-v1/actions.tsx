@@ -7,6 +7,7 @@ import {
   DialogHeader,
 } from '@/components/v1/ui/dialog';
 import api, {
+  queries,
   V1CancelTaskRequest,
   V1ReplayTaskRequest,
   V1TaskStatus,
@@ -14,7 +15,7 @@ import api, {
 import { useTenant } from '@/lib/atoms';
 import { useApiError } from '@/lib/hooks';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import invariant from 'tiny-invariant';
 import {
@@ -140,18 +141,38 @@ type ModalContentProps = {
 };
 
 const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
-  
+  const { tenant } = useTenant();
+  invariant(tenant);
+
+  const { data, isLoading, isError } = useQuery({
+    ...queries.v1WorkflowRuns.listDisplayNames(
+      tenant.metadata.id,
+      params.externalIds || [],
+    ),
+    enabled: !!params.externalIds,
+  });
+
+  if (isLoading) {
+    return null;
+  }
+
+  const displayNames = data?.rows || [];
+
+  console.log(displayNames);
+
   return (
     <div className="flex flex-col gap-y-4">
       <p className="text-md">
-        Confirm to {label.toLowerCase()} the following task runs:
+        Confirm to {label.toLowerCase()} the following workflow runs:
       </p>
-      <ul className="list-disc pl-4 pt-2">
-        {params.externalIds
-          ?.slice(0, 10)
-          .map((externalId) => <li key={externalId}>{externalId}</li>)}
-        {(params.externalIds?.length || 0) > 10 && (
-          <li>{(params.externalIds?.length || 0) - 10} more</li>
+      <ul className="list-disc pl-4 ml-4">
+        {displayNames?.slice(0, 10).map((record) => (
+          <li className="font-semibold" key={record.metadata.id}>
+            {record.displayName}
+          </li>
+        ))}
+        {(displayNames.length || 0) > 10 && (
+          <li>{(displayNames.length || 0) - 10} more</li>
         )}
       </ul>
     </div>
@@ -180,7 +201,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
     return (
       <div className="gap-y-4 flex flex-col">
         <p className="text-md">
-          Confirm to {label.toLowerCase()} all task runs matching the following
+          Confirm to {label.toLowerCase()} all workflow runs matching the following
           filters:
         </p>
         <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4">
@@ -306,7 +327,7 @@ const ConfirmActionModal = ({
       <DialogContent className="sm:max-w-[800px] py-12 max-h-screen overflow-auto">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
-            <DialogTitle>{label} task runs</DialogTitle>
+            <DialogTitle>{label} workflow runs</DialogTitle>
           </div>
         </DialogHeader>
 

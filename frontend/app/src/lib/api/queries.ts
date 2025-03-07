@@ -253,6 +253,12 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run-details:get', workflowRunId],
       queryFn: async () => (await api.v1WorkflowRunGet(workflowRunId)).data,
     }),
+    listDisplayNames: (tenant: string, externalIds: string[]) => ({
+      queryKey: ['workflow-run:display-names:list', tenant, externalIds],
+      queryFn: async () => (await api.v1WorkflowRunDisplayNamesList(tenant, {
+        external_ids: externalIds,
+      })).data,
+    }),
   },
   v1Tasks: {
     get: (task: string) => ({
