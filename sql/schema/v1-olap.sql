@@ -1,5 +1,33 @@
+CREATE TYPE v1_sticky_strategy_olap AS ENUM ('NONE', 'SOFT', 'HARD');
+
+CREATE TYPE v1_readable_status_olap AS ENUM (
+    'QUEUED',
+    'RUNNING',
+    'CANCELLED',
+    'FAILED',
+    'COMPLETED'
+);
 
 -- HELPER FUNCTIONS FOR PARTITIONED TABLES --
+CREATE OR REPLACE FUNCTION get_v1_partitions_before_date(
+    targetTableName text,
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION create_v1_partition_with_status(
     newTableName text,
     status v1_readable_status_olap
@@ -107,16 +135,6 @@ END;
 $$;
 
 -- TASKS DEFINITIONS --
-CREATE TYPE v1_sticky_strategy_olap AS ENUM ('NONE', 'SOFT', 'HARD');
-
-CREATE TYPE v1_readable_status_olap AS ENUM (
-    'QUEUED',
-    'RUNNING',
-    'CANCELLED',
-    'FAILED',
-    'COMPLETED'
-);
-
 CREATE TABLE v1_tasks_olap (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,

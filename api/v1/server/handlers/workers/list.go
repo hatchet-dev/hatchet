@@ -61,7 +61,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *dbsqlc.Tenant, re
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	workers, err := t.config.V1.OLAP().ListWorkers(tenantId, &repository.ListWorkersOpts{
+	workers, err := t.config.V1.Workers().ListWorkers(tenantId, &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	})
 
