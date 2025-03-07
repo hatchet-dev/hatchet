@@ -45,7 +45,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		tasks:     newTaskRepository(shared, taskRetentionPeriod),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
-		olap:      newOLAPRepository(shared, olapRetentionPeriod),
+		olap:      NewOLAPRepository(shared, olapRetentionPeriod),
 		logs:      newLogLineRepository(shared),
 		workers:   newWorkerRepository(shared),
 	}

@@ -202,7 +202,7 @@ type OLAPRepository interface {
 	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 }
 
-type olapRepository struct {
+type OLAPRepositoryImpl struct {
 	*sharedRepository
 
 	eventCache *lru.Cache[string, bool]
@@ -210,21 +210,21 @@ type olapRepository struct {
 	olapRetentionPeriod time.Duration
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration) OLAPRepository {
+func NewOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return &olapRepository{
+	return &OLAPRepositoryImpl{
 		sharedRepository:    shared,
 		eventCache:          eventCache,
 		olapRetentionPeriod: olapRetentionPeriod,
 	}
 }
 
-func (o *olapRepository) UpdateTablePartitions(ctx context.Context) error {
+func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * o.olapRetentionPeriod)
@@ -308,7 +308,7 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 	}
 }
 
-func (r *olapRepository) ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error) {
+func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error) {
 	row, err := r.queries.ReadTaskByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(taskExternalId))
 
 	if err != nil {
@@ -354,7 +354,7 @@ func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 	return tasks, nil
 }
 
-func (r *olapRepository) ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error) {
+func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error) {
 	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.pool, workflowRunExternalId)
 
 	if err != nil {
@@ -388,7 +388,7 @@ func (r *olapRepository) ReadWorkflowRun(ctx context.Context, workflowRunExterna
 	}, nil
 }
 
-func (r *olapRepository) ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error) {
+func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error) {
 	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.pool, sqlcv1.PopulateSingleTaskRunDataParams{
 		Taskid:         taskId,
 		Tenantid:       tenantId,
@@ -418,7 +418,7 @@ func (r *olapRepository) ReadTaskRunData(ctx context.Context, tenantId pgtype.UU
 	return taskRun, &workflowRunId, nil
 }
 
-func (r *olapRepository) ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error) {
+func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error) {
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
@@ -526,7 +526,7 @@ func (r *olapRepository) ListTasks(ctx context.Context, tenantId string, opts Li
 	return tasksWithData, int(count), nil
 }
 
-func (r *olapRepository) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
+func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
 	tx, err := r.pool.Begin(ctx)
 	taskIdToDagExternalId := make(map[int64]uuid.UUID)
 
@@ -574,7 +574,7 @@ func (r *olapRepository) ListTasksByDAGId(ctx context.Context, tenantId string, 
 	return tasksWithData, taskIdToDagExternalId, nil
 }
 
-func (r *olapRepository) ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
+func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
@@ -608,7 +608,7 @@ func (r *olapRepository) ListTasksByIdAndInsertedAt(ctx context.Context, tenantI
 	return tasksWithData, nil
 }
 
-func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
+func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
@@ -840,7 +840,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 	return res, int(count), nil
 }
 
-func (r *olapRepository) ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error) {
+func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error) {
 	rows, err := r.queries.ListTaskEvents(ctx, r.pool, sqlcv1.ListTaskEventsParams{
 		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
 		Taskid:         taskId,
@@ -854,7 +854,7 @@ func (r *olapRepository) ListTaskRunEvents(ctx context.Context, tenantId string,
 	return rows, nil
 }
 
-func (r *olapRepository) ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error) {
+func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error) {
 	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, r.pool, sqlcv1.ListTaskEventsForWorkflowRunParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflowrunid: workflowRunId,
@@ -867,7 +867,7 @@ func (r *olapRepository) ListTaskRunEventsByWorkflowRunId(ctx context.Context, t
 	return rows, nil
 }
 
-func (r *olapRepository) ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error) {
+func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error) {
 	var workflowIds []pgtype.UUID
 
 	if len(opts.WorkflowIds) > 0 {
@@ -928,7 +928,7 @@ func (r *olapRepository) ReadTaskRunMetrics(ctx context.Context, tenantId string
 	return metrics, nil
 }
 
-func (r *olapRepository) saveEventsToCache(events []sqlcv1.CreateTaskEventsOLAPParams) {
+func (r *OLAPRepositoryImpl) saveEventsToCache(events []sqlcv1.CreateTaskEventsOLAPParams) {
 	for _, event := range events {
 		key := getCacheKey(event)
 		r.eventCache.Add(key, true)
@@ -940,7 +940,7 @@ func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
 	return fmt.Sprintf("%d-%s-%d", event.TaskID, event.EventType, event.RetryCount)
 }
 
-func (r *olapRepository) writeTaskEventBatch(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error {
+func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	tmpEventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPTmpParams, 0)
@@ -996,7 +996,7 @@ func (r *olapRepository) writeTaskEventBatch(ctx context.Context, tenantId strin
 	return nil
 }
 
-func (r *olapRepository) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, []UpdateTaskStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, []UpdateTaskStatusRow, error) {
 	var limit int32 = 10000
 
 	// each partition gets its own goroutine
@@ -1064,7 +1064,7 @@ func (r *olapRepository) UpdateTaskStatuses(ctx context.Context, tenantId string
 	return isSaturated, rows, nil
 }
 
-func (r *olapRepository) UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, []UpdateDAGStatusRow, error) {
+func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, []UpdateDAGStatusRow, error) {
 	var limit int32 = 10000
 
 	// each partition gets its own goroutine
@@ -1132,7 +1132,7 @@ func (r *olapRepository) UpdateDAGStatuses(ctx context.Context, tenantId string)
 	return isSaturated, rows, nil
 }
 
-func (r *olapRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
 
 	for _, task := range tasks {
@@ -1166,7 +1166,7 @@ func (r *olapRepository) writeTaskBatch(ctx context.Context, tenantId string, ta
 	return err
 }
 
-func (r *olapRepository) writeDAGBatch(ctx context.Context, tenantId string, dags []*DAGWithData) error {
+func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string, dags []*DAGWithData) error {
 	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
 
 	for _, dag := range dags {
@@ -1194,19 +1194,19 @@ func (r *olapRepository) writeDAGBatch(ctx context.Context, tenantId string, dag
 	return err
 }
 
-func (r *olapRepository) CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error {
+func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error {
 	return r.writeTaskEventBatch(ctx, tenantId, events)
 }
 
-func (r *olapRepository) CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+func (r *OLAPRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
 	return r.writeTaskBatch(ctx, tenantId, tasks)
 }
 
-func (r *olapRepository) CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error {
+func (r *OLAPRepositoryImpl) CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error {
 	return r.writeDAGBatch(ctx, tenantId, dags)
 }
 
-func (r *olapRepository) GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error) {
+func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error) {
 	rows, err := r.queries.GetTaskPointMetrics(ctx, r.pool, sqlcv1.GetTaskPointMetricsParams{
 		Interval:      durationToPgInterval(bucketInterval),
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
@@ -1225,11 +1225,11 @@ func (r *olapRepository) GetTaskPointMetrics(ctx context.Context, tenantId strin
 	return rows, nil
 }
 
-func (r *olapRepository) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error) {
+func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error) {
 	return r.queries.ReadDAGByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(dagExternalId))
 }
 
-func (r *olapRepository) ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
+func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
 	externalUUIDs := make([]pgtype.UUID, 0)
 
 	for _, id := range externalIds {
@@ -1252,7 +1252,7 @@ func durationToPgInterval(d time.Duration) pgtype.Interval {
 	}
 }
 
-func (r *olapRepository) ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error) {
+func (r *OLAPRepositoryImpl) ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error) {
 	return r.queries.ListWorkflowRunDisplayNames(ctx, r.pool, sqlcv1.ListWorkflowRunDisplayNamesParams{
 		Tenantid:    tenantId,
 		Externalids: externalIds,
