@@ -18,7 +18,8 @@ sql:
       - log_line.sql
     schema:
       - ../../../../sql/schema/v0.sql
-      - ../../../../sql/schema/v1.sql
+      - ../../../../sql/schema/v1-core.sql
+      - ../../../../sql/schema/v1-olap.sql
     strict_order_by: false
     gen:
       go:
