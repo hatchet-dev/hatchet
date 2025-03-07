@@ -530,20 +530,33 @@ WHERE
 
 -- name: BulkBackoffStepRun :exec
 UPDATE
-    "StepRun"
+    "StepRun" sr
 SET
     "status" = 'BACKOFF'
-WHERE
-    "id" = ANY(@stepRunIds::uuid[]);
+FROM (
+    SELECT "id"
+    FROM "StepRun" sr2
+    WHERE sr2."id" = ANY(@stepRunIds::uuid[])
+    ORDER BY  sr2."id"
+    FOR UPDATE
+) upd
+WHERE sr."id" = upd."id";
+
 
 
 -- name: BulkRetryStepRun :exec
 UPDATE
-    "StepRun"
+    "StepRun" sr
 SET
     "status" = 'PENDING_ASSIGNMENT'
-WHERE
-    "id" = ANY(@stepRunIds::uuid[]);
+FROM (
+    SELECT "id"
+    FROM "StepRun" sr2
+    WHERE sr2."id" = ANY(@stepRunIds::uuid[])
+    ORDER BY  sr2."id"
+    FOR UPDATE
+) upd
+WHERE sr."id" = upd."id";
 
 -- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
