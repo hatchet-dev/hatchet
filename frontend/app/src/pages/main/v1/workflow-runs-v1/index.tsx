@@ -2,6 +2,7 @@ import { Separator } from '@/components/v1/ui/separator';
 import { TaskRunsTable } from './components/task-runs-table';
 import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
 import { useState } from 'react';
+import { Button } from '@/components/v1/ui/button';
 
 export default function Tasks() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
@@ -13,12 +14,7 @@ export default function Tasks() {
           <h2 className="text-2xl font-bold leading-tight text-foreground">
             Task Runs
           </h2>
-          {/* <Button
-            onClick={() => setTriggerWorkflow(true)}
-            className="text-red-700 font-bold animate-bounce"
-          >
-            Trigger Workflow - What should we show here?
-          </Button> */}
+          <Button onClick={() => setTriggerWorkflow(true)}>Trigger Run</Button>
         </div>
         <TriggerWorkflowForm
           defaultWorkflow={undefined}

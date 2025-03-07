@@ -9,8 +9,8 @@ import api, {
   CronWorkflows,
   queries,
   ScheduledWorkflows,
+  V1WorkflowRunDetails,
   Workflow,
-  WorkflowRun,
 } from '@/lib/api';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
@@ -111,7 +111,8 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      const res = await api.workflowRunCreate(workflow.metadata.id, {
+      const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
+        workflowName: workflow.name,
         input: data.input,
         additionalMetadata: data.addlMeta,
       });
@@ -121,12 +122,12 @@ export function TriggerWorkflowForm({
     onMutate: () => {
       setErrors([]);
     },
-    onSuccess: (workflowRun: WorkflowRun | undefined) => {
+    onSuccess: (workflowRun: V1WorkflowRunDetails | undefined) => {
       if (!workflowRun) {
         return;
       }
 
-      navigate(`/v1/workflow-runs/${workflowRun.metadata.id}`);
+      navigate(`/v1/workflow-runs/${workflowRun.run.metadata.id}`);
     },
     onError: handleApiError,
   });
