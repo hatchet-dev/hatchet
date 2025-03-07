@@ -13,10 +13,13 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 // TODO: make this dynamic for the instance
@@ -210,7 +213,15 @@ type OLAPRepositoryImpl struct {
 	olapRetentionPeriod time.Duration
 }
 
-func NewOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration) OLAPRepository {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration) (OLAPRepository, func() error) {
+	v := validator.NewDefaultValidator()
+
+	shared, cleanupShared := newSharedRepository(pool, v, l)
+
+	return newOLAPRepository(shared, olapRetentionPeriod), cleanupShared
+}
+
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
