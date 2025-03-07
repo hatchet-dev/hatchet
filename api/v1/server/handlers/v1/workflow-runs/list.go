@@ -116,8 +116,8 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 
 	pgWorkflowIds := make([]pgtype.UUID, 0)
 
-	for _, task := range tasks {
-		pgWorkflowIds = append(pgWorkflowIds, task.WorkflowID)
+	for _, wf := range dags {
+		pgWorkflowIds = append(pgWorkflowIds, wf.WorkflowID)
 	}
 
 	workflowNames, err := t.config.V1.Workflows().ListWorkflowNamesByIds(
