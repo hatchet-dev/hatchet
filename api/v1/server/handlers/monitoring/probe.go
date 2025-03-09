@@ -125,19 +125,15 @@ type stepOneOutput struct {
 
 func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfigFile, workflowName string, events chan<- string, stepChan chan<- string, errors chan<- error) (func(), error) {
 
-	c, err := client.NewFromConfigFile(
-		&cf, client.WithLogLevel(m.l.GetLevel().String()),
-	)
+	c, err := client.NewFromConfigFile(&cf, client.WithLogger(m.l))
 
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
 
 	w, err := worker.NewWorker(
-
-		worker.WithClient(
-			c,
-		), worker.WithLogLevel(m.l.GetLevel().String()),
+		worker.WithClient(c),
+		worker.WithLogger(m.l),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating worker: %w", err)
