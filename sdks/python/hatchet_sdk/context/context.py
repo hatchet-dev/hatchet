@@ -2,7 +2,7 @@ import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any, cast
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -25,6 +25,8 @@ from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import OverridesData
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -66,9 +68,6 @@ class Context:
 
         self.action = action
 
-        # FIXME: stepRunId is a legacy field, we should remove it
-        self.stepRunId = action.step_run_id
-
         self.step_run_id: str = action.step_run_id
         self.exit_flag = False
         self.dispatcher_client = dispatcher_client
@@ -107,19 +106,23 @@ class Context:
         self.spawn_index += 1
         return trigger_options
 
-    def step_output(self, step: str) -> dict[str, Any] | BaseModel:
+    def task_output(self, task: Task[TWorkflowInput, R]) -> R:
         workflow_validator = next(
-            (v for k, v in self.validator_registry.items() if k.split(":")[-1] == step),
+            (
+                v
+                for k, v in self.validator_registry.items()
+                if k.split(":")[-1] == task.name
+            ),
             None,
         )
 
         try:
-            parent_step_data = cast(dict[str, Any], self.data.parents[step])
+            parent_step_data = cast(R, self.data.parents[task.name])
         except KeyError:
-            raise ValueError(f"Step output for '{step}' not found")
+            raise ValueError(f"Step output for '{task.name}' not found")
 
         if workflow_validator and (v := workflow_validator.step_output):
-            return v.model_validate(parent_step_data)
+            return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
 
@@ -148,7 +151,7 @@ class Context:
 
         self.dispatcher_client.put_overrides_data(
             OverridesData(
-                stepRunId=self.stepRunId,
+                stepRunId=self.step_run_id,
                 path=name,
                 value=json.dumps(default),
                 callerFilename=caller_file,
@@ -159,7 +162,7 @@ class Context:
 
     def _log(self, line: str) -> tuple[bool, Exception | None]:
         try:
-            self.event_client.log(message=line, step_run_id=self.stepRunId)
+            self.event_client.log(message=line, step_run_id=self.step_run_id)
             return True, None
         except Exception as e:
             # we don't want to raise an exception here, as it will kill the log thread
@@ -168,7 +171,7 @@ class Context:
     def log(
         self, line: str | JSONSerializableMapping, raise_on_error: bool = False
     ) -> None:
-        if self.stepRunId == "":
+        if self.step_run_id == "":
             return
 
         if not isinstance(line, str):
@@ -198,16 +201,16 @@ class Context:
         future.add_done_callback(handle_result)
 
     def release_slot(self) -> None:
-        return self.dispatcher_client.release_slot(self.stepRunId)
+        return self.dispatcher_client.release_slot(self.step_run_id)
 
     def _put_stream(self, data: str | bytes) -> None:
         try:
-            self.event_client.stream(data=data, step_run_id=self.stepRunId)
+            self.event_client.stream(data=data, step_run_id=self.step_run_id)
         except Exception as e:
             logger.error(f"Error putting stream event: {e}")
 
     def put_stream(self, data: str | bytes) -> None:
-        if self.stepRunId == "":
+        if self.step_run_id == "":
             return
 
         self.stream_event_thread_pool.submit(self._put_stream, data)
@@ -215,7 +218,7 @@ class Context:
     def refresh_timeout(self, increment_by: str) -> None:
         try:
             return self.dispatcher_client.refresh_timeout(
-                step_run_id=self.stepRunId, increment_by=increment_by
+                step_run_id=self.step_run_id, increment_by=increment_by
             )
         except Exception as e:
             logger.error(f"Error refreshing timeout: {e}")
