@@ -4,7 +4,6 @@ from typing import Any
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    BaseWorkflow,
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
     Context,
@@ -19,7 +18,8 @@ class WorkflowInput(BaseModel):
     group: str
 
 
-wf = hatchet.declare_workflow(
+wf = hatchet.workflow(
+    name="ConcurrencyDemoWorkflow",
     on_events=["concurrency-test"],
     concurrency=ConcurrencyExpression(
         expression="input.group",
@@ -30,21 +30,15 @@ wf = hatchet.declare_workflow(
 )
 
 
-class ConcurrencyDemoWorkflow(BaseWorkflow):
-
-    config = wf.config
-
-    @hatchet.step()
-    def step1(self, context: Context) -> dict[str, Any]:
-        input = wf.get_workflow_input(context)
-        time.sleep(3)
-        print("executed step1")
-        return {"run": input.run}
+@wf.task()
+def step1(input: WorkflowInput, context: Context) -> dict[str, Any]:
+    time.sleep(3)
+    print("executed step1")
+    return {"run": input.run}
 
 
 def main() -> None:
-    worker = hatchet.worker("concurrency-demo-worker", max_runs=10)
-    worker.register_workflow(ConcurrencyDemoWorkflow())
+    worker = hatchet.worker("concurrency-demo-worker", max_runs=10, workflows=[wf])
 
     worker.start()
 

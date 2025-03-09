@@ -1,40 +1,36 @@
 import time
 
-from hatchet_sdk import BaseWorkflow, Context, Hatchet
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-timeout_wf = hatchet.declare_workflow(on_events=["timeout:create"])
+timeout_wf = hatchet.workflow(name="TimeoutWorkflow", on_events=["timeout:create"])
 
 
-class TimeoutWorkflow(BaseWorkflow):
-    config = timeout_wf.config
-
-    @hatchet.step(timeout="4s")
-    def step1(self, context: Context) -> dict[str, str]:
-        time.sleep(5)
-        return {"status": "success"}
+@timeout_wf.task(timeout="4s")
+def timeout_task(input: EmptyModel, context: Context) -> dict[str, str]:
+    time.sleep(5)
+    return {"status": "success"}
 
 
-refresh_timeout_wf = hatchet.declare_workflow(on_events=["refresh:create"])
+refresh_timeout_wf = hatchet.workflow(
+    name="RefreshTimeoutWorkflow", on_events=["refresh:create"]
+)
 
 
-class RefreshTimeoutWorkflow(BaseWorkflow):
-    config = refresh_timeout_wf.config
+@refresh_timeout_wf.task(timeout="4s")
+def refresh_task(input: EmptyModel, context: Context) -> dict[str, str]:
 
-    @hatchet.step(timeout="4s")
-    def step1(self, context: Context) -> dict[str, str]:
+    context.refresh_timeout("10s")
+    time.sleep(5)
 
-        context.refresh_timeout("10s")
-        time.sleep(5)
-
-        return {"status": "success"}
+    return {"status": "success"}
 
 
 def main() -> None:
-    worker = hatchet.worker("timeout-worker", max_runs=4)
-    worker.register_workflow(TimeoutWorkflow())
-    worker.register_workflow(RefreshTimeoutWorkflow())
+    worker = hatchet.worker(
+        "timeout-worker", max_runs=4, workflows=[timeout_wf, refresh_timeout_wf]
+    )
 
     worker.start()
 

@@ -1,16 +1,17 @@
 import time
 
 from hatchet_sdk import (
-    BaseWorkflow,
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
     Context,
+    EmptyModel,
     Hatchet,
 )
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.declare_workflow(
+wf = hatchet.workflow(
+    name="ConcurrencyDemoWorkflowRR",
     on_events=["concurrency-test"],
     schedule_timeout="10m",
     concurrency=ConcurrencyExpression(
@@ -21,20 +22,16 @@ wf = hatchet.declare_workflow(
 )
 
 
-class ConcurrencyDemoWorkflowRR(BaseWorkflow):
-    config = wf.config
-
-    @hatchet.step()
-    def step1(self, context: Context) -> None:
-        print("starting step1")
-        time.sleep(2)
-        print("finished step1")
-        pass
+@wf.task()
+def step1(input: EmptyModel, context: Context) -> None:
+    print("starting step1")
+    time.sleep(2)
+    print("finished step1")
+    pass
 
 
 def main() -> None:
-    worker = hatchet.worker("concurrency-demo-worker-rr", max_runs=10)
-    worker.register_workflow(ConcurrencyDemoWorkflowRR())
+    worker = hatchet.worker("concurrency-demo-worker-rr", max_runs=10, workflows=[wf])
 
     worker.start()
 

@@ -1,4 +1,4 @@
-from hatchet_sdk import BaseWorkflow, Context, Hatchet
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
@@ -8,26 +8,21 @@ hatchet = Hatchet(debug=True)
 # as adding a `cron expression` to the `on_cron`
 # prop of the workflow definition
 
-wf = hatchet.declare_workflow(on_crons=["* * * * *"])
+wf = hatchet.workflow(name="CronWorkflow", on_crons=["* * * * *"])
 
 
-class CronWorkflow(BaseWorkflow):
-    config = wf.config
-
-    @hatchet.step()
-    def step1(self, context: Context) -> dict[str, str]:
-
-        return {
-            "time": "step1",
-        }
+@wf.task()
+def step1(input: EmptyModel, context: Context) -> dict[str, str]:
+    return {
+        "time": "step1",
+    }
 
 
 # !!
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", max_runs=1)
-    worker.register_workflow(CronWorkflow())
+    worker = hatchet.worker("test-worker", max_runs=1, workflows=[wf])
     worker.start()
 
 
