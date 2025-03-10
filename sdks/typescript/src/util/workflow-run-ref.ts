@@ -71,6 +71,15 @@ export default class WorkflowRunRef<T> {
     return this.client.stream(workflowRunId);
   }
 
+  // TODO test this..
+  async cancel() {
+    const workflowRunId = await getWorkflowRunId(this.workflowRunId);
+
+    this.client.api.v1TaskCancel(this.client.config.tenant_id, {
+      externalIds: [workflowRunId],
+    });
+  }
+
   async result(): Promise<T> {
     const workflowRunId = await getWorkflowRunId(this.workflowRunId);
 

@@ -11,6 +11,7 @@ import WorkflowRunRef from './util/workflow-run-ref';
 import { Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
+import { CreateTaskOpts } from './v1/task';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -133,7 +134,16 @@ export class Context<T, K = {}> {
     }
   }
 
-  stepOutput(step: string): NextStep {
+  parentData<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
+    if (typeof task === 'string') {
+      return this.stepOutput<L>(task);
+    }
+
+    return this.stepOutput<L>(task.name) as L;
+  }
+
+  // TODO deprecated
+  stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
       throw new HatchetError('Step output not found');
     }

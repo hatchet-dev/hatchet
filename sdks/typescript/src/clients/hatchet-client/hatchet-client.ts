@@ -141,7 +141,7 @@ export class HatchetClient {
     );
 
     this.logger = this.config.logger('HatchetClient', this.config.log_level);
-    this.logger.info(`Initialized HatchetClient`);
+    this.logger.debug(`Initialized HatchetClient`);
 
     // Feature Clients
     this.cron = new CronClient(this.tenantId, this.config, this.api, this.admin);
