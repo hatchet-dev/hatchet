@@ -88,7 +88,7 @@ class Workflow(Generic[TWorkflowInput]):
     def get_name(self, namespace: str) -> str:
         return namespace + self.config.name
 
-    def validate_concurrency_actions(
+    def _validate_concurrency_actions(
         self, service_name: str
     ) -> WorkflowConcurrencyOpts | None:
         if len(self.__concurrency_actions) > 0 and self.config.concurrency:
@@ -119,7 +119,7 @@ class Workflow(Generic[TWorkflowInput]):
 
         return None
 
-    def validate_on_failure_task(
+    def _validate_on_failure_task(
         self, name: str, service_name: str
     ) -> CreateWorkflowJobOpts | None:
         if not self.__on_failure_task:
@@ -142,7 +142,7 @@ class Workflow(Generic[TWorkflowInput]):
             ],
         )
 
-    def validate_priority(self, default_priority: int | None) -> int | None:
+    def _validate_priority(self, default_priority: int | None) -> int | None:
         validated_priority = (
             max(1, min(3, default_priority)) if default_priority else None
         )
@@ -176,9 +176,9 @@ class Workflow(Generic[TWorkflowInput]):
             if task.type == StepType.DEFAULT
         ]
 
-        concurrency = self.validate_concurrency_actions(service_name)
-        on_failure_job = self.validate_on_failure_task(name, service_name)
-        validated_priority = self.validate_priority(self.config.default_priority)
+        concurrency = self._validate_concurrency_actions(service_name)
+        on_failure_job = self._validate_on_failure_task(name, service_name)
+        validated_priority = self._validate_priority(self.config.default_priority)
 
         return CreateWorkflowVersionOpts(
             name=name,
