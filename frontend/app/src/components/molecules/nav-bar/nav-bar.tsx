@@ -97,7 +97,7 @@ function HelpDropdown() {
   );
 }
 
-function AccountDropdown({ user }: MainNavProps) {
+function AccountDropdown({ user, tenant }: MainNavProps) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
 
