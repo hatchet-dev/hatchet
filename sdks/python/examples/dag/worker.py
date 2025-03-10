@@ -42,9 +42,7 @@ def step4(input: EmptyModel, context: Context) -> dict[str, str]:
         time.strftime("%H:%M:%S", time.localtime()),
         input,
         context.task_output(step1),
-        context.task_output(step2),
         context.task_output(step3),
-        context.task_output(step4),
     )
     return {
         "step4": "step4",

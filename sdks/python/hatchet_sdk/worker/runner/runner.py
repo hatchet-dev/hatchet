@@ -53,7 +53,7 @@ class Runner:
     def __init__(
         self,
         name: str,
-        event_queue: "Queue[Any]",
+        event_queue: "Queue[ActionEvent]",
         max_runs: int | None = None,
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
