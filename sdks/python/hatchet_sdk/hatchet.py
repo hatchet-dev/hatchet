@@ -114,6 +114,7 @@ class Hatchet:
             config=self._client.config,
             debug=self._client.debug,
             owned_loop=loop is None,
+            workflows=workflows,
         )
 
     @overload

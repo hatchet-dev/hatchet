@@ -78,6 +78,8 @@ class AdminClient:
             _options = options.model_dump()
 
             _options.pop("namespace")
+            _options.pop("sticky")
+            _options.pop("key")
 
             try:
                 _options = {

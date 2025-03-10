@@ -72,7 +72,7 @@ class Workflow(Generic[TWorkflowInput]):
         return f"{namespace}{self.config.name.lower()}"
 
     @property
-    def __tasks(self) -> list[Task[TWorkflowInput, Any]]:
+    def tasks(self) -> list[Task[TWorkflowInput, Any]]:
         tasks = self.__default_tasks + self.__concurrency_actions
 
         if self.__on_failure_task:
@@ -172,7 +172,7 @@ class Workflow(Generic[TWorkflowInput]):
                 backoff_factor=task.backoff_factor,
                 backoff_max_seconds=task.backoff_max_seconds,
             )
-            for task in self.__tasks
+            for task in self.tasks
             if task.type == StepType.DEFAULT
         ]
 

@@ -23,7 +23,7 @@ class Task(Generic[TWorkflowInput, R]):
             | Callable[[TWorkflowInput, Context], Awaitable[R]]
         ),
         type: StepType,
-        workflow: Workflow[TWorkflowInput],
+        workflow: "Workflow[TWorkflowInput]",
         name: str = "",
         timeout: str = "60m",
         parents: "list[Task[TWorkflowInput, Any]]" = [],

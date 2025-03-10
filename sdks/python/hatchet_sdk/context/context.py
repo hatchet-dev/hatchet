@@ -2,7 +2,7 @@ import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel
 
@@ -18,9 +18,12 @@ from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import OverridesData
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
+
+if TYPE_CHECKING:
+    from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.runnables.types import R, TWorkflowInput
+
 
 DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
 
@@ -75,7 +78,9 @@ class Context:
 
         self.input = self.data.input
 
-    def task_output(self, task: Task[TWorkflowInput, R]) -> R:
+    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R | None":
+        from hatchet_sdk.runnables.types import R
+
         workflow_validator = next(
             (
                 v
@@ -85,12 +90,15 @@ class Context:
             None,
         )
 
-        try:
-            parent_step_data = cast(R, self.data.parents[task.name])
-        except KeyError:
-            raise ValueError(f"Step output for '{task.name}' not found")
+        print("\n\n", self.data.parents, "\n\n")
 
-        if workflow_validator and (v := workflow_validator.step_output):
+        parent_step_data = cast(R | None, self.data.parents.get(task.name))
+
+        if (
+            parent_step_data
+            and workflow_validator
+            and (v := workflow_validator.step_output)
+        ):
             return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
