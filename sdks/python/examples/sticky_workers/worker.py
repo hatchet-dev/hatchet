@@ -1,15 +1,18 @@
 from hatchet_sdk import (
-    ChildTriggerWorkflowOptions,
     Context,
     EmptyModel,
     Hatchet,
     StickyStrategy,
+    TriggerWorkflowOptions,
 )
 
 hatchet = Hatchet(debug=True)
 
 sticky_workflow = hatchet.workflow(
     name="StickyWorkflow", on_events=["sticky:parent"], sticky=StickyStrategy.SOFT
+)
+sticky_child_workflow = hatchet.workflow(
+    name="StickyChildWorkflow", on_events=["sticky:child"], sticky=StickyStrategy.SOFT
 )
 
 
@@ -25,18 +28,13 @@ def step1b(input: EmptyModel, context: Context) -> dict[str, str | None]:
 
 @sticky_workflow.task(parents=[step1a, step1b])
 async def step2(input: EmptyModel, context: Context) -> dict[str, str | None]:
-    ref = await context.aio_spawn_workflow(
-        "StickyChildWorkflow", {}, options=ChildTriggerWorkflowOptions(sticky=True)
+    ref = await sticky_child_workflow.aio_run(
+        options=TriggerWorkflowOptions(sticky=True)
     )
 
     await ref.aio_result()
 
     return {"worker": context.worker.id()}
-
-
-sticky_child_workflow = hatchet.workflow(
-    name="StickyChildWorkflow", on_events=["sticky:child"], sticky=StickyStrategy.SOFT
-)
 
 
 @sticky_child_workflow.task()

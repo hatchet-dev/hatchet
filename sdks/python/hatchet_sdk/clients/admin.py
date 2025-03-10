@@ -40,12 +40,14 @@ class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     desired_worker_id: str | None = None
     namespace: str | None = None
     sticky: bool = False
+    key: str | None = None
 
 
 class WorkflowRunTriggerConfig(BaseModel):
     workflow_name: str
     input: JSONSerializableMapping
     options: TriggerWorkflowOptions
+    key: str | None = None
 
 
 class DedupeViolationErr(Exception):

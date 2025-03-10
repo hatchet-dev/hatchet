@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from hatchet_sdk import ChildTriggerWorkflowOptions, Context, Hatchet
+from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
 
 hatchet = Hatchet(debug=True)
 
@@ -30,12 +30,10 @@ async def spawn(input: ParentInput, context: Context) -> dict[str, Any]:
 
     children = await asyncio.gather(
         *[
-            child_wf.aio_spawn_one(
-                ctx=context,
+            child_wf.aio_run(
                 input=ChildInput(a=str(i)),
-                key=f"child{i}",
-                options=ChildTriggerWorkflowOptions(
-                    additional_metadata={"hello": "earth"}
+                options=TriggerWorkflowOptions(
+                    additional_metadata={"hello": "earth"}, key=f"child{i}"
                 ),
             )
             for i in range(input.n)

@@ -203,11 +203,15 @@ class Workflow(Generic[TWorkflowInput]):
 
     def create_run_workflow_config(
         self,
-        input: TWorkflowInput,
+        input: TWorkflowInput | None = None,
+        key: str | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunTriggerConfig:
         return WorkflowRunTriggerConfig(
-            workflow_name=self.config.name, input=input.model_dump(), options=options
+            workflow_name=self.config.name,
+            input=input.model_dump() if input else {},
+            options=options,
+            key=key,
         )
 
     def run(
@@ -233,7 +237,9 @@ class Workflow(Generic[TWorkflowInput]):
         )
 
     def run_many(
-        self, workflows: list[WorkflowRunTriggerConfig], options: TriggerWorkflowOptions
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         return self.client.admin.run_workflows(
             workflows=workflows,
@@ -241,7 +247,9 @@ class Workflow(Generic[TWorkflowInput]):
         )
 
     async def aio_run_many(
-        self, workflows: list[WorkflowRunTriggerConfig], options: TriggerWorkflowOptions
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         return await self.client.admin.aio_run_workflows(
             workflows=workflows,

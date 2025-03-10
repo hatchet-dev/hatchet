@@ -3,8 +3,7 @@ from typing import Any
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-from hatchet_sdk import ChildTriggerWorkflowOptions, Context, Hatchet
-from hatchet_sdk.runnables.workflow import SpawnWorkflowInput
+from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
 
 load_dotenv()
 
@@ -31,15 +30,12 @@ child = hatchet.workflow(
 def spawn(input: ParentInput, context: Context) -> dict[str, Any]:
     print("spawning child")
 
-    runs = child.spawn_many(
-        context,
+    runs = child.run_many(
         [
-            SpawnWorkflowInput(
+            child.create_run_workflow_config(
                 input=ChildInput(a=str(i)),
                 key=f"child{i}",
-                options=ChildTriggerWorkflowOptions(
-                    additional_metadata={"hello": "earth"}
-                ),
+                options=TriggerWorkflowOptions(additional_metadata={"hello": "earth"}),
             )
             for i in range(input.n)
         ],

@@ -24,7 +24,7 @@ child_workflow = hatchet.workflow(name="Child", input_validator=ChildInput)
 
 @parent_workflow.task(timeout="5m")
 async def spawn(input: ParentInput, context: Context) -> dict[str, str]:
-    child = await child_workflow.aio_spawn_one(ctx=context, input=ChildInput(a=1, b=10))
+    child = await child_workflow.aio_run(input=ChildInput(a=1, b=10))
 
     return cast(dict[str, str], await child.aio_result())
 

@@ -4,8 +4,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.clients.admin import ChildTriggerWorkflowOptions
-from hatchet_sdk.runnables.workflow import SpawnWorkflowInput
+from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
 hatchet = Hatchet(debug=True)
 
@@ -34,10 +33,10 @@ async def spawn(input: ParentInput, context: Context) -> dict[str, list[Any]]:
     results = []
 
     child_workflow_runs = [
-        SpawnWorkflowInput(
+        bulk_child_wf.create_run_workflow_config(
             input=ChildInput(a=str(i)),
             key=f"child{i}",
-            options=ChildTriggerWorkflowOptions(additional_metadata={"hello": "earth"}),
+            options=TriggerWorkflowOptions(additional_metadata={"hello": "earth"}),
         )
         for i in range(input.n)
     ]
@@ -45,7 +44,7 @@ async def spawn(input: ParentInput, context: Context) -> dict[str, list[Any]]:
     if len(child_workflow_runs) == 0:
         return {}
 
-    spawn_results = await bulk_child_wf.aio_spawn_many(context, child_workflow_runs)
+    spawn_results = await bulk_child_wf.aio_run_many(child_workflow_runs)
 
     results = await asyncio.gather(
         *[workflowRunRef.aio_result() for workflowRunRef in spawn_results],
