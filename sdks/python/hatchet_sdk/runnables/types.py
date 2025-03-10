@@ -5,8 +5,11 @@ from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Uni
 from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.context.context import Context
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
-R = TypeVar("R")
+ValidTaskReturnType = Union[BaseModel, JSONSerializableMapping, None]
+
+R = TypeVar("R", bound=Union[ValidTaskReturnType, Awaitable[ValidTaskReturnType]])
 P = ParamSpec("P")
 
 
