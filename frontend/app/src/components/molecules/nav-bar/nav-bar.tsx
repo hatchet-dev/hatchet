@@ -17,7 +17,7 @@ import {
   useNavigate,
   useSearchParams,
 } from 'react-router-dom';
-import api, { TenantVersion, User } from '@/lib/api';
+import api, { Tenant, TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
@@ -105,7 +105,7 @@ function HelpDropdown() {
   );
 }
 
-function AccountDropdown({ user }: MainNavProps) {
+function AccountDropdown({ user, tenant }: MainNavProps) {
   const navigate = useNavigate();
   const { handleApiError } = useApiError({});
 
@@ -148,6 +148,12 @@ function AccountDropdown({ user }: MainNavProps) {
         <DropdownMenuItem>
           <VersionInfo />
         </DropdownMenuItem>
+        {tenant?.version == TenantVersion.V1 &&
+          location.pathname.includes('v1') && (
+            <DropdownMenuItem onClick={() => navigate('/')}>
+              View Legacy V0 Data
+            </DropdownMenuItem>
+          )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
@@ -215,11 +221,13 @@ function VersionUpgradeButton() {
 
 interface MainNavProps {
   user: User;
+  tenant?: Tenant;
 }
 
 export default function MainNav({ user }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
+  const { tenant } = useTenant();
 
   return (
     <div className="fixed top-0 w-screen h-16 border-b">
@@ -233,10 +241,11 @@ export default function MainNav({ user }: MainNavProps) {
             alt="Hatchet"
             className="h-9 rounded"
           />
+          / {tenant?.name}
         </button>
         <div className="ml-auto flex items-center">
           <HelpDropdown />
-          <AccountDropdown user={user} />
+          <AccountDropdown user={user} tenant={tenant} />
           <VersionUpgradeButton />
         </div>
       </div>
