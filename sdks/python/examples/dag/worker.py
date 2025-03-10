@@ -10,6 +10,10 @@ class StepOutput(BaseModel):
     random_number: int
 
 
+class RandomSum(BaseModel):
+    sum: int
+
+
 hatchet = Hatchet(debug=True)
 
 wf = hatchet.workflow(
@@ -28,11 +32,11 @@ def step2(input: EmptyModel, context: Context) -> StepOutput:
 
 
 @wf.task(parents=[step1, step2])
-def step3(input: EmptyModel, context: Context) -> int:
+def step3(input: EmptyModel, context: Context) -> RandomSum:
     one = context.task_output(step1).random_number
     two = context.task_output(step2).random_number
 
-    return one + two
+    return RandomSum(sum=one + two)
 
 
 @wf.task(parents=[step1, step3])
