@@ -7,12 +7,6 @@ import grpc
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
 
-from hatchet_sdk.clients.dispatcher.action_listener import (
-    ctx_spawn_index,
-    ctx_step_run_id,
-    ctx_worker_id,
-    ctx_workflow_run_id,
-)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
@@ -24,6 +18,12 @@ from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.worker.action_listener_process import (
+    ctx_spawn_index,
+    ctx_step_run_id,
+    ctx_worker_id,
+    ctx_workflow_run_id,
+)
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 

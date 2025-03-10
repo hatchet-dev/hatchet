@@ -23,4 +23,4 @@ async def test_run_refresh_timeout(hatchet: Hatchet, worker: Worker) -> None:
     run = refresh_timeout_wf.run()
 
     result = await run.aio_result()
-    assert result["step1"]["status"] == "success"
+    assert result["refresh_task"]["status"] == "success"

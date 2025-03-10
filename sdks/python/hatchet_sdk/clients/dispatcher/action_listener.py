@@ -1,7 +1,6 @@
 import asyncio
 import json
 import time
-from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncGenerator, Optional, cast
@@ -35,13 +34,6 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
-
-ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
-    "ctx_workflow_run_id", default=None
-)
-ctx_step_run_id: ContextVar[str | None] = ContextVar("ctx_step_run_id", default=None)
-ctx_worker_id: ContextVar[str | None] = ContextVar("ctx_worker_id", default=None)
-ctx_spawn_index: ContextVar[int] = ContextVar("ctx_spawn_index", default=0)
 
 
 @dataclass
@@ -331,10 +323,6 @@ class ActionListener:
                         child_workflow_key=assigned_action.child_workflow_key,
                         parent_workflow_run_id=assigned_action.parent_workflow_run_id,
                     )
-
-                    ctx_step_run_id.set(assigned_action.stepRunId)
-                    ctx_workflow_run_id.set(assigned_action.workflowRunId)
-                    ctx_worker_id.set(self.worker_id)
 
                     yield action
             except grpc.RpcError as e:
