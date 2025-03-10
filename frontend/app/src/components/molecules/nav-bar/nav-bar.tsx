@@ -17,7 +17,7 @@ import {
   useNavigate,
   useSearchParams,
 } from 'react-router-dom';
-import api, { Tenant, TenantVersion, User } from '@/lib/api';
+import api, { TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
@@ -40,7 +40,7 @@ import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
-import { Banner, BannerProps } from './banner'; // Import the new Banner component
+import { Banner, BannerProps } from './banner';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -106,8 +106,10 @@ function HelpDropdown() {
   );
 }
 
-function AccountDropdown({ user, tenant }: MainNavProps) {
+function AccountDropdown({ user }: MainNavProps) {
   const navigate = useNavigate();
+  const { tenant } = useTenant();
+
   const { handleApiError } = useApiError({});
 
   const { toggleTheme } = useTheme();
@@ -222,8 +224,6 @@ function VersionUpgradeButton() {
 
 interface MainNavProps {
   user: User;
-  tenant?: Tenant;
-  bannerProps?: BannerProps;
   setHasBanner?: (state: boolean) => void;
 }
 
@@ -302,7 +302,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
           </button>
           <div className="ml-auto flex items-center">
             <HelpDropdown />
-            <AccountDropdown user={user} tenant={tenant} />
+            <AccountDropdown user={user} />
             <VersionUpgradeButton />
           </div>
         </div>

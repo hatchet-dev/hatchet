@@ -6,7 +6,6 @@ export interface BannerProps {
   type?: 'info' | 'warning' | 'success' | 'error';
   actionText?: string;
   onAction?: () => void;
-  showBanner?: boolean;
 }
 
 export const Banner: React.FC<BannerProps> = ({
@@ -14,12 +13,7 @@ export const Banner: React.FC<BannerProps> = ({
   type = 'info',
   actionText,
   onAction,
-  showBanner = true,
 }) => {
-  if (!showBanner) {
-    return null;
-  }
-
   const getBgColor = () => {
     switch (type) {
       case 'warning':
