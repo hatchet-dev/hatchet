@@ -78,7 +78,7 @@ class Context:
 
         self.input = self.data.input
 
-    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R | None":
+    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
         workflow_validator = next(
@@ -90,9 +90,10 @@ class Context:
             None,
         )
 
-        print("\n\n", self.data.parents, "\n\n")
-
-        parent_step_data = cast(R | None, self.data.parents.get(task.name))
+        try:
+            parent_step_data = cast(R, self.data.parents[task.name])
+        except KeyError:
+            raise ValueError(f"Step output for '{task.name}' not found")
 
         if (
             parent_step_data
