@@ -133,7 +133,7 @@ require (
 	github.com/google/cel-go v0.24.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.0
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.1
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/invopop/jsonschema v0.13.0
