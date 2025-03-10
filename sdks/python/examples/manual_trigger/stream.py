@@ -3,6 +3,7 @@ import base64
 import json
 import os
 
+from examples.manual_trigger.worker import wf
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.clients.run_event_listener import StepRunEventType
@@ -11,9 +12,7 @@ hatchet = Hatchet()
 
 
 async def main() -> None:
-    workflowRun = hatchet.admin.run_workflow(
-        "ManualTriggerWorkflow",
-        {"test": "test"},
+    workflowRun = wf.run(
         options=TriggerWorkflowOptions(additional_metadata={"hello": "moon"}),
     )
 

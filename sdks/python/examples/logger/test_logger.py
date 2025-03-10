@@ -1,5 +1,6 @@
 import pytest
 
+from examples.logger.workflow import wf
 from hatchet_sdk import Hatchet, Worker
 
 
@@ -7,6 +8,7 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["logger"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("LoggingWorkflow", {})
+    run = wf.run()
+
     result = await run.aio_result()
     assert result["step1"]["status"] == "success"

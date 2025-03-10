@@ -3,6 +3,7 @@ import json
 import pytest
 from opentelemetry.trace import NoOpTracerProvider
 
+from examples.opentelemetry_instrumentation.worker import wf
 from hatchet_sdk import Hatchet, Worker
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.clients.events import PushEventOptions
@@ -49,9 +50,7 @@ def test_push_event(hatchet: Hatchet, worker: Worker) -> None:
 @pytest.mark.parametrize("worker", ["otel"], indirect=True)
 async def test_run_workflow(aiohatchet: Hatchet, worker: Worker) -> None:
     with tracer.start_as_current_span("run_workflow"):
-        workflow = aiohatchet.admin.run_workflow(
-            "OTelWorkflow",
-            {"test": "test"},
+        workflow = wf.run(
             options=TriggerWorkflowOptions(
                 additional_metadata=create_additional_metadata()
             ),

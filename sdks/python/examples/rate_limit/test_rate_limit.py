@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from examples.rate_limit.worker import wf
 from hatchet_sdk import Hatchet, Worker
 
 
@@ -12,9 +13,9 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.parametrize("worker", ["rate_limit"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
 
-    run1 = hatchet.admin.run_workflow("RateLimitWorkflow", {})
-    run2 = hatchet.admin.run_workflow("RateLimitWorkflow", {})
-    run3 = hatchet.admin.run_workflow("RateLimitWorkflow", {})
+    run1 = wf.run()
+    run2 = wf.run()
+    run3 = wf.run()
 
     start_time = time.time()
 
