@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 
 export interface BannerProps {
-  message: React.ReactNode;
+  message: JSX.Element;
   type?: 'info' | 'warning' | 'success' | 'error';
   actionText?: string;
   onAction?: () => void;
