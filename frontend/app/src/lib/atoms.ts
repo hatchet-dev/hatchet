@@ -1,7 +1,7 @@
 import { atom, useAtom } from 'jotai';
-import { Tenant, queries } from './api';
-import { useSearchParams } from 'react-router-dom';
-import { useCallback, useEffect, useMemo } from 'react';
+import { Tenant, TenantVersion, queries } from './api';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
@@ -34,6 +34,7 @@ type TenantContextPresent = {
   tenant: Tenant;
   tenantId: string;
   setTenant: (tenant: Tenant) => void;
+  setViewLegacyData: (val: boolean) => void;
 };
 
 type TenantContextMissing = {
@@ -49,6 +50,8 @@ type TenantContext = TenantContextPresent | TenantContextMissing;
 export function useTenant(): TenantContext {
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const [viewLegacyData, setViewLegacyData] = useState(false);
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
@@ -121,6 +124,40 @@ export function useTenant(): TenantContext {
     }
   }, [searchParams, tenant, setTenant]);
 
+  // Set the correct path for tenant version
+  // NOTE: this is hacky and not ideal
+
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+
+  const [lastRedirected, setLastRedirected] = useState<string | undefined>();
+
+  useEffect(() => {
+    // Only redirect on initial tenant load
+    if (lastRedirected == tenant?.slug) {
+      return;
+    }
+
+    setLastRedirected(tenant?.slug);
+
+    if (tenant?.version == TenantVersion.V0 && pathname.startsWith('/v1')) {
+      return navigate({
+        pathname: pathname.replace('/v1', ''),
+        search: params.toString(),
+      });
+    }
+
+    if (tenant?.version == TenantVersion.V1 && !pathname.startsWith('/v1')) {
+      return navigate({
+        pathname: '/v1' + pathname,
+        search: params.toString(),
+      });
+    }
+
+    console.log(tenant?.version);
+  }, [navigate, params, pathname, tenant]);
+
   if (!tenant) {
     return {
       tenant: undefined,
@@ -133,6 +170,7 @@ export function useTenant(): TenantContext {
     tenant,
     tenantId: tenant.metadata.id,
     setTenant,
+    setViewLegacyData,
   };
 }
 

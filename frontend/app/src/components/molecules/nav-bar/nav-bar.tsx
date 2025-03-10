@@ -33,13 +33,14 @@ import {
   BiUserCircle,
 } from 'react-icons/bi';
 import { useTheme } from '@/components/theme-provider';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
+import { Banner, BannerProps } from './banner'; // Import the new Banner component
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -222,31 +223,88 @@ function VersionUpgradeButton() {
 interface MainNavProps {
   user: User;
   tenant?: Tenant;
+  bannerProps?: BannerProps;
+  setHasBanner?: (state: boolean) => void;
 }
 
-export default function MainNav({ user }: MainNavProps) {
+export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { toggleSidebarOpen } = useSidebar();
   const { theme } = useTheme();
   const { tenant } = useTenant();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+
+  const versionedRoutes = useMemo(
+    () =>
+      routes
+        .at(0)
+        ?.children?.find((r) => r.path === '/v1/')
+        ?.children?.find((r) => r.path === '/v1/' && r.children?.length)
+        ?.children?.map((c) => c.path)
+        ?.map((p) => p?.replace('/v1', '')) || [],
+    [],
+  );
+
+  const tenantVersion = tenant?.version || TenantVersion.V0;
+
+  const banner: BannerProps | undefined = useMemo(() => {
+    const shouldShowVersionUpgradeButton =
+      versionedRoutes.includes(pathname) && // It is a versioned route
+      !pathname.includes('/v1') && // The user is not already on the v1 version
+      tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
+
+    if (shouldShowVersionUpgradeButton) {
+      return {
+        message: (
+          <>
+            You are viewing legacy V0 data for a tenant that was upgraded to V1
+            runtime.
+          </>
+        ),
+        type: 'warning',
+        actionText: 'Upgrade',
+        onAction: () => {
+          navigate({
+            pathname: '/v1' + pathname,
+            search: params.toString(),
+          });
+        },
+      };
+    }
+
+    return;
+  }, [navigate, params, pathname, tenantVersion, versionedRoutes]);
+
+  useEffect(() => {
+    if (!setHasBanner) {
+      return;
+    }
+    setHasBanner(!!banner);
+  }, [setHasBanner, banner]);
 
   return (
-    <div className="fixed top-0 w-screen h-16 border-b">
-      <div className="flex h-16 items-center pr-4 pl-4">
-        <button
-          onClick={() => toggleSidebarOpen()}
-          className="flex flex-row gap-4 items-center"
-        >
-          <img
-            src={theme == 'dark' ? hatchet : hatchetDark}
-            alt="Hatchet"
-            className="h-9 rounded"
-          />
-          / {tenant?.name}
-        </button>
-        <div className="ml-auto flex items-center">
-          <HelpDropdown />
-          <AccountDropdown user={user} tenant={tenant} />
-          <VersionUpgradeButton />
+    <div className="fixed top-0 w-screen">
+      {banner && <Banner {...banner} />}
+
+      {/* Main Navigation Bar */}
+      <div className="h-16 border-b">
+        <div className="flex h-16 items-center pr-4 pl-4">
+          <button
+            onClick={() => toggleSidebarOpen()}
+            className="flex flex-row gap-4 items-center"
+          >
+            <img
+              src={theme == 'dark' ? hatchet : hatchetDark}
+              alt="Hatchet"
+              className="h-9 rounded"
+            />
+          </button>
+          <div className="ml-auto flex items-center">
+            <HelpDropdown />
+            <AccountDropdown user={user} tenant={tenant} />
+            <VersionUpgradeButton />
+          </div>
         </div>
       </div>
     </div>
