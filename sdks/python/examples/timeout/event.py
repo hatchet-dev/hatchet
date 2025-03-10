@@ -1,5 +1,5 @@
-from hatchet_sdk import new_client
+from hatchet_sdk import Hatchet
 
-client = new_client()
+client = Hatchet()
 
 client.event.push("user:create", {"test": "test"})

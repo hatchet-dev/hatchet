@@ -1,13 +1,12 @@
 import asyncio
 
-from hatchet_sdk import new_client
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.events import PushEventOptions
+
+hatchet = Hatchet()
 
 
 async def main() -> None:
-
-    hatchet = new_client()
-
     hatchet.event.push(
         "parent:create",
         {"n": 999},

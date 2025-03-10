@@ -1,5 +1,5 @@
-from hatchet_sdk import new_client
+from hatchet_sdk import Hatchet
 
-client = new_client()
+hatchet = Hatchet()
 
-client.event.push("printer:schedule", {"message": "test"})
+hatchet.event.push("printer:schedule", {"message": "test"})

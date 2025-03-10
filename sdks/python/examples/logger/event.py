@@ -1,8 +1,8 @@
-from hatchet_sdk import PushEventOptions, new_client
+from hatchet_sdk import Hatchet, PushEventOptions
 
-client = new_client()
+hatchet = Hatchet()
 
-client.event.push(
+hatchet.event.push(
     "user:create",
     {"test": "test"},
     options=PushEventOptions(additional_metadata={"hello": "moon"}),

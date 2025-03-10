@@ -1,12 +1,11 @@
-from hatchet_sdk import new_client
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.events import (
     BulkPushEventOptions,
     BulkPushEventWithMetadata,
     PushEventOptions,
 )
 
-client = new_client()
-
+client = Hatchet()
 # client.event.push("user:create", {"test": "test"})
 client.event.push(
     "user:create",

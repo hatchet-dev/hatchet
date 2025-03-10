@@ -1,6 +1,6 @@
-from hatchet_sdk import new_client
+from hatchet_sdk import Hatchet
 
-client = new_client()
+hatchet = Hatchet()
 
 for i in range(200):
     group = "0"
@@ -8,4 +8,4 @@ for i in range(200):
     if i % 2 == 0:
         group = "1"
 
-    client.event.push("concurrency-test", {"group": group})
+    hatchet.event.push("concurrency-test", {"group": group})

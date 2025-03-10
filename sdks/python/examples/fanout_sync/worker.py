@@ -1,11 +1,8 @@
 from typing import Any
 
-from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
-
-load_dotenv()
 
 hatchet = Hatchet(debug=True)
 
