@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, cast
 
 from pydantic import BaseModel
 
-from hatchet_sdk.client import new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -58,7 +58,7 @@ class Runner:
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
-        self.client = new_client_raw(config)
+        self.client = Client(config)
         self.name = self.client.config.namespace + name
         self.max_runs = max_runs
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
@@ -83,7 +83,7 @@ class Runner:
         self.client.workflow_listener = PooledWorkflowRunListener(self.config)
 
         self.worker_context = WorkerContext(
-            labels=labels, client=new_client_raw(config).dispatcher
+            labels=labels, client=Client(config=config).dispatcher
         )
 
     def create_workflow_run_url(self, action: Action) -> str:

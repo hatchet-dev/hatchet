@@ -16,7 +16,7 @@ from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.client import Client, new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
@@ -87,7 +87,7 @@ class Worker:
 
         self.loop: asyncio.AbstractEventLoop
 
-        self.client = new_client_raw(self.config, self.debug)
+        self.client = Client(config=self.config, debug=self.debug)
         self.name = self.client.config.namespace + self.name
 
         self._setup_signal_handlers()

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from multiprocessing import Queue
 from typing import Any, Literal, TypeVar
 
-from hatchet_sdk.client import Client, new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
@@ -42,7 +42,7 @@ class WorkerActionRunLoopManager:
     def __post_init__(self) -> None:
         if self.debug:
             logger.setLevel(logging.DEBUG)
-        self.client = new_client_raw(self.config, self.debug)
+        self.client = Client(config=self.config, debug=self.debug)
         self.start()
 
     def start(self, retry_count: int = 1) -> None:
