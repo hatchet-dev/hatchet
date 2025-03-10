@@ -874,6 +874,60 @@ func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, steprunid pgtyp
 	return items, nil
 }
 
+const getStartableStepRunsForWorkflowRuns = `-- name: GetStartableStepRunsForWorkflowRuns :many
+WITH JobRuns AS (
+    SELECT
+        jr."id" AS "jobRunId"
+    FROM
+        "JobRun" jr
+    WHERE
+        jr."workflowRunId" = ANY($1::uuid[])
+),
+
+InitialStepRuns AS (
+    SELECT
+        DISTINCT ON (child_run."id")
+        child_run."id" AS "stepRunId",
+        child_run."jobRunId",
+        child_run."tenantId"
+    FROM
+        "StepRun" AS child_run
+    LEFT JOIN
+        "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+    WHERE
+        child_run."jobRunId" IN (SELECT "jobRunId" FROM JobRuns)
+        AND child_run."status" = 'PENDING'
+        AND step_run_order."A" IS NULL
+)
+
+SELECT "stepRunId", "tenantId" FROM InitialStepRuns
+`
+
+type GetStartableStepRunsForWorkflowRunsRow struct {
+	StepRunId pgtype.UUID `json:"stepRunId"`
+	TenantId  pgtype.UUID `json:"tenantId"`
+}
+
+func (q *Queries) GetStartableStepRunsForWorkflowRuns(ctx context.Context, db DBTX, workflowrunids []pgtype.UUID) ([]*GetStartableStepRunsForWorkflowRunsRow, error) {
+	rows, err := db.Query(ctx, getStartableStepRunsForWorkflowRuns, workflowrunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStartableStepRunsForWorkflowRunsRow
+	for rows.Next() {
+		var i GetStartableStepRunsForWorkflowRunsRow
+		if err := rows.Scan(&i.StepRunId, &i.TenantId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStepDesiredWorkerLabels = `-- name: GetStepDesiredWorkerLabels :one
 SELECT
     jsonb_agg(

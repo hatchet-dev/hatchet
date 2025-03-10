@@ -593,11 +593,6 @@ INSERT INTO "WorkflowRun" (
 );
 
 
--- name: GetWorkflowRunsInsertedInThisTxn :many
-SELECT * FROM "WorkflowRun"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" = CURRENT_TIMESTAMP::timestamp(3))
-ORDER BY "insertOrder" ASC;
 
 -- name: CreateWorkflowRunDedupe :one
 WITH workflow_id AS (
@@ -847,7 +842,7 @@ SELECT
     @tenantId::uuid,
     @workflowRunId::uuid,
     "id",
-    'PENDING' -- default status
+    @status::"JobRunStatus"
 FROM
     "Job"
 WHERE
@@ -860,7 +855,9 @@ WITH input_data AS (
     SELECT
         UNNEST(@tenantIds::uuid[]) AS tenantId,
         UNNEST(@workflowRunIds::uuid[]) AS workflowRunId,
-        UNNEST(@workflowVersionIds::uuid[]) AS workflowVersionId
+        UNNEST(@workflowVersionIds::uuid[]) AS workflowVersionId,
+        UNNEST(CAST(@status::text[] AS "JobRunStatus"[])) AS status
+
 )
 INSERT INTO "JobRun" (
     "id",
@@ -878,7 +875,7 @@ SELECT
     input_data.tenantId,
     input_data.workflowRunId,
     "Job"."id",
-    'PENDING'
+    input_data.status
 FROM
     input_data
 JOIN
@@ -1079,6 +1076,43 @@ SELECT
     parent_child_step_runs."B" AS "B"
 FROM
     parent_child_step_runs;
+
+-- name: GetWorkflowRunsInsertedInThisTxn :many
+SELECT
+    sqlc.embed(runs),
+    CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM "JobRun" AS jr
+        JOIN "Job" AS j ON jr."jobId" = j."id"
+        WHERE jr."workflowRunId" = runs."id" AND j."kind" = 'ON_FAILURE'
+    )
+    THEN true
+    ELSE false
+    END AS "FailureJob",
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
+    groupKeyRun."id" as "getGroupKeyRunId",
+    dedupe."value" as "dedupeValue"
+
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
+LEFT JOIN
+    "WorkflowRunDedupe" as dedupe ON dedupe."workflowRunId" = runs."id"
+
+WHERE
+    runs.xmin::text = (txid_current() % (2^32)::bigint)::text
+    AND (runs."createdAt" = CURRENT_TIMESTAMP::timestamp(3))
+    ORDER BY "insertOrder" ASC;
 
 -- name: GetWorkflowRun :many
 SELECT
@@ -1561,6 +1595,14 @@ WHERE
 DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
+
+-- name: SetWorkflowRunRunning :exec
+UPDATE "WorkflowRun"
+SET
+    "status" = 'RUNNING'::"WorkflowRunStatus"
+WHERE
+    "id" = ANY(@workflowRunIds::uuid[])
+    AND "status" != 'RUNNING'::"WorkflowRunStatus";
 
 -- name: GetUpstreamErrorsForOnFailureStep :many
 WITH workflow_run AS (
