@@ -311,7 +311,6 @@ class AdminClient:
             desired_worker_id=desired_worker_id,
         )
 
-
         ## TODO: I think this isn't safe to do b/c of state update races causing these
         ## updates to not be atomic
         ctx_spawn_index.set(spawn_index + 1)
