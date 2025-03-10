@@ -305,17 +305,7 @@ class Runner:
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_group_key_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
-        context = Context(
-            action,
-            self.dispatcher_client,
-            self.admin_client,
-            self.client.event,
-            self.client.rest,
-            self.client.workflow_listener,
-            self.workflow_run_event_listener,
-            self.worker_context,
-            self.client.config.namespace,
-        )
+        context = self.create_context(action)
 
         self.contexts[action.get_group_key_run_id] = context
 

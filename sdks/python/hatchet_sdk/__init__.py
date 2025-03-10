@@ -1,6 +1,5 @@
 from hatchet_sdk.client import new_client
 from hatchet_sdk.clients.admin import (
-    ChildTriggerWorkflowOptions,
     DedupeViolationErr,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -231,7 +230,6 @@ __all__ = [
     "RateLimitDuration",
     "StickyStrategy",
     "new_client",
-    "ChildTriggerWorkflowOptions",
     "DedupeViolationErr",
     "ScheduleTriggerWorkflowOptions",
     "TriggerWorkflowOptions",

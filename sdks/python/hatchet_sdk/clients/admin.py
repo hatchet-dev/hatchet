@@ -7,6 +7,12 @@ import grpc
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
 
+from hatchet_sdk.clients.dispatcher.action_listener import (
+    ctx_spawn_index,
+    ctx_step_run_id,
+    ctx_worker_id,
+    ctx_workflow_run_id,
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
@@ -29,25 +35,14 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
     namespace: str | None = None
 
 
-class ChildTriggerWorkflowOptions(BaseModel):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    sticky: bool = False
-
-
-class ChildWorkflowRunDict(BaseModel):
-    workflow_name: str
-    input: JSONSerializableMapping
-    options: ChildTriggerWorkflowOptions
-    key: str | None = None
-
-
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     desired_worker_id: str | None = None
     namespace: str | None = None
+    sticky: bool = False
 
 
-class WorkflowRunDict(BaseModel):
+class WorkflowRunTriggerConfig(BaseModel):
     workflow_name: str
     input: JSONSerializableMapping
     options: TriggerWorkflowOptions
@@ -161,7 +156,7 @@ class AdminClient:
     @tenacity_retry
     async def aio_run_workflows(
         self,
-        workflows: list[WorkflowRunDict],
+        workflows: list[WorkflowRunTriggerConfig],
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
@@ -294,6 +289,26 @@ class AdminClient:
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
+        workflow_run_id = ctx_workflow_run_id.get()
+        step_run_id = ctx_step_run_id.get()
+        worker_id = ctx_worker_id.get()
+        spawn_index = ctx_spawn_index.get()
+
+        desired_worker_id = (
+            (options.desired_worker_id or worker_id) if options.sticky else None
+        )
+
+        trigger_options = TriggerWorkflowOptions(
+            parent_id=options.parent_id or workflow_run_id,
+            parent_step_run_id=options.parent_step_run_id or step_run_id,
+            child_key=options.child_key,
+            child_index=spawn_index,
+            additional_metadata=options.additional_metadata,
+            desired_worker_id=desired_worker_id,
+        )
+
+        ctx_spawn_index.set(spawn_index + 1)
+
         try:
             if not self.pooled_workflow_listener:
                 self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
@@ -303,7 +318,9 @@ class AdminClient:
             if namespace != "" and not workflow_name.startswith(self.namespace):
                 workflow_name = f"{namespace}{workflow_name}"
 
-            request = self._prepare_workflow_request(workflow_name, input, options)
+            request = self._prepare_workflow_request(
+                workflow_name, input, trigger_options
+            )
 
             resp = cast(
                 workflow_protos.TriggerWorkflowResponse,
@@ -325,7 +342,7 @@ class AdminClient:
             raise e
 
     def _prepare_workflow_run_request(
-        self, workflow: WorkflowRunDict, options: TriggerWorkflowOptions
+        self, workflow: WorkflowRunTriggerConfig, options: TriggerWorkflowOptions
     ) -> workflow_protos.TriggerWorkflowRequest:
         workflow_name = workflow.workflow_name
         input_data = workflow.input
@@ -342,7 +359,7 @@ class AdminClient:
     @tenacity_retry
     def run_workflows(
         self,
-        workflows: list[WorkflowRunDict],
+        workflows: list[WorkflowRunTriggerConfig],
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         if not self.pooled_workflow_listener:

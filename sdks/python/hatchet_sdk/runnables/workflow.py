@@ -1,13 +1,13 @@
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Generic, cast
 
 from google.protobuf import timestamp_pb2
+from pydantic import BaseModel
 
 from hatchet_sdk.clients.admin import (
-    ChildTriggerWorkflowOptions,
-    ChildWorkflowRunDict,
     ScheduleTriggerWorkflowOptions,
+    TriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.contracts.workflows_pb2 import (
@@ -37,15 +37,6 @@ if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
 
 
-@dataclass
-class SpawnWorkflowInput(Generic[TWorkflowInput]):
-    input: TWorkflowInput
-    key: str | None = None
-    options: ChildTriggerWorkflowOptions = field(
-        default_factory=ChildTriggerWorkflowOptions
-    )
-
-
 def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
     value = d.value
     return DesiredWorkerLabels(
@@ -55,6 +46,11 @@ def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels
         weight=d.weight,
         comparator=d.comparator,  # type: ignore[arg-type]
     )
+
+
+class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
+    input: TWorkflowInput
+    options: TriggerWorkflowOptions
 
 
 class Workflow(Generic[TWorkflowInput]):
@@ -205,73 +201,57 @@ class Workflow(Generic[TWorkflowInput]):
             default_priority=validated_priority,
         )
 
-    def run(self, input: TWorkflowInput | None = None) -> WorkflowRunRef:
+    def create_run_workflow_config(
+        self,
+        input: TWorkflowInput,
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+    ) -> WorkflowRunTriggerConfig:
+        return WorkflowRunTriggerConfig(
+            workflow_name=self.config.name, input=input.model_dump(), options=options
+        )
+
+    def run(
+        self,
+        input: TWorkflowInput | None = None,
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+    ) -> WorkflowRunRef:
         return self.client.admin.run_workflow(
-            workflow_name=self.config.name, input=input.model_dump() if input else {}
+            workflow_name=self.config.name,
+            input=input.model_dump() if input else {},
+            options=options,
+        )
+
+    async def aio_run(
+        self,
+        input: TWorkflowInput | None = None,
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+    ) -> WorkflowRunRef:
+        return await self.client.admin.aio_run_workflow(
+            workflow_name=self.config.name,
+            input=input.model_dump() if input else {},
+            options=options,
+        )
+
+    def run_many(
+        self, workflows: list[WorkflowRunTriggerConfig], options: TriggerWorkflowOptions
+    ) -> list[WorkflowRunRef]:
+        return self.client.admin.run_workflows(
+            workflows=workflows,
+            options=options,
+        )
+
+    async def aio_run_many(
+        self, workflows: list[WorkflowRunTriggerConfig], options: TriggerWorkflowOptions
+    ) -> list[WorkflowRunRef]:
+        return await self.client.admin.aio_run_workflows(
+            workflows=workflows,
+            options=options,
         )
 
     def get_workflow_input(self, ctx: Context) -> TWorkflowInput:
         return cast(
             TWorkflowInput,
             self.config.input_validator.model_validate(ctx.workflow_input),
-        )
-
-    ## TODO: Reimplement this with contextvars + `run`
-    async def aio_spawn_many(
-        self, ctx: Context, spawn_inputs: list[SpawnWorkflowInput[TWorkflowInput]]
-    ) -> list[WorkflowRunRef]:
-        inputs = [
-            ChildWorkflowRunDict(
-                workflow_name=self.config.name,
-                input=spawn_input.input.model_dump(),
-                key=spawn_input.key,
-                options=spawn_input.options,
-            )
-            for spawn_input in spawn_inputs
-        ]
-        return await ctx.aio_spawn_workflows(inputs)
-
-    async def aio_spawn_one(
-        self,
-        ctx: Context,
-        input: TWorkflowInput,
-        key: str | None = None,
-        options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
-        return await ctx.aio_spawn_workflow(
-            workflow_name=self.config.name,
-            input=input.model_dump(),
-            key=key,
-            options=options,
-        )
-
-    def spawn_many(
-        self, ctx: Context, spawn_inputs: list[SpawnWorkflowInput[TWorkflowInput]]
-    ) -> list[WorkflowRunRef]:
-        inputs = [
-            ChildWorkflowRunDict(
-                workflow_name=self.config.name,
-                input=spawn_input.input.model_dump(),
-                key=spawn_input.key,
-                options=spawn_input.options,
-            )
-            for spawn_input in spawn_inputs
-        ]
-
-        return ctx.spawn_workflows(inputs)
-
-    def spawn_one(
-        self,
-        ctx: Context,
-        input: TWorkflowInput,
-        key: str | None = None,
-        options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
-        return ctx.spawn_workflow(
-            workflow_name=self.config.name,
-            input=input.model_dump(),
-            key=key,
-            options=options,
         )
 
     def schedule(
@@ -314,7 +294,7 @@ class Workflow(Generic[TWorkflowInput]):
         def inner(
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
-            return Task(
+            task = Task(
                 fn=func,
                 workflow=self,
                 type=StepType.DEFAULT,
@@ -331,6 +311,10 @@ class Workflow(Generic[TWorkflowInput]):
                 backoff_max_seconds=backoff_max_seconds,
             )
 
+            self.__default_tasks.append(task)
+
+            return task
+
         return inner
 
     def on_failure_task(
@@ -345,7 +329,7 @@ class Workflow(Generic[TWorkflowInput]):
         def inner(
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
-            return Task(
+            task = Task(
                 fn=func,
                 workflow=self,
                 type=StepType.ON_FAILURE,
@@ -356,5 +340,9 @@ class Workflow(Generic[TWorkflowInput]):
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
             )
+
+            self.__on_failure_task = task
+
+            return task
 
         return inner
