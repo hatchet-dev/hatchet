@@ -34,6 +34,7 @@ type TenantContextPresent = {
   tenant: Tenant;
   tenantId: string;
   setTenant: (tenant: Tenant) => void;
+  setViewLegacyData: (val: boolean) => void;
 };
 
 type TenantContextMissing = {
@@ -49,6 +50,8 @@ type TenantContext = TenantContextPresent | TenantContextMissing;
 export function useTenant(): TenantContext {
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const [viewLegacyData, setViewLegacyData] = useState(false);
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
@@ -169,6 +172,7 @@ export function useTenant(): TenantContext {
     tenant,
     tenantId: tenant.metadata.id,
     setTenant,
+    setViewLegacyData,
   };
 }
 
