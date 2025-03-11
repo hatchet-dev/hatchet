@@ -62,7 +62,7 @@ export const addTokenMiddleware = (token: string) =>
     return undefined;
   };
 
-export class HatchetClient {
+export class InternalHatchetClient {
   config: ClientConfig;
   credentials: ChannelCredentials;
   event: EventClient;
@@ -152,8 +152,8 @@ export class HatchetClient {
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient {
-    return new HatchetClient(config, options, axiosConfig);
+  ): InternalHatchetClient {
+    return new InternalHatchetClient(config, options, axiosConfig);
   }
 
   // @deprecated

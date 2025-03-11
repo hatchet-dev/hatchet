@@ -6,7 +6,7 @@ import { Action } from './clients/dispatcher/action-listener';
 import { LogLevel } from './clients/event/event-client';
 import { Logger } from './util/logger';
 import { parseJSON } from './util/parse';
-import { HatchetClient } from './clients/hatchet-client';
+import { InternalHatchetClient } from './clients/hatchet-client';
 import WorkflowRunRef from './util/workflow-run-ref';
 import { Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
@@ -104,7 +104,7 @@ export class Context<T, K = {}> {
   input: T;
   controller = new AbortController();
   action: Action;
-  client: HatchetClient;
+  client: InternalHatchetClient;
 
   worker: ContextWorker;
 
@@ -113,7 +113,7 @@ export class Context<T, K = {}> {
 
   spawnIndex: number = 0;
 
-  constructor(action: Action, client: HatchetClient, worker: Worker) {
+  constructor(action: Action, client: InternalHatchetClient, worker: Worker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;

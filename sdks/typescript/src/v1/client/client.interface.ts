@@ -1,5 +1,5 @@
-import { HatchetClient } from '@hatchet/clients/hatchet-client';
+import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 
 export interface IHatchetClient {
-  v0: HatchetClient;
+  v0: InternalHatchetClient;
 }

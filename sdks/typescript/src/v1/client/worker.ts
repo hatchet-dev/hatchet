@@ -1,5 +1,5 @@
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { HatchetClient } from '@hatchet/clients/hatchet-client';
+import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { Worker as V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { Workflow } from '../workflow';
@@ -9,8 +9,6 @@ import { Workflow } from '../workflow';
  * @interface CreateWorkerOpts
  */
 export interface CreateWorkerOpts {
-  /** Optional friendly name for the worker */
-  name?: string;
   /** Maximum number of concurrent runs on this worker */
   slots?: number;
   /** Array of workflows to register */
@@ -44,8 +42,8 @@ export class HatchetWorker {
    * @param options - Worker creation options
    * @returns A new HatchetWorker instance
    */
-  static async create(v0: HatchetClient, options: CreateWorkerOpts) {
-    const v0worker = await v0.worker(options.name || 'hatchet-typescript-worker', {
+  static async create(v0: InternalHatchetClient, name: string, options: CreateWorkerOpts) {
+    const v0worker = await v0.worker(name, {
       ...options,
       maxRuns: options.slots || options.maxRuns,
     });

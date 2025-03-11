@@ -1,4 +1,8 @@
-import { ClientConfig, HatchetClient, HatchetClientOptions } from '@hatchet/clients/hatchet-client';
+import {
+  ClientConfig,
+  InternalHatchetClient,
+  HatchetClientOptions,
+} from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
@@ -10,12 +14,12 @@ import { CreateWorkerOpts, HatchetWorker } from './worker';
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
  * It provides methods for creating and executing workflows, as well as managing workers.
  */
-export class HatchetV1 implements IHatchetClient {
+export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
-  v0: HatchetClient;
+  v0: InternalHatchetClient;
 
   /**
-   * Creates a new HatchetV1 client instance.
+   * Creates a new Hatchet client instance.
    * @param config - Optional configuration for the client
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
@@ -25,22 +29,22 @@ export class HatchetV1 implements IHatchetClient {
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
   ) {
-    this.v0 = new HatchetClient(config, options, axiosConfig);
+    this.v0 = new InternalHatchetClient(config, options, axiosConfig);
   }
 
   /**
-   * Static factory method to create a new HatchetV1 client instance.
+   * Static factory method to create a new Hatchet client instance.
    * @param config - Optional configuration for the client
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
-   * @returns A new HatchetV1 client instance
+   * @returns A new Hatchet client instance
    */
   static init(
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetV1 {
-    return new HatchetV1(config, options, axiosConfig);
+  ): HatchetClient {
+    return new HatchetClient(config, options, axiosConfig);
   }
 
   /**
@@ -129,14 +133,14 @@ export class HatchetV1 implements IHatchetClient {
    * @param options - Configuration options for creating the worker
    * @returns A promise that resolves with a new HatchetWorker instance
    */
-  createWorker(options?: CreateWorkerOpts): Promise<HatchetWorker> {
-    const defaults: CreateWorkerOpts = {
-      name: process.env.HOSTNAME,
-    };
+  worker(name: string, options: CreateWorkerOpts | number): Promise<HatchetWorker> {
+    let opts: CreateWorkerOpts = {};
+    if (typeof options === 'number') {
+      opts = { slots: options };
+    } else {
+      opts = options;
+    }
 
-    return HatchetWorker.create(this.v0, {
-      ...defaults,
-      ...options,
-    });
+    return HatchetWorker.create(this.v0, name, opts);
   }
 }
