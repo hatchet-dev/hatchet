@@ -141,9 +141,7 @@ WITH input AS (
         input i ON i.match_id = m.v1_match_id AND i.condition_id = m.id
     ORDER BY
         m.id
-    -- We can afford a SKIP LOCKED because a match condition can only be satisfied by 1 event
-    -- at a time
-    FOR UPDATE SKIP LOCKED
+    FOR UPDATE
 ), updated_conditions AS (
     UPDATE
         v1_match_condition
@@ -312,6 +310,24 @@ WITH match_counts AS (
             OR (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups)
             OR (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups)
         )
+), locked_conditions AS (
+    SELECT
+        m.v1_match_id,
+        m.id
+    FROM
+        v1_match_condition m
+    JOIN
+        result_matches r ON r.id = m.v1_match_id
+    ORDER BY
+        m.id
+    FOR UPDATE
+), deleted_conditions AS (
+    DELETE FROM
+        v1_match_condition
+    WHERE
+        (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
+    RETURNING
+        v1_match_id AS id
 ), matches_with_data AS (
     SELECT
         m.id,
@@ -336,23 +352,7 @@ WITH match_counts AS (
     DELETE FROM
         v1_match
     WHERE
-        id IN (SELECT id FROM result_matches)
-), locked_conditions AS (
-    SELECT
-        m.v1_match_id,
-        m.id
-    FROM
-        v1_match_condition m
-    JOIN
-        result_matches r ON r.id = m.v1_match_id
-    ORDER BY
-        m.id
-    FOR UPDATE
-), deleted_conditions AS (
-    DELETE FROM
-        v1_match_condition
-    WHERE
-        (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
+        id IN (SELECT id FROM deleted_conditions)
 )
 SELECT
     result_matches.id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, d.id, mc_aggregated_data,

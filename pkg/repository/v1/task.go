@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -69,7 +70,7 @@ type CreateTaskOpts struct {
 type ReplayTasksResult struct {
 	ReplayedTasks []TaskIdInsertedAtRetryCount
 
-	QueuedTasks []*sqlcv1.V1Task
+	UpsertedTasks []*sqlcv1.V1Task
 
 	InternalEventResults *InternalEventMatchResults
 }
@@ -1326,6 +1327,7 @@ func (r *sharedRepository) insertTasks(
 	initialStateReasons := make([]pgtype.Text, len(tasks))
 	dagIds := make([]pgtype.Int8, len(tasks))
 	dagInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	parentStrategyIds := make([][]pgtype.Int8, len(tasks))
 	strategyIds := make([][]int64, len(tasks))
 	concurrencyKeys := make([][]string, len(tasks))
 	parentTaskExternalIds := make([]pgtype.UUID, len(tasks))
@@ -1423,13 +1425,32 @@ func (r *sharedRepository) insertTasks(
 			}
 		}
 
+		concurrencyKeys[i] = make([]string, 0)
+
+		// we write any parent strategy ids to the task regardless of initial state, as we need to know
+		// when to release the parent concurrency slot
+		taskParentStrategyIds := make([]pgtype.Int8, 0)
+		taskStrategyIds := make([]int64, 0)
+		emptyConcurrencyKeys := make([]string, 0)
+
+		if strats, ok := concurrencyStrats[task.StepId]; ok {
+			for _, strat := range strats {
+				taskStrategyIds = append(taskStrategyIds, strat.ID)
+				taskParentStrategyIds = append(taskParentStrategyIds, strat.ParentStrategyID)
+				emptyConcurrencyKeys = append(emptyConcurrencyKeys, "")
+			}
+		}
+
+		parentStrategyIds[i] = taskParentStrategyIds
+		strategyIds[i] = taskStrategyIds
+		concurrencyKeys[i] = emptyConcurrencyKeys
+
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
 		// evaluate the expression (and it will likely fail if we do)
 		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED {
 			// if we have a step expression, evaluate the expression
 			if strats, ok := concurrencyStrats[task.StepId]; ok {
 				taskConcurrencyKeys := make([]string, 0)
-				taskStrategyIds := make([]int64, 0)
 				var failTaskError error
 
 				for _, strat := range strats {
@@ -1467,7 +1488,6 @@ func (r *sharedRepository) insertTasks(
 					}
 
 					taskConcurrencyKeys = append(taskConcurrencyKeys, *res.String)
-					taskStrategyIds = append(taskStrategyIds, strat.ID)
 				}
 
 				if failTaskError != nil {
@@ -1480,7 +1500,6 @@ func (r *sharedRepository) insertTasks(
 					}
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
-					strategyIds[i] = taskStrategyIds
 				}
 			}
 		}
@@ -1552,43 +1571,97 @@ func (r *sharedRepository) insertTasks(
 		return nil, fmt.Errorf("failed to upsert queues: %w", err)
 	}
 
-	res, err := r.queries.CreateTasks(ctx, tx, sqlcv1.CreateTasksParams{
-		Tenantids:              tenantIds,
-		Queues:                 queues,
-		Actionids:              actionIds,
-		Stepids:                stepIds,
-		Stepreadableids:        stepReadableIds,
-		Workflowids:            workflowIds,
-		Scheduletimeouts:       scheduleTimeouts,
-		Steptimeouts:           stepTimeouts,
-		Priorities:             priorities,
-		Stickies:               stickies,
-		Desiredworkerids:       desiredWorkerIds,
-		Externalids:            externalIds,
-		Displaynames:           displayNames,
-		Inputs:                 inputs,
-		Retrycounts:            retryCounts,
-		Additionalmetadatas:    additionalMetadatas,
-		InitialStates:          initialStates,
-		InitialStateReasons:    initialStateReasons,
-		Dagids:                 dagIds,
-		Daginsertedats:         dagInsertedAts,
-		ConcurrencyStrategyIds: strategyIds,
-		ConcurrencyKeys:        concurrencyKeys,
-		ParentTaskExternalIds:  parentTaskExternalIds,
-		ParentTaskIds:          parentTaskIds,
-		ParentTaskInsertedAts:  parentTaskInsertedAts,
-		ChildIndex:             childIndices,
-		ChildKey:               childKeys,
-		StepIndex:              stepIndices,
-		RetryBackoffFactor:     retryBackoffFactors,
-		RetryMaxBackoff:        retryMaxBackoffs,
-		WorkflowVersionIds:     workflowVersionIds,
-		WorkflowRunIds:         workflowRunIds,
-	})
+	// group by step_id
+	stepIdsToParams := make(map[string]sqlcv1.CreateTasksParams, 0)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tasks: %w", err)
+	for i, task := range tasks {
+		params, ok := stepIdsToParams[task.StepId]
+
+		if !ok {
+			params = sqlcv1.CreateTasksParams{
+				Tenantids:                    make([]pgtype.UUID, 0),
+				Queues:                       make([]string, 0),
+				Actionids:                    make([]string, 0),
+				Stepids:                      make([]pgtype.UUID, 0),
+				Stepreadableids:              make([]string, 0),
+				Workflowids:                  make([]pgtype.UUID, 0),
+				Scheduletimeouts:             make([]string, 0),
+				Steptimeouts:                 make([]string, 0),
+				Priorities:                   make([]int32, 0),
+				Stickies:                     make([]string, 0),
+				Desiredworkerids:             make([]pgtype.UUID, 0),
+				Externalids:                  make([]pgtype.UUID, 0),
+				Displaynames:                 make([]string, 0),
+				Inputs:                       make([][]byte, 0),
+				Retrycounts:                  make([]int32, 0),
+				Additionalmetadatas:          make([][]byte, 0),
+				InitialStates:                make([]string, 0),
+				InitialStateReasons:          make([]pgtype.Text, 0),
+				Dagids:                       make([]pgtype.Int8, 0),
+				Daginsertedats:               make([]pgtype.Timestamptz, 0),
+				Concurrencyparentstrategyids: make([][]pgtype.Int8, 0),
+				ConcurrencyStrategyIds:       make([][]int64, 0),
+				ConcurrencyKeys:              make([][]string, 0),
+				ParentTaskExternalIds:        make([]pgtype.UUID, 0),
+				ParentTaskIds:                make([]pgtype.Int8, 0),
+				ParentTaskInsertedAts:        make([]pgtype.Timestamptz, 0),
+				ChildIndex:                   make([]pgtype.Int8, 0),
+				ChildKey:                     make([]pgtype.Text, 0),
+				StepIndex:                    make([]int64, 0),
+				RetryBackoffFactor:           make([]pgtype.Float8, 0),
+				RetryMaxBackoff:              make([]pgtype.Int4, 0),
+				WorkflowVersionIds:           make([]pgtype.UUID, 0),
+				WorkflowRunIds:               make([]pgtype.UUID, 0),
+			}
+		}
+
+		params.Tenantids = append(params.Tenantids, tenantIds[i])
+		params.Queues = append(params.Queues, queues[i])
+		params.Actionids = append(params.Actionids, actionIds[i])
+		params.Stepids = append(params.Stepids, stepIds[i])
+		params.Stepreadableids = append(params.Stepreadableids, stepReadableIds[i])
+		params.Workflowids = append(params.Workflowids, workflowIds[i])
+		params.Scheduletimeouts = append(params.Scheduletimeouts, scheduleTimeouts[i])
+		params.Steptimeouts = append(params.Steptimeouts, stepTimeouts[i])
+		params.Priorities = append(params.Priorities, priorities[i])
+		params.Stickies = append(params.Stickies, stickies[i])
+		params.Desiredworkerids = append(params.Desiredworkerids, desiredWorkerIds[i])
+		params.Externalids = append(params.Externalids, externalIds[i])
+		params.Displaynames = append(params.Displaynames, displayNames[i])
+		params.Inputs = append(params.Inputs, inputs[i])
+		params.Retrycounts = append(params.Retrycounts, retryCounts[i])
+		params.Additionalmetadatas = append(params.Additionalmetadatas, additionalMetadatas[i])
+		params.InitialStates = append(params.InitialStates, initialStates[i])
+		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
+		params.Dagids = append(params.Dagids, dagIds[i])
+		params.Daginsertedats = append(params.Daginsertedats, dagInsertedAts[i])
+		params.Concurrencyparentstrategyids = append(params.Concurrencyparentstrategyids, parentStrategyIds[i])
+		params.ConcurrencyStrategyIds = append(params.ConcurrencyStrategyIds, strategyIds[i])
+		params.ConcurrencyKeys = append(params.ConcurrencyKeys, concurrencyKeys[i])
+		params.ParentTaskExternalIds = append(params.ParentTaskExternalIds, parentTaskExternalIds[i])
+		params.ParentTaskIds = append(params.ParentTaskIds, parentTaskIds[i])
+		params.ParentTaskInsertedAts = append(params.ParentTaskInsertedAts, parentTaskInsertedAts[i])
+		params.ChildIndex = append(params.ChildIndex, childIndices[i])
+		params.ChildKey = append(params.ChildKey, childKeys[i])
+		params.StepIndex = append(params.StepIndex, stepIndices[i])
+		params.RetryBackoffFactor = append(params.RetryBackoffFactor, retryBackoffFactors[i])
+		params.RetryMaxBackoff = append(params.RetryMaxBackoff, retryMaxBackoffs[i])
+		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
+		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
+
+		stepIdsToParams[task.StepId] = params
+	}
+
+	res := make([]*sqlcv1.V1Task, 0)
+
+	for stepId, params := range stepIdsToParams {
+		createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create tasks for step id %s: %w", stepId, err)
+		}
+
+		res = append(res, createdTasks...)
 	}
 
 	if len(createExpressionOpts) > 0 {
@@ -1653,7 +1726,6 @@ func (r *sharedRepository) replayTasks(
 	inputs := make([][]byte, len(tasks))
 	initialStates := make([]string, len(tasks))
 	initialStateReasons := make([]pgtype.Text, len(tasks))
-	strategyIds := make([][]int64, len(tasks))
 	concurrencyKeys := make([][]string, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
 	queues := make([]string, len(tasks))
@@ -1682,7 +1754,7 @@ func (r *sharedRepository) replayTasks(
 			// if we have a step expression, evaluate the expression
 			if strats, ok := concurrencyStrats[task.StepId]; ok {
 				taskConcurrencyKeys := make([]string, 0)
-				taskStrategyIds := make([]int64, 0)
+
 				var failTaskError error
 
 				for _, strat := range strats {
@@ -1693,6 +1765,11 @@ func (r *sharedRepository) replayTasks(
 							failTaskError = fmt.Errorf("failed to process additional metadata: not a json object")
 							break
 						}
+					}
+
+					if task.Input == nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): input is nil", strat.Expression)
+						break
 					}
 
 					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
@@ -1720,7 +1797,7 @@ func (r *sharedRepository) replayTasks(
 					}
 
 					taskConcurrencyKeys = append(taskConcurrencyKeys, *res.String)
-					taskStrategyIds = append(taskStrategyIds, strat.ID)
+
 				}
 
 				if failTaskError != nil {
@@ -1733,7 +1810,6 @@ func (r *sharedRepository) replayTasks(
 					}
 				} else {
 					concurrencyKeys[i] = taskConcurrencyKeys
-					strategyIds[i] = taskStrategyIds
 				}
 			}
 		}
@@ -1745,18 +1821,42 @@ func (r *sharedRepository) replayTasks(
 		return nil, fmt.Errorf("failed to upsert queues: %w", err)
 	}
 
-	res, err := r.queries.ReplayTasks(ctx, tx, sqlcv1.ReplayTasksParams{
-		Taskids:                taskIds,
-		Taskinsertedats:        taskInsertedAts,
-		Inputs:                 inputs,
-		InitialStates:          initialStates,
-		InitialStateReasons:    initialStateReasons,
-		Concurrencystrategyids: strategyIds,
-		Concurrencykeys:        concurrencyKeys,
-	})
+	stepIdsToParams := make(map[string]sqlcv1.ReplayTasksParams, 0)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to replay tasks: %w", err)
+	for i, task := range tasks {
+		params, ok := stepIdsToParams[task.StepId]
+
+		if !ok {
+			params = sqlcv1.ReplayTasksParams{
+				Taskids:             make([]int64, 0),
+				Taskinsertedats:     make([]pgtype.Timestamptz, 0),
+				Inputs:              make([][]byte, 0),
+				InitialStates:       make([]string, 0),
+				InitialStateReasons: make([]pgtype.Text, 0),
+				Concurrencykeys:     make([][]string, 0),
+			}
+		}
+
+		params.Taskids = append(params.Taskids, taskIds[i])
+		params.Taskinsertedats = append(params.Taskinsertedats, taskInsertedAts[i])
+		params.Inputs = append(params.Inputs, inputs[i])
+		params.InitialStates = append(params.InitialStates, initialStates[i])
+		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
+		params.Concurrencykeys = append(params.Concurrencykeys, concurrencyKeys[i])
+
+		stepIdsToParams[task.StepId] = params
+	}
+
+	res := make([]*sqlcv1.V1Task, 0)
+
+	for stepId, params := range stepIdsToParams {
+		replayRes, err := r.queries.ReplayTasks(ctx, tx, params)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to replay tasks for step id %s: %w", stepId, err)
+		}
+
+		res = append(res, replayRes...)
 	}
 
 	// TODO: this should be moved to after the transaction commits
@@ -1799,6 +1899,10 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	}
 
 	stepIdToStrats := make(map[string][]*sqlcv1.V1StepConcurrency)
+
+	sort.SliceStable(strats, func(i, j int) bool {
+		return strats[i].ID < strats[j].ID
+	})
 
 	for _, strat := range strats {
 		stepId := sqlchelpers.UUIDToStr(strat.StepID)
@@ -2094,6 +2198,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			ExternalId:         sqlchelpers.UUIDToStr(task.ExternalID),
 			InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 			AdditionalMetadata: task.AdditionalMetadata,
+			Input:              r.newTaskInputFromExistingBytes(task.Input),
 		})
 	}
 
@@ -2122,11 +2227,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
 	}
 
-	queuedTasks := make([]*sqlcv1.V1Task, 0)
+	upsertedTasks := make([]*sqlcv1.V1Task, 0)
 
 	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
 	if len(replayOpts) > 0 {
-		queuedTasks, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
+		upsertedTasks, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
 
 		if err != nil {
 			return nil, err
@@ -2301,7 +2406,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 	return &ReplayTasksResult{
 		ReplayedTasks:        replayedTasks,
-		QueuedTasks:          queuedTasks,
+		UpsertedTasks:        upsertedTasks,
 		InternalEventResults: internalMatchResults,
 	}, nil
 }

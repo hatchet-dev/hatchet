@@ -3,7 +3,6 @@ SELECT
     create_v1_range_partition('v1_task', @date::date),
     create_v1_range_partition('v1_dag', @date::date),
     create_v1_range_partition('v1_task_event', @date::date),
-    create_v1_range_partition('v1_concurrency_slot', @date::date),
     create_v1_range_partition('v1_log_line', @date::date);
 
 -- name: ListPartitionsBeforeDate :many
@@ -13,8 +12,6 @@ WITH task_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', @date::date) AS p
 ), task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', @date::date) AS p
-), concurrency_partitions AS (
-    SELECT 'v1_concurrency_slot' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_concurrency_slot', @date::date) AS p
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
 )
@@ -36,13 +33,6 @@ SELECT
     *
 FROM
     task_event_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    concurrency_partitions
 
 UNION ALL
 
@@ -342,6 +332,7 @@ WITH expired_runtimes AS (
         v1_task.step_id,
         v1_task.external_id,
         v1_task.workflow_run_id,
+        v1_task.step_timeout,
         expired_runtimes.worker_id
     FROM
         v1_task
@@ -663,6 +654,7 @@ WITH RECURSIVE augmented_tasks AS (
         t.step_readable_id,
         t.step_id,
         t.workflow_id,
+        t.input,
         t.external_id,
         t.additional_metadata,
         t.parent_task_external_id,
@@ -703,6 +695,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.external_id,
+    t.input,
     t.additional_metadata,
     t.parent_task_external_id,
     t.parent_task_id,

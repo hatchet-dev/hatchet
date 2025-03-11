@@ -509,6 +509,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				sqlchelpers.UUIDToStr(schedulingTimedOut.WorkflowRunID),
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+				"",
 				false,
 			)
 
@@ -627,11 +628,14 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 	// handle cancellations
 	for _, cancelled := range res.Cancelled {
 		eventType := sqlcv1.V1EventTypeOlapCANCELLED
+		eventMessage := ""
 		shouldNotify := true
 
 		if cancelled.CancelledReason == "SCHEDULING_TIMED_OUT" {
 			eventType = sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT
 			shouldNotify = false
+		} else {
+			eventMessage = "Cancelled due to concurrency strategy"
 		}
 
 		msg, err := tasktypes.CancelledTaskMessage(
@@ -642,6 +646,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 			cancelled.WorkflowRunId,
 			cancelled.TaskIdInsertedAtRetryCount.RetryCount,
 			eventType,
+			eventMessage,
 			shouldNotify,
 		)
 

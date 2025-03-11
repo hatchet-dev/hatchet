@@ -41,7 +41,7 @@ type ConcurrencyManager struct {
 func newConcurrencyManager(conf *sharedConfig, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency, resultsCh chan<- *ConcurrencyResults) *ConcurrencyManager {
 	repo := conf.repo.Concurrency()
 
-	notifyConcurrencyCh := make(chan map[string]string, 1)
+	notifyConcurrencyCh := make(chan map[string]string, 2)
 
 	c := &ConcurrencyManager{
 		repo:                repo,
@@ -78,18 +78,14 @@ func (c *ConcurrencyManager) Cleanup() {
 }
 
 func (c *ConcurrencyManager) notify(ctx context.Context) {
-	if ok := c.notifyMu.TryLock(); !ok {
-		return
+	ctx, span := telemetry.NewSpan(ctx, "notify-concurrency")
+	defer span.End()
+
+	// non-blocking write
+	select {
+	case c.notifyConcurrencyCh <- telemetry.GetCarrier(ctx):
+	default:
 	}
-
-	go func() {
-		defer c.notifyMu.Unlock()
-
-		ctx, span := telemetry.NewSpan(ctx, "notify-concurrency")
-		defer span.End()
-
-		c.notifyConcurrencyCh <- telemetry.GetCarrier(ctx)
-	}()
 }
 
 func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -71,6 +72,9 @@ type adminClientImpl struct {
 	subscriber SubscribeClient
 
 	sharedMeta map[string]string
+
+	listenerMu sync.Mutex
+	listener   *WorkflowRunsListener
 }
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
@@ -227,7 +231,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
-	listener, err := a.subscriber.SubscribeToWorkflowRunEvents(context.Background())
+	listener, err := a.saveOrLoadListener()
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
@@ -611,4 +615,23 @@ func (a *adminClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte
 	}
 
 	return metadataBytes, nil
+}
+
+func (h *adminClientImpl) saveOrLoadListener() (*WorkflowRunsListener, error) {
+	h.listenerMu.Lock()
+	defer h.listenerMu.Unlock()
+
+	if h.listener != nil {
+		return h.listener, nil
+	}
+
+	listener, err := h.subscriber.SubscribeToWorkflowRunEvents(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	h.listener = listener
+
+	return listener, nil
 }

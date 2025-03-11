@@ -2306,6 +2306,20 @@ type TimeoutQueueItem struct {
 	IsQueued   bool             `json:"isQueued"`
 }
 
+type TmpWorkflowConcurrencySlot struct {
+	SortID                    int64       `json:"sort_id"`
+	TenantID                  pgtype.UUID `json:"tenant_id"`
+	WorkflowID                pgtype.UUID `json:"workflow_id"`
+	WorkflowVersionID         pgtype.UUID `json:"workflow_version_id"`
+	WorkflowRunID             pgtype.UUID `json:"workflow_run_id"`
+	StrategyID                int64       `json:"strategy_id"`
+	CompletedChildStrategyIds []int64     `json:"completed_child_strategy_ids"`
+	ChildStrategyIds          []int64     `json:"child_strategy_ids"`
+	Priority                  int32       `json:"priority"`
+	Key                       string      `json:"key"`
+	IsFilled                  bool        `json:"is_filled"`
+}
+
 type User struct {
 	ID            pgtype.UUID      `json:"id"`
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`
@@ -2343,21 +2357,25 @@ type UserSession struct {
 }
 
 type V1ConcurrencySlot struct {
-	TaskID            int64              `json:"task_id"`
-	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount    int32              `json:"task_retry_count"`
-	ExternalID        pgtype.UUID        `json:"external_id"`
-	TenantID          pgtype.UUID        `json:"tenant_id"`
-	WorkflowID        pgtype.UUID        `json:"workflow_id"`
-	WorkflowRunID     pgtype.UUID        `json:"workflow_run_id"`
-	StrategyID        int64              `json:"strategy_id"`
-	Priority          int32              `json:"priority"`
-	Key               string             `json:"key"`
-	IsFilled          bool               `json:"is_filled"`
-	NextStrategyIds   []int64            `json:"next_strategy_ids"`
-	NextKeys          []string           `json:"next_keys"`
-	QueueToNotify     string             `json:"queue_to_notify"`
-	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	SortID                pgtype.Int8        `json:"sort_id"`
+	TaskID                int64              `json:"task_id"`
+	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount        int32              `json:"task_retry_count"`
+	ExternalID            pgtype.UUID        `json:"external_id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	WorkflowID            pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID     pgtype.UUID        `json:"workflow_version_id"`
+	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
+	StrategyID            int64              `json:"strategy_id"`
+	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
+	Priority              int32              `json:"priority"`
+	Key                   string             `json:"key"`
+	IsFilled              bool               `json:"is_filled"`
+	NextParentStrategyIds []int64            `json:"next_parent_strategy_ids"`
+	NextStrategyIds       []int64            `json:"next_strategy_ids"`
+	NextKeys              []string           `json:"next_keys"`
+	QueueToNotify         string             `json:"queue_to_notify"`
+	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
 }
 
 type V1Dag struct {
@@ -2530,6 +2548,7 @@ type V1StatusesOlap struct {
 
 type V1StepConcurrency struct {
 	ID                int64                 `json:"id"`
+	ParentStrategyID  pgtype.Int8           `json:"parent_strategy_id"`
 	WorkflowID        pgtype.UUID           `json:"workflow_id"`
 	WorkflowVersionID pgtype.UUID           `json:"workflow_version_id"`
 	StepID            pgtype.UUID           `json:"step_id"`
@@ -2541,42 +2560,43 @@ type V1StepConcurrency struct {
 }
 
 type V1Task struct {
-	ID                     int64              `json:"id"`
-	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
-	TenantID               pgtype.UUID        `json:"tenant_id"`
-	Queue                  string             `json:"queue"`
-	ActionID               string             `json:"action_id"`
-	StepID                 pgtype.UUID        `json:"step_id"`
-	StepReadableID         string             `json:"step_readable_id"`
-	WorkflowID             pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID      pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
-	ScheduleTimeout        string             `json:"schedule_timeout"`
-	StepTimeout            pgtype.Text        `json:"step_timeout"`
-	Priority               pgtype.Int4        `json:"priority"`
-	Sticky                 V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID        pgtype.UUID        `json:"desired_worker_id"`
-	ExternalID             pgtype.UUID        `json:"external_id"`
-	DisplayName            string             `json:"display_name"`
-	Input                  []byte             `json:"input"`
-	RetryCount             int32              `json:"retry_count"`
-	InternalRetryCount     int32              `json:"internal_retry_count"`
-	AppRetryCount          int32              `json:"app_retry_count"`
-	StepIndex              int64              `json:"step_index"`
-	AdditionalMetadata     []byte             `json:"additional_metadata"`
-	DagID                  pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt          pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskExternalID   pgtype.UUID        `json:"parent_task_external_id"`
-	ParentTaskID           pgtype.Int8        `json:"parent_task_id"`
-	ParentTaskInsertedAt   pgtype.Timestamptz `json:"parent_task_inserted_at"`
-	ChildIndex             pgtype.Int8        `json:"child_index"`
-	ChildKey               pgtype.Text        `json:"child_key"`
-	InitialState           V1TaskInitialState `json:"initial_state"`
-	InitialStateReason     pgtype.Text        `json:"initial_state_reason"`
-	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
-	ConcurrencyKeys        []string           `json:"concurrency_keys"`
-	RetryBackoffFactor     pgtype.Float8      `json:"retry_backoff_factor"`
-	RetryMaxBackoff        pgtype.Int4        `json:"retry_max_backoff"`
+	ID                           int64              `json:"id"`
+	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
+	TenantID                     pgtype.UUID        `json:"tenant_id"`
+	Queue                        string             `json:"queue"`
+	ActionID                     string             `json:"action_id"`
+	StepID                       pgtype.UUID        `json:"step_id"`
+	StepReadableID               string             `json:"step_readable_id"`
+	WorkflowID                   pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID            pgtype.UUID        `json:"workflow_version_id"`
+	WorkflowRunID                pgtype.UUID        `json:"workflow_run_id"`
+	ScheduleTimeout              string             `json:"schedule_timeout"`
+	StepTimeout                  pgtype.Text        `json:"step_timeout"`
+	Priority                     pgtype.Int4        `json:"priority"`
+	Sticky                       V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID              pgtype.UUID        `json:"desired_worker_id"`
+	ExternalID                   pgtype.UUID        `json:"external_id"`
+	DisplayName                  string             `json:"display_name"`
+	Input                        []byte             `json:"input"`
+	RetryCount                   int32              `json:"retry_count"`
+	InternalRetryCount           int32              `json:"internal_retry_count"`
+	AppRetryCount                int32              `json:"app_retry_count"`
+	StepIndex                    int64              `json:"step_index"`
+	AdditionalMetadata           []byte             `json:"additional_metadata"`
+	DagID                        pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt                pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskExternalID         pgtype.UUID        `json:"parent_task_external_id"`
+	ParentTaskID                 pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt         pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	ChildIndex                   pgtype.Int8        `json:"child_index"`
+	ChildKey                     pgtype.Text        `json:"child_key"`
+	InitialState                 V1TaskInitialState `json:"initial_state"`
+	InitialStateReason           pgtype.Text        `json:"initial_state_reason"`
+	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
+	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
+	ConcurrencyKeys              []string           `json:"concurrency_keys"`
+	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
+	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 }
 
 type V1TaskEvent struct {
@@ -2674,6 +2694,32 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+}
+
+type V1WorkflowConcurrency struct {
+	ID                int64                 `json:"id"`
+	WorkflowID        pgtype.UUID           `json:"workflow_id"`
+	WorkflowVersionID pgtype.UUID           `json:"workflow_version_id"`
+	IsActive          bool                  `json:"is_active"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
+	ChildStrategyIds  []int64               `json:"child_strategy_ids"`
+	Expression        string                `json:"expression"`
+	TenantID          pgtype.UUID           `json:"tenant_id"`
+	MaxConcurrency    int32                 `json:"max_concurrency"`
+}
+
+type V1WorkflowConcurrencySlot struct {
+	SortID                    int64       `json:"sort_id"`
+	TenantID                  pgtype.UUID `json:"tenant_id"`
+	WorkflowID                pgtype.UUID `json:"workflow_id"`
+	WorkflowVersionID         pgtype.UUID `json:"workflow_version_id"`
+	WorkflowRunID             pgtype.UUID `json:"workflow_run_id"`
+	StrategyID                int64       `json:"strategy_id"`
+	CompletedChildStrategyIds []int64     `json:"completed_child_strategy_ids"`
+	ChildStrategyIds          []int64     `json:"child_strategy_ids"`
+	Priority                  int32       `json:"priority"`
+	Key                       string      `json:"key"`
+	IsFilled                  bool        `json:"is_filled"`
 }
 
 type WebhookWorker struct {

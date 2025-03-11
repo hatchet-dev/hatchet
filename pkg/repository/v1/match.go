@@ -380,7 +380,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 			replayedTasks, err := m.replayTasks(ctx, tx, tenantId, replayTaskOpts)
 
 			if err != nil {
-				return nil, fmt.Errorf("failed to replay tasks: %w", err)
+				return nil, fmt.Errorf("failed to replay %d tasks: %w", len(replayTaskOpts), err)
 			}
 
 			res.ReplayedTasks = replayedTasks

@@ -87,10 +87,28 @@ CREATE TYPE v1_task_initial_state AS ENUM ('QUEUED', 'CANCELLED', 'SKIPPED', 'FA
 -- enqueue if the strategy is removed.
 CREATE TYPE v1_concurrency_strategy AS ENUM ('NONE', 'GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST');
 
+CREATE TABLE v1_workflow_concurrency (
+    -- We need an id used for stable ordering to prevent deadlocks. We must process all concurrency
+    -- strategies on a workflow in the same order.
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
+    -- If the strategy is NONE and we've removed all concurrency slots, we can set is_active to false
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    strategy v1_concurrency_strategy NOT NULL,
+    child_strategy_ids BIGINT[],
+    expression TEXT NOT NULL,
+    tenant_id UUID NOT NULL,
+    max_concurrency INTEGER NOT NULL,
+    CONSTRAINT v1_workflow_concurrency_pkey PRIMARY KEY (workflow_id, workflow_version_id, id)
+);
+
 CREATE TABLE v1_step_concurrency (
     -- We need an id used for stable ordering to prevent deadlocks. We must process all concurrency
     -- strategies on a step in the same order.
     id bigint GENERATED ALWAYS AS IDENTITY,
+    -- The parent_strategy_id exists if concurrency is defined at the workflow level
+    parent_strategy_id BIGINT,
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
     step_id UUID NOT NULL,
@@ -105,42 +123,78 @@ CREATE TABLE v1_step_concurrency (
 
 CREATE OR REPLACE FUNCTION create_v1_step_concurrency()
 RETURNS trigger AS $$
+DECLARE
+  wf_concurrency_row v1_workflow_concurrency%ROWTYPE;
+  child_ids bigint[];
 BEGIN
   IF NEW."concurrencyGroupExpression" IS NOT NULL THEN
-    WITH steps AS (
-        -- Select only steps which don't have a parent according to _StepOrder
-        SELECT
-            s."id",
-            wf."id" AS "workflowId",
-            wv."id" AS "workflowVersionId",
-            wf."tenantId"
-        FROM "Step" s
-        JOIN "Job" j ON s."jobId" = j."id"
-        JOIN "WorkflowVersion" wv ON j."workflowVersionId" = wv."id"
-        JOIN "Workflow" wf ON wv."workflowId" = wf."id"
-        WHERE
-            wv."id" = NEW."workflowVersionId"
-            AND j."kind" = 'DEFAULT'
-    )
-    INSERT INTO v1_step_concurrency (
+    -- Insert into v1_workflow_concurrency and capture the inserted row.
+    INSERT INTO v1_workflow_concurrency (
       workflow_id,
       workflow_version_id,
-      step_id,
       strategy,
       expression,
       tenant_id,
       max_concurrency
     )
     SELECT
-      s."workflowId",
-      s."workflowVersionId",
-      s."id",
+      wf."id",
+      wv."id",
       NEW."limitStrategy"::VARCHAR::v1_concurrency_strategy,
       NEW."concurrencyGroupExpression",
-      s."tenantId",
+      wf."tenantId",
       NEW."maxRuns"
-    FROM steps s;
+    FROM "WorkflowVersion" wv
+    JOIN "Workflow" wf ON wv."workflowId" = wf."id"
+    WHERE wv."id" = NEW."workflowVersionId"
+    RETURNING * INTO wf_concurrency_row;
 
+    -- Insert into v1_step_concurrency and capture the inserted rows into a variable.
+    WITH inserted_steps AS (
+      INSERT INTO v1_step_concurrency (
+        parent_strategy_id,
+        workflow_id,
+        workflow_version_id,
+        step_id,
+        strategy,
+        expression,
+        tenant_id,
+        max_concurrency
+      )
+      SELECT
+        wf_concurrency_row.id,
+        s."workflowId",
+        s."workflowVersionId",
+        s."id",
+        NEW."limitStrategy"::VARCHAR::v1_concurrency_strategy,
+        NEW."concurrencyGroupExpression",
+        s."tenantId",
+        NEW."maxRuns"
+      FROM (
+        SELECT
+          s."id",
+          wf."id" AS "workflowId",
+          wv."id" AS "workflowVersionId",
+          wf."tenantId"
+        FROM "Step" s
+        JOIN "Job" j ON s."jobId" = j."id"
+        JOIN "WorkflowVersion" wv ON j."workflowVersionId" = wv."id"
+        JOIN "Workflow" wf ON wv."workflowId" = wf."id"
+        WHERE
+          wv."id" = NEW."workflowVersionId"
+          AND j."kind" = 'DEFAULT'
+      ) s
+      RETURNING *
+    )
+    SELECT array_remove(array_agg(t.id), NULL)::bigint[] INTO child_ids
+    FROM inserted_steps t;
+
+    -- Update the workflow concurrency row using its primary key.
+    UPDATE v1_workflow_concurrency
+    SET child_strategy_ids = child_ids
+    WHERE workflow_id = wf_concurrency_row.workflow_id
+      AND workflow_version_id = wf_concurrency_row.workflow_version_id
+      AND id = wf_concurrency_row.id;
   END IF;
   RETURN NEW;
 END;
@@ -187,6 +241,7 @@ CREATE TABLE v1_task (
     child_key TEXT,
     initial_state v1_task_initial_state NOT NULL DEFAULT 'QUEUED',
     initial_state_reason TEXT,
+    concurrency_parent_strategy_ids BIGINT[],
     concurrency_strategy_ids BIGINT[],
     concurrency_keys TEXT[],
     retry_backoff_factor DOUBLE PRECISION,
@@ -412,26 +467,219 @@ CREATE TABLE v1_dag_data (
 );
 
 -- CreateTable
+CREATE TABLE v1_workflow_concurrency_slot (
+    sort_id BIGINT NOT NULL,
+    tenant_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
+    workflow_run_id UUID NOT NULL,
+    strategy_id BIGINT NOT NULL,
+    completed_child_strategy_ids BIGINT[],
+    child_strategy_ids BIGINT[],
+    priority INTEGER NOT NULL DEFAULT 1,
+    key TEXT NOT NULL,
+    is_filled BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT v1_workflow_concurrency_slot_pkey PRIMARY KEY (strategy_id, workflow_version_id, workflow_run_id)
+);
+
+CREATE INDEX v1_workflow_concurrency_slot_query_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC, sort_id ASC);
+
+-- CreateTable
 CREATE TABLE v1_concurrency_slot (
+    sort_id BIGINT GENERATED ALWAYS AS IDENTITY,
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     task_retry_count INTEGER NOT NULL,
     external_id UUID NOT NULL,
     tenant_id UUID NOT NULL,
     workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
     workflow_run_id UUID NOT NULL,
     strategy_id BIGINT NOT NULL,
+    parent_strategy_id BIGINT,
     priority INTEGER NOT NULL DEFAULT 1,
     key TEXT NOT NULL,
     is_filled BOOLEAN NOT NULL DEFAULT FALSE,
+    next_parent_strategy_ids BIGINT[],
     next_strategy_ids BIGINT[],
     next_keys TEXT[],
     queue_to_notify TEXT NOT NULL,
     schedule_timeout_at TIMESTAMP(3) NOT NULL,
     CONSTRAINT v1_concurrency_slot_pkey PRIMARY KEY (task_id, task_inserted_at, task_retry_count, strategy_id)
-) PARTITION BY RANGE(task_inserted_at);
+);
 
-CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC);
+CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, strategy_id ASC, key ASC, sort_id ASC);
+
+-- When concurrency slot is CREATED, we should check whether the parent concurrency slot exists; if not, we should create
+-- the parent concurrency slot as well.
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_function()
+RETURNS trigger AS $$
+BEGIN
+    WITH parent_slot AS (
+        SELECT
+            cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id
+        FROM
+            new_table cs
+        WHERE
+            cs.parent_strategy_id IS NOT NULL
+    ), parent_to_child_strategy_ids AS (
+        SELECT
+            wc.child_strategy_ids, wc.id
+        FROM
+            parent_slot ps
+        JOIN v1_workflow_concurrency wc ON wc.workflow_id = ps.workflow_id AND wc.workflow_version_id = ps.workflow_version_id AND wc.id = ps.parent_strategy_id
+    )
+    INSERT INTO v1_workflow_concurrency_slot (
+        sort_id,
+        tenant_id,
+        workflow_id,
+        workflow_version_id,
+        workflow_run_id,
+        strategy_id,
+        child_strategy_ids,
+        priority,
+        key
+    )
+    SELECT
+        cs.sort_id,
+        cs.tenant_id,
+        cs.workflow_id,
+        cs.workflow_version_id,
+        cs.workflow_run_id,
+        cs.parent_strategy_id,
+        pcs.child_strategy_ids,
+        cs.priority,
+        cs.key
+    FROM
+        new_table cs
+    JOIN
+        parent_to_child_strategy_ids pcs ON pcs.id = cs.parent_strategy_id
+    WHERE
+        cs.parent_strategy_id IS NOT NULL
+    ON CONFLICT (strategy_id, workflow_version_id, workflow_run_id) DO NOTHING;
+
+    -- If the v1_step_concurrency strategy is not active, we set it to active.
+    WITH inactive_strategies AS (
+        SELECT
+            strategy.*
+        FROM
+            new_table cs
+        JOIN
+            v1_step_concurrency strategy ON strategy.workflow_id = cs.workflow_id AND strategy.workflow_version_id = cs.workflow_version_id AND strategy.id = cs.strategy_id
+        WHERE
+            strategy.is_active = FALSE
+        ORDER BY
+            strategy.id
+        FOR UPDATE
+    )
+    UPDATE v1_step_concurrency strategy
+    SET is_active = TRUE
+    FROM inactive_strategies
+    WHERE
+        strategy.workflow_id = inactive_strategies.workflow_id AND
+        strategy.workflow_version_id = inactive_strategies.workflow_version_id AND
+        strategy.step_id = inactive_strategies.step_id AND
+        strategy.id = inactive_strategies.id;
+
+    RETURN NULL;
+END;
+
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_insert
+AFTER INSERT ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_insert_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_delete_function()
+RETURNS trigger AS $$
+BEGIN
+    -- When v1_concurrency_slot is DELETED, we add it to the completed_child_strategy_ids on the parent.
+    WITH parent_slot AS (
+        SELECT
+            cs.workflow_id,
+            cs.workflow_version_id,
+            cs.workflow_run_id,
+            cs.strategy_id,
+            cs.parent_strategy_id
+        FROM
+            deleted_rows cs
+        WHERE
+            cs.parent_strategy_id IS NOT NULL
+    ), locked_parent_slots AS (
+        SELECT
+            wcs.strategy_id,
+            wcs.workflow_version_id,
+            wcs.workflow_run_id,
+            cs.strategy_id AS child_strategy_id
+        FROM
+            v1_workflow_concurrency_slot wcs
+        JOIN
+            parent_slot cs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+        ORDER BY
+            wcs.strategy_id,
+            wcs.workflow_version_id,
+            wcs.workflow_run_id
+        FOR UPDATE
+    )
+    UPDATE v1_workflow_concurrency_slot wcs
+    SET completed_child_strategy_ids = ARRAY(
+        SELECT DISTINCT UNNEST(ARRAY_APPEND(wcs.completed_child_strategy_ids, cs.child_strategy_id))
+    )
+    FROM locked_parent_slots cs
+    WHERE
+        wcs.strategy_id = cs.strategy_id
+        AND wcs.workflow_version_id = cs.workflow_version_id
+        AND wcs.workflow_run_id = cs.workflow_run_id;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_delete
+AFTER DELETE ON v1_concurrency_slot
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_delete_function();
+
+-- After we update the v1_workflow_concurrency_slot, we'd like to check whether all child_strategy_ids are
+-- in the completed_child_strategy_ids. If so, we should delete the v1_workflow_concurrency_slot.
+CREATE OR REPLACE FUNCTION after_v1_workflow_concurrency_slot_update_function()
+RETURNS trigger AS $$
+BEGIN
+    -- place a lock on new_table
+    WITH slots_to_delete AS (
+        SELECT
+            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+        FROM
+            new_table wcs
+        WHERE
+            CARDINALITY(wcs.child_strategy_ids) = CARDINALITY(wcs.completed_child_strategy_ids)
+        ORDER BY
+            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+        FOR UPDATE
+    )
+    DELETE FROM
+        v1_workflow_concurrency_slot wcs
+    WHERE
+        (strategy_id, workflow_version_id, workflow_run_id) IN (
+            SELECT
+                strategy_id, workflow_version_id, workflow_run_id
+            FROM
+                slots_to_delete
+        );
+
+    RETURN NULL;
+END;
+
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_workflow_concurrency_slot_update
+AFTER UPDATE ON v1_workflow_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_workflow_concurrency_slot_update_function();
 
 CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_function()
 RETURNS trigger AS $$
@@ -479,9 +727,58 @@ CREATE TABLE v1_retry_queue_item (
 CREATE INDEX v1_retry_queue_item_tenant_id_retry_after_idx ON v1_retry_queue_item (tenant_id ASC, retry_after ASC);
 
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
-RETURNS TRIGGER AS
-$$
+RETURNS TRIGGER AS $$
+DECLARE
+    rec RECORD;
 BEGIN
+    FOR rec IN SELECT * FROM new_table WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL AND concurrency_keys[1] IS NULL LOOP
+        RAISE WARNING 'New table row: %', row_to_json(rec);
+    END LOOP;
+
+    -- When a task is inserted in a non-queued state, we should add all relevant completed_child_strategy_ids to the parent
+    -- concurrency slots.
+    WITH parent_slots AS (
+        SELECT
+            nt.workflow_id,
+            nt.workflow_version_id,
+            nt.workflow_run_id,
+            UNNEST(nt.concurrency_strategy_ids) AS strategy_id,
+            UNNEST(nt.concurrency_parent_strategy_ids) AS parent_strategy_id
+        FROM
+            new_table nt
+        WHERE
+            cardinality(nt.concurrency_parent_strategy_ids) > 0
+            AND nt.initial_state != 'QUEUED'
+    ), locked_parent_slots AS (
+        SELECT
+            wcs.workflow_id,
+            wcs.workflow_version_id,
+            wcs.workflow_run_id,
+            wcs.strategy_id,
+            cs.strategy_id AS child_strategy_id
+        FROM
+            v1_workflow_concurrency_slot wcs
+        JOIN
+            parent_slots cs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+        ORDER BY
+            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+        FOR UPDATE
+    )
+    UPDATE
+        v1_workflow_concurrency_slot wcs
+    SET
+        -- get unique completed_child_strategy_ids after append with cs.strategy_id
+        completed_child_strategy_ids = ARRAY(
+            SELECT
+                DISTINCT UNNEST(ARRAY_APPEND(wcs.completed_child_strategy_ids, cs.child_strategy_id))
+        )
+    FROM
+        locked_parent_slots cs
+    WHERE
+        wcs.strategy_id = cs.strategy_id
+        AND wcs.workflow_version_id = cs.workflow_version_id
+        AND wcs.workflow_run_id = cs.workflow_run_id;
+
     WITH new_slot_rows AS (
         SELECT
             id,
@@ -489,6 +786,11 @@ BEGIN
             retry_count,
             tenant_id,
             priority,
+            concurrency_parent_strategy_ids[1] AS parent_strategy_id,
+            CASE
+                WHEN array_length(concurrency_parent_strategy_ids, 1) > 1 THEN concurrency_parent_strategy_ids[2:array_length(concurrency_parent_strategy_ids, 1)]
+                ELSE '{}'::bigint[]
+            END AS next_parent_strategy_ids,
             concurrency_strategy_ids[1] AS strategy_id,
             external_id,
             workflow_run_id,
@@ -502,6 +804,7 @@ BEGIN
                 ELSE '{}'::text[]
             END AS next_keys,
             workflow_id,
+            workflow_version_id,
             queue,
             CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout) AS schedule_timeout_at
         FROM new_table
@@ -514,7 +817,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         priority,
@@ -530,7 +836,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         COALESCE(priority, 1),
@@ -657,6 +966,11 @@ BEGIN
             nt.tenant_id,
             nt.workflow_run_id,
             nt.external_id,
+            nt.concurrency_parent_strategy_ids[1] AS parent_strategy_id,
+            CASE
+                WHEN array_length(nt.concurrency_parent_strategy_ids, 1) > 1 THEN nt.concurrency_parent_strategy_ids[2:array_length(nt.concurrency_parent_strategy_ids, 1)]
+                ELSE '{}'::bigint[]
+            END AS next_parent_strategy_ids,
             nt.concurrency_strategy_ids[1] AS strategy_id,
             CASE
                 WHEN array_length(nt.concurrency_strategy_ids, 1) > 1 THEN nt.concurrency_strategy_ids[2:array_length(nt.concurrency_strategy_ids, 1)]
@@ -668,6 +982,7 @@ BEGIN
                 ELSE '{}'::text[]
             END AS next_keys,
             nt.workflow_id,
+            nt.workflow_version_id,
             nt.queue,
             CURRENT_TIMESTAMP + convert_duration_to_interval(nt.schedule_timeout) AS schedule_timeout_at
         FROM new_table nt
@@ -684,7 +999,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         priority,
@@ -700,7 +1018,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         4,
@@ -773,6 +1094,11 @@ BEGIN
             t.tenant_id,
             t.workflow_run_id,
             t.external_id,
+            t.concurrency_parent_strategy_ids[1] AS parent_strategy_id,
+            CASE
+                WHEN array_length(t.concurrency_parent_strategy_ids, 1) > 1 THEN t.concurrency_parent_strategy_ids[2:array_length(t.concurrency_parent_strategy_ids, 1)]
+                ELSE '{}'::bigint[]
+            END AS next_parent_strategy_ids,
             t.concurrency_strategy_ids[1] AS strategy_id,
             CASE
                 WHEN array_length(t.concurrency_strategy_ids, 1) > 1 THEN t.concurrency_strategy_ids[2:array_length(t.concurrency_strategy_ids, 1)]
@@ -784,6 +1110,7 @@ BEGIN
                 ELSE '{}'::text[]
             END AS next_keys,
             t.workflow_id,
+            t.workflow_version_id,
             t.queue,
             CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout) AS schedule_timeout_at
         FROM deleted_rows dr
@@ -801,7 +1128,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         priority,
@@ -817,7 +1147,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         4,
@@ -899,6 +1232,11 @@ BEGIN
             t.queue,
             t.workflow_run_id,
             t.external_id,
+            nt.next_parent_strategy_ids[1] AS parent_strategy_id,
+            CASE
+                WHEN array_length(nt.next_parent_strategy_ids, 1) > 1 THEN nt.next_parent_strategy_ids[2:array_length(nt.next_parent_strategy_ids, 1)]
+                ELSE '{}'::bigint[]
+            END AS next_parent_strategy_ids,
             nt.next_strategy_ids[1] AS strategy_id,
             CASE
                 WHEN array_length(nt.next_strategy_ids, 1) > 1 THEN nt.next_strategy_ids[2:array_length(nt.next_strategy_ids, 1)]
@@ -910,6 +1248,7 @@ BEGIN
                 ELSE '{}'::text[]
             END AS next_keys,
             t.workflow_id,
+            t.workflow_version_id,
             CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout) AS schedule_timeout_at
         FROM new_table nt
         JOIN old_table ot USING (task_id, task_inserted_at, task_retry_count, key)
@@ -926,7 +1265,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         priority,
@@ -942,7 +1284,10 @@ BEGIN
         external_id,
         tenant_id,
         workflow_id,
+        workflow_version_id,
         workflow_run_id,
+        parent_strategy_id,
+        next_parent_strategy_ids,
         strategy_id,
         next_strategy_ids,
         COALESCE(priority, 1),
@@ -987,9 +1332,11 @@ BEGIN
         queue,
         id,
         inserted_at,
+        external_id,
         action_id,
         step_id,
         workflow_id,
+        workflow_run_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout),
         step_timeout,
         COALESCE(priority, 1),
