@@ -49,7 +49,7 @@ type TenantInviteRepository interface {
 
 	// ListTenantInvitesByEmail returns the list of tenant invites for the given invitee email for invites
 	// which are not expired
-	ListTenantInvitesByEmail(ctx context.Context, email string) ([]*dbsqlc.TenantInviteLink, error)
+	ListTenantInvitesByEmail(ctx context.Context, email string) ([]*dbsqlc.ListTenantInvitesByEmailRow, error)
 
 	// ListTenantInvitesByTenantId returns the list of tenant invites for the given tenant id
 	ListTenantInvitesByTenantId(ctx context.Context, tenantId string, opts *ListTenantInvitesOpts) ([]*dbsqlc.TenantInviteLink, error)

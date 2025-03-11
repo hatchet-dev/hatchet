@@ -207,24 +207,40 @@ func (q *Queries) ListInvitesByTenantId(ctx context.Context, db DBTX, arg ListIn
 
 const listTenantInvitesByEmail = `-- name: ListTenantInvitesByEmail :many
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    iv.id, iv."createdAt", iv."updatedAt", iv."tenantId", iv."inviterEmail", iv."inviteeEmail", iv.expires, iv.status, iv.role,
+    t."name" as "tenantName"
 FROM
-    "TenantInviteLink"
+    "TenantInviteLink" iv
+JOIN
+    "Tenant" t ON iv."tenantId" = t."id"
 WHERE
-    "inviteeEmail" = $1::text
-    AND "status" = 'PENDING'
-    AND "expires" > now()
+    iv."inviteeEmail" = $1::text
+    AND iv."status" = 'PENDING'
+    AND iv."expires" > now()
 `
 
-func (q *Queries) ListTenantInvitesByEmail(ctx context.Context, db DBTX, inviteeemail string) ([]*TenantInviteLink, error) {
+type ListTenantInvitesByEmailRow struct {
+	ID           pgtype.UUID      `json:"id"`
+	CreatedAt    pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
+	TenantId     pgtype.UUID      `json:"tenantId"`
+	InviterEmail string           `json:"inviterEmail"`
+	InviteeEmail string           `json:"inviteeEmail"`
+	Expires      pgtype.Timestamp `json:"expires"`
+	Status       InviteLinkStatus `json:"status"`
+	Role         TenantMemberRole `json:"role"`
+	TenantName   string           `json:"tenantName"`
+}
+
+func (q *Queries) ListTenantInvitesByEmail(ctx context.Context, db DBTX, inviteeemail string) ([]*ListTenantInvitesByEmailRow, error) {
 	rows, err := db.Query(ctx, listTenantInvitesByEmail, inviteeemail)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*TenantInviteLink
+	var items []*ListTenantInvitesByEmailRow
 	for rows.Next() {
-		var i TenantInviteLink
+		var i ListTenantInvitesByEmailRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -235,6 +251,7 @@ func (q *Queries) ListTenantInvitesByEmail(ctx context.Context, db DBTX, invitee
 			&i.Expires,
 			&i.Status,
 			&i.Role,
+			&i.TenantName,
 		); err != nil {
 			return nil, err
 		}

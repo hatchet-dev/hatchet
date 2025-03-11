@@ -20,7 +20,7 @@ func (t *UserService) UserListTenantInvites(ctx echo.Context, request gen.UserLi
 	rows := make([]gen.TenantInvite, len(invites))
 
 	for i := range invites {
-		rows[i] = *transformers.ToTenantInviteLink(invites[i])
+		rows[i] = *transformers.ToUserTenantInviteLink(invites[i])
 	}
 
 	return gen.UserListTenantInvites200JSONResponse(gen.TenantInviteList200JSONResponse{

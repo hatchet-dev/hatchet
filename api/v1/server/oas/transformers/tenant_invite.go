@@ -17,3 +17,16 @@ func ToTenantInviteLink(invite *dbsqlc.TenantInviteLink) *gen.TenantInvite {
 
 	return res
 }
+
+func ToUserTenantInviteLink(invite *dbsqlc.ListTenantInvitesByEmailRow) *gen.TenantInvite {
+	res := &gen.TenantInvite{
+		Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(invite.ID), invite.CreatedAt.Time, invite.UpdatedAt.Time),
+		Email:      invite.InviteeEmail,
+		Expires:    invite.Expires.Time,
+		Role:       gen.TenantMemberRole(invite.Role),
+		TenantId:   sqlchelpers.UUIDToStr(invite.TenantId),
+		TenantName: &invite.TenantName,
+	}
+
+	return res
+}

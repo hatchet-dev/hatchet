@@ -46,13 +46,16 @@ WHERE
 
 -- name: ListTenantInvitesByEmail :many
 SELECT
-    *
+    iv.*,
+    t."name" as "tenantName"
 FROM
-    "TenantInviteLink"
+    "TenantInviteLink" iv
+JOIN
+    "Tenant" t ON iv."tenantId" = t."id"
 WHERE
-    "inviteeEmail" = @inviteeEmail::text
-    AND "status" = 'PENDING'
-    AND "expires" > now();
+    iv."inviteeEmail" = @inviteeEmail::text
+    AND iv."status" = 'PENDING'
+    AND iv."expires" > now();
 
 -- name: ListInvitesByTenantId :many
 SELECT
