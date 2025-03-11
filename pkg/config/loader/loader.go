@@ -560,7 +560,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
 
-	internalClientFactory, err := loadInternalClient(&l, &cf.InternalClient, cf.TLS, cf.Runtime.GRPCBroadcastAddress)
+	internalClientFactory, err := loadInternalClient(&l, &cf.InternalClient, cf.TLS, cf.Runtime.GRPCBroadcastAddress, cf.Runtime.GRPCInsecure)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load internal client: %w", err)
@@ -688,7 +688,7 @@ func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	return encryptionSvc, nil
 }
 
-func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string) (*clientv1.GRPCClientFactory, error) {
+func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string, grpcInsecure bool) (*clientv1.GRPCClientFactory, error) {
 	// get gRPC broadcast address
 	broadcastAddress := grpcBroadcastAddress
 
@@ -714,6 +714,10 @@ func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigF
 
 	if conf.InheritBase {
 		base = baseServerTLS
+
+		if grpcInsecure {
+			base.TLSStrategy = "none"
+		}
 	} else {
 		base = conf.Base
 	}
