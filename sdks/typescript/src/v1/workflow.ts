@@ -1,7 +1,10 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Context } from '@hatchet/step';
+import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { IHatchetClient } from './client/client.interface';
 import { CreateTaskOpts } from './task';
+
+const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
 /**
  * Additional metadata that can be attached to a workflow run.
@@ -58,7 +61,7 @@ export type CreateWorkflowOpts = {
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
  */
-export class Workflow<T, K> {
+export class Workflow<T extends Record<string, any>, K> {
   /**
    * The Hatchet client instance used to execute the workflow.
    */
@@ -92,7 +95,7 @@ export class Workflow<T, K> {
    */
   enqueue(input: T, options: RunOpts): WorkflowRunRef<K> {
     if (!this.client) {
-      throw new Error('workflow unbound to hatchet client, hint: use client.run instead');
+      throw UNBOUND_ERR;
     }
 
     return this.client.v0.admin.runWorkflow(this.definition.name, input, options);
@@ -107,11 +110,52 @@ export class Workflow<T, K> {
    */
   async run(input: T, options?: RunOpts): Promise<K> {
     if (!this.client) {
-      throw new Error('workflow unbound to hatchet client, hint: use client.run instead');
+      throw UNBOUND_ERR;
     }
 
     const res = this.client.v0.admin.runWorkflow(this.definition.name, input, options);
     return res.result() as Promise<K>;
+  }
+
+  async schedule(enqueueAt: Date, input: T, options?: RunOpts): Promise<ScheduledWorkflows> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    const scheduled = this.client.v0.schedule.create(this.definition.name, {
+      triggerAt: enqueueAt,
+      input,
+      additionalMetadata: options?.additionalMetadata,
+    });
+
+    return scheduled;
+  }
+
+  // duration is in seconds
+  async delay(duration: number, input: T, options?: RunOpts): Promise<ScheduledWorkflows> {
+    const now = Date.now();
+    const triggerAt = new Date(now + duration * 1000);
+    return this.schedule(triggerAt, input, options);
+  }
+
+  async cron(
+    name: string,
+    expression: string,
+    input: T,
+    options?: RunOpts
+  ): Promise<CronWorkflows> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    const cronDef = this.client.v0.cron.create(this.definition.name, {
+      expression,
+      input,
+      additionalMetadata: options?.additionalMetadata,
+      name,
+    });
+
+    return cronDef;
   }
 
   /**
@@ -146,7 +190,7 @@ export class Workflow<T, K> {
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */
-export function CreateWorkflow<T = any, K = any>(
+export function CreateWorkflow<T extends Record<string, any> = any, K = any>(
   options: CreateWorkflowOpts,
   client?: IHatchetClient
 ): Workflow<T, K> {

@@ -51,7 +51,9 @@ export class HatchetV1 implements IHatchetClient {
    * @returns A new Workflow instance
    * @note It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
    */
-  workflow<T = any, K = any>(options: CreateWorkflowOpts): Workflow<T, K> {
+  workflow<T extends Record<string, any> = any, K = any>(
+    options: CreateWorkflowOpts
+  ): Workflow<T, K> {
     return CreateWorkflow<T, K>(options, this);
   }
 
@@ -64,7 +66,7 @@ export class HatchetV1 implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  enqueue<T = any, K = any>(
+  enqueue<T extends Record<string, any> = any, K = any>(
     workflow: Workflow<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts
@@ -92,13 +94,21 @@ export class HatchetV1 implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
-  async run<T = any, K = any>(
+  async run<T extends Record<string, any> = any, K = any>(
     workflow: Workflow<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts = {}
   ): Promise<K> {
     const run = this.enqueue<T, K>(workflow, input, options);
     return run.result() as Promise<K>;
+  }
+
+  get cron() {
+    return this.v0.cron;
+  }
+
+  get schedule() {
+    return this.v0.schedule;
   }
 
   /**
