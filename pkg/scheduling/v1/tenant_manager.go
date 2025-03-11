@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"golang.org/x/sync/errgroup"
@@ -27,7 +28,13 @@ type tenantManager struct {
 	queuersMu sync.RWMutex
 
 	concurrencyStrategies []*ConcurrencyManager
-	concurrencyMu         sync.RWMutex
+
+	// maintain a mapping of strategy ids to parent ids, because we'd like to signal all
+	// child strategy ids when a parent strategy id is updated
+	strategyIdsToParentIds *lru.Cache[int64, int64]
+	parentIdsToStrategyIds *lru.Cache[int64, []int64]
+
+	concurrencyMu sync.RWMutex
 
 	leaseManager *LeaseManager
 
@@ -49,17 +56,22 @@ func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueRe
 	s := newScheduler(cf, tenantIdUUID, rl, exts)
 	leaseManager, workersCh, queuesCh, concurrencyCh := newLeaseManager(cf, tenantIdUUID)
 
+	strategyIdsToParentIds, _ := lru.New[int64, int64](1000)
+	parentIdsToStrategyIds, _ := lru.New[int64, []int64](1000)
+
 	t := &tenantManager{
-		scheduler:            s,
-		leaseManager:         leaseManager,
-		cf:                   cf,
-		tenantId:             tenantIdUUID,
-		workersCh:            workersCh,
-		queuesCh:             queuesCh,
-		concurrencyCh:        concurrencyCh,
-		resultsCh:            resultsCh,
-		rl:                   rl,
-		concurrencyResultsCh: concurrencyResultsCh,
+		scheduler:              s,
+		leaseManager:           leaseManager,
+		cf:                     cf,
+		tenantId:               tenantIdUUID,
+		workersCh:              workersCh,
+		queuesCh:               queuesCh,
+		concurrencyCh:          concurrencyCh,
+		resultsCh:              resultsCh,
+		rl:                     rl,
+		concurrencyResultsCh:   concurrencyResultsCh,
+		strategyIdsToParentIds: strategyIdsToParentIds,
+		parentIdsToStrategyIds: parentIdsToStrategyIds,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -231,8 +243,56 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 	t.concurrencyMu.RLock()
 
 	for _, c := range t.concurrencyStrategies {
-		if _, ok := strategyIdsMap[c.strategy.ID]; ok {
-			c.notify(ctx)
+		if _, ok := strategyIdsMap[c.strategy.ID]; !ok {
+			continue
+		}
+
+		c.notify(ctx)
+
+		childStrategyIds := make([]int64, 0)
+
+		// store the parent id for each strategy id
+		if c.strategy.ParentStrategyID.Valid {
+			parentId := c.strategy.ParentStrategyID.Int64
+
+			t.strategyIdsToParentIds.Add(c.strategy.ID, parentId)
+
+			var ok bool
+
+			childStrategyIds, ok = t.parentIdsToStrategyIds.Get(parentId)
+
+			// add the strategy id to the parent id
+			if ok {
+				// merge with existing map
+				found := false
+
+				for _, id := range childStrategyIds {
+					if id == c.strategy.ID {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					childStrategyIds = append(childStrategyIds, c.strategy.ID)
+
+				}
+			} else {
+				childStrategyIds = []int64{c.strategy.ID}
+			}
+
+			t.parentIdsToStrategyIds.Add(parentId, childStrategyIds)
+		}
+
+		// notify the other child strategies
+		for _, childId := range childStrategyIds {
+			if childId != c.strategy.ID {
+				for _, c := range t.concurrencyStrategies {
+					if c.strategy.ID == childId {
+						c.notify(ctx)
+					}
+				}
+			}
 		}
 	}
 

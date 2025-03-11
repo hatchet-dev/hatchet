@@ -118,7 +118,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task_runtime runtime
 JOIN
@@ -137,48 +137,49 @@ type ListSemaphoreSlotsWithStateForWorkerParams struct {
 }
 
 type ListSemaphoreSlotsWithStateForWorkerRow struct {
-	TaskID                 int64              `json:"task_id"`
-	TaskInsertedAt         pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount             int32              `json:"retry_count"`
-	WorkerID               pgtype.UUID        `json:"worker_id"`
-	TenantID               pgtype.UUID        `json:"tenant_id"`
-	TimeoutAt              pgtype.Timestamp   `json:"timeout_at"`
-	ID                     int64              `json:"id"`
-	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
-	TenantID_2             pgtype.UUID        `json:"tenant_id_2"`
-	Queue                  string             `json:"queue"`
-	ActionID               string             `json:"action_id"`
-	StepID                 pgtype.UUID        `json:"step_id"`
-	StepReadableID         string             `json:"step_readable_id"`
-	WorkflowID             pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID      pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
-	ScheduleTimeout        string             `json:"schedule_timeout"`
-	StepTimeout            pgtype.Text        `json:"step_timeout"`
-	Priority               pgtype.Int4        `json:"priority"`
-	Sticky                 V1StickyStrategy   `json:"sticky"`
-	DesiredWorkerID        pgtype.UUID        `json:"desired_worker_id"`
-	ExternalID             pgtype.UUID        `json:"external_id"`
-	DisplayName            string             `json:"display_name"`
-	Input                  []byte             `json:"input"`
-	RetryCount_2           int32              `json:"retry_count_2"`
-	InternalRetryCount     int32              `json:"internal_retry_count"`
-	AppRetryCount          int32              `json:"app_retry_count"`
-	StepIndex              int64              `json:"step_index"`
-	AdditionalMetadata     []byte             `json:"additional_metadata"`
-	DagID                  pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt          pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskExternalID   pgtype.UUID        `json:"parent_task_external_id"`
-	ParentTaskID           pgtype.Int8        `json:"parent_task_id"`
-	ParentTaskInsertedAt   pgtype.Timestamptz `json:"parent_task_inserted_at"`
-	ChildIndex             pgtype.Int8        `json:"child_index"`
-	ChildKey               pgtype.Text        `json:"child_key"`
-	InitialState           V1TaskInitialState `json:"initial_state"`
-	InitialStateReason     pgtype.Text        `json:"initial_state_reason"`
-	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
-	ConcurrencyKeys        []string           `json:"concurrency_keys"`
-	RetryBackoffFactor     pgtype.Float8      `json:"retry_backoff_factor"`
-	RetryMaxBackoff        pgtype.Int4        `json:"retry_max_backoff"`
+	TaskID                       int64              `json:"task_id"`
+	TaskInsertedAt               pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount                   int32              `json:"retry_count"`
+	WorkerID                     pgtype.UUID        `json:"worker_id"`
+	TenantID                     pgtype.UUID        `json:"tenant_id"`
+	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
+	ID                           int64              `json:"id"`
+	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
+	TenantID_2                   pgtype.UUID        `json:"tenant_id_2"`
+	Queue                        string             `json:"queue"`
+	ActionID                     string             `json:"action_id"`
+	StepID                       pgtype.UUID        `json:"step_id"`
+	StepReadableID               string             `json:"step_readable_id"`
+	WorkflowID                   pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID            pgtype.UUID        `json:"workflow_version_id"`
+	WorkflowRunID                pgtype.UUID        `json:"workflow_run_id"`
+	ScheduleTimeout              string             `json:"schedule_timeout"`
+	StepTimeout                  pgtype.Text        `json:"step_timeout"`
+	Priority                     pgtype.Int4        `json:"priority"`
+	Sticky                       V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID              pgtype.UUID        `json:"desired_worker_id"`
+	ExternalID                   pgtype.UUID        `json:"external_id"`
+	DisplayName                  string             `json:"display_name"`
+	Input                        []byte             `json:"input"`
+	RetryCount_2                 int32              `json:"retry_count_2"`
+	InternalRetryCount           int32              `json:"internal_retry_count"`
+	AppRetryCount                int32              `json:"app_retry_count"`
+	StepIndex                    int64              `json:"step_index"`
+	AdditionalMetadata           []byte             `json:"additional_metadata"`
+	DagID                        pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt                pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskExternalID         pgtype.UUID        `json:"parent_task_external_id"`
+	ParentTaskID                 pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt         pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	ChildIndex                   pgtype.Int8        `json:"child_index"`
+	ChildKey                     pgtype.Text        `json:"child_key"`
+	InitialState                 V1TaskInitialState `json:"initial_state"`
+	InitialStateReason           pgtype.Text        `json:"initial_state_reason"`
+	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
+	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
+	ConcurrencyKeys              []string           `json:"concurrency_keys"`
+	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
+	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
@@ -229,6 +230,7 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.ChildKey,
 			&i.InitialState,
 			&i.InitialStateReason,
+			&i.ConcurrencyParentStrategyIds,
 			&i.ConcurrencyStrategyIds,
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,

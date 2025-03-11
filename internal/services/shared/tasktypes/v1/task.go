@@ -129,6 +129,9 @@ type CancelledTaskPayload struct {
 	// (required) the retry count
 	RetryCount int32
 
+	// (optional) the event message
+	EventMessage string
+
 	// (required) the reason for cancellation
 	EventType sqlcv1.V1EventTypeOlap
 
@@ -144,6 +147,7 @@ func CancelledTaskMessage(
 	workflowRunId string,
 	retryCount int32,
 	eventType sqlcv1.V1EventTypeOlap,
+	eventMessage string,
 	shouldNotify bool,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
@@ -158,6 +162,7 @@ func CancelledTaskMessage(
 			WorkflowRunId: workflowRunId,
 			RetryCount:    retryCount,
 			EventType:     eventType,
+			EventMessage:  eventMessage,
 			ShouldNotify:  shouldNotify,
 		},
 	)

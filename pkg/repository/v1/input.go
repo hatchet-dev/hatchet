@@ -22,6 +22,18 @@ func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *string {
 	return nil
 }
 
+func (s *sharedRepository) newTaskInputFromExistingBytes(inputBytes []byte) *TaskInput {
+	i := &TaskInput{}
+
+	err := json.Unmarshal(inputBytes, i)
+
+	if err != nil {
+		s.l.Error().Err(err).Msg("failed to unmarshal input bytes")
+	}
+
+	return i
+}
+
 func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData) *TaskInput {
 	var input map[string]interface{}
 

@@ -160,7 +160,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			since       = req.Filter.Since.AsTime()
 			until       *time.Time
 			workflowIds       = []uuid.UUID{}
-			limit       int64 = 20000
+			limit       int64 = 1000
 			offset      int64
 		)
 
@@ -237,6 +237,8 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			RetryCount: task.RetryCount,
 		})
 	}
+
+	// FIXME: group tasks by their workflow run id, and send in batches of 50 workflow run ids...
 
 	// send the payload to the tasks controller, and send the list of tasks back to the client
 	toReplay := tasktypes.ReplayTasksPayload{

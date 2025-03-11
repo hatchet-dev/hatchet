@@ -953,7 +953,40 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		return "", err
 	}
 
+	// create the workflow jobs
+	for _, jobOpts := range opts.Jobs {
+		jobCp := jobOpts
+
+		_, err := r.createJobTx(ctx, tx, tenantId, sqlcWorkflowVersion.ID, opts, &jobCp)
+
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// create the onFailure job if exists
+	if opts.OnFailureJob != nil {
+		onFailureJobCp := *opts.OnFailureJob
+
+		jobId, err := r.createJobTx(ctx, tx, tenantId, sqlcWorkflowVersion.ID, opts, &onFailureJobCp)
+
+		if err != nil {
+			return "", err
+		}
+
+		_, err = r.queries.LinkOnFailureJob(ctx, tx, dbsqlc.LinkOnFailureJobParams{
+			Workflowversionid: sqlcWorkflowVersion.ID,
+			Jobid:             sqlchelpers.UUIDFromStr(jobId),
+		})
+
+		if err != nil {
+			return "", err
+		}
+	}
+
 	// create concurrency group
+	// NOTE: we do this AFTER the creation of steps/jobs because we have a trigger which depends on the existence
+	// of the jobs/steps to create the v1 concurrency groups
 	if opts.Concurrency != nil {
 		params := dbsqlc.CreateWorkflowConcurrencyParams{
 			Workflowversionid: sqlcWorkflowVersion.ID,
@@ -1006,37 +1039,6 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 		if err != nil {
 			return "", fmt.Errorf("could not create concurrency group: %w", err)
-		}
-	}
-
-	// create the workflow jobs
-	for _, jobOpts := range opts.Jobs {
-		jobCp := jobOpts
-
-		_, err := r.createJobTx(ctx, tx, tenantId, sqlcWorkflowVersion.ID, opts, &jobCp)
-
-		if err != nil {
-			return "", err
-		}
-	}
-
-	// create the onFailure job if exists
-	if opts.OnFailureJob != nil {
-		onFailureJobCp := *opts.OnFailureJob
-
-		jobId, err := r.createJobTx(ctx, tx, tenantId, sqlcWorkflowVersion.ID, opts, &onFailureJobCp)
-
-		if err != nil {
-			return "", err
-		}
-
-		_, err = r.queries.LinkOnFailureJob(ctx, tx, dbsqlc.LinkOnFailureJobParams{
-			Workflowversionid: sqlcWorkflowVersion.ID,
-			Jobid:             sqlchelpers.UUIDFromStr(jobId),
-		})
-
-		if err != nil {
-			return "", err
 		}
 	}
 

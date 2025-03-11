@@ -20,6 +20,7 @@ sql:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1-core.sql
       - ../../../../sql/schema/v1-olap.sql
+      - ./concurrency-additional-tables.sql
     strict_order_by: false
     gen:
       go:
@@ -30,3 +31,9 @@ sql:
         emit_methods_with_db_argument: true
         emit_result_struct_pointers: true
         emit_json_tags: true
+        overrides:
+          - column: "v1_task.concurrency_parent_strategy_ids"
+            go_type:
+              import: "github.com/jackc/pgx/v5/pgtype"
+              type: "Int8"
+              slice: true

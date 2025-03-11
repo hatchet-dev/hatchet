@@ -547,6 +547,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 				RetryCount:     msg.RetryCount,
 				EventType:      msg.EventType,
 				EventTimestamp: time.Now(),
+				EventMessage:   msg.EventMessage,
 			},
 		)
 
@@ -648,9 +649,9 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		})
 	}
 
-	if len(replayRes.QueuedTasks) > 0 {
+	if len(replayRes.UpsertedTasks) > 0 {
 		eg.Go(func() error {
-			err = tc.signalTasksCreatedAndQueued(ctx, tenantId, replayRes.QueuedTasks)
+			err = tc.signalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
 
 			if err != nil {
 				return fmt.Errorf("could not signal queued tasks: %w", err)
@@ -1016,6 +1017,79 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 	return eg.Wait()
 }
 
+func (tc *TasksControllerImpl) signalTasksUpdated(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+	// group tasks by initial states
+	queuedTasks := make([]*sqlcv1.V1Task, 0)
+	failedTasks := make([]*sqlcv1.V1Task, 0)
+	cancelledTasks := make([]*sqlcv1.V1Task, 0)
+	skippedTasks := make([]*sqlcv1.V1Task, 0)
+
+	for _, task := range tasks {
+		switch task.InitialState {
+		case sqlcv1.V1TaskInitialStateQUEUED:
+			queuedTasks = append(queuedTasks, task)
+		case sqlcv1.V1TaskInitialStateFAILED:
+			failedTasks = append(failedTasks, task)
+		case sqlcv1.V1TaskInitialStateCANCELLED:
+			cancelledTasks = append(cancelledTasks, task)
+		case sqlcv1.V1TaskInitialStateSKIPPED:
+			skippedTasks = append(skippedTasks, task)
+		}
+	}
+
+	eg := &errgroup.Group{}
+
+	if len(queuedTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(failedTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(cancelledTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(skippedTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	return eg.Wait()
+}
+
 func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
 	// get all unique queues and notify them
 	queues := make(map[string]struct{})
@@ -1065,7 +1139,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
-				RetryCount:     0,
+				RetryCount:     task.RetryCount,
 				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
 				EventTimestamp: time.Now(),
 				EventMessage:   msg,

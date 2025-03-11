@@ -69,6 +69,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			ExternalId:    sqlchelpers.UUIDToStr(task.ExternalID),
 			WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
 			EventType:     sqlcv1.V1EventTypeOlapTIMEDOUT,
+			EventMessage:  fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
 			ShouldNotify:  true,
 		})
 	}

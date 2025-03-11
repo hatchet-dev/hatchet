@@ -16,7 +16,6 @@ SELECT
     create_v1_range_partition('v1_task', $1::date),
     create_v1_range_partition('v1_dag', $1::date),
     create_v1_range_partition('v1_task_event', $1::date),
-    create_v1_range_partition('v1_concurrency_slot', $1::date),
     create_v1_range_partition('v1_log_line', $1::date)
 `
 
@@ -587,8 +586,6 @@ WITH task_partitions AS (
     SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', $1::date) AS p
 ), task_event_partitions AS (
     SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
-), concurrency_partitions AS (
-    SELECT 'v1_concurrency_slot' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_concurrency_slot', $1::date) AS p
 ), log_line_partitions AS (
     SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
 )
@@ -610,13 +607,6 @@ SELECT
     parent_table, partition_name
 FROM
     task_event_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    concurrency_partitions
 
 UNION ALL
 
@@ -763,7 +753,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task
 WHERE
@@ -818,6 +808,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.ChildKey,
 			&i.InitialState,
 			&i.InitialStateReason,
+			&i.ConcurrencyParentStrategyIds,
 			&i.ConcurrencyStrategyIds,
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,
@@ -881,6 +872,7 @@ WITH RECURSIVE augmented_tasks AS (
         t.step_readable_id,
         t.step_id,
         t.workflow_id,
+        t.input,
         t.external_id,
         t.additional_metadata,
         t.parent_task_external_id,
@@ -921,6 +913,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.external_id,
+    t.input,
     t.additional_metadata,
     t.parent_task_external_id,
     t.parent_task_id,
@@ -956,6 +949,7 @@ type ListTasksForReplayRow struct {
 	StepID               pgtype.UUID        `json:"step_id"`
 	WorkflowID           pgtype.UUID        `json:"workflow_id"`
 	ExternalID           pgtype.UUID        `json:"external_id"`
+	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
 	ParentTaskID         pgtype.Int8        `json:"parent_task_id"`
@@ -988,6 +982,7 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.StepID,
 			&i.WorkflowID,
 			&i.ExternalID,
+			&i.Input,
 			&i.AdditionalMetadata,
 			&i.ParentTaskExternalID,
 			&i.ParentTaskID,
@@ -1580,6 +1575,7 @@ WITH expired_runtimes AS (
         v1_task.step_id,
         v1_task.external_id,
         v1_task.workflow_run_id,
+        v1_task.step_timeout,
         expired_runtimes.worker_id
     FROM
         v1_task
@@ -1617,7 +1613,7 @@ WITH expired_runtimes AS (
         AND tasks_to_steps."retries" > v1_task.app_retry_count
 )
 SELECT
-    id, inserted_at, retry_count, step_id, external_id, workflow_run_id, worker_id
+    id, inserted_at, retry_count, step_id, external_id, workflow_run_id, step_timeout, worker_id
 FROM
     locked_tasks
 `
@@ -1634,6 +1630,7 @@ type ProcessTaskTimeoutsRow struct {
 	StepID        pgtype.UUID        `json:"step_id"`
 	ExternalID    pgtype.UUID        `json:"external_id"`
 	WorkflowRunID pgtype.UUID        `json:"workflow_run_id"`
+	StepTimeout   pgtype.Text        `json:"step_timeout"`
 	WorkerID      pgtype.UUID        `json:"worker_id"`
 }
 
@@ -1653,6 +1650,7 @@ func (q *Queries) ProcessTaskTimeouts(ctx context.Context, db DBTX, arg ProcessT
 			&i.StepID,
 			&i.ExternalID,
 			&i.WorkflowRunID,
+			&i.StepTimeout,
 			&i.WorkerID,
 		); err != nil {
 			return nil, err

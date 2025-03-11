@@ -2,6 +2,8 @@ package sqlcv1
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -9,7 +11,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
     FROM
         (
             SELECT
@@ -33,19 +35,20 @@ WITH input AS (
                 -- NOTE: these are nullable, so sqlc doesn't support casting to a type
                 unnest($18::bigint[]) AS dag_id,
                 unnest($19::timestamptz[]) AS dag_inserted_at,
-				unnest_nd_1d($20::bigint[][]) AS concurrency_strategy_ids,
-				unnest_nd_1d($21::text[][]) AS concurrency_keys,
-				unnest($22::text[]) AS initial_state_reason,
-				unnest($23::uuid[]) AS parent_task_external_id,
-				unnest($24::bigint[]) AS parent_task_id,
-				unnest($25::timestamptz[]) AS parent_task_inserted_at,
-				unnest($26::integer[]) AS child_index,
-				unnest($27::text[]) AS child_key,
-				unnest($28::bigint[]) AS step_index,
-				unnest($29::double precision[]) AS retry_backoff_factor,
-				unnest($30::integer[]) AS retry_max_backoff,
-				unnest($31::uuid[]) AS workflow_version_id,
-				unnest($32::uuid[]) AS workflow_run_id
+				unnest_nd_1d($20::bigint[][]) AS concurrency_parent_strategy_ids,
+				unnest_nd_1d($21::bigint[][]) AS concurrency_strategy_ids,
+				unnest_nd_1d($22::text[][]) AS concurrency_keys,
+				unnest($23::text[]) AS initial_state_reason,
+				unnest($24::uuid[]) AS parent_task_external_id,
+				unnest($25::bigint[]) AS parent_task_id,
+				unnest($26::timestamptz[]) AS parent_task_inserted_at,
+				unnest($27::integer[]) AS child_index,
+				unnest($28::text[]) AS child_key,
+				unnest($29::bigint[]) AS step_index,
+				unnest($30::double precision[]) AS retry_backoff_factor,
+				unnest($31::integer[]) AS retry_max_backoff,
+				unnest($32::uuid[]) AS workflow_version_id,
+				unnest($33::uuid[]) AS workflow_run_id
         ) AS subquery
 )
 INSERT INTO v1_task (
@@ -68,6 +71,7 @@ INSERT INTO v1_task (
 	initial_state,
     dag_id,
     dag_inserted_at,
+	concurrency_parent_strategy_ids,
 	concurrency_strategy_ids,
 	concurrency_keys,
 	initial_state_reason,
@@ -102,6 +106,7 @@ SELECT
 	i.initial_state,
     i.dag_id,
     i.dag_inserted_at,
+	i.concurrency_parent_strategy_ids,
 	i.concurrency_strategy_ids,
 	i.concurrency_keys,
 	i.initial_state_reason,
@@ -118,45 +123,62 @@ SELECT
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id
 `
 
 type CreateTasksParams struct {
-	Tenantids              []pgtype.UUID        `json:"tenantids"`
-	Queues                 []string             `json:"queues"`
-	Actionids              []string             `json:"actionids"`
-	Stepids                []pgtype.UUID        `json:"stepids"`
-	Stepreadableids        []string             `json:"stepreadableids"`
-	Workflowids            []pgtype.UUID        `json:"workflowids"`
-	Scheduletimeouts       []string             `json:"scheduletimeouts"`
-	Steptimeouts           []string             `json:"steptimeouts"`
-	Priorities             []int32              `json:"priorities"`
-	Stickies               []string             `json:"stickies"`
-	Desiredworkerids       []pgtype.UUID        `json:"desiredworkerids"`
-	Externalids            []pgtype.UUID        `json:"externalids"`
-	Displaynames           []string             `json:"displaynames"`
-	Inputs                 [][]byte             `json:"inputs"`
-	Retrycounts            []int32              `json:"retrycounts"`
-	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
-	InitialStates          []string             `json:"initialstates"`
-	InitialStateReasons    []pgtype.Text        `json:"initialStateReasons"`
-	Dagids                 []pgtype.Int8        `json:"dagids"`
-	Daginsertedats         []pgtype.Timestamptz `json:"daginsertedats"`
-	ConcurrencyStrategyIds [][]int64            `json:"concurrencyStrategyIds"`
-	ConcurrencyKeys        [][]string           `json:"concurrencyKeys"`
-	ParentTaskExternalIds  []pgtype.UUID        `json:"parentTaskExternalIds"`
-	ParentTaskIds          []pgtype.Int8        `json:"parentTaskIds"`
-	ParentTaskInsertedAts  []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
-	ChildIndex             []pgtype.Int8        `json:"childIndex"`
-	ChildKey               []pgtype.Text        `json:"childKey"`
-	StepIndex              []int64              `json:"stepIndex"`
-	RetryBackoffFactor     []pgtype.Float8      `json:"retryBackoffFactor"`
-	RetryMaxBackoff        []pgtype.Int4        `json:"retryMaxBackoff"`
-	WorkflowVersionIds     []pgtype.UUID        `json:"workflowVersionIds"`
-	WorkflowRunIds         []pgtype.UUID        `json:"workflowRunIds"`
+	Tenantids           []pgtype.UUID        `json:"tenantids"`
+	Queues              []string             `json:"queues"`
+	Actionids           []string             `json:"actionids"`
+	Stepids             []pgtype.UUID        `json:"stepids"`
+	Stepreadableids     []string             `json:"stepreadableids"`
+	Workflowids         []pgtype.UUID        `json:"workflowids"`
+	Scheduletimeouts    []string             `json:"scheduletimeouts"`
+	Steptimeouts        []string             `json:"steptimeouts"`
+	Priorities          []int32              `json:"priorities"`
+	Stickies            []string             `json:"stickies"`
+	Desiredworkerids    []pgtype.UUID        `json:"desiredworkerids"`
+	Externalids         []pgtype.UUID        `json:"externalids"`
+	Displaynames        []string             `json:"displaynames"`
+	Inputs              [][]byte             `json:"inputs"`
+	Retrycounts         []int32              `json:"retrycounts"`
+	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
+	InitialStates       []string             `json:"initialstates"`
+	InitialStateReasons []pgtype.Text        `json:"initialStateReasons"`
+	Dagids              []pgtype.Int8        `json:"dagids"`
+	Daginsertedats      []pgtype.Timestamptz `json:"daginsertedats"`
+	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
+	// probably need to change. Current hack is to group tasks by their step id where these
+	// multi-dimensional arrays are the same length.
+	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
+	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
+	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
+	ParentTaskExternalIds        []pgtype.UUID        `json:"parentTaskExternalIds"`
+	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
+	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
+	ChildIndex                   []pgtype.Int8        `json:"childIndex"`
+	ChildKey                     []pgtype.Text        `json:"childKey"`
+	StepIndex                    []int64              `json:"stepIndex"`
+	RetryBackoffFactor           []pgtype.Float8      `json:"retryBackoffFactor"`
+	RetryMaxBackoff              []pgtype.Int4        `json:"retryMaxBackoff"`
+	WorkflowVersionIds           []pgtype.UUID        `json:"workflowVersionIds"`
+	WorkflowRunIds               []pgtype.UUID        `json:"workflowRunIds"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
+	// panic-recover
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		// log the arg
+	// 		argBytes, _ := json.Marshal(arg)
+	// 		fmt.Println("ARG BYTES ARE", string(argBytes))
+
+	// 		// also print the panic
+	// 		fmt.Println("PANIC", r)
+	// 		panic(r)
+	// 	}
+	// }()
+
 	rows, err := db.Query(ctx, createTasks,
 		arg.Tenantids,
 		arg.Queues,
@@ -177,6 +199,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.InitialStates,
 		arg.Dagids,
 		arg.Daginsertedats,
+		arg.Concurrencyparentstrategyids,
 		arg.ConcurrencyStrategyIds,
 		arg.ConcurrencyKeys,
 		arg.InitialStateReasons,
@@ -192,6 +215,9 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.WorkflowRunIds,
 	)
 	if err != nil {
+		argBytes, _ := json.Marshal(arg)
+		fmt.Println("FAILED ARG BYTES ARE", string(argBytes))
+
 		return nil, err
 	}
 	defer rows.Close()
@@ -222,6 +248,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.InitialState,
 			&i.DagID,
 			&i.DagInsertedAt,
+			&i.ConcurrencyParentStrategyIds,
 			&i.ConcurrencyStrategyIds,
 			&i.ConcurrencyKeys,
 			&i.InitialStateReason,
@@ -236,11 +263,17 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.WorkflowVersionID,
 			&i.WorkflowRunID,
 		); err != nil {
+			argBytes, _ := json.Marshal(arg)
+			fmt.Println("FAILED ARG BYTES ARE", string(argBytes))
+
 			return nil, err
 		}
 		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
+		argBytes, _ := json.Marshal(arg)
+		fmt.Println("FAILED ARG BYTES ARE", string(argBytes))
+
 		return nil, err
 	}
 	return items, nil
@@ -323,7 +356,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 const replayTasks = `-- name: ReplayTasks :many
 WITH input AS (
     SELECT
-        task_id, input, initial_state, concurrency_strategy_ids, concurrency_keys, initial_state_reason
+        task_id, input, initial_state, concurrency_keys, initial_state_reason
     FROM
         (
             SELECT
@@ -331,9 +364,8 @@ WITH input AS (
 				unnest($2::timestamptz[]) AS inserted_at,
                 unnest($3::jsonb[]) AS input,
                 unnest(cast($4::text[] as v1_task_initial_state[])) AS initial_state,
-                unnest_nd_1d($5::bigint[][]) AS concurrency_strategy_ids,
-				unnest_nd_1d($6::text[][]) AS concurrency_keys,
-				unnest($7::text[]) AS initial_state_reason
+				unnest_nd_1d($5::text[][]) AS concurrency_keys,
+				unnest($6::text[]) AS initial_state_reason
         ) AS subquery
 )
 UPDATE
@@ -344,7 +376,6 @@ SET
     internal_retry_count = 0,
     input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
     initial_state = i.initial_state,
-    concurrency_strategy_ids = i.concurrency_strategy_ids,
     concurrency_keys = i.concurrency_keys,
     initial_state_reason = i.initial_state_reason
 FROM
@@ -352,17 +383,19 @@ FROM
 WHERE
 	(v1_task.id, v1_task.inserted_at) IN (SELECT task_id, inserted_at FROM input)
 RETURNING
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
 `
 
 type ReplayTasksParams struct {
-	Taskids                []int64              `json:"taskids"`
-	Taskinsertedats        []pgtype.Timestamptz `json:"taskinsertedats"`
-	Inputs                 [][]byte             `json:"inputs"`
-	InitialStates          []string             `json:"initialstates"`
-	Concurrencystrategyids [][]int64            `json:"concurrencystrategyids"`
-	Concurrencykeys        [][]string           `json:"concurrencykeys"`
-	InitialStateReasons    []pgtype.Text        `json:"initialStateReasons"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Inputs          [][]byte             `json:"inputs"`
+	InitialStates   []string             `json:"initialstates"`
+	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
+	// probably need to change. Current hack is to group tasks by their step id where these
+	// multi-dimensional arrays are the same length.
+	Concurrencykeys     [][]string    `json:"concurrencykeys"`
+	InitialStateReasons []pgtype.Text `json:"initialStateReasons"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -372,7 +405,6 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.Taskinsertedats,
 		arg.Inputs,
 		arg.InitialStates,
-		arg.Concurrencystrategyids,
 		arg.Concurrencykeys,
 		arg.InitialStateReasons,
 	)
@@ -411,6 +443,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 			&i.ChildKey,
 			&i.InitialState,
 			&i.InitialStateReason,
+			&i.ConcurrencyParentStrategyIds,
 			&i.ConcurrencyStrategyIds,
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,
