@@ -164,7 +164,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			Tenantid:         tenantId,
 			Strategyid:       strategy.ID,
 			Parentstrategyid: strategy.ParentStrategyID.Int64,
-			// Maxruns:    strategy.MaxConcurrency,
 		})
 
 		if err != nil {
