@@ -123,7 +123,7 @@ export class Workflow<T, K> {
    * @param options The task configuration options.
    * @returns The task options that were added.
    */
-  addTask<Name extends string, L>(
+  task<Name extends string, L>(
     options: Omit<CreateTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
       name: Name;
       fn: (

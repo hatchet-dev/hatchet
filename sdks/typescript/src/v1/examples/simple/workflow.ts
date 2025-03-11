@@ -11,11 +11,11 @@ type SimpleOutput = {
   };
 };
 
-export const simple = hatchet.createWorkflow<SimpleInput, SimpleOutput>({
+export const simple = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple',
 });
 
-const step1 = simple.addTask({
+const step1 = simple.task({
   name: 'step1',
   fn: (input) => {
     return {
@@ -24,7 +24,7 @@ const step1 = simple.addTask({
   },
 });
 
-simple.addTask({
+simple.task({
   name: 'step2',
   parents: [step1],
   fn: async (input, ctx) => {
