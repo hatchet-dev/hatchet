@@ -27,15 +27,12 @@ const step1 = simple.task({
 simple.task({
   name: 'step2',
   parents: [step1],
+  timeout: '15s',
   fn: async (input, ctx) => {
     const step1Res = await ctx.parentData(step1);
-
-    if (step1Res.TransformedMessage) {
-      return {
-        Original: input.Message,
-        Transformed: step1Res.TransformedMessage,
-      };
-    }
-    throw new Error('Function not implemented.');
+    return {
+      Original: input.Message,
+      Transformed: step1Res.TransformedMessage,
+    };
   },
 });

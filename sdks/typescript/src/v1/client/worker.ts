@@ -59,7 +59,7 @@ export class HatchetWorker {
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  registerWorkflows(workflows?: Workflow<any, any>[] | V0Workflow[]) {
+  registerWorkflows(workflows?: Array<Workflow<any, any> | V0Workflow>) {
     return workflows?.map((wf) => {
       if (wf instanceof Workflow) {
         const { definition } = wf;
@@ -85,6 +85,16 @@ export class HatchetWorker {
       // Register v0 workflow
       return this.v0.registerWorkflow(wf);
     });
+  }
+
+  /**
+   * Registers a single workflow with the worker
+   * @param workflow - The workflow to register
+   * @returns A promise that resolves when the workflow is registered
+   * @deprecated use registerWorkflows instead
+   */
+  registerWorkflow(workflow: Workflow<any, any> | V0Workflow) {
+    return this.registerWorkflows([workflow]);
   }
 
   /**

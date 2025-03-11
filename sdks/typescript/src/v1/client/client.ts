@@ -118,6 +118,13 @@ export class HatchetV1 implements IHatchetClient {
   }
 
   /**
+   * @deprecated use workflow.run or client.run instead
+   */
+  get admin() {
+    return this.v0.admin;
+  }
+
+  /**
    * Creates a new worker instance for processing workflow tasks.
    * @param options - Configuration options for creating the worker
    * @returns A promise that resolves with a new HatchetWorker instance
