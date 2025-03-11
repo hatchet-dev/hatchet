@@ -929,6 +929,7 @@ WITH latest_retry_count AS (
         relevant_events
     WHERE
         event_type = 'FINISHED'
+    LIMIT 1
 ), status AS (
     SELECT
         readable_status
@@ -954,9 +955,9 @@ WITH latest_retry_count AS (
         SELECT external_id
         FROM v1_tasks_olap
         WHERE id = $2::bigint
+        LIMIT 1
     )
 )
-
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     st.readable_status::v1_readable_status_olap as status,

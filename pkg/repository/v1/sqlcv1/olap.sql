@@ -365,6 +365,7 @@ WITH latest_retry_count AS (
         relevant_events
     WHERE
         event_type = 'FINISHED'
+    LIMIT 1
 ), status AS (
     SELECT
         readable_status
@@ -390,9 +391,9 @@ WITH latest_retry_count AS (
         SELECT external_id
         FROM v1_tasks_olap
         WHERE id = @taskId::bigint
+        LIMIT 1
     )
 )
-
 SELECT
     t.*,
     st.readable_status::v1_readable_status_olap as status,
