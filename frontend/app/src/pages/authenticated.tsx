@@ -117,7 +117,7 @@ export default function Authenticated() {
         <div className="flex flex-row flex-1 w-full h-full">
           <MainNav user={user} setHasBanner={setHasBanner} />
           <div
-            className={`pt-${hasHasBanner ? 28 : 16} flex-grow overflow-y-auto overflow-x-hidden`}
+            className={`${hasHasBanner ? 'pt-28' : 'pt-16'} flex-grow overflow-y-auto overflow-x-hidden`}
           >
             <Outlet context={ctx} />
           </div>

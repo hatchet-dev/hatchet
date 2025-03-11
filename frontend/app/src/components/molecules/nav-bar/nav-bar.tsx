@@ -263,7 +263,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
           </>
         ),
         type: 'warning',
-        actionText: 'Upgrade',
+        actionText: 'View V1',
         onAction: () => {
           navigate({
             pathname: '/v1' + pathname,
@@ -303,7 +303,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
           <div className="ml-auto flex items-center">
             <HelpDropdown />
             <AccountDropdown user={user} />
-            <VersionUpgradeButton />
+            {/* <VersionUpgradeButton /> */}
           </div>
         </div>
       </div>
