@@ -117,6 +117,14 @@ export class Workflow<T extends Record<string, any>, K> {
     return res.result() as Promise<K>;
   }
 
+  /**
+   * Schedules a workflow to run at a specific date and time in the future.
+   * @param enqueueAt The date when the workflow should be triggered.
+   * @param input The input data for the workflow.
+   * @param options Optional configuration for this workflow run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
   async schedule(enqueueAt: Date, input: T, options?: RunOpts): Promise<ScheduledWorkflows> {
     if (!this.client) {
       throw UNBOUND_ERR;
@@ -131,13 +139,29 @@ export class Workflow<T extends Record<string, any>, K> {
     return scheduled;
   }
 
-  // duration is in seconds
+  /**
+   * Schedules a workflow to run after a specified delay.
+   * @param duration The delay in seconds before the workflow should run.
+   * @param input The input data for the workflow.
+   * @param options Optional configuration for this workflow run.
+   * @returns A promise that resolves with the scheduled workflow details.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
   async delay(duration: number, input: T, options?: RunOpts): Promise<ScheduledWorkflows> {
     const now = Date.now();
     const triggerAt = new Date(now + duration * 1000);
     return this.schedule(triggerAt, input, options);
   }
 
+  /**
+   * Creates a cron schedule for the workflow.
+   * @param name The name of the cron schedule.
+   * @param expression The cron expression defining the schedule.
+   * @param input The input data for the workflow.
+   * @param options Optional configuration for this workflow run.
+   * @returns A promise that resolves with the cron workflow details.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
   async cron(
     name: string,
     expression: string,
