@@ -12,6 +12,7 @@ import { Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
 import { CreateTaskOpts } from './v1/task';
+import { Workflow as WorkflowV1 } from './v1/workflow';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -257,14 +258,55 @@ export class Context<T, K = {}> {
   }
 
   /**
+   * Enqueues multiple children workflows in parallel.
+   * @param children an array of objects containing the workflow name, input data, and options for each workflow
+   * @returns a list of workflow run references to the enqueued runs
+   */
+  bulkEnqueueChildren<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
+    children: Array<{
+      workflow: string | Workflow | WorkflowV1<Q, P>;
+      input: Q;
+      options?: {
+        key?: string;
+        sticky?: boolean;
+        additionalMetadata?: Record<string, string>;
+      };
+    }>
+  ): Promise<WorkflowRunRef<P>[]> {
+    return this.spawnWorkflows(children);
+  }
+
+  /**
+   * Runs multiple children workflows in parallel.
+   * @param children an array of objects containing the workflow name, input data, and options for each workflow
+   * @returns a list of results from the children workflows
+   */
+  async bulkRunChildren<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
+    children: Array<{
+      workflow: string | Workflow | WorkflowV1<Q, P>;
+      input: Q;
+      options?: {
+        key?: string;
+        sticky?: boolean;
+        additionalMetadata?: Record<string, string>;
+      };
+    }>
+  ): Promise<P[]> {
+    const runs = await this.bulkEnqueueChildren(children);
+    const res = runs.map((run) => run.result());
+    return Promise.all(res);
+  }
+
+  /**
    * Spawns multiple workflows.
    *
    * @param workflows an array of objects containing the workflow name, input data, and options for each workflow
    * @returns a list of references to the spawned workflow runs
+   * @deprecated use bulkEnqueueChildren or bulkRunChildren instead
    */
-  spawnWorkflows<Q = JsonValue, P = JsonValue>(
+  spawnWorkflows<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
     workflows: Array<{
-      workflow: string | Workflow;
+      workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
       options?: {
         key?: string;
@@ -328,7 +370,28 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Spawns a new workflow.
+   * Runs a new workflow.
+   *
+   * @param workflow the workflow to run
+   * @param input the input data for the workflow
+   * @param options additional options for spawning the workflow. If a string is provided, it is used as the key.
+   * @param <Q> the type of the input data
+   * @param <P> the type of the output data
+   * @return the result of the workflow
+   */
+  async runChild<Q extends Record<string, any>, P extends Record<string, any>>(
+    workflow: string | Workflow | WorkflowV1<Q, P>,
+    input: Q,
+    options?:
+      | string
+      | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
+  ): Promise<P> {
+    const run = await this.spawnWorkflow(workflow, input, options);
+    return run.result();
+  }
+
+  /**
+   * Enqueues a new workflow.
    *
    * @param workflowName the name of the workflow to spawn
    * @param input the input data for the workflow
@@ -340,8 +403,32 @@ export class Context<T, K = {}> {
    * @param <P> the type of the output data
    * @return a reference to the spawned workflow run
    */
-  spawnWorkflow<Q = JsonValue, P = JsonValue>(
-    workflow: string | Workflow,
+  enqueueChild<Q extends Record<string, any>, P extends Record<string, any>>(
+    workflow: string | Workflow | WorkflowV1<Q, P>,
+    input: Q,
+    options?:
+      | string
+      | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
+  ): WorkflowRunRef<P> {
+    return this.spawnWorkflow(workflow, input, options);
+  }
+
+  /**
+   * Spawns a new workflow.
+   *
+   * @param workflowName the name of the workflow to spawn
+   * @param input the input data for the workflow
+   * @param options additional options for spawning the workflow. If a string is provided, it is used as the key.
+   *                If an object is provided, it can include:
+   *                - key: a unique identifier for the workflow (deprecated, use options.key instead)
+   *                - sticky: a boolean indicating whether to use sticky execution
+   * @param <Q> the type of the input data
+   * @param <P> the type of the output data
+   * @return a reference to the spawned workflow run
+   * @deprecated use runChild or enqueueChild instead
+   */
+  spawnWorkflow<Q extends Record<string, any>, P extends Record<string, any>>(
+    workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?:
       | string

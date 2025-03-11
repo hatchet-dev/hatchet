@@ -1,9 +1,9 @@
 import { hatchet } from '../client';
-import { lower, upper } from './workflow';
+import { parent, child } from './workflow';
 
 async function main() {
   const worker = await hatchet.createWorker({
-    workflows: [lower, upper],
+    workflows: [parent, child],
   });
 
   await worker.start();

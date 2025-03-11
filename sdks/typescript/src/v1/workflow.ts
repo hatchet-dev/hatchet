@@ -132,6 +132,8 @@ export class Workflow<T extends Record<string, any>, K> {
     return res.result() as Promise<K>;
   }
 
+  // TODO run many
+
   /**
    * Schedules a workflow to run at a specific date and time in the future.
    * @param enqueueAt The date when the workflow should be triggered.
@@ -218,6 +220,11 @@ export class Workflow<T extends Record<string, any>, K> {
     const typedOptions = options as CreateTaskOpts<T, TaskOutputType<K, Name, L>>;
     this.definition.tasks.push(typedOptions);
     return typedOptions;
+  }
+
+  // @deprecated use definition.name instead
+  get id() {
+    return this.definition.name;
   }
 }
 

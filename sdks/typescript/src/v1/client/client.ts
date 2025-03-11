@@ -76,8 +76,6 @@ export class HatchetV1 implements IHatchetClient {
       name = workflow;
     } else if ('id' in workflow) {
       name = workflow.id;
-    } else if ('definition' in workflow) {
-      name = workflow.definition.name;
     } else {
       throw new Error('unable to identify workflow');
     }
