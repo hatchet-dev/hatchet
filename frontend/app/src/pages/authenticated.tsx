@@ -12,6 +12,7 @@ import { Loading } from '@/components/ui/loading.tsx';
 import { useQuery } from '@tanstack/react-query';
 import SupportChat from '@/components/molecules/support-chat';
 import AnalyticsProvider from '@/components/molecules/analytics-provider';
+import { useState } from 'react';
 
 const authMiddleware = async (currentUrl: string) => {
   try {
@@ -104,6 +105,8 @@ export default function Authenticated() {
     memberships: listMembershipsQuery.data?.rows || memberships,
   });
 
+  const [hasHasBanner, setHasBanner] = useState(false);
+
   if (!user || !memberships) {
     return <Loading />;
   }
@@ -112,8 +115,10 @@ export default function Authenticated() {
     <AnalyticsProvider user={user}>
       <SupportChat user={user}>
         <div className="flex flex-row flex-1 w-full h-full">
-          <MainNav user={user} />
-          <div className="pt-16 flex-grow overflow-y-auto overflow-x-hidden">
+          <MainNav user={user} setHasBanner={setHasBanner} />
+          <div
+            className={`pt-${hasHasBanner ? 28 : 16} flex-grow overflow-y-auto overflow-x-hidden`}
+          >
             <Outlet context={ctx} />
           </div>
         </div>
