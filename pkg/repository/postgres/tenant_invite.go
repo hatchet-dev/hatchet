@@ -98,7 +98,7 @@ func (r *tenantInviteRepository) GetTenantInvite(ctx context.Context, id string)
 	)
 }
 
-func (r *tenantInviteRepository) ListTenantInvitesByEmail(ctx context.Context, email string) ([]*dbsqlc.TenantInviteLink, error) {
+func (r *tenantInviteRepository) ListTenantInvitesByEmail(ctx context.Context, email string) ([]*dbsqlc.ListTenantInvitesByEmailRow, error) {
 	return r.queries.ListTenantInvitesByEmail(
 		ctx,
 		r.pool,

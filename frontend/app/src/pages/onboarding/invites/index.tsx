@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { TenantVersion } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -32,12 +32,35 @@ export default function TenantInvites() {
 
   const acceptMutation = useMutation({
     mutationKey: ['tenant-invite:accept'],
-    mutationFn: async (data: { invite: string }) => {
-      await api.tenantInviteAccept(data);
+    mutationFn: async (data: {
+      tenantId: string;
+      inner: { invite: string };
+    }) => {
+      await api.tenantInviteAccept(data.inner);
+      return data.tenantId;
     },
-    onSuccess: async () => {
-      // TODO: if there's more than 1 invite, stay on the screen
-      navigate('/');
+    onSuccess: async (tenantId: string) => {
+      try {
+        const memberships = await api.tenantMembershipsList();
+
+        const foundTenant = memberships.data.rows?.find(
+          (m) => m.tenant?.metadata.id === tenantId,
+        )?.tenant;
+
+        switch (foundTenant?.version) {
+          case TenantVersion.V0:
+            navigate(`/workflow-runs?tenant=${tenantId}`);
+            break;
+          case TenantVersion.V1:
+            navigate(`/v1/workflow-runs?tenant=${tenantId}`);
+            break;
+          default:
+            navigate('/');
+            break;
+        }
+      } catch (e) {
+        navigate('/');
+      }
     },
     onError: handleApiError,
   });
@@ -92,7 +115,10 @@ export default function TenantInvites() {
                       className="w-full"
                       onClick={() => {
                         acceptMutation.mutate({
-                          invite: invite.metadata.id,
+                          tenantId: invite.tenantId,
+                          inner: {
+                            invite: invite.metadata.id,
+                          },
                         });
                       }}
                     >

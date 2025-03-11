@@ -136,6 +136,10 @@ export function useTenant(): TenantContext {
       return;
     }
 
+    if (pathname.startsWith('/onboarding')) {
+      return;
+    }
+
     setLastRedirected(tenant?.slug);
 
     if (tenant?.version == TenantVersion.V0 && pathname.startsWith('/v1')) {
@@ -151,8 +155,6 @@ export function useTenant(): TenantContext {
         search: params.toString(),
       });
     }
-
-    console.log(tenant?.version);
   }, [lastRedirected, navigate, params, pathname, tenant]);
 
   if (!tenant) {
