@@ -1,24 +1,25 @@
 import { hatchet } from '../client';
 
-type SimpleWorkflowInput = {
+type SimpleInput = {
   Message: string;
 };
 
-type SimpleWorkflowOutput = {
+type SimpleOutput = {
   step2: {
-    Output: string;
+    Original: string;
+    Transformed: string;
   };
 };
 
-export const simple = hatchet.createWorkflow<SimpleWorkflowInput, SimpleWorkflowOutput>({
+export const simple = hatchet.createWorkflow<SimpleInput, SimpleOutput>({
   name: 'simple',
 });
 
 const step1 = simple.addTask({
   name: 'step1',
-  fn: () => {
+  fn: (input) => {
     return {
-      Result: true,
+      TransformedMessage: input.Message.toLowerCase(),
     };
   },
 });
@@ -26,12 +27,13 @@ const step1 = simple.addTask({
 simple.addTask({
   name: 'step2',
   parents: [step1],
-  fn: async (_, ctx) => {
-    const parent1Result = ctx.parentData(step1);
+  fn: async (input, ctx) => {
+    const step1Res = await ctx.parentData(step1);
 
-    if (parent1Result.Result) {
+    if (step1Res.TransformedMessage) {
       return {
-        Output: 'true',
+        Original: input.Message,
+        Transformed: step1Res.TransformedMessage,
       };
     }
     throw new Error('Function not implemented.');

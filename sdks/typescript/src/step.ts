@@ -134,7 +134,8 @@ export class Context<T, K = {}> {
     }
   }
 
-  parentData<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
+  // NOTE: parentData is async since we plan on potentially making this a cacheable server call
+  async parentData<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
     if (typeof task === 'string') {
       return this.stepOutput<L>(task);
     }

@@ -146,7 +146,7 @@ export class Workflow<T, K> {
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */
-export function CreateWorkflow<T, K>(
+export function CreateWorkflow<T = any, K = any>(
   options: CreateWorkflowOpts,
   client?: IHatchetClient
 ): Workflow<T, K> {
