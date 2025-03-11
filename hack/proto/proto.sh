@@ -18,3 +18,7 @@ protoc --proto_path=api-contracts/events --go_out=./internal/services/ingestor/c
 protoc --proto_path=api-contracts/workflows --go_out=./internal/services/admin/contracts --go_opt=paths=source_relative \
     --go-grpc_out=./internal/services/admin/contracts --go-grpc_opt=paths=source_relative \
     workflows.proto
+
+protoc --proto_path=api-contracts/workflows --go_out=./internal/services/admin/contracts/v1 --go_opt=paths=source_relative \
+    --go-grpc_out=./internal/services/admin/contracts/v1 --go-grpc_opt=paths=source_relative \
+    v1-admin.proto

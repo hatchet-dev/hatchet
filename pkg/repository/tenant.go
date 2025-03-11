@@ -3,8 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type CreateTenantOpts struct {
@@ -27,6 +26,8 @@ type UpdateTenantOpts struct {
 	AnalyticsOptOut *bool `validate:"omitempty"`
 
 	AlertMemberEmails *bool `validate:"omitempty"`
+
+	Version *dbsqlc.NullTenantMajorEngineVersion `validate:"omitempty"`
 }
 
 type CreateTenantMemberOpts struct {
@@ -65,37 +66,37 @@ type GetQueueMetricsResponse struct {
 
 type TenantAPIRepository interface {
 	// CreateTenant creates a new tenant.
-	CreateTenant(opts *CreateTenantOpts) (*dbsqlc.Tenant, error)
+	CreateTenant(ctx context.Context, opts *CreateTenantOpts) (*dbsqlc.Tenant, error)
 
-	// CreateTenant creates a new tenant.
-	UpdateTenant(tenantId string, opts *UpdateTenantOpts) (*db.TenantModel, error)
+	// UpdateTenant updates an existing tenant in the db.
+	UpdateTenant(ctx context.Context, tenantId string, opts *UpdateTenantOpts) (*dbsqlc.Tenant, error)
 
 	// GetTenantByID returns the tenant with the given id
-	GetTenantByID(tenantId string) (*db.TenantModel, error)
+	GetTenantByID(ctx context.Context, tenantId string) (*dbsqlc.Tenant, error)
 
 	// GetTenantBySlug returns the tenant with the given slug
-	GetTenantBySlug(slug string) (*db.TenantModel, error)
+	GetTenantBySlug(ctx context.Context, slug string) (*dbsqlc.Tenant, error)
 
 	// CreateTenantMember creates a new member in the tenant
-	CreateTenantMember(tenantId string, opts *CreateTenantMemberOpts) (*db.TenantMemberModel, error)
+	CreateTenantMember(ctx context.Context, tenantId string, opts *CreateTenantMemberOpts) (*dbsqlc.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByID returns the tenant member with the given id
-	GetTenantMemberByID(memberId string) (*db.TenantMemberModel, error)
+	GetTenantMemberByID(ctx context.Context, memberId string) (*dbsqlc.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByUserID returns the tenant member with the given user id
-	GetTenantMemberByUserID(tenantId string, userId string) (*db.TenantMemberModel, error)
+	GetTenantMemberByUserID(ctx context.Context, tenantId string, userId string) (*dbsqlc.PopulateTenantMembersRow, error)
 
 	// GetTenantMemberByEmail returns the tenant member with the given email
-	GetTenantMemberByEmail(tenantId string, email string) (*db.TenantMemberModel, error)
+	GetTenantMemberByEmail(ctx context.Context, tenantId string, email string) (*dbsqlc.PopulateTenantMembersRow, error)
 
 	// ListTenantMembers returns the list of tenant members for the given tenant
-	ListTenantMembers(tenantId string) ([]db.TenantMemberModel, error)
+	ListTenantMembers(ctx context.Context, tenantId string) ([]*dbsqlc.PopulateTenantMembersRow, error)
 
 	// UpdateTenantMember updates the tenant member with the given id
-	UpdateTenantMember(memberId string, opts *UpdateTenantMemberOpts) (*db.TenantMemberModel, error)
+	UpdateTenantMember(ctx context.Context, memberId string, opts *UpdateTenantMemberOpts) (*dbsqlc.PopulateTenantMembersRow, error)
 
 	// DeleteTenantMember deletes the tenant member with the given id
-	DeleteTenantMember(memberId string) (*db.TenantMemberModel, error)
+	DeleteTenantMember(ctx context.Context, memberId string) error
 
 	// GetQueueMetrics returns the queue metrics for the given tenant
 	GetQueueMetrics(ctx context.Context, tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
@@ -105,12 +106,16 @@ type TenantEngineRepository interface {
 	// ListTenants lists all tenants in the instance
 	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
 
+	// Gets the tenant corresponding to the "internal" tenant if it's assigned to this controller.
+	// Returns nil if the tenant is not assigned to this controller.
+	GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*dbsqlc.Tenant, error)
+
 	// ListTenantsByPartition lists all tenants in the given partition
-	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
-	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
-	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
 	// CreateEnginePartition creates a new partition for tenants within the engine
 	CreateControllerPartition(ctx context.Context) (string, error)

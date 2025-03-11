@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -77,38 +76,48 @@ func run(events chan<- string) (func() error, error) {
 
 		time.Sleep(10 * time.Second)
 
-		//workflows, err := c.API().WorkflowListWithResponse(context.Background(), uuid.MustParse(c.TenantId()))
-		//if err != nil {
-		//	panic(fmt.Errorf("error listing workflows: %w", err))
-		//}
+		workflowName := "cancellation"
 
-		client := db.NewClient()
-		if err := client.Connect(); err != nil {
-			panic(fmt.Errorf("error connecting to database: %w", err))
-		}
-		defer client.Disconnect()
+		workflows, err := c.API().WorkflowListWithResponse(context.Background(), uuid.MustParse(c.TenantId()), &rest.WorkflowListParams{
+			Name: &workflowName,
+		})
 
-		stepRuns, err := client.StepRun.FindMany(
-			db.StepRun.TenantID.Equals(c.TenantId()),
-			db.StepRun.Status.Equals(db.StepRunStatusRunning),
-		).Exec(context.Background())
 		if err != nil {
-			panic(fmt.Errorf("error finding step runs: %w", err))
+			panic(fmt.Errorf("error listing workflows: %w", err))
 		}
 
-		if len(stepRuns) == 0 {
-			panic(fmt.Errorf("no step runs to cancel"))
+		if workflows.JSON200 == nil {
+			panic(fmt.Errorf("no workflows found"))
 		}
 
-		for _, stepRun := range stepRuns {
-			stepRunID := stepRun.ID
-			log.Printf("cancelling step run id: %s", stepRunID)
-			res, err := c.API().StepRunUpdateCancelWithResponse(context.Background(), uuid.MustParse(c.TenantId()), uuid.MustParse(stepRunID))
-			if err != nil {
-				panic(fmt.Errorf("error cancelling step run: %w", err))
-			}
+		rows := *workflows.JSON200.Rows
 
-			log.Printf("step run cancelled: %v", res.JSON200)
+		if len(rows) == 0 {
+			panic(fmt.Errorf("no workflows found"))
+		}
+
+		workflowId := uuid.MustParse(rows[0].Metadata.Id)
+
+		workflowRuns, err := c.API().WorkflowRunListWithResponse(context.Background(), uuid.MustParse(c.TenantId()), &rest.WorkflowRunListParams{
+			WorkflowId: &workflowId,
+		})
+
+		if err != nil {
+			panic(fmt.Errorf("error listing workflow runs: %w", err))
+		}
+
+		if workflowRuns.JSON200 == nil {
+			panic(fmt.Errorf("no workflow runs found"))
+		}
+
+		workflowRunsRows := *workflowRuns.JSON200.Rows
+
+		_, err = c.API().WorkflowRunCancelWithResponse(context.Background(), uuid.MustParse(c.TenantId()), rest.WorkflowRunsCancelRequest{
+			WorkflowRunIds: []uuid.UUID{uuid.MustParse(workflowRunsRows[0].Metadata.Id)},
+		})
+
+		if err != nil {
+			panic(fmt.Errorf("error cancelling workflow run: %w", err))
 		}
 	}()
 

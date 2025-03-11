@@ -3,7 +3,8 @@ package tasktypes
 import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type GroupKeyActionAssignedTaskPayload struct {
@@ -24,13 +25,13 @@ type GroupKeyActionRequeueTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func TenantToGroupKeyActionRequeueTask(tenant db.TenantModel) *msgqueue.Message {
+func TenantToGroupKeyActionRequeueTask(tenant dbsqlc.Tenant) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(GroupKeyActionRequeueTaskPayload{
-		TenantId: tenant.ID,
+		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
 	})
 
 	metadata, _ := datautils.ToJSONMap(GroupKeyActionRequeueTaskMetadata{
-		TenantId: tenant.ID,
+		TenantId: sqlchelpers.UUIDToStr(tenant.ID),
 	})
 
 	return &msgqueue.Message{

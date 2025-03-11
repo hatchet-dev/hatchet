@@ -14,11 +14,22 @@ Tenant:
     alertMemberEmails:
       type: boolean
       description: Whether to alert tenant members.
+    version:
+      $ref: "#/TenantVersion"
+      description: The version of the tenant.
   required:
     - metadata
     - name
     - slug
+    - version
   type: object
+
+TenantVersion:
+  enum:
+    - "V0"
+    - "V1"
+  type: string
+
 
 TenantAlertingSettings:
   properties:
@@ -90,6 +101,9 @@ UpdateTenantRequest:
       description: The max frequency at which to alert.
       x-oapi-codegen-extra-tags:
         validate: "omitnil,duration"
+    version:
+      $ref: "#/TenantVersion"
+      description: The version of the tenant.
   type: object
 
 TenantResource:

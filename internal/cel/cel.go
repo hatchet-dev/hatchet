@@ -9,7 +9,8 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
 	expr "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
@@ -82,7 +83,7 @@ func WithInput(input map[string]interface{}) InputOpts {
 	}
 }
 
-func WithParents(parents map[string]map[string]interface{}) InputOpts {
+func WithParents(parents any) InputOpts {
 	return func(w Input) {
 		w["parents"] = parents
 	}
@@ -233,6 +234,53 @@ func (p *CELParser) CheckStepRunOutAgainstKnown(out *StepRunOut, knownType dbsql
 			return fmt.Errorf("%s, got unknown type", prefix)
 		}
 	case dbsqlc.StepExpressionKindDYNAMICRATELIMITUNITS:
+		if out.Int == nil {
+			prefix := "expected int output for dynamic rate limit units"
+
+			if out.String != nil {
+				return fmt.Errorf("%s, got string", prefix)
+			}
+
+			return fmt.Errorf("%s, got unknown type", prefix)
+		}
+	}
+
+	return nil
+}
+
+func (p *CELParser) CheckStepRunOutAgainstKnownV1(out *StepRunOut, knownType sqlcv1.StepExpressionKind) error {
+	switch knownType {
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITKEY:
+		if out.String == nil {
+			prefix := "expected string output for dynamic rate limit key"
+
+			if out.Int != nil {
+				return fmt.Errorf("%s, got int", prefix)
+			}
+
+			return fmt.Errorf("%s, got unknown type", prefix)
+		}
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITVALUE:
+		if out.Int == nil {
+			prefix := "expected int output for dynamic rate limit value"
+
+			if out.String != nil {
+				return fmt.Errorf("%s, got string", prefix)
+			}
+
+			return fmt.Errorf("%s, got unknown type", prefix)
+		}
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITWINDOW:
+		if out.String == nil {
+			prefix := "expected string output for dynamic rate limit window"
+
+			if out.Int != nil {
+				return fmt.Errorf("%s, got int", prefix)
+			}
+
+			return fmt.Errorf("%s, got unknown type", prefix)
+		}
+	case sqlcv1.StepExpressionKindDYNAMICRATELIMITUNITS:
 		if out.Int == nil {
 			prefix := "expected int output for dynamic rate limit units"
 

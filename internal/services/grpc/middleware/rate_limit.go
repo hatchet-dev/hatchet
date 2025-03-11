@@ -17,6 +17,7 @@ type HatchetApiTokenRateLimiter struct {
 	eventsLimiter     *rate.Limiter
 	dispatcherLimiter *rate.Limiter
 	workflowLimiter   *rate.Limiter
+	adminV1Limiter    *rate.Limiter
 }
 
 type HatchetRateLimiter struct {
@@ -35,6 +36,7 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 		rl.rateLimiters[rateLimitToken] = &HatchetApiTokenRateLimiter{
 			eventsLimiter:   rate.NewLimiter(rl.rate, rl.burst),
 			workflowLimiter: rate.NewLimiter(rl.rate, rl.burst),
+			adminV1Limiter:  rate.NewLimiter(rl.rate, rl.burst),
 			// 10x the rate for dispatcher
 			dispatcherLimiter: rate.NewLimiter(rl.rate*10, rl.burst*10),
 		}
@@ -83,6 +85,11 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 	case "workflow":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).workflowLimiter.Allow() {
 			r.l.Info().Msgf("workflow rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).workflowLimiter.Limit())
+			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
+		}
+	case "admin":
+		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).adminV1Limiter.Allow() {
+			r.l.Info().Msgf("admin rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).adminV1Limiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
 		}
 
@@ -142,6 +149,8 @@ func matchServiceName(name string) string {
 		return "events"
 	case strings.HasPrefix(name, "/WorkflowService"):
 		return "workflow"
+	case strings.HasPrefix(name, "/AdminService"):
+		return "admin"
 	default:
 		return "unknown"
 	}

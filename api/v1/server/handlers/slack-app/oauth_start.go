@@ -7,12 +7,14 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (g *SlackAppService) UserUpdateSlackOauthStart(ctx echo.Context, _ gen.UserUpdateSlackOauthStartRequestObject) (gen.UserUpdateSlackOauthStartResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	oauth, ok := g.config.AdditionalOAuthConfigs["slack"]
 
@@ -22,7 +24,7 @@ func (g *SlackAppService) UserUpdateSlackOauthStart(ctx echo.Context, _ gen.User
 
 	sh := authn.NewSessionHelpers(g.config)
 
-	if err := sh.SaveKV(ctx, "tenant", tenant.ID); err != nil {
+	if err := sh.SaveKV(ctx, "tenant", tenantId); err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")
 	}
 

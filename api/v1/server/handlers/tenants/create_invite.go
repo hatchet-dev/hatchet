@@ -11,13 +11,15 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantInviteCreateRequestObject) (gen.TenantInviteCreateResponseObject, error) {
-	user := ctx.Get("user").(*db.UserModel)
-	tenant := ctx.Get("tenant").(*db.TenantModel)
-	tenantMember := ctx.Get("tenant-member").(*db.TenantMemberModel)
+	user := ctx.Get("user").(*dbsqlc.User)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
 	if !t.config.Runtime.AllowInvites {
 		t.config.Logger.Warn().Msg("tenant invites are disabled")
 		return gen.TenantInviteCreate400JSONResponse(
@@ -34,7 +36,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// ensure that this user isn't already a member of the tenant
-	if _, err := t.config.APIRepository.Tenant().GetTenantMemberByEmail(tenant.ID, request.Body.Email); err == nil {
+	if _, err := t.config.APIRepository.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), tenantId, request.Body.Email); err == nil {
 		t.config.Logger.Warn().Msg("this user is already a member of this tenant")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("this user is already a member of this tenant"),
@@ -42,7 +44,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// if user is not an owner, they cannot change a role to owner
-	if tenantMember.Role != db.TenantMemberRoleOwner && request.Body.Role == gen.OWNER {
+	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER && request.Body.Role == gen.OWNER {
 		t.config.Logger.Warn().Msg("only an owner can change a role to owner")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("only an owner can change a role to owner"),
@@ -59,7 +61,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// create the invite
-	invite, err := t.config.APIRepository.TenantInvite().CreateTenantInvite(tenant.ID, createOpts)
+	invite, err := t.config.APIRepository.TenantInvite().CreateTenantInvite(ctx.Request().Context(), tenantId, createOpts)
 
 	if err != nil {
 		t.config.Logger.Err(err).Msg("could not create tenant invite")
@@ -76,8 +78,8 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 		name := user.Email
 
-		if userName, ok := user.Name(); ok && userName != "" {
-			name = userName
+		if user.Name.Valid {
+			name = user.Name.String
 		}
 
 		if err := t.config.Email.SendTenantInviteEmail(emailCtx, invite.InviteeEmail, email.TenantInviteEmailData{
@@ -90,8 +92,8 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}()
 
 	t.config.Analytics.Enqueue("user-invite:create",
-		user.ID,
-		&invite.TenantID,
+		sqlchelpers.UUIDToStr(user.ID),
+		&tenantId,
 		nil,
 	)
 

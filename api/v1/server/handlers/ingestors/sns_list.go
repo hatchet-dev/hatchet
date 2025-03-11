@@ -5,15 +5,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (i *IngestorsService) SnsList(ctx echo.Context, req gen.SnsListRequestObject) (gen.SnsListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// create the SNS integration
-	snsIntegrations, err := i.config.APIRepository.SNS().ListSNSIntegrations(tenant.ID)
+	snsIntegrations, err := i.config.APIRepository.SNS().ListSNSIntegrations(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err
@@ -24,7 +25,7 @@ func (i *IngestorsService) SnsList(ctx echo.Context, req gen.SnsListRequestObjec
 	serverUrl := i.config.Runtime.ServerURL
 
 	for i := range snsIntegrations {
-		rows[i] = *transformers.ToSNSIntegration(&snsIntegrations[i], serverUrl)
+		rows[i] = *transformers.ToSNSIntegration(snsIntegrations[i], serverUrl)
 	}
 
 	return gen.SnsList200JSONResponse(

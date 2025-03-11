@@ -43,7 +43,7 @@ export default function VerifyEmail() {
   }
 
   return (
-    <div className="flex flex-row flex-1 w-full h-full pt-16">
+    <div className="flex flex-row flex-1 w-full h-full">
       <MainNav user={res.user} />
       <div className="container relative hidden flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
         <div className="lg:p-8 mx-auto w-screen">

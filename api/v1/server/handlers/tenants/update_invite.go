@@ -7,12 +7,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantInviteUpdateRequestObject) (gen.TenantInviteUpdateResponseObject, error) {
-	tenantMember := ctx.Get("tenant-member").(*db.TenantMemberModel)
-	invite := ctx.Get("tenant-invite").(*db.TenantInviteLinkModel)
+	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
+	invite := ctx.Get("tenant-invite").(*dbsqlc.TenantInviteLink)
 
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -22,7 +23,7 @@ func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantI
 	}
 
 	// if user is not an owner, they cannot change a role to owner
-	if tenantMember.Role != db.TenantMemberRoleOwner && request.Body.Role == gen.OWNER {
+	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER && request.Body.Role == gen.OWNER {
 		return gen.TenantInviteUpdate400JSONResponse(
 			apierrors.NewAPIErrors("only an owner can change a role to owner"),
 		), nil
@@ -34,7 +35,7 @@ func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantI
 	}
 
 	// update the invite
-	invite, err := t.config.APIRepository.TenantInvite().UpdateTenantInvite(invite.ID, updateOpts)
+	invite, err := t.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
 
 	if err != nil {
 		return nil, err

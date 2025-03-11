@@ -9,6 +9,375 @@
  * ---------------------------------------------------------------
  */
 
+export interface APIResourceMeta {
+  /**
+   * the id of this resource, in UUID format
+   * @minLength 0
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  id: string;
+  /**
+   * the time that this resource was created
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  createdAt: string;
+  /**
+   * the time that this resource was last updated
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  updatedAt: string;
+}
+
+export interface V1TaskSummary {
+  metadata: APIResourceMeta;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The list of children tasks */
+  children?: V1TaskSummary[];
+  /**
+   * The timestamp the task was created.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The display name of the task run. */
+  displayName: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The input of the task run. */
+  input: object;
+  /** The number of spawned children tasks */
+  numSpawnedChildren: number;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The step ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  stepId?: string;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** The type of the workflow (whether it's a DAG or a task) */
+  type: V1WorkflowType;
+  /** @format uuid */
+  workflowId: string;
+  workflowName?: string;
+  /**
+   * The external ID of the workflow run
+   * @format uuid
+   */
+  workflowRunExternalId?: string;
+  /**
+   * The version ID of the workflow
+   * @format uuid
+   */
+  workflowVersionId?: string;
+}
+
+export enum V1TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+}
+
+export enum V1WorkflowType {
+  DAG = 'DAG',
+  TASK = 'TASK',
+}
+
+export interface APIError {
+  /**
+   * a custom Hatchet error code
+   * @format uint64
+   * @example 1400
+   */
+  code?: number;
+  /**
+   * the field that this error is associated with, if applicable
+   * @example "name"
+   */
+  field?: string;
+  /**
+   * a description for this error
+   * @example "A descriptive error message"
+   */
+  description: string;
+  /**
+   * a link to the documentation for this error, if it exists
+   * @example "github.com/hatchet-dev/hatchet"
+   */
+  docs_link?: string;
+}
+
+export interface APIErrors {
+  errors: APIError[];
+}
+
+/** @example {"next_page":3,"num_pages":10,"current_page":2} */
+export interface PaginationResponse {
+  /**
+   * the current page
+   * @format int64
+   * @example 2
+   */
+  current_page?: number;
+  /**
+   * the next page
+   * @format int64
+   * @example 3
+   */
+  next_page?: number;
+  /**
+   * the total number of pages for listing
+   * @format int64
+   * @example 10
+   */
+  num_pages?: number;
+}
+
+export enum V1TaskEventType {
+  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
+  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
+  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
+  ASSIGNED = 'ASSIGNED',
+  STARTED = 'STARTED',
+  FINISHED = 'FINISHED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  CANCELLED = 'CANCELLED',
+  TIMED_OUT = 'TIMED_OUT',
+  REASSIGNED = 'REASSIGNED',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
+  RETRIED_BY_USER = 'RETRIED_BY_USER',
+  SENT_TO_WORKER = 'SENT_TO_WORKER',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  ACKNOWLEDGED = 'ACKNOWLEDGED',
+  CREATED = 'CREATED',
+  QUEUED = 'QUEUED',
+  SKIPPED = 'SKIPPED',
+}
+
+export interface V1TaskEvent {
+  id: number;
+  /** @format uuid */
+  taskId: string;
+  /** @format date-time */
+  timestamp: string;
+  eventType: V1TaskEventType;
+  message: string;
+  errorMessage?: string;
+  output?: string;
+  /** @format uuid */
+  workerId?: string;
+  taskDisplayName?: string;
+}
+
+export interface V1TaskEventList {
+  pagination?: PaginationResponse;
+  rows?: V1TaskEvent[];
+}
+
+export interface V1LogLine {
+  /**
+   * The creation date of the log line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The log message. */
+  message: string;
+  /** The log metadata. */
+  metadata: object;
+}
+
+export interface V1LogLineList {
+  pagination?: PaginationResponse;
+  rows?: V1LogLine[];
+}
+
+export interface V1TaskFilter {
+  /** @format date-time */
+  since: string;
+  /** @format date-time */
+  until?: string;
+  statuses?: V1TaskStatus[];
+  workflowIds?: string[];
+  additionalMetadata?: string[];
+}
+
+export interface V1CancelTaskRequest {
+  /** A list of external IDs, which can refer to either task or workflow run external IDs */
+  externalIds?: string[];
+  filter?: V1TaskFilter;
+}
+
+export interface V1ReplayTaskRequest {
+  /** A list of external IDs, which can refer to either task or workflow run external IDs */
+  externalIds?: string[];
+  filter?: V1TaskFilter;
+}
+
+export interface V1DagChildren {
+  /** @format uuid */
+  dagId?: string;
+  children?: V1TaskSummary[];
+}
+
+export interface V1TaskSummaryList {
+  pagination: PaginationResponse;
+  /** The list of tasks */
+  rows: V1TaskSummary[];
+}
+
+export interface V1WorkflowRunDisplayName {
+  metadata: APIResourceMeta;
+  displayName: string;
+}
+
+export interface V1WorkflowRunDisplayNameList {
+  pagination: PaginationResponse;
+  /** The list of display names */
+  rows: V1WorkflowRunDisplayName[];
+}
+
+export interface V1TriggerWorkflowRunRequest {
+  /** The name of the workflow. */
+  workflowName: string;
+  input: object;
+  additionalMetadata?: object;
+}
+
+export interface V1WorkflowRun {
+  metadata: APIResourceMeta;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The ID of the workflow version.
+   * @format uuid
+   */
+  workflowVersionId?: string;
+  /** The input of the task run. */
+  input: object;
+  /**
+   * The timestamp the task run was created.
+   * @format date-time
+   */
+  createdAt?: string;
+}
+
+export interface WorkflowRunShapeItemForWorkflowRunDetails {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  stepId: string;
+  childrenStepIds: string[];
+  taskName: string;
+}
+
+export type WorkflowRunShapeForWorkflowRunDetails = WorkflowRunShapeItemForWorkflowRunDetails[];
+
+export interface V1WorkflowRunDetails {
+  run: V1WorkflowRun;
+  /** The list of task events for the workflow run */
+  taskEvents: V1TaskEvent[];
+  shape: WorkflowRunShapeForWorkflowRunDetails;
+  tasks: V1TaskSummary[];
+}
+
+export interface V1TaskRunMetric {
+  status: V1TaskStatus;
+  count: number;
+}
+
+export type V1TaskRunMetrics = V1TaskRunMetric[];
+
+export interface V1TaskPointMetric {
+  /** @format date-time */
+  time: string;
+  SUCCEEDED: number;
+  FAILED: number;
+}
+
+export interface V1TaskPointMetrics {
+  results?: V1TaskPointMetric[];
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
@@ -60,34 +429,6 @@ export interface APIMeta {
   allowChangePassword?: boolean;
 }
 
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
-
-export interface APIErrors {
-  errors: APIError[];
-}
-
 export interface APIMetaIntegration {
   /**
    * the name of the integration
@@ -110,28 +451,6 @@ export interface UserLoginRequest {
   password: string;
 }
 
-export interface APIResourceMeta {
-  /**
-   * the id of this resource, in UUID format
-   * @minLength 0
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  id: string;
-  /**
-   * the time that this resource was created
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  createdAt: string;
-  /**
-   * the time that this resource was last updated
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  updatedAt: string;
-}
-
 export interface User {
   metadata: APIResourceMeta;
   /** The display name of the user. */
@@ -147,28 +466,6 @@ export interface User {
   hasPassword?: boolean;
   /** A hash of the user's email address for use with Pylon Support Chat */
   emailHash?: string;
-}
-
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
 }
 
 export interface SNSIntegration {
@@ -304,6 +601,11 @@ export enum TenantMemberRole {
   MEMBER = 'MEMBER',
 }
 
+export enum TenantVersion {
+  V0 = 'V0',
+  V1 = 'V1',
+}
+
 export interface Tenant {
   metadata: APIResourceMeta;
   /** The name of the tenant. */
@@ -314,6 +616,8 @@ export interface Tenant {
   analyticsOptOut?: boolean;
   /** Whether to alert tenant members. */
   alertMemberEmails?: boolean;
+  /** The version of the tenant. */
+  version: TenantVersion;
 }
 
 export interface TenantMember {
@@ -393,6 +697,8 @@ export interface UpdateTenantRequest {
   enableTenantResourceLimitAlerts?: boolean;
   /** The max frequency at which to alert. */
   maxAlertingFrequency?: string;
+  /** The version of the tenant. */
+  version?: TenantVersion;
 }
 
 export interface TenantAlertingSettings {
@@ -1429,6 +1735,21 @@ export interface ListPullRequestsResponse {
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
+}
+
+export enum V1TaskRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum V1LogLineLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
 }
 
 export type BulkCreateEventResponse = Events;

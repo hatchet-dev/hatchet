@@ -1,5 +1,8 @@
 name: test
-on: pull_request
+on:
+  pull_request:
+    paths-ignore:
+      - 'sdks/**'
 jobs:
   generate:
     runs-on: ubuntu-latest
@@ -37,7 +40,7 @@ jobs:
 
       - name: Generate
         run: |
-          sh ./hack/db/atlas-apply.sh
+          go run ./cmd/hatchet-migrate
           task pre-commit-install
           task generate-all
 
@@ -99,7 +102,7 @@ jobs:
 
       - name: Generate
         run: |
-          sh ./hack/db/atlas-apply.sh
+          go run ./cmd/hatchet-migrate
           task generate-go
           task generate-certs
           task generate-local-encryption-keys
@@ -173,7 +176,7 @@ jobs:
 
       - name: Generate
         run: |
-          sh ./hack/db/atlas-apply.sh
+          go run ./cmd/hatchet-migrate
           task generate-go
           task generate-certs
           task generate-local-encryption-keys
@@ -262,7 +265,7 @@ jobs:
 
       - name: Generate
         run: |
-          sh ./hack/db/atlas-apply.sh
+          go run ./cmd/hatchet-migrate
           task generate-go
           task generate-certs
           task generate-local-encryption-keys
@@ -339,7 +342,7 @@ jobs:
 
       - name: Generate
         run: |
-          sh ./hack/db/atlas-apply.sh
+          go run ./cmd/hatchet-migrate
           task generate-go
           task generate-certs
           task generate-local-encryption-keys
@@ -415,7 +418,7 @@ jobs:
 
       - name: Generate
         run: |
-          sh ./hack/db/atlas-apply.sh
+          go run ./cmd/hatchet-migrate
           task generate-go
           task generate-certs
           task generate-local-encryption-keys

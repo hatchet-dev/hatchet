@@ -1,9 +1,10 @@
 package repository
 
 import (
+	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type CreateTenantInviteOpts struct {
@@ -41,21 +42,21 @@ type ListTenantInvitesOpts struct {
 
 type TenantInviteRepository interface {
 	// CreateTenantInvite creates a new tenant invite with the given options
-	CreateTenantInvite(tenantId string, opts *CreateTenantInviteOpts) (*db.TenantInviteLinkModel, error)
+	CreateTenantInvite(ctx context.Context, tenantId string, opts *CreateTenantInviteOpts) (*dbsqlc.TenantInviteLink, error)
 
 	// GetTenantInvite returns the tenant invite with the given id
-	GetTenantInvite(id string) (*db.TenantInviteLinkModel, error)
+	GetTenantInvite(ctx context.Context, id string) (*dbsqlc.TenantInviteLink, error)
 
 	// ListTenantInvitesByEmail returns the list of tenant invites for the given invitee email for invites
 	// which are not expired
-	ListTenantInvitesByEmail(email string) ([]db.TenantInviteLinkModel, error)
+	ListTenantInvitesByEmail(ctx context.Context, email string) ([]*dbsqlc.TenantInviteLink, error)
 
 	// ListTenantInvitesByTenantId returns the list of tenant invites for the given tenant id
-	ListTenantInvitesByTenantId(tenantId string, opts *ListTenantInvitesOpts) ([]db.TenantInviteLinkModel, error)
+	ListTenantInvitesByTenantId(ctx context.Context, tenantId string, opts *ListTenantInvitesOpts) ([]*dbsqlc.TenantInviteLink, error)
 
 	// UpdateTenantInvite updates the tenant invite with the given id
-	UpdateTenantInvite(id string, opts *UpdateTenantInviteOpts) (*db.TenantInviteLinkModel, error)
+	UpdateTenantInvite(ctx context.Context, id string, opts *UpdateTenantInviteOpts) (*dbsqlc.TenantInviteLink, error)
 
 	// DeleteTenantInvite deletes the tenant invite with the given id
-	DeleteTenantInvite(id string) error
+	DeleteTenantInvite(ctx context.Context, id string) error
 }

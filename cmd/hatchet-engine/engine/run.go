@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
+	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/olap"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/task"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
@@ -18,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler"
+	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/internal/services/webhooks"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -228,16 +232,43 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "scheduler",
 			Fn:   cleanup,
 		})
+
+		sv1, err := schedulerv1.New(
+			schedulerv1.WithAlerter(sc.Alerter),
+			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithRepository(sc.EngineRepository),
+			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithLogger(sc.Logger),
+			schedulerv1.WithPartition(p),
+			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+		}
+
+		cleanup, err = sv1.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "schedulerv1",
+			Fn:   cleanup,
+		})
 	}
 
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
 			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-			ticker.WithPartition(p),
 		)
 
 		if err != nil {
@@ -298,6 +329,55 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "workflows controller",
 			Fn:   cleanupWorkflows,
 		})
+
+		tasks, err := task.New(
+			task.WithAlerter(sc.Alerter),
+			task.WithMessageQueue(sc.MessageQueueV1),
+			task.WithRepository(sc.EngineRepository),
+			task.WithV1Repository(sc.V1),
+			task.WithLogger(sc.Logger),
+			task.WithPartition(p),
+			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create tasks controller: %w", err)
+		}
+
+		cleanupTasks, err := tasks.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start tasks controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "tasks controller",
+			Fn:   cleanupTasks,
+		})
+
+		olap, err := olap.New(
+			olap.WithAlerter(sc.Alerter),
+			olap.WithMessageQueue(sc.MessageQueueV1),
+			olap.WithRepository(sc.V1),
+			olap.WithLogger(sc.Logger),
+			olap.WithPartition(p),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create olap controller: %w", err)
+		}
+
+		cleanupOlap, err := olap.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start olap controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "olap controller",
+			Fn:   cleanupOlap,
+		})
 	}
 
 	if sc.HasService("retention") {
@@ -332,7 +412,9 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueue(sc.MessageQueue),
+			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
 			dispatcher.WithRepository(sc.EngineRepository),
+			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
@@ -359,8 +441,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				sc.EngineRepository.Log(),
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
+			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
+			ingestor.WithRepositoryV1(sc.V1),
 		)
 
 		if err != nil {
@@ -369,11 +453,22 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
+			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
+		}
+
+		adminv1Svc, err := adminv1.NewAdminService(
+			adminv1.WithRepository(sc.V1),
+			adminv1.WithMessageQueue(sc.MessageQueueV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
 		grpcOpts := []grpc.ServerOpt{
@@ -381,6 +476,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithAdmin(adminSvc),
+			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -451,7 +547,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p)
+		wh := webhooks.New(sc, p, l)
 
 		cleanup2, err := wh.Start()
 		if err != nil {
@@ -564,11 +660,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		t, err := ticker.New(
 			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
 			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-			ticker.WithPartition(p),
 		)
 
 		if err != nil {
@@ -660,6 +757,55 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupRetention,
 		})
 
+		tasks, err := task.New(
+			task.WithAlerter(sc.Alerter),
+			task.WithMessageQueue(sc.MessageQueueV1),
+			task.WithRepository(sc.EngineRepository),
+			task.WithV1Repository(sc.V1),
+			task.WithLogger(sc.Logger),
+			task.WithPartition(p),
+			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create tasks controller: %w", err)
+		}
+
+		cleanupTasks, err := tasks.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start tasks controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "tasks controller",
+			Fn:   cleanupTasks,
+		})
+
+		olap, err := olap.New(
+			olap.WithAlerter(sc.Alerter),
+			olap.WithMessageQueue(sc.MessageQueueV1),
+			olap.WithRepository(sc.V1),
+			olap.WithLogger(sc.Logger),
+			olap.WithPartition(p),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create olap controller: %w", err)
+		}
+
+		cleanupOlap, err := olap.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start olap controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "olap controller",
+			Fn:   cleanupOlap,
+		})
+
 		cleanup1, err := p.StartTenantWorkerPartition(ctx)
 
 		if err != nil {
@@ -671,7 +817,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanup1,
 		})
 
-		wh := webhooks.New(sc, p)
+		wh := webhooks.New(sc, p, l)
 
 		cleanup2, err := wh.Start()
 
@@ -692,7 +838,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueue(sc.MessageQueue),
+			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
 			dispatcher.WithRepository(sc.EngineRepository),
+			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
@@ -720,8 +868,10 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				sc.EngineRepository.Log(),
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
+			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
 			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
+			ingestor.WithRepositoryV1(sc.V1),
 		)
 
 		if err != nil {
@@ -730,7 +880,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
+			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
 		)
 
@@ -738,11 +890,21 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service: %w", err)
 		}
 
+		adminv1Svc, err := adminv1.NewAdminService(
+			adminv1.WithRepository(sc.V1),
+			adminv1.WithMessageQueue(sc.MessageQueueV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithAdmin(adminSvc),
+			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -836,6 +998,32 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		teardown = append(teardown, Teardown{
 			Name: "scheduler",
+			Fn:   cleanup,
+		})
+
+		sv1, err := schedulerv1.New(
+			schedulerv1.WithAlerter(sc.Alerter),
+			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithRepository(sc.EngineRepository),
+			schedulerv1.WithV2Repository(sc.V1),
+			schedulerv1.WithLogger(sc.Logger),
+			schedulerv1.WithPartition(p),
+			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create scheduler (v1): %w", err)
+		}
+
+		cleanup, err = sv1.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start scheduler (v1): %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "schedulerv1",
 			Fn:   cleanup,
 		})
 	}

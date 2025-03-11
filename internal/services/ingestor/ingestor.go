@@ -8,21 +8,23 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata []byte) (*dbsqlc.Event, error)
-	BulkIngestEvent(ctx context.Context, tenantID string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
-	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte) (*dbsqlc.Event, error)
+	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
+	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -34,6 +36,8 @@ type IngestorOpts struct {
 	entitlementsRepository repository.EntitlementsRepository
 	stepRunRepository      repository.StepRunEngineRepository
 	mq                     msgqueue.MessageQueue
+	mqv1                   msgqueuev1.MessageQueue
+	repov1                 v1.Repository
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -66,9 +70,21 @@ func WithMessageQueue(mq msgqueue.MessageQueue) IngestorOptFunc {
 	}
 }
 
+func WithMessageQueueV1(mq msgqueuev1.MessageQueue) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.mqv1 = mq
+	}
+}
+
 func WithStepRunRepository(r repository.StepRunEngineRepository) IngestorOptFunc {
 	return func(opts *IngestorOpts) {
 		opts.stepRunRepository = r
+	}
+}
+
+func WithRepositoryV1(r v1.Repository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.repov1 = r
 	}
 }
 
@@ -86,8 +102,10 @@ type IngestorImpl struct {
 	stepRunRepository        repository.StepRunEngineRepository
 	steprunTenantLookupCache *lru.Cache[string, string]
 
-	mq msgqueue.MessageQueue
-	v  validator.Validator
+	mq     msgqueue.MessageQueue
+	mqv1   msgqueuev1.MessageQueue
+	v      validator.Validator
+	repov1 v1.Repository
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -113,6 +131,14 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.mqv1 == nil {
+		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
+	}
+
+	if opts.repov1 == nil {
+		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
+	}
+
 	if opts.stepRunRepository == nil {
 		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
 	}
@@ -129,16 +155,30 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		entitlementsRepository:   opts.entitlementsRepository,
 		stepRunRepository:        opts.stepRunRepository,
 		steprunTenantLookupCache: stepRunCache,
-
-		logRepository: opts.logRepository,
-		mq:            opts.mq,
-		v:             validator.NewDefaultValidator(),
+		logRepository:            opts.logRepository,
+		mq:                       opts.mq,
+		mqv1:                     opts.mqv1,
+		v:                        validator.NewDefaultValidator(),
+		repov1:                   opts.repov1,
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.ingestEventV0(ctx, tenant, key, data, metadata)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.ingestEventV1(ctx, tenant, key, data, metadata)
+	default:
+		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
+	}
+}
+
+func (i *IngestorImpl) ingestEventV0(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
 		TenantId:           tenantId,
@@ -169,9 +209,23 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	return event, nil
 }
 
-func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.bulkIngestEventV0(ctx, tenant, eventOpts)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.bulkIngestEventV1(ctx, tenant, eventOpts)
+	default:
+		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
+	}
+}
+
+func (i *IngestorImpl) bulkIngestEventV0(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	events, err := i.eventRepository.BulkCreateEvent(ctx, &repository.BulkCreateEventOpts{
 		Events:   eventOpts,
@@ -203,9 +257,23 @@ func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eve
 	return events.Events, nil
 }
 
-func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.ingestReplayedEventV0(ctx, tenant, replayedEvent)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.ingestReplayedEventV1(ctx, tenant, replayedEvent)
+	default:
+		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
+	}
+}
+
+func (i *IngestorImpl) ingestReplayedEventV0(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
 

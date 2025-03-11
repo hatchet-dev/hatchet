@@ -3,8 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -19,10 +18,10 @@ type ListAllJobRunsOpts struct {
 
 	NoTickerId *bool
 
-	Status *db.JobRunStatus
+	Status *dbsqlc.JobRunStatus
 }
 
-func JobRunStatusPtr(status db.JobRunStatus) *db.JobRunStatus {
+func JobRunStatusPtr(status dbsqlc.JobRunStatus) *dbsqlc.JobRunStatus {
 	return &status
 }
 

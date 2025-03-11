@@ -6,7 +6,6 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
-	"github.com/steebchen/prisma-client-go/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -39,35 +38,6 @@ func JSONBytesToMap(jsonBytes []byte) (map[string]interface{}, error) {
 	}
 
 	return dataMap, nil
-}
-
-func FromJSONType(data *types.JSON, target interface{}) error {
-	if data == nil {
-		return nil
-	}
-
-	dataBytes := []byte(*data)
-
-	if err := json.Unmarshal(dataBytes, &target); err != nil {
-		return fmt.Errorf("failed to unmarshal json: %w", err)
-	}
-
-	return nil
-}
-
-func ToJSONType(data interface{}) (*types.JSON, error) {
-	if data == nil {
-		return nil, nil
-	}
-
-	jsonBytes, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := types.JSON(jsonBytes)
-
-	return &resp, nil
 }
 
 type DataDecoderValidator interface {

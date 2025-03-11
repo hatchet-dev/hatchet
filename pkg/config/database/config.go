@@ -8,6 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type ConfigFile struct {
@@ -30,7 +31,7 @@ type ConfigFile struct {
 
 	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
 
-	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"60s"`
+	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"5s"`
 }
 
 type SeedConfigFile struct {
@@ -59,6 +60,8 @@ type Layer struct {
 	EngineRepository repository.EngineRepository
 
 	EntitlementRepository repository.EntitlementsRepository
+
+	V1 v1.Repository
 
 	Seed SeedConfigFile
 }
