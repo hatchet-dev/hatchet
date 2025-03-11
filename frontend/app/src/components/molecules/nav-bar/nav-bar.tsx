@@ -9,14 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { GrUpgrade } from 'react-icons/gr';
-
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import api, { TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -38,8 +31,6 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
-import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
-import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
 import { Banner, BannerProps } from './banner';
 
 function HelpDropdown() {
@@ -170,58 +161,6 @@ function AccountDropdown({ user }: MainNavProps) {
   );
 }
 
-function VersionUpgradeButton() {
-  const { tenant } = useTenant();
-  const tenantVersion = tenant?.version || TenantVersion.V0;
-  const { pathname } = useLocation();
-  const [params] = useSearchParams();
-
-  const versionedRoutes = useMemo(
-    () =>
-      routes
-        .at(0)
-        ?.children?.find((r) => r.path === '/v1/')
-        ?.children?.find((r) => r.path === '/v1/' && r.children?.length)
-        ?.children?.map((c) => c.path)
-        ?.map((p) => p?.replace('/v1', '')) || [],
-    [],
-  );
-
-  const shouldShowVersionUpgradeButton =
-    versionedRoutes.includes(pathname) && // It is a versioned route
-    !pathname.includes('/v1') && // The user is not already on the v1 version
-    tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
-
-  if (!shouldShowVersionUpgradeButton) {
-    return null;
-  }
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          {' '}
-          <Link
-            to={{
-              pathname: '/v1' + pathname,
-              search: params.toString(),
-            }}
-          >
-            <Button
-              variant="ghost"
-              className="relative h-10 w-10 rounded-full p-1 animate-bounce"
-              aria-label="Upgrade version"
-            >
-              <GrUpgrade className="h-6 w-6 text-foreground cursor-pointer text-red-500" />
-            </Button>
-          </Link>{' '}
-        </TooltipTrigger>
-        <TooltipContent>Switch to v1</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
 interface MainNavProps {
   user: User;
   setHasBanner?: (state: boolean) => void;
@@ -303,7 +242,6 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
           <div className="ml-auto flex items-center">
             <HelpDropdown />
             <AccountDropdown user={user} />
-            {/* <VersionUpgradeButton /> */}
           </div>
         </div>
       </div>
