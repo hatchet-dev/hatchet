@@ -5,38 +5,40 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantMemberDeleteRequestObject) (gen.TenantMemberDeleteResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
-	tenantMember := ctx.Get("tenant-member").(*db.TenantMemberModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
 
-	if tenantMember.Role != db.TenantMemberRoleOwner {
+	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER {
 		return gen.TenantMemberDelete403JSONResponse(
 			apierrors.NewAPIErrors("Only owners can delete members"),
 		), nil
 	}
 
-	memberToDelete, err := t.config.APIRepository.Tenant().GetTenantMemberByID(request.Member.String())
+	memberToDelete, err := t.config.APIRepository.Tenant().GetTenantMemberByID(ctx.Request().Context(), request.Member.String())
 
 	if err != nil {
 		return nil, err
 	}
 
-	if tenantMember.UserID == memberToDelete.UserID {
+	if sqlchelpers.UUIDToStr(tenantMember.UserId) == sqlchelpers.UUIDToStr(memberToDelete.UserId) {
 		return gen.TenantMemberDelete403JSONResponse(
 			apierrors.NewAPIErrors("You cannot delete yourself"),
 		), nil
 	}
 
-	if memberToDelete.TenantID != tenant.ID {
+	if sqlchelpers.UUIDToStr(memberToDelete.TenantId) != tenantId {
 		return gen.TenantMemberDelete404JSONResponse(
 			apierrors.NewAPIErrors("Member not found"),
 		), nil
 	}
 
-	_, err = t.config.APIRepository.Tenant().DeleteTenantMember(memberToDelete.ID)
+	err = t.config.APIRepository.Tenant().DeleteTenantMember(ctx.Request().Context(), sqlchelpers.UUIDToStr(memberToDelete.ID))
 
 	if err != nil {
 		return nil, err

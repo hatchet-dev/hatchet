@@ -5,13 +5,15 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (a *APITokenService) ApiTokenList(ctx echo.Context, request gen.ApiTokenListRequestObject) (gen.ApiTokenListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	tokens, err := a.config.APIRepository.APIToken().ListAPITokensByTenant(tenant.ID)
+	tokens, err := a.config.APIRepository.APIToken().ListAPITokensByTenant(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err
@@ -20,7 +22,7 @@ func (a *APITokenService) ApiTokenList(ctx echo.Context, request gen.ApiTokenLis
 	rows := make([]gen.APIToken, len(tokens))
 
 	for i := range tokens {
-		rows[i] = *transformers.ToAPIToken(&tokens[i])
+		rows[i] = *transformers.ToAPIToken(tokens[i])
 	}
 
 	return gen.ApiTokenList200JSONResponse(

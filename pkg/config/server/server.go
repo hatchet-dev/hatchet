@@ -11,16 +11,19 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -49,6 +52,8 @@ type ServerConfigFile struct {
 	EnableWorkerRetention bool `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
 
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
+
+	InternalClient InternalClientTLSConfigFile `mapstructure:"internalClient" json:"internalClient,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
 
@@ -176,6 +181,24 @@ type ConfigFileRuntime struct {
 	QueueStepRunBuffer buffer.ConfigFileBuffer `mapstructure:"queueStepRunBuffer" json:"queueStepRunBuffer,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
+}
+
+type InternalClientTLSConfigFile struct {
+	// InheritBase controls whether the internal client should inherit the base TLS config from the
+	// server config. This will work if there's no gRPC proxy in between the externally-facing grpc server
+	// and the API server. If there is a proxy, you should set this to false and configure the base TLS
+	// config for the internal client.
+	InheritBase bool `mapstructure:"inheritBase" json:"inheritBase,omitempty" default:"true"`
+
+	// InternalGRPCBroadcastAddress is the address that the API endpoints can use to proxy to the gRPC server. If this
+	// is not set, it defaults to the GRPC_BROADCAST_ADDRESS
+	InternalGRPCBroadcastAddress string `mapstructure:"internalGRPCBroadcastAddress" json:"internalGRPCBroadcastAddress,omitempty"`
+
+	// TLSServerName is the server name to use to verify the TLS connection. If this is not set, it defaults
+	// to the host of the GRPC_BROADCAST_ADDRESS
+	TLSServerName string `mapstructure:"tlsServerName" json:"tlsServerName,omitempty"`
+
+	Base shared.TLSConfigFile `mapstructure:"base" json:"base,omitempty"`
 }
 
 type SecurityCheckConfigFile struct {
@@ -438,11 +461,15 @@ type ServerConfig struct {
 
 	MessageQueue msgqueue.MessageQueue
 
+	MessageQueueV1 msgqueuev1.MessageQueue
+
 	Logger *zerolog.Logger
 
 	AdditionalLoggers ConfigFileAdditionalLoggers
 
 	TLSConfig *tls.Config
+
+	InternalClientFactory *client.GRPCClientFactory
 
 	SessionStore *cookie.UserSessionStore
 
@@ -458,7 +485,9 @@ type ServerConfig struct {
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
-	SchedulingPool *v2.SchedulingPool
+	SchedulingPool *v0.SchedulingPool
+
+	SchedulingPoolV1 *v1.SchedulingPool
 
 	Version string
 }
@@ -614,6 +643,18 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.updateHashFactor", "SERVER_UPDATE_HASH_FACTOR")
 	_ = v.BindEnv("runtime.updateConcurrentFactor", "SERVER_UPDATE_CONCURRENT_FACTOR")
+
+	// internal client options
+	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")
+	_ = v.BindEnv("internalClient.inheritBase", "SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE")
+	_ = v.BindEnv("internalClient.base.tlsCert", "SERVER_INTERNAL_CLIENT_TLS_BASE_CERT")
+	_ = v.BindEnv("internalClient.base.tlsCertFile", "SERVER_INTERNAL_CLIENT_TLS_BASE_CERT_FILE")
+	_ = v.BindEnv("internalClient.base.tlsKey", "SERVER_INTERNAL_CLIENT_TLS_BASE_KEY")
+	_ = v.BindEnv("internalClient.base.tlsKeyFile", "SERVER_INTERNAL_CLIENT_TLS_BASE_KEY_FILE")
+	_ = v.BindEnv("internalClient.base.tlsRootCA", "SERVER_INTERNAL_CLIENT_TLS_BASE_ROOT_CA")
+	_ = v.BindEnv("internalClient.base.tlsRootCAFile", "SERVER_INTERNAL_CLIENT_TLS_BASE_ROOT_CA_FILE")
+	_ = v.BindEnv("internalClient.tlsServerName", "SERVER_INTERNAL_CLIENT_TLS_SERVER_NAME")
+	_ = v.BindEnv("internalClient.internalGRPCBroadcastAddress", "SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")

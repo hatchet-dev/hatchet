@@ -10,11 +10,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreateBulkRequestObject) (gen.EventCreateBulkResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	eventOpts := make([]*repository.CreateEventOpts, len(request.Body.Events))
 
@@ -36,13 +38,13 @@ func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreate
 		}
 
 		eventOpts[i] = &repository.CreateEventOpts{
-			TenantId:           tenant.ID,
+			TenantId:           tenantId,
 			Key:                event.Key,
 			Data:               dataBytes,
 			AdditionalMetadata: additionalMetadata,
 		}
 	}
-	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), tenant.ID, eventOpts)
+	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), tenant, eventOpts)
 
 	if err != nil {
 

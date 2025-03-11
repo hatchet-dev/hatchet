@@ -34,7 +34,7 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 	tenantId := req.Tenant.String()
 
 	// verify that the tenant and the topic ARN are set in the database
-	snsInt, err := i.config.APIRepository.SNS().GetSNSIntegration(tenantId, payload.TopicArn)
+	snsInt, err := i.config.APIRepository.SNS().GetSNSIntegration(ctx.Request().Context(), tenantId, payload.TopicArn)
 
 	if err != nil {
 		return nil, err
@@ -42,6 +42,12 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 
 	if snsInt == nil {
 		return nil, fmt.Errorf("SNS integration not found for tenant %s and topic ARN %s", tenantId, payload.TopicArn)
+	}
+
+	tenant, err := i.config.APIRepository.Tenant().GetTenantByID(ctx.Request().Context(), tenantId)
+
+	if err != nil {
+		return nil, err
 	}
 
 	switch payload.Type {
@@ -58,7 +64,7 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 			return nil, err
 		}
 	default:
-		_, err := i.config.Ingestor.IngestEvent(ctx.Request().Context(), req.Tenant.String(), req.Event, body, nil)
+		_, err := i.config.Ingestor.IngestEvent(ctx.Request().Context(), tenant, req.Event, body, nil)
 
 		if err != nil {
 			return nil, err

@@ -56,17 +56,13 @@ func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 }
 
 func (c *Workflow) Result() (*WorkflowResult, error) {
-	resChan := make(chan *WorkflowResult)
+	resChan := make(chan *WorkflowResult, 1)
 
 	err := c.listener.AddWorkflowRun(
 		c.workflowRunId,
 		func(event WorkflowRunEvent) error {
-			// non-blocking send
-			select {
-			case resChan <- &WorkflowResult{
+			resChan <- &WorkflowResult{
 				workflowRun: event,
-			}: // continue
-			default:
 			}
 
 			return nil
@@ -78,6 +74,12 @@ func (c *Workflow) Result() (*WorkflowResult, error) {
 	}
 
 	res := <-resChan
+
+	for _, stepRunResult := range res.workflowRun.Results {
+		if stepRunResult.Error != nil {
+			return nil, fmt.Errorf("workflow run failed: %s", *stepRunResult.Error)
+		}
+	}
 
 	return res, nil
 }

@@ -1,0 +1,443 @@
+listTasksByDAGIds:
+  get:
+    description: Lists all tasks that belong a specific list of dags
+    operationId: v1-dag:list:tasks
+    parameters:
+      - description: The external id of the DAG
+        in: query
+        name: dag_ids
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: The tenant id
+        in: query
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "../../../components/schemas/_index.yaml#/V1DagChildren"
+              description: The list of tasks
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List tasks
+    tags:
+      - Task
+
+getTask:
+  get:
+    x-resources: ["tenant", "task"]
+    description: Get a task by id
+    operationId: v1-task:get
+    parameters:
+      - description: The task id
+        in: path
+        name: task
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskSummary"
+        description: Successfully retrieved the task
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Get a task
+    tags:
+      - Task
+
+listTaskEvents:
+  get:
+    x-resources: ["tenant", "task"]
+    description: List events for a task
+    operationId: v1-task-event:list
+    parameters:
+      - description: The task id
+        in: path
+        name: task
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskEventList"
+        description: Successfully retrieved the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List events for a task
+    tags:
+      - Task
+
+getTaskStatusMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get a summary of task run metrics for a tenant
+    operationId: v1-task:list:status-metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The start time to get metrics for
+        in: query
+        name: since
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - description: The workflow id to find runs for
+        in: query
+        name: workflow_ids
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: The parent task's external id
+        in: query
+        name: parent_task_external_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskRunMetrics"
+        description: Successfully retrieved the task run metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Get task metrics
+    tags:
+      - Task
+
+getTaskPointMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get a minute by minute breakdown of task metrics for a tenant
+    operationId: v1-task:get:point-metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The time after the task was created
+        in: query
+        name: createdAfter
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time before the task was completed
+        in: query
+        name: finishedBefore
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskPointMetrics"
+        description: Successfully retrieved the task point metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Get task point metrics
+    tags:
+      - Task
+cancelTasks:
+  post:
+    x-resources: ["tenant"]
+    description: Cancel tasks
+    operationId: v1-task:cancel
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1CancelTaskRequest"
+      description: The tasks to cancel
+      required: true
+    responses:
+      "200":
+        description: Successfully cancelled the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Cancel tasks
+    tags:
+      - Task
+replayTasks:
+  post:
+    x-resources: ["tenant"]
+    description: Replay tasks
+    operationId: v1-task:replay
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1ReplayTaskRequest"
+      description: The tasks to replay
+      required: true
+    responses:
+      "200":
+        description: Successfully replayed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Replay tasks
+    tags:
+      - Task
+
+listLogs:
+  get:
+    x-resources: ["tenant", "task"]
+    description: Lists log lines for a task
+    operationId: v1-log-line:list
+    parameters:
+      - description: The task id
+        in: path
+        name: task
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1LogLineList"
+        description: Successfully listed the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List log lines
+    tags:
+      - Log

@@ -7,11 +7,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (i *IngestorsService) SnsCreate(ctx echo.Context, req gen.SnsCreateRequestObject) (gen.SnsCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// validate the request
 	if apiErrors, err := i.config.Validator.ValidateAPI(req.Body); err != nil {
@@ -25,7 +27,7 @@ func (i *IngestorsService) SnsCreate(ctx echo.Context, req gen.SnsCreateRequestO
 	}
 
 	// create the SNS integration
-	snsIntegration, err := i.config.APIRepository.SNS().CreateSNSIntegration(tenant.ID, opts)
+	snsIntegration, err := i.config.APIRepository.SNS().CreateSNSIntegration(ctx.Request().Context(), tenantId, opts)
 
 	if err != nil {
 		return nil, err

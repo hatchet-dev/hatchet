@@ -9,25 +9,26 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request gen.CronWorkflowTriggerCreateRequestObject) (gen.CronWorkflowTriggerCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if request.Body.CronName == "" {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("cron name is required")), nil
 	}
 
-	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenant.ID, request.Workflow)
+	workflow, err := t.config.EngineRepository.Workflow().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
 
 	if err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
 	}
 
 	cronTrigger, err := t.config.APIRepository.Workflow().CreateCronWorkflow(
-		ctx.Request().Context(), tenant.ID, &repository.CreateCronWorkflowTriggerOpts{
+		ctx.Request().Context(), tenantId, &repository.CreateCronWorkflowTriggerOpts{
 			Name:               request.Body.CronName,
 			Cron:               request.Body.CronExpression,
 			Input:              request.Body.Input,

@@ -23,6 +23,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	adminv1contracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/v1"
+	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
@@ -38,6 +40,7 @@ type Server struct {
 	eventcontracts.UnimplementedEventsServiceServer
 	dispatchercontracts.UnimplementedDispatcherServer
 	admincontracts.UnimplementedWorkflowServiceServer
+	adminv1contracts.UnimplementedAdminServiceServer
 
 	l           *zerolog.Logger
 	a           errors.Alerter
@@ -49,6 +52,7 @@ type Server struct {
 	ingestor   ingestor.Ingestor
 	dispatcher dispatcher.Dispatcher
 	admin      admin.AdminService
+	adminv1    adminv1.AdminService
 	tls        *tls.Config
 	insecure   bool
 }
@@ -65,6 +69,7 @@ type ServerOpts struct {
 	ingestor    ingestor.Ingestor
 	dispatcher  dispatcher.Dispatcher
 	admin       admin.AdminService
+	adminv1     adminv1.AdminService
 	tls         *tls.Config
 	insecure    bool
 }
@@ -149,6 +154,12 @@ func WithAdmin(a admin.AdminService) ServerOpt {
 	}
 }
 
+func WithAdminV1(a adminv1.AdminService) ServerOpt {
+	return func(opts *ServerOpts) {
+		opts.adminv1 = a
+	}
+}
+
 func NewServer(fs ...ServerOpt) (*Server, error) {
 	opts := defaultServerOpts()
 
@@ -177,6 +188,7 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		ingestor:    opts.ingestor,
 		dispatcher:  opts.dispatcher,
 		admin:       opts.admin,
+		adminv1:     opts.adminv1,
 		tls:         opts.tls,
 		insecure:    opts.insecure,
 	}, nil
@@ -289,6 +301,10 @@ func (s *Server) startGRPC() (func() error, error) {
 
 	if s.admin != nil {
 		admincontracts.RegisterWorkflowServiceServer(grpcServer, s.admin)
+	}
+
+	if s.adminv1 != nil {
+		adminv1contracts.RegisterAdminServiceServer(grpcServer, s.adminv1)
 	}
 
 	go func() {

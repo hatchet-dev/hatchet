@@ -52,13 +52,13 @@ if [ $? -eq 0 ] && [ -n "$MIGRATION_NAME" ]; then
   atlas migrate apply \
     --url "$DATABASE_URL" \
     --baseline "$MIGRATION_NAME" \
-    --dir "file://sql/migrations"
+    --dir "file://sql/atlas"
 else
   echo "No prisma migration found. Applying migrations via atlas..."
 
   atlas migrate apply \
     --url "$DATABASE_URL" \
-    --dir "file://sql/migrations"
+    --dir "file://sql/atlas"
 fi
 
 # if either of the above commands failed, exit with an error

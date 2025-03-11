@@ -13,22 +13,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 func TestWebhook(t *testing.T) {
 	testutils.Prepare(t)
-
-	prisma := db.NewClient()
-	if err := prisma.Connect(); err != nil {
-		panic(fmt.Errorf("error connecting to database: %w", err))
-	}
-	defer func() {
-		if err := prisma.Disconnect(); err != nil {
-			panic(fmt.Errorf("error disconnecting from database: %w", err))
-		}
-	}()
 
 	c, err := client.New()
 	if err != nil {

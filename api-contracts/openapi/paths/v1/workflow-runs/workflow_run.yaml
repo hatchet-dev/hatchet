@@ -1,0 +1,324 @@
+listWorkflowRuns:
+  get:
+    x-resources: ["tenant"]
+    description: Lists workflow runs for a tenant.
+    operationId: v1-workflow-run:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: A list of statuses to filter by
+        in: query
+        name: statuses
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
+      - description: The earliest date to filter by
+        in: query
+        name: since
+        required: true
+        schema:
+          type: string
+          format: date-time
+      - description: The latest date to filter by
+        in: query
+        name: until
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: Additional metadata k-v pairs to filter by
+        in: query
+        name: additional_metadata
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      - description: The workflow ids to find runs for
+        in: query
+        name: workflow_ids
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: The worker id to filter by
+        in: query
+        name: worker_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: Whether to include DAGs or only to include tasks
+        in: query
+        name: only_tasks
+        required: true
+        schema:
+          type: boolean
+      - description: The parent task external id to filter by
+        in: query
+        name: parent_task_external_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskSummaryList"
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List workflow runs
+    tags:
+      - Workflow Runs
+
+listWorkflowRunDisplayNames:
+  get:
+    x-resources: ["tenant"]
+    description: Lists displayable names of workflow runs for a tenant
+    operationId: v1-workflow-run:display-names:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The external ids of the workflow runs to get display names for
+        in: query
+        name: external_ids
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunDisplayNameList"
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List workflow runs
+    tags:
+      - Workflow Runs
+
+listTaskEventsForWorkflowRun:
+  get:
+    x-resources: ["tenant", "v1-workflow-run"]
+    description: List all tasks for a workflow run
+    operationId: v1-workflow-run:task-events:list
+    parameters:
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The workflow run id to find runs for
+        in: path
+        name: v1-workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskEventList"
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List tasks
+    tags:
+      - Workflow Runs
+
+getWorkflowRunDetails:
+  get:
+    x-resources: ["tenant", "v1-workflow-run"]
+    description: Get a workflow run and its metadata to display on the "detail" page
+    operationId: v1-workflow-run:get
+    parameters:
+      - description: The workflow run id to get
+        in: path
+        name: v1-workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunDetails"
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List tasks
+    tags:
+      - Workflow Runs
+
+trigger:
+  post:
+    x-resources: ["tenant"]
+    description: Trigger a new workflow run
+    operationId: v1-workflow-run:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1TriggerWorkflowRunRequest"
+      description: The workflow run to create
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunDetails"
+        description: Successfully created the workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Create workflow run
+    tags:
+      - Workflow Runs

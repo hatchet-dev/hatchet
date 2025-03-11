@@ -1,0 +1,33 @@
+V1LogLine:
+  properties:
+    createdAt:
+      type: string
+      format: date-time
+      description: The creation date of the log line.
+    message:
+      type: string
+      description: The log message.
+    metadata:
+      type: object
+      description: The log metadata.
+  required:
+    - createdAt
+    - message
+    - metadata
+
+V1LogLineLevel:
+  type: string
+  enum:
+    - DEBUG
+    - INFO
+    - WARN
+    - ERROR
+
+V1LogLineList:
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/V1LogLine"
+      type: array
