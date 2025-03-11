@@ -111,6 +111,10 @@ export class HatchetV1 implements IHatchetClient {
     return this.v0.schedule;
   }
 
+  get event() {
+    return this.v0.event;
+  }
+
   /**
    * Creates a new worker instance for processing workflow tasks.
    * @param options - Configuration options for creating the worker

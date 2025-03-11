@@ -1,6 +1,7 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Context } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
+import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
 import { CreateTaskOpts } from './task';
 
@@ -29,31 +30,45 @@ type TaskOutputType<K, TaskName extends string, InferredType> = TaskName extends
   : InferredType;
 
 /**
- * Internal definition of a workflow and its tasks.
- */
-type WorkflowDefinition = {
-  /**
-   * The name of the workflow.
-   */
-  name: string;
-  /**
-   * The tasks that make up this workflow.
-   */
-  tasks: CreateTaskOpts<any, any>[];
-};
-
-/**
  * Options for creating a new workflow.
  */
 export type CreateWorkflowOpts = {
   /**
    * The name of the workflow.
    */
-  name: string;
+  name: WorkflowV0['id'];
   /**
    * Optional description of the workflow.
    */
-  description?: string;
+  description?: WorkflowV0['description'];
+  /**
+   * Optional version of the workflow.
+   */
+  version?: WorkflowV0['version'];
+  /**
+   * Optional sticky strategy for the workflow.
+   */
+  sticky?: WorkflowV0['sticky'];
+  /**
+   * Optional schedule timeout for the workflow.
+   */
+  scheduleTimeout?: WorkflowV0['scheduleTimeout'];
+  /**
+   * Optional on config for the workflow.
+   */
+  on?: WorkflowV0['on'];
+};
+
+/**
+ * Internal definition of a workflow and its tasks.
+ */
+type WorkflowDefinition = CreateWorkflowOpts & {
+  /**
+   * The tasks that make up this workflow.
+   */
+  tasks: CreateTaskOpts<any, any>[];
+
+  // TODO on failure
 };
 
 /**

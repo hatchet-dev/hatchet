@@ -65,6 +65,11 @@ export class HatchetWorker {
         const { definition } = wf;
         return this.v0.registerWorkflow({
           id: definition.name,
+          description: definition.description || '',
+          version: definition.version || '',
+          sticky: definition.sticky,
+          scheduleTimeout: definition.scheduleTimeout,
+          on: definition.on,
           steps: definition.tasks.map((task) => ({
             name: task.name,
             parents: task.parents?.map((p) => p.name),
@@ -75,7 +80,6 @@ export class HatchetWorker {
             worker_labels: task.workerLabels,
             backoff: task.backoff,
           })),
-          description: '', // TODO add rest of workflow props...
         });
       }
       // Register v0 workflow
