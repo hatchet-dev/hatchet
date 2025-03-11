@@ -17,7 +17,7 @@ export type CreateTaskOpts<T, K> = {
    * @param ctx The execution context for the task.
    * @returns The result of the task execution.
    */
-  fn: (input: T, ctx: Context<T>) => K;
+  fn: (input: T, ctx: Context<T>) => K | Promise<K>;
 
   /**
    * Parent tasks that must complete before this task runs.

@@ -31,7 +31,7 @@ simple.addTask({
 
     if (parent1Result.Result) {
       return {
-        Output: true,
+        Output: 'true',
       };
     }
     throw new Error('Function not implemented.');

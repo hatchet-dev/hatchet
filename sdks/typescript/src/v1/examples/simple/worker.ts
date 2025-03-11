@@ -1,8 +1,6 @@
 import { hatchet } from '../client';
 import { simple } from './workflow';
 
-// import { simple } from './workflow';
-
 async function main() {
   const worker = await hatchet.createWorker({
     workflows: [simple],

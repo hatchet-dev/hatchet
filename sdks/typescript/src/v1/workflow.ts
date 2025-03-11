@@ -1,5 +1,5 @@
-/* eslint-disable max-classes-per-file */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
+import { Context } from '@hatchet/step';
 import { IHatchetClient } from './client/client.interface';
 import { CreateTaskOpts } from './task';
 
@@ -17,6 +17,13 @@ export type RunOpts = {
    */
   additionalMetadata?: AdditionalMetadata;
 };
+
+/**
+ * Extracts a property from an object type based on task name, or falls back to inferred type
+ */
+type TaskOutputType<K, TaskName extends string, InferredType> = TaskName extends keyof K
+  ? K[TaskName]
+  : InferredType;
 
 /**
  * Internal definition of a workflow and its tasks.
@@ -79,10 +86,7 @@ export class Workflow<T, K> {
   /**
    * Triggers a workflow run without waiting for completion.
    * @param input The input data for the workflow.
-   * @param options Optional configuration for this workflow run:
-   *   - additionalMetadata: Key-value pairs that will be attached to the workflow run
-   *                        for tracking and filtering purposes. These values are
-   *                        searchable in the Hatchet UI and API.
+   * @param options Optional configuration for this workflow run.
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
@@ -97,10 +101,7 @@ export class Workflow<T, K> {
   /**
    * Executes the workflow with the given input and awaits the results.
    * @param input The input data for the workflow.
-   * @param options Optional configuration for this workflow run:
-   *   - additionalMetadata: Key-value pairs that will be attached to the workflow run
-   *                        for tracking and filtering purposes. These values are
-   *                        searchable in the Hatchet UI and API.
+   * @param options Optional configuration for this workflow run.
    * @returns A promise that resolves with the workflow result.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
@@ -115,24 +116,25 @@ export class Workflow<T, K> {
 
   /**
    * Adds a task to the workflow.
-   * @template L The return type of the task function.
-   * @param options The task configuration options including:
-   *   - name: The name of the task
-   *   - fn: The function to execute when the task runs
-   *   - parents: Parent tasks that must complete before this task runs
-   *   - timeout: Timeout duration for the task in Go duration format
-   *   - retries: Optional retry configuration
-   *   - backoff: Backoff strategy configuration for retries
-   *   - rateLimits: Optional rate limiting configuration
-   *   - workerLabels: Worker labels for task routing and scheduling
+   * The return type will be either the property on K that corresponds to the task name,
+   * or if there is no matching property, the inferred return type of the function.
+   * @template Name The literal string name of the task.
+   * @template L The inferred return type of the task function.
+   * @param options The task configuration options.
    * @returns The task options that were added.
-   * @important This method should only be called when defining the workflow on the worker side.
-   *           Calling it on api or trigger side will have no effect since task functions are not
-   *           available to execute.
    */
-  addTask<L>(options: CreateTaskOpts<T, L>) {
-    this.definition.tasks.push(options);
-    return options;
+  addTask<Name extends string, L>(
+    options: Omit<CreateTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+      name: Name;
+      fn: (
+        input: T,
+        ctx: Context<T>
+      ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+    }
+  ): CreateTaskOpts<T, TaskOutputType<K, Name, L>> {
+    const typedOptions = options as CreateTaskOpts<T, TaskOutputType<K, Name, L>>;
+    this.definition.tasks.push(typedOptions);
+    return typedOptions;
   }
 }
 
@@ -140,15 +142,7 @@ export class Workflow<T, K> {
  * Creates a new workflow instance.
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
- * @param options The task configuration options including:
- *   - name: The name of the task
- *   - fn: The function to execute when the task runs
- *   - parents: Parent tasks that must complete before this task runs
- *   - timeout: Timeout duration for the task in Go duration format
- *   - retries: Optional retry configuration
- *   - backoff: Backoff strategy configuration for retries
- *   - rateLimits: Optional rate limiting configuration
- *   - workerLabels: Worker labels for task routing and scheduling
+ * @param options The options for creating the workflow.
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */
