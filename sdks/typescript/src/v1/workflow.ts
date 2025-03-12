@@ -1,3 +1,4 @@
+/* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Context } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
@@ -57,6 +58,8 @@ export type CreateWorkflowOpts = {
    * Optional on config for the workflow.
    */
   on?: WorkflowV0['on'];
+
+  concurrency?: WorkflowV0['concurrency'];
 };
 
 /**
@@ -94,7 +97,7 @@ export class Workflow<T extends Record<string, any>, K> {
    */
   constructor(options: CreateWorkflowOpts, client?: IHatchetClient) {
     this.definition = {
-      name: options.name,
+      ...options,
       tasks: [],
     };
 
@@ -123,16 +126,21 @@ export class Workflow<T extends Record<string, any>, K> {
    * @returns A promise that resolves with the workflow result.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async run(input: T, options?: RunOpts): Promise<K> {
+  async run(input: T, options?: RunOpts): Promise<K>;
+  async run(input: T[], options?: RunOpts): Promise<K[]>;
+  async run(input: T | T[], options?: RunOpts): Promise<K | K[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
+    }
+
+    if (Array.isArray(input)) {
+      // FIXME use bulk endpoint?
+      return Promise.all(input.map((i) => this.run(i, options)));
     }
 
     const res = this.client.v0.admin.runWorkflow(this.definition.name, input, options);
     return res.result() as Promise<K>;
   }
-
-  // TODO run many
 
   /**
    * Schedules a workflow to run at a specific date and time in the future.

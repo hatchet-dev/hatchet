@@ -1,7 +1,7 @@
 /* eslint-disable max-classes-per-file */
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
-import { HatchetTimeoutSchema, Workflow } from './workflow';
+import { Workflow } from './workflow';
 import { Action } from './clients/dispatcher/action-listener';
 import { LogLevel } from './clients/event/event-client';
 import { Logger } from './util/logger';
@@ -44,7 +44,7 @@ export const DesiredWorkerLabelSchema = z
 export const CreateStepSchema = z.object({
   name: z.string(),
   parents: z.array(z.string()).optional(),
-  timeout: HatchetTimeoutSchema.optional(),
+  timeout: z.string().optional(),
   retries: z.number().optional(),
   rate_limits: z.array(CreateRateLimitSchema).optional(),
   worker_labels: z.record(z.lazy(() => DesiredWorkerLabelSchema)).optional(),

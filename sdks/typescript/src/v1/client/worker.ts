@@ -68,6 +68,7 @@ export class HatchetWorker {
           sticky: definition.sticky,
           scheduleTimeout: definition.scheduleTimeout,
           on: definition.on,
+          concurrency: definition.concurrency,
           steps: definition.tasks.map((task) => ({
             name: task.name,
             parents: task.parents?.map((p) => p.name),
