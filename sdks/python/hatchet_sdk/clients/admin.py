@@ -367,6 +367,21 @@ class AdminClient:
         input_data = workflow.input
         options = workflow.options
 
+        spawn_index = ctx_spawn_index.get()
+
+        desired_worker_id = (
+            (options.desired_worker_id or ctx_worker_id.get())
+            if options.sticky
+            else None
+        )
+
+        options.parent_id = options.parent_id or ctx_workflow_run_id.get()
+        options.parent_step_run_id = options.parent_step_run_id or ctx_step_run_id.get()
+        options.child_index = spawn_index
+        options.desired_worker_id = desired_worker_id
+
+        ctx_spawn_index.set(spawn_index + 1)
+
         namespace = options.namespace or self.namespace
 
         if namespace != "" and not workflow_name.startswith(self.namespace):
