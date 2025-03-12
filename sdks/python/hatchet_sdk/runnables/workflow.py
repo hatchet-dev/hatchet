@@ -225,6 +225,19 @@ class Workflow(Generic[TWorkflowInput]):
             options=options,
         )
 
+    def run_and_get_result(
+        self,
+        input: TWorkflowInput | None = None,
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+    ) -> dict[str, Any]:
+        ref = self.client.admin.run_workflow(
+            workflow_name=self.config.name,
+            input=input.model_dump() if input else {},
+            options=options,
+        )
+
+        return ref.result()
+
     async def aio_run(
         self,
         input: TWorkflowInput | None = None,
@@ -235,6 +248,19 @@ class Workflow(Generic[TWorkflowInput]):
             input=input.model_dump() if input else {},
             options=options,
         )
+
+    async def aio_run_and_get_result(
+        self,
+        input: TWorkflowInput | None = None,
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+    ) -> dict[str, Any]:
+        ref = await self.client.admin.aio_run_workflow(
+            workflow_name=self.config.name,
+            input=input.model_dump() if input else {},
+            options=options,
+        )
+
+        return await ref.aio_result()
 
     def run_many(
         self,
