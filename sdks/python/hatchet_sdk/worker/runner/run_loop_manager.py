@@ -25,7 +25,7 @@ class WorkerActionRunLoopManager:
     name: str
     action_registry: dict[str, Task[Any, Any]]
     validator_registry: dict[str, WorkflowValidator]
-    max_runs: int | None
+    slots: int | None
     config: ClientConfig
     action_queue: "Queue[Action | STOP_LOOP_TYPE]"
     event_queue: "Queue[ActionEvent]"
@@ -75,7 +75,7 @@ class WorkerActionRunLoopManager:
         self.runner = Runner(
             self.name,
             self.event_queue,
-            self.max_runs,
+            self.slots,
             self.handle_kill,
             self.action_registry,
             self.validator_registry,

@@ -58,7 +58,7 @@ def noop_handler() -> None:
 class WorkerActionListenerProcess:
     name: str
     actions: List[str]
-    max_runs: int
+    slots: int
     config: ClientConfig
     action_queue: "Queue[Action]"
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]"
@@ -101,7 +101,7 @@ class WorkerActionListenerProcess:
                     worker_name=self.name,
                     services=["default"],
                     actions=self.actions,
-                    max_runs=self.max_runs,
+                    slots=self.slots,
                     _labels=self.labels,
                 )
             )

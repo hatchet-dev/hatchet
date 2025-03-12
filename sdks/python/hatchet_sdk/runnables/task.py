@@ -32,7 +32,7 @@ class Task(Generic[TWorkflowInput, R]):
         desired_worker_labels: dict[str, DesiredWorkerLabels] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency__max_runs: int | None = None,
+        concurrency__slots: int | None = None,
         concurrency__limit_strategy: ConcurrencyLimitStrategy | None = None,
     ) -> None:
         self.fn = fn
@@ -48,7 +48,7 @@ class Task(Generic[TWorkflowInput, R]):
         self.desired_worker_labels = desired_worker_labels
         self.backoff_factor = backoff_factor
         self.backoff_max_seconds = backoff_max_seconds
-        self.concurrency__max_runs = concurrency__max_runs
+        self.concurrency__slots = concurrency__slots
         self.concurrency__limit_strategy = concurrency__limit_strategy
 
     def call(self, ctx: Context) -> R:

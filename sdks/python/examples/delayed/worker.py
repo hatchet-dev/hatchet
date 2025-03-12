@@ -40,7 +40,7 @@ def step1(input: PrinterInput, context: Context) -> None:
 
 def main() -> None:
     worker = hatchet.worker(
-        "delayed-worker", max_runs=4, workflows=[print_schedule_wf, print_printer_wf]
+        "delayed-worker", slots=4, workflows=[print_schedule_wf, print_printer_wf]
     )
 
     worker.start()

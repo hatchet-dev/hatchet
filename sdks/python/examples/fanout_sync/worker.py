@@ -51,9 +51,7 @@ def process(input: ChildInput, context: Context) -> dict[str, str]:
 
 
 def main() -> None:
-    worker = hatchet.worker(
-        "sync-fanout-worker", max_runs=40, workflows=[parent, child]
-    )
+    worker = hatchet.worker("sync-fanout-worker", slots=40, workflows=[parent, child])
     worker.start()
 
 

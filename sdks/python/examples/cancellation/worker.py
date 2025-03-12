@@ -20,7 +20,7 @@ async def step1(input: EmptyModel, context: Context) -> None:
 
 
 def main() -> None:
-    worker = hatchet.worker("cancellation-worker", max_runs=4, workflows=[wf])
+    worker = hatchet.worker("cancellation-worker", slots=4, workflows=[wf])
 
     worker.start()
 

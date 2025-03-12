@@ -25,7 +25,7 @@ def step1(input: EmptyModel, context: Context) -> dict[str, str]:
 
 
 def main() -> None:
-    worker = hatchet.worker("backoff-worker", max_runs=4, workflows=[backoff_workflow])
+    worker = hatchet.worker("backoff-worker", slots=4, workflows=[backoff_workflow])
     worker.start()
 
 

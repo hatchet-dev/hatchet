@@ -54,7 +54,7 @@ class Runner:
         self,
         name: str,
         event_queue: "Queue[ActionEvent]",
-        max_runs: int | None = None,
+        slots: int | None = None,
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
         validator_registry: dict[str, WorkflowValidator] = {},
@@ -65,7 +65,7 @@ class Runner:
         self.config = config
         self.client = Client(config)
         self.name = self.client.config.namespace + name
-        self.max_runs = max_runs
+        self.slots = slots
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
         self.action_registry: dict[str, Task[TWorkflowInput, R]] = action_registry
@@ -74,7 +74,7 @@ class Runner:
         self.event_queue = event_queue
 
         # The thread pool is used for synchronous functions which need to run concurrently
-        self.thread_pool = ThreadPoolExecutor(max_workers=max_runs)
+        self.thread_pool = ThreadPoolExecutor(max_workers=slots)
         self.threads: Dict[str, Thread] = {}  # Store run ids and threads
 
         self.killing = False

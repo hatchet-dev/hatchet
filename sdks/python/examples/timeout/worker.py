@@ -29,7 +29,7 @@ def refresh_task(input: EmptyModel, context: Context) -> dict[str, str]:
 
 def main() -> None:
     worker = hatchet.worker(
-        "timeout-worker", max_runs=4, workflows=[timeout_wf, refresh_timeout_wf]
+        "timeout-worker", slots=4, workflows=[timeout_wf, refresh_timeout_wf]
     )
 
     worker.start()

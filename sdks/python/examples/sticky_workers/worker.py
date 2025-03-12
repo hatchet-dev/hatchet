@@ -44,7 +44,7 @@ def child(input: EmptyModel, context: Context) -> dict[str, str | None]:
 
 def main() -> None:
     worker = hatchet.worker(
-        "sticky-worker", max_runs=10, workflows=[sticky_workflow, sticky_child_workflow]
+        "sticky-worker", slots=10, workflows=[sticky_workflow, sticky_child_workflow]
     )
     worker.start()
 

@@ -53,7 +53,7 @@ async def process2(input: EmptyModel, context: Context) -> dict[str, str]:
 
 def main() -> None:
     worker = hatchet.worker(
-        "fanout-worker", max_runs=100, workflows=[dedupe_parent_wf, dedupe_child_wf]
+        "fanout-worker", slots=100, workflows=[dedupe_parent_wf, dedupe_child_wf]
     )
     worker.start()
 

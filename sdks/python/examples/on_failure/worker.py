@@ -66,7 +66,7 @@ def details_on_failure(input: EmptyModel, context: Context) -> dict[str, str]:
 def main() -> None:
     worker = hatchet.worker(
         "on-failure-worker",
-        max_runs=4,
+        slots=4,
         workflows=[on_failure_wf, on_failure_wf_with_details],
     )
     worker.start()

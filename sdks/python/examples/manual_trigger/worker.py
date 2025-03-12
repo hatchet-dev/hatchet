@@ -42,7 +42,7 @@ def step2(input: EmptyModel, context: Context) -> dict[str, str]:
 
 
 def main() -> None:
-    worker = hatchet.worker("manual-worker", max_runs=4, workflows=[wf])
+    worker = hatchet.worker("manual-worker", slots=4, workflows=[wf])
 
     worker.start()
 

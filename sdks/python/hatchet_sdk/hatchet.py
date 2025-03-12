@@ -98,7 +98,7 @@ class Hatchet:
     def worker(
         self,
         name: str,
-        max_runs: int | None = None,
+        slots: int = 100,
         labels: dict[str, str | int] = {},
         workflows: list[Workflow[Any]] = [],
     ) -> Worker:
@@ -109,7 +109,7 @@ class Hatchet:
 
         return Worker(
             name=name,
-            max_runs=max_runs,
+            slots=slots,
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,

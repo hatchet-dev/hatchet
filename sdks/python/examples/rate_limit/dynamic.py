@@ -20,5 +20,5 @@ def step1(input: EmptyModel, context: Context) -> None:
 
 
 def main() -> None:
-    worker = hatchet.worker("rate-limit-worker", max_runs=10, workflows=[wf])
+    worker = hatchet.worker("rate-limit-worker", slots=10, workflows=[wf])
     worker.start()

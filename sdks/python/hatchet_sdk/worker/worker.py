@@ -53,7 +53,7 @@ class Worker:
         self,
         name: str,
         config: ClientConfig = ClientConfig(),
-        max_runs: int | None = None,
+        slots: int | None = None,
         labels: dict[str, str | int] = {},
         debug: bool = False,
         owned_loop: bool = True,
@@ -62,7 +62,7 @@ class Worker:
     ) -> None:
         self.name = name
         self.config = config
-        self.max_runs = max_runs
+        self.slots = slots
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
@@ -240,7 +240,7 @@ class Worker:
             self.name,
             self.action_registry,
             self.validator_registry,
-            self.max_runs,
+            self.slots,
             self.config,
             self.action_queue,
             self.event_queue,
@@ -259,7 +259,7 @@ class Worker:
                 args=(
                     self.name,
                     action_list,
-                    self.max_runs,
+                    self.slots,
                     self.config,
                     self.action_queue,
                     self.event_queue,

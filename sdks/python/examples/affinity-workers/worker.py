@@ -28,7 +28,7 @@ async def step(input: EmptyModel, context: Context) -> dict[str, str | None]:
 def main() -> None:
     worker = hatchet.worker(
         "affinity-worker",
-        max_runs=10,
+        slots=10,
         labels={
             "model": "fancy-ai-model-v2",
             "memory": 512,

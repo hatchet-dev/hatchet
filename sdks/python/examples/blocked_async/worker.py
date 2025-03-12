@@ -37,7 +37,7 @@ async def step1(input: EmptyModel, context: Context) -> dict[str, str | int | fl
 
 
 def main() -> None:
-    worker = hatchet.worker("blocked-worker", max_runs=3, workflows=[wf])
+    worker = hatchet.worker("blocked-worker", slots=3, workflows=[wf])
     worker.start()
 
 

@@ -38,7 +38,7 @@ def step1(input: WorkflowInput, context: Context) -> dict[str, Any]:
 
 
 def main() -> None:
-    worker = hatchet.worker("concurrency-demo-worker", max_runs=10, workflows=[wf])
+    worker = hatchet.worker("concurrency-demo-worker", slots=10, workflows=[wf])
 
     worker.start()
 

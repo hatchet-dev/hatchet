@@ -19,7 +19,7 @@ async def task(input: EmptyModel, context: Context) -> dict[str, str]:
 async def async_main() -> None:
     worker = None
     try:
-        worker = hatchet.worker("test-worker", max_runs=1)
+        worker = hatchet.worker("test-worker", slots=1)
         worker.register_workflow(wf)
         worker.start()
 

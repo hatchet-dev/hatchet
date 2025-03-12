@@ -101,7 +101,7 @@ class Workflow(Generic[TWorkflowInput]):
 
             return WorkflowConcurrencyOpts(
                 action=service_name + ":" + action.name,
-                max_runs=action.concurrency__max_runs,
+                max_runs=action.concurrency__slots,
                 limit_strategy=maybe_int_to_str(
                     convert_python_enum_to_proto(
                         action.concurrency__limit_strategy,

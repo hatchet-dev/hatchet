@@ -31,7 +31,7 @@ def step1(input: EmptyModel, context: Context) -> None:
 
 
 def main() -> None:
-    worker = hatchet.worker("concurrency-demo-worker-rr", max_runs=10, workflows=[wf])
+    worker = hatchet.worker("concurrency-demo-worker-rr", slots=10, workflows=[wf])
 
     worker.start()
 

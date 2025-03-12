@@ -60,9 +60,7 @@ def process2(input: ChildInput, context: Context) -> dict[str, str]:
 
 
 def main() -> None:
-    worker = hatchet.worker(
-        "fanout-worker", max_runs=40, workflows=[parent_wf, child_wf]
-    )
+    worker = hatchet.worker("fanout-worker", slots=40, workflows=[parent_wf, child_wf])
     worker.start()
 
 

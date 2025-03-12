@@ -48,7 +48,7 @@ def this_step_is_also_still_instrumented(input: EmptyModel, context: Context) ->
 
 
 def main() -> None:
-    worker = hatchet.worker("otel-example-worker", max_runs=1, workflows=[wf])
+    worker = hatchet.worker("otel-example-worker", slots=1, workflows=[wf])
     worker.start()
 
 
