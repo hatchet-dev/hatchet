@@ -21,13 +21,11 @@ RUN corepack pnpm@9.15.4 install --frozen-lockfile && corepack pnpm@9.15.4 store
 COPY ./frontend/app ./
 RUN npm run build
 
-# Stage 3: run in rabbitmq alpine image
-FROM rabbitmq:alpine as rabbitmq
+# Stage 3: deployment image from alpine
+FROM alpine AS deployment
 
 # install bash via apk
 RUN apk update && apk add --no-cache bash gcc musl-dev openssl bash ca-certificates curl postgresql-client
-
-RUN curl -sSf https://atlasgo.sh | sh
 
 COPY --from=lite-binary-base /hatchet/hatchet-lite ./hatchet-lite
 COPY --from=admin-binary-base /hatchet/hatchet-admin ./hatchet-admin
