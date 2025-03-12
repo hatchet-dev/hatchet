@@ -154,7 +154,7 @@ export function V1RunStatus({
       <HoverCardTrigger className="hover:cursor-help">
         <StatusBadge />
       </HoverCardTrigger>
-      <HoverCardContent className="bg-card max-w-96 overflow-auto z-10 shadow-xl p-4 rounded-md border border-gray-600 border-opacity-50 max-h-96">
+      <HoverCardContent className="bg-card max-w-96 lg:max-w-[500px] overflow-auto z-10 shadow-xl p-4 rounded-md border border-gray-600 border-opacity-50 max-h-96">
         <p className="text-xs">{errorMessage}</p>
       </HoverCardContent>
     </HoverCard>
