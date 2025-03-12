@@ -10,9 +10,7 @@ wf = hatchet.workflow(name="ManualTriggerWorkflow", on_events=["man:create"])
 
 
 @wf.task()
-def step1(input: EmptyModel, context: Context) -> dict[str, str]:
-    res = context.playground("res", "HELLO")
-
+def step1(input: EmptyModel, context: Context) -> None:
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -33,7 +31,6 @@ def step1(input: EmptyModel, context: Context) -> dict[str, str]:
 
     time.sleep(3)
     print("executed step1")
-    return {"step1": "data1 " + (res or "")}
 
 
 @wf.task(parents=[step1], timeout="4s")

@@ -16,7 +16,6 @@ from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.dispatcher_pb2 import OverridesData
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
 
@@ -123,20 +122,6 @@ class Context:
     # done returns true if the context has been cancelled
     def done(self) -> bool:
         return self.exit_flag
-
-    def playground(self, name: str, default: str | None = None) -> str | None:
-        caller_file = get_caller_file_path()
-
-        self.dispatcher_client.put_overrides_data(
-            OverridesData(
-                stepRunId=self.step_run_id,
-                path=name,
-                value=json.dumps(default),
-                callerFilename=caller_file,
-            )
-        )
-
-        return default
 
     def _log(self, line: str) -> tuple[bool, Exception | None]:
         try:
