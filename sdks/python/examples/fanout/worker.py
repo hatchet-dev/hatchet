@@ -24,9 +24,9 @@ child_wf = hatchet.workflow(name="FanoutChild", input_validator=ChildInput)
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     print("spawning child")
 
-    children = await asyncio.gather(
-        *[
-            child_wf.aio_run(
+    children = await child_wf.aio_run_many(
+        [
+            child_wf.create_run_workflow_config(
                 input=ChildInput(a=str(i)),
                 options=TriggerWorkflowOptions(
                     additional_metadata={"hello": "earth"}, key=f"child{i}"
