@@ -85,6 +85,13 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		runtimePort = "8082"
 	}
 
+	// we hard code the msg queue kind to postgres
+	err := os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
+
+	if err != nil {
+		return fmt.Errorf("error setting SERVER_MSGQUEUE_KIND to postgres: %w", err)
+	}
+
 	feURL, err := url.Parse(fmt.Sprintf("http://localhost:%s", frontendPort))
 
 	if err != nil {
