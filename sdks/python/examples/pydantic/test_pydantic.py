@@ -8,9 +8,9 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["pydantic"], indirect=True)
 async def test_run_validation_error(hatchet: Hatchet, worker: Worker) -> None:
-    run = child_workflow.run(input={})  # type: ignore[arg-type]
 
-    with pytest.raises(Exception, match="1 validation error for ParentInput"):
+    with pytest.raises(Exception, match="2 validation error for ChildInput"):
+        run = child_workflow.run(input={})  # type: ignore[arg-type]
         await run.aio_result()
 
 
