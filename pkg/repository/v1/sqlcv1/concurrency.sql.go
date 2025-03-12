@@ -701,13 +701,15 @@ WITH slots AS (
         rn <= $3::int
 ), slots_to_cancel AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
     FROM
-        v1_concurrency_slot
+        v1_concurrency_slot cs
+    JOIN
+        tmp_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
     WHERE
-        tenant_id = $1::uuid AND
-        strategy_id = $2::bigint AND
-        (task_inserted_at, task_id, task_retry_count) NOT IN (
+        cs.tenant_id = $1::uuid AND
+        cs.strategy_id = $2::bigint AND
+        (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -716,7 +718,7 @@ WITH slots AS (
                 eligible_running_slots ers
         )
     ORDER BY
-        task_id, task_inserted_at
+        cs.task_id, cs.task_inserted_at
     FOR UPDATE
 ), slots_to_run AS (
     SELECT
@@ -921,13 +923,15 @@ WITH slots AS (
         rn <= $3::int
 ), slots_to_cancel AS (
     SELECT
-        sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+        cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
     FROM
-        v1_concurrency_slot
+        v1_concurrency_slot cs
+    JOIN
+        tmp_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
     WHERE
-        tenant_id = $1::uuid AND
-        strategy_id = $2::bigint AND
-        (task_inserted_at, task_id, task_retry_count) NOT IN (
+        cs.tenant_id = $1::uuid AND
+        cs.strategy_id = $2::bigint AND
+        (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -936,7 +940,7 @@ WITH slots AS (
                 eligible_running_slots ers
         )
     ORDER BY
-        task_id ASC, task_inserted_at ASC
+        cs.task_id ASC, cs.task_inserted_at ASC
     FOR UPDATE
 ), slots_to_run AS (
     SELECT

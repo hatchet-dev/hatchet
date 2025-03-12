@@ -681,39 +681,6 @@ REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_workflow_concurrency_slot_update_function();
 
-CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_function()
-RETURNS trigger AS $$
-BEGIN
-    WITH slots_to_delete AS (
-        SELECT
-            cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.key
-        FROM
-            deleted_rows d
-        JOIN v1_concurrency_slot cs ON cs.task_id = d.task_id AND cs.task_inserted_at = d.task_inserted_at AND cs.task_retry_count = d.retry_count
-        ORDER BY
-            cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.key
-        FOR UPDATE
-    )
-    DELETE FROM
-        v1_concurrency_slot cs
-    WHERE
-        (task_inserted_at, task_id, task_retry_count, key) IN (
-            SELECT
-                task_inserted_at, task_id, task_retry_count, key
-            FROM
-                slots_to_delete
-        );
-
-  RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER after_v1_task_runtime_delete
-AFTER DELETE ON v1_task_runtime
-REFERENCING OLD TABLE AS deleted_rows
-FOR EACH STATEMENT
-EXECUTE FUNCTION after_v1_task_runtime_delete_function();
-
 CREATE TABLE v1_retry_queue_item (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,

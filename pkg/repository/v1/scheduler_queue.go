@@ -201,11 +201,24 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		taskIdToAssignedItem[assignedItem.QueueItem.TaskID] = assignedItem
 	}
 
+	tasksToRelease := make([]TaskIdInsertedAtRetryCount, 0, len(r.SchedulingTimedOut))
+
 	for _, id := range r.SchedulingTimedOut {
 		idsToUnqueue = append(idsToUnqueue, id.ID)
+		tasksToRelease = append(tasksToRelease, TaskIdInsertedAtRetryCount{
+			Id:         id.TaskID,
+			InsertedAt: id.TaskInsertedAt,
+			RetryCount: id.RetryCount,
+		})
 	}
 
 	queuedItemIds, err := d.queries.BulkQueueItems(ctx, tx, idsToUnqueue)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	_, err = d.releaseTasks(ctx, tx, sqlchelpers.UUIDToStr(d.tenantId), tasksToRelease)
 
 	if err != nil {
 		return nil, nil, err

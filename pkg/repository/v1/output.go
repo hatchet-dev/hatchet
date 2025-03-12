@@ -118,7 +118,11 @@ func baseFromReleaseTasksRow(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 }
 
 func (e *TaskOutputEvent) Bytes() []byte {
-	resBytes, _ := json.Marshal(e) // nolint: errcheck
+	resBytes, err := json.Marshal(e)
+
+	if err != nil {
+		return []byte("{}")
+	}
 
 	return resBytes
 }
