@@ -608,7 +608,7 @@ func (t *MessageQueueImpl) subscribe(
 				t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
 
 				if err := preAck(msg); err != nil {
-					t.l.Error().Msgf("error in pre-ack: %v", err)
+					t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
 
 					// nack the message
 					if err := rabbitMsg.Reject(false); err != nil {

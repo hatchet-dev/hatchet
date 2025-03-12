@@ -480,13 +480,15 @@ WITH slots AS (
         rn <= @maxRuns::int
 ), slots_to_cancel AS (
     SELECT
-        *
+        cs.*
     FROM
-        v1_concurrency_slot
+        v1_concurrency_slot cs
+    JOIN
+        tmp_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
     WHERE
-        tenant_id = @tenantId::uuid AND
-        strategy_id = @strategyId::bigint AND
-        (task_inserted_at, task_id, task_retry_count) NOT IN (
+        cs.tenant_id = @tenantId::uuid AND
+        cs.strategy_id = @strategyId::bigint AND
+        (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -495,7 +497,7 @@ WITH slots AS (
                 eligible_running_slots ers
         )
     ORDER BY
-        task_id, task_inserted_at
+        cs.task_id, cs.task_inserted_at
     FOR UPDATE
 ), slots_to_run AS (
     SELECT
@@ -832,13 +834,15 @@ WITH slots AS (
         rn <= @maxRuns::int
 ), slots_to_cancel AS (
     SELECT
-        *
+        cs.*
     FROM
-        v1_concurrency_slot
+        v1_concurrency_slot cs
+    JOIN
+        tmp_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
     WHERE
-        tenant_id = @tenantId::uuid AND
-        strategy_id = @strategyId::bigint AND
-        (task_inserted_at, task_id, task_retry_count) NOT IN (
+        cs.tenant_id = @tenantId::uuid AND
+        cs.strategy_id = @strategyId::bigint AND
+        (cs.task_inserted_at, cs.task_id, cs.task_retry_count) NOT IN (
             SELECT
                 ers.task_inserted_at,
                 ers.task_id,
@@ -847,7 +851,7 @@ WITH slots AS (
                 eligible_running_slots ers
         )
     ORDER BY
-        task_id ASC, task_inserted_at ASC
+        cs.task_id ASC, cs.task_inserted_at ASC
     FOR UPDATE
 ), slots_to_run AS (
     SELECT

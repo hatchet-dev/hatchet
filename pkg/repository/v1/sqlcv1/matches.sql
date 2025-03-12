@@ -134,7 +134,13 @@ WITH match_counts AS (
     GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
-        m.*
+        m.*,
+        CASE WHEN
+            (mc.total_create_groups > 0 AND mc.total_create_groups = mc.satisfied_create_groups) THEN 'CREATE'
+            WHEN (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups) THEN 'QUEUE'
+            WHEN (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups) THEN 'CANCEL'
+            WHEN (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
+        END::v1_match_condition_action AS action
     FROM
         v1_match m
     JOIN
@@ -167,15 +173,16 @@ WITH match_counts AS (
 ), matches_with_data AS (
     SELECT
         m.id,
+        m.action,
         (
             SELECT jsonb_object_agg(action, aggregated_1)
             FROM (
                 SELECT action, jsonb_object_agg(readable_data_key, data_array) AS aggregated_1
                 FROM (
-                    SELECT action, readable_data_key, jsonb_agg(data) AS data_array
-                    FROM v1_match_condition
-                    WHERE v1_match_id = m.id AND is_satisfied
-                    GROUP BY action, readable_data_key
+                    SELECT mc.action, readable_data_key, jsonb_agg(data) AS data_array
+                    FROM v1_match_condition mc
+                    WHERE mc.v1_match_id = m.id AND mc.is_satisfied AND mc.action = m.action
+                    GROUP BY mc.action, readable_data_key
                 ) t
                 GROUP BY action
             ) s
@@ -183,7 +190,7 @@ WITH match_counts AS (
     FROM
         result_matches m
     GROUP BY
-        m.id
+        m.id, m.action
 ), deleted_matches AS (
     DELETE FROM
         v1_match

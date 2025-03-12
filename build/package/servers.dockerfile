@@ -73,5 +73,10 @@ RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates
 
 COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
 
+# NOTE: this is just here for backwards compatibility with old migrate images which require the atlas-apply.sh script.
+# This script is just a wrapped for `/hatchet/hatchet-migrate`.
+COPY /hack/db/atlas-apply.sh ./atlas-apply.sh
+RUN chmod +x ./atlas-apply.sh
+
 EXPOSE 8080
 CMD /hatchet/hatchet-${SERVER_TARGET}
