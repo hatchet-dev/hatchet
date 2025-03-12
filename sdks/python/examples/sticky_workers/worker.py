@@ -15,29 +15,29 @@ sticky_child_workflow = hatchet.workflow(
 
 
 @sticky_workflow.task()
-def step1a(input: EmptyModel, context: Context) -> dict[str, str | None]:
-    return {"worker": context.worker.id()}
+def step1a(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    return {"worker": ctx.worker.id()}
 
 
 @sticky_workflow.task()
-def step1b(input: EmptyModel, context: Context) -> dict[str, str | None]:
-    return {"worker": context.worker.id()}
+def step1b(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    return {"worker": ctx.worker.id()}
 
 
 @sticky_workflow.task(parents=[step1a, step1b])
-async def step2(input: EmptyModel, context: Context) -> dict[str, str | None]:
+async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     ref = await sticky_child_workflow.aio_run(
         options=TriggerWorkflowOptions(sticky=True)
     )
 
     await ref.aio_result()
 
-    return {"worker": context.worker.id()}
+    return {"worker": ctx.worker.id()}
 
 
 @sticky_child_workflow.task()
-def child(input: EmptyModel, context: Context) -> dict[str, str | None]:
-    return {"worker": context.worker.id()}
+def child(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    return {"worker": ctx.worker.id()}
 
 
 def main() -> None:

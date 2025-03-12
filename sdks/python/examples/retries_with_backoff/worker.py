@@ -14,8 +14,8 @@ backoff_workflow = hatchet.workflow(name="BackoffWorkflow")
     # This sequence will be 2s, 4s, 8s, 16s, 32s, 60s... due to the maxSeconds limit
     backoff_factor=2.0,
 )
-def step1(input: EmptyModel, context: Context) -> dict[str, str]:
-    if context.retry_count < 3:
+def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    if ctx.retry_count < 3:
         raise Exception("step1 failed")
 
     return {"status": "success"}

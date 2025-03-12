@@ -21,7 +21,7 @@ child_wf = hatchet.workflow(name="FanoutChild", input_validator=ChildInput)
 
 
 @parent_wf.task(timeout="5m")
-async def spawn(input: ParentInput, context: Context) -> dict[str, Any]:
+async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     print("spawning child")
 
     children = await asyncio.gather(
@@ -43,14 +43,14 @@ async def spawn(input: ParentInput, context: Context) -> dict[str, Any]:
 
 
 @child_wf.task()
-def process(input: ChildInput, context: Context) -> dict[str, str]:
-    a = child_wf.get_workflow_input(context).a
+def process(input: ChildInput, ctx: Context) -> dict[str, str]:
+    a = child_wf.get_workflow_input(ctx).a
     print(f"child process {a}")
     return {"status": "success " + a}
 
 
 @child_wf.task()
-def process2(input: ChildInput, context: Context) -> dict[str, str]:
+def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     print("child process2")
     return {"status2": "success"}
 

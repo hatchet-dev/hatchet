@@ -22,10 +22,10 @@ bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildIn
 
 
 @bulk_parent_wf.task(timeout="5m")
-async def spawn(input: ParentInput, context: Context) -> dict[str, list[Any]]:
+async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[Any]]:
     print("spawning child")
 
-    context.put_stream("spawning...")
+    ctx.put_stream("spawning...")
     results = []
 
     child_workflow_runs = [
@@ -59,16 +59,16 @@ async def spawn(input: ParentInput, context: Context) -> dict[str, list[Any]]:
 
 
 @bulk_child_wf.task()
-def process(input: ChildInput, context: Context) -> dict[str, str]:
+def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     print(f"child process {input.a}")
-    context.put_stream("child 1...")
+    ctx.put_stream("child 1...")
     return {"status": "success " + input.a}
 
 
 @bulk_child_wf.task()
-def process2(input: ChildInput, context: Context) -> dict[str, str]:
+def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     print("child process2")
-    context.put_stream("child 2...")
+    ctx.put_stream("child 2...")
     return {"status2": "success"}
 
 

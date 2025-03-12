@@ -6,7 +6,7 @@ simple = hatchet.workflow(name="SimpleWorkflow")
 
 
 @simple.task(timeout="11s", retries=3)
-def step1(input: EmptyModel, context: Context) -> dict[str, str]:
+def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("executed step1")
     return {
         "step1": "step1",

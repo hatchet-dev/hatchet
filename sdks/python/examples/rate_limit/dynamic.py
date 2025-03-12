@@ -26,7 +26,7 @@ dynamic_rate_limit_workflow = hatchet.workflow(
         )
     ]
 )
-def step1(input: DynamicRateLimitInput, context: Context) -> None:
+def step1(input: DynamicRateLimitInput, ctx: Context) -> None:
     print("executed step1")
 
 

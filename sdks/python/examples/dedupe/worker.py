@@ -11,7 +11,7 @@ dedupe_child_wf = hatchet.workflow(name="DedupeChild")
 
 
 @dedupe_parent_wf.task(timeout="1m")
-async def spawn(input: EmptyModel, context: Context) -> dict[str, list[Any]]:
+async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
     print("spawning child")
 
     results = []
@@ -38,7 +38,7 @@ async def spawn(input: EmptyModel, context: Context) -> dict[str, list[Any]]:
 
 
 @dedupe_child_wf.task()
-async def process(input: EmptyModel, context: Context) -> dict[str, str]:
+async def process(input: EmptyModel, ctx: Context) -> dict[str, str]:
     await asyncio.sleep(3)
 
     print("child process")
@@ -46,7 +46,7 @@ async def process(input: EmptyModel, context: Context) -> dict[str, str]:
 
 
 @dedupe_child_wf.task()
-async def process2(input: EmptyModel, context: Context) -> dict[str, str]:
+async def process2(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("child process2")
     return {"status2": "success"}
 

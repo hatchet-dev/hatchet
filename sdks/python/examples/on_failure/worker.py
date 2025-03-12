@@ -12,19 +12,19 @@ on_failure_wf = hatchet.workflow(name="OnFailureWorkflow")
 
 
 @on_failure_wf.task(timeout="1s")
-def step1(input: EmptyModel, context: Context) -> None:
+def step1(input: EmptyModel, ctx: Context) -> None:
     # 👀 this step will always raise an exception
     raise Exception("step1 failed")
 
 
 # 👀 After the workflow fails, this special step will run
 @on_failure_wf.on_failure_task()
-def on_failure(input: EmptyModel, context: Context) -> dict[str, str]:
+def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
     # 👀 we can do things like perform cleanup logic
     # or notify a user here
 
     # 👀 Fetch the errors from upstream step runs from the context
-    print(context.step_run_errors)
+    print(ctx.step_run_errors)
 
     return {"status": "success"}
 
@@ -41,14 +41,14 @@ on_failure_wf_with_details = hatchet.workflow(name="OnFailureWorkflowWithDetails
 
 # ... defined as above
 @on_failure_wf_with_details.task(timeout="1s")
-def details_step1(input: EmptyModel, context: Context) -> None:
+def details_step1(input: EmptyModel, ctx: Context) -> None:
     raise Exception("step1 failed")
 
 
 # 👀 After the workflow fails, this special step will run
 @on_failure_wf_with_details.task()
-def details_on_failure(input: EmptyModel, context: Context) -> dict[str, str]:
-    failures = context.fetch_run_failures()
+def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    failures = ctx.fetch_run_failures()
 
     # 👀 we can access the failure details here
     print(json.dumps(failures, indent=2))

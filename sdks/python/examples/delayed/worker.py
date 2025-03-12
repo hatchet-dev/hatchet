@@ -21,7 +21,7 @@ print_printer_wf = hatchet.workflow(
 
 
 @print_schedule_wf.task()
-def schedule(input: PrinterInput, context: Context) -> None:
+def schedule(input: PrinterInput, ctx: Context) -> None:
     now = datetime.now()
     print(f"the time is \t {now.strftime('%H:%M:%S')}")
     future_time = now + timedelta(seconds=15)
@@ -31,7 +31,7 @@ def schedule(input: PrinterInput, context: Context) -> None:
 
 
 @print_schedule_wf.task()
-def step1(input: PrinterInput, context: Context) -> None:
+def step1(input: PrinterInput, ctx: Context) -> None:
     now = datetime.now()
     print(f"printed at \t {now.strftime('%H:%M:%S')}")
     print(f"message \t {input.message}")

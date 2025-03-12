@@ -9,7 +9,7 @@ existing_loop_worker = hatchet.workflow(name="WorkerExistingLoopWorkflow")
 
 
 @existing_loop_worker.task()
-async def task(input: EmptyModel, context: Context) -> dict[str, str]:
+async def task(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("started")
     await asyncio.sleep(10)
     print("finished")

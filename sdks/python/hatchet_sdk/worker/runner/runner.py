@@ -200,7 +200,7 @@ class Runner:
         return inner_callback
 
     def thread_action_func(
-        self, context: Context, task: Task[TWorkflowInput, R], action: Action
+        self, ctx: Context, task: Task[TWorkflowInput, R], action: Action
     ) -> R:
         if action.step_run_id is not None and action.step_run_id != "":
             self.threads[action.step_run_id] = current_thread()
@@ -210,12 +210,12 @@ class Runner:
         ):
             self.threads[action.get_group_key_run_id] = current_thread()
 
-        return task.call(context)
+        return task.call(ctx)
 
     # We wrap all actions in an async func
     async def async_wrapped_action_func(
         self,
-        context: Context,
+        ctx: Context,
         task: Task[TWorkflowInput, R],
         action: Action,
         run_id: str,
@@ -226,7 +226,7 @@ class Runner:
 
         try:
             if task.is_async_function:
-                return await task.aio_call(context)
+                return await task.aio_call(ctx)
             else:
                 pfunc = functools.partial(
                     # we must copy the context vars to the new thread, as only asyncio natively supports
@@ -234,7 +234,7 @@ class Runner:
                     copy_context_vars,
                     contextvars.copy_context().items(),
                     self.thread_action_func,
-                    context,
+                    ctx,
                     task,
                     action,
                 )

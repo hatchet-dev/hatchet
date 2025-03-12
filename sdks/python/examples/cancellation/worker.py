@@ -8,14 +8,14 @@ wf = hatchet.workflow(name="CancelWorkflow")
 
 
 @wf.task(timeout="10s", retries=1)
-async def step1(input: EmptyModel, context: Context) -> None:
+async def step1(input: EmptyModel, ctx: Context) -> None:
     i = 0
-    while not context.exit_flag and i < 20:
+    while not ctx.exit_flag and i < 20:
         print(f"Waiting for cancellation {i}")
         await asyncio.sleep(1)
         i += 1
 
-    if context.exit_flag:
+    if ctx.exit_flag:
         print("Cancelled")
 
 

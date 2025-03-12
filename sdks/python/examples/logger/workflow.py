@@ -12,7 +12,7 @@ logging_workflow = hatchet.workflow(
 
 
 @logging_workflow.task()
-def step1(input: EmptyModel, context: Context) -> dict[str, str]:
+def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
     for i in range(12):
         logger.info("executed step1 - {}".format(i))
         logger.info({"step1": "step1"})

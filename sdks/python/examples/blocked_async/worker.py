@@ -15,7 +15,7 @@ blocked_worker_workflow = hatchet.workflow(name="Blocked")
 
 
 @blocked_worker_workflow.task(timeout="11s", retries=3)
-async def step1(input: EmptyModel, context: Context) -> dict[str, str | int | float]:
+async def step1(input: EmptyModel, ctx: Context) -> dict[str, str | int | float]:
     print("Executing step1")
 
     # CPU-bound task: Calculate a large number of SHA-256 hashes

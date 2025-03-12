@@ -30,7 +30,7 @@ concurrency_limit_workflow = hatchet.workflow(
 
 
 @concurrency_limit_workflow.task()
-def step1(input: WorkflowInput, context: Context) -> dict[str, Any]:
+def step1(input: WorkflowInput, ctx: Context) -> dict[str, Any]:
     time.sleep(3)
     print("executed step1")
     return {"run": input.run}

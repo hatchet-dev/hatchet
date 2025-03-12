@@ -23,7 +23,7 @@ child_workflow = hatchet.workflow(name="Child", input_validator=ChildInput)
 
 
 @parent_workflow.task(timeout="5m")
-async def spawn(input: ParentInput, context: Context) -> dict[str, str]:
+async def spawn(input: ParentInput, ctx: Context) -> dict[str, str]:
     child = await child_workflow.aio_run(input=ChildInput(a=1, b=10))
 
     return cast(dict[str, str], await child.aio_result())
@@ -34,25 +34,25 @@ class StepResponse(BaseModel):
 
 
 @child_workflow.task()
-def process(input: ChildInput, context: Context) -> StepResponse:
+def process(input: ChildInput, ctx: Context) -> StepResponse:
     return StepResponse(status="success")
 
 
 @child_workflow.task(parents=[process])
-def process2(input: ChildInput, context: Context) -> StepResponse:
+def process2(input: ChildInput, ctx: Context) -> StepResponse:
     ## This is an instance of `StepResponse`
-    context.task_output(process)
+    ctx.task_output(process)
 
     return {"status": "step 2 - success"}  # type: ignore[return-value]
 
 
 @child_workflow.task(parents=[process2])
-def process3(input: ChildInput, context: Context) -> StepResponse:
+def process3(input: ChildInput, ctx: Context) -> StepResponse:
     ## This is an instance of `StepResponse`, even though the
     ## response of `process2` was a dictionary. Note that
     ## Hatchet will attempt to parse that dictionary into
     ## an object of type `StepResponse`
-    context.task_output(process2)
+    ctx.task_output(process2)
 
     return StepResponse(status="step 3 - success")
 

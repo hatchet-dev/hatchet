@@ -14,7 +14,7 @@ otel_workflow = hatchet.workflow(
 
 @otel_workflow.task()
 def your_spans_are_children_of_hatchet_span(
-    input: EmptyModel, context: Context
+    input: EmptyModel, ctx: Context
 ) -> dict[str, str]:
     with trace_provider.get_tracer(__name__).start_as_current_span("step1"):
         print("executed step")
@@ -25,16 +25,14 @@ def your_spans_are_children_of_hatchet_span(
 
 @otel_workflow.task()
 def your_spans_are_still_children_of_hatchet_span(
-    input: EmptyModel, context: Context
+    input: EmptyModel, ctx: Context
 ) -> None:
     with trace_provider.get_tracer(__name__).start_as_current_span("step2"):
         raise Exception("Manually instrumented step failed failed")
 
 
 @otel_workflow.task()
-def this_step_is_still_instrumented(
-    input: EmptyModel, context: Context
-) -> dict[str, str]:
+def this_step_is_still_instrumented(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("executed still-instrumented step")
     return {
         "still": "instrumented",
@@ -42,7 +40,7 @@ def this_step_is_still_instrumented(
 
 
 @otel_workflow.task()
-def this_step_is_also_still_instrumented(input: EmptyModel, context: Context) -> None:
+def this_step_is_also_still_instrumented(input: EmptyModel, ctx: Context) -> None:
     raise Exception("Still-instrumented step failed")
 
 

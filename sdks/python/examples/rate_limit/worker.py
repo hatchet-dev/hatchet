@@ -8,7 +8,7 @@ RATE_LIMIT_KEY = "test-limit"
 
 
 @rate_limit_workflow.task(rate_limits=[RateLimit(static_key=RATE_LIMIT_KEY, units=1)])
-def step1(input: EmptyModel, context: Context) -> None:
+def step1(input: EmptyModel, ctx: Context) -> None:
     print("executed step1")
 
 

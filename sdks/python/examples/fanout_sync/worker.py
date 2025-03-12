@@ -20,7 +20,7 @@ child = hatchet.workflow(name="SyncFanoutChild", input_validator=ChildInput)
 
 
 @parent.task(timeout="5m")
-def spawn(input: ParentInput, context: Context) -> dict[str, Any]:
+def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     print("spawning child")
 
     runs = child.run_many(
@@ -42,7 +42,7 @@ def spawn(input: ParentInput, context: Context) -> dict[str, Any]:
 
 
 @child.task()
-def process(input: ChildInput, context: Context) -> dict[str, str]:
+def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     return {"status": "success " + input.a}
 
 
