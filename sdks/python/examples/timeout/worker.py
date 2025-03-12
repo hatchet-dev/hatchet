@@ -4,7 +4,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-timeout_wf = hatchet.workflow(name="TimeoutWorkflow", on_events=["timeout:create"])
+timeout_wf = hatchet.workflow(name="TimeoutWorkflow")
 
 
 @timeout_wf.task(timeout="4s")
@@ -13,9 +13,7 @@ def timeout_task(input: EmptyModel, context: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
-refresh_timeout_wf = hatchet.workflow(
-    name="RefreshTimeoutWorkflow", on_events=["refresh:create"]
-)
+refresh_timeout_wf = hatchet.workflow(name="RefreshTimeoutWorkflow")
 
 
 @refresh_timeout_wf.task(timeout="4s")

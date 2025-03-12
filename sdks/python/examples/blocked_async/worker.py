@@ -11,10 +11,10 @@ hatchet = Hatchet(debug=True)
 #
 # You do not want to run long sync functions in an async def function
 
-wf = hatchet.workflow(name="Blocked", on_events=["user:create"])
+blocked_worker_workflow = hatchet.workflow(name="Blocked")
 
 
-@wf.task(timeout="11s", retries=3)
+@blocked_worker_workflow.task(timeout="11s", retries=3)
 async def step1(input: EmptyModel, context: Context) -> dict[str, str | int | float]:
     print("Executing step1")
 
@@ -37,7 +37,9 @@ async def step1(input: EmptyModel, context: Context) -> dict[str, str | int | fl
 
 
 def main() -> None:
-    worker = hatchet.worker("blocked-worker", slots=3, workflows=[wf])
+    worker = hatchet.worker(
+        "blocked-worker", slots=3, workflows=[blocked_worker_workflow]
+    )
     worker.start()
 
 

@@ -1,6 +1,6 @@
 import pytest
 
-from examples.dag.worker import wf
+from examples.dag.worker import dag_workflow
 from hatchet_sdk import Hatchet, Worker
 
 
@@ -8,8 +8,7 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["dag"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    run = wf.run()
-    result = await run.aio_result()
+    result = await dag_workflow.aio_run_and_get_result()
 
     one = result["step1"]["rando"]
     two = result["step2"]["rando"]

@@ -2,7 +2,7 @@ import asyncio
 
 from examples.opentelemetry_instrumentation.client import hatchet
 from examples.opentelemetry_instrumentation.tracer import trace_provider
-from examples.opentelemetry_instrumentation.worker import wf
+from examples.opentelemetry_instrumentation.worker import otel_workflow
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.clients.events import BulkPushEventWithMetadata, PushEventOptions
 from hatchet_sdk.opentelemetry.instrumentor import (
@@ -81,7 +81,7 @@ async def async_bulk_push_event() -> None:
 def run_workflow() -> None:
     print("\nrun_workflow")
     with tracer.start_as_current_span("run_workflow"):
-        wf.run(
+        otel_workflow.run(
             options=TriggerWorkflowOptions(
                 additional_metadata=create_additional_metadata()
             ),
@@ -91,7 +91,7 @@ def run_workflow() -> None:
 async def async_run_workflow() -> None:
     print("\nasync_run_workflow")
     with tracer.start_as_current_span("async_run_workflow"):
-        await wf.aio_run(
+        await otel_workflow.aio_run(
             options=TriggerWorkflowOptions(
                 additional_metadata=create_additional_metadata()
             ),
@@ -101,14 +101,14 @@ async def async_run_workflow() -> None:
 def run_workflows() -> None:
     print("\nrun_workflows")
     with tracer.start_as_current_span("run_workflows"):
-        wf.run_many(
+        otel_workflow.run_many(
             [
-                wf.create_run_workflow_config(
+                otel_workflow.create_run_workflow_config(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )
                 ),
-                wf.create_run_workflow_config(
+                otel_workflow.create_run_workflow_config(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )
@@ -120,14 +120,14 @@ def run_workflows() -> None:
 async def async_run_workflows() -> None:
     print("\nasync_run_workflows")
     with tracer.start_as_current_span("async_run_workflows"):
-        await wf.aio_run_many(
+        await otel_workflow.aio_run_many(
             [
-                wf.create_run_workflow_config(
+                otel_workflow.create_run_workflow_config(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )
                 ),
-                wf.create_run_workflow_config(
+                otel_workflow.create_run_workflow_config(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )

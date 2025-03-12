@@ -15,12 +15,8 @@ class ChildInput(BaseModel):
     a: str
 
 
-parent = hatchet.workflow(
-    name="SyncFanoutParent", on_events=["parent:create"], input_validator=ParentInput
-)
-child = hatchet.workflow(
-    name="SyncFanoutChild", on_events=["child:create"], input_validator=ChildInput
-)
+parent = hatchet.workflow(name="SyncFanoutParent", input_validator=ParentInput)
+child = hatchet.workflow(name="SyncFanoutChild", input_validator=ChildInput)
 
 
 @parent.task(timeout="5m")

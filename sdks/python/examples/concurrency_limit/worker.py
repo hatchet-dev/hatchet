@@ -18,9 +18,8 @@ class WorkflowInput(BaseModel):
     group: str
 
 
-wf = hatchet.workflow(
+concurrency_limit_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflow",
-    on_events=["concurrency-test"],
     concurrency=ConcurrencyExpression(
         expression="input.group",
         max_runs=5,
@@ -30,7 +29,7 @@ wf = hatchet.workflow(
 )
 
 
-@wf.task()
+@concurrency_limit_workflow.task()
 def step1(input: WorkflowInput, context: Context) -> dict[str, Any]:
     time.sleep(3)
     print("executed step1")
@@ -38,7 +37,9 @@ def step1(input: WorkflowInput, context: Context) -> dict[str, Any]:
 
 
 def main() -> None:
-    worker = hatchet.worker("concurrency-demo-worker", slots=10, workflows=[wf])
+    worker = hatchet.worker(
+        "concurrency-demo-worker", slots=10, workflows=[concurrency_limit_workflow]
+    )
 
     worker.start()
 

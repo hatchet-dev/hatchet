@@ -13,7 +13,6 @@ class PrinterInput(BaseModel):
 
 print_schedule_wf = hatchet.workflow(
     name="PrintScheduleWorkflow",
-    on_events=["printer:schedule"],
     input_validator=PrinterInput,
 )
 print_printer_wf = hatchet.workflow(

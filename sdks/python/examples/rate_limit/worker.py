@@ -2,18 +2,22 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.rate_limit import RateLimit, RateLimitDuration
 
 hatchet = Hatchet(debug=True)
-wf = hatchet.workflow(name="RateLimitWorkflow", on_events=["rate_limit:create"])
+rate_limit_workflow = hatchet.workflow(name="RateLimitWorkflow")
+
+RATE_LIMIT_KEY = "test-limit"
 
 
-@wf.task(rate_limits=[RateLimit(static_key="test-limit", units=1)])
+@rate_limit_workflow.task(rate_limits=[RateLimit(static_key=RATE_LIMIT_KEY, units=1)])
 def step1(input: EmptyModel, context: Context) -> None:
     print("executed step1")
 
 
 def main() -> None:
-    hatchet.admin.put_rate_limit("test-limit", 2, RateLimitDuration.SECOND)
+    hatchet.admin.put_rate_limit(RATE_LIMIT_KEY, 2, RateLimitDuration.SECOND)
 
-    worker = hatchet.worker("rate-limit-worker", slots=10, workflows=[wf])
+    worker = hatchet.worker(
+        "rate-limit-worker", slots=10, workflows=[rate_limit_workflow]
+    )
 
     worker.start()
 

@@ -1,6 +1,6 @@
-from examples.sticky_workers.worker import sticky_workflow
+from examples.blocked_async.worker import blocked_worker_workflow
 from hatchet_sdk import TriggerWorkflowOptions
 
-sticky_workflow.run(
+blocked_worker_workflow.run(
     options=TriggerWorkflowOptions(additional_metadata={"hello": "moon"}),
 )

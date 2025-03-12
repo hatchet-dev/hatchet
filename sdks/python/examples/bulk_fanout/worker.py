@@ -17,12 +17,8 @@ class ChildInput(BaseModel):
     a: str
 
 
-bulk_parent_wf = hatchet.workflow(
-    name="BulkFanoutParent", on_events=["parent:create"], input_validator=ParentInput
-)
-bulk_child_wf = hatchet.workflow(
-    name="BulkFanoutChild", on_events=["child:create"], input_validator=ChildInput
-)
+bulk_parent_wf = hatchet.workflow(name="BulkFanoutParent", input_validator=ParentInput)
+bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildInput)
 
 
 @bulk_parent_wf.task(timeout="5m")

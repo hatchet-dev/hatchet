@@ -4,7 +4,7 @@ hatchet = Hatchet()
 
 # ❓ Create
 cron_trigger = hatchet.cron.create(
-    workflow_name="simple-cron-workflow",
+    workflow_name="CronWorkflow",
     cron_name="customer-a-daily-report",
     expression="0 12 * * *",
     input={

@@ -8,11 +8,9 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-sticky_workflow = hatchet.workflow(
-    name="StickyWorkflow", on_events=["sticky:parent"], sticky=StickyStrategy.SOFT
-)
+sticky_workflow = hatchet.workflow(name="StickyWorkflow", sticky=StickyStrategy.SOFT)
 sticky_child_workflow = hatchet.workflow(
-    name="StickyChildWorkflow", on_events=["sticky:child"], sticky=StickyStrategy.SOFT
+    name="StickyChildWorkflow", sticky=StickyStrategy.SOFT
 )
 
 

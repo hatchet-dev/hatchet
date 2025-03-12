@@ -4,7 +4,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.workflow(name="CancelWorkflow", on_events=["user:create"])
+wf = hatchet.workflow(name="CancelWorkflow")
 
 
 @wf.task(timeout="10s", retries=1)
@@ -21,7 +21,6 @@ async def step1(input: EmptyModel, context: Context) -> None:
 
 def main() -> None:
     worker = hatchet.worker("cancellation-worker", slots=4, workflows=[wf])
-
     worker.start()
 
 

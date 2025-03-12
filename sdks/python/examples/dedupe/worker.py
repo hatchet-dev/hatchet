@@ -6,8 +6,8 @@ from hatchet_sdk.clients.admin import DedupeViolationErr
 
 hatchet = Hatchet(debug=True)
 
-dedupe_parent_wf = hatchet.workflow(name="DedupeParent", on_events=["parent:create"])
-dedupe_child_wf = hatchet.workflow(name="DedupeChild", on_events=["child:create"])
+dedupe_parent_wf = hatchet.workflow(name="DedupeParent")
+dedupe_child_wf = hatchet.workflow(name="DedupeChild")
 
 
 @dedupe_parent_wf.task(timeout="1m")

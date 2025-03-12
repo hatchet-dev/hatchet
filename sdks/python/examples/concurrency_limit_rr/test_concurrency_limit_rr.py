@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from examples.concurrency_limit_rr.worker import wf
+from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from hatchet_sdk import Hatchet, Worker
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -17,9 +17,9 @@ async def test_run(hatchet: Hatchet, worker: Worker) -> None:
 
     # Start all runs
     for i in range(1, num_groups + 1):
-        run = wf.run()
+        run = concurrency_limit_rr_workflow.run()
         runs.append(run)
-        run = wf.run()
+        run = concurrency_limit_rr_workflow.run()
         runs.append(run)
 
     # Wait for all results

@@ -8,7 +8,7 @@ hatchet = Hatchet(debug=True)
 # This workflow will fail because the step will throw an error
 # we define an onFailure step to handle this case
 
-on_failure_wf = hatchet.workflow(name="OnFailureWorkflow", on_events=["user:create"])
+on_failure_wf = hatchet.workflow(name="OnFailureWorkflow")
 
 
 @on_failure_wf.task(timeout="1s")
@@ -36,9 +36,7 @@ def on_failure(input: EmptyModel, context: Context) -> dict[str, str]:
 # We can access the failure details in the onFailure step
 # via the context method
 
-on_failure_wf_with_details = hatchet.workflow(
-    name="OnFailureWorkflowWithDetails", on_events=["user:create"]
-)
+on_failure_wf_with_details = hatchet.workflow(name="OnFailureWorkflowWithDetails")
 
 
 # ... defined as above

@@ -7,13 +7,12 @@ HatchetInstrumentor(
     tracer_provider=trace_provider,
 ).instrument()
 
-wf = hatchet.workflow(
+otel_workflow = hatchet.workflow(
     name="OTelWorkflow",
-    on_events=["otel:event"],
 )
 
 
-@wf.task()
+@otel_workflow.task()
 def your_spans_are_children_of_hatchet_span(
     input: EmptyModel, context: Context
 ) -> dict[str, str]:
@@ -24,7 +23,7 @@ def your_spans_are_children_of_hatchet_span(
         }
 
 
-@wf.task()
+@otel_workflow.task()
 def your_spans_are_still_children_of_hatchet_span(
     input: EmptyModel, context: Context
 ) -> None:
@@ -32,7 +31,7 @@ def your_spans_are_still_children_of_hatchet_span(
         raise Exception("Manually instrumented step failed failed")
 
 
-@wf.task()
+@otel_workflow.task()
 def this_step_is_still_instrumented(
     input: EmptyModel, context: Context
 ) -> dict[str, str]:
@@ -42,13 +41,13 @@ def this_step_is_still_instrumented(
     }
 
 
-@wf.task()
+@otel_workflow.task()
 def this_step_is_also_still_instrumented(input: EmptyModel, context: Context) -> None:
     raise Exception("Still-instrumented step failed")
 
 
 def main() -> None:
-    worker = hatchet.worker("otel-example-worker", slots=1, workflows=[wf])
+    worker = hatchet.worker("otel-example-worker", slots=1, workflows=[otel_workflow])
     worker.start()
 
 

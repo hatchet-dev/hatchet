@@ -8,8 +8,7 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["cancellation"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    run = wf.run()
+    result = await wf.aio_run_and_get_result()
 
-    result = await run.aio_result()
     # TODO is this the expected result for a timed out run...
     assert result == {}

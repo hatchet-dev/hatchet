@@ -1,7 +1,7 @@
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
-backoff_workflow = hatchet.workflow(name="BackoffWorkflow", on_events=["backoff:event"])
+backoff_workflow = hatchet.workflow(name="BackoffWorkflow")
 
 
 # ❓ Backoff

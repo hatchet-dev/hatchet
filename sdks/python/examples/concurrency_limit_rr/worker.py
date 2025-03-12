@@ -1,29 +1,35 @@
 import time
 
+from pydantic import BaseModel
+
 from hatchet_sdk import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
     Context,
-    EmptyModel,
     Hatchet,
 )
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.workflow(
+
+class WorkflowInput(BaseModel):
+    group: str
+
+
+concurrency_limit_rr_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflowRR",
-    on_events=["concurrency-test"],
     schedule_timeout="10m",
     concurrency=ConcurrencyExpression(
         expression="input.group",
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),
+    input_validator=WorkflowInput,
 )
 
 
-@wf.task()
-def step1(input: EmptyModel, context: Context) -> None:
+@concurrency_limit_rr_workflow.task()
+def step1(input: WorkflowInput, context: Context) -> None:
     print("starting step1")
     time.sleep(2)
     print("finished step1")
@@ -31,7 +37,11 @@ def step1(input: EmptyModel, context: Context) -> None:
 
 
 def main() -> None:
-    worker = hatchet.worker("concurrency-demo-worker-rr", slots=10, workflows=[wf])
+    worker = hatchet.worker(
+        "concurrency-demo-worker-rr",
+        slots=10,
+        workflows=[concurrency_limit_rr_workflow],
+    )
 
     worker.start()
 

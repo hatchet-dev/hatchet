@@ -16,22 +16,20 @@ class RandomSum(BaseModel):
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.workflow(
-    name="DAGWorkflow", on_events=["dag:create"], schedule_timeout="10m"
-)
+dag_workflow = hatchet.workflow(name="DAGWorkflow", schedule_timeout="10m")
 
 
-@wf.task(timeout="5s")
+@dag_workflow.task(timeout="5s")
 def step1(input: EmptyModel, context: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@wf.task(timeout="5s")
+@dag_workflow.task(timeout="5s")
 def step2(input: EmptyModel, context: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@wf.task(parents=[step1, step2])
+@dag_workflow.task(parents=[step1, step2])
 def step3(input: EmptyModel, context: Context) -> RandomSum:
     one = context.task_output(step1).random_number
     two = context.task_output(step2).random_number
@@ -39,7 +37,7 @@ def step3(input: EmptyModel, context: Context) -> RandomSum:
     return RandomSum(sum=one + two)
 
 
-@wf.task(parents=[step1, step3])
+@dag_workflow.task(parents=[step1, step3])
 def step4(input: EmptyModel, context: Context) -> dict[str, str]:
     print(
         "executed step4",
@@ -54,7 +52,7 @@ def step4(input: EmptyModel, context: Context) -> dict[str, str]:
 
 
 def main() -> None:
-    worker = hatchet.worker("dag-worker", workflows=[wf])
+    worker = hatchet.worker("dag-worker", workflows=[dag_workflow])
 
     worker.start()
 

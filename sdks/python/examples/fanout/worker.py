@@ -16,12 +16,8 @@ class ChildInput(BaseModel):
     a: str
 
 
-parent_wf = hatchet.workflow(
-    name="FanoutParent", on_events=["parent:create"], input_validator=ParentInput
-)
-child_wf = hatchet.workflow(
-    name="FanoutChild", on_events=["child:create"], input_validator=ChildInput
-)
+parent_wf = hatchet.workflow(name="FanoutParent", input_validator=ParentInput)
+child_wf = hatchet.workflow(name="FanoutChild", input_validator=ChildInput)
 
 
 @parent_wf.task(timeout="5m")

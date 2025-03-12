@@ -3,10 +3,10 @@ from hatchet_sdk.labels import DesiredWorkerLabel
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.workflow(name="AffinityWorkflow", on_events=["affinity:run"])
+affinity_worker_workflow = hatchet.workflow(name="AffinityWorkflow")
 
 
-@wf.task(
+@affinity_worker_workflow.task(
     desired_worker_labels={
         "model": DesiredWorkerLabel(value="fancy-ai-model-v2", weight=10),
         "memory": DesiredWorkerLabel(
@@ -33,7 +33,7 @@ def main() -> None:
             "model": "fancy-ai-model-v2",
             "memory": 512,
         },
-        workflows=[wf],
+        workflows=[affinity_worker_workflow],
     )
     worker.start()
 

@@ -2,7 +2,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-simple = hatchet.workflow(name="SimpleWorkflow", on_events=["simple:event"])
+simple = hatchet.workflow(name="SimpleWorkflow")
 
 
 @simple.task(timeout="11s", retries=3)

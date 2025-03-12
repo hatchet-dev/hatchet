@@ -5,10 +5,10 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.workflow(name="WorkerExistingLoopWorkflow")
+existing_loop_worker = hatchet.workflow(name="WorkerExistingLoopWorkflow")
 
 
-@wf.task()
+@existing_loop_worker.task()
 async def task(input: EmptyModel, context: Context) -> dict[str, str]:
     print("started")
     await asyncio.sleep(10)
@@ -19,8 +19,9 @@ async def task(input: EmptyModel, context: Context) -> dict[str, str]:
 async def async_main() -> None:
     worker = None
     try:
-        worker = hatchet.worker("test-worker", slots=1)
-        worker.register_workflow(wf)
+        worker = hatchet.worker(
+            "test-worker", slots=1, workflows=[existing_loop_worker]
+        )
         worker.start()
 
         ref = hatchet.admin.run_workflow("MyWorkflow", input={})
