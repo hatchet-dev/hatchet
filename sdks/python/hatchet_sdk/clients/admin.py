@@ -5,7 +5,7 @@ from typing import Union, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
@@ -67,6 +67,30 @@ class AdminClient:
 
         self.pooled_workflow_listener: PooledWorkflowRunListener | None = None
 
+    class TriggerWorkflowRequest(BaseModel):
+        model_config = ConfigDict(extra="ignore")
+
+        parent_id: str | None = None
+        parent_step_run_id: str | None = None
+        child_index: int | None = None
+        child_key: str | None = None
+        additional_metadata: str | None = None
+        desired_worker_id: str | None = None
+        priority: int | None = None
+
+        @field_validator("additional_metadata", mode="before")
+        @classmethod
+        def validate_additional_metadata(
+            cls, v: JSONSerializableMapping | None
+        ) -> bytes | None:
+            if not v:
+                return None
+
+            try:
+                return json.dumps(v).encode("utf-8")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Error encoding payload: {e}")
+
     def _prepare_workflow_request(
         self,
         workflow_name: str,
@@ -75,27 +99,16 @@ class AdminClient:
     ) -> workflow_protos.TriggerWorkflowRequest:
         try:
             payload_data = json.dumps(input)
-            _options = options.model_dump()
-
-            _options.pop("namespace")
-            _options.pop("sticky")
-            _options.pop("key")
-
-            try:
-                _options = {
-                    **_options,
-                    "additional_metadata": json.dumps(
-                        options.additional_metadata
-                    ).encode("utf-8"),
-                }
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Error encoding payload: {e}")
-
-            return workflow_protos.TriggerWorkflowRequest(
-                name=workflow_name, input=payload_data, **_options
-            )
         except json.JSONDecodeError as e:
             raise ValueError(f"Error encoding payload: {e}")
+
+        _options = self.TriggerWorkflowRequest.model_validate(
+            options.model_dump()
+        ).model_dump()
+
+        return workflow_protos.TriggerWorkflowRequest(
+            name=workflow_name, input=payload_data, **_options
+        )
 
     def _prepare_put_workflow_request(
         self,
