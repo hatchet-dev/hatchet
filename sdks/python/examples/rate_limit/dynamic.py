@@ -1,29 +1,37 @@
-from hatchet_sdk import BaseWorkflow, Context, Hatchet
+from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.rate_limit import RateLimit
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.declare_workflow(on_events=["rate_limit:create"])
+
+class DynamicRateLimitInput(BaseModel):
+    group: str
+    units: int
+    limit: int
 
 
-class RateLimitWorkflow(BaseWorkflow):
-    config = wf.config
+dynamic_rate_limit_workflow = hatchet.workflow(
+    name="DynamicRateLimitWorkflow", input_validator=DynamicRateLimitInput
+)
 
-    @hatchet.step(
-        rate_limits=[
-            RateLimit(
-                dynamic_key='"LIMIT:"+input.group',
-                units="input.units",
-                limit="input.limit",
-            )
-        ]
-    )
-    def step1(self, context: Context) -> None:
-        print("executed step1")
+
+@dynamic_rate_limit_workflow.task(
+    rate_limits=[
+        RateLimit(
+            dynamic_key='"LIMIT:"+input.group',
+            units="input.units",
+            limit="input.limit",
+        )
+    ]
+)
+def step1(input: DynamicRateLimitInput, ctx: Context) -> None:
+    print("executed step1")
 
 
 def main() -> None:
-    worker = hatchet.worker("rate-limit-worker", max_runs=10)
-    worker.register_workflow(RateLimitWorkflow())
-
+    worker = hatchet.worker(
+        "rate-limit-worker", slots=10, workflows=[dynamic_rate_limit_workflow]
+    )
     worker.start()

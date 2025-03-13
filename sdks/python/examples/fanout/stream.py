@@ -1,6 +1,7 @@
 import asyncio
 import random
 
+from examples.fanout.worker import ParentInput, parent_wf
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
@@ -21,9 +22,8 @@ async def main() -> None:
     # This key gets propagated to all child workflows
     # and can have an arbitrary property name.
 
-    hatchet.admin.run_workflow(
-        "Parent",
-        {"n": 2},
+    parent_wf.run(
+        ParentInput(n=2),
         options=TriggerWorkflowOptions(additional_metadata={streamKey: streamVal}),
     )
 

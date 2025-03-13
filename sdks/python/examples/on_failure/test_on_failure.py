@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from examples.on_failure.worker import on_failure_wf
 from hatchet_sdk import Hatchet, Worker
 from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
 
@@ -10,7 +11,7 @@ from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["on_failure"], indirect=True)
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("OnFailureWorkflow", {})
+    run = on_failure_wf.run()
     try:
         await run.aio_result()
 

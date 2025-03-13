@@ -1,57 +1,49 @@
 from hatchet_sdk import (
-    BaseWorkflow,
-    ChildTriggerWorkflowOptions,
     Context,
+    EmptyModel,
     Hatchet,
     StickyStrategy,
+    TriggerWorkflowOptions,
 )
 
 hatchet = Hatchet(debug=True)
 
-sticky_workflow = hatchet.declare_workflow(
-    on_events=["sticky:parent"], sticky=StickyStrategy.SOFT
+sticky_workflow = hatchet.workflow(name="StickyWorkflow", sticky=StickyStrategy.SOFT)
+sticky_child_workflow = hatchet.workflow(
+    name="StickyChildWorkflow", sticky=StickyStrategy.SOFT
 )
 
 
-class StickyWorkflow(BaseWorkflow):
-    config = sticky_workflow.config
-
-    @hatchet.step()
-    def step1a(self, context: Context) -> dict[str, str | None]:
-        return {"worker": context.worker.id()}
-
-    @hatchet.step()
-    def step1b(self, context: Context) -> dict[str, str | None]:
-        return {"worker": context.worker.id()}
-
-    @hatchet.step(parents=["step1a", "step1b"])
-    async def step2(self, context: Context) -> dict[str, str | None]:
-        ref = await context.aio_spawn_workflow(
-            "StickyChildWorkflow", {}, options=ChildTriggerWorkflowOptions(sticky=True)
-        )
-
-        await ref.aio_result()
-
-        return {"worker": context.worker.id()}
+@sticky_workflow.task()
+def step1a(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    return {"worker": ctx.worker.id()}
 
 
-sticky_child_workflow = hatchet.declare_workflow(
-    on_events=["sticky:child"], sticky=StickyStrategy.SOFT
-)
+@sticky_workflow.task()
+def step1b(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    return {"worker": ctx.worker.id()}
 
 
-class StickyChildWorkflow(BaseWorkflow):
-    config = sticky_child_workflow.config
+@sticky_workflow.task(parents=[step1a, step1b])
+async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    ref = await sticky_child_workflow.aio_run(
+        options=TriggerWorkflowOptions(sticky=True)
+    )
 
-    @hatchet.step()
-    def child(self, context: Context) -> dict[str, str | None]:
-        return {"worker": context.worker.id()}
+    await ref.aio_result()
+
+    return {"worker": ctx.worker.id()}
+
+
+@sticky_child_workflow.task()
+def child(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+    return {"worker": ctx.worker.id()}
 
 
 def main() -> None:
-    worker = hatchet.worker("sticky-worker", max_runs=10)
-    worker.register_workflow(StickyWorkflow())
-    worker.register_workflow(StickyChildWorkflow())
+    worker = hatchet.worker(
+        "sticky-worker", slots=10, workflows=[sticky_workflow, sticky_child_workflow]
+    )
     worker.start()
 
 

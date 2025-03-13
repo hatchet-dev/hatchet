@@ -1,11 +1,6 @@
-from hatchet_sdk.clients.events import PushEventOptions
-from hatchet_sdk.hatchet import Hatchet
+from examples.sticky_workers.worker import sticky_workflow
+from hatchet_sdk import TriggerWorkflowOptions
 
-hatchet = Hatchet(debug=True)
-
-# client.event.push("user:create", {"test": "test"})
-hatchet.event.push(
-    "sticky:parent",
-    {"test": "test"},
-    options=PushEventOptions(additional_metadata={"hello": "moon"}),
+sticky_workflow.run(
+    options=TriggerWorkflowOptions(additional_metadata={"hello": "moon"}),
 )

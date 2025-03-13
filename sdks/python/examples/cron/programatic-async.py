@@ -6,7 +6,7 @@ hatchet = Hatchet()
 async def create_cron() -> None:
     # ❓ Create
     cron_trigger = await hatchet.cron.aio_create(
-        workflow_name="simple-cron-workflow",
+        workflow_name="CronWorkflow",
         cron_name="customer-a-daily-report",
         expression="0 12 * * *",
         input={

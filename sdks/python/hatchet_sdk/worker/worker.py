@@ -16,11 +16,13 @@ from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.client import Client, new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.workflow import Workflow
 from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -30,10 +32,8 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
-from hatchet_sdk.workflow import BaseWorkflow, Step, StepType, Task
 
 T = TypeVar("T")
-TBaseWorkflow = TypeVar("TBaseWorkflow", bound=BaseWorkflow)
 
 
 class WorkerStatus(Enum):
@@ -53,15 +53,16 @@ class Worker:
         self,
         name: str,
         config: ClientConfig = ClientConfig(),
-        max_runs: int | None = None,
+        slots: int | None = None,
         labels: dict[str, str | int] = {},
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
+        workflows: list[Workflow[Any]] = [],
     ) -> None:
         self.name = name
         self.config = config
-        self.max_runs = max_runs
+        self.slots = slots
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
@@ -69,7 +70,7 @@ class Worker:
 
         self.client: Client
 
-        self.action_registry: dict[str, Step[Any]] = {}
+        self.action_registry: dict[str, Task[Any, Any]] = {}
         self.validator_registry: dict[str, WorkflowValidator] = {}
 
         self.killing: bool = False
@@ -86,7 +87,7 @@ class Worker:
 
         self.loop: asyncio.AbstractEventLoop
 
-        self.client = new_client_raw(self.config, self.debug)
+        self.client = Client(config=self.config, debug=self.debug)
         self.name = self.client.config.namespace + self.name
 
         self._setup_signal_handlers()
@@ -94,6 +95,8 @@ class Worker:
         self.worker_status_gauge = Gauge(
             "hatchet_worker_status", "Current status of the Hatchet worker"
         )
+
+        self.register_workflows(workflows)
 
     def register_workflow_from_opts(
         self, name: str, opts: CreateWorkflowVersionOpts
@@ -105,7 +108,7 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-    def register_workflow(self, workflow: TBaseWorkflow) -> None:
+    def register_workflow(self, workflow: Workflow[Any]) -> None:
         namespace = self.client.config.namespace
 
         try:
@@ -117,7 +120,7 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-        for step in workflow.steps:
+        for step in workflow.tasks:
             action_name = workflow.create_action_name(namespace, step)
             self.action_registry[action_name] = step
             return_type = get_type_hints(step.fn).get("return")
@@ -127,31 +130,9 @@ class Worker:
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
 
-    def register_function(self, function: Task[Any, Any]) -> None:
-        from hatchet_sdk.workflow import BaseWorkflow
-
-        declaration = function.hatchet.declare_workflow(
-            **function.workflow_config.model_dump()
-        )
-
-        class Workflow(BaseWorkflow):
-            config = declaration.config
-
-            @property
-            def default_steps(self) -> list[Step[Any]]:
-                return [function.step]
-
-            @property
-            def on_failure_steps(self) -> list[Step[Any]]:
-                if not function.on_failure_step:
-                    return []
-
-                step = function.on_failure_step.step
-                step.type = StepType.ON_FAILURE
-
-                return [step]
-
-        self.register_workflow(Workflow())
+    def register_workflows(self, workflows: list[Workflow[Any]]) -> None:
+        for workflow in workflows:
+            self.register_workflow(workflow)
 
     def status(self) -> WorkerStatus:
         return self._status
@@ -259,7 +240,7 @@ class Worker:
             self.name,
             self.action_registry,
             self.validator_registry,
-            self.max_runs,
+            self.slots,
             self.config,
             self.action_queue,
             self.event_queue,
@@ -278,7 +259,7 @@ class Worker:
                 args=(
                     self.name,
                     action_list,
-                    self.max_runs,
+                    self.slots,
                     self.config,
                     self.action_queue,
                     self.event_queue,
