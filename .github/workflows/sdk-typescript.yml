@@ -120,21 +120,21 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Compose
-        working-directory: hatchet
+        working-directory: .
         run: docker compose up -d
 
       - name: Install dependencies
         run: pnpm install
 
       - name: Generate
-        working-directory: hatchet
+        working-directory: .
         run: |
           export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
           /bin/bash ./hack/db/atlas-apply.sh
           task generate-go
 
       - name: Setup
-        working-directory: hatchet
+        working-directory: .
         run: |
           export SEED_DEVELOPMENT=true
           export SERVER_PORT=8080
