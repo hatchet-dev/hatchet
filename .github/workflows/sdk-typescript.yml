@@ -130,7 +130,7 @@ jobs:
         working-directory: .
         run: |
           export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          /bin/bash ./hack/db/atlas-apply.sh
+          task migrate
           task generate-go
 
       - name: Setup
