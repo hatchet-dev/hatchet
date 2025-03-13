@@ -36,7 +36,7 @@ importers:
         specifier: ^8.4.33
         version: 8.4.49
       posthog-js:
-        specifier: ^1.111.2
+        specifier: ^1.186.1
         version: 1.186.1
       react:
         specifier: ^18.2.0

@@ -1,7 +1,9 @@
-const withNextra = require('nextra')({
+import nextra from 'nextra';
+
+const withNextra = nextra({
   theme: 'nextra-theme-docs',
   themeConfig: './theme.config.tsx',
-})
+});
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -21,6 +23,6 @@ const nextConfig = {
       },
     ];
   },
-}
+};
 
-module.exports = nextConfig
+export default nextConfig;

@@ -1,0 +1,46 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2020": true
+  },
+  "extends": [
+    "airbnb-typescript",
+    "eslint:recommended",
+    "plugin:react/recommended",
+    "plugin:react/recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react-hooks/recommended",
+    "prettier"
+  ],
+  "ignorePatterns": ["dist"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "plugins": ["react-refresh", "import", "unused-imports", "prettier"],
+  "rules": {
+    "@typescript-eslint/no-shadow": "off",
+    "@typescript-eslint/no-throw-literal": "off",
+    "no-use-before-define": "off",
+    "react/prop-types": "off",
+    "react/no-unescaped-entities": "off",
+    "@typescript-eslint/no-use-before-define": "off",
+    "import/extensions": "off",
+    "react/react-in-jsx-scope": "off",
+    "react-refresh/only-export-components": "off",
+    "unused-imports/no-unused-imports": "error",
+    "no-unused-vars": "off",
+    "prettier/prettier": "error",
+    "@typescript-eslint/no-unused-vars": "warn",
+    "curly": "error",
+    "import/prefer-default-export": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": ["vite.config.ts"]
+      }
+    ]
+  }
+}

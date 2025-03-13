@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "nextra-theme-docs";
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { codeToHtml } from "shiki";
 
 interface CodeStyleRenderProps {

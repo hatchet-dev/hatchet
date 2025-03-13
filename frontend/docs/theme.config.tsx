@@ -1,4 +1,3 @@
-import React from "react";
 import { DocsThemeConfig } from "nextra-theme-docs";
 import Image from "next/image";
 
@@ -8,8 +7,8 @@ const config: DocsThemeConfig = {
   ),
   useNextSeoProps() {
     return {
-      titleTemplate: '%s – Hatchet Docs'
-    }
+      titleTemplate: "%s – Hatchet Docs",
+    };
   },
   primaryHue: 210,
   primarySaturation: 60,
@@ -20,11 +19,11 @@ const config: DocsThemeConfig = {
   chat: {
     link: "https://discord.gg/ZMeUafwH89",
   },
-  docsRepositoryBase: "https://github.com/hatchet-dev/hatchet/blob/main/frontend/docs",
+  docsRepositoryBase:
+    "https://github.com/hatchet-dev/hatchet/blob/main/frontend/docs",
   feedback: {
     labels: "Feedback",
-    useLink: (...args: unknown[]) =>
-      `https://github.com/hatchet-dev/hatchet/issues/new`,
+    useLink: () => `https://github.com/hatchet-dev/hatchet/issues/new`,
   },
   footer: {
     text: "Hatchet",
