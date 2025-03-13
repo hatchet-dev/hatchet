@@ -150,10 +150,11 @@ jobs:
           sleep 30
       - name: E2E tests
         run: |
-          cd hatchet/
+          cd ../..
           export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
-          cd ..
-          export HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hatchet/certs/ca.cert
+
+          cd sdks/typescript
+          export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
           export NODE_TLS_REJECT_UNAUTHORIZED=0
           pnpm test:e2e
 
