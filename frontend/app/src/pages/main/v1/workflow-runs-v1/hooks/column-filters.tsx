@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { TaskRunColumn } from '../components/v1/task-runs-columns';
+import { usePagination } from './pagination';
 
 export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
@@ -89,6 +90,7 @@ const parseTimeRange = ({
 
 export const useColumnFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { pageIndexParamName } = usePagination();
 
   const timeWindowFilter = (searchParams.get(queryParamNames.timeWindow) ||
     '1d') as TimeWindow;
@@ -156,10 +158,12 @@ export const useColumnFilters = () => {
           }
         });
 
+        newParams.set(pageIndexParamName, '0');
+
         return newParams;
       });
     },
-    [setSearchParams],
+    [setSearchParams, pageIndexParamName],
   );
 
   // create a timer which updates the defaultTimeWindowStartAt date every minute

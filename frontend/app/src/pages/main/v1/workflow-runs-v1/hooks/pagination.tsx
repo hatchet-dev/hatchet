@@ -5,10 +5,13 @@ import { useSearchParams } from 'react-router-dom';
 export const usePagination = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const pageSizeParamName = 'pageSize';
+  const pageIndexParamName = 'pageIndex';
+
   const pagination = useMemo(
     () => ({
-      pageIndex: Number(searchParams.get('pageIndex')) || 0,
-      pageSize: Number(searchParams.get('pageSize')) || 50,
+      pageIndex: Number(searchParams.get(pageSizeParamName)) || 0,
+      pageSize: Number(searchParams.get(pageIndexParamName)) || 50,
     }),
     [searchParams],
   );
@@ -22,8 +25,8 @@ export const usePagination = () => {
 
       setSearchParams((prev) => {
         const newParams = new URLSearchParams(prev);
-        newParams.set('pageSize', String(newValues.pageSize));
-        newParams.set('pageIndex', String(newValues.pageIndex));
+        newParams.set(pageSizeParamName, String(newValues.pageSize));
+        newParams.set(pageIndexParamName, String(newValues.pageIndex));
         return newParams;
       });
     },
@@ -35,7 +38,7 @@ export const usePagination = () => {
       setSearchParams((prev) => {
         const newParams = new URLSearchParams(prev);
 
-        newParams.set('pageSize', String(newPageSize));
+        newParams.set(pageSizeParamName, String(newPageSize));
 
         return newParams;
       });
@@ -56,5 +59,6 @@ export const usePagination = () => {
     setPagination,
     setPageSize,
     offset,
+    pageIndexParamName,
   };
 };
