@@ -200,6 +200,10 @@ type TaskRepository interface {
 
 	ListFinalizedWorkflowRuns(ctx context.Context, tenantId string, rootExternalIds []string) ([]*ListFinalizedWorkflowRunsResponse, error)
 
+	// ListTaskParentOutputs is a method to return the output of a task's parent and grandparent tasks. This is for v0 compatibility
+	// with the v1 engine, and shouldn't be called from new v1 endpoints.
+	ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
+
 	ProcessTaskTimeouts(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskTimeoutsRow, bool, error)
 
 	ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskReassignmentsRow, bool, error)
@@ -579,27 +583,6 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 
 	defer rollback()
 
-	// release queue items
-	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(tasks) != len(releasedTasks) {
-		return nil, fmt.Errorf("failed to release all tasks")
-	}
-
-	datas := make([][]byte, len(releasedTasks))
-	externalIds := make([]string, len(releasedTasks))
-
-	for i, releasedTask := range releasedTasks {
-		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage)
-
-		datas[i] = out.Bytes()
-		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
-	}
-
 	retriedTasks := make([]RetriedTask, 0)
 
 	// write app failures
@@ -651,6 +634,29 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 				},
 			})
 		}
+	}
+
+	// release queue items
+	// NOTE: it's important that we do this after we've written the retries, as some of the triggers for concurrency
+	// slots case on the retry queue item's existence.
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(tasks) != len(releasedTasks) {
+		return nil, fmt.Errorf("failed to release all tasks")
+	}
+
+	datas := make([][]byte, len(releasedTasks))
+	externalIds := make([]string, len(releasedTasks))
+
+	for i, releasedTask := range releasedTasks {
+		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage)
+
+		datas[i] = out.Bytes()
+		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
 	}
 
 	// write task events
@@ -2604,4 +2610,55 @@ func uniqueSet(taskIdRetryCounts []TaskIdInsertedAtRetryCount) []TaskIdInsertedA
 	}
 
 	return res
+}
+
+func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {
+	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.ID
+		taskInsertedAts[i] = task.InsertedAt
+	}
+
+	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
+
+	for _, outputTask := range res {
+		if outputTask.WorkflowRunID.Valid {
+			wrId := sqlchelpers.UUIDToStr(outputTask.WorkflowRunID)
+
+			e, err := newTaskEventFromBytes(outputTask.Output)
+
+			if err != nil {
+				r.l.Warn().Msgf("failed to parse task output: %v", err)
+				continue
+			}
+
+			workflowRunIdsToOutputs[wrId] = append(workflowRunIdsToOutputs[wrId], e)
+		}
+	}
+
+	resMap := make(map[int64][]*TaskOutputEvent)
+
+	for _, task := range tasks {
+		if task.WorkflowRunID.Valid {
+			wrId := sqlchelpers.UUIDToStr(task.WorkflowRunID)
+
+			if events, ok := workflowRunIdsToOutputs[wrId]; ok {
+				resMap[task.ID] = events
+			}
+		}
+	}
+
+	return resMap, nil
 }

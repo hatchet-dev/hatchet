@@ -84,8 +84,7 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 				err := json.Unmarshal(data.Output, &dataMap)
 
 				if err != nil {
-					s.l.Error().Err(err).Msg("failed to unmarshal output")
-					continue
+					s.l.Warn().Err(err).Msg("failed to unmarshal output")
 				}
 
 				parents[stepReadableId] = dataMap

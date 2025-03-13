@@ -729,6 +729,79 @@ JOIN
 LEFT JOIN
     step_orders so ON so.step_id = t.step_id;
 
+-- name: ListTaskParentOutputs :many
+-- Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
+-- of the tasks as well.
+WITH RECURSIVE augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_readable_id,
+        workflow_run_id,
+        step_id,
+        workflow_id
+    FROM
+        v1_task
+    WHERE
+        (id, inserted_at) IN (
+            SELECT
+                unnest(@taskIds::bigint[]),
+                unnest(@taskInsertedAts::timestamptz[])
+        )
+        AND tenant_id = @tenantId::uuid
+
+    UNION
+
+    -- Then, select the tasks that are parents of the input tasks
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id,
+        t.dag_id,
+        t.dag_inserted_at,
+        t.step_readable_id,
+        t.workflow_run_id,
+        t.step_id,
+        t.workflow_id
+    FROM
+        augmented_tasks at
+    JOIN
+        "Step" s1 ON s1."id" = at.step_id
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id
+    JOIN
+        v1_task t ON t.id = dt.task_id
+    JOIN
+        "Step" s2 ON s2."id" = t.step_id
+    JOIN
+        "_StepOrder" so ON so."A" = s2."id" AND so."B" = s1."id"
+)
+SELECT
+    DISTINCT ON (at.id, at.inserted_at, at.retry_count)
+    at.id,
+    at.inserted_at,
+    at.retry_count,
+    at.tenant_id,
+    at.dag_id,
+    at.dag_inserted_at,
+    at.step_readable_id,
+    at.workflow_run_id,
+    at.step_id,
+    at.workflow_id,
+    e.data AS output
+FROM
+    augmented_tasks at
+JOIN
+    v1_task_event e ON e.task_id = at.id AND e.task_inserted_at = at.inserted_at AND e.retry_count = at.retry_count
+WHERE
+    e.event_type = 'COMPLETED';
+
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 SELECT
