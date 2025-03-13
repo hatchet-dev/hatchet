@@ -390,7 +390,10 @@ WITH latest_retry_count AS (
     WHERE parent_task_external_id = (
         SELECT external_id
         FROM v1_tasks_olap
-        WHERE id = @taskId::bigint
+        WHERE
+            tenant_id = @tenantId::uuid
+            AND id = @taskId::bigint
+            AND inserted_at = @taskInsertedAt::timestamptz
         LIMIT 1
     )
 )
