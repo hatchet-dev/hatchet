@@ -503,7 +503,11 @@ WITH slots AS (
     SELECT
         *
     FROM
+        v1_concurrency_slot
     WHERE
+        (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
+            SELECT
+                ers.task_inserted_at,
                 ers.task_id,
                 ers.task_retry_count,
                 ers.tenant_id,
