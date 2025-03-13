@@ -129,8 +129,7 @@ jobs:
       - name: Generate
         working-directory: .
         run: |
-          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          task set-env-all
+          echo 'DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"' >> .env
           task migrate
           task generate-go
 
