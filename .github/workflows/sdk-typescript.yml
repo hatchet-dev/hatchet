@@ -129,7 +129,7 @@ jobs:
       - name: Generate
         working-directory: .
         run: |
-          echo 'DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"' >> hack/dev/.env
+          echo 'DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"' >> .env
           task migrate
           task generate-go
 
