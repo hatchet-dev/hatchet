@@ -111,7 +111,7 @@ export class Workflow<T extends Record<string, any>, K> {
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  enqueue(input: T, options: RunOpts): WorkflowRunRef<K> {
+  enqueue(input: T, options?: RunOpts): WorkflowRunRef<K> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }

@@ -21,7 +21,7 @@ export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: {
     name: 'simple-concurrency',
-    maxRuns: 1,
+    maxRuns: 100,
     limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     expression: 'input.GroupKey',
   },
@@ -30,7 +30,7 @@ export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
 simpleConcurrency.task({
   name: 'to-lower',
   fn: async (input) => {
-    await sleep(10_000);
+    await sleep(Math.floor(Math.random() * (1000 - 200 + 1)) + 200);
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };
