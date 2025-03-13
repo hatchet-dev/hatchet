@@ -1376,6 +1376,26 @@ func (w *workflowRunEngineRepository) SoftDeleteExpiredWorkflowRuns(ctx context.
 	return hasMore, nil
 }
 
+func (w *workflowRunEngineRepository) SoftDeleteSelectedWorkflowRuns(ctx context.Context, tenantId pgtype.UUID, ids []string) (int64, error) {
+	var ptgUUID []pgtype.UUID
+	for _, id := range ids {
+		ptgUUID = append(ptgUUID, sqlchelpers.UUIDFromStr(id))
+	}
+
+	numberDeleted, err := w.queries.SoftDeleteWorkflowRunsWithDependenciesByIds(ctx, w.pool, dbsqlc.SoftDeleteWorkflowRunsWithDependenciesByIdsParams{
+		Tenantid: tenantId,
+		Ids:      ptgUUID,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+	}
+
+	return numberDeleted, nil
+}
+
 func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "replay-workflow-run")
 	defer span.End()

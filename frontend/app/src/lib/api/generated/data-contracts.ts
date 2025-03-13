@@ -1108,6 +1108,10 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
+export interface WorkflowRunsDeleteRequest {
+  workflowRunIds: string[];
+}
+
 export interface WorkflowUpdateRequest {
   /** Whether the workflow is paused. */
   isPaused?: boolean;
@@ -1697,6 +1701,10 @@ export interface TenantList {
 export interface WorkflowVersionDefinition {
   /** The raw YAML definition of the workflow. */
   rawDefinition: string;
+}
+
+export interface WorkflowRunsDeleteResponse {
+  workflowRuns: WorkflowRun[];
 }
 
 export interface CreatePullRequestFromStepRun {

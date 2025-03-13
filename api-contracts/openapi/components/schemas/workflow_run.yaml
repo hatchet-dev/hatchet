@@ -409,6 +409,28 @@ WorkflowRunsCancelRequest:
   required:
     - workflowRunIds
 
+WorkflowRunsDeleteRequest:
+  type: object
+  properties:
+    workflowRunIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+  required:
+    - workflowRunIds
+
+WorkflowRunsDeleteResponse:
+  properties:
+    workflowRuns:
+      type: array
+      items:
+        $ref: "#/WorkflowRun"
+  required:
+    - workflowRuns
+
 WorkflowRunTriggeredBy:
   type: object
   properties:

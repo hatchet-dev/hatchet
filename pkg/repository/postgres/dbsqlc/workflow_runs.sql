@@ -1238,6 +1238,57 @@ WHERE
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
 
+-- name: SoftDeleteWorkflowRunsWithDependenciesByIds :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "WorkflowRun" wr2
+    WHERE
+        wr2."tenantId" = @tenantId::uuid AND
+    wr2."id" = ANY(sqlc.arg('ids')::uuid[]) AND
+    "deletedAt" IS NULL
+    FOR UPDATE SKIP LOCKED
+), job_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "JobRun"
+    WHERE
+        "workflowRunId" IN (SELECT "id" FROM for_delete) AND
+        "deletedAt" IS NULL
+), step_runs_to_delete AS (
+    SELECT
+        "id"
+    FROM
+        "StepRun"
+    WHERE
+        "jobRunId" IN (SELECT "id" FROM job_runs_to_delete) AND
+        "deletedAt" IS NULL
+), update_step_runs AS (
+    UPDATE
+        "StepRun"
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        "id" IN (SELECT "id" FROM step_runs_to_delete)
+), update_job_runs AS (
+    UPDATE
+        "JobRun" jr
+    SET
+        "deletedAt" = CURRENT_TIMESTAMP
+    WHERE
+        jr."id" IN (SELECT "id" FROM job_runs_to_delete)
+)
+UPDATE
+    "WorkflowRun" wr
+SET
+    "deletedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" IN (SELECT "id" FROM for_delete) AND
+    wr."tenantId" = @tenantId::uuid
+RETURNING
+    (SELECT COUNT(*) FROM for_delete) as num_deleted;
+
 -- name: ListActiveQueuedWorkflowVersions :many
 WITH QueuedRuns AS (
     SELECT DISTINCT ON (wr."workflowVersionId")

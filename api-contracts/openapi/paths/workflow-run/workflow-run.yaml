@@ -101,3 +101,55 @@ getWorkflowRunInput:
     summary: Get workflow run input
     tags:
       - Workflow Run
+deleteWorkflowRuns:
+  post:
+    x-resources: ["tenant"]
+    description: Delete a batch of workflow runs
+    operationId: workflow-run:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/WorkflowRunsDeleteRequest"
+      description: The input to delete the workflow runs
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowRunIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                    minLength: 36
+                    maxLength: 36
+        description: Successfully deleted the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Delete workflow runs
+    tags:
+      - Workflow Run

@@ -115,6 +115,7 @@ import {
   WorkflowRunStatus,
   WorkflowRunStatusList,
   WorkflowRunsCancelRequest,
+  WorkflowRunsDeleteRequest,
   WorkflowRunsMetrics,
   WorkflowUpdateRequest,
   WorkflowVersion,
@@ -1767,6 +1768,30 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       APIErrors
     >({
       path: `/api/v1/tenants/${tenant}/workflows/cancel`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Delete a batch of workflow runs
+   *
+   * @tags Workflow Run
+   * @name WorkflowRunDelete
+   * @summary Delete workflow runs
+   * @request POST:/api/v1/tenants/{tenant}/workflows-runs/delete
+   * @secure
+   */
+  workflowRunDelete = (tenant: string, data: WorkflowRunsDeleteRequest, params: RequestParams = {}) =>
+    this.request<
+      {
+        workflowRunIds?: string[];
+      },
+      APIErrors
+    >({
+      path: `/api/v1/tenants/${tenant}/workflows-runs/delete`,
       method: 'POST',
       body: data,
       secure: true,
