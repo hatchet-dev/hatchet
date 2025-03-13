@@ -2,6 +2,10 @@
 
 set -eux
 set -a
+
+echo "Working dir"
+ls -al
+
 . .env
 set +a
 
