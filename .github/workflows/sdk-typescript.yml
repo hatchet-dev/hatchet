@@ -1,0 +1,206 @@
+name: typescript
+on:
+  pull_request:
+    paths:
+      - 'sdks/typescript/**'
+      - '.github/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'sdks/typescript/**'
+      - '.github/**'
+
+defaults:
+  run:
+    working-directory: ./sdks/typescript
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install pnpm
+        run: npm install -g pnpm@8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Lint
+        run: pnpm lint:check
+
+  test-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install pnpm
+        run: npm install -g pnpm@8
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+  test-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Sync Submodule Branch
+        shell: bash
+        run: |
+          ./branch-sync.sh
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '25.1'
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@8
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Compose
+        working-directory: hatchet
+        run: docker compose up -d
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Generate
+        working-directory: hatchet
+        run: |
+          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          /bin/bash ./hack/db/atlas-apply.sh
+          task generate-go
+
+      - name: Setup
+        working-directory: hatchet
+        run: |
+          export SEED_DEVELOPMENT=true
+          export SERVER_PORT=8080
+          export SERVER_URL=http://localhost:8080
+          export SERVER_AUTH_COOKIE_DOMAIN=localhost
+          export SERVER_AUTH_COOKIE_INSECURE=true
+
+          go run ./cmd/hatchet-admin quickstart
+
+          go run ./cmd/hatchet-engine --config ./generated/ &
+          go run ./cmd/hatchet-api --config ./generated/ &
+
+          sleep 30
+      - name: E2E tests
+        run: |
+          cd hatchet/
+          export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
+          cd ..
+          export HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hatchet/certs/ca.cert
+          export NODE_TLS_REJECT_UNAUTHORIZED=0
+          pnpm test:e2e
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit, test-e2e]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install pnpm
+        run: npm install -g pnpm@8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build and Publish SDK
+        run: |
+          VERSION=$(jq '.version' package.json)
+
+          ## If the version contains `alpha`, it's an alpha version
+          ## and we should tag it as such.=
+          if [[ "$VERSION" == *alpha* ]]; then
+              pnpm publish:ci:alpha
+          else
+              pnpm publish:ci
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
