@@ -23,7 +23,7 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 
 	// check if the tenant version is being changed
 	if t.config.Runtime.PreventTenantVersionUpgrade &&
-		request.Body.Version != (*gen.TenantVersion)(&tenant.Version) &&
+		request.Body.Version != nil &&
 		*request.Body.Version == "V1" &&
 		!tenant.CanUpgradeV1 {
 
