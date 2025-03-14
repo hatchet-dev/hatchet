@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
@@ -24,7 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
+import { AxiosError } from 'axios';
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
 
@@ -48,15 +48,15 @@ export default function TenantSettings() {
 const TenantVersionSwitcher = () => {
   const { tenant } = useOutletContext<TenantContextType>();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-
+  const [upgradeRestrictedError, setUpgradeRestrictedError] =
+    useState<boolean>(false);
   const { handleApiError } = useApiError({});
 
   const { mutate: updateTenant, isPending } = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
+      setUpgradeRestrictedError(false);
       await api.tenantUpdate(tenant.metadata.id, data);
     },
     onSuccess: () => {
@@ -66,7 +66,14 @@ const TenantVersionSwitcher = () => {
 
       window.location.reload();
     },
-    onError: handleApiError,
+    onError: (error: AxiosError) => {
+      if (error.response?.status === 403) {
+        setUpgradeRestrictedError(true);
+      } else {
+        setShowUpgradeModal(false);
+        handleApiError(error);
+      }
+    },
   });
 
   // Only show for V0 tenants
@@ -98,35 +105,46 @@ const TenantVersionSwitcher = () => {
           <DialogHeader>
             <DialogTitle>Upgrade to V1 Beta</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <p className="text-sm">Upgrading your tenant to V1 will:</p>
-            <ul className="list-disc list-inside text-sm space-y-2">
-              <li>Enable new V1 features and improvements</li>
-              <li>Redirect you to the V1 interface</li>
-            </ul>
+          {!upgradeRestrictedError && (
+            <div className="space-y-4 py-4">
+              <p className="text-sm">Upgrading your tenant to V1 will:</p>
+              <ul className="list-disc list-inside text-sm space-y-2">
+                <li>Enable new V1 features and improvements</li>
+                <li>Redirect you to the V1 interface</li>
+              </ul>
+              <Alert variant="warn">
+                <AlertTitle>Warning</AlertTitle>
+                <AlertDescription>
+                  This upgrade will not automatically migrate your existing
+                  workflows or in-progress runs. To ensure zero downtime during
+                  the upgrade, please follow our migration guide which includes
+                  steps for parallel operation of V0 and V1 environments.
+                </AlertDescription>
+              </Alert>
+
+              <p className="text-sm">
+                Please read our{' '}
+                <a
+                  href="https://docs.hatchet.run/v1-migration"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  V1 migration guide
+                </a>{' '}
+                before proceeding.
+              </p>
+            </div>
+          )}
+          {upgradeRestrictedError && (
             <Alert variant="warn">
-              <AlertTitle>Warning</AlertTitle>
               <AlertDescription>
-                This upgrade will not automatically migrate your existing
-                workflows or in-progress runs. To ensure zero downtime during
-                the upgrade, please follow our migration guide which includes
-                steps for parallel operation of V0 and V1 environments.
+                Tenant version upgrade has been restricted for this tenant.
+                Please contact us to request upgrade referencing tenant id:{' '}
+                {tenant.metadata.id}
               </AlertDescription>
             </Alert>
-
-            <p className="text-sm">
-              Please read our{' '}
-              <a
-                href="https://docs.hatchet.run/v1-migration"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                V1 migration guide
-              </a>{' '}
-              before proceeding.
-            </p>
-          </div>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
