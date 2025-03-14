@@ -20,9 +20,16 @@ RETURNING *;
 -- name: UpsertRateLimitsBulk :exec
 WITH input_values AS (
     SELECT
-        unnest(@keys::text[]) AS "key",
-        unnest(@limitValues::int[]) AS "limitValue",
-        unnest(@windows::text[]) AS "window"
+        "key", "limitValue", "window"
+    FROM
+        (
+            SELECT
+                unnest(@keys::text[]) AS "key",
+                unnest(@limitValues::int[]) AS "limitValue",
+                unnest(@windows::text[]) AS "window"
+        ) AS subquery
+    ORDER BY
+        "key"
 )
 INSERT INTO "RateLimit" (
     "tenantId",
@@ -112,25 +119,29 @@ LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
 -- name: ListRateLimitsForTenantWithMutate :many
-WITH refill AS (
+WITH rls_to_update AS (
+    SELECT
+        rl.*
+    FROM
+        "RateLimit" rl
+    WHERE
+        rl."tenantId" = @tenantId::uuid
+        AND NOW() - rl."lastRefill" >= rl."window"::INTERVAL
+    ORDER BY
+        rl."tenantId" ASC, rl."key" ASC
+    FOR UPDATE
+), refill AS (
     UPDATE
         "RateLimit" rl
     SET
-        "value" = CASE
-            WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
-                get_refill_value(rl)
-            ELSE
-                rl."value"
-        END,
-        "lastRefill" = CASE
-            WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
-                CURRENT_TIMESTAMP
-            ELSE
-                rl."lastRefill"
-        END
+        "value" = get_refill_value(rl),
+        "lastRefill" = CURRENT_TIMESTAMP
+    FROM
+        rls_to_update
     WHERE
-        rl."tenantId" = @tenantId::uuid
-    RETURNING *
+        rl."tenantId" = rls_to_update."tenantId"
+        AND rl."key" = rls_to_update."key"
+    RETURNING rl.*
 )
 SELECT
     refill.*,
@@ -149,8 +160,29 @@ WHERE
     AND srl."tenantId" = @tenantId::uuid;
 
 -- name: BulkUpdateRateLimits :many
+WITH input AS (
+    SELECT
+        "key", "units"
+    FROM
+        (
+            SELECT
+                unnest(@keys::text[]) AS "key",
+                unnest(@units::int[]) AS "units"
+        ) AS subquery
+), rls_to_update AS (
+    SELECT
+        rl.*
+    FROM
+        "RateLimit" rl
+    WHERE
+        rl."tenantId" = @tenantId::uuid
+        AND rl."key" = ANY(SELECT "key" FROM input)
+    ORDER BY
+        rl."tenantId" ASC, rl."key" ASC
+    FOR UPDATE
+)
 UPDATE
-    "RateLimit" rl
+    "RateLimit"
 SET
     "value" = get_refill_value(rl) - input."units",
     "lastRefill" = CASE
@@ -160,11 +192,8 @@ SET
             rl."lastRefill"
     END
 FROM
-    (
-        SELECT
-            unnest(@keys::text[]) AS "key",
-            unnest(@units::int[]) AS "units"
-    ) AS input
+    rls_to_update rl
+JOIN input ON rl."key" = input."key"
 WHERE
     rl."key" = input."key"
     AND rl."tenantId" = @tenantId::uuid
