@@ -1,6 +1,6 @@
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
@@ -106,6 +106,7 @@ export function TaskRunsTable({
     selectedRuns,
     numPages,
     isLoading: isTaskRunsLoading,
+    isFetching: isTaskRunsFetching,
     refetch: refetchTaskRuns,
     getRowId,
   } = useTaskRuns({
@@ -120,6 +121,7 @@ export function TaskRunsTable({
     metrics,
     tenantMetrics,
     isLoading: isMetricsLoading,
+    isFetching: isMetricsFetching,
     refetch: refetchMetrics,
   } = useMetrics({
     workflow,
@@ -153,7 +155,12 @@ export function TaskRunsTable({
   const hasTaskFiltersSelected = Object.values(v1TaskFilters).some(
     (filter) => !!filter,
   );
-  const isLoading = isTaskRunsLoading || isMetricsLoading;
+
+  const hasLoaded = useMemo(() => {
+    return !isTaskRunsLoading && !isMetricsLoading;
+  }, [isTaskRunsLoading, isMetricsLoading]);
+
+  const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
 
   return (
     <>
@@ -319,7 +326,7 @@ export function TaskRunsTable({
       )}
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
-        isLoading={isLoading}
+        isLoading={isFetching}
         columns={columns(cf.setAdditionalMetadata, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

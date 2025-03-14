@@ -94,6 +94,7 @@ export const useTaskRuns = ({
     refetch: listTasksQuery.refetch,
     isLoading: listTasksQuery.isLoading,
     isError: listTasksQuery.isError,
+    isFetching: listTasksQuery.isFetching,
     getRowId,
   };
 };
