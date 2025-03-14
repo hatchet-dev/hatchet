@@ -12,8 +12,29 @@ import (
 )
 
 const bulkUpdateRateLimits = `-- name: BulkUpdateRateLimits :many
+WITH input AS (
+    SELECT
+        "key", "units"
+    FROM
+        (
+            SELECT
+                unnest($2::text[]) AS "key",
+                unnest($3::int[]) AS "units"
+        ) AS subquery
+), rls_to_update AS (
+    SELECT
+        rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill"
+    FROM
+        "RateLimit" rl
+    WHERE
+        rl."tenantId" = $1::uuid
+        AND rl."key" = ANY(SELECT "key" FROM input)
+    ORDER BY
+        rl."tenantId" ASC, rl."key" ASC
+    FOR UPDATE
+)
 UPDATE
-    "RateLimit" rl
+    "RateLimit"
 SET
     "value" = get_refill_value(rl) - input."units",
     "lastRefill" = CASE
@@ -23,11 +44,8 @@ SET
             rl."lastRefill"
     END
 FROM
-    (
-        SELECT
-            unnest($2::text[]) AS "key",
-            unnest($3::int[]) AS "units"
-    ) AS input
+    rls_to_update rl
+JOIN input ON rl."key" = input."key"
 WHERE
     rl."key" = input."key"
     AND rl."tenantId" = $1::uuid
@@ -40,15 +58,24 @@ type BulkUpdateRateLimitsParams struct {
 	Units    []int32     `json:"units"`
 }
 
-func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpdateRateLimitsParams) ([]*RateLimit, error) {
+type BulkUpdateRateLimitsRow struct {
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	Key        string           `json:"key"`
+	LimitValue int32            `json:"limitValue"`
+	Value      int32            `json:"value"`
+	Window     string           `json:"window"`
+	LastRefill pgtype.Timestamp `json:"lastRefill"`
+}
+
+func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpdateRateLimitsParams) ([]*BulkUpdateRateLimitsRow, error) {
 	rows, err := db.Query(ctx, bulkUpdateRateLimits, arg.Tenantid, arg.Keys, arg.Units)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*RateLimit
+	var items []*BulkUpdateRateLimitsRow
 	for rows.Next() {
-		var i RateLimit
+		var i BulkUpdateRateLimitsRow
 		if err := rows.Scan(
 			&i.TenantId,
 			&i.Key,
@@ -192,25 +219,29 @@ func (q *Queries) ListRateLimitsForTenantNoMutate(ctx context.Context, db DBTX, 
 }
 
 const listRateLimitsForTenantWithMutate = `-- name: ListRateLimitsForTenantWithMutate :many
-WITH refill AS (
+WITH rls_to_update AS (
+    SELECT
+        rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill"
+    FROM
+        "RateLimit" rl
+    WHERE
+        rl."tenantId" = $1::uuid
+        AND NOW() - rl."lastRefill" >= rl."window"::INTERVAL
+    ORDER BY
+        rl."tenantId" ASC, rl."key" ASC
+    FOR UPDATE
+), refill AS (
     UPDATE
         "RateLimit" rl
     SET
-        "value" = CASE
-            WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
-                get_refill_value(rl)
-            ELSE
-                rl."value"
-        END,
-        "lastRefill" = CASE
-            WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
-                CURRENT_TIMESTAMP
-            ELSE
-                rl."lastRefill"
-        END
+        "value" = get_refill_value(rl),
+        "lastRefill" = CURRENT_TIMESTAMP
+    FROM
+        rls_to_update
     WHERE
-        rl."tenantId" = $1::uuid
-    RETURNING "tenantId", key, "limitValue", value, "window", "lastRefill"
+        rl."tenantId" = rls_to_update."tenantId"
+        AND rl."key" = rls_to_update."key"
+    RETURNING rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill"
 )
 SELECT
     refill."tenantId", refill.key, refill."limitValue", refill.value, refill."window", refill."lastRefill",
@@ -261,9 +292,16 @@ func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX
 const upsertRateLimitsBulk = `-- name: UpsertRateLimitsBulk :exec
 WITH input_values AS (
     SELECT
-        unnest($2::text[]) AS "key",
-        unnest($3::int[]) AS "limitValue",
-        unnest($4::text[]) AS "window"
+        "key", "limitValue", "window"
+    FROM
+        (
+            SELECT
+                unnest($2::text[]) AS "key",
+                unnest($3::int[]) AS "limitValue",
+                unnest($4::text[]) AS "window"
+        ) AS subquery
+    ORDER BY
+        "key"
 )
 INSERT INTO "RateLimit" (
     "tenantId",
