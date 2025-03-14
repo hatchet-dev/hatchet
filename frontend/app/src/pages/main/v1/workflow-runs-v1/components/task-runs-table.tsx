@@ -69,7 +69,7 @@ export function TaskRunsTable({
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
-  refetchInterval = 100000,
+  refetchInterval = 6000,
   showMetrics = false,
   showCounts = true,
   disableTaskRunPagination = false,
@@ -197,7 +197,7 @@ export function TaskRunsTable({
                 code={JSON.stringify(tenantMetrics || '{}', null, 2)}
               />
             )}
-            {isMetricsLoading && <Skeleton className="w-full h-36" />}
+            {isMetricsLoading && 'Loading...'}
           </DialogContent>
         </Dialog>
       )}
