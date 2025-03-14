@@ -52,7 +52,6 @@ export const routes: RouteObject[] = [
         lazy: async () =>
           import('./pages/onboarding/verify-email').then((res) => {
             return {
-              loader: res.loader,
               Component: res.default,
             };
           }),
@@ -62,7 +61,6 @@ export const routes: RouteObject[] = [
         lazy: async () =>
           import('./pages/authenticated').then((res) => {
             return {
-              loader: res.loader,
               Component: res.default,
             };
           }),
@@ -100,7 +98,6 @@ export const routes: RouteObject[] = [
             lazy: async () =>
               import('./pages/onboarding/invites').then((res) => {
                 return {
-                  loader: res.loader,
                   Component: res.default,
                 };
               }),
@@ -343,7 +340,6 @@ export const routes: RouteObject[] = [
         lazy: async () =>
           import('./pages/authenticated').then((res) => {
             return {
-              loader: res.loader,
               Component: res.default,
             };
           }),
