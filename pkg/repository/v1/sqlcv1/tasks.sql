@@ -628,6 +628,7 @@ WITH RECURSIVE augmented_tasks AS (
         id,
         tenant_id,
         dag_id,
+        dag_inserted_at,
         step_id
     FROM
         v1_task
@@ -646,15 +647,16 @@ WITH RECURSIVE augmented_tasks AS (
         t.id,
         t.tenant_id,
         t.dag_id,
+        t.dag_inserted_at,
         t.step_id
     FROM
         augmented_tasks at
     JOIN
         "Step" s1 ON s1."id" = at.step_id
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = at.dag_id
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
     JOIN
-        v1_task t ON t.id = dt.task_id
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
         "Step" s2 ON s2."id" = t.step_id
     JOIN
@@ -774,9 +776,9 @@ WITH RECURSIVE augmented_tasks AS (
     JOIN
         "Step" s1 ON s1."id" = at.step_id
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = at.dag_id
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
     JOIN
-        v1_task t ON t.id = dt.task_id
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
         "Step" s2 ON s2."id" = t.step_id
     JOIN
