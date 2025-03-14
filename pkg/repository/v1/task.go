@@ -2142,7 +2142,7 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 }
 
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 30000)
 
 	if err != nil {
 		return nil, err
@@ -2166,7 +2166,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list tasks for replay: %w", err)
 	}
 
 	lockedTaskIds := make([]int64, len(lockedTasks))
@@ -2201,7 +2201,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to lock DAGs for replay: %w", err)
 	}
 
 	successfullyLockedDAGsMap := make(map[int64]bool)
@@ -2222,7 +2222,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to preflight check DAGs for replay: %w", err)
 	}
 
 	for _, dag := range preflightDAGs {
@@ -2239,7 +2239,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to preflight check tasks for replay: %w", err)
 	}
 
 	for _, task := range failedPreflightChecks {
@@ -2324,7 +2324,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list all tasks in DAGs: %w", err)
 	}
 
 	dagIdsToAllTasks := make(map[int64][]*sqlcv1.ListAllTasksInDagsRow)
@@ -2344,7 +2344,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		upsertedTasks, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to replay existing tasks: %w", err)
 		}
 	}
 
@@ -2404,7 +2404,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		})
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to delete matching signal events: %w", err)
 		}
 	}
 
@@ -2492,14 +2492,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	reconstructedMatches, candidateEvents, err := r.reconstructGroupConditions(ctx, tx, tenantId, subtreeExternalIds, eventMatches)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to reconstruct group conditions: %w", err)
 	}
 
 	// create the event matches
 	err = r.createEventMatches(ctx, tx, tenantId, reconstructedMatches)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
 
 	// process event matches
@@ -2507,11 +2507,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	internalMatchResults, err := r.processInternalEventMatches(ctx, tx, tenantId, candidateEvents)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to process internal event matches: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return &ReplayTasksResult{
@@ -2717,12 +2717,14 @@ func uniqueSet(taskIdRetryCounts []TaskIdInsertedAtRetryCount) []TaskIdInsertedA
 }
 
 func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {
-	taskIds := make([]int64, len(tasks))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 
-	for i, task := range tasks {
-		taskIds[i] = task.ID
-		taskInsertedAts[i] = task.InsertedAt
+	for _, task := range tasks {
+		if task.DagID.Valid {
+			taskIds = append(taskIds, task.ID)
+			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+		}
 	}
 
 	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
