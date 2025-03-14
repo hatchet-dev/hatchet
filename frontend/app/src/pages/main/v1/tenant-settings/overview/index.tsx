@@ -79,7 +79,16 @@ const TenantVersionSwitcher = () => {
           Tenant Version
         </h2>
         <p className="text-sm text-muted-foreground">
-          You can downgrade your tenant to V0 if needed.
+          You can downgrade your tenant to v0 if needed. Please help us improve
+          v1 by reporting any bugs in our{' '}
+          <a
+            href="https://github.com/hatchet-dev/hatchet/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-indigo-400 hover:underline"
+          >
+            Github issues.
+          </a>
         </p>
         <Button
           onClick={() => setShowDowngradeModal(true)}
@@ -88,20 +97,20 @@ const TenantVersionSwitcher = () => {
           className="w-fit"
         >
           {isPending ? <Spinner /> : null}
-          Downgrade to V0
+          Downgrade to v0
         </Button>
       </div>
 
       <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Downgrade to V0</DialogTitle>
+            <DialogTitle>Downgrade to v0</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Alert variant="warn">
               <AlertTitle>Warning</AlertTitle>
               <AlertDescription>
-                Downgrading to V0 will remove access to V1 features and may
+                Downgrading to v0 will remove access to v1 features and may
                 affect your existing workflows. This action should only be taken
                 if absolutely necessary.
               </AlertDescription>

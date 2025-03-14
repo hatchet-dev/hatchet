@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "canUpgradeV1" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "canUpgradeV1" BOOLEAN NOT NULL DEFAULT true;
 -- +goose StatementEnd
 
 -- +goose Down

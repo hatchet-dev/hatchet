@@ -83,12 +83,13 @@ const TenantVersionSwitcher = () => {
 
   return (
     <>
-      <div className="flex flex-col gap-y-2">
+      <div className="flex flex-col gap-y-4">
         <h2 className="text-xl font-semibold leading-tight text-foreground">
           Tenant Version
         </h2>
         <p className="text-sm text-muted-foreground">
-          Upgrade your tenant to V1 to access new features and improvements.
+          Upgrade your tenant to v1 to access new features and improvements. v1
+          is currently in beta.
         </p>
         <Button
           onClick={() => setShowUpgradeModal(true)}
@@ -96,21 +97,21 @@ const TenantVersionSwitcher = () => {
           className="w-fit"
         >
           {isPending ? <Spinner /> : null}
-          Upgrade to V1 Beta
+          Upgrade to v1 (beta)
         </Button>
       </div>
 
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Upgrade to V1 Beta</DialogTitle>
+            <DialogTitle>Upgrade to v1 (beta)</DialogTitle>
           </DialogHeader>
           {!upgradeRestrictedError && (
             <div className="space-y-4 py-4">
-              <p className="text-sm">Upgrading your tenant to V1 will:</p>
+              <p className="text-sm">Upgrading your tenant to v1 will:</p>
               <ul className="list-disc list-inside text-sm space-y-2">
-                <li>Enable new V1 features and improvements</li>
-                <li>Redirect you to the V1 interface</li>
+                <li>Enable new v1 features and improvements</li>
+                <li>Redirect you to the v1 interface</li>
               </ul>
               <Alert variant="warn">
                 <AlertTitle>Warning</AlertTitle>
@@ -118,19 +119,19 @@ const TenantVersionSwitcher = () => {
                   This upgrade will not automatically migrate your existing
                   workflows or in-progress runs. To ensure zero downtime during
                   the upgrade, please follow our migration guide which includes
-                  steps for parallel operation of V0 and V1 environments.
+                  steps for parallel operation of v0 and v1 environments.
                 </AlertDescription>
               </Alert>
 
               <p className="text-sm">
                 Please read our{' '}
                 <a
-                  href="https://docs.hatchet.run/v1-migration"
+                  href="https://docs.hatchet.run/v1/preview"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="text-indigo-400 hover:underline"
                 >
-                  V1 migration guide
+                  v1 release notes
                 </a>{' '}
                 before proceeding.
               </p>
