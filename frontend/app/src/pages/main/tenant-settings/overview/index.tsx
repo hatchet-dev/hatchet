@@ -16,7 +16,14 @@ import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@/components/ui/loading';
 import { capitalize } from '@/lib/utils';
 import { UpdateTenantForm } from './components/update-tenant-form';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -40,10 +47,10 @@ export default function TenantSettings() {
 
 const TenantVersionSwitcher = () => {
   const { tenant } = useOutletContext<TenantContextType>();
-  const selectedVersion = tenant.version;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const { handleApiError } = useApiError({});
 
@@ -56,41 +63,93 @@ const TenantVersionSwitcher = () => {
       queryClient.invalidateQueries({
         queryKey: queries.user.listTenantMemberships.queryKey,
       });
+
+      window.location.reload();
     },
     onError: handleApiError,
   });
-  const tenantVersions = Object.keys(TenantVersion) as Array<
-    keyof typeof TenantVersion
-  >;
+
+  // Only show for V0 tenants
+  if (tenant.version === TenantVersion.V1) {
+    return null;
+  }
 
   return (
-    <div className="flex flex-col gap-y-2">
-      <h2 className="text-xl font-semibold leading-tight text-foreground">
-        Tenant Version
-      </h2>
-      <RadioGroup
-        disabled={isPending}
-        value={selectedVersion}
-        onValueChange={(value) => {
-          updateTenant({
-            version: value as TenantVersion,
-          });
+    <>
+      <div className="flex flex-col gap-y-2">
+        <h2 className="text-xl font-semibold leading-tight text-foreground">
+          Tenant Version
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Upgrade your tenant to V1 to access new features and improvements.
+        </p>
+        <Button
+          onClick={() => setShowUpgradeModal(true)}
+          disabled={isPending}
+          className="w-fit"
+        >
+          {isPending ? <Spinner /> : null}
+          Upgrade to V1
+        </Button>
+      </div>
 
-          if (value === 'V1' && !pathname.includes('v1')) {
-            navigate('/v1' + pathname);
-          } else if (value === 'V0' && pathname.includes('v1')) {
-            navigate(pathname.replace('/v1', ''));
-          }
-        }}
-      >
-        {tenantVersions.map((version) => (
-          <div key={version} className="flex items-center space-x-2">
-            <RadioGroupItem value={version} id={version.toLowerCase()} />
-            <Label htmlFor={version.toLowerCase()}>{version}</Label>
+      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Upgrade to V1</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm">Upgrading your tenant to V1 will:</p>
+            <ul className="list-disc list-inside text-sm space-y-2">
+              <li>Enable new V1 features and improvements</li>
+              <li>Redirect you to the V1 interface</li>
+            </ul>
+            <Alert variant="warn">
+              <AlertTitle>Warning</AlertTitle>
+              <AlertDescription>
+                This upgrade will not automatically migrate your existing
+                workflows or in-progress runs. To ensure zero downtime during
+                the upgrade, please follow our migration guide which includes
+                steps for parallel operation of V0 and V1 environments.
+              </AlertDescription>
+            </Alert>
+
+            <p className="text-sm">
+              Please read our{' '}
+              <a
+                href="https://docs.hatchet.run/v1-migration"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                V1 migration guide
+              </a>{' '}
+              before proceeding.
+            </p>
           </div>
-        ))}
-      </RadioGroup>
-    </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUpgradeModal(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                updateTenant({
+                  version: TenantVersion.V1,
+                });
+              }}
+              disabled={isPending}
+            >
+              {isPending ? <Spinner /> : null}
+              Confirm Upgrade
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
