@@ -2301,6 +2301,30 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			}
 		}
 
+		if task.DagID.Valid && task.JobKind == sqlcv1.JobKindONFAILURE {
+			// we need to check if there are other steps in the subtree
+			doesOnFailureHaveOtherSteps := false
+
+			for stepId := range subtreeStepIds[task.DagID.Int64] {
+				if stepId == sqlchelpers.UUIDToStr(task.StepID) {
+					continue
+				}
+
+				doesOnFailureHaveOtherSteps = true
+				break
+			}
+
+			if doesOnFailureHaveOtherSteps {
+				if _, ok := dagIdsToChildTasks[task.DagID.Int64]; !ok {
+					dagIdsToChildTasks[task.DagID.Int64] = make([]*sqlcv1.ListTasksForReplayRow, 0)
+				}
+
+				dagIdsToChildTasks[task.DagID.Int64] = append(dagIdsToChildTasks[task.DagID.Int64], task)
+
+				continue
+			}
+		}
+
 		replayOpts = append(replayOpts, ReplayTaskOpts{
 			TaskId:             task.ID,
 			InsertedAt:         task.InsertedAt,
