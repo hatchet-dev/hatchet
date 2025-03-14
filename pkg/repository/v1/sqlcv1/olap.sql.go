@@ -907,8 +907,6 @@ WITH latest_retry_count AS (
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
         AND retry_count = (SELECT retry_count FROM latest_retry_count)
-    ORDER BY
-        event_timestamp DESC
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
