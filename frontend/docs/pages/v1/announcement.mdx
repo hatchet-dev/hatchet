@@ -1,0 +1,27 @@
+# Hatchet v1 is now available!
+
+For the past several months, we've been working on a complete rewrite of the Hatchet queue with a focus on performance and a set of feature requests which weren’t possible in the v0 architecture. 
+
+This discussion outlines the timeline, new features and breaking changes you can expect from the new release. 
+
+**If you have feedback or questions, please add them to this Github discussion.** 
+
+**Timeline**
+
+- **March 24th, 2025:** Hatchet v1 will be released on Hatchet Cloud and under the latest `v0.55.x` release bundled with the v0 Hatchet engine. It will be opt-in, meaning engine v0 will still be the default engine for each tenant.
+- **March 24th-28th, 2025:** Hatchet v1 launch week. We will be highlighting a new feature or performance improvement in the v1 engine. You can get updates in our Discord [LINK] and we will be updating the top of our README [LINK] each day with new posts.
+- **May 1st, 2025:** Hatchet v1 will become the new default engine for all Hatchet releases after this point. We will be releasing `v1.0.x` on this date.
+- **September 30th, 2025:** Hatchet v0 will become EOL, and will no longer be bundled into the Hatchet runtime.
+
+**New features**
+
+At a high level, Hatchet v1 will support the following new features:
+
+- Complex/conditional workflow logic, like skipping or branching workflows
+- Durable execution features: workflow signaling and durable sleep
+- A documented, stable REST API for interacting with workflows
+- Each SDK will receive a new `v1.0.x` release with the following improvements:
+    - Python will receive improved support for Pydantic validation, dynamic workflow composition, and simpler workflow and task declaration.
+    - Typescript will receive a new factory method for building workflows, and improved typing and validation support
+    - Go will receive improvements for registering workflows and defining tasks.
+- Improved bulk cancellations and replays
