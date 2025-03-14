@@ -89,14 +89,14 @@ const TenantVersionSwitcher = () => {
           className="w-fit"
         >
           {isPending ? <Spinner /> : null}
-          Upgrade to V1
+          Upgrade to V1 Beta
         </Button>
       </div>
 
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Upgrade to V1</DialogTitle>
+            <DialogTitle>Upgrade to V1 Beta</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm">Upgrading your tenant to V1 will:</p>
