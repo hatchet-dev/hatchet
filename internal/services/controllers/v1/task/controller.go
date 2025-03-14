@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -1228,7 +1227,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		dataBytes := v1.NewFailedTaskOutputEventFromTask(task, task.InitialStateReason.String).Bytes()
+		dataBytes := v1.NewFailedTaskOutputEventFromTask(task).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,
@@ -1284,13 +1283,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		outputMap := map[string]bool{
-			"skipped": true,
-		}
-
-		outputMapBytes, _ := json.Marshal(outputMap) // nolint: errcheck
-
-		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task, outputMapBytes).Bytes()
+		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,
