@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -14,6 +15,7 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -120,6 +122,48 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 		if err != nil {
 			return fmt.Errorf("could not bulk list step run data: %w", err)
+		}
+
+		parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, msg.TenantID, bulkDatas)
+
+		if err != nil {
+			return fmt.Errorf("could not list parent data: %w", err)
+		}
+
+		for _, task := range bulkDatas {
+			if parentData, ok := parentDataMap[task.ID]; ok {
+				currInput := &v1.V1StepRunData{}
+
+				if task.Input != nil {
+					err := json.Unmarshal(task.Input, currInput)
+
+					if err != nil {
+						d.l.Warn().Err(err).Msg("failed to unmarshal input")
+						continue
+					}
+				}
+
+				readableIdToData := make(map[string]map[string]interface{})
+
+				for _, outputEvent := range parentData {
+					outputMap := make(map[string]interface{})
+
+					if outputEvent.Output != nil {
+						err := json.Unmarshal(outputEvent.Output, &outputMap)
+
+						if err != nil {
+							d.l.Warn().Err(err).Msg("failed to unmarshal output")
+							continue
+						}
+					}
+
+					readableIdToData[outputEvent.StepReadableID] = outputMap
+				}
+
+				currInput.Parents = readableIdToData
+
+				task.Input = currInput.Bytes()
+			}
 		}
 
 		taskIdToData := make(map[int64]*sqlcv1.V1Task)

@@ -416,7 +416,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 			taskIds,
 			externalIds,
 			datas,
-			sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
+			makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, len(taskIds)),
 			eventKeys,
 		)
 

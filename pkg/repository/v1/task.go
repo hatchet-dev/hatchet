@@ -200,6 +200,10 @@ type TaskRepository interface {
 
 	ListFinalizedWorkflowRuns(ctx context.Context, tenantId string, rootExternalIds []string) ([]*ListFinalizedWorkflowRunsResponse, error)
 
+	// ListTaskParentOutputs is a method to return the output of a task's parent and grandparent tasks. This is for v0 compatibility
+	// with the v1 engine, and shouldn't be called from new v1 endpoints.
+	ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
+
 	ProcessTaskTimeouts(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskTimeoutsRow, bool, error)
 
 	ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskReassignmentsRow, bool, error)
@@ -524,7 +528,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		taskIdRetryCounts,
 		externalIds,
 		datas,
-		sqlcv1.V1TaskEventTypeCOMPLETED,
+		makeEventTypeArr(sqlcv1.V1TaskEventTypeCOMPLETED, len(tasks)),
 		make([]string, len(tasks)),
 	)
 
@@ -579,27 +583,6 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 
 	defer rollback()
 
-	// release queue items
-	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(tasks) != len(releasedTasks) {
-		return nil, fmt.Errorf("failed to release all tasks")
-	}
-
-	datas := make([][]byte, len(releasedTasks))
-	externalIds := make([]string, len(releasedTasks))
-
-	for i, releasedTask := range releasedTasks {
-		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage)
-
-		datas[i] = out.Bytes()
-		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
-	}
-
 	retriedTasks := make([]RetriedTask, 0)
 
 	// write app failures
@@ -653,6 +636,29 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		}
 	}
 
+	// release queue items
+	// NOTE: it's important that we do this after we've written the retries, as some of the triggers for concurrency
+	// slots case on the retry queue item's existence.
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(tasks) != len(releasedTasks) {
+		return nil, fmt.Errorf("failed to release all tasks")
+	}
+
+	datas := make([][]byte, len(releasedTasks))
+	externalIds := make([]string, len(releasedTasks))
+
+	for i, releasedTask := range releasedTasks {
+		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage)
+
+		datas[i] = out.Bytes()
+		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
+	}
+
 	// write task events
 	internalEvents, err := r.createTaskEvents(
 		ctx,
@@ -661,7 +667,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		tasks,
 		externalIds,
 		datas,
-		sqlcv1.V1TaskEventTypeFAILED,
+		makeEventTypeArr(sqlcv1.V1TaskEventTypeFAILED, len(tasks)),
 		make([]string, len(tasks)),
 	)
 
@@ -881,7 +887,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		tasks,
 		externalIds,
 		datas,
-		sqlcv1.V1TaskEventTypeCANCELLED,
+		makeEventTypeArr(sqlcv1.V1TaskEventTypeCANCELLED, len(tasks)),
 		make([]string, len(tasks)),
 	)
 
@@ -1654,6 +1660,12 @@ func (r *sharedRepository) insertTasks(
 
 	res := make([]*sqlcv1.V1Task, 0)
 
+	// for any initial states which are not queued, create a finalizing task event
+	eventTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
+	eventTaskExternalIds := make([]string, 0)
+	eventDatas := make([][]byte, 0)
+	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
+
 	for stepId, params := range stepIdsToParams {
 		createdTasks, err := r.queries.CreateTasks(ctx, tx, params)
 
@@ -1662,6 +1674,47 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		res = append(res, createdTasks...)
+
+		for _, createdTask := range createdTasks {
+			idRetryCount := TaskIdInsertedAtRetryCount{
+				Id:         createdTask.ID,
+				InsertedAt: createdTask.InsertedAt,
+				RetryCount: createdTask.RetryCount,
+			}
+
+			switch createdTask.InitialState {
+			case sqlcv1.V1TaskInitialStateFAILED:
+				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(createdTask).Bytes())
+				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
+			case sqlcv1.V1TaskInitialStateCANCELLED:
+				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(createdTask).Bytes())
+				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
+			case sqlcv1.V1TaskInitialStateSKIPPED:
+				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(createdTask.ExternalID))
+				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(createdTask).Bytes())
+				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
+			}
+		}
+	}
+
+	_, err = r.createTaskEvents(
+		ctx,
+		tx,
+		tenantId,
+		eventTaskIdRetryCounts,
+		eventTaskExternalIds,
+		eventDatas,
+		eventTypes,
+		make([]string, len(eventTaskIdRetryCounts)),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task events: %w", err)
 	}
 
 	if len(createExpressionOpts) > 0 {
@@ -1849,6 +1902,12 @@ func (r *sharedRepository) replayTasks(
 
 	res := make([]*sqlcv1.V1Task, 0)
 
+	// for any initial states which are not queued, create a finalizing task event
+	eventTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
+	eventTaskExternalIds := make([]string, 0)
+	eventDatas := make([][]byte, 0)
+	eventTypes := make([]sqlcv1.V1TaskEventType, 0)
+
 	for stepId, params := range stepIdsToParams {
 		replayRes, err := r.queries.ReplayTasks(ctx, tx, params)
 
@@ -1857,6 +1916,47 @@ func (r *sharedRepository) replayTasks(
 		}
 
 		res = append(res, replayRes...)
+
+		for _, replayedTask := range replayRes {
+			idRetryCount := TaskIdInsertedAtRetryCount{
+				Id:         replayedTask.ID,
+				InsertedAt: replayedTask.InsertedAt,
+				RetryCount: replayedTask.RetryCount,
+			}
+
+			switch replayedTask.InitialState {
+			case sqlcv1.V1TaskInitialStateFAILED:
+				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(replayedTask.ExternalID))
+				eventDatas = append(eventDatas, NewFailedTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeFAILED)
+			case sqlcv1.V1TaskInitialStateCANCELLED:
+				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(replayedTask.ExternalID))
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
+			case sqlcv1.V1TaskInitialStateSKIPPED:
+				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
+				eventTaskExternalIds = append(eventTaskExternalIds, sqlchelpers.UUIDToStr(replayedTask.ExternalID))
+				eventDatas = append(eventDatas, NewSkippedTaskOutputEventFromTask(replayedTask).Bytes())
+				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCOMPLETED)
+			}
+		}
+	}
+
+	_, err = r.createTaskEvents(
+		ctx,
+		tx,
+		tenantId,
+		eventTaskIdRetryCounts,
+		eventTaskExternalIds,
+		eventDatas,
+		eventTypes,
+		make([]string, len(eventTaskIdRetryCounts)),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task events: %w", err)
 	}
 
 	// TODO: this should be moved to after the transaction commits
@@ -1968,7 +2068,7 @@ func (r *sharedRepository) createTaskEvents(
 	tasks []TaskIdInsertedAtRetryCount,
 	taskExternalIds []string,
 	eventDatas [][]byte,
-	eventType sqlcv1.V1TaskEventType,
+	eventTypes []sqlcv1.V1TaskEventType,
 	eventKeys []string,
 ) ([]InternalTaskEvent, error) {
 	if len(tasks) != len(eventDatas) {
@@ -1978,7 +2078,7 @@ func (r *sharedRepository) createTaskEvents(
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
-	eventTypes := make([]string, len(tasks))
+	eventTypesStrs := make([]string, len(tasks))
 	paramDatas := make([][]byte, len(tasks))
 	paramKeys := make([]pgtype.Text, len(tasks))
 
@@ -1988,7 +2088,7 @@ func (r *sharedRepository) createTaskEvents(
 		taskIds[i] = task.Id
 		taskInsertedAts[i] = task.InsertedAt
 		retryCounts[i] = task.RetryCount
-		eventTypes[i] = string(eventType)
+		eventTypesStrs[i] = string(eventTypes[i])
 
 		if len(eventDatas[i]) == 0 {
 			paramDatas[i] = nil
@@ -2008,7 +2108,7 @@ func (r *sharedRepository) createTaskEvents(
 			TaskExternalID: taskExternalIds[i],
 			TenantID:       tenantId,
 			RetryCount:     task.RetryCount,
-			EventType:      eventType,
+			EventType:      eventTypes[i],
 			EventKey:       eventKeys[i],
 			Data:           eventDatas[i],
 		}
@@ -2019,7 +2119,7 @@ func (r *sharedRepository) createTaskEvents(
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Retrycounts:     retryCounts,
-		Eventtypes:      eventTypes,
+		Eventtypes:      eventTypesStrs,
 		Datas:           paramDatas,
 		Eventkeys:       paramKeys,
 	})
@@ -2029,6 +2129,16 @@ func (r *sharedRepository) createTaskEvents(
 	}
 
 	return internalTaskEvents, nil
+}
+
+func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEventType {
+	a := make([]sqlcv1.V1TaskEventType, n)
+
+	for i := range a {
+		a[i] = status
+	}
+
+	return a
 }
 
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
@@ -2604,4 +2714,55 @@ func uniqueSet(taskIdRetryCounts []TaskIdInsertedAtRetryCount) []TaskIdInsertedA
 	}
 
 	return res
+}
+
+func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {
+	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.ID
+		taskInsertedAts[i] = task.InsertedAt
+	}
+
+	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
+
+	for _, outputTask := range res {
+		if outputTask.WorkflowRunID.Valid {
+			wrId := sqlchelpers.UUIDToStr(outputTask.WorkflowRunID)
+
+			e, err := newTaskEventFromBytes(outputTask.Output)
+
+			if err != nil {
+				r.l.Warn().Msgf("failed to parse task output: %v", err)
+				continue
+			}
+
+			workflowRunIdsToOutputs[wrId] = append(workflowRunIdsToOutputs[wrId], e)
+		}
+	}
+
+	resMap := make(map[int64][]*TaskOutputEvent)
+
+	for _, task := range tasks {
+		if task.WorkflowRunID.Valid {
+			wrId := sqlchelpers.UUIDToStr(task.WorkflowRunID)
+
+			if events, ok := workflowRunIdsToOutputs[wrId]; ok {
+				resMap[task.ID] = events
+			}
+		}
+	}
+
+	return resMap, nil
 }

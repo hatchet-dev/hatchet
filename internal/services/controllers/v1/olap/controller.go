@@ -402,7 +402,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		switch eventTypes[i] {
 		case sqlcv1.V1EventTypeOlapFINISHED:
-			event.Output = []byte(eventPayloads[i])
+			if eventPayloads[i] != "" {
+				event.Output = []byte(eventPayloads[i])
+			}
 		case sqlcv1.V1EventTypeOlapFAILED:
 			event.ErrorMessage = sqlchelpers.TextFromStr(eventPayloads[i])
 		case sqlcv1.V1EventTypeOlapCANCELLED:
