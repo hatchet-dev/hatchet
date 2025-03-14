@@ -69,7 +69,7 @@ export function TaskRunsTable({
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
-  refetchInterval = 6000,
+  refetchInterval = 5000,
   showMetrics = false,
   showCounts = true,
   disableTaskRunPagination = false,
