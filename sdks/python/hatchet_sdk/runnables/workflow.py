@@ -313,7 +313,7 @@ class Workflow(Generic[TWorkflowInput]):
             options=options,
         )
 
-    def parse_task_name(
+    def _parse_task_name(
         self, name: str | None, func: Callable[[TWorkflowInput, Context], R]
     ) -> str:
         non_null_name = name or func.__name__
@@ -369,7 +369,7 @@ class Workflow(Generic[TWorkflowInput]):
                 fn=func,
                 workflow=self,
                 type=StepType.DEFAULT,
-                name=self.parse_task_name(name, func),
+                name=self._parse_task_name(name, func),
                 timeout=timeout,
                 parents=parents,
                 retries=retries,
@@ -429,7 +429,7 @@ class Workflow(Generic[TWorkflowInput]):
                 fn=func,
                 workflow=self,
                 type=StepType.ON_FAILURE,
-                name=self.parse_task_name(name, func),
+                name=self._parse_task_name(name, func),
                 timeout=timeout,
                 retries=retries,
                 rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
