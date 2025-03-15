@@ -397,6 +397,31 @@ class Workflow(Generic[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
+        """
+        A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.
+
+        :param name: The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
+        :type name: str | None
+
+        :param timeout: The execution timeout of the on-failure task. Defaults to 60 minutes.
+        :type timeout: datetime.timedelta
+
+        :param retries: The number of times to retry the on-failure task before failing. Default: `0`
+        :type retries: int
+
+        :param rate_limits: A list of rate limit configurations for the on-failure task. Defaults to an empty list (no rate limits).
+        :type rate_limits: list[RateLimit]
+
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :type backoff_factor: float | None
+
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :type backoff_max_seconds: int | None
+
+        :returns: A decorator which creates a `Task` object.
+        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
+        """
+
         def inner(
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
