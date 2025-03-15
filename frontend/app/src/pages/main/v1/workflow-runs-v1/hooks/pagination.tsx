@@ -10,8 +10,8 @@ export const usePagination = () => {
 
   const pagination = useMemo(
     () => ({
-      pageIndex: Number(searchParams.get(pageSizeParamName)) || 0,
-      pageSize: Number(searchParams.get(pageIndexParamName)) || 50,
+      pageIndex: Number(searchParams.get(pageIndexParamName)) || 0,
+      pageSize: Number(searchParams.get(pageSizeParamName)) || 50,
     }),
     [searchParams],
   );

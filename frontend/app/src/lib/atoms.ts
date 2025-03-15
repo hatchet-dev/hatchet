@@ -140,9 +140,8 @@ export function useTenant(): TenantContext {
       return;
     }
 
-    setLastRedirected(tenant?.slug);
-
     if (tenant?.version == TenantVersion.V0 && pathname.startsWith('/v1')) {
+      setLastRedirected(tenant?.slug);
       return navigate({
         pathname: pathname.replace('/v1', ''),
         search: params.toString(),
@@ -150,6 +149,7 @@ export function useTenant(): TenantContext {
     }
 
     if (tenant?.version == TenantVersion.V1 && !pathname.startsWith('/v1')) {
+      setLastRedirected(tenant?.slug);
       return navigate({
         pathname: '/v1' + pathname,
         search: params.toString(),
