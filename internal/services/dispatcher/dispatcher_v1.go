@@ -127,7 +127,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, msg.TenantID, bulkDatas)
 
 		if err != nil {
-			return fmt.Errorf("could not list parent data: %w", err)
+			return fmt.Errorf("could not list parent data for %d tasks: %w", len(bulkDatas), err)
 		}
 
 		for _, task := range bulkDatas {

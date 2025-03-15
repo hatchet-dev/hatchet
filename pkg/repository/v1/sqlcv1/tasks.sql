@@ -626,6 +626,7 @@ WITH RECURSIVE augmented_tasks AS (
     -- First, select the tasks from the input
     SELECT
         id,
+        inserted_at,
         tenant_id,
         dag_id,
         dag_inserted_at,
@@ -645,6 +646,7 @@ WITH RECURSIVE augmented_tasks AS (
     -- Then, select the tasks that are children of the input tasks
     SELECT
         t.id,
+        t.inserted_at,
         t.tenant_id,
         t.dag_id,
         t.dag_inserted_at,
@@ -683,8 +685,9 @@ WITH RECURSIVE augmented_tasks AS (
     FROM
         v1_task t
     JOIN
-        -- TODO: USE INSERTED_AT
-        augmented_tasks at ON at.id = t.id AND at.tenant_id = t.tenant_id
+        augmented_tasks at ON at.id = t.id AND at.inserted_at = t.inserted_at
+    WHERE
+        t.tenant_id = @tenantId::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
