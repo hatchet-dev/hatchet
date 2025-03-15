@@ -103,6 +103,27 @@ class Hatchet:
         labels: dict[str, str | int] = {},
         workflows: list[Workflow[Any]] = [],
     ) -> Worker:
+        """
+        Create a Hatchet worker on which to run workflows.
+
+        :param name: The name of the worker.
+        :type name: str
+
+        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time. Default: 100
+        :type slots: int
+
+        :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels. Defaults to an empty dictionary (no labels)
+        :type labels: dict[str, str | int]
+
+        :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them. Defaults to an empty list
+        :type workflows: list[Workflow]
+
+
+        :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
+        :rtype: Worker
+        """
+
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
