@@ -156,6 +156,8 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/crons"
   /api/v1/tenants/{tenant}/workflows/cancel:
     $ref: "./paths/workflow/workflow.yaml#/cancelWorkflowRuns"
+  /api/v1/tenants/{tenant}/workflows-runs/delete:
+    $ref: "./paths/workflow-run/workflow-run.yaml#/deleteWorkflowRuns"
   /api/v1/workflows/{workflow}:
     $ref: "./paths/workflow/workflow.yaml#/withWorkflow"
   /api/v1/workflows/{workflow}/versions:

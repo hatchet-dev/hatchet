@@ -562,5 +562,7 @@ type WorkflowRunEngineRepository interface {
 	// and the number of non-deleted runs that match the conditions.
 	SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (bool, error)
 
+	SoftDeleteSelectedWorkflowRuns(ctx context.Context, tenantId pgtype.UUID, ids []string) (int64, error)
+
 	GetUpstreamErrorsForOnFailureStep(ctx context.Context, onFailureStepRunId string) ([]*dbsqlc.GetUpstreamErrorsForOnFailureStepRow, error)
 }

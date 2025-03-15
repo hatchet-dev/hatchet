@@ -389,6 +389,29 @@ export function WorkflowRunsTable({
     onError: handleApiError,
   });
 
+  const deleteWorkflowRunMutation = useMutation({
+    mutationKey: ['workflow-run:cancel', tenant.metadata.id, selectedRuns],
+    mutationFn: async () => {
+      const tenantId = tenant.metadata.id;
+      const workflowRunIds = selectedRuns.map((wr) => wr.metadata.id);
+
+      invariant(tenantId, 'has tenantId');
+      invariant(workflowRunIds, 'has runIds');
+
+      const res = await api.workflowRunDelete(tenantId, {
+        workflowRunIds,
+      });
+
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queries.workflowRuns.list(tenant.metadata.id, {}).queryKey,
+      });
+    },
+    onError: handleApiError,
+  });
+
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
       workflowKeys?.rows?.map((key) => ({
@@ -495,6 +518,19 @@ export function WorkflowRunsTable({
       <ArrowPathIcon
         className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
       />
+    </Button>,
+    <Button
+      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      key="cancel"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        deleteWorkflowRunMutation.mutate();
+      }}
+      variant={'outline'}
+      aria-label="Cancel Selected Runs"
+    >
+      Delete
     </Button>,
   ];
 

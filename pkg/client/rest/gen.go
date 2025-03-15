@@ -1684,6 +1684,11 @@ type WorkflowRunsCancelRequest struct {
 	WorkflowRunIds []openapi_types.UUID `json:"workflowRunIds"`
 }
 
+// WorkflowRunsDeleteRequest defines model for WorkflowRunsDeleteRequest.
+type WorkflowRunsDeleteRequest struct {
+	WorkflowRunIds []openapi_types.UUID `json:"workflowRunIds"`
+}
+
 // WorkflowRunsMetrics defines model for WorkflowRunsMetrics.
 type WorkflowRunsMetrics struct {
 	Counts *WorkflowRunsMetricsCounts `json:"counts,omitempty"`
@@ -2176,6 +2181,9 @@ type WebhookCreateJSONRequestBody = WebhookWorkerCreateRequest
 // WorkflowRunUpdateReplayJSONRequestBody defines body for WorkflowRunUpdateReplay for application/json ContentType.
 type WorkflowRunUpdateReplayJSONRequestBody = ReplayWorkflowRunsRequest
 
+// WorkflowRunDeleteJSONRequestBody defines body for WorkflowRunDelete for application/json ContentType.
+type WorkflowRunDeleteJSONRequestBody = WorkflowRunsDeleteRequest
+
 // WorkflowRunCancelJSONRequestBody defines body for WorkflowRunCancel for application/json ContentType.
 type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
 
@@ -2527,6 +2535,11 @@ type ClientInterface interface {
 
 	// WorkflowList request
 	WorkflowList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowRunDeleteWithBody request with any body
+	WorkflowRunDeleteWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowRunDelete(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunCancelWithBody request with any body
 	WorkflowRunCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3708,6 +3721,30 @@ func (c *Client) WorkflowRunListStepRunEvents(ctx context.Context, tenant openap
 
 func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunDeleteWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunDeleteRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunDelete(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunDeleteRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7857,6 +7894,53 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *Wo
 	return req, nil
 }
 
+// NewWorkflowRunDeleteRequest calls the generic WorkflowRunDelete builder with application/json body
+func NewWorkflowRunDeleteRequest(server string, tenant openapi_types.UUID, body WorkflowRunDeleteJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowRunDeleteRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewWorkflowRunDeleteRequestWithBody generates requests for WorkflowRunDelete with any type of body
+func NewWorkflowRunDeleteRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows-runs/delete", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowRunCancelRequest calls the generic WorkflowRunCancel builder with application/json body
 func NewWorkflowRunCancelRequest(server string, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -10189,6 +10273,11 @@ type ClientWithResponsesInterface interface {
 	// WorkflowListWithResponse request
 	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
 
+	// WorkflowRunDeleteWithBodyWithResponse request with any body
+	WorkflowRunDeleteWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunDeleteResponse, error)
+
+	WorkflowRunDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunDeleteResponse, error)
+
 	// WorkflowRunCancelWithBodyWithResponse request with any body
 	WorkflowRunCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error)
 
@@ -12019,6 +12108,32 @@ func (r WorkflowListResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowRunDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+	}
+	JSON400 *APIErrors
+	JSON403 *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowRunDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowRunDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunCancelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13679,6 +13794,23 @@ func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tena
 		return nil, err
 	}
 	return ParseWorkflowListResponse(rsp)
+}
+
+// WorkflowRunDeleteWithBodyWithResponse request with arbitrary body returning *WorkflowRunDeleteResponse
+func (c *ClientWithResponses) WorkflowRunDeleteWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunDeleteResponse, error) {
+	rsp, err := c.WorkflowRunDeleteWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunDeleteResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowRunDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunDeleteResponse, error) {
+	rsp, err := c.WorkflowRunDelete(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunDeleteResponse(rsp)
 }
 
 // WorkflowRunCancelWithBodyWithResponse request with arbitrary body returning *WorkflowRunCancelResponse
@@ -16969,6 +17101,48 @@ func ParseWorkflowListResponse(rsp *http.Response) (*WorkflowListResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WorkflowList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowRunDeleteResponse parses an HTTP response from a WorkflowRunDeleteWithResponse call
+func ParseWorkflowRunDeleteResponse(rsp *http.Response) (*WorkflowRunDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowRunDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

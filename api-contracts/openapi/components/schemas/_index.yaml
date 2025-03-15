@@ -184,6 +184,10 @@ WorkflowKindList:
   $ref: "./workflow_run.yaml#/WorkflowKindList"
 WorkflowRunsCancelRequest:
   $ref: "./workflow_run.yaml#/WorkflowRunsCancelRequest"
+WorkflowRunsDeleteRequest:
+  $ref: "./workflow_run.yaml#/WorkflowRunsDeleteRequest"
+WorkflowRunsDeleteResponse:
+  $ref: "./workflow_run.yaml#/WorkflowRunsDeleteResponse"
 JobRunStatus:
   $ref: "./workflow_run.yaml#/JobRunStatus"
 StepRunStatus:
