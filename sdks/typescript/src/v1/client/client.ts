@@ -133,12 +133,12 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for creating the worker
    * @returns A promise that resolves with a new HatchetWorker instance
    */
-  worker(name: string, options: CreateWorkerOpts | number): Promise<HatchetWorker> {
+  worker(name: string, options?: CreateWorkerOpts | number): Promise<HatchetWorker> {
     let opts: CreateWorkerOpts = {};
     if (typeof options === 'number') {
       opts = { slots: options };
     } else {
-      opts = options;
+      opts = options || {};
     }
 
     return HatchetWorker.create(this.v0, name, opts);

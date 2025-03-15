@@ -12,6 +12,7 @@ async function main() {
 
 if (require.main === module) {
   main()
+    // eslint-disable-next-line no-console
     .catch(console.error)
     .finally(() => process.exit(0));
 }

@@ -19,7 +19,7 @@ export const child1 = hatchet.workflow<SimpleInput, Output>({
 child1.task({
   name: 'transformer',
   fn: () => {
-    sleep(15)
+    sleep(15);
     return {
       Sum: 1,
     };
@@ -36,7 +36,7 @@ child2.task({
     const count = input.N;
     const promises = Array(count)
       .fill(null)
-      .map(() => ({workflow: child1, input}));
+      .map(() => ({ workflow: child1, input }));
 
     const results = await ctx.bulkRunChildren(promises);
 
@@ -57,7 +57,7 @@ child3.task({
     const count = input.N;
     const promises = Array(count)
       .fill(null)
-      .map(() => ({workflow: child2, input}));
+      .map(() => ({ workflow: child2, input }));
 
     const results = await ctx.bulkRunChildren(promises);
 
@@ -77,7 +77,7 @@ child4.task({
     const count = input.N;
     const promises = Array(count)
       .fill(null)
-      .map(() => ({workflow: child3, input}));
+      .map(() => ({ workflow: child3, input }));
 
     const results = await ctx.bulkRunChildren(promises);
 
@@ -97,7 +97,7 @@ child5.task({
     const count = input.N;
     const promises = Array(count)
       .fill(null)
-      .map(() => ({workflow: child4, input}));
+      .map(() => ({ workflow: child4, input }));
 
     const results = await ctx.bulkRunChildren(promises);
 
@@ -107,7 +107,7 @@ child5.task({
   },
 });
 
-export const parent = hatchet.workflow<SimpleInput, {parent: Output['transformer']}>({
+export const parent = hatchet.workflow<SimpleInput, { parent: Output['transformer'] }>({
   name: 'parent',
 });
 
@@ -117,7 +117,7 @@ parent.task({
     const count = input.N; // Random number between 2-4
     const promises = Array(count)
       .fill(null)
-      .map(() => ({workflow: child5, input}));
+      .map(() => ({ workflow: child5, input }));
 
     const results = await ctx.bulkRunChildren(promises);
 

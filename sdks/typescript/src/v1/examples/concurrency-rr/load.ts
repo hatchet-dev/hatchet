@@ -1,3 +1,4 @@
+/* eslint-disable no-plusplus */
 import { hatchet } from '../client';
 import { simpleConcurrency } from './workflow';
 

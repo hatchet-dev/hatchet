@@ -10,14 +10,18 @@ export const simple: Workflow = {
     {
       name: 'step1',
       run: async (ctx) => {
-        return { step1: 'step1 results!' };
+        const input = ctx.workflowInput();
+
+        return { step1: `original input: ${input.Message}` };
       },
     },
     {
       name: 'step2',
       parents: ['step1'],
       run: (ctx) => {
-        return { step2: 'step2 results!' };
+        const step1Output = ctx.stepOutput('step1');
+
+        return { step2: `step1 output: ${step1Output.step1}` };
       },
     },
   ],
