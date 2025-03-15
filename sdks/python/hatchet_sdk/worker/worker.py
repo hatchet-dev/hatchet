@@ -113,15 +113,17 @@ class Worker:
 
         try:
             self.client.admin.put_workflow(
-                workflow.get_name(namespace), workflow._get_create_opts(namespace)
+                workflow._get_name(namespace), workflow._get_create_opts(namespace)
             )
         except Exception as e:
-            logger.error(f"failed to register workflow: {workflow.get_name(namespace)}")
+            logger.error(
+                f"failed to register workflow: {workflow._get_name(namespace)}"
+            )
             logger.error(e)
             sys.exit(1)
 
         for step in workflow.tasks:
-            action_name = workflow.create_action_name(namespace, step)
+            action_name = workflow._create_action_name(namespace, step)
             self.action_registry[action_name] = step
             return_type = get_type_hints(step.fn).get("return")
 

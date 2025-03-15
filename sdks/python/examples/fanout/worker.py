@@ -45,9 +45,8 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
 
 @child_wf.task()
 def process(input: ChildInput, ctx: Context) -> dict[str, str]:
-    a = child_wf.get_workflow_input(ctx).a
-    print(f"child process {a}")
-    return {"status": "success " + a}
+    print(f"child process {input.a}")
+    return {"status": "success " + input.a}
 
 
 @child_wf.task()

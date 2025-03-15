@@ -57,7 +57,7 @@ class Task(Generic[TWorkflowInput, R]):
             raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
         sync_fn = self.fn
-        workflow_input = self.workflow.get_workflow_input(ctx)
+        workflow_input = self.workflow._get_workflow_input(ctx)
 
         if is_sync_fn(sync_fn):
             return sync_fn(workflow_input, ctx)
@@ -71,7 +71,7 @@ class Task(Generic[TWorkflowInput, R]):
             )
 
         async_fn = self.fn
-        workflow_input = self.workflow.get_workflow_input(ctx)
+        workflow_input = self.workflow._get_workflow_input(ctx)
 
         if is_async_fn(async_fn):
             return await async_fn(workflow_input, ctx)

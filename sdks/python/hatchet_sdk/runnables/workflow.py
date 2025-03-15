@@ -63,24 +63,15 @@ class Workflow(Generic[TWorkflowInput]):
         self._on_failure_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
-    def get_service_name(self, namespace: str) -> str:
+    def _get_service_name(self, namespace: str) -> str:
         return f"{namespace}{self.config.name.lower()}"
 
-    @property
-    def tasks(self) -> list[Task[TWorkflowInput, Any]]:
-        tasks = self._default_tasks
-
-        if self._on_failure_task:
-            tasks += [self._on_failure_task]
-
-        return tasks
-
-    def create_action_name(
+    def _create_action_name(
         self, namespace: str, step: Task[TWorkflowInput, Any]
     ) -> str:
-        return self.get_service_name(namespace) + ":" + step.name
+        return self._get_service_name(namespace) + ":" + step.name
 
-    def get_name(self, namespace: str) -> str:
+    def _get_name(self, namespace: str) -> str:
         return namespace + self.config.name
 
     def _validate_concurrency_options(self) -> WorkflowConcurrencyOpts | None:
@@ -128,9 +119,9 @@ class Workflow(Generic[TWorkflowInput]):
         return validated_priority
 
     def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionOpts:
-        service_name = self.get_service_name(namespace)
+        service_name = self._get_service_name(namespace)
 
-        name = self.get_name(namespace)
+        name = self._get_name(namespace)
         event_triggers = [namespace + event for event in self.config.on_events]
 
         create_step_opts = [
@@ -172,6 +163,21 @@ class Workflow(Generic[TWorkflowInput]):
             concurrency=self._validate_concurrency_options(),
             default_priority=self.config.default_priority,
         )
+
+    def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
+        return cast(
+            TWorkflowInput,
+            self.config.input_validator.model_validate(ctx.workflow_input),
+        )
+
+    @property
+    def tasks(self) -> list[Task[TWorkflowInput, Any]]:
+        tasks = self._default_tasks
+
+        if self._on_failure_task:
+            tasks += [self._on_failure_task]
+
+        return tasks
 
     def create_run_workflow_config(
         self,
@@ -252,12 +258,6 @@ class Workflow(Generic[TWorkflowInput]):
         return await self.client.admin.aio_run_workflows(
             workflows=workflows,
             options=options,
-        )
-
-    def get_workflow_input(self, ctx: Context) -> TWorkflowInput:
-        return cast(
-            TWorkflowInput,
-            self.config.input_validator.model_validate(ctx.workflow_input),
         )
 
     def schedule(
