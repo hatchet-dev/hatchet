@@ -1,5 +1,5 @@
 import sleep from '@hatchet/util/sleep';
-import Hatchet, { Worker as Worker } from '../..';
+import Hatchet, { Worker } from '../..';
 import { simpleCronWorkflow } from './cron-worker';
 
 xdescribe('cron-e2e', () => {
