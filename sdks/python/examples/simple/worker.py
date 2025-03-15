@@ -1,18 +1,19 @@
-from datetime import timedelta
-
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
+# ❓ Simple
+# This example shows the simples possible usage of Hatchet
+
 simple = hatchet.workflow(name="SimpleWorkflow")
 
 
-@simple.task(timeout=timedelta(seconds=11), retries=3)
-def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+@simple.task()
+def step1(input: EmptyModel, ctx: Context) -> None:
     print("executed step1")
-    return {
-        "step1": "step1",
-    }
+
+
+# ‼️
 
 
 def main() -> None:
