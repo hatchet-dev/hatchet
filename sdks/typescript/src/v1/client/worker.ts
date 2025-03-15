@@ -1,8 +1,25 @@
+import http from 'http';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { HATCHET_VERSION } from '@hatchet/version';
 import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { Workflow } from '../workflow';
+
+/**
+ * Response type for worker healthcheck endpoint
+ */
+export interface WorkerHealthcheckResponse {
+  status: 'healthy';
+  name: string;
+  maxSlots: number;
+  running: number;
+  actions: string[];
+  labels: Record<string, string>;
+  uptime: number;
+  nodeVersion: string;
+  hatchetVersion: string;
+}
 
 /**
  * Options for creating a new hatchet worker
@@ -19,6 +36,8 @@ export interface CreateWorkerOpts {
   handleKill?: boolean;
   /** @deprecated Use slots instead */
   maxRuns?: number;
+  /** Enable healthcheck endpoint on /health. Set to true for default port or specify port number */
+  healthcheck?: boolean | number;
 }
 
 /**
@@ -27,6 +46,8 @@ export interface CreateWorkerOpts {
 export class Worker {
   /** Internal reference to the underlying V0 worker implementation */
   v0: V0Worker;
+  /** HTTP server for healthcheck endpoint if enabled */
+  private healthcheckServer?: http.Server;
 
   /**
    * Creates a new HatchetWorker instance
@@ -49,6 +70,38 @@ export class Worker {
     });
     const worker = new Worker(v0worker);
     await worker.registerWorkflows(options.workflows);
+
+    // Setup healthcheck endpoint if enabled
+    if (options.healthcheck !== undefined) {
+      const port = typeof options.healthcheck === 'number' ? options.healthcheck : 8080;
+
+      worker.healthcheckServer = http.createServer((req: any, res: any) => {
+        if (req.method === 'GET' && req.url === '/health') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              // TODO status is not really a good indicator of health
+              status: worker.v0.listener ? 'healthy' : 'unhealthy',
+              name: worker.v0.name,
+              maxSlots: worker.v0.maxRuns,
+              running: Object.keys(worker.v0.contexts || {}).length,
+              actions: Object.keys(worker.v0.action_registry || {}),
+              labels: worker.v0.labels || {},
+              uptime: process.uptime(),
+              nodeVersion: process.version,
+              hatchetVersion: HATCHET_VERSION,
+            } as WorkerHealthcheckResponse)
+          );
+        } else {
+          res.writeHead(404);
+          res.end();
+        }
+      });
+
+      worker.healthcheckServer.listen(port);
+      worker.v0.logger.green(`Healthcheck endpoint running on http://localhost:${port}/health`);
+    }
+
     return worker;
   }
 
@@ -109,6 +162,10 @@ export class Worker {
    * @returns Promise that resolves when the worker stops
    */
   stop() {
+    // Close healthcheck server if it exists
+    if (this.healthcheckServer) {
+      this.healthcheckServer.close();
+    }
     return this.v0.stop();
   }
 
