@@ -26,12 +26,12 @@ class LoadRR(BaseWorkflow):
     config = wf.config
 
     @hatchet.on_failure_step()
-    def on_failure(self, context: Context) -> None:
+    def on_failure(self, context: Context) -> dict:
         print("on_failure")
         return {}
 
     @hatchet.step()
-    def step1(self, context: Context) -> None:
+    def step1(self, context: Context) -> dict:
         print("starting step1")
         time.sleep(random.randint(2, 20))
         print("finished step1")
@@ -42,7 +42,7 @@ class LoadRR(BaseWorkflow):
         backoff_factor=5,
         backoff_max_seconds=60,
     )
-    def step2(self, context: Context) -> None:
+    def step2(self, context: Context) -> dict:
         print("starting step2")
         if random.random() < 0.5:  # 1% chance of failure
             raise Exception("Random failure in step2")
@@ -51,7 +51,7 @@ class LoadRR(BaseWorkflow):
         return {}
 
     @hatchet.step()
-    def step3(self, context: Context) -> None:
+    def step3(self, context: Context) -> dict:
         print("starting step3")
         time.sleep(0.2)
         print("finished step3")
