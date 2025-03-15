@@ -1,6 +1,5 @@
 import asyncio
 
-
 def get_active_event_loop() -> asyncio.AbstractEventLoop | None:
     """
     Get the active event loop.

@@ -1,110 +1,60 @@
-# Working with AsyncIO
+# Working with `asyncio`
 
-Hatchet's Python SDK makes heavy use of AsyncIO under the hood to manage persistent connections,
-listeners, the runners for each workflow, and many other things! AsyncIO is a form of concurrency
-that makes use of [cooperative multitasking](https://en.wikipedia.org/wiki/Cooperative_multitasking).
-This means that when blocking non-async-safe functions are added to the mix, it can cause issues and
-degrade the performance of the SDK. While using async methods is optional with Hatchet, using async
-methods incorrectly can cause issues and degrade the performance of the SDK.
+Hatchet's Python SDK, similarly to other popular libraries like FastAPI, Langchain, etc., makes heavy use of `asyncio`, and recommends that you do as well!
 
-### Using the `sync_to_async` Decorator
+> To learn the basics of `asyncio`, check out [this introduction](LINK HERE)
 
-To help out with mitigating any issues with blocking that may cause slow downs, you can make use of
-the `sync_to_async` decorator available through the Hatchet SDK.
+However, as is the case in FastAPI, when using `asyncio` in Hatchet, you need to be careful to not have any blocking logic in the functions you define as tasks, as this will block the asyncio event loop and prevent additional work from executing until the blocking operation has completed.
 
-- Can be utilized in two ways:
-  - as a decorator to wrap simple or complex functions you've written
-  - as an inline wrapper to wrap external library calls that you're unsure about
-- Accepts both synchronous and asynchronous functions
-- Accepts a `loop` and an `executor` keyword argument that lets you specify your own loop or executor
+For example, this is async-safe:
 
-#### Example:
-
-```py
-import time
-
-from hatchet_sdk import Context, sync_to_async
-from hatchet_sdk.v2.hatchet import Hatchet
-
-hatchet = Hatchet(debug=True)
-
-
-@sync_to_async  # This will now be async safe!
-def blocking_function():
-    time.sleep(5)
-    return {"type": "sync_blocking"}
-
-
-@sync_to_async  # This will now be async safe!
-async def async_blocking_function():
-    time.sleep(5)
-    return {"type": "async_blocking"}
-
-
-@hatchet.function()
-async def my_func(context: Context) -> dict:
-    data = [
-        await blocking_function(),
-        await async_blocking_function(),
-    ]
-    return {
-        "status": "success",
-        "data": data,
-    }
-
-
-worker = hatchet.worker("worker", max_runs=5)
-
-worker.start()
-```
-
-#### Inline Wrapped Example:
-
-```py
-...
-def blocking_function():
-    time.sleep(5)
-    return {"type": "sync_blocking"}
-
-
-@hatchet.function()
-async def my_func(context: Context) -> dict:
-    data = await sync_to_async(blocking_function)()
-    return {
-        "status": "success",
-        "data": data,
-    }
-...
-```
-
-#### Keyword Arguments Example:
-
-```py
+```python
 import asyncio
-import concurrent
-...
 
-executor = concurrent.futures.ThreadPoolExecutor()
-loop = asyncio.get_event_loop()
+async def my_task() -> int:
+    await asyncio.sleep(5)
 
-
-def blocking_function():
-    time.sleep(5)
-    return {"type": "sync_blocking"}
-
-
-@hatchet.function()
-async def my_func(context: Context) -> dict:
-
-    data = await sync_to_async(blocking_function)(executor=executor, loop=loop)
-    return {
-        "status": "success",
-        "data": data,
-    }
-...
+    return 42
 ```
 
-### More Resources for AsyncIO Development
+But this is not:
+
+```python
+async def my_task() -> int:
+    time.sleep(5)
+
+    return 42
+```
+
+In the second case, your worker will not be able to process any other work that's defined as async until the five-second sleep has finished.
+
+### Using `asyncio.to_thread` and `loop.run_in_executor`
+
+To avoid problems caused by blocking code, you can run your blocking code in an executor with `asyncio.to_thread` or, more verbosely, `loop.run_in_executor`. The two examples below are async-safe and will no longer block the event loop.
+
+```python
+import asyncio
+
+async def my_task() -> int:
+    await asyncio.to_thread(time.sleep, 5)
+
+    return 42
+```
+
+```python
+import asyncio
+
+async def my_task() -> int:
+    loop = asyncio.get_event_loop()
+
+    await loop.run_in_executor(None, time.sleep, 5)
+
+    return 42
+```
+
+### More Resources for working with `asyncio`
+
+## TODO: FastAPI links here
 
 If you're looking for more info on developing with AsyncIO more broadly, we highly recommend the following
 resources:
