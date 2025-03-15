@@ -1,10 +1,10 @@
-import { Workflow, V0Worker } from '..';
+import { Workflow, Worker } from '..';
 import sleep from '../util/sleep';
 import Hatchet from '../sdk';
 
 xdescribe('e2e', () => {
   let hatchet: Hatchet;
-  let worker: V0Worker;
+  let worker: Worker;
 
   beforeEach(async () => {
     hatchet = Hatchet.init({
