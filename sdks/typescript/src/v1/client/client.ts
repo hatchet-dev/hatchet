@@ -8,7 +8,7 @@ import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { CreateWorkflow, CreateWorkflowOpts, RunOpts, Workflow } from '../workflow';
 import { IHatchetClient } from './client.interface';
-import { CreateWorkerOpts, HatchetWorker } from './worker';
+import { CreateWorkerOpts, Worker } from './worker';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -17,6 +17,11 @@ import { CreateWorkerOpts, HatchetWorker } from './worker';
 export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
   v0: InternalHatchetClient;
+
+  /** The tenant ID for the Hatchet client */
+  get tenantId() {
+    return this.v0.tenantId;
+  }
 
   /**
    * Creates a new Hatchet client instance.
@@ -133,7 +138,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for creating the worker
    * @returns A promise that resolves with a new HatchetWorker instance
    */
-  worker(name: string, options?: CreateWorkerOpts | number): Promise<HatchetWorker> {
+  worker(name: string, options?: CreateWorkerOpts | number): Promise<Worker> {
     let opts: CreateWorkerOpts = {};
     if (typeof options === 'number') {
       opts = { slots: options };
@@ -141,6 +146,6 @@ export class HatchetClient implements IHatchetClient {
       opts = options || {};
     }
 
-    return HatchetWorker.create(this.v0, name, opts);
+    return Worker.create(this.v0, name, opts);
   }
 }

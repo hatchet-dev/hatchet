@@ -8,7 +8,7 @@ import { Logger } from './util/logger';
 import { parseJSON } from './util/parse';
 import { InternalHatchetClient } from './clients/hatchet-client';
 import WorkflowRunRef from './util/workflow-run-ref';
-import { Worker } from './clients/worker';
+import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
 import { CreateTaskOpts } from './v1/task';
@@ -77,8 +77,8 @@ interface ContextData<T, K> {
 }
 
 export class ContextWorker {
-  private worker: Worker;
-  constructor(worker: Worker) {
+  private worker: V0Worker;
+  constructor(worker: V0Worker) {
     this.worker = worker;
   }
 
@@ -113,7 +113,7 @@ export class Context<T, K = {}> {
 
   spawnIndex: number = 0;
 
-  constructor(action: Action, client: InternalHatchetClient, worker: Worker) {
+  constructor(action: Action, client: InternalHatchetClient, worker: V0Worker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;

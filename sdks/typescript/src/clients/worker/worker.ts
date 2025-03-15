@@ -33,7 +33,7 @@ export interface WorkerOpts {
   labels?: WorkerLabels;
 }
 
-export class Worker {
+export class V0Worker {
   client: InternalHatchetClient;
   name: string;
   workerId: string | undefined;

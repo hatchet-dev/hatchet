@@ -1,6 +1,6 @@
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
-import { Worker as V0Worker } from '@clients/worker';
+import { V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { Workflow } from '../workflow';
 
@@ -24,7 +24,7 @@ export interface CreateWorkerOpts {
 /**
  * HatchetWorker class for workflow execution runtime
  */
-export class HatchetWorker {
+export class Worker {
   /** Internal reference to the underlying V0 worker implementation */
   v0: V0Worker;
 
@@ -47,7 +47,7 @@ export class HatchetWorker {
       ...options,
       maxRuns: options.slots || options.maxRuns,
     });
-    const worker = new HatchetWorker(v0worker);
+    const worker = new Worker(v0worker);
     await worker.registerWorkflows(options.workflows);
     return worker;
   }
