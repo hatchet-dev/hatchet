@@ -2751,6 +2751,12 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		}
 	}
 
+	resMap := make(map[int64][]*TaskOutputEvent)
+
+	if len(taskIds) == 0 {
+		return resMap, nil
+	}
+
 	res, err := r.queries.ListTaskParentOutputs(ctx, r.pool, sqlcv1.ListTaskParentOutputsParams{
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 		Taskids:         taskIds,
@@ -2777,8 +2783,6 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 			workflowRunIdsToOutputs[wrId] = append(workflowRunIdsToOutputs[wrId], e)
 		}
 	}
-
-	resMap := make(map[int64][]*TaskOutputEvent)
 
 	for _, task := range tasks {
 		if task.WorkflowRunID.Valid {

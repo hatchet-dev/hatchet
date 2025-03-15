@@ -759,6 +759,7 @@ WITH RECURSIVE augmented_tasks AS (
                 unnest(@taskInsertedAts::timestamptz[])
         )
         AND tenant_id = @tenantId::uuid
+        AND dag_id IS NOT NULL
 
     UNION
 

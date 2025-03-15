@@ -774,6 +774,7 @@ WITH RECURSIVE augmented_tasks AS (
                 unnest($2::timestamptz[])
         )
         AND tenant_id = $3::uuid
+        AND dag_id IS NOT NULL
 
     UNION
 
