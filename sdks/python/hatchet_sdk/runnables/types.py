@@ -3,7 +3,7 @@ from datetime import timedelta
 from enum import Enum
 from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -59,7 +59,7 @@ class WorkflowConfig(BaseModel):
     version: str | None = None
     schedule_timeout: timedelta = timedelta(minutes=5)
     sticky: StickyStrategy | None = None
-    default_priority: int = 1
+    default_priority: StrictInt = Field(gt=0, lt=4, default=1)
     concurrency: ConcurrencyExpression | None = None
     input_validator: Type[BaseModel] = EmptyModel
 
