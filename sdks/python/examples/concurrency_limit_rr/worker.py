@@ -1,4 +1,5 @@
 import time
+from datetime import timedelta
 
 from pydantic import BaseModel
 
@@ -18,7 +19,7 @@ class WorkflowInput(BaseModel):
 
 concurrency_limit_rr_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflowRR",
-    schedule_timeout="10m",
+    schedule_timeout=timedelta(minutes=10),
     concurrency=ConcurrencyExpression(
         expression="input.group",
         max_runs=1,

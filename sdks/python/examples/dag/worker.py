@@ -1,5 +1,6 @@
 import random
 import time
+from datetime import timedelta
 
 from pydantic import BaseModel
 
@@ -16,7 +17,9 @@ class RandomSum(BaseModel):
 
 hatchet = Hatchet(debug=True)
 
-dag_workflow = hatchet.workflow(name="DAGWorkflow", schedule_timeout="10m")
+dag_workflow = hatchet.workflow(
+    name="DAGWorkflow", schedule_timeout=timedelta(minutes=10)
+)
 
 
 @dag_workflow.task(timeout="5s")

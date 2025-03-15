@@ -113,7 +113,7 @@ class Worker:
 
         try:
             self.client.admin.put_workflow(
-                workflow.get_name(namespace), workflow.get_create_opts(namespace)
+                workflow.get_name(namespace), workflow._get_create_opts(namespace)
             )
         except Exception as e:
             logger.error(f"failed to register workflow: {workflow.get_name(namespace)}")

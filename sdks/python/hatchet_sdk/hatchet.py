@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import timedelta
 from typing import Any, Type, TypeVar, cast, overload
 
 from hatchet_sdk.client import Client
@@ -126,8 +127,8 @@ class Hatchet:
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str = "",
-        timeout: str = "60m",
-        schedule_timeout: str = "5m",
+        timeout: timedelta = timedelta(minutes=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -142,8 +143,8 @@ class Hatchet:
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str = "",
-        timeout: str = "60m",
-        schedule_timeout: str = "5m",
+        timeout: timedelta = timedelta(minutes=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -156,21 +157,58 @@ class Hatchet:
         input_validator: Type[TWorkflowInput] | None = None,
         on_events: list[str] = [],
         on_crons: list[str] = [],
-        version: str = "",
-        timeout: str = "60m",
-        schedule_timeout: str = "5m",
+        version: str | None = None,
+        timeout: timedelta = timedelta(minutes=60),
+        schedule_timeout: timedelta = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
+        """
+        Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
+
+        :param name: The name of the workflow.
+        :type name: str
+
+        :param input_validator: A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`.
+        :type input_validator: Type[BaseModel]
+
+        :param on_events: A list of event triggers for the workflow - events which cause the workflow to be run. Defaults to an empty list, meaning the workflow will not be run on any event pushes.
+        :type on_events: list[str]
+
+        :param on_crons: A list of cron triggers for the workflow. Defaults to an empty list, meaning the workflow will not be run on any cron schedules.
+        :type on_crons: list[str]
+
+        :param version: A version for the workflow. Default: None
+        :type version: str | None
+
+        :param timeout: The execution timeout of the workflow, specified as a `timedelta`. For instance, setting `timedelta(minutes=30)` will time out the workflow run after 30 minutes. Default: 30 minutes.
+        :type timeout: `datetime.timedelta`
+
+        :param schedule_timeout: The maximum amount of time that a workflow run that has been queued (scheduled) can wait before beginning to execute. For instance, setting `timedelta(minutes=5)` will cancel the workflow run if it does not start after five minutes. Default: five minutes.
+        :type schedule_timeout: `datetime.timedelta`
+
+        :param sticky: A sticky strategy for the workflow. Default: `None`
+        :type sticky: StickyStategy
+
+        :param default_priority: The priority of the workflow. Higher values will cause this workflow to have priority in scheduling over other, lower priority ones. Default: `1`
+        :type default_priority: int
+
+        :param concurrency: A concurrency object controlling the concurrency settings for this workflow.
+        :type concurrency: ConcurrencyExpression | None
+
+        :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
+        :rtype: Workflow
+        """
+
         return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
                 on_events=on_events,
                 on_crons=on_crons,
-                version=version,
-                timeout=timeout,
-                schedule_timeout=schedule_timeout,
+                version=version or "",
+                timeout=f"{timeout.seconds}s",
+                schedule_timeout=f"{schedule_timeout.seconds}s",
                 sticky=sticky,
                 default_priority=default_priority,
                 concurrency=concurrency,

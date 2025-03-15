@@ -55,10 +55,8 @@ class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
 
 class Workflow(Generic[TWorkflowInput]):
     """
-    A Hatchet workflow implementation base. This class should be inherited by all workflow implementations.
-
-    A declaration is passed to the workflow using the `declaration` parameter. This declaration is used to
-    define the workflow's configuration.
+    A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow, such as
+    running / spawning children and scheduling future runs.
     """
 
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
@@ -153,7 +151,7 @@ class Workflow(Generic[TWorkflowInput]):
 
         return validated_priority
 
-    def get_create_opts(self, namespace: str) -> CreateWorkflowVersionOpts:
+    def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionOpts:
         service_name = self.get_service_name(namespace)
 
         name = self.get_name(namespace)
