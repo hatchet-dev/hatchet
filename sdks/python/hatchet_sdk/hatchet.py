@@ -55,10 +55,14 @@ class Hatchet:
         """
         Initialize a new Hatchet instance.
 
-        Args:
-            debug (bool, optional): Enable debug logging. Defaults to False.
-            client (Optional[Client], optional): A pre-configured Client instance. Defaults to None.
-            config (ClientConfig, optional): Configuration for creating a new Client. Defaults to ClientConfig().
+        :param debug: Enable debug logging. Default: `False`
+        :type debug: bool
+
+        :param client: A pre-configured `Client` instance. Default: `None`.
+        :type client: Client | None
+
+        :param config: Configuration for creating a new Client. Defaults to ClientConfig()
+        :type config: ClientConfig
         """
 
         if debug:
