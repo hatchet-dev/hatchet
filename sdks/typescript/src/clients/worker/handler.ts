@@ -2,7 +2,7 @@ import HatchetError from '@util/errors/hatchet-error';
 import { createHmac } from 'crypto';
 import { IncomingMessage, ServerResponse } from 'http';
 import { Workflow } from '@hatchet/workflow';
-import { Worker } from './worker';
+import { V0Worker } from './worker';
 
 export interface HandlerOpts {
   secret: string;
@@ -13,7 +13,7 @@ const okMessage = 'The Hatchet webhooks endpoint is up and running!';
 export class WebhookHandler {
   // eslint-disable-next-line no-useless-constructor
   constructor(
-    private worker: Worker,
+    private worker: V0Worker,
     private workflows: Workflow[]
     // eslint-disable-next-line no-empty-function
   ) {}

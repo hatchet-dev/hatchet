@@ -53,6 +53,9 @@ export const CreateWorkflowSchema = z.object({
   onFailure: CreateStepSchema?.optional(),
 });
 
+/**
+ * @deprecated Use client.workflow instead (TODO link to migration doc)
+ */
 export interface Workflow extends z.infer<typeof CreateWorkflowSchema> {
   concurrency?: z.infer<typeof WorkflowConcurrency> & {
     key?: (ctx: any) => string;

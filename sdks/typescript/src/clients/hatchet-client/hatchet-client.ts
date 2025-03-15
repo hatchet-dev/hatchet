@@ -12,7 +12,7 @@ import {
   Metadata,
 } from 'nice-grpc';
 import { Workflow } from '@hatchet/workflow';
-import { Worker, WorkerOpts } from '@clients/worker';
+import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
@@ -62,7 +62,7 @@ export const addTokenMiddleware = (token: string) =>
     return undefined;
   };
 
-export class HatchetClient {
+export class InternalHatchetClient {
   config: ClientConfig;
   credentials: ChannelCredentials;
   event: EventClient;
@@ -141,7 +141,7 @@ export class HatchetClient {
     );
 
     this.logger = this.config.logger('HatchetClient', this.config.log_level);
-    this.logger.info(`Initialized HatchetClient`);
+    this.logger.debug(`Initialized HatchetClient`);
 
     // Feature Clients
     this.cron = new CronClient(this.tenantId, this.config, this.api, this.admin);
@@ -152,12 +152,12 @@ export class HatchetClient {
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient {
-    return new HatchetClient(config, options, axiosConfig);
+  ): InternalHatchetClient {
+    return new InternalHatchetClient(config, options, axiosConfig);
   }
 
   // @deprecated
-  async run(workflow: string | Workflow): Promise<Worker> {
+  async run(workflow: string | Workflow): Promise<V0Worker> {
     this.logger.warn(
       'HatchetClient.run is deprecated and will be removed in a future release. Use HatchetClient.worker and Worker.start instead.'
     );
@@ -169,7 +169,7 @@ export class HatchetClient {
   async worker(
     workflow: string | Workflow,
     opts?: Omit<WorkerOpts, 'name'> | number
-  ): Promise<Worker> {
+  ): Promise<V0Worker> {
     const name = typeof workflow === 'string' ? workflow : workflow.id;
 
     let options: WorkerOpts = {
@@ -185,7 +185,7 @@ export class HatchetClient {
       options = { ...options, ...opts };
     }
 
-    const worker = new Worker(this, options);
+    const worker = new V0Worker(this, options);
 
     if (typeof workflow !== 'string') {
       await worker.registerWorkflow(workflow);
@@ -196,7 +196,7 @@ export class HatchetClient {
   }
 
   webhooks(workflows: Workflow[]) {
-    const worker = new Worker(this, {
+    const worker = new V0Worker(this, {
       name: 'webhook-worker',
     });
 

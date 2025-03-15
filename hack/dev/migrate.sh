@@ -2,6 +2,7 @@
 
 set -eux
 set -a
+
 . .env
 set +a
 

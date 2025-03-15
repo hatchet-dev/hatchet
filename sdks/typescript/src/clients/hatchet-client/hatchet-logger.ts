@@ -12,7 +12,7 @@ export class HatchetLogger implements Logger {
     this.context = context;
   }
 
-  private log(level: LogLevel, message: string, color?: string): void {
+  private log(level: LogLevel, message: string, color: string = '37'): void {
     if (LogLevelEnum[level] >= LogLevelEnum[this.logLevel]) {
       const time = new Date().toLocaleString('en-US', {
         month: '2-digit',
@@ -24,7 +24,7 @@ export class HatchetLogger implements Logger {
       });
       // eslint-disable-next-line no-console
       console.log(
-        `🪓 ${process.pid} | ${time} ${color && `\x1b[${color}m`} [${level}/${this.context}] ${message}\x1b[0m`
+        `🪓 ${process.pid} | ${time} ${color && `\x1b[${color || ''}m`} [${level}/${this.context}] ${message}\x1b[0m`
       );
     }
   }

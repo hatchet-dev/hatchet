@@ -1,14 +1,14 @@
 import { createServer } from 'node:http';
 import { AxiosError } from 'axios';
-import { Workflow, Worker } from '..';
+import { InternalHatchetClient as Hatchet } from '@hatchet/clients/hatchet-client';
+import { Workflow, V0Worker } from '..';
 import sleep from '../util/sleep';
-import Hatchet from '../sdk';
 
 const port = 8369;
 
 describe('webhooks', () => {
-  let hatchet: Hatchet;
-  let worker: Worker;
+  let hatchet: Hatchet; // TODO upgrade to v1
+  let worker: V0Worker;
 
   beforeEach(async () => {
     hatchet = Hatchet.init();
