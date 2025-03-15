@@ -13,6 +13,10 @@ from hatchet_sdk import (
 hatchet = Hatchet(debug=True)
 
 
+# ❓ Concurrency
+# This workflow shows example usage of Hatchet's concurrency features
+
+
 class WorkflowInput(BaseModel):
     run: int
     group: str
@@ -34,6 +38,9 @@ def step1(input: WorkflowInput, ctx: Context) -> dict[str, Any]:
     time.sleep(3)
     print("executed step1")
     return {"run": input.run}
+
+
+# ‼️
 
 
 def main() -> None:
