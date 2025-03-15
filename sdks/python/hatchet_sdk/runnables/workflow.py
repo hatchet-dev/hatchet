@@ -62,8 +62,8 @@ class Workflow(Generic[TWorkflowInput]):
 
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
         self.config = config
-        self.__default_tasks: list[Task[TWorkflowInput, Any]] = []
-        self.__concurrency_actions: list[Task[TWorkflowInput, Any]] = []
+        self._default_tasks: list[Task[TWorkflowInput, Any]] = []
+        self._concurrency_actions: list[Task[TWorkflowInput, Any]] = []
         self._on_failure_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
@@ -72,7 +72,7 @@ class Workflow(Generic[TWorkflowInput]):
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
-        tasks = self.__default_tasks + self.__concurrency_actions
+        tasks = self._default_tasks + self._concurrency_actions
 
         if self._on_failure_task:
             tasks += [self._on_failure_task]
@@ -90,13 +90,13 @@ class Workflow(Generic[TWorkflowInput]):
     def _validate_concurrency_actions(
         self, service_name: str
     ) -> WorkflowConcurrencyOpts | None:
-        if len(self.__concurrency_actions) > 0 and self.config.concurrency:
+        if len(self._concurrency_actions) > 0 and self.config.concurrency:
             raise ValueError(
                 "Error: Both concurrencyActions and concurrency_expression are defined. Please use only one concurrency configuration method."
             )
 
-        if len(self.__concurrency_actions) > 0:
-            action = self.__concurrency_actions[0]
+        if len(self._concurrency_actions) > 0:
+            action = self._concurrency_actions[0]
 
             return WorkflowConcurrencyOpts(
                 action=service_name + ":" + action.name,
@@ -332,23 +332,34 @@ class Workflow(Generic[TWorkflowInput]):
         backoff_max_seconds: int | None = None,
     ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
         """
-        Create a Hatchet task to run as part of a workflow.
+        A decorator to transform a function into a Hatchet task that run as part of a workflow.
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
         :type name: str | None
 
-        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time. Default: 100
-        :type slots: int
+        :param timeout: The execution timeout of the task. Defaults to 60 minutes.
+        :type timeout: datetime.timedelta
 
-        :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels. Defaults to an empty dictionary (no labels)
-        :type labels: dict[str, str | int]
+        :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children. Defaults to an empty list (no parents).
+        :type parents: list[Task]
 
-        :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them. Defaults to an empty list
-        :type workflows: list[Workflow]
+        :param retries: The number of times to retry the task before failing. Default: `0`
+        :type retries: int
 
+        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list (no rate limits).
+        :type rate_limits: list[RateLimit]
 
-        :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
-        :rtype: Worker
+        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. Defaults to an empty dictionary (no desired worker labels).
+        :type desired_worker_labels: dict[str, DesiredWorkerLabel]
+
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :type backoff_factor: float | None
+
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :type backoff_max_seconds: int | None
+
+        :returns: A decorator which creates a `Task` object.
+        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
         """
 
         def inner(
@@ -371,7 +382,7 @@ class Workflow(Generic[TWorkflowInput]):
                 backoff_max_seconds=backoff_max_seconds,
             )
 
-            self.__default_tasks.append(task)
+            self._default_tasks.append(task)
 
             return task
 
