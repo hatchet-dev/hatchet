@@ -7,7 +7,6 @@ R = TypeVar("R")
 P = ParamSpec("P")
 
 
-## TODO: Stricter typing here
 def sync_to_async(func: Callable[P, R]) -> Callable[P, Awaitable[R]]:
     """
     A decorator to run a synchronous function or coroutine in an asynchronous context with added
@@ -47,10 +46,8 @@ def sync_to_async(func: Callable[P, R]) -> Callable[P, Awaitable[R]]:
             The result of the function call.
         """
         if inspect.iscoroutinefunction(func):
-            # Wrap the coroutine to run it in an executor
             raise TypeError("`func` must be a synchronous function")
         else:
-            # Run the synchronous function in an executor
             pfunc = partial(func, *args, **kwargs)
             return await asyncio.to_thread(pfunc)
 
