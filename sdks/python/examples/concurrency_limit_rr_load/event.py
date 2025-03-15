@@ -1,5 +1,6 @@
-from hatchet_sdk import Hatchet
 import random
+
+from hatchet_sdk import Hatchet
 
 hatchet = Hatchet(debug=True)
 

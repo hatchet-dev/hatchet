@@ -1,5 +1,5 @@
-import time
 import random
+import time
 
 from hatchet_sdk import (
     BaseWorkflow,
@@ -20,6 +20,8 @@ wf = hatchet.declare_workflow(
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),
 )
+
+
 class LoadRR(BaseWorkflow):
     config = wf.config
 
@@ -51,7 +53,7 @@ class LoadRR(BaseWorkflow):
     @hatchet.step()
     def step3(self, context: Context) -> None:
         print("starting step3")
-        time.sleep(.2)
+        time.sleep(0.2)
         print("finished step3")
         return {}
 
