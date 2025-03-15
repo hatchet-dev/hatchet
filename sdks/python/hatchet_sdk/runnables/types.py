@@ -77,7 +77,7 @@ class WorkflowConfig(BaseModel):
 
         if field not in self.input_validator.model_fields.keys():
             raise ValueError(
-                f"The concurrency expression provided relies on the `{field}` field, which was not present in the `input_validator`."
+                f"The concurrency expression provided relies on the `{field}` field, which was not present in `{self.input_validator.__name__}`."
             )
 
         return self
