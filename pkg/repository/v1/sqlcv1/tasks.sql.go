@@ -1014,10 +1014,14 @@ WITH RECURSIVE augmented_tasks AS (
         t.child_key
     FROM
         v1_task t
-    JOIN
-        augmented_tasks at ON at.id = t.id AND at.inserted_at = t.inserted_at
     WHERE
-        t.tenant_id = $3::uuid
+        (t.id, t.inserted_at) IN (
+            SELECT
+                id, inserted_at
+            FROM
+                augmented_tasks
+        )
+        AND t.tenant_id = $3::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
