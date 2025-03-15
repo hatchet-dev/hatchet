@@ -1,8 +1,9 @@
 import asyncio
+from datetime import timedelta
 from enum import Enum
 from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -56,12 +57,30 @@ class WorkflowConfig(BaseModel):
     on_events: list[str] = []
     on_crons: list[str] = []
     version: str = ""
-    timeout: str = "60m"
-    schedule_timeout: str = "5m"
+    schedule_timeout: timedelta = timedelta(minutes=5)
     sticky: StickyStrategy | None = None
     default_priority: int = 1
     concurrency: ConcurrencyExpression | None = None
     input_validator: Type[BaseModel] = EmptyModel
+
+    @model_validator(mode="after")
+    def validate_concurrency_expression(self) -> "WorkflowConfig":
+        if not self.concurrency:
+            return self
+
+        expr = self.concurrency.expression
+
+        if not expr.startswith("input."):
+            return self
+
+        _, field = expr.split(".", maxsplit=2)
+
+        if field not in self.input_validator.model_fields.keys():
+            raise ValueError(
+                f"The concurrency expression provided relies on the {field} field, which was not present in the `input_validator`."
+            )
+
+        return self
 
 
 class StepType(str, Enum):

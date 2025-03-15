@@ -184,7 +184,7 @@ class Workflow(Generic[TWorkflowInput]):
             version=self.config.version,
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
-            schedule_timeout=self.config.schedule_timeout,
+            schedule_timeout=f"{self.config.schedule_timeout.seconds}s",
             sticky=maybe_int_to_str(
                 convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto)
             ),

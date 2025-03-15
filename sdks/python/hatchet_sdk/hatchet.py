@@ -182,9 +182,6 @@ class Hatchet:
         :param version: A version for the workflow. Default: None
         :type version: str | None
 
-        :param timeout: The execution timeout of the workflow, specified as a `timedelta`. For instance, setting `timedelta(minutes=30)` will time out the workflow run after 30 minutes. Default: 30 minutes.
-        :type timeout: `datetime.timedelta`
-
         :param schedule_timeout: The maximum amount of time that a workflow run that has been queued (scheduled) can wait before beginning to execute. For instance, setting `timedelta(minutes=5)` will cancel the workflow run if it does not start after five minutes. Default: five minutes.
         :type schedule_timeout: `datetime.timedelta`
 
@@ -207,8 +204,7 @@ class Hatchet:
                 on_events=on_events,
                 on_crons=on_crons,
                 version=version or "",
-                timeout=f"{timeout.seconds}s",
-                schedule_timeout=f"{schedule_timeout.seconds}s",
+                schedule_timeout=schedule_timeout,
                 sticky=sticky,
                 default_priority=default_priority,
                 concurrency=concurrency,
