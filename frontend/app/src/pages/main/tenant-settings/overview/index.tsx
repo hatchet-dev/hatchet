@@ -126,12 +126,12 @@ const TenantVersionSwitcher = () => {
               <p className="text-sm">
                 Please read our{' '}
                 <a
-                  href="https://docs.hatchet.run/v1/preview"
+                  href="https://github.com/hatchet-dev/hatchet/discussions/1348"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-indigo-400 hover:underline"
                 >
-                  v1 release notes
+                  v1 preview announcement
                 </a>{' '}
                 before proceeding.
               </p>
