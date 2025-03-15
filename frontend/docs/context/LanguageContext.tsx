@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
 
 type LanguageContextType = {
   selectedLanguage: string;
@@ -14,6 +20,8 @@ export const useLanguage = () => useContext(LanguageContext);
 
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   children,
+}: {
+  children: ReactNode;
 }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("Python");
 

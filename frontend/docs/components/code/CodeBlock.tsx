@@ -1,4 +1,3 @@
-import React from "react";
 import { parseDocComments } from "./codeParser";
 import { Src } from "./codeData";
 import CodeStyleRender from "./CodeStyleRender";
@@ -7,10 +6,10 @@ import {
   CheckIcon,
   CopyIcon,
   FoldVertical,
-  MoveRight,
   MoveUpRight,
   UnfoldVertical,
 } from "lucide-react";
+import { useState } from "react";
 
 interface CodeRendererProps {
   source: Src;
@@ -18,9 +17,9 @@ interface CodeRendererProps {
 }
 
 export const CodeBlock = ({ source, target }: CodeRendererProps) => {
-  const [collapsed, setCollapsed] = React.useState(true);
-  const [plainText, setPlainText] = React.useState(false);
-  const [copied, setCopied] = React.useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [plainText, setPlainText] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const parsed = parseDocComments(source.raw, target, collapsed);
 
