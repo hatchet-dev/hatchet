@@ -136,6 +136,7 @@ class Worker:
         for workflow in workflows:
             self.register_workflow(workflow)
 
+    @property
     def status(self) -> WorkerStatus:
         return self._status
 
@@ -154,12 +155,10 @@ class Worker:
             return created_loop
 
     async def health_check_handler(self, request: Request) -> Response:
-        status = self.status()
-
-        return web.json_response({"status": status.name})
+        return web.json_response({"status": self.status.name})
 
     async def metrics_handler(self, request: Request) -> Response:
-        self.worker_status_gauge.set(1 if self.status() == WorkerStatus.HEALTHY else 0)
+        self.worker_status_gauge.set(1 if self.status == WorkerStatus.HEALTHY else 0)
 
         return web.Response(body=generate_latest(), content_type="text/plain")
 
@@ -190,7 +189,7 @@ class Worker:
         self.owned_loop = self.setup_loop(options.loop)
 
         asyncio.run_coroutine_threadsafe(
-            self.aio_start(options, _from_start=True), self.loop
+            self._aio_start(options, _from_start=True), self.loop
         )
 
         # start the loop and wait until its closed
@@ -200,8 +199,7 @@ class Worker:
             if self.handle_kill:
                 sys.exit(0)
 
-    ## Start methods
-    async def aio_start(
+    async def _aio_start(
         self,
         options: WorkerStartOptions = WorkerStartOptions(),
         _from_start: bool = False,
@@ -310,9 +308,9 @@ class Worker:
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
         logger.info("received SIGQUIT...")
-        self.exit_forcefully()
+        self.loop.create_task(self.exit_forcefully())
 
-    async def close(self) -> None:
+    async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
         self.killing = True
         # self.action_queue.close()
@@ -327,7 +325,7 @@ class Worker:
         logger.debug(f"gracefully stopping worker: {self.name}")
 
         if self.killing:
-            return self.exit_forcefully()
+            return await self.exit_forcefully()
 
         self.killing = True
 
@@ -338,19 +336,18 @@ class Worker:
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
 
-        await self.close()
+        await self._close()
         if self.loop and self.owned_loop:
             self.loop.stop()
 
         logger.info("👋")
 
-    def exit_forcefully(self) -> None:
+    async def exit_forcefully(self) -> None:
         self.killing = True
 
         logger.debug(f"forcefully stopping worker: {self.name}")
 
-        ## TODO: `self.close` needs to be awaited / used
-        self.close()  # type: ignore[unused-coroutine]
+        await self._close()
 
         if self.action_listener_process:
             self.action_listener_process.kill()  # Forcefully kill the process
