@@ -11,9 +11,6 @@ from hatchet_sdk.clients.admin import (
 )
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.contracts.workflows_pb2 import (
-    ConcurrencyLimitStrategy as ConcurrencyLimitStrategyProto,
-)
-from hatchet_sdk.contracts.workflows_pb2 import (
     CreateWorkflowJobOpts,
     CreateWorkflowStepOpts,
     CreateWorkflowVersionOpts,
@@ -63,7 +60,6 @@ class Workflow(Generic[TWorkflowInput]):
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
         self.config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
-        self._concurrency_actions: list[Task[TWorkflowInput, Any]] = []
         self._on_failure_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
@@ -72,7 +68,7 @@ class Workflow(Generic[TWorkflowInput]):
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
-        tasks = self._default_tasks + self._concurrency_actions
+        tasks = self._default_tasks
 
         if self._on_failure_task:
             tasks += [self._on_failure_task]
@@ -87,36 +83,15 @@ class Workflow(Generic[TWorkflowInput]):
     def get_name(self, namespace: str) -> str:
         return namespace + self.config.name
 
-    def _validate_concurrency_actions(
-        self, service_name: str
-    ) -> WorkflowConcurrencyOpts | None:
-        if len(self._concurrency_actions) > 0 and self.config.concurrency:
-            raise ValueError(
-                "Error: Both concurrencyActions and concurrency_expression are defined. Please use only one concurrency configuration method."
-            )
+    def _validate_concurrency_options(self) -> WorkflowConcurrencyOpts | None:
+        if not self.config.concurrency:
+            return None
 
-        if len(self._concurrency_actions) > 0:
-            action = self._concurrency_actions[0]
-
-            return WorkflowConcurrencyOpts(
-                action=service_name + ":" + action.name,
-                max_runs=action.concurrency__slots,
-                limit_strategy=maybe_int_to_str(
-                    convert_python_enum_to_proto(
-                        action.concurrency__limit_strategy,
-                        ConcurrencyLimitStrategyProto,
-                    )
-                ),
-            )
-
-        if self.config.concurrency:
-            return WorkflowConcurrencyOpts(
-                expression=self.config.concurrency.expression,
-                max_runs=self.config.concurrency.max_runs,
-                limit_strategy=self.config.concurrency.limit_strategy,
-            )
-
-        return None
+        return WorkflowConcurrencyOpts(
+            expression=self.config.concurrency.expression,
+            max_runs=self.config.concurrency.max_runs,
+            limit_strategy=self.config.concurrency.limit_strategy,
+        )
 
     def _validate_on_failure_task(
         self, name: str, service_name: str
@@ -175,9 +150,7 @@ class Workflow(Generic[TWorkflowInput]):
             if task.type == StepType.DEFAULT
         ]
 
-        concurrency = self._validate_concurrency_actions(service_name)
         on_failure_job = self._validate_on_failure_task(name, service_name)
-        validated_priority = self._validate_priority(self.config.default_priority)
 
         return CreateWorkflowVersionOpts(
             name=name,
@@ -196,8 +169,8 @@ class Workflow(Generic[TWorkflowInput]):
                 )
             ],
             on_failure_job=on_failure_job,
-            concurrency=concurrency,
-            default_priority=validated_priority,
+            concurrency=self._validate_concurrency_options(),
+            default_priority=self.config.default_priority,
         )
 
     def create_run_workflow_config(
