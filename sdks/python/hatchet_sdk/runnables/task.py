@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generic
 
 from hatchet_sdk.context.context import Context
@@ -24,8 +25,8 @@ class Task(Generic[TWorkflowInput, R]):
         ),
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
-        name: str = "",
-        timeout: str = "60m",
+        name: str,
+        timeout: timedelta = timedelta(minutes=60),
         parents: "list[Task[TWorkflowInput, Any]]" = [],
         retries: int = 0,
         rate_limits: list[CreateStepRateLimit] = [],

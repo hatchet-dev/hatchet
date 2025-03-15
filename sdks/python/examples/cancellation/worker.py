@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
@@ -7,7 +8,7 @@ hatchet = Hatchet(debug=True)
 wf = hatchet.workflow(name="CancelWorkflow")
 
 
-@wf.task(timeout="10s", retries=1)
+@wf.task(timeout=timedelta(seconds=10), retries=1)
 async def step1(input: EmptyModel, ctx: Context) -> None:
     i = 0
     while not ctx.exit_flag and i < 20:

@@ -22,12 +22,12 @@ dag_workflow = hatchet.workflow(
 )
 
 
-@dag_workflow.task(timeout="5s")
+@dag_workflow.task(timeout=timedelta(seconds=5))
 def step1(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_workflow.task(timeout="5s")
+@dag_workflow.task(timeout=timedelta(seconds=5))
 def step2(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 

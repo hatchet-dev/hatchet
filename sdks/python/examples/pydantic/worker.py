@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import cast
 
 from pydantic import BaseModel
@@ -22,7 +23,7 @@ parent_workflow = hatchet.workflow(name="Parent", input_validator=ParentInput)
 child_workflow = hatchet.workflow(name="Child", input_validator=ChildInput)
 
 
-@parent_workflow.task(timeout="5m")
+@parent_workflow.task(timeout=timedelta(minutes=5))
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, str]:
     child = await child_workflow.aio_run(input=ChildInput(a=1, b=10))
 

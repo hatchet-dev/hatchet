@@ -1,5 +1,6 @@
 import hashlib
 import time
+from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
@@ -14,7 +15,7 @@ hatchet = Hatchet(debug=True)
 blocked_worker_workflow = hatchet.workflow(name="Blocked")
 
 
-@blocked_worker_workflow.task(timeout="11s", retries=3)
+@blocked_worker_workflow.task(timeout=timedelta(seconds=11), retries=3)
 async def step1(input: EmptyModel, ctx: Context) -> dict[str, str | int | float]:
     print("Executing step1")
 

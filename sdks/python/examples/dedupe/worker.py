@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from typing import Any
 
 from hatchet_sdk import Context, EmptyModel, Hatchet, TriggerWorkflowOptions
@@ -10,7 +11,7 @@ dedupe_parent_wf = hatchet.workflow(name="DedupeParent")
 dedupe_child_wf = hatchet.workflow(name="DedupeChild")
 
 
-@dedupe_parent_wf.task(timeout="1m")
+@dedupe_parent_wf.task(timeout=timedelta(minutes=1))
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
     print("spawning child")
 

@@ -127,7 +127,6 @@ class Hatchet:
         :rtype: Worker
         """
 
-
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 
 from pydantic import BaseModel
@@ -19,7 +20,7 @@ parent = hatchet.workflow(name="SyncFanoutParent", input_validator=ParentInput)
 child = hatchet.workflow(name="SyncFanoutChild", input_validator=ChildInput)
 
 
-@parent.task(timeout="5m")
+@parent.task(timeout=timedelta(minutes=5))
 def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     print("spawning child")
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, Generic, cast
 
 from google.protobuf import timestamp_pb2
@@ -31,6 +31,7 @@ from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, StepType, TWorkflowInput, WorkflowConfig
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
+from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -63,7 +64,7 @@ class Workflow(Generic[TWorkflowInput]):
         self.config = config
         self.__default_tasks: list[Task[TWorkflowInput, Any]] = []
         self.__concurrency_actions: list[Task[TWorkflowInput, Any]] = []
-        self.__on_failure_task: Task[TWorkflowInput, Any] | None = None
+        self._on_failure_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
     def get_service_name(self, namespace: str) -> str:
@@ -73,8 +74,8 @@ class Workflow(Generic[TWorkflowInput]):
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
         tasks = self.__default_tasks + self.__concurrency_actions
 
-        if self.__on_failure_task:
-            tasks += [self.__on_failure_task]
+        if self._on_failure_task:
+            tasks += [self._on_failure_task]
 
         return tasks
 
@@ -120,22 +121,22 @@ class Workflow(Generic[TWorkflowInput]):
     def _validate_on_failure_task(
         self, name: str, service_name: str
     ) -> CreateWorkflowJobOpts | None:
-        if not self.__on_failure_task:
+        if not self._on_failure_task:
             return None
 
         return CreateWorkflowJobOpts(
             name=name + "-on-failure",
             steps=[
                 CreateWorkflowStepOpts(
-                    readable_id=self.__on_failure_task.name,
-                    action=service_name + ":" + self.__on_failure_task.name,
-                    timeout=self.__on_failure_task.timeout or "60s",
+                    readable_id=self._on_failure_task.name,
+                    action=service_name + ":" + self._on_failure_task.name,
+                    timeout=timedelta_to_expr(self._on_failure_task.timeout) or "60s",
                     inputs="{}",
                     parents=[],
-                    retries=self.__on_failure_task.retries,
-                    rate_limits=self.__on_failure_task.rate_limits,
-                    backoff_factor=self.__on_failure_task.backoff_factor,
-                    backoff_max_seconds=self.__on_failure_task.backoff_max_seconds,
+                    retries=self._on_failure_task.retries,
+                    rate_limits=self._on_failure_task.rate_limits,
+                    backoff_factor=self._on_failure_task.backoff_factor,
+                    backoff_max_seconds=self._on_failure_task.backoff_max_seconds,
                 )
             ],
         )
@@ -161,7 +162,7 @@ class Workflow(Generic[TWorkflowInput]):
             CreateWorkflowStepOpts(
                 readable_id=task.name,
                 action=service_name + ":" + task.name,
-                timeout=task.timeout or "60s",
+                timeout=timedelta_to_expr(task.timeout) or "60s",
                 inputs="{}",
                 parents=[x.name for x in task.parents],
                 retries=task.retries,
@@ -184,7 +185,7 @@ class Workflow(Generic[TWorkflowInput]):
             version=self.config.version,
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
-            schedule_timeout=f"{self.config.schedule_timeout.seconds}s",
+            schedule_timeout=timedelta_to_expr(self.config.schedule_timeout),
             sticky=maybe_int_to_str(
                 convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto)
             ),
@@ -312,10 +313,17 @@ class Workflow(Generic[TWorkflowInput]):
             options=options,
         )
 
+    def parse_task_name(
+        self, name: str | None, func: Callable[[TWorkflowInput, Context], R]
+    ) -> str:
+        non_null_name = name or func.__name__
+
+        return non_null_name.lower()
+
     def task(
         self,
-        name: str = "",
-        timeout: str = "60m",
+        name: str | None = None,
+        timeout: timedelta = timedelta(minutes=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -323,6 +331,26 @@ class Workflow(Generic[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
+        """
+        Create a Hatchet task to run as part of a workflow.
+
+        :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
+        :type name: str | None
+
+        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time. Default: 100
+        :type slots: int
+
+        :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels. Defaults to an empty dictionary (no labels)
+        :type labels: dict[str, str | int]
+
+        :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them. Defaults to an empty list
+        :type workflows: list[Workflow]
+
+
+        :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
+        :rtype: Worker
+        """
+
         def inner(
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
@@ -330,7 +358,7 @@ class Workflow(Generic[TWorkflowInput]):
                 fn=func,
                 workflow=self,
                 type=StepType.DEFAULT,
-                name=name.lower() or str(func.__name__).lower(),
+                name=self.parse_task_name(name, func),
                 timeout=timeout,
                 parents=parents,
                 retries=retries,
@@ -351,8 +379,8 @@ class Workflow(Generic[TWorkflowInput]):
 
     def on_failure_task(
         self,
-        name: str = "",
-        timeout: str = "60m",
+        name: str | None = None,
+        timeout: timedelta = timedelta(minutes=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
@@ -365,7 +393,7 @@ class Workflow(Generic[TWorkflowInput]):
                 fn=func,
                 workflow=self,
                 type=StepType.ON_FAILURE,
-                name=name.lower() or str(func.__name__).lower(),
+                name=self.parse_task_name(name, func),
                 timeout=timeout,
                 retries=retries,
                 rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
@@ -373,7 +401,7 @@ class Workflow(Generic[TWorkflowInput]):
                 backoff_max_seconds=backoff_max_seconds,
             )
 
-            self.__on_failure_task = task
+            self._on_failure_task = task
 
             return task
 
