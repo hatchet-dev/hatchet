@@ -295,7 +295,6 @@ class Worker:
         except Exception as e:
             logger.error(f"error checking listener health: {e}")
 
-    ## Cleanup methods
     def _setup_signal_handlers(self) -> None:
         signal.signal(signal.SIGTERM, self._handle_exit_signal)
         signal.signal(signal.SIGINT, self._handle_exit_signal)
