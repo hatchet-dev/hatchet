@@ -98,9 +98,7 @@ class Worker:
 
         self.register_workflows(workflows)
 
-    def register_workflow_from_opts(
-        self, name: str, opts: CreateWorkflowVersionOpts
-    ) -> None:
+    def register_workflow_from_opts(self, opts: CreateWorkflowVersionOpts) -> None:
         try:
             self.client.admin.put_workflow(opts.name, opts)
         except Exception as e:
