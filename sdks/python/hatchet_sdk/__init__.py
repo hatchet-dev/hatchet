@@ -143,7 +143,6 @@ from hatchet_sdk.runnables.types import (
     StickyStrategy,
     WorkflowConfig,
 )
-from hatchet_sdk.utils.aio_utils import sync_to_async
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 
 __all__ = [
@@ -192,7 +191,6 @@ __all__ = [
     "StepRun",
     "StepRunDiff",
     "StepRunStatus",
-    "sync_to_async",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",
