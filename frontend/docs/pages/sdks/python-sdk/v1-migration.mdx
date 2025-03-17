@@ -49,6 +49,8 @@ Typing improvements:
 2. External-facing protobuf objects, such as `StickyStrategy` and `ConcurrencyLimitStrategy`, have been replaced by native Python enums to make working with them easier.
 3. All interactions with the `Workflow` object are now typed, so you know e.g. what the type of the input to the workflow needs to be at type checking time (we see this in the Pydantic example above).
 4. All external-facing types that are used for triggering workflows, scheduling workflows, etc. are now Pydantic objects, as opposed to being `TypedDict`s.
+5. The return type of each `Task` is restricted to a `JSONSerializableMapping` or a Pydantic model, to better align with what the Hatchet Engine expects.
+6. The `ClientConfig` now uses Pydantic Settings, and we've removed the static methods on the Client for `from_environment` and `from_config` in favor of passing configuration in correctly. See the [configuration example](./client.mdx) for more details.
 
 Naming changes:
 
