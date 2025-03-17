@@ -57,6 +57,10 @@ Naming changes:
 1. We no longer have nested `aio` clients for async methods. Instead, async methods thoughout the entire SDK are prefered by `aio_`, similar to [Langchain's use of the `a` prefix](https://python.langchain.com/docs/concepts/streaming/#stream-and-astream) to indicate async. For example, to run a workflow, you may now either use `workflow.run()` or `workflow.aio_run()`.
 2. All functions on Hatchet clients are now _verbs_. For instance `hatchet.admin.workflow_run_get` is now `hatchet.admin.get_workflow_run`.
 
+Removals:
+
+1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](./asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
+
 Other miscellaneous changes:
 
 1. As shown in the Pydantic example above, there is no longer a `spawn_workflow(s)` method on the `Context`. `run` is now the preferred method for spawning workflows, which will automatically propagate the parent's metadata to the child workflow.
