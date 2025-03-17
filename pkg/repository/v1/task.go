@@ -153,6 +153,8 @@ type FinalizedTaskResponse struct {
 type RetriedTask struct {
 	*TaskIdInsertedAtRetryCount
 
+	IsAppError bool
+
 	AppRetryCount int32
 
 	RetryBackoffFactor pgtype.Float8
@@ -164,6 +166,12 @@ type FailTasksResponse struct {
 	*FinalizedTaskResponse
 
 	RetriedTasks []RetriedTask
+}
+
+type TimeoutTasksResponse struct {
+	*FailTasksResponse
+
+	TimeoutTasks []*sqlcv1.ListTasksToTimeoutRow
 }
 
 type ListFinalizedWorkflowRunsResponse struct {
@@ -204,9 +212,9 @@ type TaskRepository interface {
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
 
-	ProcessTaskTimeouts(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskTimeoutsRow, bool, error)
+	ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error)
 
-	ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskReassignmentsRow, bool, error)
+	ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error)
 
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error)
 
@@ -509,27 +517,22 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		return nil, fmt.Errorf("failed to release all tasks")
 	}
 
-	datas := make([][]byte, len(releasedTasks))
-	insertedAts := make([]pgtype.Timestamptz, len(releasedTasks))
-	externalIds := make([]string, len(releasedTasks))
+	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewCompletedTaskOutputEvent(releasedTask, tasks[i].Output)
+		out := NewCompletedTaskOutputEvent(releasedTask, tasks[i].Output).Bytes()
 
-		datas[i] = out.Bytes()
-		insertedAts[i] = releasedTask.InsertedAt
-		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
+		outputs[i] = out
 	}
 
-	internalEvents, err := r.createTaskEvents(
+	internalEvents, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
 		tenantId,
 		taskIdRetryCounts,
-		externalIds,
-		datas,
-		makeEventTypeArr(sqlcv1.V1TaskEventTypeCOMPLETED, len(tasks)),
-		make([]string, len(tasks)),
+		outputs,
+		releasedTasks,
+		sqlcv1.V1TaskEventTypeCOMPLETED,
 	)
 
 	if err != nil {
@@ -548,6 +551,29 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 }
 
 func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	res, err := r.failTasksTx(ctx, tx, tenantId, failureOpts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// commit the transaction
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, tenantId string, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -575,14 +601,6 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 
 	tasks = uniqueSet(tasks)
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
 	retriedTasks := make([]RetriedTask, 0)
 
 	// write app failures
@@ -604,6 +622,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 					InsertedAt: task.InsertedAt,
 					RetryCount: task.RetryCount,
 				},
+				IsAppError:         true,
 				AppRetryCount:      task.AppRetryCount,
 				RetryBackoffFactor: task.RetryBackoffFactor,
 				RetryMaxBackoff:    task.RetryMaxBackoff,
@@ -645,38 +664,25 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		return nil, err
 	}
 
-	if len(tasks) != len(releasedTasks) {
-		return nil, fmt.Errorf("failed to release all tasks")
-	}
-
-	datas := make([][]byte, len(releasedTasks))
-	externalIds := make([]string, len(releasedTasks))
+	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage)
+		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage).Bytes()
 
-		datas[i] = out.Bytes()
-		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
+		outputs[i] = out
 	}
 
-	// write task events
-	internalEvents, err := r.createTaskEvents(
+	internalEvents, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
 		tenantId,
 		tasks,
-		externalIds,
-		datas,
-		makeEventTypeArr(sqlcv1.V1TaskEventTypeFAILED, len(tasks)),
-		make([]string, len(tasks)),
+		outputs,
+		releasedTasks,
+		sqlcv1.V1TaskEventTypeFAILED,
 	)
 
 	if err != nil {
-		return nil, err
-	}
-
-	// commit the transaction
-	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -863,32 +869,22 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		return nil, err
 	}
 
-	if len(tasks) != len(releasedTasks) {
-		return nil, fmt.Errorf("failed to release all tasks")
-	}
-
-	datas := make([][]byte, len(releasedTasks))
-	insertedAts := make([]pgtype.Timestamptz, len(releasedTasks))
-	externalIds := make([]string, len(releasedTasks))
+	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewCancelledTaskOutputEvent(releasedTask)
+		out := NewCancelledTaskOutputEvent(releasedTask).Bytes()
 
-		datas[i] = out.Bytes()
-		insertedAts[i] = releasedTask.InsertedAt
-		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
+		outputs[i] = out
 	}
 
-	// write task events
-	internalEvents, err := r.createTaskEvents(
+	internalEvents, err := r.createTaskEventsAfterRelease(
 		ctx,
 		dbtx,
 		tenantId,
 		tasks,
-		externalIds,
-		datas,
-		makeEventTypeArr(sqlcv1.V1TaskEventTypeCANCELLED, len(tasks)),
-		make([]string, len(tasks)),
+		outputs,
+		releasedTasks,
+		sqlcv1.V1TaskEventTypeCANCELLED,
 	)
 
 	if err != nil {
@@ -957,7 +953,7 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string,
 	})
 }
 
-func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskTimeoutsRow, bool, error) {
+func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) (*TimeoutTasksResponse, bool, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
@@ -970,7 +966,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 	limit := 1000
 
 	// get task timeouts
-	res, err := r.queries.ProcessTaskTimeouts(ctx, tx, sqlcv1.ProcessTaskTimeoutsParams{
+	toTimeout, err := r.queries.ListTasksToTimeout(ctx, tx, sqlcv1.ListTasksToTimeoutParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Limit: pgtype.Int4{
 			Int32: int32(limit),
@@ -982,15 +978,40 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 		return nil, false, err
 	}
 
+	// parse into FailTaskOpts
+	failOpts := make([]FailTaskOpts, 0, len(toTimeout))
+
+	for _, task := range toTimeout {
+		failOpts = append(failOpts, FailTaskOpts{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			IsAppError:   true,
+			ErrorMessage: fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+		})
+	}
+
+	// fail the tasks
+	failResp, err := r.failTasksTx(ctx, tx, tenantId, failOpts)
+
+	if err != nil {
+		return nil, false, err
+	}
+
 	// commit the transaction
 	if err := commit(ctx); err != nil {
 		return nil, false, err
 	}
 
-	return res, len(res) == limit, nil
+	return &TimeoutTasksResponse{
+		FailTasksResponse: failResp,
+		TimeoutTasks:      toTimeout,
+	}, len(toTimeout) == limit, nil
 }
 
-func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskReassignmentsRow, bool, error) {
+func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
@@ -1002,10 +1023,8 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	// TODO: make limit configurable
 	limit := 1000
 
-	// get task reassignments
-	res, err := r.queries.ProcessTaskReassignments(ctx, tx, sqlcv1.ProcessTaskReassignmentsParams{
-		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-		Maxinternalretries: MAX_INTERNAL_RETRIES,
+	toReassign, err := r.queries.ListTasksToReassign(ctx, tx, sqlcv1.ListTasksToReassignParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Limit: pgtype.Int4{
 			Int32: int32(limit),
 			Valid: true,
@@ -1016,36 +1035,25 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		return nil, false, err
 	}
 
-	// write failed tasks as task events
-	failedTasks := make([]TaskIdInsertedAtRetryCount, 0)
+	// parse into FailTaskOpts
+	failOpts := make([]FailTaskOpts, 0, len(toReassign))
 
-	for _, task := range res {
-		if task.Operation == "FAILED" {
-			failedTasks = append(failedTasks, TaskIdInsertedAtRetryCount{
+	for _, task := range toReassign {
+		failOpts = append(failOpts, FailTaskOpts{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
-			})
-		}
+			},
+			IsAppError: false,
+		})
 	}
 
-	// failedTaskDatas := make([][]byte, len(failedTasks))
+	// fail the tasks
+	res, err := r.failTasksTx(ctx, tx, tenantId, failOpts)
 
-	if len(failedTasks) > 0 {
-		// TODO: FIX REASSIGNMENTS
-		// _, err = r.createTaskEvents(
-		// 	ctx,
-		// 	tx,
-		// 	tenantId,
-		// 	failedTasks,
-		// 	failedTaskDatas,
-		// 	sqlcv1.V1TaskEventTypeFAILED,
-		// 	make([]string, len(failedTasks)),
-		// )
-
-		// if err != nil {
-		// 	return nil, false, err
-		// }
+	if err != nil {
+		return nil, false, err
 	}
 
 	// commit the transaction
@@ -1053,7 +1061,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		return nil, false, err
 	}
 
-	return res, len(res) == limit, nil
+	return res, len(toReassign) == limit, nil
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error) {
@@ -2059,6 +2067,56 @@ func (r *sharedRepository) getStepExpressions(
 	}
 
 	return stepIdToExpressions, nil
+}
+
+func (r *sharedRepository) createTaskEventsAfterRelease(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	tenantId string,
+	taskIdRetryCounts []TaskIdInsertedAtRetryCount,
+	outputs [][]byte,
+	releasedTasks []*sqlcv1.ReleaseTasksRow,
+	eventType sqlcv1.V1TaskEventType,
+) ([]InternalTaskEvent, error) {
+	if len(taskIdRetryCounts) != len(releasedTasks) || len(taskIdRetryCounts) != len(outputs) {
+		return nil, fmt.Errorf("failed to release all tasks")
+	}
+
+	datas := make([][]byte, len(releasedTasks))
+	externalIds := make([]string, len(releasedTasks))
+	isCurrentRetry := make([]bool, len(releasedTasks))
+
+	for i, releasedTask := range releasedTasks {
+		datas[i] = outputs[i]
+		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
+		isCurrentRetry[i] = releasedTask.IsCurrentRetry
+	}
+
+	// filter out any rows which are not the current retry
+	filteredTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
+	filteredDatas := make([][]byte, 0)
+	filteredExternalIds := make([]string, 0)
+
+	for i := range len(datas) {
+		if !isCurrentRetry[i] {
+			continue
+		}
+
+		filteredTaskIdRetryCounts = append(filteredTaskIdRetryCounts, taskIdRetryCounts[i])
+		filteredDatas = append(filteredDatas, datas[i])
+		filteredExternalIds = append(filteredExternalIds, externalIds[i])
+	}
+
+	return r.createTaskEvents(
+		ctx,
+		tx,
+		tenantId,
+		filteredTaskIdRetryCounts,
+		filteredExternalIds,
+		filteredDatas,
+		makeEventTypeArr(eventType, len(filteredExternalIds)),
+		make([]string, len(filteredExternalIds)),
+	)
 }
 
 func (r *sharedRepository) createTaskEvents(

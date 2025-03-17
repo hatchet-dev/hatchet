@@ -371,6 +371,30 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		if msg.ErrorMsg != "" {
 			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
 		}
+
+		// send failed tasks to the olap repository
+		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         msg.TaskId,
+				RetryCount:     msg.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapFAILED,
+				EventTimestamp: msg.InsertedAt.Time,
+				EventPayload:   msg.ErrorMsg,
+			},
+		)
+
+		if err != nil {
+			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			continue
+		}
+
+		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
+
+		if err != nil {
+			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			continue
+		}
 	}
 
 	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
@@ -379,6 +403,10 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		return err
 	}
 
+	return tc.processFailTasksResponse(ctx, tenantId, res)
+}
+
+func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, tenantId string, res *v1.FailTasksResponse) error {
 	retriedTaskIds := make(map[int64]struct{})
 
 	for _, task := range res.RetriedTasks {
@@ -399,7 +427,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
+	err := tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
 		return err
@@ -409,74 +437,11 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	// send retried tasks to the olap repository
 	for _, task := range res.RetriedTasks {
-		taskId := task.Id
-
-		retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
-
-		if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
-			maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
-			backoffFactor := task.RetryBackoffFactor.Float64
-
-			// compute the backoff duration
-			durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(task.AppRetryCount)))
-			retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
-			retryTime := time.Now().Add(retryDur)
-
-			retryMsg = fmt.Sprintf("%s Retrying in %s (%s).", retryMsg, retryDur.String(), retryTime.Format(time.RFC3339))
-		}
-
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         taskId,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapRETRYING,
-				EventTimestamp: time.Now(),
-				EventMessage:   retryMsg,
-			},
-		)
-
-		if err != nil {
-			outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
-			false,
-		)
-
-		if err != nil {
-			outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
-		}
-
-		if !task.RetryBackoffFactor.Valid {
-			olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
-				tenantId,
-				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         taskId,
-					RetryCount:     task.RetryCount,
-					EventType:      sqlcv1.V1EventTypeOlapQUEUED,
-					EventTimestamp: time.Now(),
-				},
-			)
+		if task.IsAppError {
+			err = tc.pubRetryEvent(ctx, tenantId, task)
 
 			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
-				continue
-			}
-
-			err = tc.pubBuffer.Pub(
-				ctx,
-				msgqueue.OLAP_QUEUE,
-				olapMsg,
-				false,
-			)
-
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish retry event: %w", err))
 			}
 		}
 	}
@@ -1364,6 +1329,79 @@ func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId
 		if err != nil {
 			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
 			continue
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId string, task v1.RetriedTask) error {
+	taskId := task.Id
+
+	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
+
+	if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
+		maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
+		backoffFactor := task.RetryBackoffFactor.Float64
+
+		// compute the backoff duration
+		durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(task.AppRetryCount)))
+		retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
+		retryTime := time.Now().Add(retryDur)
+
+		retryMsg = fmt.Sprintf("%s Retrying in %s (%s).", retryMsg, retryDur.String(), retryTime.Format(time.RFC3339))
+	}
+
+	olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+		tenantId,
+		tasktypes.CreateMonitoringEventPayload{
+			TaskId:         taskId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapRETRYING,
+			EventTimestamp: time.Now(),
+			EventMessage:   retryMsg,
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create monitoring event message: %w", err)
+	}
+
+	err = tc.pubBuffer.Pub(
+		ctx,
+		msgqueue.OLAP_QUEUE,
+		olapMsg,
+		false,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not publish monitoring event message: %w", err)
+	}
+
+	if !task.RetryBackoffFactor.Valid {
+		olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         taskId,
+				RetryCount:     task.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+				EventTimestamp: time.Now(),
+			},
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create monitoring event message: %w", err)
+		}
+
+		err = tc.pubBuffer.Pub(
+			ctx,
+			msgqueue.OLAP_QUEUE,
+			olapMsg,
+			false,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not publish monitoring event message: %w", err)
 		}
 	}
 

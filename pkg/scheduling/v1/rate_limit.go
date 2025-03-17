@@ -116,12 +116,14 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 
 	// determine if we can use all the rate limits in the set
 	for k, v := range rls {
-		if currRls[k].val < int(v) {
-			res.exceededKey = k
-			res.exceededUnits = v
-			res.exceededVal = int32(currRls[k].val) // nolint: gosec
+		if currRl, ok := currRls[k]; ok {
+			if currRl.val < int(v) {
+				res.exceededKey = k
+				res.exceededUnits = v
+				res.exceededVal = int32(currRl.val) // nolint: gosec
 
-			return res
+				return res
+			}
 		}
 	}
 
