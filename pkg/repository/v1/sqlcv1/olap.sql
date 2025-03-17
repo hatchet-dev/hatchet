@@ -270,9 +270,9 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT dt.task_id
+    SELECT dt.task_id, dt.task_inserted_at
     FROM v1_lookup_table_olap lt
-    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.dag_inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
@@ -290,7 +290,7 @@ WITH tasks AS (
   FROM v1_task_events_olap
   WHERE
     tenant_id = @tenantId::uuid
-    AND task_id IN (SELECT task_id FROM tasks)
+    AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
   GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
 )
 SELECT
