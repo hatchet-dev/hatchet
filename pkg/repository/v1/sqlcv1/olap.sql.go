@@ -481,7 +481,7 @@ const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :man
 WITH tasks AS (
     SELECT dt.task_id, dt.task_inserted_at
     FROM v1_lookup_table_olap lt
-    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.dag_inserted_at = dt.dag_inserted_at
+    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = $1::uuid
         AND lt.tenant_id = $2::uuid
