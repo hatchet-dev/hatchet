@@ -9,6 +9,7 @@
     "href": "https://github.com/hatchet-dev/hatchet-python-quickstart",
     "newWindow": true
   },
+  "v1-migration": "v1 Migration Guide",
   "--- Configuration": {
     "type": "separator",
     "title": "Configuration"

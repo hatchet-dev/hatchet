@@ -1,0 +1,18 @@
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const SimpleWorker = {
+  path: "examples/pydantic/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([SimpleWorker]);
+
+
+## Hatchet Python V1 Migration Guide
+
+This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK.
+
+#### Introductory Example
+
+First, a simple example of how to define a workflow with the V1 SDK:
+
+<GithubSnippet src={SimpleWorker} target="Pydantic" />
