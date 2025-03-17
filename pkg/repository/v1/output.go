@@ -39,9 +39,15 @@ func (e *TaskOutputEvent) IsCancelled() bool {
 	return e.EventType == sqlcv1.V1TaskEventTypeCANCELLED
 }
 
-func NewSkippedTaskOutputEventFromTask(task *sqlcv1.V1Task, output []byte) *TaskOutputEvent {
+func NewSkippedTaskOutputEventFromTask(task *sqlcv1.V1Task) *TaskOutputEvent {
+	outputMap := map[string]bool{
+		"skipped": true,
+	}
+
+	outputMapBytes, _ := json.Marshal(outputMap) // nolint: errcheck
+
 	e := baseFromTasksRow(task)
-	e.Output = output
+	e.Output = outputMapBytes
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
 
 	if task.DesiredWorkerID.Valid {
@@ -52,10 +58,10 @@ func NewSkippedTaskOutputEventFromTask(task *sqlcv1.V1Task, output []byte) *Task
 	return e
 }
 
-func NewFailedTaskOutputEventFromTask(task *sqlcv1.V1Task, errorMsg string) *TaskOutputEvent {
+func NewFailedTaskOutputEventFromTask(task *sqlcv1.V1Task) *TaskOutputEvent {
 	e := baseFromTasksRow(task)
 	e.IsFailure = true
-	e.ErrorMessage = errorMsg
+	e.ErrorMessage = task.InitialStateReason.String
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
 
 	if task.DesiredWorkerID.Valid {

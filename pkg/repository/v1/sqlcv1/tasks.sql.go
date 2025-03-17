@@ -751,6 +751,132 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 	return items, nil
 }
 
+const listTaskParentOutputs = `-- name: ListTaskParentOutputs :many
+WITH RECURSIVE augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_readable_id,
+        workflow_run_id,
+        step_id,
+        workflow_id
+    FROM
+        v1_task
+    WHERE
+        (id, inserted_at) IN (
+            SELECT
+                unnest($1::bigint[]),
+                unnest($2::timestamptz[])
+        )
+        AND tenant_id = $3::uuid
+
+    UNION
+
+    -- Then, select the tasks that are parents of the input tasks
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id,
+        t.dag_id,
+        t.dag_inserted_at,
+        t.step_readable_id,
+        t.workflow_run_id,
+        t.step_id,
+        t.workflow_id
+    FROM
+        augmented_tasks at
+    JOIN
+        "Step" s1 ON s1."id" = at.step_id
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
+    JOIN
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+    JOIN
+        "Step" s2 ON s2."id" = t.step_id
+    JOIN
+        "_StepOrder" so ON so."A" = s2."id" AND so."B" = s1."id"
+)
+SELECT
+    DISTINCT ON (at.id, at.inserted_at, at.retry_count)
+    at.id,
+    at.inserted_at,
+    at.retry_count,
+    at.tenant_id,
+    at.dag_id,
+    at.dag_inserted_at,
+    at.step_readable_id,
+    at.workflow_run_id,
+    at.step_id,
+    at.workflow_id,
+    e.data AS output
+FROM
+    augmented_tasks at
+JOIN
+    v1_task_event e ON e.task_id = at.id AND e.task_inserted_at = at.inserted_at AND e.retry_count = at.retry_count
+WHERE
+    e.event_type = 'COMPLETED'
+`
+
+type ListTaskParentOutputsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
+}
+
+type ListTaskParentOutputsRow struct {
+	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	DagID          pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
+	StepReadableID string             `json:"step_readable_id"`
+	WorkflowRunID  pgtype.UUID        `json:"workflow_run_id"`
+	StepID         pgtype.UUID        `json:"step_id"`
+	WorkflowID     pgtype.UUID        `json:"workflow_id"`
+	Output         []byte             `json:"output"`
+}
+
+// Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
+// of the tasks as well.
+func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTaskParentOutputsParams) ([]*ListTaskParentOutputsRow, error) {
+	rows, err := db.Query(ctx, listTaskParentOutputs, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTaskParentOutputsRow
+	for rows.Next() {
+		var i ListTaskParentOutputsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.TenantID,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.StepReadableID,
+			&i.WorkflowRunID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasks = `-- name: ListTasks :many
 SELECT
     id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
@@ -831,6 +957,7 @@ WITH RECURSIVE augmented_tasks AS (
         id,
         tenant_id,
         dag_id,
+        dag_inserted_at,
         step_id
     FROM
         v1_task
@@ -849,15 +976,16 @@ WITH RECURSIVE augmented_tasks AS (
         t.id,
         t.tenant_id,
         t.dag_id,
+        t.dag_inserted_at,
         t.step_id
     FROM
         augmented_tasks at
     JOIN
         "Step" s1 ON s1."id" = at.step_id
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = at.dag_id
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
     JOIN
-        v1_task t ON t.id = dt.task_id
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
         "Step" s2 ON s2."id" = t.step_id
     JOIN

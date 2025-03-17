@@ -222,7 +222,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		taskIds,
 		taskExternalIds,
 		datas,
-		sqlcv1.V1TaskEventTypeSIGNALCREATED,
+		makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCREATED, len(taskIds)),
 		newEventKeys,
 	)
 
