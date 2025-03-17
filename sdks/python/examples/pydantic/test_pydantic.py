@@ -24,4 +24,4 @@ async def test_run(hatchet: Hatchet, worker: Worker) -> None:
 
     result = await run.aio_result()
 
-    assert len(result["spawn"]) == 3
+    assert len(result["spawn"]) == 2

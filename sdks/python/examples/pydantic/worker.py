@@ -55,15 +55,14 @@ def process2(input: ChildInput, ctx: Context) -> StepResponse:
     return StepResponse(status="step 2 - success")
 
 
-
 def main() -> None:
     worker = hatchet.worker(
         "pydantic-worker", workflows=[parent_workflow, child_workflow]
     )
     worker.start()
 
-# ‼️
 
+# ‼️
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ export const PydanticWorker = {
   path: "examples/pydantic/worker.py",
 };
 
-export const getStaticProps = ({}) => getSnippets([SimpleWorker, PydanticWorker]);
-
+export const getStaticProps = ({}) =>
+  getSnippets([SimpleWorker, PydanticWorker]);
 
 ## Hatchet Python V1 Migration Guide
 
@@ -60,7 +60,6 @@ Naming changes:
 Other miscellaneous changes:
 
 1. As shown in the Pydantic example above, there is no longer a `spawn_workflow(s)` method on the `Context`. `run` is now the preferred method for spawning workflows, which will automatically propagate the parent's metadata to the child workflow.
-
 
 #### Other New features
 
