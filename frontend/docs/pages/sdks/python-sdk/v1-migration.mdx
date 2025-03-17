@@ -58,3 +58,10 @@ Naming changes:
 Other miscellaneous changes:
 
 1. As shown in the Pydantic example above, there is no longer a `spawn_workflow(s)` method on the `Context`. `run` is now the preferred method for spawning workflows, which will automatically propagate the parent's metadata to the child workflow.
+
+
+#### Other New features
+
+There are a handful of other new features that will make interfacing with the SDK easier, which are listed below.
+
+1. Concurrency keys using the `input` to a workflow are now checked for validity at runtime. If the workflow's `input_validator` does not contain a field that's used in a key, Hatchet will reject the workflow when it's created. For example, if the key is `input.user_id`, the `input_validator` Pydantic model _must_ contain a `user_id` field.
