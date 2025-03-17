@@ -144,6 +144,17 @@ WITH rls_to_update AS (
     RETURNING rl.*
 )
 SELECT
+    rl.*,
+    (rl."lastRefill" + rl."window"::INTERVAL)::timestamp AS "nextRefillAt"
+FROM
+    "RateLimit" rl
+WHERE
+    rl."tenantId" = @tenantId::uuid
+    AND rl."key" NOT IN (SELECT "key" FROM refill)
+
+UNION ALL
+
+SELECT
     refill.*,
     -- return the next refill time
     (refill."lastRefill" + refill."window"::INTERVAL)::timestamp AS "nextRefillAt"
@@ -182,9 +193,9 @@ WITH input AS (
     FOR UPDATE
 )
 UPDATE
-    "RateLimit"
+    "RateLimit" rl
 SET
-    "value" = get_refill_value(rl) - input."units",
+    "value" = get_refill_value(rl) - (SELECT "units" FROM input WHERE "key" = rl."key"),
     "lastRefill" = CASE
         WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
             CURRENT_TIMESTAMP
@@ -192,9 +203,8 @@ SET
             rl."lastRefill"
     END
 FROM
-    rls_to_update rl
-JOIN input ON rl."key" = input."key"
+    rls_to_update rl2
 WHERE
-    rl."key" = input."key"
-    AND rl."tenantId" = @tenantId::uuid
+    rl2."tenantId" = rl."tenantId"
+    AND rl2."key" = rl."key"
 RETURNING rl.*;
