@@ -1,0 +1,115 @@
+import { Callout } from "nextra/components";
+
+# Webhooks
+
+In order to run workflows in serverless environments like AWS Lambda, Vercel, GCP Cloud Functions, and CloudFlare Workers, you can use webhooks.
+
+<Callout type="info" emoji="🪓">
+  Webhooks currently have first-class support only in the Typescript and Go
+  SDKs.
+</Callout>
+
+If you are using the following tools, we have quickstart repositories to help you get started:
+
+- [Next.js](https://github.com/hatchet-dev/hatchet-nextjs-quickstart)
+
+## Creating a Webhook
+
+Navigate to resources > Workers > Webhook Workers and click "Create Webhook Endpoint". You can then enter a name and the URL where your webhook will live.
+
+![Create Webhook](/webhooks/webhook-create.png)
+
+For example, provide the following details:
+
+- Name: `My Webhook App`
+- URL: `https://example.com/api/webhook`
+
+Next, click "Create". You will then be shown the webhook secret which you need to provide as an environment variable to your app.
+
+![Webhook Secret](/webhooks/webhook-secret.png)
+
+The secret is only shown once and cannot be retrieved afterwards.
+
+Next, you have to set up your code to handle the webhooks at the specified URL.
+
+## Setting up your code
+
+This guide assumes the webhook URL path is `/api/webhook`.
+
+You will need to set up two environment variables:
+
+- `HATCHET_WEBHOOK_SECRET`: The webhook secret you created earlier
+- `HATCHET_CLIENT_TOKEN`: The Hatchet API token
+
+### Next.js App Dir
+
+```typescript filename="app/api/webhook/route.ts" copy
+import { Hatchet } from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const webhooks = hatchet.webhooks([workflow]);
+
+export const { GET, POST, PUT } = webhooks.nextJSHandler({
+  secret: process.env.HATCHET_WEBHOOK_SECRET,
+});
+```
+
+### Next.js Pages Dir
+
+```typescript filename="pages/api/webhook.ts" copy
+import { Hatchet } from "@hatchet-dev/typescript-sdk";
+
+export const maxDuration = 60; // add this on vercel: 60 for free plans, 300 for pro plans
+
+const hatchet = Hatchet.init();
+
+const webhooks = hatchet.webhooks([workflow]);
+
+export const { GET, POST, PUT } = webhooks.nextJSHandler({
+  secret: process.env.HATCHET_WEBHOOK_SECRET || "",
+});
+```
+
+### Express.js App
+
+```typescript filename="app.ts" copy
+import express from "express";
+import { Hatchet } from "@hatchet-dev/typescript-sdk";
+
+export const maxDuration = 60; // add this on vercel: 60 for free plans, 300 for pro plans
+
+const hatchet = Hatchet.init();
+
+const webhooks = hatchet.webhooks([workflow]);
+
+const app = express();
+
+app.use(
+  "/api/webhook",
+  webhooks.expressHandler({ secret: process.env.HATCHET_WEBHOOK_SECRET }),
+);
+
+app.listen(8080, () => {
+  console.log("Server is listening on port 8080");
+});
+```
+
+### Node.js standard http server
+
+```typescript filename="index.ts" copy
+import { createServer } from "http";
+import { Hatchet } from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const webhooks = hatchet.webhooks([workflow]);
+
+const server = createServer(
+  webhooks.httpHandler({ secret: process.env.HATCHET_WEBHOOK_SECRET }),
+);
+
+server.listen(8080, () => {
+  console.log("Server is listening on port 8080");
+});
+```

@@ -1,0 +1,123 @@
+import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
+
+# Error Handling and Logging in Hatchet
+
+When building workflows with Hatchet, it's helpful to have robust error handling and logging mechanisms in place to ensure you and your team have visibility into workflow execution issues if they arise. Hatchet provides built-in support for capturing and displaying uncaught errors, as well as a convenient way to log arbitrary information during step execution. These features can greatly aid in troubleshooting and debugging your workflows.
+
+## Automatic Error Handling for Uncaught Errors
+
+Hatchet automatically catches and handles uncaught errors that occur during workflow execution. If an error is thrown within a step's `run` function and is not caught and handled within the step code itself, Hatchet will capture the error and mark the step as failed. The error message and stack trace will be displayed in the step output section of the Hatchet dashboard.
+
+Here's an example of how an uncaught error thrown in a step's `run` function is handled:
+
+```typescript
+import { Step, Context } from "@hatchet-dev/typescript-sdk";
+
+const myStep: Step<any, any> = async (context: Context<any>) => {
+  // Step logic that may throw an error
+  throw new Error("Something went wrong!");
+};
+
+export default myStep;
+```
+
+In this example, if the step throws an error and it is not caught within the step code, Hatchet will automatically catch it and mark the step as failed. The error message "Something went wrong!" will be displayed in the step output section of the dashboard.
+
+{/* TODO dashboard screenshot of error */}
+
+In this case, since the error was not caught and handled within the step code, the Hatchet worker will stop executing the current workflow, mark it as failed, and continue listening for future step runs from other workflows.
+
+> It's important to note that if you catch and handle the error within the step code itself, Hatchet will not capture the error. Only uncaught errors will be automatically captured by Hatchet.
+
+## Logging to Hatchet with `context.log()`
+
+In addition to automatic error handling for uncaught errors, Hatchet provides a convenient way to log arbitrary information during step execution. The `context` object passed to the step's `run` function includes a `log` method that allows you to log messages tied to the specific step run.
+
+Here's an example of how to use `context.log()` to log information during step execution:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk import ConcurrencyLimitStrategy
+
+@hatchet.workflow(on_events=["log-test"])
+class LogDemoWorkflow:
+
+    @hatchet.step()
+    def step1(self, context):
+        context.log("Starting step execution")
+        result = some_operation()
+        context.log(f"Operation result: {result}")
+        return {
+          result
+        }
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+import { Step, Context } from "@hatchet-dev/typescript-sdk";
+
+const myStep: Step<any, any> = async (context: Context<any>) => {
+  // Log information at various points in the step
+  context.log("Starting step execution");
+
+  // Perform some step logic
+  const result = await someAsyncOperation();
+
+  context.log(`Async operation result: ${result}`);
+
+  return { result };
+};
+
+export default myStep;
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+err = w.RegisterWorkflow(
+	&worker.WorkflowJob{
+		Name: "log-demo-workflow",
+    On: worker.Events("user:create"),
+		Description: "This is an example workflow with logging.",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				ctx.Log("Starting step execution")
+        result := someOperation()
+        ctx.Log(fmt.Sprintf("Operation result: %v", result))
+
+    		}).SetName("step-one"),
+    },
+  }
+)
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+In this example, the step uses `context.log()` to log messages at different points during its execution. The logged messages, along with any additional metadata, will be associated with the specific step run and can be viewed in the Hatchet dashboard.
+
+{/* TODO dashboard screenshot */}
+
+Logging information using `context.log()` is particularly useful for:
+
+- Tracking the progress of a step
+- Capturing important variable values or intermediate results
+- Providing additional context for understanding the step's behavior
+- Debugging and troubleshooting issues
+
+By strategically placing log statements within your step code, you can gain valuable insights into the execution flow and identify potential problems more easily.
+
+## Conclusion
+
+Hatchet's built-in error handling for uncaught errors and logging capabilities greatly simplify the process of managing and troubleshooting workflows. By automatically capturing uncaught errors and providing a convenient way to log arbitrary information, Hatchet empowers you to build robust and maintainable workflows.
+
+Remember that only uncaught errors will be automatically handled by Hatchet. If you catch and handle an error within your step code, Hatchet will not capture or display that error in the dashboard.
+
+Leverage `context.log()` to log relevant information during step execution, as it can be invaluable for debugging and understanding the behavior of your workflows. With proper error handling and logging in place, you can quickly identify and resolve issues, ensuring the smooth operation of your Hatchet workflows.

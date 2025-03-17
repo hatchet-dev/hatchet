@@ -1,0 +1,44 @@
+# Running Workflows via Events
+
+## Pushing Single Events
+
+For workflows with event triggers, you can push events to the Hatchet API with the `hatchet.event.push` method:
+
+```ts
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+hatchet.event.push("user:create", {
+  test: "test",
+});
+```
+
+The event's input data will be passed to the workflow run as the input, and is retrievable via the `context.workflow_input()` method.
+
+## Pushing Multiple Events
+
+Sometimes we would like to push many events at the same time. You can use the bulk_push `hatchet.event.bulk_push` method:
+
+```ts
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const events = [
+  {
+    payload: { test: "test1" },
+    additionalMetadata: { user_id: "user1", source: "test" },
+  },
+  {
+    payload: { test: "test2" },
+    additionalMetadata: { user_id: "user2", source: "test" },
+  },
+  {
+    payload: { test: "test3" },
+    additionalMetadata: { user_id: "user3", source: "test" },
+  },
+];
+
+hatchet.event.bulkPush("user:create:bulk", events);
+```

@@ -1,0 +1,147 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+# Retry Strategies in Hatchet: Simple Step Retry
+
+Hatchet provides a simple and effective way to handle failures in your workflow steps using the step-level retry configuration. This feature allows you to specify the number of times a step should be retried if it fails, helping to improve the reliability and resilience of your workflows.
+
+## How it works
+
+When a step in your workflow fails (i.e., throws an error or returns a non-zero exit code), Hatchet can automatically retry the step based on the `retries` configuration defined in the step object. Here's how it works:
+
+1. If a step fails and `retries` is set to a value greater than 0, Hatchet will catch the error and retry the step.
+2. The step will be retried up to the specified number of times, with each retry being executed after a short delay to avoid overwhelming the system.
+3. If the step succeeds during any of the retries, the workflow will continue to the next step as normal.
+4. If the step continues to fail after exhausting all the specified retries, the workflow will be marked as failed.
+
+This simple retry mechanism can help to mitigate transient failures, such as network issues or temporary unavailability of external services, without requiring complex error handling logic in your workflow code.
+
+## How to use step-level retries
+
+To enable retries for a step in your workflow, simply add the `retries` property to the step object in your workflow definition:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.step(timeout='30s', retries=3)
+def step1(self, context: Context):
+    pass
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+import { CreateStepSchema } from "@hatchet-dev/typescript-sdk";
+
+const step1: z.infer<typeof CreateStepSchema> = {
+  name: "step1",
+  timeout: "30s",
+  retries: 3,
+};
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+Steps: []*worker.WorkflowStep{
+  worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+    continue
+  }).SetName("step1").SetRetries(3).SetTimeout("30s"),
+},
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+In this example:
+
+- `name` is the unique identifier for the step within the workflow.
+- `timeout` (optional) specifies the maximum amount of time the step is allowed to run before it is considered failed. Default: 60s.
+- `retries` is set to `3`, indicating that the step should be retried up to 3 times if it fails.
+
+You can add the `retries` property to any step in your workflow, and Hatchet will handle the retry logic automatically.
+
+It's important to note that step-level retries are not suitable for all types of failures. For example, if a step fails due to a programming error or an invalid configuration, retrying the step will likely not resolve the issue. In these cases, you should fix the underlying problem in your code or configuration rather than relying on retries.
+
+Additionally, if a step interacts with external services or databases, you should ensure that the operation is idempotent (i.e., can be safely repeated without changing the result) before enabling retries. Otherwise, retrying the step could lead to unintended side effects or inconsistencies in your data.
+
+## Accessing the Retry Count in a Step
+
+If you need to access the current retry count within a step, you can use the `retryCount` method available in the step context:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+@hatchet.step(timeout='2s', retries=3)
+def step1(self, context: Context):
+    retry_count = context.retry_count()
+    print(f"Retry count: {retry_count}")
+    raise Exception("Step failed")
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+async function step(context: Context) {
+  const retryCount = context.retryCount();
+  console.log(`Retry count: ${retryCount}`);
+  throw new Error("Step failed");
+}
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+  count := ctx.RetryCount()
+
+  return &stepOneOutput{
+  Message: "Count is: " + strconv.Itoa(count),
+  }, nil
+}
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Exponential Backoff
+
+export const RetryBackoffTs = {
+  path: "src/examples/retries-with-backoff.ts",
+};
+
+export const RetryBackoffPy = {
+  path: "examples/retries_with_backoff/worker.py",
+};
+
+export const RetryBackoffGo = {
+  path: "examples/retries-with-backoff/main.go",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([RetryBackoffTs, RetryBackoffPy, RetryBackoffGo]);
+
+Hatchet also supports exponential backoff for retries, which can be useful for handling failures in a more resilient manner. Exponential backoff increases the delay between retries exponentially, giving the failing service more time to recover before the next retry.
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+  <Tabs.Tab title="Python">
+    <GithubSnippet src={RetryBackoffPy} target="Backoff" />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <GithubSnippet src={RetryBackoffTs} target="Backoff" />
+  </Tabs.Tab>
+  <Tabs.Tab title="Go">
+    <GithubSnippet src={RetryBackoffGo} target="Backoff" />
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Conclusion
+
+Hatchet's step-level retry feature is a simple and effective way to handle transient failures in your workflow steps, improving the reliability and resilience of your workflows. By specifying the number of retries for each step, you can ensure that your workflows can recover from temporary issues without requiring complex error handling logic.
+
+Remember to use retries judiciously and only for steps that are idempotent and can safely be repeated. For more advanced retry strategies, such as exponential backoff or circuit breaking, stay tuned for future updates to Hatchet's retry capabilities.

@@ -1,0 +1,194 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
+
+# Timeouts in Hatchet
+
+Timeouts are an important concept in Hatchet that allow you to control how long a workflow or step is allowed to run before it is considered to have failed. This is useful for ensuring that your workflows don't run indefinitely and consume unnecessary resources. Timeouts in Hatchat are treated as failures and the step will be [retried](/features/retries/simple) if specified.
+
+There are two types of timeouts in Hatchet:
+
+1. **Scheduling Timeouts** (Default 5m) - the time a step is allowed to wait in the queue before it is cancelled
+2. **Execution Timeouts** (Default 60s) - the time a step is allowed to run before it is considered to have failed
+
+## Timeout Format
+
+In Hatchet, timeouts are specified using a string in the format `<number><unit>`, where `<number>` is an integer and `<unit>` is one of:
+
+- `s` for seconds
+- `m` for minutes
+- `h` for hours
+- `d` for days
+
+For example:
+
+- `10s` means 10 seconds
+- `4m` means 4 minutes
+- `1h` means 1 hour
+- `2d` means 2 days
+
+If no unit is specified, seconds are assumed.
+
+### Scheduling Timeouts
+
+To specify a timeout for an entire workflow, you can set the `Schedule Timeout` property in the workflow definition:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.workflow(schedule_timeout="2m")
+class TimeoutWorkflow:
+  # ...
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const myWorkflow: Workflow = {
+  id: "my-workflow",
+  // ...
+  scheduleTimeout: "2m",
+  // ...
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+cleanup, err := run(events, worker.WorkflowJob{
+  Name: "timeout",
+  Description: "timeout",
+  ScheduleTimeout: "2m",
+  Steps: []*worker.WorkflowStep{
+    worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+      time.Sleep(time.Second * 60)
+      return nil, nil
+    }).SetName("step-one")
+  },
+})
+```
+  </Tabs.Tab>
+</UniversalTabs>
+
+This would set a timeout of 2 minutes for all steps in the workflow. If the workflow takes longer than 2 minutes for assignment of the step to a worker, it will be cancelled and will not be assigned to a worker.
+
+### Step Timeouts
+
+To specify a timeout for an individual step, you can set the `timeout` property in the step definition:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.step(timeout="30s")
+def timeout(self, context):
+    try:
+        print("started step2")
+        time.sleep(5)
+        print("finished step2")
+    except Exception as e:
+        print("caught an exception: " + str(e))
+        raise e
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const myStep: CreateStep<any, any> = {
+  name: "my-step",
+  // ...
+  timeout: "30s",
+  run: async (ctx) => {
+    // ...
+  },
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+worker.WorkflowJob{
+  Name: "timeout",
+  Description: "timeout",
+  Steps: []*worker.WorkflowStep{
+    worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+      time.Sleep(time.Second * 60)
+      return nil, nil
+    }).SetName("step-one").SetTimeout("30s"),
+  },
+}
+```
+  </Tabs.Tab>
+</UniversalTabs>
+
+This would set a timeout of 30 seconds for this specific step. If the step takes longer than 30 seconds to complete, it will fail and the workflow will be cancelled.
+
+<Callout type="warning">
+  A timed out step does not guarantee that the step will be stopped immediately.
+  The step will be stopped as soon as the worker is able to stop the step. See
+  [cancellation](/features/cancellation) for more information.
+</Callout>
+
+## Refreshing Timeouts
+
+In some cases, you may need to extend the timeout for a step while it is running. This can be done using the `refreshTimeout` function provided by the step context (`ctx`).
+
+For example:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.step(timeout="30s")
+def timeout(self, context):
+    time.sleep(20)
+    context.refresh_timeout("15s")
+    time.sleep(10)
+    return {
+      step1: "step1 results!"
+    }
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const myStep: CreateStep<any, any> = {
+  name: "my-step",
+  timeout: "30s",
+  run: async (ctx) => {
+    await sleep(20 * 1000);
+    ctx.refreshTimeout("15s");
+    await sleep(10 * 1000);
+    return { step1: "step1 results!" };
+  },
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+worker.WorkflowJob{
+		Name: "timeout",
+		Description: "timeout",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				time.Sleep(time.Second * 20)
+				ctx.RefreshTimeout("15s")
+        time.Sleep(time.Second * 10)
+        return return &stepOneOutput{
+					Message: "step1 results!",
+				}, nil
+			}).SetName("step-one").SetTimeout("30s"),
+    },
+}
+```
+  </Tabs.Tab>
+</UniversalTabs>
+
+In this example, the step initially has a timeout of 30 seconds. After 19 seconds, the `refreshTimeout` function is called with an argument of `'15s'`, which extends the timeout by an additional 15 seconds. This allows the step to continue running for a total of 45 seconds (30 seconds initial timeout + 15 seconds refreshed timeout).
+
+The `refreshTimeout` function can be called multiple times within a step to further extend the timeout as needed.
+
+## Use Cases
+
+Timeouts are useful in a variety of scenarios:
+
+- Ensuring workflows don't run indefinitely and consume unnecessary resources
+- Failing workflows early if a critical step takes too long
+- Keeping workflows responsive by ensuring individual steps complete in a timely manner
+- Preventing infinite loops or hung processes from blocking the entire system
+
+For example, if you have a workflow that makes an external API call, you may want to set a timeout to ensure the workflow fails quickly if the API is unresponsive, rather than waiting indefinitely.
+
+By carefully considering timeouts for your workflows and steps, you can build more resilient and responsive systems with Hatchet.

@@ -1,0 +1,114 @@
+# Creating a Worker
+
+Workers can be created via the `worker.NewWorker` method, which requires the `worker.WithClient` arg to work:
+
+```go
+package main
+
+import (
+    "github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+func main() {
+    c, err := client.New(
+        // this is the GRPC host and port of the Hatchet instance
+		client.WithHostPort("127.0.0.1", 7077),
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+    w, err := worker.NewWorker(
+        worker.WithClient(c),
+    )
+
+    if err != nil {
+        panic(err)
+    }
+
+    // ... workflow code
+
+    // start the worker
+    w.Start(context.Background())
+}
+```
+
+## Termination Signals
+
+The worker will terminate when the context passed to `Start` is cancelled. Hatchet provides the `cmdutils.NewInterruptContext` method to create a context that will be cancelled when the process receives an interrupt signal (e.g. `SIGINT` or `SIGTERM`). This can be used via:
+
+```go
+ctx, cancel := cmdutils.NewInterruptContext()
+
+defer cancel()
+
+w.Start(ctx)
+```
+
+## All Worker Options
+
+### `worker.WithClient`
+
+The client to use to communicate with the Hatchet instance. This is required.
+
+### `worker.WithName`
+
+The name of the worker. This is used to identify the worker in the Hatchet UI.
+
+### `worker.WithMaxRuns`
+
+The maximum number of runs the worker can process simultaneously.
+
+### `worker.WithErrorAlerter`
+
+Use this option to set up an external error alerter, such as [Sentry](https://sentry.io/).
+
+#### Sentry Alerter
+
+You can use the built-in Sentry alerter via the `"github.com/hatchet-dev/hatchet/pkg/errors/sentry"` package.
+
+```go
+
+import (
+	"os"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+func main() {
+    // client initialization code...
+
+    // create the sentry alerter
+    sentryAlerter, err := sentry.NewSentryAlerter(&sentry.SentryAlerterOpts{
+		DSN:         os.Getenv("SENTRY_DSN"),
+		Environment: os.Getenv("SENTRY_ENVIRONMENT"),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+
+	w, err := worker.NewWorker(
+		worker.WithClient(
+			client,
+		),
+        // call the `WithErrorAlerter` method to set up the sentry alerter
+		worker.WithErrorAlerter(sentryAlerter),
+	)
+}
+```
+
+#### Custom Alerters
+
+The `ErrorAlerter` needs to satisfy the following interface:
+
+```go
+type Alerter interface {
+	SendAlert(ctx context.Context, err error, data map[string]interface{})
+}
+```

@@ -1,0 +1,159 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+
+# `v0.20` - Rate Limits, Better Streaming, and Improved Cancel In Progress
+
+We've been busy these past few weeks shipping new features and improvements to make Hatchet even more powerful and easier to use. We're excited to share what's new!
+
+## Global Rate Limits
+
+A simple feature to throttle the rate at which your workflow steps consume shared resources like APIs or databases.
+
+We’ve designed this feature to help your system conform to external limitations (like pesky OpenAI token limits) that are normally very difficult to keep tabs on.
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+1) Define your rate limits in code:
+
+```python
+hatchet.admin.put_rate_limit('example-limit', 10, RateLimitDuration.MINUTE)
+```
+
+2. Then, specify the consumption of limits in step definitions:
+
+```python
+@hatchet.step(rate_limits=[RateLimit(key='example-limit', units=1)])
+def step1(self, context: Context):
+    print("executed step1")
+    pass
+```
+
+</Tabs.Tab>
+  <Tabs.Tab>
+1) Define your rate limits in code:
+
+```typescript
+await hatchet.admin.put_rate_limit("test-limit", 1, RateLimitDuration.MINUTE);
+```
+
+2. Then, specify the consumption of limits in step definitions:
+
+```typescript
+const workflow: Workflow = {
+  // ... the rest of the workflow definition
+  steps: [
+    {
+      name: "step1",
+      rate_limits: [{ key: "example-limit", units: 1 }],
+      run: async (ctx) => {
+        console.log(
+          "starting step1 with the following input",
+          ctx.workflowInput(),
+        );
+        return { step1: "step1 results!" };
+      },
+    },
+  ],
+};
+```
+
+</Tabs.Tab>
+  <Tabs.Tab>
+1) Define your rate limits in code:
+
+```go
+err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
+    Max:      3,
+    Duration: "minute",
+})
+```
+
+2. Then, specify the consumption of limits in step definitions:
+
+```go
+err = w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "rate-limit-workflow",
+        Description: "This illustrates rate limiting.",
+        On: worker.NoTrigger(),
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(StepOne).SetName("step-one").SetRateLimit(
+                worker.RateLimit{
+                    Units: 1,
+                    Key:   "example-limit",
+                },
+            ),
+        },
+    },
+)
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+Rate limits are now supported in our Python, Go, and TypeScript SDKs. We can't wait to see how you use them to keep your workflows running as fast as possible!
+
+[Docs →](https://docs.hatchet.run/home/features/rate-limits)
+
+## Context Streaming
+
+Stream progress and results from your background worker to the frontend
+
+Imagine your customer kicks off a long batch job, then stare at the "In Progress" spinner for hours, wishing they had a clue what was happening behind the scenes... so they leave to take a nap, never to return 😴
+
+Keep them in the loop by streaming arbitrary data (text, intermediate image frames, etc) from within the step run execution!
+
+<UniversalTabs items={['Python', 'Typescript']}>
+  <Tabs.Tab>
+```python
+@hatchet.step()
+def step1(self, context: Context):
+    # Stream some data from the step context
+    context.put_stream('hello from step1') # <-- any arbitrary data under ~4mb!
+    # continue with the step run...
+    return {"step1": "results"}
+    ```
+</Tabs.Tab>
+  <Tabs.Tab>
+```tsx
+async function step1(ctx: Context) {
+    // Stream some data from the step context
+    ctx.putStream('step1 stream'); // <-- any arbitrary data under ~4mb!
+    // continue with the step run...
+    return { step1: 'step1 results!' };
+}
+```
+</Tabs.Tab>
+</UniversalTabs>
+
+[Docs →](https://docs.hatchet.run/home/features/streaming#streaming-from-a-step-context)
+
+## Cancel Running Tasks from the Dashboard
+
+We added a button to send the cancelation signal to your running step!
+
+We've all been there. You're excitedly configuring your workflow, and suddenly your finger slips and you accidentally kick off a massive batch job prematurely. Oops! 😅
+
+Or maybe you've been staring at a step run for what feels like an eternity, and you're pretty sure it's stuck in some sort of infinite loop purgatory.
+
+Now you can cancel a workflow run with a single click:
+
+![Untitled](/cancel-in-prog.gif)
+
+[Docs →](https://www.notion.so/Release-v0-20-e1c2cfb4569d41aaba9f4a4cd8919a7d?pvs=21)
+
+### Smaller Improvements
+
+- Github SSO option on [Hatchet Cloud](https://cloud.onhatchet.run/)
+- [Interactive Tutorial](https://cloud.onhatchet.run/onboarding/get-started) to quickly learn the fundamentals of getting started with Hatchet
+
+### Noteworthy Bug Fixes and Performance Improvements
+
+- [Fixed performance issues on Requeue and Reassign with lots of queued events](https://github.com/hatchet-dev/hatchet/pull/310)
+- [Sorted out issues with step runs not timing out or getting reassigned](https://github.com/hatchet-dev/hatchet/pull/301)
+- [Improved retry handling for RabbitMQ connections and message publishing](https://github.com/hatchet-dev/hatchet/pull/369)
+- [Removed workflow timeouts in favor of step timeouts](https://github.com/hatchet-dev/hatchet/pull/366)
+- [Cleaned up subscription management in the engine](https://github.com/hatchet-dev/hatchet/pull/335)
+
+As always we’d love to hear from you on how we’re doing and what we should focus on next!
+
+[Join us in our discord](https://discord.com/invite/ZMeUafwH89) and say hi!
