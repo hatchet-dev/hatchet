@@ -3,7 +3,6 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 hatchet = Hatchet(debug=True)
 
 # ❓ Simple
-# This example shows the simples possible usage of Hatchet
 
 simple = hatchet.workflow(name="SimpleWorkflow")
 
@@ -13,13 +12,12 @@ def step1(input: EmptyModel, ctx: Context) -> None:
     print("executed step1")
 
 
-# ‼️
-
 
 def main() -> None:
     worker = hatchet.worker("test-worker", slots=1, workflows=[simple])
     worker.start()
 
+# ‼️
 
 if __name__ == "__main__":
     main()
