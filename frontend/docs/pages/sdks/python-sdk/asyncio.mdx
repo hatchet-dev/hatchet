@@ -5,7 +5,8 @@ import { Callout } from "nextra/components";
 Hatchet's Python SDK, similarly to other popular libraries like FastAPI, Langchain, etc., makes heavy use of `asyncio`, and recommends that you do as well!
 
 <Callout type="info" emoji="🪓">
-  To learn the basics of `asyncio`, check out [this introduction from FastAPI](https://fastapi.tiangolo.com/async/).
+  To learn the basics of `asyncio`, check out [this introduction from
+  FastAPI](https://fastapi.tiangolo.com/async/).
 </Callout>
 
 However, as is the case in FastAPI, when using `asyncio` in Hatchet, you need to be careful to not have any blocking logic in the functions you define as tasks, as this will block the asyncio event loop and prevent additional work from executing until the blocking operation has completed.
