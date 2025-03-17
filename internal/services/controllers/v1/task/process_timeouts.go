@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"fmt"
+	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -10,8 +11,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
-
-	"golang.org/x/sync/errgroup"
 )
 
 func (tc *TasksControllerImpl) runTenantTimeoutTasks(ctx context.Context) func() {
@@ -40,21 +39,21 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "process-task-timeout")
 	defer span.End()
 
-	tasks, shouldContinue, err := tc.repov1.Tasks().ProcessTaskTimeouts(ctx, tenantId)
+	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskTimeouts(ctx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
 	}
 
-	if num := len(tasks); num > 0 {
-		tc.l.Info().Msgf("timed out %d step runs", num)
+	err = tc.processFailTasksResponse(ctx, tenantId, res.FailTasksResponse)
+
+	if err != nil {
+		return false, fmt.Errorf("could not process fail tasks response: %w", err)
 	}
 
-	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(tasks))
+	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
 
-	cancelPayloads := make([]tasktypes.CancelledTaskPayload, 0, len(tasks))
-
-	for _, task := range tasks {
+	for _, task := range res.TimeoutTasks {
 		cancellationSignals = append(cancellationSignals, tasktypes.SignalTaskCancelledPayload{
 			TaskId:     task.ID,
 			InsertedAt: task.InsertedAt,
@@ -62,47 +61,40 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
 		})
 
-		cancelPayloads = append(cancelPayloads, tasktypes.CancelledTaskPayload{
-			TaskId:        task.ID,
-			InsertedAt:    task.InsertedAt,
-			RetryCount:    task.RetryCount,
-			ExternalId:    sqlchelpers.UUIDToStr(task.ExternalID),
-			WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
-			EventType:     sqlcv1.V1EventTypeOlapTIMEDOUT,
-			EventMessage:  fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
-			ShouldNotify:  true,
-		})
-	}
-
-	eg := &errgroup.Group{}
-
-	eg.Go(func() error {
-		if len(cancellationSignals) == 0 {
-			return nil
-		}
-
-		return tc.sendTaskCancellationsToDispatcher(ctx, tenantId, cancellationSignals)
-	})
-
-	eg.Go(func() error {
-		if len(cancelPayloads) == 0 {
-			return nil
-		}
-
-		msg, err := msgqueue.NewTenantMessage(
+		// send failed tasks to the olap repository
+		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
-			"task-cancelled",
-			false,
-			true,
-			cancelPayloads...,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         task.ID,
+				RetryCount:     task.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
+				EventTimestamp: time.Now(),
+				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+			},
 		)
 
 		if err != nil {
-			return fmt.Errorf("could not create cancel tasks message: %w", err)
+			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			continue
 		}
 
-		return tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-	})
+		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
-	return shouldContinue, eg.Wait()
+		if err != nil {
+			tc.l.Error().Err(err).Msg("could not create monitoring event message")
+			continue
+		}
+	}
+
+	if len(cancellationSignals) > 0 {
+		err = tc.sendTaskCancellationsToDispatcher(ctx, tenantId, cancellationSignals)
+
+		if err != nil {
+			return false, fmt.Errorf("could not send task cancellations to dispatcher: %w",
+				err)
+
+		}
+	}
+
+	return shouldContinue, nil
 }
