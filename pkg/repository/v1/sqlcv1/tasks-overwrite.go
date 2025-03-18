@@ -356,12 +356,12 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 const replayTasks = `-- name: ReplayTasks :many
 WITH input AS (
     SELECT
-        task_id, input, initial_state, concurrency_keys, initial_state_reason
+        task_id, task_inserted_at, input, initial_state, concurrency_keys, initial_state_reason
     FROM
         (
             SELECT
                 unnest($1::bigint[]) AS task_id,
-				unnest($2::timestamptz[]) AS inserted_at,
+				unnest($2::timestamptz[]) AS task_inserted_at,
                 unnest($3::jsonb[]) AS input,
                 unnest(cast($4::text[] as v1_task_initial_state[])) AS initial_state,
 				unnest_nd_1d($5::text[][]) AS concurrency_keys,
@@ -381,7 +381,7 @@ SET
 FROM
     input i
 WHERE
-	(v1_task.id, v1_task.inserted_at) IN (SELECT task_id, inserted_at FROM input)
+	(v1_task.id, v1_task.inserted_at) = (i.task_id, i.task_inserted_at)
 RETURNING
     v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
 `

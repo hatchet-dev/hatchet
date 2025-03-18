@@ -222,6 +222,7 @@ SELECT
     t.step_readable_id,
     r.worker_id,
     i.retry_count::int AS retry_count,
+    t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids
 FROM
     v1_task t
@@ -322,7 +323,7 @@ RETURNING
     v1_task.inserted_at,
     v1_task.retry_count;
 
--- name: ProcessTaskTimeouts :many
+-- name: ListTasksToTimeout :many
 WITH expired_runtimes AS (
     SELECT
         task_id,
@@ -339,63 +340,31 @@ WITH expired_runtimes AS (
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE SKIP LOCKED
-), locked_tasks AS (
-    SELECT
-        v1_task.id,
-        v1_task.inserted_at,
-        v1_task.retry_count,
-        v1_task.step_id,
-        v1_task.external_id,
-        v1_task.workflow_run_id,
-        v1_task.step_timeout,
-        expired_runtimes.worker_id
-    FROM
-        v1_task
-    JOIN
-        -- NOTE: we only join when retry count matches
-        expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count
-    -- order by the task id to get a stable lock order
-    ORDER BY
-        id, inserted_at, retry_count
-    FOR UPDATE
-), deleted_tqis AS (
-    DELETE FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM expired_runtimes)
-), tasks_to_steps AS (
-    SELECT
-        t.id,
-        t.step_id,
-        s."retries"
-    FROM
-        locked_tasks t
-    JOIN
-        "Step" s ON s."id" = t.step_id
-), updated_tasks AS (
-    UPDATE
-        v1_task
-    SET
-        retry_count = retry_count + 1,
-        app_retry_count = app_retry_count + 1
-    FROM
-        tasks_to_steps
-    WHERE
-        (v1_task.id, v1_task.inserted_at) IN (SELECT id, inserted_at FROM locked_tasks)
-        AND tasks_to_steps."retries" > v1_task.app_retry_count
 )
 SELECT
-    *
+    v1_task.id,
+    v1_task.inserted_at,
+    v1_task.retry_count,
+    v1_task.step_id,
+    v1_task.external_id,
+    v1_task.workflow_run_id,
+    v1_task.step_timeout,
+    v1_task.app_retry_count,
+    v1_task.retry_backoff_factor,
+    v1_task.retry_max_backoff,
+    expired_runtimes.worker_id
 FROM
-    locked_tasks;
+    v1_task
+JOIN
+    -- NOTE: we only join when retry count matches
+    expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count;
 
--- name: ProcessTaskReassignments :many
+-- name: ListTasksToReassign :many
 WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
         runtime.task_inserted_at,
-        runtime.retry_count,
-        runtime.worker_id
+        runtime.retry_count
     FROM
         "Worker" w
     JOIN
@@ -405,87 +374,16 @@ WITH tasks_on_inactive_workers AS (
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
-), locked_runtimes AS (
-    SELECT
-        v1_task_runtime.task_id,
-        v1_task_runtime.task_inserted_at,
-        v1_task_runtime.retry_count,
-        tasks_on_inactive_workers.worker_id
-    FROM
-        v1_task_runtime
-    JOIN
-        tasks_on_inactive_workers USING (task_id, task_inserted_at, retry_count)
-    ORDER BY
-        task_id
-    -- We do a SKIP LOCKED because a lock on v1_task_runtime means its being deleted
-    FOR UPDATE SKIP LOCKED
-), locked_tasks AS (
-    SELECT
-        v1_task.id,
-        v1_task.inserted_at,
-        v1_task.retry_count,
-        lrs.worker_id
-    FROM
-        v1_task
-    JOIN
-        -- NOTE: we only join when retry count matches
-        locked_runtimes lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at AND lrs.retry_count = v1_task.retry_count
-    -- order by the task id to get a stable lock order
-    ORDER BY
-        id
-    FOR UPDATE
-), deleted_runtimes AS (
-    DELETE FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtimes)
-), update_tasks AS (
-    UPDATE
-        v1_task
-    SET
-        retry_count = v1_task.retry_count + 1,
-        internal_retry_count = v1_task.internal_retry_count + 1
-    FROM
-        locked_tasks
-    WHERE
-        (v1_task.id, v1_task.inserted_at) IN (SELECT id, inserted_at FROM locked_tasks)
-        AND @maxInternalRetries::int > v1_task.internal_retry_count
-    RETURNING
-        v1_task.id,
-        v1_task.inserted_at,
-        v1_task.retry_count
-), updated_tasks AS (
-    SELECT
-        *
-    FROM
-        locked_tasks
-    WHERE
-        id IN (SELECT id FROM update_tasks)
-), failed_tasks AS (
-    SELECT
-        *
-    FROM
-        locked_tasks
-    WHERE
-        id NOT IN (SELECT id FROM update_tasks)
 )
 SELECT
-    t1.id,
-    t1.inserted_at,
-    t1.retry_count,
-    t1.worker_id,
-    'REASSIGNED' AS "operation"
+    v1_task.id,
+    v1_task.inserted_at,
+    v1_task.retry_count
 FROM
-    updated_tasks t1
-UNION ALL
-SELECT
-    t2.id,
-    t2.inserted_at,
-    t2.retry_count,
-    t2.worker_id,
-    'FAILED' AS "operation"
-FROM
-    failed_tasks t2;
+    v1_task
+JOIN
+    -- NOTE: we only join when retry count matches
+    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at AND lrs.retry_count = v1_task.retry_count;
 
 -- name: ProcessRetryQueueItems :many
 WITH rqis_to_delete AS (
@@ -626,8 +524,10 @@ WITH RECURSIVE augmented_tasks AS (
     -- First, select the tasks from the input
     SELECT
         id,
+        inserted_at,
         tenant_id,
         dag_id,
+        dag_inserted_at,
         step_id
     FROM
         v1_task
@@ -644,17 +544,19 @@ WITH RECURSIVE augmented_tasks AS (
     -- Then, select the tasks that are children of the input tasks
     SELECT
         t.id,
+        t.inserted_at,
         t.tenant_id,
         t.dag_id,
+        t.dag_inserted_at,
         t.step_id
     FROM
         augmented_tasks at
     JOIN
         "Step" s1 ON s1."id" = at.step_id
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = at.dag_id
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
     JOIN
-        v1_task t ON t.id = dt.task_id
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
         "Step" s2 ON s2."id" = t.step_id
     JOIN
@@ -680,9 +582,14 @@ WITH RECURSIVE augmented_tasks AS (
         t.child_key
     FROM
         v1_task t
-    JOIN
-        -- TODO: USE INSERTED_AT
-        augmented_tasks at ON at.id = t.id AND at.tenant_id = t.tenant_id
+    WHERE
+        (t.id, t.inserted_at) IN (
+            SELECT
+                id, inserted_at
+            FROM
+                augmented_tasks
+        )
+        AND t.tenant_id = @tenantId::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -728,6 +635,80 @@ JOIN
     "Job" j ON j."id" = s."jobId"
 LEFT JOIN
     step_orders so ON so.step_id = t.step_id;
+
+-- name: ListTaskParentOutputs :many
+-- Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
+-- of the tasks as well.
+WITH RECURSIVE augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_readable_id,
+        workflow_run_id,
+        step_id,
+        workflow_id
+    FROM
+        v1_task
+    WHERE
+        (id, inserted_at) IN (
+            SELECT
+                unnest(@taskIds::bigint[]),
+                unnest(@taskInsertedAts::timestamptz[])
+        )
+        AND tenant_id = @tenantId::uuid
+        AND dag_id IS NOT NULL
+
+    UNION
+
+    -- Then, select the tasks that are parents of the input tasks
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id,
+        t.dag_id,
+        t.dag_inserted_at,
+        t.step_readable_id,
+        t.workflow_run_id,
+        t.step_id,
+        t.workflow_id
+    FROM
+        augmented_tasks at
+    JOIN
+        "Step" s1 ON s1."id" = at.step_id
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
+    JOIN
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+    JOIN
+        "Step" s2 ON s2."id" = t.step_id
+    JOIN
+        "_StepOrder" so ON so."A" = s2."id" AND so."B" = s1."id"
+)
+SELECT
+    DISTINCT ON (at.id, at.inserted_at, at.retry_count)
+    at.id,
+    at.inserted_at,
+    at.retry_count,
+    at.tenant_id,
+    at.dag_id,
+    at.dag_inserted_at,
+    at.step_readable_id,
+    at.workflow_run_id,
+    at.step_id,
+    at.workflow_id,
+    e.data AS output
+FROM
+    augmented_tasks at
+JOIN
+    v1_task_event e ON e.task_id = at.id AND e.task_inserted_at = at.inserted_at AND e.retry_count = at.retry_count
+WHERE
+    e.event_type = 'COMPLETED';
 
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.

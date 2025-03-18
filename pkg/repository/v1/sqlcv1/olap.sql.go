@@ -479,9 +479,9 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 
 const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT dt.task_id
+    SELECT dt.task_id, dt.task_inserted_at
     FROM v1_lookup_table_olap lt
-    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = $1::uuid
         AND lt.tenant_id = $2::uuid
@@ -499,7 +499,7 @@ WITH tasks AS (
   FROM v1_task_events_olap
   WHERE
     tenant_id = $2::uuid
-    AND task_id IN (SELECT task_id FROM tasks)
+    AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
   GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
 )
 SELECT
@@ -772,8 +772,9 @@ WITH input AS (
         r.run_id,
         e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
-    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
-    JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
+    JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    WHERE e.tenant_id = $3::uuid
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -906,8 +907,6 @@ WITH latest_retry_count AS (
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
         AND retry_count = (SELECT retry_count FROM latest_retry_count)
-    ORDER BY
-        event_timestamp DESC
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
@@ -954,7 +953,10 @@ WITH latest_retry_count AS (
     WHERE parent_task_external_id = (
         SELECT external_id
         FROM v1_tasks_olap
-        WHERE id = $2::bigint
+        WHERE
+            tenant_id = $1::uuid
+            AND id = $2::bigint
+            AND inserted_at = $3::timestamptz
         LIMIT 1
     )
 )

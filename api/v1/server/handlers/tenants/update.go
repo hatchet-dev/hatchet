@@ -21,6 +21,22 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		return gen.TenantUpdate400JSONResponse(*apiErrors), nil
 	}
 
+	// check if the tenant version is being changed
+	if t.config.Runtime.PreventTenantVersionUpgrade &&
+		request.Body.Version != nil &&
+		*request.Body.Version == "V1" &&
+		!tenant.CanUpgradeV1 {
+
+		code := uint64(403)
+		message := "Tenant version upgrade is not enabled for this tenant"
+
+		return gen.TenantUpdate403JSONResponse(
+			gen.APIError{
+				Code:        &code,
+				Description: message,
+			},
+		), nil
+	}
 	// construct the database query
 	updateOpts := &repository.UpdateTenantOpts{}
 

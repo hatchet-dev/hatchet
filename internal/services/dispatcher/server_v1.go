@@ -332,30 +332,6 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	// if request.RetryCount == nil {
-	// 	return nil, fmt.Errorf("retry count is required in v2")
-	// }
-
-	go func() {
-		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-			tenantId,
-			task.ID,
-			retryCount,
-			request,
-		)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("could not create monitoring event message")
-			return
-		}
-
-		err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("could not publish to OLAP queue")
-		}
-	}()
-
 	msg, err := tasktypes.FailedTaskMessage(
 		tenantId,
 		task.ID,

@@ -270,9 +270,9 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT dt.task_id
+    SELECT dt.task_id, dt.task_inserted_at
     FROM v1_lookup_table_olap lt
-    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = @workflowRunId::uuid
         AND lt.tenant_id = @tenantId::uuid
@@ -290,7 +290,7 @@ WITH tasks AS (
   FROM v1_task_events_olap
   WHERE
     tenant_id = @tenantId::uuid
-    AND task_id IN (SELECT task_id FROM tasks)
+    AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
   GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
 )
 SELECT
@@ -342,8 +342,6 @@ WITH latest_retry_count AS (
         AND task_id = @taskId::bigint
         AND task_inserted_at = @taskInsertedAt::timestamptz
         AND retry_count = (SELECT retry_count FROM latest_retry_count)
-    ORDER BY
-        event_timestamp DESC
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
@@ -390,7 +388,10 @@ WITH latest_retry_count AS (
     WHERE parent_task_external_id = (
         SELECT external_id
         FROM v1_tasks_olap
-        WHERE id = @taskId::bigint
+        WHERE
+            tenant_id = @tenantId::uuid
+            AND id = @taskId::bigint
+            AND inserted_at = @taskInsertedAt::timestamptz
         LIMIT 1
     )
 )
@@ -890,8 +891,9 @@ WITH input AS (
         r.run_id,
         e.*
     FROM runs r
-    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by `inserted_at` here too?
-    JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by `inserted_at` here too?
+    JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
+    WHERE e.tenant_id = @tenantId::uuid
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events

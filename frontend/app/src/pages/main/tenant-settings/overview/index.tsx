@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
@@ -16,8 +16,15 @@ import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@/components/ui/loading';
 import { capitalize } from '@/lib/utils';
 import { UpdateTenantForm } from './components/update-tenant-form';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AxiosError } from 'axios';
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
 
@@ -40,57 +47,128 @@ export default function TenantSettings() {
 
 const TenantVersionSwitcher = () => {
   const { tenant } = useOutletContext<TenantContextType>();
-  const selectedVersion = tenant.version;
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
-
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeRestrictedError, setUpgradeRestrictedError] =
+    useState<boolean>(false);
   const { handleApiError } = useApiError({});
 
   const { mutate: updateTenant, isPending } = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
+      setUpgradeRestrictedError(false);
       await api.tenantUpdate(tenant.metadata.id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: queries.user.listTenantMemberships.queryKey,
       });
+
+      window.location.reload();
     },
-    onError: handleApiError,
+    onError: (error: AxiosError) => {
+      if (error.response?.status === 403) {
+        setUpgradeRestrictedError(true);
+      } else {
+        setShowUpgradeModal(false);
+        handleApiError(error);
+      }
+    },
   });
-  const tenantVersions = Object.keys(TenantVersion) as Array<
-    keyof typeof TenantVersion
-  >;
+
+  // Only show for V0 tenants
+  if (tenant.version === TenantVersion.V1) {
+    return null;
+  }
 
   return (
-    <div className="flex flex-col gap-y-2">
-      <h2 className="text-xl font-semibold leading-tight text-foreground">
-        Tenant Version
-      </h2>
-      <RadioGroup
-        disabled={isPending}
-        value={selectedVersion}
-        onValueChange={(value) => {
-          updateTenant({
-            version: value as TenantVersion,
-          });
+    <>
+      <div className="flex flex-col gap-y-4">
+        <h2 className="text-xl font-semibold leading-tight text-foreground">
+          Tenant Version
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Upgrade your tenant to v1 to access new features and improvements. v1
+          is currently in beta.
+        </p>
+        <Button
+          onClick={() => setShowUpgradeModal(true)}
+          disabled={isPending}
+          className="w-fit"
+        >
+          {isPending ? <Spinner /> : null}
+          Upgrade to v1 (beta)
+        </Button>
+      </div>
 
-          if (value === 'V1' && !pathname.includes('v1')) {
-            navigate('/v1' + pathname);
-          } else if (value === 'V0' && pathname.includes('v1')) {
-            navigate(pathname.replace('/v1', ''));
-          }
-        }}
-      >
-        {tenantVersions.map((version) => (
-          <div key={version} className="flex items-center space-x-2">
-            <RadioGroupItem value={version} id={version.toLowerCase()} />
-            <Label htmlFor={version.toLowerCase()}>{version}</Label>
-          </div>
-        ))}
-      </RadioGroup>
-    </div>
+      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Upgrade to v1 (beta)</DialogTitle>
+          </DialogHeader>
+          {!upgradeRestrictedError && (
+            <div className="space-y-4 py-4">
+              <p className="text-sm">Upgrading your tenant to v1 will:</p>
+              <ul className="list-disc list-inside text-sm space-y-2">
+                <li>Enable new v1 features and improvements</li>
+                <li>Redirect you to the v1 interface</li>
+              </ul>
+              <Alert variant="warn">
+                <AlertTitle>Warning</AlertTitle>
+                <AlertDescription>
+                  This upgrade will not automatically migrate your existing
+                  workflows or in-progress runs. To ensure zero downtime during
+                  the upgrade, please follow our migration guide which includes
+                  steps for parallel operation of v0 and v1 environments.
+                </AlertDescription>
+              </Alert>
+
+              <p className="text-sm">
+                Please read our{' '}
+                <a
+                  href="https://github.com/hatchet-dev/hatchet/discussions/1348"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-400 hover:underline"
+                >
+                  v1 preview announcement
+                </a>{' '}
+                before proceeding.
+              </p>
+            </div>
+          )}
+          {upgradeRestrictedError && (
+            <Alert variant="warn">
+              <AlertDescription>
+                Tenant version upgrade has been restricted for this tenant.
+                Please contact us to request upgrade referencing tenant id:{' '}
+                {tenant.metadata.id}
+              </AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUpgradeModal(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                updateTenant({
+                  version: TenantVersion.V1,
+                });
+              }}
+              disabled={isPending}
+            >
+              {isPending ? <Spinner /> : null}
+              Confirm Upgrade
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

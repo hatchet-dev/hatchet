@@ -2199,6 +2199,7 @@ type Tenant struct {
 	WorkerPartitionId     pgtype.Text              `json:"workerPartitionId"`
 	DataRetentionPeriod   string                   `json:"dataRetentionPeriod"`
 	SchedulerPartitionId  pgtype.Text              `json:"schedulerPartitionId"`
+	CanUpgradeV1          bool                     `json:"canUpgradeV1"`
 }
 
 type TenantAlertEmailGroup struct {

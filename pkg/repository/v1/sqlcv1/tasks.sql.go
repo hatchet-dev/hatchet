@@ -751,6 +751,133 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 	return items, nil
 }
 
+const listTaskParentOutputs = `-- name: ListTaskParentOutputs :many
+WITH RECURSIVE augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_readable_id,
+        workflow_run_id,
+        step_id,
+        workflow_id
+    FROM
+        v1_task
+    WHERE
+        (id, inserted_at) IN (
+            SELECT
+                unnest($1::bigint[]),
+                unnest($2::timestamptz[])
+        )
+        AND tenant_id = $3::uuid
+        AND dag_id IS NOT NULL
+
+    UNION
+
+    -- Then, select the tasks that are parents of the input tasks
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id,
+        t.dag_id,
+        t.dag_inserted_at,
+        t.step_readable_id,
+        t.workflow_run_id,
+        t.step_id,
+        t.workflow_id
+    FROM
+        augmented_tasks at
+    JOIN
+        "Step" s1 ON s1."id" = at.step_id
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
+    JOIN
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+    JOIN
+        "Step" s2 ON s2."id" = t.step_id
+    JOIN
+        "_StepOrder" so ON so."A" = s2."id" AND so."B" = s1."id"
+)
+SELECT
+    DISTINCT ON (at.id, at.inserted_at, at.retry_count)
+    at.id,
+    at.inserted_at,
+    at.retry_count,
+    at.tenant_id,
+    at.dag_id,
+    at.dag_inserted_at,
+    at.step_readable_id,
+    at.workflow_run_id,
+    at.step_id,
+    at.workflow_id,
+    e.data AS output
+FROM
+    augmented_tasks at
+JOIN
+    v1_task_event e ON e.task_id = at.id AND e.task_inserted_at = at.inserted_at AND e.retry_count = at.retry_count
+WHERE
+    e.event_type = 'COMPLETED'
+`
+
+type ListTaskParentOutputsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
+}
+
+type ListTaskParentOutputsRow struct {
+	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	DagID          pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
+	StepReadableID string             `json:"step_readable_id"`
+	WorkflowRunID  pgtype.UUID        `json:"workflow_run_id"`
+	StepID         pgtype.UUID        `json:"step_id"`
+	WorkflowID     pgtype.UUID        `json:"workflow_id"`
+	Output         []byte             `json:"output"`
+}
+
+// Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
+// of the tasks as well.
+func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTaskParentOutputsParams) ([]*ListTaskParentOutputsRow, error) {
+	rows, err := db.Query(ctx, listTaskParentOutputs, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTaskParentOutputsRow
+	for rows.Next() {
+		var i ListTaskParentOutputsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.TenantID,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.StepReadableID,
+			&i.WorkflowRunID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasks = `-- name: ListTasks :many
 SELECT
     id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
@@ -829,8 +956,10 @@ WITH RECURSIVE augmented_tasks AS (
     -- First, select the tasks from the input
     SELECT
         id,
+        inserted_at,
         tenant_id,
         dag_id,
+        dag_inserted_at,
         step_id
     FROM
         v1_task
@@ -847,17 +976,19 @@ WITH RECURSIVE augmented_tasks AS (
     -- Then, select the tasks that are children of the input tasks
     SELECT
         t.id,
+        t.inserted_at,
         t.tenant_id,
         t.dag_id,
+        t.dag_inserted_at,
         t.step_id
     FROM
         augmented_tasks at
     JOIN
         "Step" s1 ON s1."id" = at.step_id
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = at.dag_id
+        v1_dag_to_task dt ON dt.dag_id = at.dag_id AND dt.dag_inserted_at = at.dag_inserted_at
     JOIN
-        v1_task t ON t.id = dt.task_id
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
         "Step" s2 ON s2."id" = t.step_id
     JOIN
@@ -883,9 +1014,14 @@ WITH RECURSIVE augmented_tasks AS (
         t.child_key
     FROM
         v1_task t
-    JOIN
-        -- TODO: USE INSERTED_AT
-        augmented_tasks at ON at.id = t.id AND at.tenant_id = t.tenant_id
+    WHERE
+        (t.id, t.inserted_at) IN (
+            SELECT
+                id, inserted_at
+            FROM
+                augmented_tasks
+        )
+        AND t.tenant_id = $3::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -992,6 +1128,152 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.ChildKey,
 			&i.JobKind,
 			&i.Parents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksToReassign = `-- name: ListTasksToReassign :many
+WITH tasks_on_inactive_workers AS (
+    SELECT
+        runtime.task_id,
+        runtime.task_inserted_at,
+        runtime.retry_count
+    FROM
+        "Worker" w
+    JOIN
+        v1_task_runtime runtime ON w."id" = runtime.worker_id
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+    LIMIT
+        COALESCE($2::integer, 1000)
+)
+SELECT
+    v1_task.id,
+    v1_task.inserted_at,
+    v1_task.retry_count
+FROM
+    v1_task
+JOIN
+    -- NOTE: we only join when retry count matches
+    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at AND lrs.retry_count = v1_task.retry_count
+`
+
+type ListTasksToReassignParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+type ListTasksToReassignRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount int32              `json:"retry_count"`
+}
+
+func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTasksToReassignParams) ([]*ListTasksToReassignRow, error) {
+	rows, err := db.Query(ctx, listTasksToReassign, arg.Tenantid, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTasksToReassignRow
+	for rows.Next() {
+		var i ListTasksToReassignRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksToTimeout = `-- name: ListTasksToTimeout :many
+WITH expired_runtimes AS (
+    SELECT
+        task_id,
+        task_inserted_at,
+        retry_count,
+        worker_id
+    FROM
+        v1_task_runtime
+    WHERE
+        tenant_id = $1::uuid
+        AND timeout_at <= NOW()
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    LIMIT
+        COALESCE($2::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+)
+SELECT
+    v1_task.id,
+    v1_task.inserted_at,
+    v1_task.retry_count,
+    v1_task.step_id,
+    v1_task.external_id,
+    v1_task.workflow_run_id,
+    v1_task.step_timeout,
+    v1_task.app_retry_count,
+    v1_task.retry_backoff_factor,
+    v1_task.retry_max_backoff,
+    expired_runtimes.worker_id
+FROM
+    v1_task
+JOIN
+    -- NOTE: we only join when retry count matches
+    expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count
+`
+
+type ListTasksToTimeoutParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+type ListTasksToTimeoutRow struct {
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount         int32              `json:"retry_count"`
+	StepID             pgtype.UUID        `json:"step_id"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
+	WorkflowRunID      pgtype.UUID        `json:"workflow_run_id"`
+	StepTimeout        pgtype.Text        `json:"step_timeout"`
+	AppRetryCount      int32              `json:"app_retry_count"`
+	RetryBackoffFactor pgtype.Float8      `json:"retry_backoff_factor"`
+	RetryMaxBackoff    pgtype.Int4        `json:"retry_max_backoff"`
+	WorkerID           pgtype.UUID        `json:"worker_id"`
+}
+
+func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasksToTimeoutParams) ([]*ListTasksToTimeoutRow, error) {
+	rows, err := db.Query(ctx, listTasksToTimeout, arg.Tenantid, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTasksToTimeoutRow
+	for rows.Next() {
+		var i ListTasksToTimeoutRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.StepID,
+			&i.ExternalID,
+			&i.WorkflowRunID,
+			&i.StepTimeout,
+			&i.AppRetryCount,
+			&i.RetryBackoffFactor,
+			&i.RetryMaxBackoff,
+			&i.WorkerID,
 		); err != nil {
 			return nil, err
 		}
@@ -1411,258 +1693,6 @@ func (q *Queries) ProcessRetryQueueItems(ctx context.Context, db DBTX, arg Proce
 	return items, nil
 }
 
-const processTaskReassignments = `-- name: ProcessTaskReassignments :many
-WITH tasks_on_inactive_workers AS (
-    SELECT
-        runtime.task_id,
-        runtime.task_inserted_at,
-        runtime.retry_count,
-        runtime.worker_id
-    FROM
-        "Worker" w
-    JOIN
-        v1_task_runtime runtime ON w."id" = runtime.worker_id
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-    LIMIT
-        COALESCE($2::integer, 1000)
-), locked_runtimes AS (
-    SELECT
-        v1_task_runtime.task_id,
-        v1_task_runtime.task_inserted_at,
-        v1_task_runtime.retry_count,
-        tasks_on_inactive_workers.worker_id
-    FROM
-        v1_task_runtime
-    JOIN
-        tasks_on_inactive_workers USING (task_id, task_inserted_at, retry_count)
-    ORDER BY
-        task_id
-    -- We do a SKIP LOCKED because a lock on v1_task_runtime means its being deleted
-    FOR UPDATE SKIP LOCKED
-), locked_tasks AS (
-    SELECT
-        v1_task.id,
-        v1_task.inserted_at,
-        v1_task.retry_count,
-        lrs.worker_id
-    FROM
-        v1_task
-    JOIN
-        -- NOTE: we only join when retry count matches
-        locked_runtimes lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at AND lrs.retry_count = v1_task.retry_count
-    -- order by the task id to get a stable lock order
-    ORDER BY
-        id
-    FOR UPDATE
-), deleted_runtimes AS (
-    DELETE FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtimes)
-), update_tasks AS (
-    UPDATE
-        v1_task
-    SET
-        retry_count = v1_task.retry_count + 1,
-        internal_retry_count = v1_task.internal_retry_count + 1
-    FROM
-        locked_tasks
-    WHERE
-        (v1_task.id, v1_task.inserted_at) IN (SELECT id, inserted_at FROM locked_tasks)
-        AND $3::int > v1_task.internal_retry_count
-    RETURNING
-        v1_task.id,
-        v1_task.inserted_at,
-        v1_task.retry_count
-), updated_tasks AS (
-    SELECT
-        id, inserted_at, retry_count, worker_id
-    FROM
-        locked_tasks
-    WHERE
-        id IN (SELECT id FROM update_tasks)
-), failed_tasks AS (
-    SELECT
-        id, inserted_at, retry_count, worker_id
-    FROM
-        locked_tasks
-    WHERE
-        id NOT IN (SELECT id FROM update_tasks)
-)
-SELECT
-    t1.id,
-    t1.inserted_at,
-    t1.retry_count,
-    t1.worker_id,
-    'REASSIGNED' AS "operation"
-FROM
-    updated_tasks t1
-UNION ALL
-SELECT
-    t2.id,
-    t2.inserted_at,
-    t2.retry_count,
-    t2.worker_id,
-    'FAILED' AS "operation"
-FROM
-    failed_tasks t2
-`
-
-type ProcessTaskReassignmentsParams struct {
-	Tenantid           pgtype.UUID `json:"tenantid"`
-	Limit              pgtype.Int4 `json:"limit"`
-	Maxinternalretries int32       `json:"maxinternalretries"`
-}
-
-type ProcessTaskReassignmentsRow struct {
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount int32              `json:"retry_count"`
-	WorkerID   pgtype.UUID        `json:"worker_id"`
-	Operation  string             `json:"operation"`
-}
-
-func (q *Queries) ProcessTaskReassignments(ctx context.Context, db DBTX, arg ProcessTaskReassignmentsParams) ([]*ProcessTaskReassignmentsRow, error) {
-	rows, err := db.Query(ctx, processTaskReassignments, arg.Tenantid, arg.Limit, arg.Maxinternalretries)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ProcessTaskReassignmentsRow
-	for rows.Next() {
-		var i ProcessTaskReassignmentsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.RetryCount,
-			&i.WorkerID,
-			&i.Operation,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const processTaskTimeouts = `-- name: ProcessTaskTimeouts :many
-WITH expired_runtimes AS (
-    SELECT
-        task_id,
-        task_inserted_at,
-        retry_count,
-        worker_id
-    FROM
-        v1_task_runtime
-    WHERE
-        tenant_id = $1::uuid
-        AND timeout_at <= NOW()
-    ORDER BY
-        task_id, task_inserted_at, retry_count
-    LIMIT
-        COALESCE($2::integer, 1000)
-    FOR UPDATE SKIP LOCKED
-), locked_tasks AS (
-    SELECT
-        v1_task.id,
-        v1_task.inserted_at,
-        v1_task.retry_count,
-        v1_task.step_id,
-        v1_task.external_id,
-        v1_task.workflow_run_id,
-        v1_task.step_timeout,
-        expired_runtimes.worker_id
-    FROM
-        v1_task
-    JOIN
-        -- NOTE: we only join when retry count matches
-        expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count
-    -- order by the task id to get a stable lock order
-    ORDER BY
-        id, inserted_at, retry_count
-    FOR UPDATE
-), deleted_tqis AS (
-    DELETE FROM
-        v1_task_runtime
-    WHERE
-        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM expired_runtimes)
-), tasks_to_steps AS (
-    SELECT
-        t.id,
-        t.step_id,
-        s."retries"
-    FROM
-        locked_tasks t
-    JOIN
-        "Step" s ON s."id" = t.step_id
-), updated_tasks AS (
-    UPDATE
-        v1_task
-    SET
-        retry_count = retry_count + 1,
-        app_retry_count = app_retry_count + 1
-    FROM
-        tasks_to_steps
-    WHERE
-        (v1_task.id, v1_task.inserted_at) IN (SELECT id, inserted_at FROM locked_tasks)
-        AND tasks_to_steps."retries" > v1_task.app_retry_count
-)
-SELECT
-    id, inserted_at, retry_count, step_id, external_id, workflow_run_id, step_timeout, worker_id
-FROM
-    locked_tasks
-`
-
-type ProcessTaskTimeoutsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Limit    pgtype.Int4 `json:"limit"`
-}
-
-type ProcessTaskTimeoutsRow struct {
-	ID            int64              `json:"id"`
-	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount    int32              `json:"retry_count"`
-	StepID        pgtype.UUID        `json:"step_id"`
-	ExternalID    pgtype.UUID        `json:"external_id"`
-	WorkflowRunID pgtype.UUID        `json:"workflow_run_id"`
-	StepTimeout   pgtype.Text        `json:"step_timeout"`
-	WorkerID      pgtype.UUID        `json:"worker_id"`
-}
-
-func (q *Queries) ProcessTaskTimeouts(ctx context.Context, db DBTX, arg ProcessTaskTimeoutsParams) ([]*ProcessTaskTimeoutsRow, error) {
-	rows, err := db.Query(ctx, processTaskTimeouts, arg.Tenantid, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ProcessTaskTimeoutsRow
-	for rows.Next() {
-		var i ProcessTaskTimeoutsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.RetryCount,
-			&i.StepID,
-			&i.ExternalID,
-			&i.WorkflowRunID,
-			&i.StepTimeout,
-			&i.WorkerID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
 WITH task AS (
     SELECT
@@ -1811,6 +1841,7 @@ SELECT
     t.step_readable_id,
     r.worker_id,
     i.retry_count::int AS retry_count,
+    t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids
 FROM
     v1_task t
@@ -1834,6 +1865,7 @@ type ReleaseTasksRow struct {
 	StepReadableID         string             `json:"step_readable_id"`
 	WorkerID               pgtype.UUID        `json:"worker_id"`
 	RetryCount             int32              `json:"retry_count"`
+	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
 }
 
@@ -1854,6 +1886,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 			&i.StepReadableID,
 			&i.WorkerID,
 			&i.RetryCount,
+			&i.IsCurrentRetry,
 			&i.ConcurrencyStrategyIds,
 		); err != nil {
 			return nil, err
