@@ -1,19 +1,28 @@
+from pydantic import BaseModel
+
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
+
+class DynamicCronInput(BaseModel):
+    name: str
+
+
+dynamic_cron_workflow = hatchet.workflow(
+    name="CronWorkflow", input_validator=DynamicCronInput
+)
+
 # ❓ Create
-cron_trigger = hatchet.cron.create(
-    workflow_name="CronWorkflow",
+cron_trigger = dynamic_cron_workflow.create_cron(
     cron_name="customer-a-daily-report",
     expression="0 12 * * *",
-    input={
-        "name": "John Doe",
-    },
+    input=DynamicCronInput(name="John Doe"),
     additional_metadata={
         "customer_id": "customer-a",
     },
 )
+
 
 id = cron_trigger.metadata.id  # the id of the cron trigger
 # !!

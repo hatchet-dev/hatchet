@@ -9,6 +9,7 @@ from hatchet_sdk.clients.admin import (
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
+from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.contracts.workflows_pb2 import (
     CreateWorkflowJobOpts,
@@ -29,6 +30,7 @@ from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, StepType, TWorkflowInput, WorkflowConfig
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -284,6 +286,36 @@ class Workflow(Generic[TWorkflowInput]):
             schedules=schedules,
             input=input.model_dump(),
             options=options,
+        )
+
+    def create_cron(
+        self,
+        cron_name: str,
+        expression: str,
+        input: TWorkflowInput,
+        additional_metadata: JSONSerializableMapping,
+    ) -> CronWorkflows:
+        return self.client.cron.create(
+            workflow_name=self.config.name,
+            cron_name=cron_name,
+            expression=expression,
+            input=input.model_dump(),
+            additional_metadata=additional_metadata,
+        )
+
+    async def aio_create_cron(
+        self,
+        cron_name: str,
+        expression: str,
+        input: TWorkflowInput,
+        additional_metadata: JSONSerializableMapping,
+    ) -> CronWorkflows:
+        return await self.client.cron.aio_create(
+            workflow_name=self.config.name,
+            cron_name=cron_name,
+            expression=expression,
+            input=input.model_dump(),
+            additional_metadata=additional_metadata,
         )
 
     def _parse_task_name(
