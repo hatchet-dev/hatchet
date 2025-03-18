@@ -2,12 +2,12 @@
 import { hatchet } from '../client';
 
 // (optional) Define the input type for the workflow
-type SimpleInput = {
+export type SimpleInput = {
   Message: string;
 };
 
 // (optional) Define the output type for the workflow
-type SimpleOutput = {
+export type SimpleOutput = {
   'to-lower': {
     TransformedMessage: string;
   };
