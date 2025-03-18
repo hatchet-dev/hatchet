@@ -1,6 +1,8 @@
 name: typescript-manual-publish
 on:
   workflow_dispatch:
+  push:
+
 
 defaults:
   run:
