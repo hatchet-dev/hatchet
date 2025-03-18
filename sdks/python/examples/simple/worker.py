@@ -1,8 +1,8 @@
+# ❓ Simple
+
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
-
-# ❓ Simple
 
 simple = hatchet.workflow(name="SimpleWorkflow")
 
