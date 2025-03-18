@@ -1,5 +1,6 @@
-from hatchet_sdk import Hatchet, Context, EmptyModel
 import time
+
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet()
 
@@ -7,9 +8,10 @@ hatchet = Hatchet()
 
 slot_release_workflow = hatchet.workflow(name="SlotReleaseWorkflow")
 
+
 @slot_release_workflow.task()
-def step1(input: EmptyModel, ctx: Context):
-    print('RESOURCE INTENSIVE PROCESS')
+def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    print("RESOURCE INTENSIVE PROCESS")
     time.sleep(10)
 
     # 👀 Release the slot after the resource-intensive process, so that other steps can run
@@ -17,5 +19,6 @@ def step1(input: EmptyModel, ctx: Context):
 
     print("NON RESOURCE INTENSIVE PROCESS")
     return {"status": "success"}
+
 
 # ‼️

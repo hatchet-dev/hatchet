@@ -37,7 +37,6 @@ const workflow: Workflow = {
 
 // ‼️
 
-
 async function main() {
   const worker = await hatchet.worker('logger-worker', 1);
   await worker.registerWorkflow(workflow);
