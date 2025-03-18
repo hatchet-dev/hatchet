@@ -1,10 +1,10 @@
-import { HatchetClient } from '@clients/hatchet-client';
+import { InternalHatchetClient } from '@clients/hatchet-client';
 import { StepActionEventType, ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { never } from 'zod';
 import sleep from '@util/sleep';
 import { ChannelCredentials } from 'nice-grpc';
-import { Worker } from './worker';
+import { V0Worker } from './worker';
 
 type AssignActionMock = AssignedAction | Error;
 
@@ -30,10 +30,10 @@ const mockCancel: AssignActionMock = {
 };
 
 describe('Worker', () => {
-  let hatchet: HatchetClient;
+  let hatchet: InternalHatchetClient;
 
   beforeEach(() => {
-    hatchet = new HatchetClient(
+    hatchet = new InternalHatchetClient(
       {
         token:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
@@ -54,7 +54,7 @@ describe('Worker', () => {
 
   describe('registerWorkflow', () => {
     it('should update the registry', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
       const putWorkflowSpy = jest.spyOn(worker.client.admin, 'putWorkflow').mockResolvedValue({
         id: 'workflow1',
         version: 'v0.1.0',
@@ -93,7 +93,7 @@ describe('Worker', () => {
 
   describe('handle_start_step_run', () => {
     it('should start a step run', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       const getActionEventSpy = jest.spyOn(worker, 'getStepActionEvent');
 
@@ -126,7 +126,7 @@ describe('Worker', () => {
     });
 
     it('should fail gracefully', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       const getActionEventSpy = jest.spyOn(worker, 'getStepActionEvent');
 
@@ -162,7 +162,7 @@ describe('Worker', () => {
 
   describe('exit_gracefully', () => {
     xit('should call exit_gracefully on SIGTERM', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       // the spy is not working and the test is killing the test process
       const exitSpy = jest.spyOn(worker, 'exitGracefully').mockImplementationOnce(() => {
@@ -174,7 +174,7 @@ describe('Worker', () => {
     });
 
     xit('should call exit_gracefully on SIGINT', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       // This is killing the process (as it should) fix the spy at some point
       const exitSpy = jest.spyOn(worker, 'exitGracefully').mockResolvedValue();
@@ -184,7 +184,7 @@ describe('Worker', () => {
     });
 
     xit('should unregister the listener and exit', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       jest.spyOn(process, 'exit').mockImplementation((number) => {
         throw new Error(`EXIT ${number}`);
@@ -202,7 +202,7 @@ describe('Worker', () => {
     });
 
     it('should exit the process if handle_kill is true', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
       const exitSpy = jest.spyOn(process, 'exit').mockReturnValue(undefined as never);
       await worker.exitGracefully(true);
       expect(exitSpy).toHaveBeenCalledTimes(1);
@@ -211,7 +211,7 @@ describe('Worker', () => {
 
   describe('start', () => {
     xit('should get actions and start runs', async () => {
-      const worker = new Worker(hatchet, { name: 'WORKER_NAME' });
+      const worker = new V0Worker(hatchet, { name: 'WORKER_NAME' });
 
       const startSpy = jest.spyOn(worker, 'handleStartStepRun').mockResolvedValue();
       const cancelSpy = jest.spyOn(worker, 'handleCancelStepRun').mockResolvedValue();

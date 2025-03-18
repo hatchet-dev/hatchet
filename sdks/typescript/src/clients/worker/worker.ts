@@ -1,4 +1,4 @@
-import { HatchetClient } from '@clients/hatchet-client';
+import { InternalHatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import {
@@ -33,8 +33,8 @@ export interface WorkerOpts {
   labels?: WorkerLabels;
 }
 
-export class Worker {
-  client: HatchetClient;
+export class V0Worker {
+  client: InternalHatchetClient;
   name: string;
   workerId: string | undefined;
   killing: boolean;
@@ -54,7 +54,7 @@ export class Worker {
   labels: WorkerLabels = {};
 
   constructor(
-    client: HatchetClient,
+    client: InternalHatchetClient,
     options: {
       name: string;
       handleKill?: boolean;

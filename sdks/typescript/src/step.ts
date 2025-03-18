@@ -1,16 +1,18 @@
 /* eslint-disable max-classes-per-file */
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
-import { HatchetTimeoutSchema, Workflow } from './workflow';
+import { Workflow } from './workflow';
 import { Action } from './clients/dispatcher/action-listener';
 import { LogLevel } from './clients/event/event-client';
 import { Logger } from './util/logger';
 import { parseJSON } from './util/parse';
-import { HatchetClient } from './clients/hatchet-client';
+import { InternalHatchetClient } from './clients/hatchet-client';
 import WorkflowRunRef from './util/workflow-run-ref';
-import { Worker } from './clients/worker';
+import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
+import { CreateTaskOpts } from './v1/task';
+import { Workflow as WorkflowV1 } from './v1/workflow';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -42,7 +44,7 @@ export const DesiredWorkerLabelSchema = z
 export const CreateStepSchema = z.object({
   name: z.string(),
   parents: z.array(z.string()).optional(),
-  timeout: HatchetTimeoutSchema.optional(),
+  timeout: z.string().optional(),
   retries: z.number().optional(),
   rate_limits: z.array(CreateRateLimitSchema).optional(),
   worker_labels: z.record(z.lazy(() => DesiredWorkerLabelSchema)).optional(),
@@ -75,8 +77,8 @@ interface ContextData<T, K> {
 }
 
 export class ContextWorker {
-  private worker: Worker;
-  constructor(worker: Worker) {
+  private worker: V0Worker;
+  constructor(worker: V0Worker) {
     this.worker = worker;
   }
 
@@ -102,7 +104,7 @@ export class Context<T, K = {}> {
   input: T;
   controller = new AbortController();
   action: Action;
-  client: HatchetClient;
+  client: InternalHatchetClient;
 
   worker: ContextWorker;
 
@@ -111,7 +113,7 @@ export class Context<T, K = {}> {
 
   spawnIndex: number = 0;
 
-  constructor(action: Action, client: HatchetClient, worker: Worker) {
+  constructor(action: Action, client: InternalHatchetClient, worker: V0Worker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;
@@ -133,7 +135,17 @@ export class Context<T, K = {}> {
     }
   }
 
-  stepOutput(step: string): NextStep {
+  // NOTE: parentData is async since we plan on potentially making this a cacheable server call
+  async parentData<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
+    if (typeof task === 'string') {
+      return this.stepOutput<L>(task);
+    }
+
+    return this.stepOutput<L>(task.name) as L;
+  }
+
+  // TODO deprecated
+  stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
       throw new HatchetError('Step output not found');
     }
@@ -246,14 +258,55 @@ export class Context<T, K = {}> {
   }
 
   /**
+   * Enqueues multiple children workflows in parallel.
+   * @param children an array of objects containing the workflow name, input data, and options for each workflow
+   * @returns a list of workflow run references to the enqueued runs
+   */
+  bulkEnqueueChildren<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
+    children: Array<{
+      workflow: string | Workflow | WorkflowV1<Q, P>;
+      input: Q;
+      options?: {
+        key?: string;
+        sticky?: boolean;
+        additionalMetadata?: Record<string, string>;
+      };
+    }>
+  ): Promise<WorkflowRunRef<P>[]> {
+    return this.spawnWorkflows(children);
+  }
+
+  /**
+   * Runs multiple children workflows in parallel.
+   * @param children an array of objects containing the workflow name, input data, and options for each workflow
+   * @returns a list of results from the children workflows
+   */
+  async bulkRunChildren<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
+    children: Array<{
+      workflow: string | Workflow | WorkflowV1<Q, P>;
+      input: Q;
+      options?: {
+        key?: string;
+        sticky?: boolean;
+        additionalMetadata?: Record<string, string>;
+      };
+    }>
+  ): Promise<P[]> {
+    const runs = await this.bulkEnqueueChildren(children);
+    const res = runs.map((run) => run.result());
+    return Promise.all(res);
+  }
+
+  /**
    * Spawns multiple workflows.
    *
    * @param workflows an array of objects containing the workflow name, input data, and options for each workflow
    * @returns a list of references to the spawned workflow runs
+   * @deprecated use bulkEnqueueChildren or bulkRunChildren instead
    */
-  spawnWorkflows<Q = JsonValue, P = JsonValue>(
+  spawnWorkflows<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
     workflows: Array<{
-      workflow: string | Workflow;
+      workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
       options?: {
         key?: string;
@@ -317,7 +370,28 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Spawns a new workflow.
+   * Runs a new workflow.
+   *
+   * @param workflow the workflow to run
+   * @param input the input data for the workflow
+   * @param options additional options for spawning the workflow. If a string is provided, it is used as the key.
+   * @param <Q> the type of the input data
+   * @param <P> the type of the output data
+   * @return the result of the workflow
+   */
+  async runChild<Q extends Record<string, any>, P extends Record<string, any>>(
+    workflow: string | Workflow | WorkflowV1<Q, P>,
+    input: Q,
+    options?:
+      | string
+      | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
+  ): Promise<P> {
+    const run = await this.spawnWorkflow(workflow, input, options);
+    return run.result();
+  }
+
+  /**
+   * Enqueues a new workflow.
    *
    * @param workflowName the name of the workflow to spawn
    * @param input the input data for the workflow
@@ -329,8 +403,32 @@ export class Context<T, K = {}> {
    * @param <P> the type of the output data
    * @return a reference to the spawned workflow run
    */
-  spawnWorkflow<Q = JsonValue, P = JsonValue>(
-    workflow: string | Workflow,
+  enqueueChild<Q extends Record<string, any>, P extends Record<string, any>>(
+    workflow: string | Workflow | WorkflowV1<Q, P>,
+    input: Q,
+    options?:
+      | string
+      | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
+  ): WorkflowRunRef<P> {
+    return this.spawnWorkflow(workflow, input, options);
+  }
+
+  /**
+   * Spawns a new workflow.
+   *
+   * @param workflowName the name of the workflow to spawn
+   * @param input the input data for the workflow
+   * @param options additional options for spawning the workflow. If a string is provided, it is used as the key.
+   *                If an object is provided, it can include:
+   *                - key: a unique identifier for the workflow (deprecated, use options.key instead)
+   *                - sticky: a boolean indicating whether to use sticky execution
+   * @param <Q> the type of the input data
+   * @param <P> the type of the output data
+   * @return a reference to the spawned workflow run
+   * @deprecated use runChild or enqueueChild instead
+   */
+  spawnWorkflow<Q extends Record<string, any>, P extends Record<string, any>>(
+    workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?:
       | string
