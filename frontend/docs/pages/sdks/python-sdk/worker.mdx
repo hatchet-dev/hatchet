@@ -1,3 +1,12 @@
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const WorkflowRegistration = {
+  path: "examples/workflow_registration/worker.py",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([WorkflowRegistration]);
+
 # Worker Configuration
 
 Workers can be created via the `hatchet.worker()` method, after [instantiating a `hatchet` instance](./client). The `hatchet.worker()` method takes the following arguments:
@@ -9,47 +18,10 @@ Workers can be created via the `hatchet.worker()` method, after [instantiating a
 
 Workers can register workflows by calling `worker.register_workflow` with a workflow class instance. There is no limit to the number of workflows which can be registered for each worker. For example:
 
-```py
-from hatchet_sdk import Context, Hatchet
 
-hatchet = Hatchet(debug=True)
+<GithubSnippet src={WorkflowRegistration} target="WorkflowRegistration" />
 
-@hatchet.workflow()
-class WorkflowOne:
-    @hatchet.step()
-    async def step(self, context: Context):
-        return {"test1": "test1"}
-
-@hatchet.workflow()
-class WorkflowTwo:
-    @hatchet.step()
-    async def step(self, context: Context):
-        return {"test2": "test2"}
-
-worker = hatchet.worker('test-worker')
-worker.register_workflow(WorkflowOne())
-worker.register_workflow(WorkflowTwo())
-worker.start()
-```
 
 ## Starting a Worker
 
 Workers can be started by calling `worker.start`. We recommend that `worker.start` is the last call made when running a worker, as the `worker.start` method is blocking.
-
-### Example: `worker.start`
-
-```py
-from hatchet_sdk import Context, Hatchet
-
-hatchet = Hatchet()
-
-# ... workflow definitions
-
-def main():
-    worker = hatchet.worker("test-worker", max_runs=4)
-    worker.register_workflow(Workflow())
-    worker.start()
-
-if __name__ == "__main__":
-    main()
-```

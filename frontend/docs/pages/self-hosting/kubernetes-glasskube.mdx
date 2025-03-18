@@ -1,5 +1,14 @@
 import { Tabs, Steps, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const SimpleWorker = {
+  path: "examples/simple/worker.py",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([SimpleWorker]);
+
 
 # Kubernetes Deployment via Glasskube
 
@@ -160,7 +169,6 @@ This will spin up the Hatchet engine service on `localhost:7070` which you can t
 Make sure you have the following dependencies installed:
 
 ```sh
-pip install python-dotenv
 pip install hatchet-sdk
 ```
 
@@ -168,27 +176,7 @@ We are using [`python-dotenv`](https://pypi.org/project/python-dotenv/) to load 
 
 Create a `worker.py` file with the following contents:
 
-```python filename="worker.py" copy
-from hatchet_sdk import Hatchet
-from dotenv import load_dotenv
-
-load_dotenv()
-
-hatchet = Hatchet(debug=True)
-
-@hatchet.workflow(name="first-python-workflow",on_events=["user:create"])
-class MyWorkflow:
-    @hatchet.step()
-    def step1(self, context):
-        return {
-            "result": "success"
-        }
-
-worker = hatchet.worker('first-worker')
-worker.register_workflow(MyWorkflow())
-
-worker.start()
-```
+<GithubSnippet src={SimpleWorker} target="Simple" />
 
 Open a new terminal and start the worker with:
 

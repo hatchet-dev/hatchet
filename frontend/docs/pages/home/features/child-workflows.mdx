@@ -1,5 +1,13 @@
 import { Tabs } from "nextra/components";
 import UniversalTabs from "../../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const FanoutWorker = {
+  path: "examples/fanout/worker.py",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([FanoutWorker]);
 
 # Child Workflows
 
@@ -9,24 +17,13 @@ Note that spawning child workflows is a **durable** operation, meaning that spaw
 
 ## Looping Workflows
 
-To loop through a list and create a new workflow per element in the list, you can simply use `spawnWorkflow` in a loop. For example:
+To loop through a list and create a new workflow per element in the list, you can either spawn workflows in a loop or (preferably) spawn them in bulk. For example:
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-```python
-@hatchet.workflow("fanout:create")
-class Parent:
-    @hatchet.step()
-    def spawn(self, context: Context):
-        for i in range(10):
-          context.spawn_workflow(
-            "Child", {"a": str(i)}, key=f"child{i}"
-          )
+<GithubSnippet src={FanoutWorker} target="FanoutParent"/>
 
-        return {}
-
-```
 
   </Tabs.Tab>
   <Tabs.Tab>
