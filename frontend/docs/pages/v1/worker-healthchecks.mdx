@@ -1,1 +1,70 @@
-TODO V1 DOCS
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+# Worker Healthchecks
+
+The Python SDK allows you to enable and ping a healthcheck to check on the status of your worker.
+
+### Usage
+
+First, set the `HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED` environment variable to `True`. Once that flag is set, two healthcheck endpoints will be available (on port `8001` by default):
+
+1. `/health` - A simple healthcheck that returns a 200 with a JSON body like: `{"status": "HEALTHY"}`.
+2. `/metrics` - A metrics endpoint intended to be used by a monitoring system like Prometheus.
+
+### Custom Port
+
+You can set a custom port with the `HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT` environment variable, e.g. `HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT=8002`.
+
+#### Example request to `/health`:
+
+```bash
+curl localhost:8001/health
+
+{"status": "HEALTHY"}
+```
+
+#### Example request to `/metrics`:
+
+```bash
+curl localhost:8001/metrics
+
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 18782.0
+python_gc_objects_collected_total{generation="1"} 4907.0
+python_gc_objects_collected_total{generation="2"} 244.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 308.0
+python_gc_collections_total{generation="1"} 27.0
+python_gc_collections_total{generation="2"} 2.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="10",patchlevel="15",version="3.10.15"} 1.0
+# HELP hatchet_worker_status Current status of the Hatchet worker
+# TYPE hatchet_worker_status gauge
+hatchet_worker_status 1.0
+```
+
+#### Example Prometheus Configuration for `/metrics`:
+
+```yaml
+scrape_configs:
+  - job_name: "hatchet"
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["localhost:8001"]
+```
+
+#### Example Prometheus Query
+
+An example query to check if the worker is healthy might look something like:
+
+```
+(hatchet_worker_status{instance="localhost:8001", job="hatchet"}) or vector(0)
+```
