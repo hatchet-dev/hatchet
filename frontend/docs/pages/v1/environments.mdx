@@ -1,1 +1,74 @@
-TODO V1 DOCS
+import { Bleed } from "nextra-theme-docs";
+
+# Managing Environments with Hatchet
+
+## Multiple Developers, One Orchestrator
+
+When multiple developers share a single Hatchet orchestrator, conflicts can arise as workflow runs and events intermingle. Without proper isolation, one developer's workflows might interfere with another's testing or development work.
+
+Hatchet provides three key solutions for managing this challenge: namespaces, multi-tenancy, and a local Hatchet instance.
+
+### Solution 1: Namespaces (Beta)
+
+Namespaces provide isolation within a single tenant, allowing multiple developers to work simultaneously without conflicts.
+
+1. **Set a unique namespace** for each developer:
+
+```bash
+export HATCHET_CLIENT_NAMESPACE="dev-alice"
+```
+
+2. With unique namespaces, developers can work independently:
+   - Workflows only trigger for the namespace that created them
+   - Events remain isolated to their originating namespace
+   - Workers only process jobs from their assigned namespace
+
+> Note: Namespaces are currently in beta with limited UI support.
+
+### Solution 2: Multi-Tenancy
+
+For stronger isolation, create separate tenants for each developer or environment:
+
+<iframe
+  className="aspect-video w-full my-4"
+  src="https://www.youtube.com/embed/r9NY_nqvqig?si=8cmpM94uYm43jqJI"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+1. Access the tenant dropdown in the dashboard (bottom left)
+2. Select "Add New Tenant" and provide a descriptive name
+3. Generate a new token for that tenant
+4. Each developer configures their environment with their designated tenant token
+
+
+### Solution 3: Local Hatchet Instance
+
+If you are using Hatchet locally, you can create a local instance of Hatchet to manage your isolated local development environment. Follow instructions [here](../self-hosting/hatchet-lite.mdx) to get started.
+
+
+### Recommended Setups
+
+**For Development Teams:**
+- **Small teams:** Use namespaces within a shared development tenant
+- **Larger teams:** Leverage local hatchet instances to create separate tenants for each developer
+- **Production/staging:** Use dedicated tenants with controlled access
+
+**Implementation Example:**
+```
+Dev Team Setup:
+- Central Hatchet Instance
+  ├── Tenant: development
+  │   ├── Namespace: dev-alice
+  │   ├── Namespace: dev-bob  
+  │   └── Namespace: dev-charlie
+  ├── Tenant: staging
+  └── Tenant: production
+```
+
+## Best Practices
+
+- **Unique Identifiers:** Use consistent, unique identifiers for namespaces and tenants
+- **Environment Variables:** Set namespace variables in your local environment or .env files
+- **Token Security:** Treat tenant tokens as sensitive data and avoid sharing them
+- **Coordination:** Establish naming conventions and communicate among team members to avoid conflicts
