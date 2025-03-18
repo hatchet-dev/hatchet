@@ -2,6 +2,7 @@ import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
+import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow } from '../workflow';
 
 /**
@@ -59,30 +60,7 @@ export class Worker {
    */
   registerWorkflows(workflows?: Array<Workflow<any, any> | V0Workflow>) {
     return workflows?.map((wf) => {
-      if (wf instanceof Workflow) {
-        const { definition } = wf;
-        return this.v0.registerWorkflow({
-          id: definition.name,
-          description: definition.description || '',
-          version: definition.version || '',
-          sticky: definition.sticky,
-          scheduleTimeout: definition.scheduleTimeout,
-          on: definition.on,
-          concurrency: definition.concurrency,
-          steps: definition.tasks.map((task) => ({
-            name: task.name,
-            parents: task.parents?.map((p) => p.name),
-            run: (ctx) => task.fn(ctx.workflowInput(), ctx),
-            timeout: task.timeout,
-            retries: task.retries,
-            rate_limits: task.rateLimits,
-            worker_labels: task.workerLabels,
-            backoff: task.backoff,
-          })),
-        });
-      }
-      // Register v0 workflow
-      return this.v0.registerWorkflow(wf);
+      return this.v0.registerWorkflow(toV0Workflow(wf));
     });
   }
 
@@ -120,4 +98,47 @@ export class Worker {
   upsertLabels(labels: WorkerLabels) {
     return this.v0.upsertLabels(labels);
   }
+
+  /**
+   * Get the labels for the worker
+   * @returns The labels for the worker
+   */
+  getLabels() {
+    return this.v0.labels;
+  }
+
+  /**
+   * Register a webhook with the worker
+   * @param webhook - The webhook to register
+   * @returns A promise that resolves when the webhook is registered
+   */
+  registerWebhook(webhook: WebhookWorkerCreateRequest) {
+    return this.v0.registerWebhook(webhook);
+  }
+}
+
+export function toV0Workflow(wf: Workflow<any, any> | V0Workflow): V0Workflow {
+  if (wf instanceof Workflow) {
+    const { definition } = wf;
+    return {
+      id: definition.name,
+      description: definition.description || '',
+      version: definition.version || '',
+      sticky: definition.sticky,
+      scheduleTimeout: definition.scheduleTimeout,
+      on: definition.on,
+      concurrency: definition.concurrency,
+      steps: definition.tasks.map((task) => ({
+        name: task.name,
+        parents: task.parents?.map((p) => p.name),
+        run: (ctx) => task.fn(ctx.workflowInput(), ctx),
+        timeout: task.timeout,
+        retries: task.retries,
+        rate_limits: task.rateLimits,
+        worker_labels: task.workerLabels,
+        backoff: task.backoff,
+      })),
+    };
+  }
+  return wf;
 }
