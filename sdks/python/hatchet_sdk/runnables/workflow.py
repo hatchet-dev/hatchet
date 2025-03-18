@@ -245,21 +245,17 @@ class Workflow(Generic[TWorkflowInput]):
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         return self.client.admin.run_workflows(
             workflows=workflows,
-            options=options,
         )
 
     async def aio_run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         return await self.client.admin.aio_run_workflows(
             workflows=workflows,
-            options=options,
         )
 
     def schedule(
