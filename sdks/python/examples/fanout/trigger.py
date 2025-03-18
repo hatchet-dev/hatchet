@@ -1,16 +1,15 @@
 import asyncio
 
-from hatchet_sdk import new_client
+from examples.fanout.worker import ParentInput, parent_wf
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
+
+hatchet = Hatchet()
 
 
 async def main() -> None:
-
-    hatchet = new_client()
-
-    hatchet.admin.run_workflow(
-        "Parent",
-        {"test": "test"},
+    parent_wf.run(
+        ParentInput(n=2),
         options=TriggerWorkflowOptions(additional_metadata={"hello": "moon"}),
     )
 

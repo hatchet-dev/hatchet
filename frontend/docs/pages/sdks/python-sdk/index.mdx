@@ -1,4 +1,11 @@
 import { Callout } from "nextra/components";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const SimpleWorkflow = {
+  path: "examples/simple/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([SimpleWorkflow]);
 
 # Python SDK
 
@@ -47,41 +54,7 @@ HATCHET_CLIENT_TLS_STRATEGY=none
 
 Make sure you've set the `HATCHET_CLIENT_TOKEN` environment variable via `export HATCHET_CLIENT_TOKEN="<your-api-key>"`. Then copy and run the following Python script via `python worker.py`:
 
-```python filename="worker.py" copy
-import asyncio
-from hatchet_sdk import Context, Hatchet
-
-hatchet = Hatchet(debug=True)
-
-@hatchet.workflow(on_events=["user:create"])
-class Workflow:
-    def __init__(self):
-        self.my_value = "test"
-
-    @hatchet.step(timeout="2s")
-    async def step1(self, context: Context):
-        context.refresh_timeout("5s")
-
-        print("started step1")
-        await asyncio.sleep(1)
-        print("finished step1")
-
-        return {"test": "test"}
-
-    @hatchet.step(parents=["step1"], timeout="4s")
-    async def step2(self, context):
-        print("started async step2")
-        await asyncio.sleep(1)
-        print("finished step2")
-
-async def main():
-    worker = hatchet.worker("first-worker", max_runs=4)
-    worker.register_workflow(Workflow())
-    await worker.async_start()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
+<GithubSnippet src={SimpleWorkflow} target="Simple" />
 
 ## Run your first workflow
 

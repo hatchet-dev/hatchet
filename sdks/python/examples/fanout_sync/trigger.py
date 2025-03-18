@@ -1,17 +1,14 @@
 import asyncio
 
-from dotenv import load_dotenv
+from examples.fanout_sync.worker import ParentInput, parent
+from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 
-from hatchet_sdk import TriggerWorkflowOptions, new_client
+hatchet = Hatchet()
 
 
 async def main() -> None:
-    load_dotenv()
-    hatchet = new_client()
-
-    hatchet.admin.run_workflow(
-        "SyncFanoutParent",
-        {"test": "test"},
+    parent.run(
+        ParentInput(n=2),
         options=TriggerWorkflowOptions(additional_metadata={"hello": "moon"}),
     )
 

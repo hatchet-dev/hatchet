@@ -1,5 +1,6 @@
 import pytest
 
+from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from hatchet_sdk import Hatchet, Worker
 
 
@@ -7,7 +8,8 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["timeout"], indirect=True)
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("TimeoutWorkflow", {})
+    run = timeout_wf.run()
+
     try:
         await run.aio_result()
         assert False, "Expected workflow to timeout"
@@ -18,6 +20,7 @@ async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["timeout"], indirect=True)
 async def test_run_refresh_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("RefreshTimeoutWorkflow", {})
+    run = refresh_timeout_wf.run()
+
     result = await run.aio_result()
-    assert result["step1"]["status"] == "success"
+    assert result["refresh_task"]["status"] == "success"
