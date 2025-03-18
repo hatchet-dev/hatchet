@@ -1,0 +1,67 @@
+import { Callout } from "nextra/components";
+
+# Getting Workflow Run Results
+
+It is possible to wait for or stream the results of a workflow run by getting a `WorkflowRunRef`. This is the return value of the `run_workflow` and `get_workflow_run` methods on the `hatchet.client.admin` client, or the `spawn_workflow` method on a `Context` object. For example:
+
+```py filename="get_workflow_run.py" copy
+from hatchet_sdk import Hatchet, ClientConfig
+
+hatchet = Hatchet()
+
+workflow_run_ref = hatchet.client.admin.get_workflow_run(
+    "5a3a617d-1200-4ee2-92e6-be4bd27ca26f",
+)
+
+result = await workflow_run_ref.result()
+
+print(result)
+```
+
+This method takes the `workflow_run_id` as a parameter and returns a reference to the workflow run.
+
+<Callout type="info" emoji="🪓">
+If you need to get the workflow run id from a different method than where it was invoked, you can store the value of the `workflow_run_id` attribute of the return value of [`run_workflow`](./run-workflow-api) or [`spawn_workflow`](./run-workflow-child). For example:
+
+```py
+workflow_run = hatchet.client.admin.run_workflow(
+    "ManualTriggerWorkflow",
+    {"test": "test"},
+)
+
+print(f"spawned workflow run: {workflow_run.workflow_run_id}")
+```
+
+</Callout>
+
+Note that the `result` method is an coroutine that must be awaited. It returns a dict of each step run's result in the workflow. For example:
+
+```py
+{
+    "step1": {
+        "result1": "success"
+    },
+    "step2": {
+        "result2": "success"
+    }
+}
+```
+
+## Streaming Results
+
+It is also possible to stream the results of a workflow run as each step is executed. This can be done via the `stream` method on the `WorkflowRunRef` object:
+
+```py filename="stream_workflow_run.py" copy
+from hatchet_sdk import Hatchet, ClientConfig
+
+workflow_run_ref = hatchet.client.admin.get_workflow_run(
+    "5a3a617d-1200-4ee2-92e6-be4bd27ca26f",
+)
+
+listener = workflow_run_ref.stream()
+
+async for event in listener:
+    print(event.type, event.payload)
+```
+
+Note that this is an async generator, so you must use `async for` to iterate over the events.

@@ -12,12 +12,12 @@ const nextConfig = {
       {
         source: '/:path((?!home|v1|compute|sdk|contributing|self-hosting|launches|blog|favicon\\.ico|hatchet_logo\\.png|_next/.*|monitoring\-demo\.mp4).*)',
         destination: '/home/:path*',
-        permanent: true,
+        permanent: false,
       },
       {
         source: "/ingest/:path*",
         destination: "https://app.posthog.com/:path*",
-        permanent: true,
+        permanent: false,
       },
     ];
   },

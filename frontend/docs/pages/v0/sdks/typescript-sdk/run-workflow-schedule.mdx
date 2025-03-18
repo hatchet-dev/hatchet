@@ -1,0 +1,22 @@
+# Running Scheduled Workflows
+
+Workflows can be scheduled from the API to run at some future time by calling `scheduleWorkflow`. This method is available on the `hatchet.admin` client:
+
+```ts
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const now = new Date();
+
+hatchet.admin.scheduleWorkflow("workflowName", {
+  schedules: [now],
+});
+```
+
+This method takes the following parameters:
+
+- `workflowName` (**required**): The name of the workflow to schedule.
+- `options` (**optional**): an object with the following properties:
+  - `schedules` (**optional**): An array of `Date` objects representing the times at which the workflow should be scheduled to run.
+  - `input` (**optional**): The input to the workflow. This should be a JSON-serializable dict.

@@ -1,0 +1,59 @@
+# Running Workflows via API
+
+Workflows can be triggered from the API by calling `run_workflow`. This method is available on the `hatchet.client.admin` client:
+
+```python filename="run_workflow.py" copy
+from hatchet_sdk import Hatchet, ClientConfig
+
+hatchet = Hatchet()
+
+workflowRun = hatchet.client.admin.run_workflow(
+    "ManualTriggerWorkflow",
+    {"test": "test"},
+    options={"additional_metadata": {"hello": "moon"}},
+)
+```
+
+This method takes the following parameters:
+
+- `workflow_name` (**required**): The name of the workflow to trigger. If you have not overridden the workflow name in the `hatchet.workflow` decorator, this should match the name of the workflow class.
+- `input` (**required**): The input to the workflow. This should be a JSON-serializable dict.
+- `options` (**optional**): Additional options to pass to the workflow. The current options are supported:
+  - `additional_metadata`: A dict of key-value strings to attach to the workflow run. This metadata will be shown in the Hatchet UI and will be available in API endpoints for listing/filtering.
+
+For more information on how to interact with the return value of `run_workflow`, see the documentation for [getting workflow run results](./get-workflow-results).
+
+### Running Workflows in Bulk via API
+
+Workflows can also be triggered in bulk by calling `run_workflows`. This method is available on the `hatchet.client.admin` client:
+
+```python filename="run_workflows.py" copy
+from hatchet_sdk import Hatchet, ClientConfig
+
+hatchet = Hatchet()
+
+workflowRuns: WorkflowRun = []
+
+for i in range(20):
+    workflowRuns.append(
+        {
+            "workflow_name": "BulkParent",
+            "input": {"n": i},
+            "options": {
+                "additional_metadata": {
+                    "bulk-trigger": i,
+                    "hello-{i}": "earth-{i}",
+                },
+            },
+        }
+    )
+
+workflowRunRefs = hatchet.admin.run_workflows(
+    workflowRuns,
+)
+
+```
+
+This method takes the following parameters:
+
+- `workflow_runs` (**required**): A list of WorkflowRun objects.

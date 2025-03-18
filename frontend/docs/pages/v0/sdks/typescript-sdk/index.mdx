@@ -1,0 +1,109 @@
+import { Callout } from "nextra/components";
+
+# Typescript SDK
+
+This is the Hatchet Typescript SDK reference. On this page, we'll get you up and running with a Typescript worker. This guide assumes that you already have a Hatchet engine instance running. If you don't, you can:
+
+- Sign up on [Hatchet Cloud](https://cloud.onhatchet.run)
+- [Self-host Hatchet](https://docs.hatchet.run/self-hosting)
+
+<Callout type="info" emoji="🪓">
+  If you run into any issues, please file an issue on the [Hatchet Typescript
+  SDK GitHub repository](https://github.com/hatchet-dev/hatchet-typescript).
+</Callout>
+
+## Installation
+
+```sh npm2yarn
+npm i @hatchet-dev/typescript-sdk
+```
+
+## Generate a Token
+
+Navigate to your Hatchet dashboard and navigate to your settings tab. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Then set the following environment variables:
+
+```sh
+HATCHET_CLIENT_TOKEN="<your-api-key>"
+```
+
+<Callout type="info" emoji="🪓">
+You may need to set additional environment variables depending on your self-hosted configuration. The Hatchet clients default to SSL by default, but to disable this you can set:
+
+```
+HATCHET_CLIENT_TLS_STRATEGY=none
+```
+
+</Callout>
+
+## Run your first worker
+
+Make sure you've set the `HATCHET_CLIENT_TOKEN` environment variable via `export HATCHET_CLIENT_TOKEN="<your-api-key>"`. Next, copy the following code into a `worker.ts` file:
+
+```typescript filename="worker.ts" copy
+import Hatchet, { Workflow } from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const workflow: Workflow = {
+  id: "first-typescript-workflow",
+  description: "This is my first workflow",
+  on: {
+    event: "user:create",
+  },
+  steps: [
+    {
+      name: "step1",
+      run: async (ctx) => {
+        console.log(
+          "starting step1 with the following input",
+          ctx.workflowInput(),
+        );
+
+        return {
+          result: "success!",
+        };
+      },
+    },
+  ],
+};
+
+const worker = hatchet.worker("my-worker");
+await worker.registerWorkflow(workflow);
+worker.start();
+```
+
+Next, modify your `package.json` to include a script to start:
+
+```json
+{
+  // ...rest of your `package.json`
+  "scripts": {
+    // ...existing scripts
+    "worker": "npx ts-node worker.ts"
+  }
+}
+```
+
+Now to start the worker, in a new terminal run:
+
+```sh npm2yarn
+npm run worker
+```
+
+## Run your first workflow
+
+The worker is now running and listening for steps to execute. You should see your first worker registered in the `Workers` tab of the Hatchet dashboard:
+
+![Quickstart 1](/quickstart-1.png)
+
+You can now trigger your first workflow by navigating to the `Workflows` tab, selecting your workflow, and clicking the top right "Trigger workflow" button:
+
+![Quickstart 2](/quickstart-2.png)
+
+That's it! You've successfully deployed Hatchet and run your first workflow.
+
+## Next Steps
+
+Congratulations on running your first workflow!
+
+To test out some more complicated examples, check out the [Hatchet Typescript Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart).
