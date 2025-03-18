@@ -307,10 +307,16 @@ class AdminClient:
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 
-    def _perform_workflow_trigger(
+    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
+    @tenacity_retry
+    def run_workflow(
         self,
-        request: workflow_protos.TriggerWorkflowRequest,
+        workflow_name: str,
+        input: JSONSerializableMapping,
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
+        request = self._create_workflow_run_request(workflow_name, input, options)
+
         if not self.pooled_workflow_listener:
             self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
 
@@ -336,18 +342,6 @@ class AdminClient:
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     @tenacity_retry
-    def run_workflow(
-        self,
-        workflow_name: str,
-        input: JSONSerializableMapping,
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
-        request = self._create_workflow_run_request(workflow_name, input, options)
-
-        return self._perform_workflow_trigger(request)
-
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     async def aio_run_workflow(
         self,
         workflow_name: str,
@@ -360,31 +354,28 @@ class AdminClient:
         async with spawn_index_lock:
             request = self._create_workflow_run_request(workflow_name, input, options)
 
-        return await asyncio.to_thread(self._perform_workflow_trigger, request)
-
-    def _perform_bulk_workflow_trigger(
-        self,
-        request: workflow_protos.BulkTriggerWorkflowRequest,
-    ) -> list[WorkflowRunRef]:
         if not self.pooled_workflow_listener:
             self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
 
-        resp = cast(
-            workflow_protos.BulkTriggerWorkflowResponse,
-            self.client.BulkTriggerWorkflow(
-                request,
-                metadata=get_metadata(self.token),
-            ),
-        )
-
-        return [
-            WorkflowRunRef(
-                workflow_run_id=workflow_run_id,
-                workflow_listener=self.pooled_workflow_listener,
-                workflow_run_event_listener=self.listener_client,
+        try:
+            resp = cast(
+                workflow_protos.TriggerWorkflowResponse,
+                self.client.TriggerWorkflow(
+                    request,
+                    metadata=get_metadata(self.token),
+                ),
             )
-            for workflow_run_id in resp.workflow_run_ids
-        ]
+        except (grpc.RpcError, grpc.aio.AioRpcError) as e:
+            if e.code() == grpc.StatusCode.ALREADY_EXISTS:
+                raise DedupeViolationErr(e.details())
+
+            raise e
+
+        return WorkflowRunRef(
+            workflow_run_id=resp.workflow_run_id,
+            workflow_listener=self.pooled_workflow_listener,
+            workflow_run_event_listener=self.listener_client,
+        )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     @tenacity_retry
@@ -404,7 +395,22 @@ class AdminClient:
             ]
         )
 
-        return self._perform_bulk_workflow_trigger(bulk_request)
+        resp = cast(
+            workflow_protos.BulkTriggerWorkflowResponse,
+            self.client.BulkTriggerWorkflow(
+                bulk_request,
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        return [
+            WorkflowRunRef(
+                workflow_run_id=workflow_run_id,
+                workflow_listener=self.pooled_workflow_listener,
+                workflow_run_event_listener=self.listener_client,
+            )
+            for workflow_run_id in resp.workflow_run_ids
+        ]
 
     @tenacity_retry
     async def aio_run_workflows(
@@ -427,9 +433,22 @@ class AdminClient:
                 ]
             )
 
-        return await asyncio.to_thread(
-            self._perform_bulk_workflow_trigger, bulk_request
+        resp = cast(
+            workflow_protos.BulkTriggerWorkflowResponse,
+            self.client.BulkTriggerWorkflow(
+                bulk_request,
+                metadata=get_metadata(self.token),
+            ),
         )
+
+        return [
+            WorkflowRunRef(
+                workflow_run_id=workflow_run_id,
+                workflow_listener=self.pooled_workflow_listener,
+                workflow_run_event_listener=self.listener_client,
+            )
+            for workflow_run_id in resp.workflow_run_ids
+        ]
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
         if not self.pooled_workflow_listener:
