@@ -57,7 +57,7 @@ class WorkflowConfig(BaseModel):
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
     version: str | None = None
-    schedule_timeout: timedelta = timedelta(minutes=5)
+    schedule_timeout: timedelta | str = timedelta(minutes=5)
     sticky: StickyStrategy | None = None
     default_priority: StrictInt = Field(gt=0, lt=4, default=1)
     concurrency: ConcurrencyExpression | None = None
