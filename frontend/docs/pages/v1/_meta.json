@@ -14,11 +14,11 @@
     "type": "separator"
   },
   "run-with-results": "Run with Results",
-  "fire-and-forget": "Fire and Forget",
+  "fire-and-forget": "Enqueue Runs",
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
   "run-on-event": "Run on Event",
-  "subscribing-to-events": "Subscribing to Events",
+  "subscribing-to-events": "Streaming Results",
 
   
   "--advanced-workflows": {
