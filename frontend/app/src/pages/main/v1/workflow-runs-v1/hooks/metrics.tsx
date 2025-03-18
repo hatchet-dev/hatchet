@@ -38,11 +38,8 @@ export const useMetrics = ({
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};
 
   return {
-    isLoading:
-      metricsQuery.isLoading ||
-      metricsQuery.isFetching ||
-      tenantMetricsQuery.isLoading ||
-      tenantMetricsQuery.isFetching,
+    isLoading: metricsQuery.isLoading || tenantMetricsQuery.isLoading,
+    isFetching: metricsQuery.isFetching || tenantMetricsQuery.isFetching,
     tenantMetrics,
     metrics,
     refetch: () => {

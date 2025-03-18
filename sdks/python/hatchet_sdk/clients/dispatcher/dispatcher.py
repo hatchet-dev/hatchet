@@ -61,7 +61,7 @@ class DispatcherClient:
                 workerName=req.worker_name,
                 actions=req.actions,
                 services=req.services,
-                maxRuns=req.max_runs,
+                maxRuns=req.slots,
                 labels=req.labels,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,

@@ -11,11 +11,13 @@ import {
   createClientFactory,
   Metadata,
 } from 'nice-grpc';
-import { Workflow } from '@hatchet/workflow';
+import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
+import { Workflow as V1Workflow } from '@hatchet/v1/workflow';
+import { toV0Workflow } from '@hatchet/v1/client/worker';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 import { ListenerClient } from '../listener/listener-client';
 import { Api } from '../rest/generated/Api';
@@ -157,7 +159,7 @@ export class InternalHatchetClient {
   }
 
   // @deprecated
-  async run(workflow: string | Workflow): Promise<V0Worker> {
+  async run(workflow: string | V0Workflow): Promise<V0Worker> {
     this.logger.warn(
       'HatchetClient.run is deprecated and will be removed in a future release. Use HatchetClient.worker and Worker.start instead.'
     );
@@ -167,7 +169,7 @@ export class InternalHatchetClient {
   }
 
   async worker(
-    workflow: string | Workflow,
+    workflow: string | V0Workflow,
     opts?: Omit<WorkerOpts, 'name'> | number
   ): Promise<V0Worker> {
     const name = typeof workflow === 'string' ? workflow : workflow.id;
@@ -195,11 +197,11 @@ export class InternalHatchetClient {
     return worker;
   }
 
-  webhooks(workflows: Workflow[]) {
+  webhooks(workflows: Array<V1Workflow<any, any> | V0Workflow>) {
     const worker = new V0Worker(this, {
       name: 'webhook-worker',
     });
 
-    return worker.getHandler(workflows);
+    return worker.getHandler(workflows.map(toV0Workflow));
   }
 }

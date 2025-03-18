@@ -604,6 +604,7 @@ CREATE TABLE "Tenant" (
     "workerPartitionId" TEXT,
     "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
     "schedulerPartitionId" TEXT,
+    "canUpgradeV1" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );

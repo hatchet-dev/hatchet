@@ -2,31 +2,27 @@ import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel
 
-from hatchet_sdk.clients.admin import (
-    AdminClient,
-    ChildTriggerWorkflowOptions,
-    ChildWorkflowRunDict,
-    TriggerWorkflowOptions,
-    WorkflowRunDict,
-)
+from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
 )
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.dispatcher_pb2 import OverridesData
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
-from hatchet_sdk.workflow_run import WorkflowRunRef
+
+if TYPE_CHECKING:
+    from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.runnables.types import R, TWorkflowInput
+
 
 DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
 
@@ -44,8 +40,6 @@ class StepRunError(BaseModel):
 
 
 class Context:
-    spawn_index = -1
-
     def __init__(
         self,
         action: Action,
@@ -66,9 +60,6 @@ class Context:
 
         self.action = action
 
-        # FIXME: stepRunId is a legacy field, we should remove it
-        self.stepRunId = action.step_run_id
-
         self.step_run_id: str = action.step_run_id
         self.exit_flag = False
         self.dispatcher_client = dispatcher_client
@@ -86,40 +77,29 @@ class Context:
 
         self.input = self.data.input
 
-    def _prepare_workflow_options(
-        self,
-        key: str | None = None,
-        options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
-        worker_id: str | None = None,
-    ) -> TriggerWorkflowOptions:
-        workflow_run_id = self.action.workflow_run_id
-        step_run_id = self.action.step_run_id
+    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+        from hatchet_sdk.runnables.types import R
 
-        trigger_options = TriggerWorkflowOptions(
-            parent_id=workflow_run_id,
-            parent_step_run_id=step_run_id,
-            child_key=key,
-            child_index=self.spawn_index,
-            additional_metadata=options.additional_metadata,
-            desired_worker_id=worker_id if options.sticky else None,
-        )
-
-        self.spawn_index += 1
-        return trigger_options
-
-    def step_output(self, step: str) -> dict[str, Any] | BaseModel:
         workflow_validator = next(
-            (v for k, v in self.validator_registry.items() if k.split(":")[-1] == step),
+            (
+                v
+                for k, v in self.validator_registry.items()
+                if k.split(":")[-1] == task.name
+            ),
             None,
         )
 
         try:
-            parent_step_data = cast(dict[str, Any], self.data.parents[step])
+            parent_step_data = cast(R, self.data.parents[task.name])
         except KeyError:
-            raise ValueError(f"Step output for '{step}' not found")
+            raise ValueError(f"Step output for '{task.name}' not found")
 
-        if workflow_validator and (v := workflow_validator.step_output):
-            return v.model_validate(parent_step_data)
+        if (
+            parent_step_data
+            and workflow_validator
+            and (v := workflow_validator.step_output)
+        ):
+            return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
 
@@ -143,23 +123,9 @@ class Context:
     def done(self) -> bool:
         return self.exit_flag
 
-    def playground(self, name: str, default: str | None = None) -> str | None:
-        caller_file = get_caller_file_path()
-
-        self.dispatcher_client.put_overrides_data(
-            OverridesData(
-                stepRunId=self.stepRunId,
-                path=name,
-                value=json.dumps(default),
-                callerFilename=caller_file,
-            )
-        )
-
-        return default
-
     def _log(self, line: str) -> tuple[bool, Exception | None]:
         try:
-            self.event_client.log(message=line, step_run_id=self.stepRunId)
+            self.event_client.log(message=line, step_run_id=self.step_run_id)
             return True, None
         except Exception as e:
             # we don't want to raise an exception here, as it will kill the log thread
@@ -168,7 +134,7 @@ class Context:
     def log(
         self, line: str | JSONSerializableMapping, raise_on_error: bool = False
     ) -> None:
-        if self.stepRunId == "":
+        if self.step_run_id == "":
             return
 
         if not isinstance(line, str):
@@ -198,16 +164,16 @@ class Context:
         future.add_done_callback(handle_result)
 
     def release_slot(self) -> None:
-        return self.dispatcher_client.release_slot(self.stepRunId)
+        return self.dispatcher_client.release_slot(self.step_run_id)
 
     def _put_stream(self, data: str | bytes) -> None:
         try:
-            self.event_client.stream(data=data, step_run_id=self.stepRunId)
+            self.event_client.stream(data=data, step_run_id=self.step_run_id)
         except Exception as e:
             logger.error(f"Error putting stream event: {e}")
 
     def put_stream(self, data: str | bytes) -> None:
-        if self.stepRunId == "":
+        if self.step_run_id == "":
             return
 
         self.stream_event_thread_pool.submit(self._put_stream, data)
@@ -215,7 +181,7 @@ class Context:
     def refresh_timeout(self, increment_by: str) -> None:
         try:
             return self.dispatcher_client.refresh_timeout(
-                step_run_id=self.stepRunId, increment_by=increment_by
+                step_run_id=self.step_run_id, increment_by=increment_by
             )
         except Exception as e:
             logger.error(f"Error refreshing timeout: {e}")
@@ -268,79 +234,3 @@ class Context:
             for step_run in job_run.step_runs
             if step_run.error and step_run.step
         ]
-
-    @tenacity_retry
-    async def aio_spawn_workflow(
-        self,
-        workflow_name: str,
-        input: JSONSerializableMapping = {},
-        key: str | None = None,
-        options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
-        worker_id = self.worker.id()
-
-        trigger_options = self._prepare_workflow_options(key, options, worker_id)
-
-        return await self.admin_client.aio_run_workflow(
-            workflow_name, input, trigger_options
-        )
-
-    @tenacity_retry
-    async def aio_spawn_workflows(
-        self, child_workflow_runs: list[ChildWorkflowRunDict]
-    ) -> list[WorkflowRunRef]:
-
-        if len(child_workflow_runs) == 0:
-            raise Exception("no child workflows to spawn")
-
-        worker_id = self.worker.id()
-
-        bulk_trigger_workflow_runs = [
-            WorkflowRunDict(
-                workflow_name=child_workflow_run.workflow_name,
-                input=child_workflow_run.input,
-                options=self._prepare_workflow_options(
-                    child_workflow_run.key, child_workflow_run.options, worker_id
-                ),
-            )
-            for child_workflow_run in child_workflow_runs
-        ]
-
-        return await self.admin_client.aio_run_workflows(bulk_trigger_workflow_runs)
-
-    @tenacity_retry
-    def spawn_workflow(
-        self,
-        workflow_name: str,
-        input: JSONSerializableMapping = {},
-        key: str | None = None,
-        options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
-        worker_id = self.worker.id()
-
-        trigger_options = self._prepare_workflow_options(key, options, worker_id)
-
-        return self.admin_client.run_workflow(workflow_name, input, trigger_options)
-
-    @tenacity_retry
-    def spawn_workflows(
-        self, child_workflow_runs: list[ChildWorkflowRunDict]
-    ) -> list[WorkflowRunRef]:
-
-        if len(child_workflow_runs) == 0:
-            raise Exception("no child workflows to spawn")
-
-        worker_id = self.worker.id()
-
-        bulk_trigger_workflow_runs = [
-            WorkflowRunDict(
-                workflow_name=child_workflow_run.workflow_name,
-                input=child_workflow_run.input,
-                options=self._prepare_workflow_options(
-                    child_workflow_run.key, child_workflow_run.options, worker_id
-                ),
-            )
-            for child_workflow_run in child_workflow_runs
-        ]
-
-        return self.admin_client.run_workflows(bulk_trigger_workflow_runs)

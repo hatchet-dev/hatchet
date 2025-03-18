@@ -148,4 +148,13 @@ export class HatchetClient implements IHatchetClient {
 
     return Worker.create(this.v0, name, opts);
   }
+
+  /**
+   * Register a webhook with the worker
+   * @param workflows - The workflows to register on the webhooks
+   * @returns A promise that resolves when the webhook is registered
+   */
+  webhooks(workflows: Workflow<any, any>[] | V0Workflow[]) {
+    return this.v0.webhooks(workflows);
+  }
 }

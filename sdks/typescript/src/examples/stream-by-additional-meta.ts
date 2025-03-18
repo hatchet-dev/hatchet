@@ -20,7 +20,7 @@ async function main() {
   );
 
   // Stream all events for the additional meta key value
-  const stream = await hatchet.listener.streamByAdditionalMeta(streamKey, streamVal);
+  const stream = await hatchet.v0.listener.streamByAdditionalMeta(streamKey, streamVal);
 
   for await (const event of stream) {
     console.log('event received', event);

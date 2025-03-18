@@ -1,3 +1,11 @@
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const ConcurrencyDemo = {
+  path: "examples/concurrency-limit-rr/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([ConcurrencyDemo]);
+
 # Concurrency Limits and Fairness
 
 By default, there are no concurrency limits for Hatchet workflows.
@@ -5,23 +13,7 @@ Workflow runs are immediately executed as soon as they are triggered (by an even
 
 For example, the following workflow will only allow 5 concurrent executions for any workflow execution of `ConcurrencyDemoWorkflow`:
 
-```py
-from hatchet_sdk import ConcurrencyLimitStrategy
-
-@hatchet.workflow(
-    on_events=["concurrency-test"],
-    concurrency=Concurrency(
-        max_runs=5,
-        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-        expression="'default'",
-    ),
-)
-class ConcurrencyDemoWorkflow:
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
-```
+<GithubSnippet src={ConcurrencyDemo} target="Concurrency" />
 
 ### Use-Case: Enforcing Per-User Concurrency Limits
 
@@ -44,19 +36,23 @@ A, B, C, A, B, C, A, B, C, A, B, C, A, B, C
 This can be set in the `concurrency` configuration as follows:
 
 ```py
-@hatchet.workflow(
+class GroupRRInput(BaseModel):
+    user_id: str
+
+group_rr_workflow = hatchet.workflow(
     on_events=["concurrency-test"],
     concurrency=Concurrency(
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
         expression="input.user_id",
     ),
+    input_validator=GroupRRInput,
 )
-class ConcurrencyDemoWorkflow:
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
+
+@group_rr_workflow.task()
+def step1(input: GroupRRInput, ctx: Context) -> None:
+    print("executed step1")
+    pass
 ```
 
 This same approach can be used for:
@@ -72,16 +68,16 @@ For more advanced use cases, you can set a [key function](/home/features/concurr
 You can use the custom concurrency function to cancel in-progress workflows. For example, the following workflow will cancel any in-progress workflows for a user if a new event is triggered:
 
 ```py
-@hatchet.workflow(
+cancel_in_progress_wf = hatchet.workflow(
     on_events=["concurrency-test"],
     concurrency=Concurrency(
         max_runs=1,
         limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
     ),
 )
-class ConcurrencyDemoWorkflow:
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
+
+@cancel_in_progress_wf.task()
+def step1(input: EmptyModel, ctx: Context) -> None:
+    print("executed step1")
+    pass
 ```

@@ -49,7 +49,7 @@ async function main() {
 
   const worker = await hatchet.worker('example-worker');
 
-  worker.registerAction('slack:example', async (ctx: Context<StepOneInput, CustomUserData>) => {
+  worker.v0.registerAction('slack:example', async (ctx: Context<StepOneInput, CustomUserData>) => {
     const setData = ctx.userData();
     console.log('executed step1!', setData);
     return { step1: 'step1' };
