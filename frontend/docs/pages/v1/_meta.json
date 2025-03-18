@@ -1,3 +1,67 @@
 {
-  "announcement": "Announcement"
+  "announcement": "Announcement",
+  "--basics": {
+    "title": "Basics",
+    "type": "separator"
+  },
+  "introduction": "Introduction",
+  "workflows": "Workflows & Tasks",
+  "workers": "Workers",
+  "environments": "Environments",
+
+  "--running-workflows": {
+    "title": "Running Workflows",
+    "type": "separator"
+  },
+  "triggering-workflows": "Triggering Runs",
+  "scheduled-runs": "Scheduled Runs",
+  "cron-runs": "Cron Runs",
+  "run-on-event": "Run on Event",
+  "subscribing-to-events": "Subscribing to Events",
+
+  "--flow-control": {
+    "title": "Flow Control",
+    "type": "separator"
+  },
+  "concurrency-keys": "Concurrency Keys",
+  "rate-limits": "Rate Limits",
+
+  "--cancellation": {
+    "title": "Cancellation",
+    "type": "separator"
+  },
+  "cancellation": "Cancellation",
+  "bulk-cancellation": "Bulk Cancellation",
+
+  "--error-handling": {
+    "title": "Error Handling",
+    "type": "separator"
+  },
+  "retries": "Retries",
+  "timeouts": "Timeouts",
+  "on-failure-tasks": "On Failure Tasks",
+
+
+  "--assignment": {
+    "title": "Advanced Assignment",
+    "type": "separator"
+  },
+  "sticky-assignment": "Sticky Assignment",
+  "worker-affinity": "Worker Affinity",
+  "manual-slot-release": "Manual Slot Release",
+
+  
+  "--observability": {
+    "title": "Observability",
+    "type": "separator"
+  },
+  "logging": "Logging",
+  "opentelemetry": "OpenTelemetry",
+
+  "--deploying-workers": {
+    "title": "Deploying Workers",
+    "type": "separator"
+  },
+  "docker": "Running with Docker",
+  "worker-healthchecks": "Worker Healthchecks"
 }
