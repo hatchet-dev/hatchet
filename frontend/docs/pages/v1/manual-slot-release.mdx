@@ -1,1 +1,79 @@
-TODO V1 DOCS
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const SlotReleasePy = {
+  path: "examples/manual_slot_release/worker.py",
+};
+
+export const SlotReleaseTS = {
+  path: "src/examples/manual_slot_release.ts",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([SlotReleasePy, SlotReleaseTS]);
+
+# Manual Slot Release
+
+The Hatchet execution model sets a number of available slots for running steps in a workflow. When a step is running, it occupies a slot, and if a worker has no available slots, it will not be able to run any more steps concurrently.
+
+In some cases, you may have a step in your workflow that is resource-intensive and requires exclusive access to a shared resource, such as a database connection or a GPU compute instance. To ensure that other steps in the workflow can run concurrently, you can manually release the slot after the resource-intensive step has completed, but the step still has non-resource-intensive work to do (i.e. upload or cleanup).
+
+<Callout type="warning">
+  This is an advanced feature and should be used with caution. Manually
+  releasing the slot can have unintended side effects on system performance and
+  concurrency. For example, if the worker running the step dies, the step will
+  not be reassigned and will remain in a running state until manually
+  terminated.
+</Callout>
+
+## Using Manual Slot Release
+
+You can manually release a slot in from within a running step in your Workflow using the Hatchet context param:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<Tabs.Tab>
+<GithubSnippet src={SlotReleasePy} target="SlotRelease" />
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+
+<GithubSnippet src={SlotReleaseTS} target="SlotRelease" />
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+```go
+
+func StepOne(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
+  fmt.Println("RESOURCE INTENSIVE PROCESS")
+  time.Sleep(10 * time.Second)
+  // Release the slot after the resource-intensive process, so that other steps can run
+  ctx.ReleaseSlot()
+  fmt.Println("NON RESOURCE INTENSIVE PROCESS")
+  return &stepOneOutput{
+    Message: "step1 results",
+  }, nil
+},
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+In the above examples, the release_slot() method is called after the resource-intensive process has completed. This allows other steps in the workflow to start executing while the current step continues with non-resource-intensive tasks.
+
+<Callout type="info">
+  Manually releasing the slot does not terminate the current step. The step will
+  continue executing until it completes or encounters an error.
+</Callout>
+
+## Use Cases
+
+Some common use cases for Manual Slot Release include:
+
+- Performing data processing or analysis that requires significant CPU, GPU, or memory resources
+- Acquiring locks or semaphores to access shared resources
+- Executing long-running tasks that don't need to block other steps after some initial work is done
+
+By utilizing Manual Slot Release, you can optimize the concurrency and resource utilization of your workflows, allowing multiple steps to run in parallel when possible.

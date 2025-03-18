@@ -41,26 +41,26 @@ For stronger isolation, create separate tenants for each developer or environmen
 3. Generate a new token for that tenant
 4. Each developer configures their environment with their designated tenant token
 
-
 ### Solution 3: Local Hatchet Instance
 
 If you are using Hatchet locally, you can create a local instance of Hatchet to manage your isolated local development environment. Follow instructions [here](../self-hosting/hatchet-lite.mdx) to get started.
 
-
 ### Recommended Setups
 
 **For Development Teams:**
+
 - **Small teams:** Use namespaces within a shared development tenant
 - **Larger teams:** Leverage local hatchet instances to create separate tenants for each developer
 - **Production/staging:** Use dedicated tenants with controlled access
 
 **Implementation Example:**
+
 ```
 Dev Team Setup:
 - Central Hatchet Instance
   ├── Tenant: development
   │   ├── Namespace: dev-alice
-  │   ├── Namespace: dev-bob  
+  │   ├── Namespace: dev-bob
   │   └── Namespace: dev-charlie
   ├── Tenant: staging
   └── Tenant: production
