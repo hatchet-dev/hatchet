@@ -3,7 +3,7 @@ const defaultUser = "hatchet-dev";
 const defaultRepo = "hatchet";
 
 const localPaths = {
-  ts: "sdks/typescript",
+  ts: "sdks/typescript/src",
   py: "sdks/python",
   go: "oss",
 };
