@@ -5,7 +5,7 @@
     "type": "separator"
   },
   "introduction": "Introduction",
-  "workflows": "Workflows & Tasks",
+  "basic-workflows": "Basic Workflows",
   "workers": "Workers",
   "environments": "Environments",
 
@@ -13,11 +13,20 @@
     "title": "Running Workflows",
     "type": "separator"
   },
-  "triggering-workflows": "Triggering Runs",
+  "run-with-results": "Run with Results",
+  "fire-and-forget": "Fire and Forget",
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
   "run-on-event": "Run on Event",
   "subscribing-to-events": "Subscribing to Events",
+
+  
+  "--advanced-workflows": {
+    "title": "Advanced Workflows",
+    "type": "separator"
+  },
+  "dags": "Directed Acyclic Graphs (DAGs)",
+  "child-spawning": "Child Spawning",
 
   "--flow-control": {
     "title": "Flow Control",
