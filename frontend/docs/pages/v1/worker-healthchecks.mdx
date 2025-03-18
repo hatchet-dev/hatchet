@@ -1,12 +1,12 @@
 import { GithubSnippet, getSnippets } from "@/components/code";
 
-# Worker Healthchecks
+# Worker Health Checks
 
 The Python SDK allows you to enable and ping a healthcheck to check on the status of your worker.
 
 ### Usage
 
-First, set the `HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED` environment variable to `True`. Once that flag is set, two healthcheck endpoints will be available (on port `8001` by default):
+First, set the `HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED` environment variable to `True`. Once that flag is set, two health check endpoints will be available (on port `8001` by default):
 
 1. `/health` - A simple healthcheck that returns a 200 with a JSON body like: `{"status": "HEALTHY"}`.
 2. `/metrics` - A metrics endpoint intended to be used by a monitoring system like Prometheus.
