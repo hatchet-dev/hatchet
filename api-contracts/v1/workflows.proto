@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1";
+
+package v1;
+
+import "google/protobuf/timestamp.proto";
+import "v1/shared/condition.proto";
+
+// AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
+service AdminService {
+    rpc PutWorkflow(CreateWorkflowVersionRequest) returns (CreateWorkflowVersionResponse);
+    rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
+    rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
+    rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
+}
+
+message CancelTasksRequest {
+    repeated string externalIds = 1; // a list of external UUIDs
+    optional TasksFilter filter = 2;
+}
+
+message ReplayTasksRequest {
+    repeated string externalIds = 1; // a list of external UUIDs
+    optional TasksFilter filter = 2;
+}
+
+message TasksFilter {
+    repeated string statuses = 1;
+    google.protobuf.Timestamp since = 2;
+    optional google.protobuf.Timestamp until = 3;
+    repeated string workflow_ids = 4;
+    repeated string additional_metadata = 5;
+}
+
+message CancelTasksResponse {
+    repeated string cancelled_tasks = 1;
+}
+
+message ReplayTasksResponse {
+    repeated string replayed_tasks = 1;
+}
+
+message TriggerWorkflowRunRequest {
+    string workflow_name = 1;
+    bytes input = 2;
+    bytes additional_metadata = 3;
+}
+
+message TriggerWorkflowRunResponse {
+    string external_id = 1;
+}
+
+enum StickyStrategy {
+    SOFT = 0;
+    HARD = 1;
+}
+
+enum RateLimitDuration {
+    SECOND = 0;
+    MINUTE = 1;
+    HOUR = 2;
+    DAY = 3;
+    WEEK = 4;
+    MONTH = 5;
+    YEAR = 6;
+}
+
+// CreateWorkflowVersionRequest represents options to create a workflow version.
+message CreateWorkflowVersionRequest {
+    string name = 1; // (required) the workflow name
+    string description = 2; // (optional) the workflow description
+    string version = 3; // (optional) the workflow version
+    repeated string event_triggers = 4; // (optional) event triggers for the workflow
+    repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
+    repeated CreateTaskOpts tasks = 6; // (required) the workflow jobs
+    Concurrency concurrency = 7; // (optional) the workflow concurrency options
+    optional string schedule_timeout = 8; // (optional) the timeout for the schedule
+    optional string cron_input = 9; // (optional) the input for the cron trigger
+    optional CreateTaskOpts on_failure_task = 10; // (optional) the job to run on failure
+    optional StickyStrategy sticky = 11; // (optional) the sticky strategy for assigning steps to workers
+    optional int32 default_priority = 12; // (optional) the priority of the workflow
+}
+
+enum ConcurrencyLimitStrategy {
+    CANCEL_IN_PROGRESS = 0;
+    DROP_NEWEST = 1; // deprecated
+    QUEUE_NEWEST = 2; // deprecated
+    GROUP_ROUND_ROBIN = 3;
+    CANCEL_NEWEST = 4;
+}
+
+message Concurrency {
+    string expression = 1; // (required) the expression to use for concurrency
+    optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+}
+
+enum WorkerLabelComparator {
+    EQUAL = 0;
+    NOT_EQUAL = 1;
+    GREATER_THAN = 2;
+    GREATER_THAN_OR_EQUAL = 3;
+    LESS_THAN = 4;
+    LESS_THAN_OR_EQUAL = 5;
+}
+
+message DesiredWorkerLabels {
+    // value of the affinity
+    optional string strValue = 1;
+    optional int32 intValue = 2;
+
+    /**
+    * (optional) Specifies whether the affinity setting is required.
+    * If required, the worker will not accept actions that do not have a truthy affinity setting.
+    *
+    * Defaults to false.
+    */
+    optional bool required = 3;
+
+    /**
+    * (optional) Specifies the comparator for the affinity setting.
+    * If not set, the default is EQUAL.
+    */
+    optional WorkerLabelComparator comparator = 4;
+
+    /**
+    * (optional) Specifies the weight of the affinity setting.
+    * If not set, the default is 100.
+    */
+    optional int32 weight = 5;
+}
+
+// CreateTaskOpts represents options to create a task.
+message CreateTaskOpts {
+    string readable_id = 1; // (required) the task name
+    string action = 2; // (required) the task action id
+    string timeout = 3; // (optional) the task timeout
+    string inputs = 4; // (optional) the task inputs, assuming string representation of JSON
+    repeated string parents = 5; // (optional) the task parents. if none are passed in, this is a root task
+    int32 retries = 6; // (optional) the number of retries for the step, default 0
+    repeated CreateTaskRateLimit rate_limits = 7; // (optional) the rate limits for the step
+    map<string, DesiredWorkerLabels> worker_labels = 8; // (optional) the desired worker affinity state for the step
+    optional float backoff_factor = 9; // (optional) the retry backoff factor for the step
+    optional int32 backoff_max_seconds = 10; // (optional) the maximum backoff time for the step
+    repeated Concurrency concurrency = 11; // (optional) the task concurrency options
+    TaskConditions conditions = 12; // (optional) the task conditions for creating the task
+}
+
+message CreateTaskRateLimit {
+    string key = 1; // (required) the key for the rate limit
+    optional int32 units = 2; // (optional) the number of units this step consumes
+    optional string key_expr = 3; // (optional) a CEL expression for determining the rate limit key
+    optional string units_expr = 4; // (optional) a CEL expression for determining the number of units consumed
+    optional string limit_values_expr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
+    optional RateLimitDuration duration = 6; // (optional) the default rate limit window to use for dynamic rate limits
+}
+
+// CreateWorkflowVersionResponse represents the response after creating a workflow version.
+message CreateWorkflowVersionResponse {
+    string id = 1;
+    string workflow_id = 2;
+}

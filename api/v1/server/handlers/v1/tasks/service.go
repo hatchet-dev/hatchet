@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/proxy"
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/v1"
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 
 	client "github.com/hatchet-dev/hatchet/pkg/client/v1"
