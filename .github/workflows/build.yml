@@ -1,12 +1,26 @@
 name: build
 on:
   pull_request:
-    paths-ignore:
-      - 'sdks/**'
 
 jobs:
-  frontend:
+  check_path:
     runs-on: ubuntu-latest
+    outputs:
+      sdk_only: ${{ steps.filter.outputs.sdk_only }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            sdk_only:
+              - 'sdks/**'
+              - '!**/*'
+
+  frontend:
+    needs: check_path
+    runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -14,7 +28,9 @@ jobs:
         run: docker build -f ./build/package/frontend.dockerfile .
 
   api:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -22,7 +38,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   api-arm:
+    needs: check_path
     runs-on: hatchet-arm64-2
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -30,7 +48,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   engine:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -38,7 +58,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   engine-arm:
+    needs: check_path
     runs-on: hatchet-arm64-2
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -46,7 +68,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   admin:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -54,7 +78,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   admin-arm:
+    needs: check_path
     runs-on: hatchet-arm64-2
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -62,7 +88,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   migrate:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -70,7 +98,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   migrate-arm:
+    needs: check_path
     runs-on: hatchet-arm64-2
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -78,7 +108,9 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
+    needs: check_path
     runs-on: hatchet-arm64-2
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -112,7 +144,9 @@ jobs:
             .
 
   lite-amd:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -146,7 +180,9 @@ jobs:
             .
 
   dashboard-arm:
+    needs: check_path
     runs-on: hatchet-arm64-2
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -164,7 +200,9 @@ jobs:
             .
 
   dashboard-amd:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
