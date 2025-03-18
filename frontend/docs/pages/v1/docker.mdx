@@ -1,1 +1,266 @@
-TODO V1 DOCS
+import { Tabs, Callout } from "nextra/components";
+
+# Dockerizing Hatchet Applications
+
+This guide explains how to create Dockerfiles for Hatchet applications. There are examples for both Python and JavaScript (and TypeScript) applications here. Hatchet workers need proper containerization to ensure reliable execution of workflows in production environments.
+
+## Entrypoint Configuration for Hatchet
+
+Before creating your Dockerfile, understand that Hatchet workers require specific entry point configuration:
+
+1. The entry point must run code that runs the Hatchet worker. This can be done by calling the `worker.start()` method. [See the Python SDK docs for more information](./worker.mdx#starting-a-worker)
+2. Proper environment variables must be set for Hatchet SDK
+3. The worker should be configured to handle your workflows using the `worker.register` method
+
+## Example Dockerfiles
+
+<Tabs items={['Python - Poetry', 'Python - pip', 'JavaScript - npm', 'JavaScript - pnpm', 'JavaScript - yarn']}>
+  <Tabs.Tab>
+
+```dockerfile
+# Use the official Python image as the base
+FROM python:3.10-slim
+
+# Set environment variables
+
+ENV PYTHONUNBUFFERED=1 \
+ POETRY_VERSION=1.4.2 \
+ HATCHET_ENV=production
+
+# Install system dependencies and Poetry
+
+RUN apt-get update && \
+ apt-get install -y curl && \
+ curl -sSL https://install.python-poetry.org | python3 - && \
+ ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+ apt-get clean && \
+ rm -rf /var/lib/apt/lists/\*
+
+# Set work directory
+
+WORKDIR /app
+
+# Copy dependency files first
+
+COPY pyproject.toml poetry.lock\* /app/
+
+# Install dependencies
+
+RUN poetry config virtualenvs.create false && \
+ poetry install --no-interaction --no-ansi
+
+# Copy Hatchet application code
+
+COPY . /app
+
+# Set the entrypoint to run the Hatchet worker
+
+CMD ["poetry", "run", "python", "worker.py"]
+
+```
+
+<Callout type="info">
+    If you're using a poetry script to run your worker, you can replace `poetry run python worker.py` with `poetry run <script-name>` in the CMD.
+</Callout>
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```dockerfile
+# Use the official Python image as base
+FROM python:3.10-slim
+
+# Set environment variables
+
+ENV PYTHONUNBUFFERED=1 \
+ HATCHET_ENV=production
+
+# Set work directory
+
+WORKDIR /app
+
+# Copy dependency files first
+
+COPY requirements.txt .
+
+# Install dependencies
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy Hatchet application code
+
+COPY . /app
+
+# Set the entrypoint to run the Hatchet worker
+
+CMD ["python", "worker.py"]
+
+```
+
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package\*.json ./
+
+# Install dependencies
+
+RUN npm ci
+
+# Copy source code
+
+COPY . .
+
+# Build TypeScript
+
+RUN npm run build
+
+# Stage 2: Production
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package\*.json ./
+
+# Install production dependencies only
+
+RUN npm ci --omit=dev
+
+# Copy built assets from builder
+
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+
+ENV NODE_ENV=production
+
+# Start the worker
+
+CMD ["node", "dist/worker.js"]
+
+```
+
+<Callout type="info">
+    Use `npm ci` instead of `npm install` for more reliable builds. It's faster and ensures consistent installs across environments.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY pnpm-lock.yaml package.json ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN pnpm build
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY pnpm-lock.yaml package.json ./
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy built assets from builder
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Start the worker
+CMD ["node", "dist/worker.js"]
+```
+
+<Callout type="info">
+    PNPM's `--frozen-lockfile` flag ensures consistent installs and fails if an update is needed.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package.json yarn.lock ./
+
+# Install dependencies
+
+RUN yarn install --frozen-lockfile
+
+# Copy source code
+
+COPY . .
+
+# Build TypeScript
+
+RUN yarn build
+
+# Stage 2: Production
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package.json yarn.lock ./
+
+# Install production dependencies only
+
+RUN yarn install --frozen-lockfile --production
+
+# Copy built assets from builder
+
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+
+ENV NODE_ENV=production
+
+# Start the worker
+
+CMD ["node", "dist/worker.js"]
+
+```
+
+<Callout type="info">
+    Yarn's `--frozen-lockfile` ensures your dependencies match the lock file exactly.
+</Callout>
+  </Tabs.Tab>
+</Tabs>
