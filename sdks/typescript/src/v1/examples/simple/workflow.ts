@@ -1,7 +1,5 @@
-import { hatchet } from '../client';
-
 // ❓ Declaring a Workflow
-// This is a simple workflow that takes a message and returns the message in lowercase
+import { hatchet } from '../client';
 
 // (optional) Define the input type for the workflow
 type SimpleInput = {
@@ -25,7 +23,7 @@ export const simple = hatchet.workflow<SimpleInput, SimpleOutput>({
 // we can bind a task to the workflow by calling the `task` method on the workflow object
 simple.task({
   name: 'to-lower',
-  fn: async (input) => {
+  fn: async (input, ctx) => {
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };

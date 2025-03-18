@@ -14,11 +14,11 @@
     "type": "separator"
   },
   "run-with-results": "Run with Results",
-  "fire-and-forget": "Enqueue Runs",
+  "enqueue-runs": "Enqueue Runs",
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
   "run-on-event": "Run on Event",
-  "subscribing-to-events": "Streaming Results",
+  "streaming-results": "Streaming Results",
 
   
   "--advanced-workflows": {
@@ -72,5 +72,6 @@
     "type": "separator"
   },
   "docker": "Running with Docker",
+  "webhook-workers": "Webhook Workers",
   "worker-healthchecks": "Worker Healthchecks"
 }
