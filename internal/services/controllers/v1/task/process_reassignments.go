@@ -45,6 +45,12 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
 
+	retriedTasks := make(map[int64]bool)
+
+	for _, task := range res.RetriedTasks {
+		retriedTasks[task.Id] = true
+	}
+
 	for _, task := range res.ReleasedTasks {
 		var workerId *string
 
@@ -52,6 +58,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			workerIdStr := sqlchelpers.UUIDToStr(task.WorkerID)
 			workerId = &workerIdStr
 		}
+
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
@@ -75,6 +82,35 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not create monitoring event message")
 			continue
+		}
+
+		if _, ok := retriedTasks[task.ID]; !ok {
+			// if the task was not retried, we should fail it
+			// send failed tasks to the olap repository
+			olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+				tenantId,
+				tasktypes.CreateMonitoringEventPayload{
+					TaskId:         task.ID,
+					RetryCount:     task.RetryCount,
+					EventType:      sqlcv1.V1EventTypeOlapFAILED,
+					EventTimestamp: time.Now(),
+					EventMessage:   "Task reached its maximum reassignment count",
+					EventPayload:   "Task reached its maximum reassignment count",
+					WorkerId:       workerId,
+				},
+			)
+
+			if err != nil {
+				tc.l.Error().Err(err).Msg("could not create monitoring event message")
+				continue
+			}
+
+			err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
+
+			if err != nil {
+				tc.l.Error().Err(err).Msg("could not create monitoring event message")
+				continue
+			}
 		}
 	}
 
