@@ -25,9 +25,9 @@ There are three ways to run workflows from external services:
 2. [Client Run Methods](#client-run-methods)
 3. [Event Pushing](#event-pushing)
 
-## Creating a Workflow Declaration Stub
+## Creating a Workflow Declaration Stub (Recommended)
 
-The recommended way to run workflows from external services is to create a workflow declaration stub. A workflow declaration stub is the minimal amount of code needed to declare a workflow that matches the declaration on the worker (i.e. name and input/output types).
+The recommended way to run workflows from external services in most cases is to create a workflow declaration stub. A workflow declaration stub is the minimal amount of code needed to declare a workflow that matches the declaration on the worker (i.e. name and input/output types).
 
 The resulting stub exposes the same run methods as the workflow declaration on the worker (i.e. `run`, `enqueue`, `schedule`, etc).
 
