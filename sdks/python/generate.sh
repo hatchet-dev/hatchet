@@ -71,9 +71,7 @@ proto_paths=(
   "../../api-contracts v1/workflows.proto"
 )
 
-# Generate Python code for each proto file
 for entry in "${proto_paths[@]}"; do
-  # Split the entry into proto_path and proto_file
   proto_path=$(echo "$entry" | cut -d' ' -f1)
   proto_file=$(echo "$entry" | cut -d' ' -f2-)
 
