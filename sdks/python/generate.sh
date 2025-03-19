@@ -62,9 +62,31 @@ MIN_GRPCIO_VERSION=$(grep -A 1 'grpcio =' pyproject.toml | grep 'version' | sed 
 
 poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
 
-poetry run python -m grpc_tools.protoc --proto_path=../../api-contracts/dispatcher --python_out=./hatchet_sdk/contracts --pyi_out=./hatchet_sdk/contracts --grpc_python_out=./hatchet_sdk/contracts dispatcher.proto
-poetry run python -m grpc_tools.protoc --proto_path=../../api-contracts/events --python_out=./hatchet_sdk/contracts --pyi_out=./hatchet_sdk/contracts --grpc_python_out=./hatchet_sdk/contracts events.proto
-poetry run python -m grpc_tools.protoc --proto_path=../../api-contracts/workflows --python_out=./hatchet_sdk/contracts --pyi_out=./hatchet_sdk/contracts --grpc_python_out=./hatchet_sdk/contracts workflows.proto
+proto_paths=(
+  "../../api-contracts/dispatcher dispatcher.proto"
+  "../../api-contracts/events events.proto"
+  "../../api-contracts/workflows workflows.proto"
+  "../../api-contracts v1/shared/condition.proto"
+  "../../api-contracts v1/dispatcher.proto"
+  "../../api-contracts v1/workflows.proto"
+)
+
+# Generate Python code for each proto file
+for entry in "${proto_paths[@]}"; do
+  # Split the entry into proto_path and proto_file
+  proto_path=$(echo "$entry" | cut -d' ' -f1)
+  proto_file=$(echo "$entry" | cut -d' ' -f2-)
+
+  echo "Generating Python code for $proto_file with proto_path=$proto_path"
+
+  poetry run python -m grpc_tools.protoc \
+    --proto_path="$proto_path" \
+    --python_out=./hatchet_sdk/contracts \
+    --pyi_out=./hatchet_sdk/contracts \
+    --grpc_python_out=./hatchet_sdk/contracts \
+    "$proto_file"
+done
+
 
 git restore pyproject.toml poetry.lock
 
