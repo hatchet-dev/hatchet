@@ -15,7 +15,7 @@ inputs:
     default: 'match_only'
 outputs:
   match_result:
-    description: 'true if all changed files match include patterns and don't match exclude patterns'
+    description: "true if all changed files match include patterns and don't match exclude patterns"
     value: ${{ steps.check-paths.outputs.result }}
 runs:
   using: 'composite'
