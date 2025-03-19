@@ -1,4 +1,4 @@
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 
 type ChildInput = {
   N: number;

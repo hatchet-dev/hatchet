@@ -2,12 +2,11 @@ import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 
 async function main() {
-  const res = await hatchet.run(simple, {
-    Message: 'hello',
+  const worker = await hatchet.worker('simple-worker', {
+    workflows: [simple],
   });
 
-  // eslint-disable-next-line no-console
-  console.log(res.step2);
+  await worker.start();
 }
 
 if (require.main === module) {

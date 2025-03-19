@@ -1,6 +1,6 @@
 import sleep from '@hatchet/util/sleep';
 import axios from 'axios';
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 import { Worker } from '../../..';
 

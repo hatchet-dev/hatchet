@@ -1,6 +1,6 @@
 /* eslint-disable import/no-duplicates */
 /* eslint-disable no-console */
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 // ❓ Enqueuing a Workflow (Fire and Forget)
 import { simple } from './workflow';
 // ...

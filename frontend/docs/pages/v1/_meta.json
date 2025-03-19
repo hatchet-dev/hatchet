@@ -1,11 +1,11 @@
 {
   "announcement": "Announcement",
-  "--basics": {
-    "title": "Basics",
+  "--quickstart": {
+    "title": "Quickstart",
     "type": "separator"
   },
-  "introduction": "Introduction",
-  "basic-workflows": "Basic Workflows",
+  "setup": "Setup",
+  "basic-workflows": "Workflows",
   "workers": "Workers",
   "environments": "Environments",
 

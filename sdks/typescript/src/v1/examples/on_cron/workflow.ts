@@ -1,4 +1,4 @@
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 
 export type Input = {
   Message: string;

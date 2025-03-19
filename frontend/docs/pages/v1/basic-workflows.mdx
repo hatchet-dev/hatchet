@@ -8,8 +8,7 @@ export const SimpleTs = {
 
 export const getStaticProps = ({}) => getSnippets([SimpleTs]);
 
-# Declaring Workflow Code
-
+# Declaring Your First Workflow
 In Hatchet the fundamental unit of invocable work is a [Workflow](#defining-a-workflow) which is a collection of [Tasks](#defining-a-task) which are atomic functions. The simplest workflow can be a single task.
 
 As we continue to build with Hatchet, we'll add additional configuration options to the workflow and task objects to support more complex workflows.
@@ -19,6 +18,19 @@ As we continue to build with Hatchet, we'll add additional configuration options
 Start by declaring a workflow with a name. The workflow object can declare additional workflow-level configuration options which we'll cover later.
 
 The returned object is an instance of the `Workflow` class which is the primary interface for interacting with the workflow (i.e. [running](./run-with-results.mdx), [enqueuing](./fire-and-forget.mdx), [scheduling](./scheduled-runs.mdx), etc).
+
+<UniversalTabs items={["Clone a Quickstart Project", "Create a New Project from Scratch", "Add to an Existing Project"]} optionKey="setup">
+  <Tabs.Tab title="Clone a Quickstart Project">
+    The quickstart project has a number of example workflows defined in the `src/workflows` directory.
+  </Tabs.Tab>
+  <Tabs.Tab title="Create a New Project from Scratch">
+    By convention it is recommended to create your workflows in the `src/workflows` directory.
+  </Tabs.Tab>
+  <Tabs.Tab title="Add Hatchet to an Existing Project">
+    By convention it is recommended to create your workflows in the `src/workflows` directory.
+  </Tabs.Tab>
+</UniversalTabs>
+
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">TODO V1 DOCS</Tabs.Tab>
@@ -50,3 +62,7 @@ The `task` method takes a name and a function that defines the task's behavior. 
   </Tabs.Tab>
   <Tabs.Tab title="Go">TODO V1 DOCS</Tabs.Tab>
 </UniversalTabs>
+
+## Running a Workflow
+
+Now that you have defined a complete workflow with a task, you can move on to [declaring a worker to execute the workflow](./workers.mdx).

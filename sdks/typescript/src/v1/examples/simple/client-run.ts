@@ -1,5 +1,5 @@
 // ❓ Client Run Methods
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 
 hatchet.run('simple', { Message: 'Hello, World!' });
 
