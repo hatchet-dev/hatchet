@@ -29,15 +29,15 @@ runs:
           echo "PR context detected, comparing against base branch"
           # Fetch the base branch first to ensure we have history
           git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }} ${{ github.sha }} || 
-                          git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD || 
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }} ${{ github.sha }} ||
+                          git diff --name-only origin/${{ github.event.pull_request.base.ref }}..HEAD ||
                           git diff --name-only HEAD)
         else
           echo "Non-PR context detected, comparing against previous commit"
           # For push events, try to get changed files using more reliable methods
-          CHANGED_FILES=$(git diff --name-only HEAD^ || 
-                          git diff --name-only HEAD~1 || 
-                          git show --name-only --format="" || 
+          CHANGED_FILES=$(git diff --name-only HEAD^ ||
+                          git diff --name-only HEAD~1 ||
+                          git show --name-only --format="" ||
                           echo "")
         fi
         
@@ -87,4 +87,4 @@ runs:
         
         echo "result=$RESULT" >> $GITHUB_OUTPUT
         echo "${{ inputs.result_name }}=$RESULT" >> $GITHUB_OUTPUT
-        echo "Final result: $RESULT" 
+        echo "Final result: $RESULT"
