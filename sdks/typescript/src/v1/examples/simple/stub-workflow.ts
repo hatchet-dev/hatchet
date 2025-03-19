@@ -1,4 +1,4 @@
-// ❓ Declaring a Workflow Stub
+// ❓ Declaring an External Workflow Reference
 import { hatchet } from '../client';
 
 // (optional) Define the input type for the workflow
@@ -13,9 +13,9 @@ export type SimpleOutput = {
   };
 };
 
-// declare the workflow stub with the same name as the
+// declare the workflow with the same name as the
 // workflow name on the worker
-export const simple = hatchet.stubWorkflow<SimpleInput, SimpleOutput>({
+export const simple = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple',
 });
 

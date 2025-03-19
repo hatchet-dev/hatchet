@@ -261,12 +261,7 @@ export class Workflow<T extends Record<string, any>, K> extends WorkflowStub<T, 
  */
 export function CreateWorkflow<T extends Record<string, any> = any, K = any>(
   options: CreateWorkflowOpts,
-  client?: IHatchetClient,
-  stub?: boolean
-): Workflow<T, K> | WorkflowStub<T, K> {
-  if (stub) {
-    return new WorkflowStub<T, K>(options, client);
-  }
-
+  client?: IHatchetClient
+): Workflow<T, K> {
   return new Workflow<T, K>(options, client);
 }
