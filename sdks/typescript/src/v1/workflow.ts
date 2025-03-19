@@ -39,27 +39,34 @@ export type CreateWorkflowOpts = {
    */
   name: WorkflowV0['id'];
   /**
-   * Optional description of the workflow.
+   * (optional) description of the workflow.
    */
   description?: WorkflowV0['description'];
   /**
-   * Optional version of the workflow.
+   * (optional) version of the workflow.
    */
   version?: WorkflowV0['version'];
   /**
-   * Optional sticky strategy for the workflow.
+   * (optional) sticky strategy for the workflow.
    */
   sticky?: WorkflowV0['sticky'];
   /**
-   * Optional schedule timeout for the workflow.
+   * (optional) schedule timeout for the workflow.
    */
   scheduleTimeout?: WorkflowV0['scheduleTimeout'];
   /**
-   * Optional on config for the workflow.
+   * (optional) on config for the workflow.
    */
   on?: WorkflowV0['on'];
 
   concurrency?: WorkflowV0['concurrency'];
+
+  /**
+   * (optional) onFailure handler for the workflow.
+   * Invoked when any task in the workflow fails.
+   * @param ctx The context of the workflow.
+   */
+  onFailure?: (ctx: Context<any>) => void;
 };
 
 /**

@@ -128,6 +128,10 @@ export function toV0Workflow(wf: Workflow<any, any> | V0Workflow): V0Workflow {
       scheduleTimeout: definition.scheduleTimeout,
       on: definition.on,
       concurrency: definition.concurrency,
+      onFailure: definition.onFailure && {
+        name: 'on-failure',
+        run: (ctx) => definition.onFailure!(ctx),
+      },
       steps: definition.tasks.map((task) => ({
         name: task.name,
         parents: task.parents?.map((p) => p.name),
