@@ -6,7 +6,8 @@ import {
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { CreateWorkflow, CreateWorkflowOpts, RunOpts, Workflow } from '../workflow';
+import { JsonObject } from '@hatchet/step';
+import { CreateWorkflow, CreateWorkflowOpts, RunOpts, WorkflowDeclaration } from '../workflow';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker';
 
@@ -60,9 +61,9 @@ export class HatchetClient implements IHatchetClient {
    * @returns A new Workflow instance
    * @note It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
    */
-  workflow<T extends Record<string, any> = any, K = any>(
+  workflow<T extends JsonObject = any, K extends JsonObject = any>(
     options: CreateWorkflowOpts
-  ): Workflow<T, K> {
+  ): WorkflowDeclaration<T, K> {
     return CreateWorkflow<T, K>(options, this);
   }
 
@@ -75,8 +76,8 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  enqueue<T extends Record<string, any> = any, K = any>(
-    workflow: Workflow<T, K> | string | V0Workflow,
+  enqueue<T extends JsonObject = any, K extends JsonObject = any>(
+    workflow: WorkflowDeclaration<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts
   ): WorkflowRunRef<K> {
@@ -101,8 +102,8 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
-  async run<T extends Record<string, any> = any, K = any>(
-    workflow: Workflow<T, K> | string | V0Workflow,
+  async run<T extends JsonObject = any, K extends JsonObject = any>(
+    workflow: WorkflowDeclaration<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts = {}
   ): Promise<K> {
@@ -154,7 +155,7 @@ export class HatchetClient implements IHatchetClient {
    * @param workflows - The workflows to register on the webhooks
    * @returns A promise that resolves when the webhook is registered
    */
-  webhooks(workflows: Workflow<any, any>[] | V0Workflow[]) {
+  webhooks(workflows: WorkflowDeclaration<any, any>[] | V0Workflow[]) {
     return this.v0.webhooks(workflows);
   }
 }

@@ -16,7 +16,7 @@ import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
-import { Workflow as V1Workflow } from '@hatchet/v1/workflow';
+import { WorkflowDeclaration as V1Workflow } from '@hatchet/v1/workflow';
 import { toV0Workflow } from '@hatchet/v1/client/worker';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 import { ListenerClient } from '../listener/listener-client';
