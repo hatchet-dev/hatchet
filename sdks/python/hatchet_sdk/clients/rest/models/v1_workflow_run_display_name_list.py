@@ -19,31 +19,25 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Annotated, Self
+from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
+from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
+    V1WorkflowRunDisplayName,
+)
 
 
-class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
+class V1WorkflowRunDisplayNameList(BaseModel):
     """
-    WorkflowRunShapeItemForWorkflowRunDetails
+    V1WorkflowRunDisplayNameList
     """  # noqa: E501
 
-    task_external_id: Annotated[
-        str, Field(min_length=36, strict=True, max_length=36)
-    ] = Field(alias="taskExternalId")
-    step_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(
-        alias="stepId"
+    pagination: PaginationResponse
+    rows: List[V1WorkflowRunDisplayName] = Field(
+        description="The list of display names"
     )
-    children_step_ids: List[
-        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
-    ] = Field(alias="childrenStepIds")
-    task_name: StrictStr = Field(alias="taskName")
-    __properties: ClassVar[List[str]] = [
-        "taskExternalId",
-        "stepId",
-        "childrenStepIds",
-        "taskName",
-    ]
+    __properties: ClassVar[List[str]] = ["pagination", "rows"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -62,7 +56,7 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of WorkflowRunShapeItemForWorkflowRunDetails from a JSON string"""
+        """Create an instance of V1WorkflowRunDisplayNameList from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -82,11 +76,21 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of pagination
+        if self.pagination:
+            _dict["pagination"] = self.pagination.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of each item in rows (list)
+        _items = []
+        if self.rows:
+            for _item_rows in self.rows:
+                if _item_rows:
+                    _items.append(_item_rows.to_dict())
+            _dict["rows"] = _items
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of WorkflowRunShapeItemForWorkflowRunDetails from a dict"""
+        """Create an instance of V1WorkflowRunDisplayNameList from a dict"""
         if obj is None:
             return None
 
@@ -95,10 +99,16 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
 
         _obj = cls.model_validate(
             {
-                "taskExternalId": obj.get("taskExternalId"),
-                "stepId": obj.get("stepId"),
-                "childrenStepIds": obj.get("childrenStepIds"),
-                "taskName": obj.get("taskName"),
+                "pagination": (
+                    PaginationResponse.from_dict(obj["pagination"])
+                    if obj.get("pagination") is not None
+                    else None
+                ),
+                "rows": (
+                    [V1WorkflowRunDisplayName.from_dict(_item) for _item in obj["rows"]]
+                    if obj.get("rows") is not None
+                    else None
+                ),
             }
         )
         return _obj

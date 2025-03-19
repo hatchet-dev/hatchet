@@ -20,30 +20,22 @@ import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Annotated, Self
+from typing_extensions import Self
 
 
-class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
+class V1TriggerWorkflowRunRequest(BaseModel):
     """
-    WorkflowRunShapeItemForWorkflowRunDetails
+    V1TriggerWorkflowRunRequest
     """  # noqa: E501
 
-    task_external_id: Annotated[
-        str, Field(min_length=36, strict=True, max_length=36)
-    ] = Field(alias="taskExternalId")
-    step_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(
-        alias="stepId"
+    workflow_name: StrictStr = Field(
+        description="The name of the workflow.", alias="workflowName"
     )
-    children_step_ids: List[
-        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
-    ] = Field(alias="childrenStepIds")
-    task_name: StrictStr = Field(alias="taskName")
-    __properties: ClassVar[List[str]] = [
-        "taskExternalId",
-        "stepId",
-        "childrenStepIds",
-        "taskName",
-    ]
+    input: Dict[str, Any]
+    additional_metadata: Optional[Dict[str, Any]] = Field(
+        default=None, alias="additionalMetadata"
+    )
+    __properties: ClassVar[List[str]] = ["workflowName", "input", "additionalMetadata"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -62,7 +54,7 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of WorkflowRunShapeItemForWorkflowRunDetails from a JSON string"""
+        """Create an instance of V1TriggerWorkflowRunRequest from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -86,7 +78,7 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of WorkflowRunShapeItemForWorkflowRunDetails from a dict"""
+        """Create an instance of V1TriggerWorkflowRunRequest from a dict"""
         if obj is None:
             return None
 
@@ -95,10 +87,9 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
 
         _obj = cls.model_validate(
             {
-                "taskExternalId": obj.get("taskExternalId"),
-                "stepId": obj.get("stepId"),
-                "childrenStepIds": obj.get("childrenStepIds"),
-                "taskName": obj.get("taskName"),
+                "workflowName": obj.get("workflowName"),
+                "input": obj.get("input"),
+                "additionalMetadata": obj.get("additionalMetadata"),
             }
         )
         return _obj

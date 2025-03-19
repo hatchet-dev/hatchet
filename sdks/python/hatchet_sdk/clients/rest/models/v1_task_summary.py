@@ -34,12 +34,39 @@ class V1TaskSummary(BaseModel):
     """  # noqa: E501
 
     metadata: APIResourceMeta
-    task_id: StrictInt = Field(description="The ID of the task.", alias="taskId")
-    task_external_id: Annotated[
-        str, Field(min_length=36, strict=True, max_length=36)
-    ] = Field(description="The external ID of the task.", alias="taskExternalId")
-    task_inserted_at: datetime = Field(
-        description="The timestamp the task was inserted.", alias="taskInsertedAt"
+    additional_metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional metadata for the task run.",
+        alias="additionalMetadata",
+    )
+    children: Optional[List[V1TaskSummary]] = Field(
+        default=None, description="The list of children tasks"
+    )
+    created_at: datetime = Field(
+        description="The timestamp the task was created.", alias="createdAt"
+    )
+    display_name: StrictStr = Field(
+        description="The display name of the task run.", alias="displayName"
+    )
+    duration: Optional[StrictInt] = Field(
+        default=None, description="The duration of the task run, in milliseconds."
+    )
+    error_message: Optional[StrictStr] = Field(
+        default=None,
+        description="The error message of the task run (for the latest run)",
+        alias="errorMessage",
+    )
+    finished_at: Optional[datetime] = Field(
+        default=None,
+        description="The timestamp the task run finished.",
+        alias="finishedAt",
+    )
+    input: Dict[str, Any] = Field(description="The input of the task run.")
+    num_spawned_children: StrictInt = Field(
+        description="The number of spawned children tasks", alias="numSpawnedChildren"
+    )
+    output: Dict[str, Any] = Field(
+        description="The output of the task run (for the latest run)"
     )
     status: V1TaskStatus
     started_at: Optional[datetime] = Field(
@@ -47,73 +74,58 @@ class V1TaskSummary(BaseModel):
         description="The timestamp the task run started.",
         alias="startedAt",
     )
-    finished_at: Optional[datetime] = Field(
-        default=None,
-        description="The timestamp the task run finished.",
-        alias="finishedAt",
-    )
-    duration: Optional[StrictInt] = Field(
-        default=None, description="The duration of the task run, in milliseconds."
+    step_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(default=None, description="The step ID of the task.", alias="stepId")
+    task_external_id: Annotated[
+        str, Field(min_length=36, strict=True, max_length=36)
+    ] = Field(description="The external ID of the task.", alias="taskExternalId")
+    task_id: StrictInt = Field(description="The ID of the task.", alias="taskId")
+    task_inserted_at: datetime = Field(
+        description="The timestamp the task was inserted.", alias="taskInsertedAt"
     )
     tenant_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(
         description="The ID of the tenant.", alias="tenantId"
     )
-    additional_metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional metadata for the task run.",
-        alias="additionalMetadata",
-    )
-    display_name: StrictStr = Field(
-        description="The display name of the task run.", alias="displayName"
-    )
-    workflow_id: StrictStr = Field(alias="workflowId")
-    output: Dict[str, Any] = Field(
-        description="The output of the task run (for the latest run)"
-    )
-    error_message: Optional[StrictStr] = Field(
-        default=None,
-        description="The error message of the task run (for the latest run)",
-        alias="errorMessage",
-    )
-    input: Optional[Dict[str, Any]] = Field(
-        default=None, description="The input of the task run."
-    )
     type: V1WorkflowType = Field(
         description="The type of the workflow (whether it's a DAG or a task)"
+    )
+    workflow_id: StrictStr = Field(alias="workflowId")
+    workflow_name: Optional[StrictStr] = Field(default=None, alias="workflowName")
+    workflow_run_external_id: Optional[StrictStr] = Field(
+        default=None,
+        description="The external ID of the workflow run",
+        alias="workflowRunExternalId",
     )
     workflow_version_id: Optional[StrictStr] = Field(
         default=None,
         description="The version ID of the workflow",
         alias="workflowVersionId",
     )
-    created_at: Optional[datetime] = Field(
-        default=None,
-        description="The timestamp the task was created.",
-        alias="createdAt",
-    )
-    children: Optional[List[V1TaskSummary]] = Field(
-        default=None, description="The list of children tasks"
-    )
     __properties: ClassVar[List[str]] = [
         "metadata",
-        "taskId",
-        "taskExternalId",
-        "taskInsertedAt",
+        "additionalMetadata",
+        "children",
+        "createdAt",
+        "displayName",
+        "duration",
+        "errorMessage",
+        "finishedAt",
+        "input",
+        "numSpawnedChildren",
+        "output",
         "status",
         "startedAt",
-        "finishedAt",
-        "duration",
+        "stepId",
+        "taskExternalId",
+        "taskId",
+        "taskInsertedAt",
         "tenantId",
-        "additionalMetadata",
-        "displayName",
-        "workflowId",
-        "output",
-        "errorMessage",
-        "input",
         "type",
+        "workflowId",
+        "workflowName",
+        "workflowRunExternalId",
         "workflowVersionId",
-        "createdAt",
-        "children",
     ]
 
     model_config = ConfigDict(
@@ -181,28 +193,32 @@ class V1TaskSummary(BaseModel):
                     if obj.get("metadata") is not None
                     else None
                 ),
-                "taskId": obj.get("taskId"),
-                "taskExternalId": obj.get("taskExternalId"),
-                "taskInsertedAt": obj.get("taskInsertedAt"),
-                "status": obj.get("status"),
-                "startedAt": obj.get("startedAt"),
-                "finishedAt": obj.get("finishedAt"),
-                "duration": obj.get("duration"),
-                "tenantId": obj.get("tenantId"),
                 "additionalMetadata": obj.get("additionalMetadata"),
-                "displayName": obj.get("displayName"),
-                "workflowId": obj.get("workflowId"),
-                "output": obj.get("output"),
-                "errorMessage": obj.get("errorMessage"),
-                "input": obj.get("input"),
-                "type": obj.get("type"),
-                "workflowVersionId": obj.get("workflowVersionId"),
-                "createdAt": obj.get("createdAt"),
                 "children": (
                     [V1TaskSummary.from_dict(_item) for _item in obj["children"]]
                     if obj.get("children") is not None
                     else None
                 ),
+                "createdAt": obj.get("createdAt"),
+                "displayName": obj.get("displayName"),
+                "duration": obj.get("duration"),
+                "errorMessage": obj.get("errorMessage"),
+                "finishedAt": obj.get("finishedAt"),
+                "input": obj.get("input"),
+                "numSpawnedChildren": obj.get("numSpawnedChildren"),
+                "output": obj.get("output"),
+                "status": obj.get("status"),
+                "startedAt": obj.get("startedAt"),
+                "stepId": obj.get("stepId"),
+                "taskExternalId": obj.get("taskExternalId"),
+                "taskId": obj.get("taskId"),
+                "taskInsertedAt": obj.get("taskInsertedAt"),
+                "tenantId": obj.get("tenantId"),
+                "type": obj.get("type"),
+                "workflowId": obj.get("workflowId"),
+                "workflowName": obj.get("workflowName"),
+                "workflowRunExternalId": obj.get("workflowRunExternalId"),
+                "workflowVersionId": obj.get("workflowVersionId"),
             }
         )
         return _obj
