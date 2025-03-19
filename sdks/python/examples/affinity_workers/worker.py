@@ -22,6 +22,7 @@ affinity_worker_workflow = hatchet.workflow(name="AffinityWorkflow")
 
 # ‼️
 
+
 # ❓ AffinityTask
 async def step(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     if ctx.worker.labels().get("model") != "fancy-ai-model-v2":
@@ -31,11 +32,13 @@ async def step(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 
     return {"worker": ctx.worker.id()}
 
+
 # ‼️
+
 
 def main() -> None:
 
-# ❓ AffinityWorker
+    # ❓ AffinityWorker
     worker = hatchet.worker(
         "affinity-worker",
         slots=10,
@@ -46,6 +49,7 @@ def main() -> None:
         workflows=[affinity_worker_workflow],
     )
     worker.start()
+
 
 # ‼️
 

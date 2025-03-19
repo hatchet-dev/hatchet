@@ -8,9 +8,13 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-sticky_workflow = hatchet.workflow(name="StickyWorkflow", sticky=StickyStrategy.SOFT)
-sticky_child_workflow = hatchet.workflow(
-    name="StickyChildWorkflow", sticky=StickyStrategy.SOFT
+# ❓ StickyWorker
+
+
+sticky_workflow = hatchet.workflow(
+    name="StickyWorkflow",
+    # 👀 Specify a sticky strategy when declaring the workflow
+    sticky=StickyStrategy.SOFT,
 )
 
 
@@ -22,6 +26,15 @@ def step1a(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 @sticky_workflow.task()
 def step1b(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker.id()}
+
+
+# ‼️
+
+# ❓ StickyChild
+
+sticky_child_workflow = hatchet.workflow(
+    name="StickyChildWorkflow", sticky=StickyStrategy.SOFT
+)
 
 
 @sticky_workflow.task(parents=[step1a, step1b])
@@ -39,6 +52,7 @@ async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 def child(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker.id()}
 
+# ‼️
 
 def main() -> None:
     worker = hatchet.worker(
