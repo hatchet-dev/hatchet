@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1";
+
+package v1;
+
+enum Action {
+    CREATE = 0;
+    QUEUE = 1;
+    CANCEL = 2;
+    SKIP = 3;
+}
+
+message BaseMatchCondition {
+    string event_key = 1;
+    string readable_data_key = 2;
+    Action action = 3;
+    string or_group_id = 4; // a UUID defining the OR group for this condition
+    string expression = 5;
+}
+
+message ParentOverrideMatchCondition {
+    BaseMatchCondition base = 1;
+    string parent_readable_id = 2;
+}
+
+message SleepMatchCondition {
+    BaseMatchCondition base = 1;
+    string sleep_for = 2; // a duration string indicating how long to sleep
+}
+
+message UserEventMatchCondition {
+    BaseMatchCondition base = 1;
+    string user_event_key = 2;
+}
+
+message TaskConditions {
+    repeated ParentOverrideMatchCondition parent_override_conditions = 1;
+    repeated SleepMatchCondition sleep_conditions = 2;
+    repeated UserEventMatchCondition user_event_conditions = 3;
+}
+
+message DurableEventListenerConditions {
+    repeated SleepMatchCondition sleep_conditions = 1;
+    repeated UserEventMatchCondition user_event_conditions = 2;
+}

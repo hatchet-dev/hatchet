@@ -479,9 +479,9 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 
 const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT dt.task_id
+    SELECT dt.task_id, dt.task_inserted_at
     FROM v1_lookup_table_olap lt
-    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id AND lt.inserted_at = dt.dag_inserted_at
     WHERE
         lt.external_id = $1::uuid
         AND lt.tenant_id = $2::uuid
@@ -499,7 +499,7 @@ WITH tasks AS (
   FROM v1_task_events_olap
   WHERE
     tenant_id = $2::uuid
-    AND task_id IN (SELECT task_id FROM tasks)
+    AND (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM tasks)
   GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
 )
 SELECT

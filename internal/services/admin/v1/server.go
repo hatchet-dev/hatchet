@@ -12,8 +12,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/v1"
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -363,4 +364,222 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...
 	}
 
 	return nil
+}
+
+func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	createOpts, err := getCreateWorkflowOpts(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// validate createOpts
+	if apiErrors, err := a.v.ValidateAPI(createOpts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Error(
+			codes.InvalidArgument,
+			apiErrors.String(),
+		)
+	}
+
+	currWorkflow, err := a.repo.Workflows().PutWorkflowVersion(
+		ctx,
+		tenantId,
+		createOpts,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.CreateWorkflowVersionResponse{
+		Id:         sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID),
+		WorkflowId: sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.WorkflowId),
+	}, nil
+}
+
+func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionOpts, error) {
+	tasks, err := getCreateTaskOpts(req.Tasks, "DEFAULT")
+
+	if err != nil {
+		if errors.Is(err, v1.ErrDagParentNotFound) {
+			// Extract the additional error information
+			return nil, status.Error(
+				codes.InvalidArgument,
+				err.Error(),
+			)
+		}
+
+		return nil, err
+	}
+
+	var onFailureTask *v1.CreateStepOpts
+
+	if req.OnFailureTask != nil {
+		onFailureTasks, err := getCreateTaskOpts([]*contracts.CreateTaskOpts{req.OnFailureTask}, "ON_FAILURE")
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(onFailureTasks) != 1 {
+			return nil, fmt.Errorf("expected 1 on failure job, got %d", len(onFailureTasks))
+		}
+
+		onFailureTask = &onFailureTasks[0]
+	}
+
+	var sticky *string
+
+	if req.Sticky != nil {
+		s := req.Sticky.String()
+		sticky = &s
+	}
+
+	var concurrency *v1.CreateConcurrencyOpts
+
+	if req.Concurrency != nil {
+		if req.Concurrency.Expression == "" {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"CEL expression is required for concurrency",
+			)
+		}
+
+		var limitStrategy *string
+
+		if req.Concurrency.LimitStrategy != nil && req.Concurrency.LimitStrategy.String() != "" {
+			s := req.Concurrency.LimitStrategy.String()
+			limitStrategy = &s
+		}
+
+		concurrency = &v1.CreateConcurrencyOpts{
+			LimitStrategy: limitStrategy,
+			Expression:    req.Concurrency.Expression,
+			MaxRuns:       req.Concurrency.MaxRuns,
+		}
+	}
+
+	var cronInput []byte
+
+	if req.CronInput != nil {
+		cronInput = []byte(*req.CronInput)
+	}
+
+	return &v1.CreateWorkflowVersionOpts{
+		Name:          req.Name,
+		Concurrency:   concurrency,
+		Description:   &req.Description,
+		EventTriggers: req.EventTriggers,
+		CronTriggers:  req.CronTriggers,
+		CronInput:     cronInput,
+		Tasks:         tasks,
+		OnFailure:     onFailureTask,
+		Sticky:        sticky,
+	}, nil
+}
+
+func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.CreateStepOpts, error) {
+	steps := make([]v1.CreateStepOpts, len(tasks))
+
+	stepReadableIdMap := make(map[string]bool)
+
+	for j, step := range tasks {
+		stepCp := step
+
+		parsedAction, err := types.ParseActionID(step.Action)
+
+		if err != nil {
+			return nil, err
+		}
+
+		retries := int(stepCp.Retries)
+
+		stepReadableIdMap[stepCp.ReadableId] = true
+
+		var affinity map[string]v1.DesiredWorkerLabelOpts
+
+		if stepCp.WorkerLabels != nil {
+			affinity = map[string]v1.DesiredWorkerLabelOpts{}
+			for k, v := range stepCp.WorkerLabels {
+
+				var c *string
+
+				if v.Comparator != nil {
+					cPtr := v.Comparator.String()
+					c = &cPtr
+				}
+
+				(affinity)[k] = v1.DesiredWorkerLabelOpts{
+					Key:        k,
+					StrValue:   v.StrValue,
+					IntValue:   v.IntValue,
+					Required:   v.Required,
+					Weight:     v.Weight,
+					Comparator: c,
+				}
+			}
+		}
+
+		steps[j] = v1.CreateStepOpts{
+			ReadableId:          stepCp.ReadableId,
+			Action:              parsedAction.String(),
+			Parents:             stepCp.Parents,
+			Retries:             &retries,
+			DesiredWorkerLabels: affinity,
+		}
+
+		if stepCp.BackoffFactor != nil {
+			f64 := float64(*stepCp.BackoffFactor)
+			steps[j].RetryBackoffFactor = &f64
+
+			if stepCp.BackoffMaxSeconds != nil {
+				maxInt := int(*stepCp.BackoffMaxSeconds)
+				steps[j].RetryBackoffMaxSeconds = &maxInt
+			} else {
+				maxInt := 24 * 60 * 60
+				steps[j].RetryBackoffMaxSeconds = &maxInt
+			}
+		}
+
+		if stepCp.Timeout != "" {
+			steps[j].Timeout = &stepCp.Timeout
+		}
+
+		for _, rateLimit := range stepCp.RateLimits {
+			opt := v1.CreateWorkflowStepRateLimitOpts{
+				Key:       rateLimit.Key,
+				KeyExpr:   rateLimit.KeyExpr,
+				LimitExpr: rateLimit.LimitValuesExpr,
+				UnitsExpr: rateLimit.UnitsExpr,
+			}
+
+			if rateLimit.Duration != nil {
+				dur := rateLimit.Duration.String()
+				opt.Duration = &dur
+			}
+
+			if rateLimit.Units != nil {
+				units := int(*rateLimit.Units)
+				opt.Units = &units
+			}
+
+			steps[j].RateLimits = append(steps[j].RateLimits, opt)
+		}
+	}
+
+	// Check if parents are in the map
+	for _, step := range steps {
+		for _, parent := range step.Parents {
+			if !stepReadableIdMap[parent] {
+				return nil, fmt.Errorf("%w: parent step '%s' not found for step '%s'", v1.ErrDagParentNotFound, parent, step.ReadableId)
+			}
+		}
+	}
+
+	return steps, nil
 }

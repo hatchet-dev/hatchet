@@ -31,7 +31,7 @@ type repositoryImpl struct {
 	workflows WorkflowRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l)
@@ -44,7 +44,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 
 	impl := &repositoryImpl{
 		triggers:  newTriggerRepository(shared),
-		tasks:     newTaskRepository(shared, taskRetentionPeriod),
+		tasks:     newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
 		olap:      newOLAPRepository(shared, olapRetentionPeriod),

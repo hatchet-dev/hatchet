@@ -17,8 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-const MAX_INTERNAL_RETRIES = 3
-
 type CreateTaskOpts struct {
 	// (required) the external id
 	ExternalId string `validate:"required,uuid"`
@@ -230,13 +228,15 @@ type TaskRepository interface {
 type TaskRepositoryImpl struct {
 	*sharedRepository
 
-	taskRetentionPeriod time.Duration
+	taskRetentionPeriod   time.Duration
+	maxInternalRetryCount int32
 }
 
-func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration) TaskRepository {
+func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32) TaskRepository {
 	return &TaskRepositoryImpl{
-		sharedRepository:    s,
-		taskRetentionPeriod: taskRetentionPeriod,
+		sharedRepository:      s,
+		taskRetentionPeriod:   taskRetentionPeriod,
+		maxInternalRetryCount: maxInternalRetryCount,
 	}
 }
 
@@ -637,7 +637,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:            internalFailureTaskIds,
 			Taskinsertedats:    internalFailureInsertedAts,
-			Maxinternalretries: MAX_INTERNAL_RETRIES,
+			Maxinternalretries: r.maxInternalRetryCount,
 		})
 
 		if err != nil {

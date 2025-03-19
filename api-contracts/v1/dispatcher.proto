@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1";
+
+package v1;
+
+import "v1/shared/condition.proto";
+
+service V1Dispatcher {
+    rpc RegisterDurableEvent(RegisterDurableEventRequest) returns (RegisterDurableEventResponse) {}
+
+    rpc ListenForDurableEvent(stream ListenForDurableEventRequest) returns (stream DurableEvent) {}
+}
+
+message RegisterDurableEventRequest {
+    string task_id = 1; // external uuid for the task run
+    string workflow_run_id = 2; // external uuid for the workflow run
+    DurableEventListenerConditions conditions = 3; // (optional) the task conditions for creating the task
+}
+
+message RegisterDurableEventResponse {
+    int64 match_id = 1;
+}
+
+message ListenForDurableEventRequest {
+    string task_id = 1; // single listener per worker
+    int64 match_id = 2; // the match id for the listener
+}
+
+message DurableEvent {
+    string task_id = 1;
+    int64 match_id = 2;
+    bytes data = 3; // the data for the event
+}
