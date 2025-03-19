@@ -1,11 +1,26 @@
 name: test
 on:
   pull_request:
-    paths-ignore:
-      - 'sdks/**'
+
 jobs:
-  generate:
+  check_path:
     runs-on: ubuntu-latest
+    outputs:
+      sdk_only: ${{ steps.filter.outputs.sdk_only }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check if only SDK files changed
+        id: check-paths
+        uses: ./.github/actions/check-paths
+        with:
+          include_patterns: |
+            ^sdks/
+          result_name: sdk_only
+
+  generate:
+    needs: check_path
+    runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
@@ -51,8 +66,9 @@ jobs:
         run: docker compose down
 
   unit:
+    needs: check_path
     runs-on: ubuntu-latest
-
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -70,7 +86,9 @@ jobs:
         run: go test ./... -v -failfast
 
   integration:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
 
@@ -114,7 +132,9 @@ jobs:
         run: docker compose down
 
   e2e:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
@@ -201,7 +221,9 @@ jobs:
         run: docker compose down
 
   e2e-pgmq:
+    needs: check_path
     runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     timeout-minutes: 30
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable

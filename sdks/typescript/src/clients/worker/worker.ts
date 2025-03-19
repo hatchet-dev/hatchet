@@ -254,9 +254,6 @@ export class V0Worker {
             result || null
           );
           await this.client.dispatcher.sendStepActionEvent(event);
-
-          // delete the run from the futures
-          delete this.futures[action.stepRunId];
         } catch (actionEventError: any) {
           this.logger.error(
             `Could not send completed action event: ${actionEventError.message || actionEventError}`
@@ -280,6 +277,10 @@ export class V0Worker {
           this.logger.error(
             `Could not send action event: ${actionEventError.message || actionEventError}`
           );
+        } finally {
+          // delete the run from the futures
+          delete this.futures[action.stepRunId];
+          delete this.contexts[action.stepRunId];
         }
       };
 
@@ -301,11 +302,12 @@ export class V0Worker {
             }
           );
           await this.client.dispatcher.sendStepActionEvent(event);
-
-          // delete the run from the futures
-          delete this.futures[action.stepRunId];
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
+        } finally {
+          // delete the run from the futures
+          delete this.futures[action.stepRunId];
+          delete this.contexts[action.stepRunId];
         }
       };
 
@@ -380,11 +382,12 @@ export class V0Worker {
           this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
-
-          // delete the run from the futures
-          delete this.futures[key];
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
+        } finally {
+          // delete the run from the futures
+          delete this.futures[key];
+          delete this.contexts[key];
         }
       };
 
@@ -401,10 +404,12 @@ export class V0Worker {
           this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
-          // delete the run from the futures
-          delete this.futures[key];
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
+        } finally {
+          // delete the run from the futures
+          delete this.futures[key];
+          delete this.contexts[key];
         }
       };
 
@@ -464,16 +469,14 @@ export class V0Worker {
   }
 
   async handleCancelStepRun(action: Action) {
+    const { stepRunId } = action;
     try {
       this.logger.info(`Cancelling step run ${action.stepRunId}`);
-
-      const { stepRunId } = action;
       const future = this.futures[stepRunId];
       const context = this.contexts[stepRunId];
 
       if (context && context.controller) {
         context.controller.abort('Cancelled by worker');
-        delete this.contexts[stepRunId];
       }
 
       if (future) {
@@ -482,10 +485,12 @@ export class V0Worker {
         });
         future.cancel('Cancelled by worker');
         await future.promise;
-        delete this.futures[stepRunId];
       }
     } catch (e: any) {
       this.logger.error('Could not cancel step run: ', e);
+    } finally {
+      delete this.futures[stepRunId];
+      delete this.contexts[stepRunId];
     }
   }
 

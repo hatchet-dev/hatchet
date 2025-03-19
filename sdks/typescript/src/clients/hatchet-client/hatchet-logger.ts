@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { Logger, LogLevel, LogLevelEnum } from '@util/logger';
 
 export const DEFAULT_LOGGER = (context: string, logLevel?: LogLevel) =>
@@ -22,8 +23,28 @@ export class HatchetLogger implements Logger {
         minute: '2-digit',
         second: '2-digit',
       });
+
+      // eslint-disable-next-line prefer-destructuring
+      let print = console.log;
+
+      if (level === 'ERROR') {
+        print = console.error;
+      }
+
+      if (level === 'WARN') {
+        print = console.warn;
+      }
+
+      if (level === 'INFO') {
+        print = console.info;
+      }
+
+      if (level === 'DEBUG') {
+        print = console.debug;
+      }
+
       // eslint-disable-next-line no-console
-      console.log(
+      print(
         `🪓 ${process.pid} | ${time} ${color && `\x1b[${color || ''}m`} [${level}/${this.context}] ${message}\x1b[0m`
       );
     }
