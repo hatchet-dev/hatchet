@@ -6,8 +6,7 @@ export const FanoutWorker = {
   path: "examples/fanout/worker.py",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([FanoutWorker]);
+export const getStaticProps = ({}) => getSnippets([FanoutWorker]);
 
 # Child Workflows
 
@@ -22,8 +21,7 @@ To loop through a list and create a new workflow per element in the list, you ca
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-<GithubSnippet src={FanoutWorker} target="FanoutParent"/>
-
+<GithubSnippet src={FanoutWorker} target="FanoutParent" />
 
   </Tabs.Tab>
   <Tabs.Tab>

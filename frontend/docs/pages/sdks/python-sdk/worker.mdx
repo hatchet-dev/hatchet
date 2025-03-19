@@ -4,8 +4,7 @@ export const WorkflowRegistration = {
   path: "examples/workflow_registration/worker.py",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([WorkflowRegistration]);
+export const getStaticProps = ({}) => getSnippets([WorkflowRegistration]);
 
 # Worker Configuration
 
@@ -18,9 +17,7 @@ Workers can be created via the `hatchet.worker()` method, after [instantiating a
 
 Workers can register workflows by calling `worker.register_workflow` with a workflow class instance. There is no limit to the number of workflows which can be registered for each worker. For example:
 
-
 <GithubSnippet src={WorkflowRegistration} target="WorkflowRegistration" />
-
 
 ## Starting a Worker
 

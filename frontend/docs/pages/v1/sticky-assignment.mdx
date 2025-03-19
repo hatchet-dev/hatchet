@@ -13,7 +13,8 @@ export const StickyWorkerGo = {
   path: "examples/assignment-sticky/run.go",
 };
 
-export const getStaticProps = ({}) => getSnippets([StickyWorkerPy, StickyWorkerTS, StickyWorkerGo]);
+export const getStaticProps = ({}) =>
+  getSnippets([StickyWorkerPy, StickyWorkerTS, StickyWorkerGo]);
 
 # Sticky Worker Assignment (Beta)
 
@@ -55,7 +56,6 @@ There are two strategies for setting sticky assignment:
 
 <GithubSnippet src={StickyWorkerTS} target="StickyWorker" />
 
-
   </Tabs.Tab>
   <Tabs.Tab>
 
@@ -86,7 +86,6 @@ If either condition is not met, an error will be thrown when the child workflow 
   <Tabs.Tab>
 
 <GithubSnippet src={StickyWorkerTS} target="StickyChild" />
-
 
   </Tabs.Tab>
   <Tabs.Tab>

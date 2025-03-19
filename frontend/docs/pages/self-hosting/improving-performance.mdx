@@ -6,8 +6,7 @@ export const BulkFanoutWorker = {
   path: "examples/bulk_fanout/worker.py",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([BulkFanoutWorker]);
+export const getStaticProps = ({}) => getSnippets([BulkFanoutWorker]);
 
 # Tuning Hatchet for Performance
 
@@ -132,7 +131,6 @@ c.Event().BulkPush(
   <Tabs.Tab>
 
 <GithubSnippet src={BulkFanoutWorker} target="BulkFanoutParent" />
-
 
   </Tabs.Tab>
   <Tabs.Tab>

@@ -12,8 +12,8 @@ export const EventTs = {
   path: "src/v1/examples/on_event/event.ts",
 };
 
-export const getStaticProps = ({}) => getSnippets([SimpleTs, ClientTs, EventTs]);
-
+export const getStaticProps = ({}) =>
+  getSnippets([SimpleTs, ClientTs, EventTs]);
 
 # Running from External Services
 
@@ -40,10 +40,10 @@ The resulting stub exposes the same run methods as the workflow declaration on t
 </UniversalTabs>
 
 <Callout variant="info">
-  Note: In a single-language monorepo, you can share a full workflow declaration between the worker and the external service. 
-  Take care on the external service not to add tasks or modify the workflow in a way that would break the stub.
+  Note: In a single-language monorepo, you can share a full workflow declaration
+  between the worker and the external service. Take care on the external service
+  not to add tasks or modify the workflow in a way that would break the stub.
 </Callout>
-
 
 ## Client Run Methods
 

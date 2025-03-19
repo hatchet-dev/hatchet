@@ -46,7 +46,8 @@ In this example you can have different scheduled times for different customers, 
 When creating a scheduled run via the API, you will receive a scheduled run object with a metadata property containing the id of the scheduled run. This id can be used to reference the scheduled run when deleting the scheduled run and is often stored in a database or other persistence layer.
 
 <Callout type="info">
-  Note: Be mindful of the time zone of the scheduled run. Scheduled runs are **always** stored and returned in UTC.
+  Note: Be mindful of the time zone of the scheduled run. Scheduled runs are
+  **always** stored and returned in UTC.
 </Callout>
 
 ### Deleting a Scheduled Run
@@ -61,7 +62,6 @@ You can delete a scheduled run by calling the `delete` method on the scheduled r
   <Tabs.Tab title="Go">TODO V1 DOCS</Tabs.Tab>
 </UniversalTabs>
 
-
 ### Listing Scheduled Runs
 
 You can list all scheduled runs for a workflow by calling the `list` method on the scheduled run object.
@@ -73,7 +73,6 @@ You can list all scheduled runs for a workflow by calling the `list` method on t
   </Tabs.Tab>
   <Tabs.Tab title="Go">TODO V1 DOCS</Tabs.Tab>
 </UniversalTabs>
-
 
 ## Managing Scheduled Runs in the Hatchet Dashboard
 

@@ -19,7 +19,8 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs, EventTs]);
 Run on event allows you to trigger one or more workflows when a specific event occurs. This is useful when you need to execute a workflow in response to an ephemeral event where the result is not important, such as a webhook or a message from a queue, or when multiple independent workflows need to be run in response to a single event, such as a user:signup event.
 
 <Callout type="info">
-  Run on event evaluates workflows to run at the time of the event. If an event is received before the workflow is registered, the workflow will not be run.
+  Run on event evaluates workflows to run at the time of the event. If an event
+  is received before the workflow is registered, the workflow will not be run.
 </Callout>
 
 ## On Event Workflow Trigger
