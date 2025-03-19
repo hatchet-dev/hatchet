@@ -11,12 +11,15 @@ timeout_wf = hatchet.workflow(
 )
 # ‼️
 
+
 # ❓ ExecutionTimeout
 # 👀 Specify an execution timeout on a task
 @timeout_wf.task(timeout=timedelta(seconds=4))
 def timeout_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
     time.sleep(5)
     return {"status": "success"}
+
+
 # ‼️
 
 refresh_timeout_wf = hatchet.workflow(name="RefreshTimeoutWorkflow")
@@ -30,6 +33,8 @@ def refresh_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
     time.sleep(5)
 
     return {"status": "success"}
+
+
 # ‼️
 
 
