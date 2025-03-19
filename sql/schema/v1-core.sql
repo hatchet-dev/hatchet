@@ -982,44 +982,18 @@ BEGIN
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
     )
-    INSERT INTO v1_concurrency_slot (
-        task_id,
-        task_inserted_at,
-        task_retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        priority,
-        key,
-        next_keys,
-        queue_to_notify,
-        schedule_timeout_at
-    )
-    SELECT
-        id,
-        inserted_at,
-        retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        4,
-        key,
-        next_keys,
-        queue,
-        schedule_timeout_at
-    FROM new_slot_rows;
+    UPDATE
+        v1_concurrency_slot cs
+    SET
+        task_retry_count = nt.retry_count,
+        is_filled = FALSE,
+        priority = 4
+    FROM
+        new_slot_rows nt
+    WHERE
+        cs.task_id = nt.id
+        AND cs.task_inserted_at = nt.inserted_at
+        AND cs.strategy_id = nt.strategy_id;
 
     INSERT INTO v1_queue_item (
         tenant_id,
