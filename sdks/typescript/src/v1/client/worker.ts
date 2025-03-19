@@ -3,7 +3,7 @@ import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
-import { Workflow } from '../workflow';
+import { WorkflowDeclaration } from '../workflow';
 
 /**
  * Options for creating a new hatchet worker
@@ -13,7 +13,7 @@ export interface CreateWorkerOpts {
   /** Maximum number of concurrent runs on this worker */
   slots?: number;
   /** Array of workflows to register */
-  workflows?: Workflow<any, any>[] | V0Workflow[];
+  workflows?: WorkflowDeclaration<any, any>[] | V0Workflow[];
   /** Worker labels for affinity-based assignment */
   labels?: WorkerLabels;
   /** Whether to handle kill signals */
@@ -58,7 +58,7 @@ export class Worker {
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  registerWorkflows(workflows?: Array<Workflow<any, any> | V0Workflow>) {
+  registerWorkflows(workflows?: Array<WorkflowDeclaration<any, any> | V0Workflow>) {
     return workflows?.map((wf) => {
       return this.v0.registerWorkflow(toV0Workflow(wf));
     });
@@ -70,7 +70,7 @@ export class Worker {
    * @returns A promise that resolves when the workflow is registered
    * @deprecated use registerWorkflows instead
    */
-  registerWorkflow(workflow: Workflow<any, any> | V0Workflow) {
+  registerWorkflow(workflow: WorkflowDeclaration<any, any> | V0Workflow) {
     return this.registerWorkflows([workflow]);
   }
 
@@ -117,8 +117,8 @@ export class Worker {
   }
 }
 
-export function toV0Workflow(wf: Workflow<any, any> | V0Workflow): V0Workflow {
-  if (wf instanceof Workflow) {
+export function toV0Workflow(wf: WorkflowDeclaration<any, any> | V0Workflow): V0Workflow {
+  if (wf instanceof WorkflowDeclaration) {
     const { definition } = wf;
     return {
       id: definition.name,

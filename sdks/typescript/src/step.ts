@@ -12,7 +12,7 @@ import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
 import { CreateTaskOpts } from './v1/task';
-import { Workflow as WorkflowV1 } from './v1/workflow';
+import { WorkflowDeclaration as WorkflowV1 } from './v1/workflow';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
