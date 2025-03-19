@@ -1217,6 +1217,49 @@ func (ns NullV1StatusKind) Value() (driver.Value, error) {
 	return string(ns.V1StatusKind), nil
 }
 
+type V1StepMatchConditionKind string
+
+const (
+	V1StepMatchConditionKindPARENTOVERRIDE V1StepMatchConditionKind = "PARENT_OVERRIDE"
+	V1StepMatchConditionKindUSEREVENT      V1StepMatchConditionKind = "USER_EVENT"
+	V1StepMatchConditionKindSLEEP          V1StepMatchConditionKind = "SLEEP"
+)
+
+func (e *V1StepMatchConditionKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1StepMatchConditionKind(s)
+	case string:
+		*e = V1StepMatchConditionKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1StepMatchConditionKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1StepMatchConditionKind struct {
+	V1StepMatchConditionKind V1StepMatchConditionKind `json:"v1_step_match_condition_kind"`
+	Valid                    bool                     `json:"valid"` // Valid is true if V1StepMatchConditionKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1StepMatchConditionKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1StepMatchConditionKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1StepMatchConditionKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1StepMatchConditionKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1StepMatchConditionKind), nil
+}
+
 type V1StickyStrategy string
 
 const (
@@ -2425,6 +2468,12 @@ type V1DagsOlap struct {
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
+type V1DurableSleep struct {
+	ID         int64              `json:"id"`
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	SleepUntil pgtype.Timestamptz `json:"sleep_until"`
+}
+
 type V1LogLine struct {
 	ID             int64              `json:"id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
@@ -2558,6 +2607,18 @@ type V1StepConcurrency struct {
 	Expression        string                `json:"expression"`
 	TenantID          pgtype.UUID           `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
+}
+
+type V1StepMatchCondition struct {
+	ID               int64                    `json:"id"`
+	TenantID         pgtype.UUID              `json:"tenant_id"`
+	StepID           pgtype.UUID              `json:"step_id"`
+	ReadableDataKey  string                   `json:"readable_data_key"`
+	Action           V1MatchConditionAction   `json:"action"`
+	OrGroupID        pgtype.UUID              `json:"or_group_id"`
+	Expression       pgtype.Text              `json:"expression"`
+	Kind             V1StepMatchConditionKind `json:"kind"`
+	ParentReadableID pgtype.Text              `json:"parent_readable_id"`
 }
 
 type V1Task struct {

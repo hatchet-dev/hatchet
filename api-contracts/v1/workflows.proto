@@ -75,11 +75,9 @@ message CreateWorkflowVersionRequest {
     repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
     repeated CreateTaskOpts tasks = 6; // (required) the workflow jobs
     Concurrency concurrency = 7; // (optional) the workflow concurrency options
-    optional string schedule_timeout = 8; // (optional) the timeout for the schedule
-    optional string cron_input = 9; // (optional) the input for the cron trigger
-    optional CreateTaskOpts on_failure_task = 10; // (optional) the job to run on failure
-    optional StickyStrategy sticky = 11; // (optional) the sticky strategy for assigning steps to workers
-    optional int32 default_priority = 12; // (optional) the priority of the workflow
+    optional string cron_input = 8; // (optional) the input for the cron trigger
+    optional CreateTaskOpts on_failure_task = 9; // (optional) the job to run on failure
+    optional StickyStrategy sticky = 10; // (optional) the sticky strategy for assigning steps to workers
 }
 
 enum ConcurrencyLimitStrategy {
@@ -144,7 +142,8 @@ message CreateTaskOpts {
     optional float backoff_factor = 9; // (optional) the retry backoff factor for the step
     optional int32 backoff_max_seconds = 10; // (optional) the maximum backoff time for the step
     repeated Concurrency concurrency = 11; // (optional) the task concurrency options
-    TaskConditions conditions = 12; // (optional) the task conditions for creating the task
+    optional TaskConditions conditions = 12; // (optional) the task conditions for creating the task
+    optional string schedule_timeout = 13; // (optional) the timeout for the schedule
 }
 
 message CreateTaskRateLimit {
