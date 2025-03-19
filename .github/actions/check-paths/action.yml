@@ -24,8 +24,15 @@ runs:
       id: check-paths
       shell: bash
       run: |
-        # Get list of changed files compared to the PR base branch
-        CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+        # Get list of changed files
+        if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "pull_request_target" ]]; then
+          echo "PR context detected, comparing against base branch"
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} || git diff --name-only HEAD^)
+        else
+          echo "Non-PR context detected, comparing against previous commit"
+          CHANGED_FILES=$(git diff --name-only HEAD^ || git diff --name-only HEAD~1)
+        fi
+        
         echo "Changed files: $CHANGED_FILES"
         
         # Default to true - will change to false if any file doesn't match criteria
