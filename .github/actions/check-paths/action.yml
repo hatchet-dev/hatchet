@@ -1,0 +1,70 @@
+name: 'Check Changed Paths'
+description: 'Check if changed files match specified patterns'
+inputs:
+  include_patterns:
+    description: 'Patterns to include, one per line'
+    required: false
+    default: ''
+  exclude_patterns:
+    description: 'Patterns to exclude, one per line'
+    required: false
+    default: ''
+  result_name:
+    description: 'Name for the output result'
+    required: false
+    default: 'match_only'
+outputs:
+  match_result:
+    description: 'true if all changed files match include patterns and don't match exclude patterns'
+    value: ${{ steps.check-paths.outputs.result }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Check changed paths
+      id: check-paths
+      shell: bash
+      run: |
+        # Get list of changed files compared to the PR base branch
+        CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+        echo "Changed files: $CHANGED_FILES"
+        
+        # Default to true - will change to false if any file doesn't match criteria
+        RESULT=true
+        
+        # Convert input patterns to arrays
+        IFS=$'\n' read -r -a INCLUDE_PATTERNS <<< "${{ inputs.include_patterns }}"
+        IFS=$'\n' read -r -a EXCLUDE_PATTERNS <<< "${{ inputs.exclude_patterns }}"
+        
+        # Process each changed file
+        for file in $CHANGED_FILES; do
+          # Check if file matches any include pattern (if provided)
+          if [[ ${#INCLUDE_PATTERNS[@]} -gt 0 ]]; then
+            INCLUDED=false
+            for pattern in "${INCLUDE_PATTERNS[@]}"; do
+              if [[ -n "$pattern" && "$file" =~ $pattern ]]; then
+                INCLUDED=true
+                break
+              fi
+            done
+            if [[ "$INCLUDED" == "false" ]]; then
+              echo "File '$file' doesn't match any include pattern"
+              RESULT=false
+              break
+            fi
+          fi
+          
+          # Check if file matches any exclude pattern (if provided)
+          if [[ ${#EXCLUDE_PATTERNS[@]} -gt 0 ]]; then
+            for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+              if [[ -n "$pattern" && "$file" =~ $pattern ]]; then
+                echo "File '$file' matches exclude pattern: $pattern"
+                RESULT=false
+                break 2
+              fi
+            done
+          fi
+        done
+        
+        echo "result=$RESULT" >> $GITHUB_OUTPUT
+        echo "${{ inputs.result_name }}=$RESULT" >> $GITHUB_OUTPUT
+        echo "Final result: $RESULT" 

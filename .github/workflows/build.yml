@@ -9,13 +9,13 @@ jobs:
       sdk_only: ${{ steps.filter.outputs.sdk_only }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v2
-        id: filter
+      - name: Check if only SDK files changed
+        id: check-paths
+        uses: ./.github/actions/check-paths
         with:
-          filters: |
-            sdk_only:
-              - 'sdks/**'
-              - '!**/*'
+          include_patterns: |
+            ^sdks/
+          result_name: sdk_only
 
   frontend:
     needs: check_path
