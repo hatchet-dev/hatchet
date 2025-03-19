@@ -287,6 +287,8 @@ INSERT INTO v1_step_match_condition (
     or_group_id,
     expression,
     kind,
+    sleep_duration,
+    event_key,
     parent_readable_id
 )
 VALUES (
@@ -297,8 +299,10 @@ VALUES (
     $5::uuid,
     $6::text,
     $7::v1_step_match_condition_kind,
-    $8::text
-) RETURNING id, tenant_id, step_id, readable_data_key, action, or_group_id, expression, kind, parent_readable_id
+    $8::text,
+    $9::text,
+    $10::text
+) RETURNING id, tenant_id, step_id, readable_data_key, action, or_group_id, expression, kind, sleep_duration, event_key, parent_readable_id
 `
 
 type CreateStepMatchConditionParams struct {
@@ -309,6 +313,8 @@ type CreateStepMatchConditionParams struct {
 	Orgroupid        pgtype.UUID              `json:"orgroupid"`
 	Expression       pgtype.Text              `json:"expression"`
 	Kind             V1StepMatchConditionKind `json:"kind"`
+	SleepDuration    pgtype.Text              `json:"sleepDuration"`
+	EventKey         pgtype.Text              `json:"eventKey"`
 	ParentReadableId pgtype.Text              `json:"parentReadableId"`
 }
 
@@ -321,6 +327,8 @@ func (q *Queries) CreateStepMatchCondition(ctx context.Context, db DBTX, arg Cre
 		arg.Orgroupid,
 		arg.Expression,
 		arg.Kind,
+		arg.SleepDuration,
+		arg.EventKey,
 		arg.ParentReadableId,
 	)
 	var i V1StepMatchCondition
@@ -333,6 +341,8 @@ func (q *Queries) CreateStepMatchCondition(ctx context.Context, db DBTX, arg Cre
 		&i.OrGroupID,
 		&i.Expression,
 		&i.Kind,
+		&i.SleepDuration,
+		&i.EventKey,
 		&i.ParentReadableID,
 	)
 	return &i, err
@@ -894,6 +904,53 @@ func (q *Queries) ListStepExpressions(ctx context.Context, db DBTX, stepids []pg
 			&i.StepId,
 			&i.Expression,
 			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepMatchConditions = `-- name: ListStepMatchConditions :many
+SELECT
+    id, tenant_id, step_id, readable_data_key, action, or_group_id, expression, kind, sleep_duration, event_key, parent_readable_id
+FROM
+    v1_step_match_condition
+WHERE
+    step_id = ANY($1::uuid[])
+    AND tenant_id = $2::uuid
+`
+
+type ListStepMatchConditionsParams struct {
+	Stepids  []pgtype.UUID `json:"stepids"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+}
+
+func (q *Queries) ListStepMatchConditions(ctx context.Context, db DBTX, arg ListStepMatchConditionsParams) ([]*V1StepMatchCondition, error) {
+	rows, err := db.Query(ctx, listStepMatchConditions, arg.Stepids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1StepMatchCondition
+	for rows.Next() {
+		var i V1StepMatchCondition
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.StepID,
+			&i.ReadableDataKey,
+			&i.Action,
+			&i.OrGroupID,
+			&i.Expression,
+			&i.Kind,
+			&i.SleepDuration,
+			&i.EventKey,
+			&i.ParentReadableID,
 		); err != nil {
 			return nil, err
 		}
