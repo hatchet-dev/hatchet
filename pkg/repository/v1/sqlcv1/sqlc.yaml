@@ -16,6 +16,7 @@ sql:
       - olap.sql
       - rate_limits.sql
       - log_line.sql
+      - sleep.sql
     schema:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1-core.sql

@@ -129,9 +129,6 @@ type CreateStepMatchConditionOpt struct {
 	// (required) the type of match condition for triggering the step
 	MatchConditionKind string `validate:"required,oneof=PARENT_OVERRIDE USER_EVENT SLEEP"`
 
-	// (optional) the event key for the match condition
-	EventKey *string `validate:"required"`
-
 	// (required) the key for the event data when the workflow is triggered
 	ReadableDataKey string `validate:"required"`
 
@@ -143,6 +140,12 @@ type CreateStepMatchConditionOpt struct {
 
 	// (optional) the expression for the match condition
 	Expression string `validate:"omitempty"`
+
+	// (optional) the sleep duration for the match condition, only set if this is a SLEEP
+	SleepDuration *string `validate:"omitempty,duration"`
+
+	// (optional) the event key for the match condition, only set if this is a USER_EVENT
+	EventKey *string `validate:"omitempty"`
 
 	// (optional) if this is a PARENT_OVERRIDE condition, this will be set to the parent readable_id for
 	// the parent whose trigger behavior we're overriding
@@ -802,6 +805,50 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				}
 			}
 		}
+
+		if len(stepOpts.TriggerConditions) > 0 {
+			for _, condition := range stepOpts.TriggerConditions {
+				var parentReadableId pgtype.Text
+
+				if condition.ParentReadableId != nil {
+					parentReadableId = sqlchelpers.TextFromStr(*condition.ParentReadableId)
+				}
+
+				var eventKey pgtype.Text
+
+				if condition.EventKey != nil {
+					eventKey = sqlchelpers.TextFromStr(*condition.EventKey)
+				}
+
+				var sleepDuration pgtype.Text
+
+				if condition.SleepDuration != nil {
+					sleepDuration = sqlchelpers.TextFromStr(*condition.SleepDuration)
+				}
+
+				_, err := r.queries.CreateStepMatchCondition(
+					ctx,
+					tx,
+					sqlcv1.CreateStepMatchConditionParams{
+						Tenantid:         tenantId,
+						Stepid:           sqlchelpers.UUIDFromStr(stepId),
+						Readabledatakey:  condition.ReadableDataKey,
+						Action:           sqlcv1.V1MatchConditionAction(condition.Action),
+						Orgroupid:        sqlchelpers.UUIDFromStr(condition.OrGroupId),
+						Expression:       sqlchelpers.TextFromStr(condition.Expression),
+						Kind:             sqlcv1.V1StepMatchConditionKind(condition.MatchConditionKind),
+						ParentReadableId: parentReadableId,
+						EventKey:         eventKey,
+						SleepDuration:    sleepDuration,
+					},
+				)
+
+				if err != nil {
+					return "", err
+				}
+			}
+		}
+
 	}
 
 	return jobId, nil

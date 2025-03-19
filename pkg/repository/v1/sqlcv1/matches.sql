@@ -198,12 +198,12 @@ WITH match_counts AS (
         id IN (SELECT id FROM deleted_conditions)
 )
 SELECT
-    *,
-    d.mc_aggregated_data
+    rm.*,
+    COALESCE(rm.existing_data || d.mc_aggregated_data, d.mc_aggregated_data)::jsonb AS mc_aggregated_data
 FROM
-    result_matches
+    result_matches rm
 LEFT JOIN
-    matches_with_data d ON result_matches.id = d.id;
+    matches_with_data d ON rm.id = d.id;
 
 -- name: ResetMatchConditions :many
 -- NOTE: we have to break this into a separate query because CTEs can't see modified rows

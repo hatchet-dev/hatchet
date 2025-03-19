@@ -457,6 +457,8 @@ INSERT INTO v1_step_match_condition (
     or_group_id,
     expression,
     kind,
+    sleep_duration,
+    event_key,
     parent_readable_id
 )
 VALUES (
@@ -467,5 +469,16 @@ VALUES (
     @orGroupId::uuid,
     sqlc.narg('expression')::text,
     @kind::v1_step_match_condition_kind,
+    sqlc.narg('sleepDuration')::text,
+    sqlc.narg('eventKey')::text,
     sqlc.narg('parentReadableId')::text
 ) RETURNING *;
+
+-- name: ListStepMatchConditions :many
+SELECT
+    *
+FROM
+    v1_step_match_condition
+WHERE
+    step_id = ANY(@stepIds::uuid[])
+    AND tenant_id = @tenantId::uuid;
