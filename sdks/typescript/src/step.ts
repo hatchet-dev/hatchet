@@ -262,7 +262,7 @@ export class Context<T, K = {}> {
    * @param children an array of objects containing the workflow name, input data, and options for each workflow
    * @returns a list of workflow run references to the enqueued runs
    */
-  bulkEnqueueChildren<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
+  bulkEnqueueChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
@@ -281,7 +281,7 @@ export class Context<T, K = {}> {
    * @param children an array of objects containing the workflow name, input data, and options for each workflow
    * @returns a list of results from the children workflows
    */
-  async bulkRunChildren<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
+  async bulkRunChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
@@ -304,7 +304,7 @@ export class Context<T, K = {}> {
    * @returns a list of references to the spawned workflow runs
    * @deprecated use bulkEnqueueChildren or bulkRunChildren instead
    */
-  spawnWorkflows<Q extends Record<string, any> = any, P extends Record<string, any> = any>(
+  spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
     workflows: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
@@ -379,7 +379,7 @@ export class Context<T, K = {}> {
    * @param <P> the type of the output data
    * @return the result of the workflow
    */
-  async runChild<Q extends Record<string, any>, P extends Record<string, any>>(
+  async runChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?:
@@ -403,7 +403,7 @@ export class Context<T, K = {}> {
    * @param <P> the type of the output data
    * @return a reference to the spawned workflow run
    */
-  enqueueChild<Q extends Record<string, any>, P extends Record<string, any>>(
+  enqueueChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?:
@@ -427,7 +427,7 @@ export class Context<T, K = {}> {
    * @return a reference to the spawned workflow run
    * @deprecated use runChild or enqueueChild instead
    */
-  spawnWorkflow<Q extends Record<string, any>, P extends Record<string, any>>(
+  spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?:

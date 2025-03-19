@@ -1,6 +1,6 @@
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context } from '@hatchet/step';
+import { Context, JsonObject } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
@@ -79,7 +79,7 @@ type WorkflowDefinition = CreateWorkflowOpts & {
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
  */
-export class Workflow<T extends Record<string, any>, K> {
+export class Workflow<T extends JsonObject, K> {
   /**
    * The Hatchet client instance used to execute the workflow.
    */
@@ -244,7 +244,7 @@ export class Workflow<T extends Record<string, any>, K> {
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */
-export function CreateWorkflow<T extends Record<string, any> = any, K = any>(
+export function CreateWorkflow<T extends JsonObject = any, K = any>(
   options: CreateWorkflowOpts,
   client?: IHatchetClient
 ): Workflow<T, K> {
