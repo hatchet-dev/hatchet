@@ -52,7 +52,9 @@ async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 def child(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker.id()}
 
+
 # ‼️
+
 
 def main() -> None:
     worker = hatchet.worker(
