@@ -40,21 +40,21 @@ runs:
                           git show --name-only --format="" ||
                           echo "")
         fi
-        
+
         if [[ -z "$CHANGED_FILES" ]]; then
           echo "Warning: Could not determine changed files. Treating all files as changed."
           CHANGED_FILES=$(find . -type f -not -path "./.git/*" | sed 's|^./||')
         fi
-        
+
         echo "Changed files: $CHANGED_FILES"
-        
+
         # Default to true - will change to false if any file doesn't match criteria
         RESULT=true
-        
+
         # Convert input patterns to arrays
         IFS=$'\n' read -r -a INCLUDE_PATTERNS <<< "${{ inputs.include_patterns }}"
         IFS=$'\n' read -r -a EXCLUDE_PATTERNS <<< "${{ inputs.exclude_patterns }}"
-        
+
         # Process each changed file
         for file in $CHANGED_FILES; do
           # Check if file matches any include pattern (if provided)
@@ -72,7 +72,7 @@ runs:
               break
             fi
           fi
-          
+
           # Check if file matches any exclude pattern (if provided)
           if [[ ${#EXCLUDE_PATTERNS[@]} -gt 0 ]]; then
             for pattern in "${EXCLUDE_PATTERNS[@]}"; do
@@ -84,7 +84,7 @@ runs:
             done
           fi
         done
-        
+
         echo "result=$RESULT" >> $GITHUB_OUTPUT
         echo "${{ inputs.result_name }}=$RESULT" >> $GITHUB_OUTPUT
         echo "Final result: $RESULT"
