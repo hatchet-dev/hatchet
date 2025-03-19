@@ -58,10 +58,12 @@ export class Worker {
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  registerWorkflows(workflows?: Array<WorkflowDeclaration<any, any> | V0Workflow>) {
-    return workflows?.map((wf) => {
-      return this.v0.registerWorkflow(toV0Workflow(wf));
-    });
+  async registerWorkflows(workflows?: Array<WorkflowDeclaration<any, any> | V0Workflow>) {
+    return Promise.all(
+      workflows?.map((wf) => {
+        return this.v0.registerWorkflow(toV0Workflow(wf));
+      }) || []
+    );
   }
 
   /**
