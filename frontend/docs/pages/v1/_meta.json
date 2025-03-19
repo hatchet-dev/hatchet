@@ -19,6 +19,7 @@
   "cron-runs": "Cron Runs",
   "run-on-event": "Run on Event",
   "streaming-results": "Streaming Results",
+  "running-from-external-services": "Running from External Services",
   
   "--advanced-workflows": {
     "title": "Advanced Workflows",

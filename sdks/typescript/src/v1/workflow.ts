@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Context } from '@hatchet/step';
@@ -31,13 +32,19 @@ type TaskOutputType<K, TaskName extends string, InferredType> = TaskName extends
   : InferredType;
 
 /**
- * Options for creating a new workflow.
+ * Options for creating a new workflow stub (for api and external service use)
  */
-export type CreateWorkflowOpts = {
+export type CreateStubWorkflowOpts = {
   /**
    * The name of the workflow.
    */
   name: WorkflowV0['id'];
+};
+
+/**
+ * Options for creating a new workflow.
+ */
+export type CreateWorkflowOpts = CreateStubWorkflowOpts & {
   /**
    * Optional description of the workflow.
    */
@@ -75,11 +82,12 @@ type WorkflowDefinition = CreateWorkflowOpts & {
 };
 
 /**
- * Represents a workflow that can be executed by Hatchet.
+ * Represents a workflow definition that can be used to run a workflow.
+ * Useful for external service use (api, multiple workers, multiple languages, etc)
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
  */
-export class Workflow<T extends Record<string, any>, K> {
+export class WorkflowStub<T extends Record<string, any>, K> {
   /**
    * The Hatchet client instance used to execute the workflow.
    */
@@ -91,11 +99,11 @@ export class Workflow<T extends Record<string, any>, K> {
   definition: WorkflowDefinition;
 
   /**
-   * Creates a new workflow instance.
+   * Creates a new workflow stub instance.
    * @param options The options for creating the workflow.
    * @param client Optional Hatchet client instance.
    */
-  constructor(options: CreateWorkflowOpts, client?: IHatchetClient) {
+  constructor(options: CreateStubWorkflowOpts, client?: IHatchetClient) {
     this.definition = {
       ...options,
       tasks: [],
@@ -206,7 +214,14 @@ export class Workflow<T extends Record<string, any>, K> {
 
     return cronDef;
   }
+}
 
+/**
+ * Represents a workflow that can be executed by Hatchet.
+ * @template T The input type for the workflow.
+ * @template K The return type of the workflow.
+ */
+export class Workflow<T extends Record<string, any>, K> extends WorkflowStub<T, K> {
   /**
    * Adds a task to the workflow.
    * The return type will be either the property on K that corresponds to the task name,
@@ -246,7 +261,12 @@ export class Workflow<T extends Record<string, any>, K> {
  */
 export function CreateWorkflow<T extends Record<string, any> = any, K = any>(
   options: CreateWorkflowOpts,
-  client?: IHatchetClient
-): Workflow<T, K> {
+  client?: IHatchetClient,
+  stub?: boolean
+): Workflow<T, K> | WorkflowStub<T, K> {
+  if (stub) {
+    return new WorkflowStub<T, K>(options, client);
+  }
+
   return new Workflow<T, K>(options, client);
 }

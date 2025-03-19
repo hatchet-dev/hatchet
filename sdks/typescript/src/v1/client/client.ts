@@ -6,7 +6,7 @@ import {
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { CreateWorkflow, CreateWorkflowOpts, RunOpts, Workflow } from '../workflow';
+import { CreateWorkflow, CreateWorkflowOpts, RunOpts, Workflow, WorkflowStub } from '../workflow';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker';
 
@@ -63,7 +63,21 @@ export class HatchetClient implements IHatchetClient {
   workflow<T extends Record<string, any> = any, K = any>(
     options: CreateWorkflowOpts
   ): Workflow<T, K> {
-    return CreateWorkflow<T, K>(options, this);
+    return CreateWorkflow<T, K>(options, this, false) as Workflow<T, K>;
+  }
+
+  /**
+   * Creates a new workflow definition.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param options - Configuration options for creating the workflow
+   * @returns A new Workflow instance
+   * @note It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
+   */
+  stubWorkflow<T extends Record<string, any> = any, K = any>(
+    options: CreateWorkflowOpts
+  ): WorkflowStub<T, K> {
+    return CreateWorkflow<T, K>(options, this, true) as WorkflowStub<T, K>;
   }
 
   /**
@@ -78,7 +92,7 @@ export class HatchetClient implements IHatchetClient {
   enqueue<T extends Record<string, any> = any, K = any>(
     workflow: Workflow<T, K> | string | V0Workflow,
     input: T,
-    options: RunOpts
+    options?: RunOpts
   ): WorkflowRunRef<K> {
     let name: string;
     if (typeof workflow === 'string') {

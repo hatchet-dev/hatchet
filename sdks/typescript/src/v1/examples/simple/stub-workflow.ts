@@ -1,0 +1,28 @@
+// ❓ Declaring a Workflow Stub
+import { hatchet } from '../client';
+
+// (optional) Define the input type for the workflow
+export type SimpleInput = {
+  Message: string;
+};
+
+// (optional) Define the output type for the workflow
+export type SimpleOutput = {
+  'to-lower': {
+    TransformedMessage: string;
+  };
+};
+
+// declare the workflow stub with the same name as the
+// workflow name on the worker
+export const simple = hatchet.stubWorkflow<SimpleInput, SimpleOutput>({
+  name: 'simple',
+});
+
+// you can use all the same run methods on the stub
+// with full type-safety
+simple.run({ Message: 'Hello, World!' });
+simple.enqueue({ Message: 'Hello, World!' });
+simple.schedule(new Date(), { Message: 'Hello, World!' });
+simple.cron('my-cron', '0 0 * * *', { Message: 'Hello, World!' });
+// !!

@@ -1,10 +1,12 @@
 import { hatchet } from '../client';
-import { SIMPLE_EVENT } from './workflow';
+import { Input } from './workflow';
 
 async function main() {
-  const res = await hatchet.event.push(SIMPLE_EVENT, {
+  // ❓ Pushing an Event
+  const res = await hatchet.event.push<Input>('simple-event:create', {
     Message: 'hello',
   });
+  // !!
 
   // eslint-disable-next-line no-console
   console.log(res.eventId);
