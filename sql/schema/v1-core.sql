@@ -1389,3 +1389,26 @@ CREATE TABLE v1_log_line (
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
+
+CREATE TYPE v1_step_match_condition_kind AS ENUM ('PARENT_OVERRIDE', 'USER_EVENT', 'SLEEP');
+
+CREATE TABLE v1_step_match_condition (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    step_id UUID NOT NULL,
+    readable_data_key TEXT NOT NULL,
+    action v1_match_condition_action NOT NULL DEFAULT 'CREATE',
+    or_group_id UUID NOT NULL,
+    expression TEXT,
+    kind v1_step_match_condition_kind NOT NULL,
+    -- If this is a PARENT_OVERRIDE condition, this will be set to the parent readable_id
+    parent_readable_id TEXT,
+    PRIMARY KEY (step_id, id)
+);
+
+CREATE TABLE v1_durable_sleep (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    sleep_until TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, sleep_until, id)
+);

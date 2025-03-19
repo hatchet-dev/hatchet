@@ -379,7 +379,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 				TaskId:         msg.TaskId,
 				RetryCount:     msg.RetryCount,
 				EventType:      sqlcv1.V1EventTypeOlapFAILED,
-				EventTimestamp: msg.InsertedAt.Time,
+				EventTimestamp: time.Now().UTC(),
 				EventPayload:   msg.ErrorMsg,
 			},
 		)
