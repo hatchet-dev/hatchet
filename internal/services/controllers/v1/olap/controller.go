@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -29,15 +30,17 @@ type OLAPController interface {
 }
 
 type OLAPControllerImpl struct {
-	mq                         msgqueue.MessageQueue
-	l                          *zerolog.Logger
-	repo                       v1.Repository
-	dv                         datautils.DataDecoderValidator
-	a                          *hatcheterrors.Wrapped
-	p                          *partition.Partition
-	s                          gocron.Scheduler
-	updateTaskStatusOperations *queueutils.OperationPool
-	updateDAGStatusOperations  *queueutils.OperationPool
+	mq                           msgqueue.MessageQueue
+	l                            *zerolog.Logger
+	repo                         v1.Repository
+	dv                           datautils.DataDecoderValidator
+	a                            *hatcheterrors.Wrapped
+	p                            *partition.Partition
+	s                            gocron.Scheduler
+	ta                           *alerting.TenantAlertManager
+	updateTaskStatusOperations   *queueutils.OperationPool
+	updateDAGStatusOperations    *queueutils.OperationPool
+	processTenantAlertOperations *queueutils.OperationPool
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -49,6 +52,7 @@ type OLAPControllerOpts struct {
 	dv      datautils.DataDecoderValidator
 	alerter hatcheterrors.Alerter
 	p       *partition.Partition
+	ta      *alerting.TenantAlertManager
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -98,6 +102,12 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) OLAPControllerO
 	}
 }
 
+func WithTenantAlertManager(ta *alerting.TenantAlertManager) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.ta = ta
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -115,6 +125,10 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 
 	if opts.p == nil {
 		return nil, errors.New("partition is required. use WithPartition")
+	}
+
+	if opts.ta == nil {
+		return nil, errors.New("tenant alerter is required. use WithTenantAlertManager")
 	}
 
 	newLogger := opts.l.With().Str("service", "olap-controller").Logger()
@@ -137,10 +151,12 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		repo: opts.repo,
 		dv:   opts.dv,
 		a:    a,
+		ta:   opts.ta,
 	}
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*15, "update task statuses", o.updateTaskStatuses)
 	o.updateDAGStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*15, "update dag statuses", o.updateDAGStatuses)
+	o.processTenantAlertOperations = queueutils.NewOperationPool(opts.l, time.Second*15, "process tenant alerts", o.processTenantAlerts)
 
 	return o, nil
 }
@@ -198,6 +214,18 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule dag status updates: %w", err)
+	}
+
+	_, err = o.s.NewJob(
+		gocron.DurationJob(time.Second*60),
+		gocron.NewTask(
+			o.runTenantProcessAlerts(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule process tenant alerts: %w", err)
 	}
 
 	cleanupBuffer, err := mqBuffer.Start()
