@@ -38,6 +38,8 @@ from hatchet_sdk.worker.action_listener_process import (
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
+    spawn_index_lock,
+    workflow_spawn_indices,
 )
 from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars
 
@@ -307,6 +309,12 @@ class Runner:
             except Exception:
                 # do nothing, this should be caught in the callback
                 pass
+
+        ## Once the step run completes, we need to remove the workflow spawn index
+        ## so we don't leak memory
+        if action.workflow_run_id in workflow_spawn_indices:
+            async with spawn_index_lock:
+                workflow_spawn_indices.pop(action.workflow_run_id)
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_group_key_run(self, action: Action) -> Exception | None:

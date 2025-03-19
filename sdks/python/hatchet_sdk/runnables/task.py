@@ -26,7 +26,7 @@ class Task(Generic[TWorkflowInput, R]):
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        timeout: timedelta = timedelta(minutes=60),
+        timeout: timedelta | str = timedelta(minutes=60),
         parents: "list[Task[TWorkflowInput, Any]]" = [],
         retries: int = 0,
         rate_limits: list[CreateStepRateLimit] = [],
