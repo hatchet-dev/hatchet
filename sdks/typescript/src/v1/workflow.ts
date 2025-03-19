@@ -1,7 +1,7 @@
 /* eslint-disable max-classes-per-file */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context } from '@hatchet/step';
+import { Context, JsonObject } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
@@ -46,27 +46,34 @@ export type CreateStubWorkflowOpts = {
  */
 export type CreateWorkflowOpts = CreateStubWorkflowOpts & {
   /**
-   * Optional description of the workflow.
+   * (optional) description of the workflow.
    */
   description?: WorkflowV0['description'];
   /**
-   * Optional version of the workflow.
+   * (optional) version of the workflow.
    */
   version?: WorkflowV0['version'];
   /**
-   * Optional sticky strategy for the workflow.
+   * (optional) sticky strategy for the workflow.
    */
   sticky?: WorkflowV0['sticky'];
   /**
-   * Optional schedule timeout for the workflow.
+   * (optional) schedule timeout for the workflow.
    */
   scheduleTimeout?: WorkflowV0['scheduleTimeout'];
   /**
-   * Optional on config for the workflow.
+   * (optional) on config for the workflow.
    */
   on?: WorkflowV0['on'];
 
   concurrency?: WorkflowV0['concurrency'];
+
+  /**
+   * (optional) onFailure handler for the workflow.
+   * Invoked when any task in the workflow fails.
+   * @param ctx The context of the workflow.
+   */
+  onFailure?: (ctx: Context<any>) => void;
 };
 
 /**
@@ -77,8 +84,6 @@ type WorkflowDefinition = CreateWorkflowOpts & {
    * The tasks that make up this workflow.
    */
   tasks: CreateTaskOpts<any, any>[];
-
-  // TODO on failure
 };
 
 /**
@@ -87,7 +92,7 @@ type WorkflowDefinition = CreateWorkflowOpts & {
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
  */
-export class WorkflowStub<T extends Record<string, any>, K> {
+export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
   /**
    * The Hatchet client instance used to execute the workflow.
    */
@@ -259,9 +264,9 @@ export class Workflow<T extends Record<string, any>, K> extends WorkflowStub<T, 
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */
-export function CreateWorkflow<T extends Record<string, any> = any, K = any>(
+export function CreateWorkflow<T extends JsonObject = any, K extends JsonObject = any>(
   options: CreateWorkflowOpts,
   client?: IHatchetClient
-): Workflow<T, K> {
-  return new Workflow<T, K>(options, client);
+): WorkflowDeclaration<T, K> {
+  return new WorkflowDeclaration<T, K>(options, client);
 }

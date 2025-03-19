@@ -245,21 +245,17 @@ class Workflow(Generic[TWorkflowInput]):
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         return self.client.admin.run_workflows(
             workflows=workflows,
-            options=options,
         )
 
     async def aio_run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> list[WorkflowRunRef]:
         return await self.client.admin.aio_run_workflows(
             workflows=workflows,
-            options=options,
         )
 
     def schedule(
@@ -328,7 +324,7 @@ class Workflow(Generic[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        timeout: timedelta = timedelta(minutes=60),
+        timeout: timedelta | str = timedelta(minutes=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -396,7 +392,7 @@ class Workflow(Generic[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        timeout: timedelta = timedelta(minutes=60),
+        timeout: timedelta | str = timedelta(minutes=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,

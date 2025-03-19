@@ -13,6 +13,7 @@ export default function Authenticated() {
 
   const userQuery = useQuery({
     queryKey: ['user:get:current'],
+    retry: false,
     queryFn: async () => {
       const res = await api.userGetCurrent();
       return res.data;
@@ -21,6 +22,7 @@ export default function Authenticated() {
 
   const invitesQuery = useQuery({
     queryKey: ['user:list-tenant-invites'],
+    retry: false,
     queryFn: async () => {
       const res = await api.userListTenantInvites();
       return res.data.rows || [];
@@ -29,6 +31,7 @@ export default function Authenticated() {
 
   const listMembershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
+    retry: false,
   });
 
   const ctx = useContextFromParent({

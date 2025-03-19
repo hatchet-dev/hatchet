@@ -385,6 +385,7 @@ export class V0Worker {
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
+          // delete the run from the futures
           delete this.futures[key];
           delete this.contexts[key];
         }
@@ -406,6 +407,7 @@ export class V0Worker {
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
+          // delete the run from the futures
           delete this.futures[key];
           delete this.contexts[key];
         }
@@ -467,16 +469,14 @@ export class V0Worker {
   }
 
   async handleCancelStepRun(action: Action) {
+    const { stepRunId } = action;
     try {
       this.logger.info(`Cancelling step run ${action.stepRunId}`);
-
-      const { stepRunId } = action;
       const future = this.futures[stepRunId];
       const context = this.contexts[stepRunId];
 
       if (context && context.controller) {
         context.controller.abort('Cancelled by worker');
-        delete this.contexts[stepRunId];
       }
 
       if (future) {
@@ -485,10 +485,12 @@ export class V0Worker {
         });
         future.cancel('Cancelled by worker');
         await future.promise;
-        delete this.futures[stepRunId];
       }
     } catch (e: any) {
       this.logger.error('Could not cancel step run: ', e);
+    } finally {
+      delete this.futures[stepRunId];
+      delete this.contexts[stepRunId];
     }
   }
 
