@@ -34,6 +34,8 @@ type CandidateEventMatch struct {
 type CreateMatchOpts struct {
 	Kind sqlcv1.V1MatchKind
 
+	ExistingMatchData []byte
+
 	Conditions []GroupMatchCondition
 
 	TriggerDAGId *int64
@@ -261,6 +263,8 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 	tasks := make([]*sqlcv1.V1Task, 0)
 
 	if len(dagIds) > 0 {
+		// TODO: CREATE ADDITIONAL MATCHES
+
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{
 			Dagids:         dagIds,
 			Daginsertedats: dagInsertedAts,
@@ -504,6 +508,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	// create the event matches first
 	dagTenantIds := make([]pgtype.UUID, 0, len(eventMatches))
 	dagKinds := make([]string, 0, len(eventMatches))
+	dagExistingDatas := make([][]byte, 0, len(eventMatches))
 	triggerDagIds := make([]int64, 0, len(eventMatches))
 	triggerDagInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
 	triggerStepIds := make([]pgtype.UUID, 0, len(eventMatches))
@@ -529,6 +534,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		if match.TriggerDAGId != nil && match.TriggerDAGInsertedAt.Valid && match.TriggerStepId != nil && match.TriggerExternalId != nil {
 			dagTenantIds = append(dagTenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			dagKinds = append(dagKinds, string(match.Kind))
+			dagExistingDatas = append(dagExistingDatas, match.ExistingMatchData)
 			triggerDagIds = append(triggerDagIds, *match.TriggerDAGId)
 			triggerDagInsertedAts = append(triggerDagInsertedAts, match.TriggerDAGInsertedAt)
 			triggerStepIds = append(triggerStepIds, sqlchelpers.UUIDFromStr(*match.TriggerStepId))
@@ -571,6 +577,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			sqlcv1.CreateMatchesForDAGTriggersParams{
 				Tenantids:                     dagTenantIds,
 				Kinds:                         dagKinds,
+				ExistingDatas:                 dagExistingDatas,
 				Triggerdagids:                 triggerDagIds,
 				Triggerdaginsertedats:         triggerDagInsertedAts,
 				Triggerstepids:                triggerStepIds,
@@ -650,6 +657,138 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId string, satisfiedMatches []*sqlcv1.SaveSatisfiedMatchConditionsRow) error { // nolint: unused
+	additionalMatchStepIds := make([]pgtype.UUID, 0, len(satisfiedMatches))
+
+	for _, match := range satisfiedMatches {
+		if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
+			additionalMatchStepIds = append(additionalMatchStepIds, match.TriggerStepID)
+		}
+	}
+
+	// get the configs for the additional matches
+	stepMatchConditions, err := m.queries.ListStepMatchConditions(
+		ctx,
+		tx,
+		sqlcv1.ListStepMatchConditionsParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Stepids:  additionalMatchStepIds,
+		},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	stepIdsToConditions := make(map[string][]*sqlcv1.V1StepMatchCondition)
+
+	for _, condition := range stepMatchConditions {
+		stepId := sqlchelpers.UUIDToStr(condition.StepID)
+		if _, ok := stepIdsToConditions[stepId]; !ok {
+			stepIdsToConditions[stepId] = make([]*sqlcv1.V1StepMatchCondition, 0)
+		}
+
+		stepIdsToConditions[stepId] = append(stepIdsToConditions[stepId], condition)
+	}
+
+	additionalMatches := make([]CreateMatchOpts, 0, len(satisfiedMatches))
+
+	for _, match := range satisfiedMatches {
+		if match.TriggerStepID.Valid && match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
+			conditions, ok := stepIdsToConditions[sqlchelpers.UUIDToStr(match.TriggerStepID)]
+
+			if !ok {
+				continue
+			}
+
+			triggerExternalId := sqlchelpers.UUIDToStr(match.TriggerExternalID)
+			triggerWorkflowRunId := sqlchelpers.UUIDToStr(match.TriggerWorkflowRunID)
+			triggerStepId := sqlchelpers.UUIDToStr(match.TriggerStepID)
+
+			// copy over the match data
+			opt := CreateMatchOpts{
+				Kind:                          sqlcv1.V1MatchKindTRIGGER,
+				ExistingMatchData:             match.McAggregatedData,
+				Conditions:                    make([]GroupMatchCondition, 0),
+				TriggerDAGId:                  &match.TriggerDagID.Int64,
+				TriggerDAGInsertedAt:          match.TriggerDagInsertedAt,
+				TriggerExternalId:             &triggerExternalId,
+				TriggerWorkflowRunId:          &triggerWorkflowRunId,
+				TriggerStepId:                 &triggerStepId,
+				TriggerStepIndex:              match.TriggerStepIndex,
+				TriggerExistingTaskId:         &match.TriggerExistingTaskID.Int64,
+				TriggerExistingTaskInsertedAt: match.TriggerExistingTaskInsertedAt,
+				TriggerParentTaskExternalId:   match.TriggerParentTaskExternalID,
+				TriggerParentTaskId:           match.TriggerParentTaskID,
+				TriggerParentTaskInsertedAt:   match.TriggerParentTaskInsertedAt,
+				TriggerChildIndex:             match.TriggerChildIndex,
+				TriggerChildKey:               match.TriggerChildKey,
+			}
+
+			for _, condition := range conditions {
+				var (
+					eventKey   string
+					eventType  sqlcv1.V1EventType
+					expression string
+				)
+
+				switch condition.Kind {
+				case sqlcv1.V1StepMatchConditionKindSLEEP:
+					// FIXME: make this a proper bulk write
+					sleep, err := m.queries.CreateDurableSleep(ctx, tx, sqlcv1.CreateDurableSleepParams{
+						TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+						SleepDurations: []string{condition.SleepDuration.String},
+					})
+
+					if err != nil {
+						return err
+					}
+
+					if len(sleep) != 1 {
+						return fmt.Errorf("expected 1 sleep to be created, but got %d", len(sleep))
+					}
+
+					eventKey = fmt.Sprintf("sleep-%d", sleep[0].ID)
+					eventType = sqlcv1.V1EventTypeINTERNAL
+					expression = "true"
+				case sqlcv1.V1StepMatchConditionKindUSEREVENT:
+					eventKey = condition.EventKey.String
+					eventType = sqlcv1.V1EventTypeUSER
+					expression = condition.Expression.String
+
+					if expression == "" {
+						expression = "true"
+					}
+				default:
+					// PARENT_OVERRIDE is another kind, but it isn't processed here
+					continue
+				}
+
+				opt.Conditions = append(opt.Conditions, GroupMatchCondition{
+					GroupId:         sqlchelpers.UUIDToStr(condition.OrGroupID),
+					EventType:       eventType,
+					EventKey:        eventKey,
+					ReadableDataKey: condition.ReadableDataKey,
+					Expression:      expression,
+					Action:          condition.Action,
+				})
+			}
+
+			additionalMatches = append(additionalMatches, opt)
+		}
+	}
+
+	if len(additionalMatches) > 0 {
+		err := m.createEventMatches(ctx, tx, tenantId, additionalMatches)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
