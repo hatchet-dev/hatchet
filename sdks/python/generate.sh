@@ -85,7 +85,6 @@ for entry in "${proto_paths[@]}"; do
     "$proto_file"
 done
 
-
 git restore pyproject.toml poetry.lock
 
 poetry install --all-extras
