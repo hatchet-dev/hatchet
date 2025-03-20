@@ -1005,10 +1005,11 @@ func (ns NullV1LogLineLevel) Value() (driver.Value, error) {
 type V1MatchConditionAction string
 
 const (
-	V1MatchConditionActionCREATE V1MatchConditionAction = "CREATE"
-	V1MatchConditionActionQUEUE  V1MatchConditionAction = "QUEUE"
-	V1MatchConditionActionCANCEL V1MatchConditionAction = "CANCEL"
-	V1MatchConditionActionSKIP   V1MatchConditionAction = "SKIP"
+	V1MatchConditionActionCREATE      V1MatchConditionAction = "CREATE"
+	V1MatchConditionActionQUEUE       V1MatchConditionAction = "QUEUE"
+	V1MatchConditionActionCANCEL      V1MatchConditionAction = "CANCEL"
+	V1MatchConditionActionSKIP        V1MatchConditionAction = "SKIP"
+	V1MatchConditionActionCREATEMATCH V1MatchConditionAction = "CREATE_MATCH"
 )
 
 func (e *V1MatchConditionAction) Scan(src interface{}) error {
@@ -2506,6 +2507,7 @@ type V1Match struct {
 	TenantID                      pgtype.UUID        `json:"tenant_id"`
 	Kind                          V1MatchKind        `json:"kind"`
 	IsSatisfied                   bool               `json:"is_satisfied"`
+	ExistingData                  []byte             `json:"existing_data"`
 	SignalTaskID                  pgtype.Int8        `json:"signal_task_id"`
 	SignalTaskInsertedAt          pgtype.Timestamptz `json:"signal_task_inserted_at"`
 	SignalExternalID              pgtype.UUID        `json:"signal_external_id"`
@@ -2618,6 +2620,8 @@ type V1StepMatchCondition struct {
 	OrGroupID        pgtype.UUID              `json:"or_group_id"`
 	Expression       pgtype.Text              `json:"expression"`
 	Kind             V1StepMatchConditionKind `json:"kind"`
+	SleepDuration    pgtype.Text              `json:"sleep_duration"`
+	EventKey         pgtype.Text              `json:"event_key"`
 	ParentReadableID pgtype.Text              `json:"parent_readable_id"`
 }
 

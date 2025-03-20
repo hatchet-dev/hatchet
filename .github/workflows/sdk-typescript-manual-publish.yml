@@ -2,7 +2,6 @@ name: typescript-manual-publish
 on:
   workflow_dispatch:
 
-
 defaults:
   run:
     working-directory: ./sdks/typescript

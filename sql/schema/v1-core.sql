@@ -379,6 +379,11 @@ CREATE TABLE v1_match (
     tenant_id UUID NOT NULL,
     kind v1_match_kind NOT NULL,
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+    -- existing_data is data that from previous match conditions that we'd like to propagate when the
+    -- new match condition is met. this is used when this is a match created from a previous match, for
+    -- example when we've satisfied trigger conditions and would like to register durable sleep, user events
+    -- before triggering the DAG.
+    existing_data JSONB,
     signal_task_id bigint,
     signal_task_inserted_at timestamptz,
     signal_external_id UUID,
@@ -409,7 +414,7 @@ CREATE TYPE v1_event_type AS ENUM ('USER', 'INTERNAL');
 -- negative conditions from positive conditions. For example, if a task is waiting for a set of
 -- tasks to fail, the success of all tasks would be a CANCEL condition, and the failure of any
 -- task would be a QUEUE condition. Different actions are implicitly different groups of conditions.
-CREATE TYPE v1_match_condition_action AS ENUM ('CREATE', 'QUEUE', 'CANCEL', 'SKIP');
+CREATE TYPE v1_match_condition_action AS ENUM ('CREATE', 'QUEUE', 'CANCEL', 'SKIP', 'CREATE_MATCH');
 
 CREATE TABLE v1_match_condition (
     v1_match_id bigint NOT NULL,
@@ -982,44 +987,18 @@ BEGIN
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
     )
-    INSERT INTO v1_concurrency_slot (
-        task_id,
-        task_inserted_at,
-        task_retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        priority,
-        key,
-        next_keys,
-        queue_to_notify,
-        schedule_timeout_at
-    )
-    SELECT
-        id,
-        inserted_at,
-        retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        4,
-        key,
-        next_keys,
-        queue,
-        schedule_timeout_at
-    FROM new_slot_rows;
+    UPDATE
+        v1_concurrency_slot cs
+    SET
+        task_retry_count = nt.retry_count,
+        is_filled = FALSE,
+        priority = 4
+    FROM
+        new_slot_rows nt
+    WHERE
+        cs.task_id = nt.id
+        AND cs.task_inserted_at = nt.inserted_at
+        AND cs.strategy_id = nt.strategy_id;
 
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -1401,6 +1380,10 @@ CREATE TABLE v1_step_match_condition (
     or_group_id UUID NOT NULL,
     expression TEXT,
     kind v1_step_match_condition_kind NOT NULL,
+    -- If this is a SLEEP condition, this will be set to the sleep duration
+    sleep_duration TEXT,
+    -- If this is a USER_EVENT condition, this will be set to the user event key
+    event_key TEXT,
     -- If this is a PARENT_OVERRIDE condition, this will be set to the parent readable_id
     parent_readable_id TEXT,
     PRIMARY KEY (step_id, id)
