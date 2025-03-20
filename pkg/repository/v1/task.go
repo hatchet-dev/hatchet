@@ -70,7 +70,7 @@ type ReplayTasksResult struct {
 
 	UpsertedTasks []*sqlcv1.V1Task
 
-	InternalEventResults *InternalEventMatchResults
+	InternalEventResults *EventMatchResults
 }
 
 type ReplayTaskOpts struct {
@@ -215,6 +215,8 @@ type TaskRepository interface {
 	ProcessTaskReassignments(ctx context.Context, tenantId string) (*FailTasksResponse, bool, error)
 
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error)
+
+	ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error)
 
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
@@ -1095,6 +1097,63 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	}
 
 	return res, len(res) == limit, nil
+}
+
+type durableSleepEventData struct {
+	SleepDuration string `json:"sleep_duration"`
+}
+
+func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	limit := 1000
+
+	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
+		TenantID: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true},
+	})
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// each emitted item becomes a candidate event match for internal events
+	events := make([]CandidateEventMatch, 0, len(emitted))
+
+	for _, sleep := range emitted {
+		data, err := json.Marshal(durableSleepEventData{
+			SleepDuration: sleep.SleepDuration,
+		})
+
+		if err != nil {
+			return nil, false, err
+		}
+
+		events = append(events, CandidateEventMatch{
+			ID:             uuid.New().String(),
+			EventTimestamp: time.Now(),
+			Key:            getDurableSleepEventKey(sleep.ID),
+			Data:           data,
+		})
+	}
+
+	results, err := r.processEventMatches(ctx, tx, tenantId, events, sqlcv1.V1EventTypeINTERNAL)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return results, len(emitted) == limit, nil
 }
 
 func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error) {
@@ -2544,7 +2603,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 							parentExternalId := sqlchelpers.UUIDToStr(otherTask.ExternalID)
 							readableId := otherTask.StepReadableID
 
-							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId)...)
+							// TODO: figure out what to do with additional match conditions before merge
+							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, false)...)
 						}
 					}
 				}
@@ -2586,7 +2646,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 	// process event matches
 	// TODO: signal the event matches to the caller
-	internalMatchResults, err := r.processInternalEventMatches(ctx, tx, tenantId, candidateEvents)
+	internalMatchResults, err := r.processEventMatches(ctx, tx, tenantId, candidateEvents, sqlcv1.V1EventTypeINTERNAL)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to process internal event matches: %w", err)

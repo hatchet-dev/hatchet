@@ -73,7 +73,7 @@ type CreateMatchOpts struct {
 	SignalKey *string
 }
 
-type InternalEventMatchResults struct {
+type EventMatchResults struct {
 	// The list of tasks which were created from the matches
 	CreatedTasks []*sqlcv1.V1Task
 
@@ -103,7 +103,8 @@ type GroupMatchCondition struct {
 }
 
 type MatchRepository interface {
-	ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*InternalEventMatchResults, error)
+	ProcessUserEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error)
+	ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error)
 }
 
 type MatchRepositoryImpl struct {
@@ -117,7 +118,7 @@ func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
 }
 
 // ProcessInternalEventMatches processes a list of internal events
-func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*InternalEventMatchResults, error) {
+func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
 
 	if err != nil {
@@ -126,7 +127,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 	defer rollback()
 
-	res, err := m.processInternalEventMatches(ctx, tx, tenantId, events)
+	res, err := m.processEventMatches(ctx, tx, tenantId, events, sqlcv1.V1EventTypeINTERNAL)
 
 	if err != nil {
 		return nil, err
@@ -139,10 +140,33 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	return res, nil
 }
 
-func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId string, events []CandidateEventMatch) (*InternalEventMatchResults, error) {
+// ProcessUserEventMatches processes a list of user events
+func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*EventMatchResults, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	res, err := m.processEventMatches(ctx, tx, tenantId, events, sqlcv1.V1EventTypeUSER)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId string, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
 	start := time.Now()
 
-	res := &InternalEventMatchResults{}
+	res := &EventMatchResults{}
 
 	eventKeys := make([]string, 0, len(events))
 	resourceHints := make([]pgtype.Text, 0, len(events))
@@ -174,7 +198,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 		tx,
 		sqlcv1.ListMatchConditionsForEventParams{
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-			Eventtype:          sqlcv1.V1EventTypeINTERNAL,
+			Eventtype:          eventType,
 			Eventkeys:          eventKeys,
 			Eventresourcehints: resourceHints,
 		},
@@ -767,7 +791,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						return fmt.Errorf("expected 1 sleep to be created, but got %d", len(sleep))
 					}
 
-					eventKey = fmt.Sprintf("sleep-%d", sleep[0].ID)
+					eventKey = getDurableSleepEventKey(sleep[0].ID)
 					eventType = sqlcv1.V1EventTypeINTERNAL
 					expression = "true"
 				case sqlcv1.V1StepMatchConditionKindUSEREVENT:
@@ -806,4 +830,8 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 	}
 
 	return nil
+}
+
+func getDurableSleepEventKey(sleepId int64) string {
+	return fmt.Sprintf("sleep-%d", sleepId)
 }

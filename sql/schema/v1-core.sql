@@ -1419,5 +1419,6 @@ CREATE TABLE v1_durable_sleep (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     sleep_until TIMESTAMPTZ NOT NULL,
+    sleep_duration TEXT NOT NULL,
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
