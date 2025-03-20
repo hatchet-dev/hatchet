@@ -62,7 +62,7 @@ class Worker:
     def __init__(
         self,
         name: str,
-        config: ClientConfig = ClientConfig(),
+        config: ClientConfig,
         slots: int | None = None,
         labels: dict[str, str | int] = {},
         debug: bool = False,

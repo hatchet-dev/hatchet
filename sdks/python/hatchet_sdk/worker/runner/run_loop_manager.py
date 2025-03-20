@@ -75,11 +75,11 @@ class WorkerActionRunLoopManager:
         self.runner = Runner(
             self.name,
             self.event_queue,
+            self.config,
             self.slots,
             self.handle_kill,
             self.action_registry,
             self.validator_registry,
-            self.config,
             self.labels,
         )
 

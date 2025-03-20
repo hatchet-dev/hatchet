@@ -56,11 +56,11 @@ class Runner:
         self,
         name: str,
         event_queue: "Queue[ActionEvent]",
+        config: ClientConfig,
         slots: int | None = None,
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
         validator_registry: dict[str, WorkflowValidator] = {},
-        config: ClientConfig = ClientConfig(),
         labels: dict[str, str | int] = {},
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
