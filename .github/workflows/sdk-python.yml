@@ -119,7 +119,6 @@ jobs:
         working-directory: .
         run: |
           echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
           echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert" >> $GITHUB_ENV
 
       - name: Set HATCHET_CLIENT_NAMESPACE
