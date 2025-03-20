@@ -213,8 +213,6 @@ class AdminClient:
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         opts = self._prepare_put_workflow_request(name, workflow, overrides)
 
-        print("\n\nPutting workflow", opts, get_metadata(self.token))
-
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
             self.client.PutWorkflow(
@@ -326,8 +324,8 @@ class AdminClient:
 
         try:
             resp = cast(
-                workflow_protos.TriggerWorkflowRunResponse,
-                self.client.TriggerWorkflowRun(
+                v0_workflow_protos.TriggerWorkflowResponse,
+                self.v0_client.TriggerWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -337,7 +335,7 @@ class AdminClient:
                 raise DedupeViolationErr(e.details())
 
         return WorkflowRunRef(
-            workflow_run_id=resp.external_id,
+            workflow_run_id=resp.workflow_run_id,
             workflow_listener=self.pooled_workflow_listener,
             workflow_run_event_listener=self.listener_client,
         )
@@ -361,7 +359,7 @@ class AdminClient:
 
         try:
             resp = cast(
-                workflow_protos.TriggerWorkflowRunResponse,
+                v0_workflow_protos.TriggerWorkflowResponse,
                 self.client.TriggerWorkflowRun(
                     request,
                     metadata=get_metadata(self.token),
@@ -374,7 +372,7 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
-            workflow_run_id=resp.external_id,
+            workflow_run_id=resp.workflow_run_id,
             workflow_listener=self.pooled_workflow_listener,
             workflow_run_event_listener=self.listener_client,
         )
