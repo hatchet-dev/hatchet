@@ -14,8 +14,8 @@ from hatchet_sdk.opentelemetry.instrumentor import (
 
 trace_provider = NoOpTracerProvider()
 
-instrumentor = HatchetInstrumentor(tracer_provider=trace_provider)
-instrumentor.instrument()
+HatchetInstrumentor(tracer_provider=trace_provider).uninstrument()
+HatchetInstrumentor(tracer_provider=trace_provider).instrument()
 
 tracer = trace_provider.get_tracer(__name__)
 

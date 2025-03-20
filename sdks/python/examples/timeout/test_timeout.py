@@ -10,11 +10,8 @@ from hatchet_sdk import Hatchet, Worker
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
     run = timeout_wf.run()
 
-    try:
+    with pytest.raises(Exception, match="Task exceeded timeout"):
         await run.aio_result()
-        assert False, "Expected workflow to timeout"
-    except Exception as e:
-        assert str(e) == "Workflow Errors: ['TIMED_OUT']"
 
 
 @pytest.mark.asyncio(scope="session")
