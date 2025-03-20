@@ -278,7 +278,7 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> workflow_protos.TriggerWorkflowRequest:
+    ) -> workflow_protos.TriggerWorkflowRunRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
@@ -361,8 +361,8 @@ class AdminClient:
 
         try:
             resp = cast(
-                workflow_protos.TriggerWorkflowResponse,
-                self.client.TriggerWorkflow(
+                workflow_protos.TriggerWorkflowRunResponse,
+                self.client.TriggerWorkflowRun(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -426,7 +426,7 @@ class AdminClient:
             self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
 
         async with spawn_index_lock:
-            bulk_request = workflow_protos.BulkTriggerWorkflowRequest(
+            bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
                 workflows=[
                     self._create_workflow_run_request(
                         workflow.workflow_name, workflow.input, workflow.options
@@ -436,8 +436,8 @@ class AdminClient:
             )
 
         resp = cast(
-            workflow_protos.BulkTriggerWorkflowResponse,
-            self.client.BulkTriggerWorkflow(
+            v0_workflow_protos.BulkTriggerWorkflowResponse,
+            self.v0_client.BulkTriggerWorkflow(
                 bulk_request,
                 metadata=get_metadata(self.token),
             ),
