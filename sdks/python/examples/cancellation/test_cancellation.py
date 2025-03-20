@@ -8,7 +8,5 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["cancellation"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    result = await wf.aio_run_and_get_result()
-
-    # TODO is this the expected result for a timed out run...
-    assert result == {}
+    with pytest.raises(Exception, match="Task exceeded timeout"):
+        await wf.aio_run_and_get_result()
