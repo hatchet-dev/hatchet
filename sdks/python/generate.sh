@@ -87,9 +87,9 @@ done
 
 ## Hack to fix broken import paths with absolute paths
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  find ./hatchet_sdk/contracts -type f -name '*.py' -exec sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
+  find ./hatchet_sdk/contracts -type f -name '*.py.*' -exec sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
 else
-  find ./hatchet_sdk/contracts -type f -name '*.py' -exec sed -i 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
+  find ./hatchet_sdk/contracts -type f -name '*.py.*' -exec sed -i 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
 fi
 
 git restore pyproject.toml poetry.lock
