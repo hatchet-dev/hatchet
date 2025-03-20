@@ -10,7 +10,7 @@ from hatchet_sdk import Hatchet, Worker
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
     run = timeout_wf.run()
 
-    with pytest.raises(Exception, match="Task exceeded timeout"):
+    with pytest.raises(Exception, match="(Task exceeded timeout|TIMED OUT)"):
         await run.aio_result()
 
 
