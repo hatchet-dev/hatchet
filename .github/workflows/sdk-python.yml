@@ -124,6 +124,8 @@ jobs:
             HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
           EOF
 
+          cat .env >> $GITHUB_ENV
+
       - name: Set HATCHET_CLIENT_NAMESPACE
         run: |
           PYTHON_VERSION=$(python -c "import sys; print(f'py{sys.version_info.major}{sys.version_info.minor}')")
