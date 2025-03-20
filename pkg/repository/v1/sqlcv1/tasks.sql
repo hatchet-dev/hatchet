@@ -249,6 +249,11 @@ WITH input AS (
         step_id
     FROM
         v1_task
+    -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
+    -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
+    -- a retry.
+    JOIN
+        v1_task_runtime rt ON rt.task_id = v1_task.id AND rt.task_inserted_at = v1_task.inserted_at AND rt.retry_count = v1_task.retry_count
     WHERE
         (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
         AND tenant_id = @tenantId::uuid
@@ -300,6 +305,11 @@ WITH input AS (
         id
     FROM
         v1_task
+    -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
+    -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
+    -- a retry.
+    JOIN
+        v1_task_runtime rt ON rt.task_id = v1_task.id AND rt.task_inserted_at = v1_task.inserted_at AND rt.retry_count = v1_task.retry_count
     WHERE
         (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
         AND tenant_id = @tenantId::uuid
