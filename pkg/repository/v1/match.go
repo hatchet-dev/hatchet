@@ -263,8 +263,6 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 	tasks := make([]*sqlcv1.V1Task, 0)
 
 	if len(dagIds) > 0 {
-		// TODO: CREATE ADDITIONAL MATCHES
-
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{
 			Dagids:         dagIds,
 			Daginsertedats: dagInsertedAts,
@@ -286,8 +284,15 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 		createTaskOpts := make([]CreateTaskOpts, 0, len(satisfiedMatches))
 		replayTaskOpts := make([]ReplayTaskOpts, 0, len(satisfiedMatches))
 
+		dependentMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
+
 		for _, match := range satisfiedMatches {
 			if match.TriggerStepID.Valid && match.TriggerExternalID.Valid {
+				if match.Action == sqlcv1.V1MatchConditionActionCREATEMATCH {
+					dependentMatches = append(dependentMatches, match)
+					continue
+				}
+
 				var input, additionalMetadata []byte
 
 				if match.TriggerDagID.Valid {
@@ -370,6 +375,15 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 
 					createTaskOpts = append(createTaskOpts, opt)
 				}
+			}
+		}
+
+		// create dependent matches
+		if len(dependentMatches) > 0 {
+			err = m.createAdditionalMatches(ctx, tx, tenantId, dependentMatches)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to create additional matches: %w", err)
 			}
 		}
 
