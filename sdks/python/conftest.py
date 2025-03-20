@@ -44,24 +44,16 @@ def token() -> str:
 
 
 @pytest_asyncio.fixture(scope="session")
-async def aiohatchet(token: str) -> AsyncGenerator[Hatchet, None]:
+async def aiohatchet() -> AsyncGenerator[Hatchet, None]:
     yield Hatchet(
         debug=True,
-        config=ClientConfig(
-            token=token,
-            tls_config=ClientTLSConfig(strategy="none"),
-        ),
     )
 
 
 @pytest.fixture(scope="session")
-def hatchet(token: str) -> Hatchet:
+def hatchet() -> Hatchet:
     return Hatchet(
         debug=True,
-        config=ClientConfig(
-            token=token,
-            tls_config=ClientTLSConfig(strategy="none"),
-        ),
     )
 
 
