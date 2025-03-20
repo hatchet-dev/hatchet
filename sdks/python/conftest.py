@@ -66,14 +66,15 @@ def worker(
     if proc.poll() is not None:
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
-    wait_for_worker_health()
-
     def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
         for line in iter(pipe.readline, b""):
             print(line.decode().strip())
 
     Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
     Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()
+
+    wait_for_worker_health()
+
 
     yield proc
 
