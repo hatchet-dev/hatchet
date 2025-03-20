@@ -2,71 +2,12 @@
 /* eslint-disable no-shadow */
 /* eslint-disable max-classes-per-file */
 
-export enum Action {
-  CREATE = 0,
-  QUEUE = 1,
-  CANCEL = 2,
-  SKIP = 3,
-  UNRECOGNIZED = -1,
-}
+import { Condition, Action } from './base';
+import { Sleep, SleepCondition } from './sleep-condition';
+import { UserEvent, UserEventCondition } from './user-event-condition';
 
-export interface BaseCondition {
-  eventKey?: string; // remove
-  readableDataKey?: string;
-  action?: Action;
-  /** a UUID defining the OR group for this condition */
-  orGroupId?: string;
-  expression?: string; // options
-}
-
-export abstract class Condition {
-  base: BaseCondition;
-
-  constructor(base: BaseCondition) {
-    this.base = base;
-  }
-}
-
+export { Sleep, SleepCondition, UserEvent, UserEventCondition };
 // TODO export from root?
-export interface Sleep {
-  sleepFor: number; // seconds
-}
-
-export class SleepCondition extends Condition {
-  // TODO duration consistency
-  sleepFor: number; // seconds
-
-  constructor(sleepFor: number, action?: Action) {
-    super({
-      readableDataKey: '',
-      action,
-      orGroupId: '',
-      expression: '',
-    });
-    this.sleepFor = sleepFor;
-  }
-}
-
-export interface UserEvent {
-  eventKey: string;
-  expression?: string;
-}
-
-export class UserEventCondition extends Condition {
-  eventKey: string;
-  expression: string;
-
-  constructor(eventKey: string, expression: string, action?: Action) {
-    super({
-      readableDataKey: '',
-      action,
-      orGroupId: '',
-      expression: '',
-    });
-    this.eventKey = eventKey;
-    this.expression = expression;
-  }
-}
 
 export type IConditions = Sleep | UserEvent;
 

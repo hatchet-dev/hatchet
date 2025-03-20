@@ -1,3 +1,4 @@
+import { Action, Condition } from './base';
 import {
   SleepCondition,
   UserEventCondition,
@@ -6,8 +7,6 @@ import {
   OrCondition,
   Sleep,
   UserEvent,
-  Condition,
-  Action,
 } from './index';
 
 export function render(condition: Condition | OrCondition): string {

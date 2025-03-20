@@ -5,15 +5,9 @@ import {
   UserEventMatchCondition,
   BaseMatchCondition,
 } from '@hatchet/protoc/v1/shared/condition';
-import {
-  Render,
-  Action,
-  SleepCondition,
-  UserEventCondition,
-  BaseCondition,
-  generateGroupId,
-} from '.';
+import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
 import { CreateTaskOpts } from '../task';
+import { Action, BaseCondition } from './base';
 
 export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditions {
   const queueIfConditions = Render(Action.QUEUE, task.queueIf);
@@ -49,6 +43,7 @@ export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditio
     userEventConditions,
   };
 
+  // TODO remove
   console.log(JSON.stringify(res, null, 2));
 
   return res;
