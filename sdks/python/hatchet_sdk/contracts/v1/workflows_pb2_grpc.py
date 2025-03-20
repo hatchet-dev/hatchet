@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from v1 import workflows_pb2 as v1_dot_workflows__pb2
+from hatchet_sdk.contracts.v1 import workflows_pb2 as v1_dot_workflows__pb2
 
 GRPC_GENERATED_VERSION = '1.64.1'
 GRPC_VERSION = grpc.__version__

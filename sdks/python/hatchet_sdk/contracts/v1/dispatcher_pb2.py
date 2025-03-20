@@ -12,7 +12,7 @@ from google.protobuf.internal import builder as _builder
 _sym_db = _symbol_database.Default()
 
 
-from v1.shared import condition_pb2 as v1_dot_shared_dot_condition__pb2
+from hatchet_sdk.contracts.v1.shared import condition_pb2 as v1_dot_shared_dot_condition__pb2
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13v1/dispatcher.proto\x12\x02v1\x1a\x19v1/shared/condition.proto\"\x7f\n\x1bRegisterDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x17\n\x0fworkflow_run_id\x18\x02 \x01(\t\x12\x36\n\nconditions\x18\x03 \x01(\x0b\x32\".v1.DurableEventListenerConditions\"0\n\x1cRegisterDurableEventResponse\x12\x10\n\x08match_id\x18\x01 \x01(\x03\"A\n\x1cListenForDurableEventRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x10\n\x08match_id\x18\x02 \x01(\x03\"?\n\x0c\x44urableEvent\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x10\n\x08match_id\x18\x02 \x01(\x03\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\x32\xbe\x01\n\x0cV1Dispatcher\x12[\n\x14RegisterDurableEvent\x12\x1f.v1.RegisterDurableEventRequest\x1a .v1.RegisterDurableEventResponse\"\x00\x12Q\n\x15ListenForDurableEvent\x12 .v1.ListenForDurableEventRequest\x1a\x10.v1.DurableEvent\"\x00(\x01\x30\x01\x42\x42Z@github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1b\x06proto3')
