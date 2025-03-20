@@ -11,36 +11,7 @@ import pytest
 import pytest_asyncio
 import requests
 
-from hatchet_sdk import ClientConfig, Hatchet
-from hatchet_sdk.config import ClientTLSConfig
-
-
-@pytest.fixture(scope="session", autouse=True)
-def token() -> str:
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "run",
-            "--no-deps",
-            "setup-config",
-            "/hatchet/hatchet-admin",
-            "token",
-            "create",
-            "--config",
-            "/hatchet/config",
-            "--tenant-id",
-            "707d0855-80ab-4e1f-a156-f1c4546cbf52",
-        ],
-        capture_output=True,
-        text=True,
-    )
-
-    token = result.stdout.strip()
-
-    os.environ["HATCHET_CLIENT_TOKEN"] = token
-
-    return token
+from hatchet_sdk import Hatchet
 
 
 @pytest_asyncio.fixture(scope="session")
