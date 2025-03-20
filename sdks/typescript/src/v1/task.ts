@@ -115,16 +115,56 @@ export type CreateTaskOpts<T, K> = {
 
   /**
    * (optional) the conditions to match before the task is queued
+   * all provided conditions must be met (AND logic)
+   * use Or() to create a condition that waits for any of the provided conditions to be met (OR logic)
+   *
+   * @example
+   * ```
+   * waitFor: [{ sleepFor: 5 }, { eventKey: 'user:update' }] // all conditions must be met
+   * ```
+   * @example
+   * ```
+   * waitFor: Or({ eventKey: 'user:update' }, { parent: firstTask }) // any of the conditions must be met
+   * ```
+   * @example
+   * ```
+   * waitFor: [{ sleepFor: 5 }, Or({ eventKey: 'user:update' }, { eventKey: 'user:delete' })] // sleep or both user:update or user:delete must be met
+   * ```
    */
-  queueIf?: Conditions | Conditions[];
+  waitFor?: Conditions | Conditions[];
 
   /**
-   * (optional) the conditions to match before the task is queued
+   * (optional) cancel the task if the conditions are met
+   * all provided conditions must be met (AND logic)
+   * use Or() to create a condition that waits for any of the provided conditions to be met (OR logic)
+   *
+   * @example
+   * ```
+   * cancelIf: { eventKey: 'user:update' } // cancel the task if the user:update event is received
+   * ```
+   * @example
+   * ```
+   * cancelIf: [{ sleepFor: 5 }, Or({ eventKey: 'user:update' }, { eventKey: 'user:delete' })] // cancel the task if the sleep or both user:update or user:delete are met
    */
   cancelIf?: Conditions | Conditions[];
 
   /**
-   * (optional) the conditions to match before the task is skipped
+   * (optional) skip the task if the conditions are met
+   * all provided conditions must be met (AND logic)
+   * use Or() to create a condition that waits for any of the provided conditions to be met (OR logic)
+   *
+   * @example
+   * ```
+   * skipIf: [{ eventKey: 'user:update' }] // skip the task if the user:update event is received
+   * ```
+   * @example
+   * ```
+   * skipIf: [{ sleepFor: 5 }, Or({ eventKey: 'user:update' }, { eventKey: 'user:delete' })] // skip the task if the sleep or both user:update or user:delete are met
+   * ```
+   * @example
+   * ```
+   * skipIf: [{ parent: firstTask }] // skip the task if the parent task completes
+   * ```
    */
   skipIf?: Conditions | Conditions[];
 };

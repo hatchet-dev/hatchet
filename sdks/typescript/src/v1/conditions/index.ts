@@ -3,13 +3,14 @@
 /* eslint-disable max-classes-per-file */
 
 import { Condition, Action } from './base';
+import { Parent, ParentCondition } from './parent-condition';
 import { Sleep, SleepCondition } from './sleep-condition';
 import { UserEvent, UserEventCondition } from './user-event-condition';
 
 export { Sleep, SleepCondition, UserEvent, UserEventCondition };
 // TODO export from root?
 
-export type IConditions = Sleep | UserEvent;
+export type IConditions = Sleep | UserEvent | Parent;
 
 export type Conditions = Condition | OrCondition | IConditions;
 
@@ -58,6 +59,12 @@ export function Render(action?: Action, conditions?: Conditions | Conditions[]):
       return [
         ...acc,
         new UserEventCondition(conditionOrObj.eventKey, conditionOrObj.expression || '', action),
+      ];
+    }
+    if ('parent' in conditionOrObj) {
+      return [
+        ...acc,
+        new ParentCondition(conditionOrObj.parent, conditionOrObj.expression || '', action),
       ];
     }
 

@@ -8,9 +8,10 @@ import {
 import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
 import { CreateTaskOpts } from '../task';
 import { Action, BaseCondition } from './base';
+import { ParentCondition } from './parent-condition';
 
 export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditions {
-  const queueIfConditions = Render(Action.QUEUE, task.queueIf);
+  const queueIfConditions = Render(Action.QUEUE, task.waitFor);
   const cancelIfConditions = Render(Action.CANCEL, task.cancelIf);
   const skipIfConditions = Render(Action.SKIP, task.skipIf);
   const mergedConditions = [...queueIfConditions, ...cancelIfConditions, ...skipIfConditions];
@@ -33,6 +34,11 @@ export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditio
           expression: condition.expression || '',
         },
         userEventKey: condition.eventKey,
+      });
+    } else if (condition instanceof ParentCondition) {
+      parentOverrideConditions.push({
+        base: baseToPb(condition.base),
+        parentReadableId: condition.parent.name,
       });
     }
   });

@@ -1,4 +1,5 @@
 import sleep from '@hatchet/util/sleep';
+import { Or } from '@hatchet/v1/conditions';
 import { hatchet } from '../client';
 
 type DagInput = {};
@@ -29,7 +30,7 @@ const firstTask = dagWithConditions.task({
 dagWithConditions.task({
   name: 'second-task',
   parents: [firstTask],
-  queueIf: { eventKey: 'user:update' },
+  waitFor: Or({ eventKey: 'user:update' }, { parent: firstTask }),
   fn: async () => {
     return {
       Completed: true,
