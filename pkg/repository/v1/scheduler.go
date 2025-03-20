@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -39,7 +40,7 @@ type QueueRepository interface {
 
 type RateLimitRepository interface {
 	ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error)
-	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error)
+	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error)
 }
 
 type AssignmentRepository interface {
