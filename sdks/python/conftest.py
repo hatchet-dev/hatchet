@@ -75,7 +75,6 @@ def worker(
 
     wait_for_worker_health()
 
-
     yield proc
 
     logging.info("Cleaning up background worker")
