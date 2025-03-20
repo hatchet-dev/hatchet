@@ -14,6 +14,7 @@ from hatchet_sdk.runnables.types import (
     is_async_fn,
     is_sync_fn,
 )
+from hatchet_sdk.waits.base import Condition
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
@@ -38,6 +39,9 @@ class Task(Generic[TWorkflowInput, R]):
         backoff_max_seconds: int | None = None,
         concurrency__slots: int | None = None,
         concurrency__limit_strategy: ConcurrencyLimitStrategy | None = None,
+        wait_for: list[Condition] = [],
+        skip_if: list[Condition] = [],
+        cancel_if: list[Condition] = [],
     ) -> None:
         self.fn = fn
         self.is_async_function = is_async_fn(fn)
@@ -54,6 +58,10 @@ class Task(Generic[TWorkflowInput, R]):
         self.backoff_max_seconds = backoff_max_seconds
         self.concurrency__slots = concurrency__slots
         self.concurrency__limit_strategy = concurrency__limit_strategy
+
+        self.wait_for = wait_for
+        self.skip_if = skip_if
+        self.cancel_if = cancel_if
 
     def call(self, ctx: Context) -> R:
         if self.is_async_function:
