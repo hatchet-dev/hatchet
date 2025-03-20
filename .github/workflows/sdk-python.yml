@@ -122,9 +122,6 @@ jobs:
           echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
           echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert" >> $GITHUB_ENV
 
-          echo "Printing CA file"
-          cat $HATCHET_CLIENT_TLS_ROOT_CA_FILE
-
       - name: Set HATCHET_CLIENT_NAMESPACE
         run: |
           PYTHON_VERSION=$(python -c "import sys; print(f'py{sys.version_info.major}{sys.version_info.minor}')")
