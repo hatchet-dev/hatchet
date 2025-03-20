@@ -360,7 +360,7 @@ class AdminClient:
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
-                self.client.TriggerWorkflowRun(
+                self.v0_client.TriggerWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
