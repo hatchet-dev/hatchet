@@ -100,9 +100,9 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> workflow_protos.TriggerWorkflowRunRequest:
+    ) -> v0_workflow_protos.TriggerWorkflowRequest:
         try:
-            payload_data = json.dumps(input).encode("utf-8")
+            payload_data = json.dumps(input)
         except json.JSONDecodeError as e:
             raise ValueError(f"Error encoding payload: {e}")
 
@@ -110,8 +110,8 @@ class AdminClient:
             options.model_dump()
         ).model_dump()
 
-        return workflow_protos.TriggerWorkflowRunRequest(
-            workflow_name=workflow_name, input=payload_data, **_options
+        return v0_workflow_protos.TriggerWorkflowRequest(
+            name=workflow_name, input=payload_data, **_options
         )
 
     def _prepare_put_workflow_request(
@@ -278,7 +278,7 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> workflow_protos.TriggerWorkflowRunRequest:
+    ) -> v0_workflow_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
