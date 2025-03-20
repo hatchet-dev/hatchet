@@ -30,7 +30,7 @@ def hatchet() -> Hatchet:
 
 def wait_for_worker_health() -> bool:
     worker_healthcheck_attempts = 0
-    max_healthcheck_attempts = 10
+    max_healthcheck_attempts = 25
 
     while True:
         if worker_healthcheck_attempts > max_healthcheck_attempts:
