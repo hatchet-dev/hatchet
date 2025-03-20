@@ -16,24 +16,16 @@ from hatchet_sdk import Hatchet
 
 @pytest_asyncio.fixture(scope="session")
 async def aiohatchet() -> AsyncGenerator[Hatchet, None]:
-    r = Hatchet(
+    yield Hatchet(
         debug=True,
     )
-
-    print(r.config)
-
-    yield r
 
 
 @pytest.fixture(scope="session")
 def hatchet() -> Hatchet:
-    r = Hatchet(
+    return Hatchet(
         debug=True,
     )
-
-    print(r.config)
-
-    return r
 
 
 def wait_for_worker_health() -> bool:
