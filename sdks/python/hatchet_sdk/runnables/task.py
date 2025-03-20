@@ -2,7 +2,10 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generic
 
 from hatchet_sdk.context.context import Context
-from hatchet_sdk.contracts.workflows_pb2 import CreateStepRateLimit, DesiredWorkerLabels
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    CreateTaskRateLimit,
+    DesiredWorkerLabels,
+)
 from hatchet_sdk.runnables.types import (
     ConcurrencyLimitStrategy,
     R,
@@ -29,7 +32,7 @@ class Task(Generic[TWorkflowInput, R]):
         timeout: timedelta = timedelta(minutes=60),
         parents: "list[Task[TWorkflowInput, Any]]" = [],
         retries: int = 0,
-        rate_limits: list[CreateStepRateLimit] = [],
+        rate_limits: list[CreateTaskRateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabels] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,

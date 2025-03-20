@@ -19,7 +19,7 @@ from prometheus_client import Gauge, generate_latest
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
+from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import Workflow
@@ -98,7 +98,7 @@ class Worker:
 
         self.register_workflows(workflows)
 
-    def register_workflow_from_opts(self, opts: CreateWorkflowVersionOpts) -> None:
+    def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
             self.client.admin.put_workflow(opts.name, opts)
         except Exception as e:

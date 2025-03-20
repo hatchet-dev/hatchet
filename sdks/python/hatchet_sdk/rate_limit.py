@@ -3,7 +3,7 @@ from enum import Enum
 
 from celpy import CELEvalError, Environment  # type: ignore
 
-from hatchet_sdk.contracts.workflows_pb2 import CreateStepRateLimit
+from hatchet_sdk.contracts.v1.workflows_pb2 import CreateTaskRateLimit
 
 
 def validate_cel_expression(expr: str) -> bool:
@@ -68,7 +68,7 @@ class RateLimit:
     limit: int | str | None = None
     duration: RateLimitDuration = RateLimitDuration.MINUTE
 
-    _req: CreateStepRateLimit | None = None
+    _req: CreateTaskRateLimit | None = None
 
     def __post_init__(self) -> None:
         # juggle the key and key_expr fields
@@ -107,7 +107,7 @@ class RateLimit:
         if key_expression is not None and limit_expression is None:
             raise ValueError("CEL based keys requires limit to be set")
 
-        self._req = CreateStepRateLimit(
+        self._req = CreateTaskRateLimit(
             key=key,
             key_expr=key_expression,
             units=units,

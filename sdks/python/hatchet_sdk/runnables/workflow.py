@@ -11,18 +11,14 @@ from hatchet_sdk.clients.admin import (
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.context.context import Context
-from hatchet_sdk.contracts.workflows_pb2 import (
-    CreateWorkflowJobOpts,
-    CreateWorkflowStepOpts,
-    CreateWorkflowVersionOpts,
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    Concurrency,
+    CreateTaskOpts,
+    CreateWorkflowVersionRequest,
     DesiredWorkerLabels,
 )
-from hatchet_sdk.contracts.workflows_pb2 import StickyStrategy as StickyStrategyProto
-from hatchet_sdk.contracts.workflows_pb2 import (
-    WorkflowConcurrencyOpts,
-    WorkflowKind,
-    WorkflowVersion,
-)
+from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
+from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
@@ -76,37 +72,30 @@ class Workflow(Generic[TWorkflowInput]):
     def _get_name(self, namespace: str) -> str:
         return namespace + self.config.name
 
-    def _validate_concurrency_options(self) -> WorkflowConcurrencyOpts | None:
+    def _validate_concurrency_options(self) -> Concurrency | None:
         if not self.config.concurrency:
             return None
 
-        return WorkflowConcurrencyOpts(
+        return Concurrency(
             expression=self.config.concurrency.expression,
             max_runs=self.config.concurrency.max_runs,
             limit_strategy=self.config.concurrency.limit_strategy,
         )
 
-    def _validate_on_failure_task(
-        self, name: str, service_name: str
-    ) -> CreateWorkflowJobOpts | None:
+    def _validate_on_failure_task(self, service_name: str) -> CreateTaskOpts | None:
         if not self._on_failure_task:
             return None
 
-        return CreateWorkflowJobOpts(
-            name=name + "-on-failure",
-            steps=[
-                CreateWorkflowStepOpts(
-                    readable_id=self._on_failure_task.name,
-                    action=service_name + ":" + self._on_failure_task.name,
-                    timeout=timedelta_to_expr(self._on_failure_task.timeout) or "60s",
-                    inputs="{}",
-                    parents=[],
-                    retries=self._on_failure_task.retries,
-                    rate_limits=self._on_failure_task.rate_limits,
-                    backoff_factor=self._on_failure_task.backoff_factor,
-                    backoff_max_seconds=self._on_failure_task.backoff_max_seconds,
-                )
-            ],
+        return CreateTaskOpts(
+            readable_id=self._on_failure_task.name,
+            action=service_name + ":" + self._on_failure_task.name,
+            timeout=timedelta_to_expr(self._on_failure_task.timeout) or "60s",
+            inputs="{}",
+            parents=[],
+            retries=self._on_failure_task.retries,
+            rate_limits=self._on_failure_task.rate_limits,
+            backoff_factor=self._on_failure_task.backoff_factor,
+            backoff_max_seconds=self._on_failure_task.backoff_max_seconds,
         )
 
     def _validate_priority(self, default_priority: int | None) -> int | None:
@@ -120,14 +109,14 @@ class Workflow(Generic[TWorkflowInput]):
 
         return validated_priority
 
-    def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionOpts:
+    def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionRequest:
         service_name = self._get_service_name(namespace)
 
         name = self._get_name(namespace)
         event_triggers = [namespace + event for event in self.config.on_events]
 
-        create_step_opts = [
-            CreateWorkflowStepOpts(
+        tasks = [
+            CreateTaskOpts(
                 readable_id=task.name,
                 action=service_name + ":" + task.name,
                 timeout=timedelta_to_expr(task.timeout) or "60s",
@@ -143,27 +132,23 @@ class Workflow(Generic[TWorkflowInput]):
             if task.type == StepType.DEFAULT
         ]
 
-        on_failure_job = self._validate_on_failure_task(name, service_name)
+        on_failure_job = self._validate_on_failure_task(service_name)
 
-        return CreateWorkflowVersionOpts(
+        return CreateWorkflowVersionRequest(
             name=name,
-            kind=WorkflowKind.DAG,
+            description=None,
             version=self.config.version,
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
-            schedule_timeout=timedelta_to_expr(self.config.schedule_timeout),
+            cron_input=None,
+            # schedule_timeout=timedelta_to_expr(self.config.schedule_timeout),
             sticky=maybe_int_to_str(
                 convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto)
             ),
-            jobs=[
-                CreateWorkflowJobOpts(
-                    name=name,
-                    steps=create_step_opts,
-                )
-            ],
-            on_failure_job=on_failure_job,
+            tasks=tasks,
+            on_failure_task=on_failure_job,
             concurrency=self._validate_concurrency_options(),
-            default_priority=self.config.default_priority,
+            # default_priority=self.config.default_priority,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
