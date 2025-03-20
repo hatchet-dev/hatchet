@@ -58,29 +58,70 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Hatchet Engine
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '25.1'
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Start Docker dependencies
+        working-directory: .
         run: docker compose up -d
 
+      - name: Generate
+        working-directory: .
+        run: |
+          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          go run ./cmd/hatchet-migrate
+          task generate-go
+
+      - name: Setup
+        working-directory: .
+        run: |
+          export SEED_DEVELOPMENT=true
+          export SERVER_PORT=8080
+          export SERVER_URL=http://localhost:8080
+          export SERVER_AUTH_COOKIE_DOMAIN=localhost
+          export SERVER_AUTH_COOKIE_INSECURE=true
+
+          go run ./cmd/hatchet-admin quickstart
+
+          go run ./cmd/hatchet-engine --config ./generated/ &
+          go run ./cmd/hatchet-api --config ./generated/ &
+
+          sleep 30
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
+
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
           version: 1.5.1
           virtualenvs-create: true
           virtualenvs-in-project: true
+
       - name: Install dependencies
         run: poetry install --no-interaction --all-extras
 
       - name: Generate Env File
+        working-directory: .
         run: |
           cat <<EOF > .env
-            HATCHET_CLIENT_TOKEN="$(docker compose run --no-deps setup-config /hatchet/hatchet-admin token create --config /hatchet/config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52 | xargs)"
+            HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
             HATCHET_CLIENT_TLS_STRATEGY=none
+            HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
           EOF
 
       - name: Set HATCHET_CLIENT_NAMESPACE
