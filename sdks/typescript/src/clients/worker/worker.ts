@@ -25,6 +25,7 @@ import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contrac
 import { WorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/workflow';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import { CreateOnFailureTaskOpts } from '@hatchet/v1/task';
+import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { Context, CreateStep, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
 
@@ -235,7 +236,7 @@ export class V0Worker {
         version: workflow.version || '',
         eventTriggers,
         cronTriggers,
-        sticky: workflow.sticky, // TODO docstring
+        sticky: workflow.sticky,
         concurrency,
         onFailureTask,
         tasks: workflow.tasks.map<CreateTaskOpts>((task) => ({
@@ -255,6 +256,7 @@ export class V0Worker {
           workerLabels: toPbWorkerLabel(task.workerLabels || workflow.taskDefaults?.workerLabels),
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+          conditions: taskConditionsToPb(task),
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency

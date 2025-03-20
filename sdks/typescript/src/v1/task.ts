@@ -1,5 +1,6 @@
 import { ConcurrencyLimitStrategy } from '@hatchet/protoc/v1/workflows';
 import { Context, CreateStep } from '@hatchet/step';
+import { Conditions } from './conditions';
 
 /**
  * Options for configuring the concurrency for a task.
@@ -111,6 +112,21 @@ export type CreateTaskOpts<T, K> = {
    * (optional) the concurrency options for the task
    */
   concurrency?: TaskConcurrency | TaskConcurrency[];
+
+  /**
+   * (optional) the conditions to match before the task is queued
+   */
+  queueIf?: Conditions | Conditions[];
+
+  /**
+   * (optional) the conditions to match before the task is queued
+   */
+  cancelIf?: Conditions | Conditions[];
+
+  /**
+   * (optional) the conditions to match before the task is skipped
+   */
+  skipIf?: Conditions | Conditions[];
 };
 
 /**

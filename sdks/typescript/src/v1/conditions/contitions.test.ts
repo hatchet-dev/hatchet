@@ -3,11 +3,25 @@ import {
   UserEventCondition,
   Render,
   Or,
-  render,
   OrCondition,
   Sleep,
   UserEvent,
+  Condition,
+  Action,
 } from './index';
+
+export function render(condition: Condition | OrCondition): string {
+  if (condition instanceof SleepCondition) {
+    return `sleepFor: ${condition.sleepFor}`;
+  }
+  if (condition instanceof UserEventCondition) {
+    return `event: ${condition.eventKey}${condition.expression ? `, expression: ${condition.expression}` : ''}`;
+  }
+  if (condition instanceof OrCondition) {
+    return `OR(${condition.conditions.map((c) => render(c)).join(' || ')})`;
+  }
+  return 'Unknown condition';
+}
 
 describe('Conditions', () => {
   // Basic condition creation tests
@@ -29,7 +43,7 @@ describe('Conditions', () => {
     const sleep: Sleep = { sleepFor: 15 };
     const userEvent: UserEvent = { eventKey: 'user:update', expression: 'user.status == "active"' };
 
-    const conditions = Render(sleep, userEvent);
+    const conditions = Render(Action.CREATE, [sleep, userEvent]);
 
     expect(conditions.length).toBe(2);
     expect(conditions[0]).toBeInstanceOf(SleepCondition);
@@ -42,7 +56,7 @@ describe('Conditions', () => {
   it('should accept condition instances in Wait()', () => {
     const sleepCondition = new SleepCondition(5);
     const userEvent: UserEvent = { eventKey: 'user:login' };
-    const conditions = Render(sleepCondition, userEvent);
+    const conditions = Render(Action.CREATE, [sleepCondition, userEvent]);
 
     expect(conditions.length).toBe(2);
     expect(conditions[0]).toBe(sleepCondition);
@@ -87,7 +101,7 @@ describe('Conditions', () => {
     const userEvent: UserEvent = { eventKey: 'user:create' };
     const sleep2: Sleep = { sleepFor: 5 };
 
-    const conditions = Render(Or(sleep1, userEvent), sleep2);
+    const conditions = Render(Action.CREATE, [Or(sleep1, userEvent), sleep2]);
 
     expect(conditions.length).toBe(3);
     expect(conditions[0]).toBeInstanceOf(SleepCondition);
@@ -129,19 +143,19 @@ describe('Conditions', () => {
   // Error cases
   it('should throw error for invalid condition objects', () => {
     const invalidCondition = { foo: 'bar' };
-    expect(() => Render(invalidCondition as any)).toThrow('Unknown condition object');
+    expect(() => Render(Action.CREATE, invalidCondition as any)).toThrow();
   });
 
   // Edge cases
   it('should handle zero sleep duration', () => {
     const sleep: Sleep = { sleepFor: 0 };
-    const condition = Render(sleep)[0] as SleepCondition;
+    const condition = Render(Action.CREATE, sleep)[0] as SleepCondition;
     expect(condition.sleepFor).toBe(0);
   });
 
   it('should handle negative sleep duration', () => {
     const sleep: Sleep = { sleepFor: -1 };
-    const condition = Render(sleep)[0] as SleepCondition;
+    const condition = Render(Action.CREATE, sleep)[0] as SleepCondition;
     expect(condition.sleepFor).toBe(-1);
   });
 
@@ -153,7 +167,11 @@ describe('Conditions', () => {
     const userEvent2: UserEvent = { eventKey: 'user:update' };
     const userEvent3: UserEvent = { eventKey: 'user:delete' };
 
-    const conditions = Render(Or(sleep1, sleep2), userEvent1, Or(userEvent2, userEvent3));
+    const conditions = Render(Action.CREATE, [
+      Or(sleep1, sleep2),
+      userEvent1,
+      Or(userEvent2, userEvent3),
+    ]);
 
     expect(conditions.length).toBe(5);
     // First two conditions should share an orGroupId
@@ -171,13 +189,20 @@ describe('Conditions', () => {
   });
 
   it('should handle complex AND/OR combinations', () => {
-    const conditions = Render(
+    const conditions = Render(Action.CREATE, [
       Or({ sleepFor: 5 }, { eventKey: 'user:update' }),
       { eventKey: 'user:create' },
-      Or({ eventKey: 'user:update' }, { eventKey: 'user:delete' })
-    );
+      Or({ eventKey: 'user:update' }, { eventKey: 'user:delete' }),
+    ]);
 
     expect(conditions.length).toBe(5);
+
+    expect(conditions[0].base.action).toBe(Action.CREATE);
+    expect(conditions[1].base.action).toBe(Action.CREATE);
+    expect(conditions[2].base.action).toBe(Action.CREATE);
+    expect(conditions[3].base.action).toBe(Action.CREATE);
+    expect(conditions[4].base.action).toBe(Action.CREATE);
+
     // First two conditions should share an orGroupId
     expect(conditions[0].base.orGroupId).toBe(conditions[1].base.orGroupId);
     // Third condition should have no orGroupId
@@ -200,7 +225,7 @@ describe('Conditions', () => {
 
   it('should handle undefined expression in UserEventCondition', () => {
     const userEvent: UserEvent = { eventKey: 'test:event' };
-    const condition = Render(userEvent)[0] as UserEventCondition;
+    const condition = Render(Action.CREATE, userEvent)[0] as UserEventCondition;
     expect(render(condition)).toBe('event: test:event');
   });
 });

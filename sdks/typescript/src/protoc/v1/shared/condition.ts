@@ -55,12 +55,12 @@ export function actionToJSON(object: Action): string {
 }
 
 export interface BaseMatchCondition {
-  eventKey: string;
+  eventKey: string; // remove
   readableDataKey: string;
   action: Action;
   /** a UUID defining the OR group for this condition */
   orGroupId: string;
-  expression: string;
+  expression: string; // options
 }
 
 export interface ParentOverrideMatchCondition {
