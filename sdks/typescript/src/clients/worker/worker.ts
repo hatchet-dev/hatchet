@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { InternalHatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
 import { Action, ActionListener } from '@clients/dispatcher/action-listener';
@@ -21,6 +22,9 @@ import {
 import { Logger } from '@hatchet/util/logger';
 import { WebhookHandler } from '@clients/worker/handler';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
+import { WorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/workflow';
+import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
+import { CreateOnFailureTaskOpts } from '@hatchet/v1/task';
 import { Context, CreateStep, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
 
@@ -41,7 +45,7 @@ export class V0Worker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
-  workflow_registry: Workflow[] = [];
+  workflow_registry: Array<WorkflowDefinition | Workflow> = [];
   listener: ActionListener | undefined;
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
   contexts: Record<Action['stepRunId'], Context<any, any>> = {};
@@ -108,6 +112,7 @@ export class V0Worker {
   }
 
   getHandler(workflows: Workflow[]) {
+    // TODO v1
     for (const workflow of workflows) {
       const wf: Workflow = {
         ...workflow,
@@ -129,6 +134,146 @@ export class V0Worker {
    */
   async register_workflow(initWorkflow: Workflow) {
     return this.registerWorkflow(initWorkflow);
+  }
+
+  private registerActionsV1(workflow: WorkflowDefinition) {
+    const newActions = workflow.tasks.reduce<ActionRegistry>((acc, task) => {
+      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
+        task.fn(ctx.workflowInput(), ctx);
+      return acc;
+    }, {});
+
+    const onFailureFn = workflow.onFailure
+      ? typeof workflow.onFailure === 'function'
+        ? workflow.onFailure
+        : workflow.onFailure.fn
+      : undefined;
+
+    const onFailureAction = onFailureFn
+      ? {
+          [onFailureTaskName(workflow)]: (ctx: Context<any, any>) =>
+            onFailureFn(ctx.workflowInput(), ctx),
+        }
+      : {};
+
+    this.action_registry = {
+      ...this.action_registry,
+      ...newActions,
+      ...onFailureAction,
+    };
+  }
+
+  async registerWorkflowV1(initWorkflow: WorkflowDeclaration<any, any>) {
+    // patch the namespace
+    const workflow: WorkflowDefinition = {
+      ...initWorkflow.definition,
+      name: (this.client.config.namespace + initWorkflow.definition.name).toLowerCase(),
+    };
+
+    try {
+      const { concurrency } = workflow;
+
+      let onFailureTask: CreateTaskOpts | undefined;
+
+      if (workflow.onFailure && typeof workflow.onFailure === 'function') {
+        onFailureTask = {
+          readableId: 'on-failure',
+          action: onFailureTaskName(workflow),
+          timeout: '60s',
+          inputs: '{}',
+          parents: [],
+          retries: 0,
+          rateLimits: [],
+          workerLabels: {},
+          concurrency: [],
+        };
+      }
+
+      if (workflow.onFailure && typeof workflow.onFailure === 'object') {
+        const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
+
+        onFailureTask = {
+          readableId: 'on-failure',
+          action: onFailureTaskName(workflow),
+          timeout: onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
+          scheduleTimeout: onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          inputs: '{}',
+          parents: [],
+          retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
+          rateLimits: mapRateLimit(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: toPbWorkerLabel(
+            onFailure.workerLabels || workflow.taskDefaults?.workerLabels
+          ),
+          concurrency: [],
+          backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
+          backoffMaxSeconds:
+            onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+        };
+      }
+
+      // cron and event triggers
+      if (workflow.on) {
+        this.logger.warn(
+          `\`on\` for event and cron triggers is deprecated and will be removed soon, use \`onEvents\` and \`onCrons\` instead for ${
+            workflow.name
+          }`
+        );
+      }
+
+      const eventTriggers = [
+        ...(workflow.onEvents || []),
+        ...(workflow.on?.event ? [workflow.on.event] : []),
+      ];
+      const cronTriggers = [
+        ...(workflow.onCrons || []),
+        ...(workflow.on?.cron ? [workflow.on.cron] : []),
+      ];
+
+      const registeredWorkflow = this.client.admin.putWorkflowV1({
+        name: workflow.name,
+        description: workflow.description || '',
+        version: workflow.version || '',
+        eventTriggers,
+        cronTriggers,
+        sticky: workflow.sticky, // TODO docstring
+        concurrency,
+        onFailureTask,
+        tasks: workflow.tasks.map<CreateTaskOpts>((task) => ({
+          readableId: task.name,
+          action: `${workflow.name}:${task.name}`,
+          timeout:
+            task.executionTimeout ||
+            task.timeout ||
+            workflow.taskDefaults?.executionTimeout ||
+            '60s',
+          scheduleTimeout: task.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          inputs: '{}',
+          parents: task.parents?.map((p) => p.name) ?? [],
+          userData: '{}',
+          retries: task.retries || workflow.taskDefaults?.retries || 0,
+          rateLimits: mapRateLimit(task.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: toPbWorkerLabel(task.workerLabels || workflow.taskDefaults?.workerLabels),
+          backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
+          backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+          concurrency: task.concurrency
+            ? Array.isArray(task.concurrency)
+              ? task.concurrency
+              : [task.concurrency]
+            : workflow.taskDefaults?.concurrency
+              ? Array.isArray(workflow.taskDefaults.concurrency)
+                ? workflow.taskDefaults.concurrency
+                : [workflow.taskDefaults.concurrency]
+              : [],
+        })),
+      });
+      this.registeredWorkflowPromises.push(registeredWorkflow);
+      await registeredWorkflow;
+      this.workflow_registry.push(workflow);
+    } catch (e: any) {
+      throw new HatchetError(`Could not register workflow: ${e.message}`);
+    }
+
+    this.registerActionsV1(workflow);
   }
 
   async registerWorkflow(initWorkflow: Workflow) {
@@ -640,4 +785,8 @@ function toPbWorkerLabel(
     },
     {} as Record<string, DesiredWorkerLabels>
   );
+}
+
+function onFailureTaskName(workflow: WorkflowDefinition) {
+  return `${workflow.name}:on-failure`;
 }

@@ -132,6 +132,7 @@ export class HatchetClient implements IHatchetClient {
    */
   get admin() {
     return this.v0.admin;
+    // TODO expose ratelimit features
   }
 
   /**
@@ -155,7 +156,7 @@ export class HatchetClient implements IHatchetClient {
    * @param workflows - The workflows to register on the webhooks
    * @returns A promise that resolves when the webhook is registered
    */
-  webhooks(workflows: WorkflowDeclaration<any, any>[] | V0Workflow[]) {
+  webhooks(workflows: V0Workflow[]) {
     return this.v0.webhooks(workflows);
   }
 }

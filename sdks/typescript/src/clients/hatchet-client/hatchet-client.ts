@@ -16,8 +16,6 @@ import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
-import { WorkflowDeclaration as V1Workflow } from '@hatchet/v1/workflow';
-import { toV0Workflow } from '@hatchet/v1/client/worker';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 import { ListenerClient } from '../listener/listener-client';
 import { Api } from '../rest/generated/Api';
@@ -197,11 +195,12 @@ export class InternalHatchetClient {
     return worker;
   }
 
-  webhooks(workflows: Array<V1Workflow<any, any> | V0Workflow>) {
+  webhooks(workflows: Array<V0Workflow>) {
+    // TODO v1 workflows
     const worker = new V0Worker(this, {
       name: 'webhook-worker',
     });
 
-    return worker.getHandler(workflows.map(toV0Workflow));
+    return worker.getHandler(workflows);
   }
 }

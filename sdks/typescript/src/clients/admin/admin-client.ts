@@ -12,6 +12,11 @@ import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 
+import {
+  AdminServiceClient,
+  AdminServiceDefinition,
+  CreateWorkflowVersionRequest,
+} from '@hatchet/protoc/v1/workflows';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -38,25 +43,11 @@ export type WorkflowRun<T = object> = {
     additionalMetadata?: Record<string, string> | undefined;
   };
 };
-/**
- * AdminClient is a client for interacting with the Hatchet Admin API. This allows you to configure, trigger,
- * and monitor workflows.
- * The admin client can be accessed via:
- * ```typescript
- * const hatchet = Hatchet.init()
- * const admin = hatchet.admin as AdminClient;
- *
- * // Now you can use the admin client to interact with the Hatchet Admin API
- * admin.list_workflows().then((res) => {
- *   res.rows?.forEach((row) => {
- *     console.log(row);
- *   });
- * });
- * ```
- */
+
 export class AdminClient {
   config: ClientConfig;
   client: WorkflowServiceClient;
+  v1Client: AdminServiceClient;
   api: Api;
   tenantId: string;
   logger: Logger;
@@ -72,6 +63,7 @@ export class AdminClient {
   ) {
     this.config = config;
     this.client = factory.create(WorkflowServiceDefinition, channel);
+    this.v1Client = factory.create(AdminServiceDefinition, channel);
     this.api = api;
     this.tenantId = tenantId;
     this.logger = config.logger(`Admin`, config.log_level);
@@ -93,6 +85,19 @@ export class AdminClient {
   async putWorkflow(workflow: CreateWorkflowVersionOpts) {
     try {
       return await retrier(async () => this.client.putWorkflow({ opts: workflow }), this.logger);
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
+  }
+
+  /**
+   * Creates a new workflow or updates an existing workflow. If the workflow already exists, Hatchet will automatically
+   * determine if the workflow definition has changed and create a new version if necessary.
+   * @param workflow a workflow definition to create
+   */
+  async putWorkflowV1(workflow: CreateWorkflowVersionRequest) {
+    try {
+      return await retrier(async () => this.v1Client.putWorkflow(workflow), this.logger);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }

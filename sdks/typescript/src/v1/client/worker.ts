@@ -61,7 +61,13 @@ export class Worker {
   async registerWorkflows(workflows?: Array<WorkflowDeclaration<any, any> | V0Workflow>) {
     return Promise.all(
       workflows?.map((wf) => {
-        return this.v0.registerWorkflow(toV0Workflow(wf));
+        if (wf instanceof WorkflowDeclaration) {
+          // TODO check if tenant is V1
+          return this.v0.registerWorkflowV1(wf);
+        }
+
+        // fallback to v0 client for backwards compatibility
+        return this.v0.registerWorkflow(wf);
       }) || []
     );
   }
@@ -117,34 +123,4 @@ export class Worker {
   registerWebhook(webhook: WebhookWorkerCreateRequest) {
     return this.v0.registerWebhook(webhook);
   }
-}
-
-export function toV0Workflow(wf: WorkflowDeclaration<any, any> | V0Workflow): V0Workflow {
-  if (wf instanceof WorkflowDeclaration) {
-    const { definition } = wf;
-    return {
-      id: definition.name,
-      description: definition.description || '',
-      version: definition.version || '',
-      sticky: definition.sticky,
-      scheduleTimeout: definition.scheduleTimeout,
-      on: definition.on,
-      concurrency: definition.concurrency,
-      onFailure: definition.onFailure && {
-        name: 'on-failure',
-        run: (ctx) => definition.onFailure!(ctx),
-      },
-      steps: definition.tasks.map((task) => ({
-        name: task.name,
-        parents: task.parents?.map((p) => p.name),
-        run: (ctx) => task.fn(ctx.workflowInput(), ctx),
-        timeout: task.timeout,
-        retries: task.retries,
-        rate_limits: task.rateLimits,
-        worker_labels: task.workerLabels,
-        backoff: task.backoff,
-      })),
-    };
-  }
-  return wf;
 }
