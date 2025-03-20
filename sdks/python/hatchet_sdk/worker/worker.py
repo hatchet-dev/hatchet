@@ -15,6 +15,7 @@ from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
+from pydantic import BaseModel
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
@@ -46,6 +47,15 @@ class WorkerStatus(Enum):
 @dataclass
 class WorkerStartOptions:
     loop: asyncio.AbstractEventLoop | None = field(default=None)
+
+
+class HealthCheckResponse(BaseModel):
+    status: str
+    name: str
+    slots: int
+    actions: list[str]
+    labels: dict[str, str | int]
+    python_version: str
 
 
 class Worker:
@@ -153,7 +163,16 @@ class Worker:
             return created_loop
 
     async def health_check_handler(self, request: Request) -> Response:
-        return web.json_response({"status": self.status.name})
+        response = HealthCheckResponse(
+            status=self.status.name,
+            name=self.name,
+            slots=self.slots or 0,
+            actions=list(self.action_registry.keys()),
+            labels=self.labels,
+            python_version=sys.version,
+        ).model_dump()
+
+        return web.json_response(response)
 
     async def metrics_handler(self, request: Request) -> Response:
         self.worker_status_gauge.set(1 if self.status == WorkerStatus.HEALTHY else 0)
