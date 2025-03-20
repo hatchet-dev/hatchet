@@ -134,6 +134,10 @@ jobs:
       - name: Run pytest
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+
+          echo "printing env"
+          printenv | grep HATCHET_CLIENT
+          echo ""
           poetry run pytest -s -vvv --maxfail=5 --timeout=180 --capture=no
 
   publish:
