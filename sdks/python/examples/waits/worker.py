@@ -39,16 +39,23 @@ def step2(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 @dag_waiting_workflow.task(
-    parents=[step1],
+    parents=[step2],
     wait_for=[
         or_(
-            SleepCondition(timedelta(seconds=30)),
+            SleepCondition(timedelta(seconds=15)),
             UserEventCondition(event_key="step3:start"),
         )
     ],
     skip_if=[UserEventCondition(event_key="step3:skip")],
 )
 def step3(input: EmptyModel, ctx: Context) -> RandomSum:
+    raise Exception("This task should be skipped")
+
+
+@dag_waiting_workflow.task(
+    parents=[step2],
+)
+def step4(input: EmptyModel, ctx: Context) -> RandomSum:
     one = ctx.task_output(step1).random_number
     two = ctx.task_output(step2).random_number
 

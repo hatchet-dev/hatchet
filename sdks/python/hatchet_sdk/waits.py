@@ -39,7 +39,6 @@ class BaseCondition(BaseModel):
     expression: str | None = None
 
     def to_pb(self) -> BaseMatchCondition:
-        print(self.or_group_id, type(self.or_group_id))
         return BaseMatchCondition(
             readable_data_key=self.readable_data_key,
             action=convert_python_enum_to_proto(self.action, ProtoAction),  # type: ignore[arg-type]

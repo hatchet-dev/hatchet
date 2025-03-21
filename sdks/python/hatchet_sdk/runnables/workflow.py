@@ -157,9 +157,6 @@ class Workflow(Generic[TWorkflowInput]):
         name = self._get_name(namespace)
         event_triggers = [namespace + event for event in self.config.on_events]
 
-        for task in self.tasks:
-            print(self._to_pb_conditions(task))
-
         tasks = [
             CreateTaskOpts(
                 readable_id=task.name,
