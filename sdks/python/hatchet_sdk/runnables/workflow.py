@@ -105,20 +105,23 @@ class Workflow(Generic[TWorkflowInput]):
             limit_strategy=concurrency.limit_strategy,
         )
 
-    def _validate_on_failure_task(self, service_name: str) -> CreateTaskOpts | None:
-        if not self._on_failure_task:
-            return None
-
+    def _validate_task(
+        self, task: "Task[TWorkflowInput, R]", service_name: str
+    ) -> CreateTaskOpts:
         return CreateTaskOpts(
-            readable_id=self._on_failure_task.name,
-            action=service_name + ":" + self._on_failure_task.name,
-            timeout=timedelta_to_expr(self._on_failure_task.execution_timeout),
+            readable_id=task.name,
+            action=service_name + ":" + task.name,
+            timeout=timedelta_to_expr(task.execution_timeout),
             inputs="{}",
-            parents=[],
-            retries=self._on_failure_task.retries,
-            rate_limits=self._on_failure_task.rate_limits,
-            backoff_factor=self._on_failure_task.backoff_factor,
-            backoff_max_seconds=self._on_failure_task.backoff_max_seconds,
+            parents=[p.name for p in task.parents],
+            retries=task.retries,
+            rate_limits=task.rate_limits,
+            worker_labels=task.desired_worker_labels,
+            backoff_factor=task.backoff_factor,
+            backoff_max_seconds=task.backoff_max_seconds,
+            concurrency=[self._concurrency_to_pb(t) for t in task.concurrency],
+            conditions=self._to_pb_conditions(task),
+            schedule_timeout=timedelta_to_expr(task.schedule_timeout),
         )
 
     def _validate_priority(self, default_priority: int | None) -> int | None:
@@ -172,26 +175,16 @@ class Workflow(Generic[TWorkflowInput]):
         event_triggers = [namespace + event for event in self.config.on_events]
 
         tasks = [
-            CreateTaskOpts(
-                readable_id=task.name,
-                action=service_name + ":" + task.name,
-                timeout=timedelta_to_expr(task.execution_timeout),
-                inputs="{}",
-                parents=[x.name for x in task.parents],
-                retries=task.retries,
-                rate_limits=task.rate_limits,
-                worker_labels=task.desired_worker_labels,
-                backoff_factor=task.backoff_factor,
-                backoff_max_seconds=task.backoff_max_seconds,
-                conditions=self._to_pb_conditions(task),
-                concurrency=[self._concurrency_to_pb(t) for t in task.concurrency],
-                schedule_timeout=timedelta_to_expr(task.schedule_timeout),
-            )
+            self._validate_task(task, service_name)
             for task in self.tasks
             if task.type == StepType.DEFAULT
         ]
 
-        on_failure_job = self._validate_on_failure_task(service_name)
+        on_failure_job = (
+            self._validate_task(self._on_failure_task, service_name)
+            if self._on_failure_task
+            else None
+        )
 
         return CreateWorkflowVersionRequest(
             name=name,
