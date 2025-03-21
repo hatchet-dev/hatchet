@@ -544,7 +544,9 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					parentExternalId := stepsToExternalIds[i][sqlchelpers.UUIDToStr(parent)]
 					readableId := stepIdsToReadableIds[sqlchelpers.UUIDToStr(parent)]
 
-					conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId)...)
+					hasAdditionalMatches := step.MatchConditionCount > 0
+
+					conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, hasAdditionalMatches)...)
 				}
 
 				var (
@@ -950,7 +952,13 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	return tuplesToSkip, nil
 }
 
-func getParentInDAGGroupMatch(cancelGroupId, parentExternalId, parentReadableId string) []GroupMatchCondition {
+func getParentInDAGGroupMatch(cancelGroupId, parentExternalId, parentReadableId string, hasAdditionalMatches bool) []GroupMatchCondition {
+	completeAction := sqlcv1.V1MatchConditionActionQUEUE
+
+	if hasAdditionalMatches {
+		completeAction = sqlcv1.V1MatchConditionActionCREATEMATCH
+	}
+
 	return []GroupMatchCondition{
 		{
 			GroupId:           uuid.NewString(),
@@ -959,7 +967,7 @@ func getParentInDAGGroupMatch(cancelGroupId, parentExternalId, parentReadableId 
 			ReadableDataKey:   parentReadableId,
 			EventResourceHint: &parentExternalId,
 			Expression:        "!has(input.skipped) || (has(input.skipped) && !input.skipped)",
-			Action:            sqlcv1.V1MatchConditionActionQUEUE,
+			Action:            completeAction,
 		},
 		{
 			GroupId:           uuid.NewString(),

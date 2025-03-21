@@ -5,7 +5,8 @@ WITH steps AS (
         wv."id" as "workflowVersionId",
         w."name" as "workflowName",
         w."id" as "workflowId",
-        j."kind" as "jobKind"
+        j."kind" as "jobKind",
+        COUNT(mc.id) as "matchConditionCount"
     FROM
         "WorkflowVersion" as wv
     JOIN
@@ -14,6 +15,8 @@ WITH steps AS (
         "Job" j ON j."workflowVersionId" = wv."id"
     JOIN
         "Step" s ON s."jobId" = j."id"
+    LEFT JOIN
+        v1_step_match_condition mc ON mc.step_id = s."id"
     WHERE
         wv."id" = ANY(@ids::uuid[])
         AND w."tenantId" = @tenantId::uuid
