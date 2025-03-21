@@ -15,7 +15,12 @@ type CreateOpts struct {
 	OutputType reflect.Type
 }
 
+type WorkflowBase interface {
+	Name() string
+}
+
 type WorkflowDeclaration[I any, O any] interface {
+	WorkflowBase
 	Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O]
 	WithParents(parents ...*task.TaskDeclaration[I, O]) []*task.TaskDeclaration[I, O]
 
@@ -51,4 +56,8 @@ func (w *workflowDeclarationImpl[I, O]) WithParents(parents ...*task.TaskDeclara
 
 func (w *workflowDeclarationImpl[I, O]) Run(input I) (*O, error) {
 	return nil, nil
+}
+
+func (w *workflowDeclarationImpl[I, O]) Name() string {
+	return w.name
 }

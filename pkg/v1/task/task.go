@@ -8,7 +8,10 @@ type CreateOpts[I any, O any] struct {
 	Fn      func(input I, ctx worker.HatchetContext) (*O, error)
 }
 
+type TaskBase interface{}
+
 type TaskDeclaration[I any, O any] struct {
+	TaskBase
 	Name string
 	Fn   func(input I, ctx worker.HatchetContext) (*O, error)
 }

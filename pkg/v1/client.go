@@ -3,6 +3,7 @@ package v1
 import (
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 )
 
@@ -10,6 +11,7 @@ type HatchetClient interface {
 	V0() v0Client.Client
 
 	Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration[any, any]
+	Worker(opts worker.CreateOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error)
 }
 
 type v1HatchetClientImpl struct {
@@ -40,6 +42,10 @@ func (c *v1HatchetClientImpl) V0() v0Client.Client {
 
 func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration[any, any] {
 	return workflow.NewWorkflowDeclaration[any, any](opts, c.v0)
+}
+
+func (c *v1HatchetClientImpl) Worker(opts worker.CreateOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error) {
+	return worker.NewWorker(c.v0, opts, optFns...)
 }
 
 // NOTE: i don't love this on the client but there is a circular
