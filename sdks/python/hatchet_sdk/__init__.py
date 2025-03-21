@@ -140,6 +140,7 @@ from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
     EmptyModel,
+    SkippableTaskOutput,
     StickyStrategy,
     WorkflowConfig,
 )
@@ -253,6 +254,7 @@ __all__ = [
     "WorkflowConfig",
     "Task",
     "EmptyModel",
+    "SkippableTaskOutput",
     "Condition",
     "OrGroup",
     "or_",

@@ -19,6 +19,10 @@ class EmptyModel(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class SkippableTaskOutput(BaseModel):
+    skipped: bool = False
+
+
 class StickyStrategy(str, Enum):
     SOFT = "SOFT"
     HARD = "HARD"
