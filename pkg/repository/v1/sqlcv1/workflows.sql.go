@@ -1068,7 +1068,8 @@ WITH steps AS (
         wv."id" as "workflowVersionId",
         w."name" as "workflowName",
         w."id" as "workflowId",
-        j."kind" as "jobKind"
+        j."kind" as "jobKind",
+        COUNT(mc.id) as "matchConditionCount"
     FROM
         "WorkflowVersion" as wv
     JOIN
@@ -1077,6 +1078,8 @@ WITH steps AS (
         "Job" j ON j."workflowVersionId" = wv."id"
     JOIN
         "Step" s ON s."jobId" = j."id"
+    LEFT JOIN
+        v1_step_match_condition mc ON mc.step_id = s."id"
     WHERE
         wv."id" = ANY($1::uuid[])
         AND w."tenantId" = $2::uuid
@@ -1094,7 +1097,7 @@ WITH steps AS (
         so."B"
 )
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
     steps s
@@ -1108,25 +1111,26 @@ type ListStepsByWorkflowVersionIdsParams struct {
 }
 
 type ListStepsByWorkflowVersionIdsRow struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	ReadableId         pgtype.Text      `json:"readableId"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
-	JobId              pgtype.UUID      `json:"jobId"`
-	ActionId           string           `json:"actionId"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            int32            `json:"retries"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
-	ScheduleTimeout    string           `json:"scheduleTimeout"`
-	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
-	WorkflowName       string           `json:"workflowName"`
-	WorkflowId         pgtype.UUID      `json:"workflowId"`
-	JobKind            JobKind          `json:"jobKind"`
-	Parents            []pgtype.UUID    `json:"parents"`
+	ID                  pgtype.UUID      `json:"id"`
+	CreatedAt           pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
+	ReadableId          pgtype.Text      `json:"readableId"`
+	TenantId            pgtype.UUID      `json:"tenantId"`
+	JobId               pgtype.UUID      `json:"jobId"`
+	ActionId            string           `json:"actionId"`
+	Timeout             pgtype.Text      `json:"timeout"`
+	CustomUserData      []byte           `json:"customUserData"`
+	Retries             int32            `json:"retries"`
+	RetryBackoffFactor  pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff     pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout     string           `json:"scheduleTimeout"`
+	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
+	WorkflowName        string           `json:"workflowName"`
+	WorkflowId          pgtype.UUID      `json:"workflowId"`
+	JobKind             JobKind          `json:"jobKind"`
+	MatchConditionCount int64            `json:"matchConditionCount"`
+	Parents             []pgtype.UUID    `json:"parents"`
 }
 
 func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, arg ListStepsByWorkflowVersionIdsParams) ([]*ListStepsByWorkflowVersionIdsRow, error) {
@@ -1157,6 +1161,7 @@ func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, ar
 			&i.WorkflowName,
 			&i.WorkflowId,
 			&i.JobKind,
+			&i.MatchConditionCount,
 			&i.Parents,
 		); err != nil {
 			return nil, err

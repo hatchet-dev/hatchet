@@ -2470,9 +2470,10 @@ type V1DagsOlap struct {
 }
 
 type V1DurableSleep struct {
-	ID         int64              `json:"id"`
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	SleepUntil pgtype.Timestamptz `json:"sleep_until"`
+	ID            int64              `json:"id"`
+	TenantID      pgtype.UUID        `json:"tenant_id"`
+	SleepUntil    pgtype.Timestamptz `json:"sleep_until"`
+	SleepDuration string             `json:"sleep_duration"`
 }
 
 type V1LogLine struct {
