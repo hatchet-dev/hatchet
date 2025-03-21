@@ -2,18 +2,19 @@ package task
 
 import "github.com/hatchet-dev/hatchet/pkg/worker"
 
-type CreateOpts struct {
-	Name string
-	Fn   func(ctx worker.HatchetContext) error
+type CreateOpts[I any, O any] struct {
+	Name    string
+	Parents []*TaskDeclaration[I, O]
+	Fn      func(input I, ctx worker.HatchetContext) (*O, error)
 }
 
-type TaskDeclaration struct {
+type TaskDeclaration[I any, O any] struct {
 	Name string
-	Fn   func(ctx worker.HatchetContext) error
+	Fn   func(input I, ctx worker.HatchetContext) (*O, error)
 }
 
-func NewTaskDeclaration(opts CreateOpts) *TaskDeclaration {
-	return &TaskDeclaration{
+func NewTaskDeclaration[I any, O any](opts CreateOpts[I, O]) *TaskDeclaration[I, O] {
+	return &TaskDeclaration[I, O]{
 		Name: opts.Name,
 		Fn:   opts.Fn,
 	}

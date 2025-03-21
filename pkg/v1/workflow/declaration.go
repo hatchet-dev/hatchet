@@ -16,7 +16,8 @@ type CreateOpts struct {
 }
 
 type WorkflowDeclaration[I any, O any] interface {
-	Task(opts task.CreateOpts) *task.TaskDeclaration
+	Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O]
+	WithParents(parents ...*task.TaskDeclaration[I, O]) []*task.TaskDeclaration[I, O]
 
 	// TODO bind runs and things
 	Run(input I) (*O, error)
@@ -26,21 +27,26 @@ type workflowDeclarationImpl[I any, O any] struct {
 	v0 *v0Client.Client
 
 	name  string
-	tasks []*task.TaskDeclaration
+	tasks []*task.TaskDeclaration[I, O]
 }
 
 func NewWorkflowDeclaration[I any, O any](opts CreateOpts, v0 *client.Client) WorkflowDeclaration[I, O] {
 	return &workflowDeclarationImpl[I, O]{
 		v0:    v0,
 		name:  opts.Name,
-		tasks: []*task.TaskDeclaration{},
+		tasks: []*task.TaskDeclaration[I, O]{},
 	}
 }
 
-func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts) *task.TaskDeclaration {
+func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O] {
 	task := task.NewTaskDeclaration(opts)
 	w.tasks = append(w.tasks, task)
 	return task
+}
+
+func (w *workflowDeclarationImpl[I, O]) WithParents(parents ...*task.TaskDeclaration[I, O]) []*task.TaskDeclaration[I, O] {
+	w.tasks = append(w.tasks, parents...)
+	return w.tasks
 }
 
 func (w *workflowDeclarationImpl[I, O]) Run(input I) (*O, error) {
