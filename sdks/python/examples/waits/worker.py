@@ -72,8 +72,9 @@ def sum(input: EmptyModel, ctx: Context) -> RandomSum:
     one = ctx.task_output(start).random_number
     two = ctx.task_output(wait_for_event).random_number
     three = ctx.task_output(wait_for_sleep).random_number
+    four = ctx.task_output(skip_on_event).random_number or 0
 
-    return RandomSum(sum=one + two + three)
+    return RandomSum(sum=one + two + three + four)
 
 
 def main() -> None:
