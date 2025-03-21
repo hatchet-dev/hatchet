@@ -80,6 +80,10 @@ class Context:
     def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
         return self.data.parents.get(task.name, {}).get("skipped", False)
 
+    @property
+    def event_triggers(self) -> JSONSerializableMapping:
+        return self.data.triggers
+
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
@@ -107,7 +111,7 @@ class Context:
         return parent_step_data
 
     @property
-    def triggered_by_event(self) -> bool:
+    def was_triggered_by_event(self) -> bool:
         return self.data.triggered_by == "event"
 
     @property

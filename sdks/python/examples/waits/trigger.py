@@ -2,7 +2,7 @@ import time
 
 from examples.waits.worker import dag_waiting_workflow, hatchet
 
-dag_waiting_workflow.run()
+dag_waiting_workflow.run_no_wait()
 
 time.sleep(5)
 

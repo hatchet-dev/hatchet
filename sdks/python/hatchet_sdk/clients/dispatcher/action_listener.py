@@ -65,6 +65,7 @@ class ActionPayload(BaseModel):
     user_data: JSONSerializableMapping = Field(default_factory=dict)
     step_run_errors: dict[str, str] = Field(default_factory=dict)
     triggered_by: str | None = None
+    triggers: JSONSerializableMapping = Field(default_factory=dict)
 
     @field_validator(
         "input", "parents", "overrides", "user_data", "step_run_errors", mode="before"
