@@ -94,11 +94,11 @@ class UserEventCondition(Condition):
 
 
 class ParentCondition(Condition):
-    def __init__(self, parent: "Task[TWorkflowInput, R]") -> None:
+    def __init__(
+        self, parent: "Task[TWorkflowInput, R]", expression: str | None = None
+    ) -> None:
         super().__init__(
-            BaseCondition(
-                readable_data_key=f"parent:{parent.name}",
-            )
+            BaseCondition(readable_data_key=parent.name, expression=expression)
         )
 
         self.parent = parent
