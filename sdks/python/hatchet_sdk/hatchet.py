@@ -16,6 +16,7 @@ from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     EmptyModel,
     StickyStrategy,
+    TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
 )
@@ -183,6 +184,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
+        task_defaults: TaskDefaults = TaskDefaults(),
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -214,6 +216,9 @@ class Hatchet:
         :param concurrency: A concurrency object controlling the concurrency settings for this workflow.
         :type concurrency: ConcurrencyExpression | None
 
+        :param task_defaults: A `TaskDefaults` object controlling the default task settings for this workflow.
+        :type task_defaults: TaskDefaults
+
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         :rtype: Workflow
         """
@@ -226,10 +231,10 @@ class Hatchet:
                 on_events=on_events,
                 on_crons=on_crons,
                 sticky=sticky,
-                default_priority=default_priority,
                 concurrency=concurrency,
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
+                task_defaults=task_defaults,
             ),
             self,
         )

@@ -1,5 +1,4 @@
-from datetime import timedelta
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generic
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generic, TypeVar
 
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
@@ -7,6 +6,8 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     DesiredWorkerLabels,
 )
 from hatchet_sdk.runnables.types import (
+    DEFAULT_EXECUTION_TIMEOUT,
+    DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
     R,
     StepType,
@@ -21,6 +22,18 @@ if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
 
 
+T = TypeVar("T")
+
+
+def fall_back_to_default(value: T, default: T, fallback_value: T) -> T:
+    ## If the value is not the default, it's set
+    if value != default:
+        return value
+
+    ## Otherwise, it's unset, so return the fallback value
+    return fallback_value
+
+
 class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,
@@ -31,8 +44,8 @@ class Task(Generic[TWorkflowInput, R]):
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        execution_timeout: Duration = timedelta(minutes=60),
-        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
         parents: "list[Task[TWorkflowInput, Any]]" = [],
         retries: int = 0,
         rate_limits: list[CreateTaskRateLimit] = [],
@@ -49,8 +62,12 @@ class Task(Generic[TWorkflowInput, R]):
         self.workflow = workflow
 
         self.type = type
-        self.execution_timeout = execution_timeout
-        self.schedule_timeout = schedule_timeout
+        self.execution_timeout = fall_back_to_default(
+            execution_timeout, DEFAULT_EXECUTION_TIMEOUT, DEFAULT_EXECUTION_TIMEOUT
+        )
+        self.schedule_timeout = fall_back_to_default(
+            schedule_timeout, DEFAULT_SCHEDULE_TIMEOUT, DEFAULT_SCHEDULE_TIMEOUT
+        )
         self.name = name
         self.parents = parents
         self.retries = retries

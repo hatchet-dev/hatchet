@@ -1,16 +1,23 @@
 import asyncio
+from datetime import timedelta
 from enum import Enum
 from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from hatchet_sdk.context.context import Context
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ValidTaskReturnType = Union[BaseModel, JSONSerializableMapping, None]
 
 R = TypeVar("R", bound=Union[ValidTaskReturnType, Awaitable[ValidTaskReturnType]])
 P = ParamSpec("P")
+
+
+DEFAULT_EXECUTION_TIMEOUT = timedelta(minutes=60)
+DEFAULT_SCHEDULE_TIMEOUT = timedelta(minutes=5)
+DEFAULT_PRIORITY = 1
 
 
 class EmptyModel(BaseModel):
@@ -49,6 +56,12 @@ class ConcurrencyExpression(BaseModel):
 TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)
 
 
+class TaskDefaults(BaseModel):
+    schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT
+    execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT
+    priority: StrictInt = Field(gt=0, lt=4, default=DEFAULT_PRIORITY)
+
+
 class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
@@ -58,9 +71,10 @@ class WorkflowConfig(BaseModel):
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
-    default_priority: StrictInt = Field(gt=0, lt=4, default=1)
     concurrency: ConcurrencyExpression | None = None
     input_validator: Type[BaseModel] = EmptyModel
+
+    task_defaults: TaskDefaults = TaskDefaults()
 
     @model_validator(mode="after")
     def validate_concurrency_expression(self) -> "WorkflowConfig":
