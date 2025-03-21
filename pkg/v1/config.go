@@ -26,6 +26,7 @@ type TLSConfig struct {
 func mapConfigToCF(opts Config) *v0Config.ClientConfigFile {
 	cf := &v0Config.ClientConfigFile{}
 
+	// TODO verify no missing opts
 	// Apply provided config to the internal configuration
 	// Zero values won't override server defaults
 	cf.TenantId = opts.TenantId

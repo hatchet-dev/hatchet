@@ -3,10 +3,13 @@ package v1
 import (
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 )
 
 type HatchetClient interface {
 	V0() v0Client.Client
+
+	Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration
 }
 
 type v1HatchetClientImpl struct {
@@ -33,4 +36,8 @@ func NewHatchetClient(config ...Config) (HatchetClient, error) {
 
 func (c *v1HatchetClientImpl) V0() v0Client.Client {
 	return *c.v0
+}
+
+func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration {
+	return workflow.NewWorkflowDeclaration(opts, c.v0)
 }

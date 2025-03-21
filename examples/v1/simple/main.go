@@ -3,6 +3,9 @@ package main
 import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/joho/godotenv"
 )
 
@@ -29,11 +32,25 @@ func main() {
 }
 
 func run(ch <-chan interface{}, events chan<- string) error {
-	_, err := v1.NewHatchetClient()
+	hatchet, err := v1.NewHatchetClient()
 
 	if err != nil {
 		return err
 	}
+
+	simple := hatchet.Workflow(workflow.CreateOpts{
+		Name: "simple",
+	})
+
+	toLower := simple.Task(task.CreateOpts{
+		Name: "to_lower",
+		Fn: func(ctx worker.HatchetContext) error {
+			events <- "to_lower"
+			return nil
+		},
+	})
+
+	println(toLower.Name)
 
 	return nil
 }
