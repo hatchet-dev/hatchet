@@ -10,7 +10,8 @@ export class SleepCondition extends Condition {
 
   constructor(sleepFor: number, action?: Action) {
     super({
-      readableDataKey: '',
+      // TODO readableDataKey
+      readableDataKey: `key-${sleepFor}`,
       action,
       orGroupId: '',
       expression: '',

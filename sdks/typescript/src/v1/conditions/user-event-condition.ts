@@ -11,7 +11,8 @@ export class UserEventCondition extends Condition {
 
   constructor(eventKey: string, expression: string, action?: Action) {
     super({
-      readableDataKey: '',
+      // TODO readableDataKey should be "unique"
+      readableDataKey: `key-${eventKey}`,
       action,
       orGroupId: '',
       expression: '',
