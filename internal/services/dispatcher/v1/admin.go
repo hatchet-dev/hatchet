@@ -9,54 +9,54 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-type AdminService interface {
-	contracts.AdminServiceServer
+type DispatcherService interface {
+	contracts.V1DispatcherServer
 }
 
-type AdminServiceImpl struct {
-	contracts.UnimplementedAdminServiceServer
+type DispatcherServiceImpl struct {
+	contracts.UnimplementedV1DispatcherServer
 
 	repo v1.Repository
 	mq   msgqueue.MessageQueue
 	v    validator.Validator
 }
 
-type AdminServiceOpt func(*AdminServiceOpts)
+type DispatcherServiceOpt func(*DispatcherServiceOpts)
 
-type AdminServiceOpts struct {
+type DispatcherServiceOpts struct {
 	repo v1.Repository
 	mq   msgqueue.MessageQueue
 	v    validator.Validator
 }
 
-func defaultAdminServiceOpts() *AdminServiceOpts {
+func defaultDispatcherServiceOpts() *DispatcherServiceOpts {
 	v := validator.NewDefaultValidator()
 
-	return &AdminServiceOpts{
+	return &DispatcherServiceOpts{
 		v: v,
 	}
 }
 
-func WithRepository(r v1.Repository) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
+func WithRepository(r v1.Repository) DispatcherServiceOpt {
+	return func(opts *DispatcherServiceOpts) {
 		opts.repo = r
 	}
 }
 
-func WithMessageQueue(mq msgqueue.MessageQueue) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
+func WithMessageQueue(mq msgqueue.MessageQueue) DispatcherServiceOpt {
+	return func(opts *DispatcherServiceOpts) {
 		opts.mq = mq
 	}
 }
 
-func WithValidator(v validator.Validator) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
+func WithValidator(v validator.Validator) DispatcherServiceOpt {
+	return func(opts *DispatcherServiceOpts) {
 		opts.v = v
 	}
 }
 
-func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
-	opts := defaultAdminServiceOpts()
+func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error) {
+	opts := defaultDispatcherServiceOpts()
 
 	for _, f := range fs {
 		f(opts)
@@ -70,7 +70,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
-	return &AdminServiceImpl{
+	return &DispatcherServiceImpl{
 		repo: opts.repo,
 		mq:   opts.mq,
 		v:    opts.v,

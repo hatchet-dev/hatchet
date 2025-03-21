@@ -13,6 +13,8 @@ type MatchData struct {
 
 	// maps readable data keys to a list of data values
 	dataKeys map[string][]interface{}
+
+	triggerDataKeys map[string][]interface{}
 }
 
 func (m *MatchData) Action() sqlcv1.V1MatchConditionAction {
@@ -31,6 +33,45 @@ func (m *MatchData) DataKeys() []string {
 	}
 
 	return keys
+}
+
+func (m *MatchData) TriggerDataKeys() []string {
+	if len(m.triggerDataKeys) == 0 {
+		return []string{}
+	}
+
+	keys := make([]string, 0, len(m.triggerDataKeys))
+
+	for k := range m.triggerDataKeys {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func (m *MatchData) TriggerDataValue(key string) map[string]interface{} {
+	values := m.triggerDataKeys[key]
+
+	for _, v := range values {
+		// convert the values to a byte array, then to a map
+		vBytes, err := json.Marshal(v)
+
+		if err != nil {
+			continue
+		}
+
+		data := map[string]interface{}{}
+
+		err = json.Unmarshal(vBytes, &data)
+
+		if err != nil {
+			continue
+		}
+
+		return data
+	}
+
+	return nil
 }
 
 // Helper function for internal events
@@ -72,6 +113,17 @@ func NewMatchData(mcAggregatedData []byte) (*MatchData, error) {
 		return nil, fmt.Errorf("no match condition aggregated data")
 	}
 
+	// look for any CREATE_MATCH data which should be merged into the match data
+	existingDataKeys := make(map[string][]interface{})
+
+	for k, v := range triggerDataMap {
+		if k == "CREATE_MATCH" {
+			for key, values := range v {
+				existingDataKeys[key] = values
+			}
+		}
+	}
+
 	for k, v := range triggerDataMap {
 		var action sqlcv1.V1MatchConditionAction
 
@@ -86,9 +138,18 @@ func NewMatchData(mcAggregatedData []byte) (*MatchData, error) {
 			action = sqlcv1.V1MatchConditionActionSKIP
 		}
 
+		triggerDataKeys := map[string][]interface{}{}
+
+		if len(existingDataKeys) == 0 {
+			existingDataKeys = v
+		} else {
+			triggerDataKeys = v
+		}
+
 		return &MatchData{
-			action:   action,
-			dataKeys: v,
+			action:          action,
+			dataKeys:        existingDataKeys,
+			triggerDataKeys: triggerDataKeys,
 		}, nil
 	}
 

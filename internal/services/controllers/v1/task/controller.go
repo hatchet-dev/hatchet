@@ -52,6 +52,7 @@ type TasksControllerImpl struct {
 	timeoutTaskOperations  *queueutils.OperationPool
 	reassignTaskOperations *queueutils.OperationPool
 	retryTaskOperations    *queueutils.OperationPool
+	emitSleepOperations    *queueutils.OperationPool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -193,6 +194,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	}
 
 	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", t.processTaskTimeouts)
+	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "emit sleep step runs", t.processSleeps)
 	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "reassign step runs", t.processTaskReassignments)
 	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "retry step runs", t.processTaskRetryQueueItems)
 
@@ -231,6 +233,18 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+	}
+
+	_, err = tc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			tc.runTenantSleepEmitter(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run emit sleep: %w", err)
 	}
 
 	_, err = tc.s.NewJob(
@@ -732,7 +746,7 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 	eg := &errgroup.Group{}
 
-	// TODO: RUN IN THE SAME TRANSACTION
+	// TODO: run these in the same tx or send as separate messages?
 	eg.Go(func() error {
 		return tc.handleProcessUserEventTrigger(ctx, tenantId, msgs)
 	})
@@ -778,8 +792,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 // handleProcessUserEventMatches is responsible for signaling or creating tasks based on user event matches.
 func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId string, payloads []*tasktypes.UserEventTaskPayload) error {
-	// tc.l.Error().Msg("not implemented")
-	return nil
+	return tc.processUserEventMatches(ctx, tenantId, payloads)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
@@ -829,7 +842,37 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 	)
 }
 
-// handleProcessUserEventMatches is responsible for triggering tasks based on user event matches.
+// processUserEventMatches looks for user event matches
+func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tenantId string, events []*tasktypes.UserEventTaskPayload) error {
+	candidateMatches := make([]v1.CandidateEventMatch, 0)
+
+	for _, event := range events {
+		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
+			ID:             event.EventId,
+			EventTimestamp: time.Now(),
+			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
+			Key:  event.EventKey,
+			Data: event.EventData,
+		})
+	}
+
+	matchResult, err := tc.repov1.Matches().ProcessUserEventMatches(ctx, tenantId, candidateMatches)
+
+	if err != nil {
+		return fmt.Errorf("could not process user event matches: %w", err)
+	}
+
+	if len(matchResult.CreatedTasks) > 0 {
+		err = tc.signalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
+
+		if err != nil {
+			return fmt.Errorf("could not signal created tasks: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*v1.InternalTaskEvent) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 

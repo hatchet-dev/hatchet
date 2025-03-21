@@ -71,6 +71,7 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	}
 
 	parents := make(map[string]map[string]interface{})
+	triggers := make(map[string]map[string]interface{})
 	stepRunErrors := make(map[string]string)
 
 	if t.TriggerData != nil {
@@ -92,12 +93,19 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 				stepRunErrors[stepReadableId] = data.ErrorMessage
 			}
 		}
+
+		for _, key := range t.TriggerData.TriggerDataKeys() {
+			dataMap := t.TriggerData.TriggerDataValue(key)
+
+			triggers[key] = dataMap
+		}
 	}
 
 	return &V1StepRunData{
 		Input:         t.Input,
 		TriggeredBy:   "manual",
 		Parents:       parents,
+		Triggers:      triggers,
 		StepRunErrors: stepRunErrors,
 	}
 }
@@ -106,6 +114,8 @@ type V1StepRunData struct {
 	Input       map[string]interface{}            `json:"input"`
 	TriggeredBy string                            `json:"triggered_by"`
 	Parents     map[string]map[string]interface{} `json:"parents"`
+
+	Triggers map[string]map[string]interface{} `json:"triggers"`
 
 	// custom-set user data for the step
 	UserData map[string]interface{} `json:"user_data"`

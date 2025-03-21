@@ -1,6 +1,8 @@
 package dagutils
 
-import "github.com/hatchet-dev/hatchet/pkg/repository"
+import (
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+)
 
 func HasCycle(steps []repository.CreateWorkflowStepOpts) bool {
 	graph := make(map[string][]string)

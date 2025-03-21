@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v5.29.3
-// source: v1-admin.proto
+// source: v1/workflows.proto
 
-package contracts
+package v1
 
 import (
 	context "context"
@@ -22,6 +22,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AdminServiceClient interface {
+	PutWorkflow(ctx context.Context, in *CreateWorkflowVersionRequest, opts ...grpc.CallOption) (*CreateWorkflowVersionResponse, error)
 	CancelTasks(ctx context.Context, in *CancelTasksRequest, opts ...grpc.CallOption) (*CancelTasksResponse, error)
 	ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error)
@@ -35,9 +36,18 @@ func NewAdminServiceClient(cc grpc.ClientConnInterface) AdminServiceClient {
 	return &adminServiceClient{cc}
 }
 
+func (c *adminServiceClient) PutWorkflow(ctx context.Context, in *CreateWorkflowVersionRequest, opts ...grpc.CallOption) (*CreateWorkflowVersionResponse, error) {
+	out := new(CreateWorkflowVersionResponse)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/PutWorkflow", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *adminServiceClient) CancelTasks(ctx context.Context, in *CancelTasksRequest, opts ...grpc.CallOption) (*CancelTasksResponse, error) {
 	out := new(CancelTasksResponse)
-	err := c.cc.Invoke(ctx, "/AdminService/CancelTasks", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/CancelTasks", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +56,7 @@ func (c *adminServiceClient) CancelTasks(ctx context.Context, in *CancelTasksReq
 
 func (c *adminServiceClient) ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error) {
 	out := new(ReplayTasksResponse)
-	err := c.cc.Invoke(ctx, "/AdminService/ReplayTasks", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/ReplayTasks", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +65,7 @@ func (c *adminServiceClient) ReplayTasks(ctx context.Context, in *ReplayTasksReq
 
 func (c *adminServiceClient) TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error) {
 	out := new(TriggerWorkflowRunResponse)
-	err := c.cc.Invoke(ctx, "/AdminService/TriggerWorkflowRun", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/v1.AdminService/TriggerWorkflowRun", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +76,7 @@ func (c *adminServiceClient) TriggerWorkflowRun(ctx context.Context, in *Trigger
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility
 type AdminServiceServer interface {
+	PutWorkflow(context.Context, *CreateWorkflowVersionRequest) (*CreateWorkflowVersionResponse, error)
 	CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error)
 	ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error)
@@ -76,6 +87,9 @@ type AdminServiceServer interface {
 type UnimplementedAdminServiceServer struct {
 }
 
+func (UnimplementedAdminServiceServer) PutWorkflow(context.Context, *CreateWorkflowVersionRequest) (*CreateWorkflowVersionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutWorkflow not implemented")
+}
 func (UnimplementedAdminServiceServer) CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelTasks not implemented")
 }
@@ -98,6 +112,24 @@ func RegisterAdminServiceServer(s grpc.ServiceRegistrar, srv AdminServiceServer)
 	s.RegisterService(&AdminService_ServiceDesc, srv)
 }
 
+func _AdminService_PutWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateWorkflowVersionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).PutWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.AdminService/PutWorkflow",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).PutWorkflow(ctx, req.(*CreateWorkflowVersionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AdminService_CancelTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CancelTasksRequest)
 	if err := dec(in); err != nil {
@@ -108,7 +140,7 @@ func _AdminService_CancelTasks_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/AdminService/CancelTasks",
+		FullMethod: "/v1.AdminService/CancelTasks",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).CancelTasks(ctx, req.(*CancelTasksRequest))
@@ -126,7 +158,7 @@ func _AdminService_ReplayTasks_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/AdminService/ReplayTasks",
+		FullMethod: "/v1.AdminService/ReplayTasks",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).ReplayTasks(ctx, req.(*ReplayTasksRequest))
@@ -144,7 +176,7 @@ func _AdminService_TriggerWorkflowRun_Handler(srv interface{}, ctx context.Conte
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/AdminService/TriggerWorkflowRun",
+		FullMethod: "/v1.AdminService/TriggerWorkflowRun",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AdminServiceServer).TriggerWorkflowRun(ctx, req.(*TriggerWorkflowRunRequest))
@@ -156,9 +188,13 @@ func _AdminService_TriggerWorkflowRun_Handler(srv interface{}, ctx context.Conte
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var AdminService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "AdminService",
+	ServiceName: "v1.AdminService",
 	HandlerType: (*AdminServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "PutWorkflow",
+			Handler:    _AdminService_PutWorkflow_Handler,
+		},
 		{
 			MethodName: "CancelTasks",
 			Handler:    _AdminService_CancelTasks_Handler,
@@ -173,5 +209,5 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "v1-admin.proto",
+	Metadata: "v1/workflows.proto",
 }
