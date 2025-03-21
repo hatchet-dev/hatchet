@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import timedelta
 from enum import Enum
-from typing import Generic
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -13,9 +13,15 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
     SleepMatchCondition,
     UserEventMatchCondition,
 )
-from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+
+if TYPE_CHECKING:
+    from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.runnables.types import R, TWorkflowInput
+
+
+def generate_or_group_id() -> str:
+    return str(uuid4())
 
 
 class Action(Enum):
@@ -27,27 +33,24 @@ class Action(Enum):
 
 class BaseCondition(BaseModel):
     event_key: str | None = None
-    readable_data_key: str | None = None
+    readable_data_key: str
     action: Action | None = None
-    or_group_id: str | None = None
+    or_group_id: str = Field(default_factory=generate_or_group_id)
     expression: str | None = None
 
     def to_pb(self) -> BaseMatchCondition:
         return BaseMatchCondition(
             event_key=self.event_key,
             readable_data_key=self.readable_data_key,
-            action=(
-                str(x)
-                if (x := convert_python_enum_to_proto(self.action, ProtoAction))
-                else None
-            ),
+            action=convert_python_enum_to_proto(self.action, ProtoAction),  # type: ignore[arg-type]
             or_group_id=self.or_group_id,
             expression=self.expression,
         )
 
 
-class Condition(BaseModel, ABC):
-    base: BaseCondition
+class Condition(ABC):
+    def __init__(self, base: BaseCondition):
+        self.base = base
 
     @abstractmethod
     def to_pb(
@@ -56,9 +59,45 @@ class Condition(BaseModel, ABC):
         pass
 
 
+class SleepCondition(Condition):
+    def __init__(self, duration: timedelta) -> None:
+        super().__init__(
+            BaseCondition(
+                readable_data_key=f"sleep:{duration.seconds}",
+            )
+        )
+
+        self.duration = duration
+
+    def to_pb(self) -> SleepMatchCondition:
+        return SleepMatchCondition(
+            base=self.base.to_pb(),
+            sleep_for=f"{self.duration.seconds}",
+        )
+
+
 class UserEventCondition(Condition):
-    event_key: str
-    expression: str
+    def _create_readable_data_key(self, event_key: str, expression: str | None) -> str:
+        return (
+            f"user_event:{event_key}"
+            if expression is None
+            else f"user_event:{event_key}:{expression}"
+        )
+
+    def __init__(self, event_key: str, expression: str) -> None:
+        super().__init__(
+            BaseCondition(
+                readable_data_key=self._create_readable_data_key(
+                    event_key=event_key,
+                    expression=expression,
+                ),
+                event_key=event_key,
+                expression=expression,
+            )
+        )
+
+        self.event_key = event_key
+        self.expression = expression
 
     def to_pb(self) -> UserEventMatchCondition:
         return UserEventMatchCondition(
@@ -67,8 +106,15 @@ class UserEventCondition(Condition):
         )
 
 
-class ParentCondition(Condition, Generic[TWorkflowInput, R]):
-    parent: Task[TWorkflowInput, R]
+class ParentCondition(Condition):
+    def __init__(self, parent: "Task[TWorkflowInput, R]") -> None:
+        super().__init__(
+            BaseCondition(
+                readable_data_key=f"parent:{parent.name}",
+            )
+        )
+
+        self.parent = parent
 
     def to_pb(self) -> ParentOverrideMatchCondition:
         return ParentOverrideMatchCondition(
@@ -77,23 +123,10 @@ class ParentCondition(Condition, Generic[TWorkflowInput, R]):
         )
 
 
-class SleepCondition(Condition):
-    duration: timedelta
-
-    def to_pb(self) -> SleepMatchCondition:
-        return SleepMatchCondition(
-            base=self.base.to_pb(),
-            sleep_for=str(self.duration.seconds),
-        )
-
-
-def generate_or_group_id() -> str:
-    return str(uuid4())
-
-
-class OrGroup(BaseModel):
-    or_group_id: str = Field(default_factory=generate_or_group_id)
-    conditions: list[Condition]
+class OrGroup:
+    def __init__(self, conditions: list[Condition]) -> None:
+        self.or_group_id: str = Field(default_factory=generate_or_group_id)
+        self.conditions = conditions
 
 
 def or_(*conditions: Condition) -> OrGroup:

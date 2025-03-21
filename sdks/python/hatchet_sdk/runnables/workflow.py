@@ -30,6 +30,8 @@ from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.waits import (
     Action,
+    Condition,
+    OrGroup,
     ParentCondition,
     SleepCondition,
     UserEventCondition,
@@ -116,16 +118,20 @@ class Workflow(Generic[TWorkflowInput]):
 
         return validated_priority
 
+    def _assign_action(self, condition: Condition, action: Action) -> Condition:
+        condition.base.action = action
+
+        return condition
+
     def _to_pb_conditions(self, task: Task[TWorkflowInput, Any]) -> TaskConditions:
         wait_for_conditions = [
-            w.model_copy(update={"action": Action.QUEUE}) for w in task.wait_for
+            self._assign_action(w, Action.QUEUE) for w in task.wait_for
         ]
+
         cancel_if_conditions = [
-            c.model_copy(update={"action": Action.CANCEL}) for c in task.cancel_if
+            self._assign_action(c, Action.CANCEL) for c in task.cancel_if
         ]
-        skip_if_conditions = [
-            s.model_copy(update={"action": Action.SKIP}) for s in task.skip_if
-        ]
+        skip_if_conditions = [self._assign_action(s, Action.SKIP) for s in task.skip_if]
 
         conditions = wait_for_conditions + cancel_if_conditions + skip_if_conditions
 
@@ -150,6 +156,9 @@ class Workflow(Generic[TWorkflowInput]):
 
         name = self._get_name(namespace)
         event_triggers = [namespace + event for event in self.config.on_events]
+
+        for task in self.tasks:
+            print(self._to_pb_conditions(task))
 
         tasks = [
             CreateTaskOpts(
@@ -353,6 +362,9 @@ class Workflow(Generic[TWorkflowInput]):
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        wait_for: list[Condition | OrGroup] = [],
+        skip_if: list[Condition | OrGroup] = [],
+        cancel_if: list[Condition | OrGroup] = [],
     ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
         """
         A decorator to transform a function into a Hatchet task that run as part of a workflow.
@@ -403,6 +415,9 @@ class Workflow(Generic[TWorkflowInput]):
                 },
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
+                wait_for=wait_for,
+                skip_if=skip_if,
+                cancel_if=cancel_if,
             )
 
             self._default_tasks.append(task)

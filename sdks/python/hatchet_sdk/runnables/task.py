@@ -70,12 +70,10 @@ class Task(Generic[TWorkflowInput, R]):
 
         for condition in conditions:
             if isinstance(condition, OrGroup):
-                flattened.extend(
-                    [
-                        c.model_copy(update={"or_group_id": condition.or_group_id})
-                        for c in condition.conditions
-                    ]
-                )
+                for or_condition in condition.conditions:
+                    or_condition.base.or_group_id = condition.or_group_id
+
+                flattened.extend(condition.conditions)
             else:
                 flattened.append(condition)
 
