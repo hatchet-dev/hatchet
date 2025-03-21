@@ -14,7 +14,7 @@ from hatchet_sdk.runnables.types import (
     is_async_fn,
     is_sync_fn,
 )
-from hatchet_sdk.waits import Condition
+from hatchet_sdk.waits import Condition, OrGroup
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
@@ -39,9 +39,9 @@ class Task(Generic[TWorkflowInput, R]):
         backoff_max_seconds: int | None = None,
         concurrency__slots: int | None = None,
         concurrency__limit_strategy: ConcurrencyLimitStrategy | None = None,
-        wait_for: list[Condition] = [],
-        skip_if: list[Condition] = [],
-        cancel_if: list[Condition] = [],
+        wait_for: list[Condition | OrGroup] = [],
+        skip_if: list[Condition | OrGroup] = [],
+        cancel_if: list[Condition | OrGroup] = [],
     ) -> None:
         self.fn = fn
         self.is_async_function = is_async_fn(fn)
@@ -59,9 +59,22 @@ class Task(Generic[TWorkflowInput, R]):
         self.concurrency__slots = concurrency__slots
         self.concurrency__limit_strategy = concurrency__limit_strategy
 
-        self.wait_for = wait_for
-        self.skip_if = skip_if
-        self.cancel_if = cancel_if
+        self.wait_for = self._flatten_conditions(wait_for)
+        self.skip_if = self._flatten_conditions(skip_if)
+        self.cancel_if = self._flatten_conditions(cancel_if)
+
+    def _flatten_conditions(
+        self, conditions: list[Condition | OrGroup]
+    ) -> list[Condition]:
+        flattened: list[Condition] = []
+
+        for condition in conditions:
+            if isinstance(condition, list):
+                flattened.extend(condition)
+            else:
+                flattened.append(condition)
+
+        return flattened
 
     def call(self, ctx: Context) -> R:
         if self.is_async_function:

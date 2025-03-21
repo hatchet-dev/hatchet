@@ -91,7 +91,10 @@ def generate_or_group_id() -> str:
     return str(uuid4())
 
 
-def or_(*conditions: Condition) -> list[Condition]:
+OrGroup = list[Condition]
+
+
+def or_(*conditions: Condition) -> OrGroup:
     or_group_id = generate_or_group_id()
 
     return [c.model_copy(update={"or_group_id": or_group_id}) for c in conditions]
