@@ -12,6 +12,7 @@ tasks:
       - task: set-env-all
       - task: seed-dev
       - task: copy-ca-to-sdks
+      - task: docs
   set-env-db:
     cmds:
       - |
@@ -179,3 +180,7 @@ tasks:
   pre-commit-run:
     cmds:
       - pre-commit run --all-files || pre-commit run --all-files
+  docs:
+    cmds:
+      - npx serve -l 4001 &
+      - cd frontend/docs/ && pnpm run dev

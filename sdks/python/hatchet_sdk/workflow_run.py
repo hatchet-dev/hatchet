@@ -10,8 +10,6 @@ from hatchet_sdk.utils.aio_utils import get_active_event_loop
 
 
 class WorkflowRunRef:
-    workflow_run_id: str
-
     def __init__(
         self,
         workflow_run_id: str,

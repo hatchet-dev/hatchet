@@ -16,11 +16,13 @@ from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.client import Client, new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.workflow import Workflow
 from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -30,10 +32,8 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
-from hatchet_sdk.workflow import BaseWorkflow, Step, StepType, Task
 
 T = TypeVar("T")
-TBaseWorkflow = TypeVar("TBaseWorkflow", bound=BaseWorkflow)
 
 
 class WorkerStatus(Enum):
@@ -53,15 +53,16 @@ class Worker:
         self,
         name: str,
         config: ClientConfig = ClientConfig(),
-        max_runs: int | None = None,
+        slots: int | None = None,
         labels: dict[str, str | int] = {},
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
+        workflows: list[Workflow[Any]] = [],
     ) -> None:
         self.name = name
         self.config = config
-        self.max_runs = max_runs
+        self.slots = slots
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
@@ -69,7 +70,7 @@ class Worker:
 
         self.client: Client
 
-        self.action_registry: dict[str, Step[Any]] = {}
+        self.action_registry: dict[str, Task[Any, Any]] = {}
         self.validator_registry: dict[str, WorkflowValidator] = {}
 
         self.killing: bool = False
@@ -86,7 +87,7 @@ class Worker:
 
         self.loop: asyncio.AbstractEventLoop
 
-        self.client = new_client_raw(self.config, self.debug)
+        self.client = Client(config=self.config, debug=self.debug)
         self.name = self.client.config.namespace + self.name
 
         self._setup_signal_handlers()
@@ -95,9 +96,9 @@ class Worker:
             "hatchet_worker_status", "Current status of the Hatchet worker"
         )
 
-    def register_workflow_from_opts(
-        self, name: str, opts: CreateWorkflowVersionOpts
-    ) -> None:
+        self.register_workflows(workflows)
+
+    def register_workflow_from_opts(self, opts: CreateWorkflowVersionOpts) -> None:
         try:
             self.client.admin.put_workflow(opts.name, opts)
         except Exception as e:
@@ -105,20 +106,22 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-    def register_workflow(self, workflow: TBaseWorkflow) -> None:
+    def register_workflow(self, workflow: Workflow[Any]) -> None:
         namespace = self.client.config.namespace
 
         try:
             self.client.admin.put_workflow(
-                workflow.get_name(namespace), workflow.get_create_opts(namespace)
+                workflow._get_name(namespace), workflow._get_create_opts(namespace)
             )
         except Exception as e:
-            logger.error(f"failed to register workflow: {workflow.get_name(namespace)}")
+            logger.error(
+                f"failed to register workflow: {workflow._get_name(namespace)}"
+            )
             logger.error(e)
             sys.exit(1)
 
-        for step in workflow.steps:
-            action_name = workflow.create_action_name(namespace, step)
+        for step in workflow.tasks:
+            action_name = workflow._create_action_name(namespace, step)
             self.action_registry[action_name] = step
             return_type = get_type_hints(step.fn).get("return")
 
@@ -127,32 +130,11 @@ class Worker:
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
 
-    def register_function(self, function: Task[Any, Any]) -> None:
-        from hatchet_sdk.workflow import BaseWorkflow
+    def register_workflows(self, workflows: list[Workflow[Any]]) -> None:
+        for workflow in workflows:
+            self.register_workflow(workflow)
 
-        declaration = function.hatchet.declare_workflow(
-            **function.workflow_config.model_dump()
-        )
-
-        class Workflow(BaseWorkflow):
-            config = declaration.config
-
-            @property
-            def default_steps(self) -> list[Step[Any]]:
-                return [function.step]
-
-            @property
-            def on_failure_steps(self) -> list[Step[Any]]:
-                if not function.on_failure_step:
-                    return []
-
-                step = function.on_failure_step.step
-                step.type = StepType.ON_FAILURE
-
-                return [step]
-
-        self.register_workflow(Workflow())
-
+    @property
     def status(self) -> WorkerStatus:
         return self._status
 
@@ -171,12 +153,10 @@ class Worker:
             return created_loop
 
     async def health_check_handler(self, request: Request) -> Response:
-        status = self.status()
-
-        return web.json_response({"status": status.name})
+        return web.json_response({"status": self.status.name})
 
     async def metrics_handler(self, request: Request) -> Response:
-        self.worker_status_gauge.set(1 if self.status() == WorkerStatus.HEALTHY else 0)
+        self.worker_status_gauge.set(1 if self.status == WorkerStatus.HEALTHY else 0)
 
         return web.Response(body=generate_latest(), content_type="text/plain")
 
@@ -207,7 +187,7 @@ class Worker:
         self.owned_loop = self.setup_loop(options.loop)
 
         asyncio.run_coroutine_threadsafe(
-            self.aio_start(options, _from_start=True), self.loop
+            self._aio_start(options, _from_start=True), self.loop
         )
 
         # start the loop and wait until its closed
@@ -217,8 +197,7 @@ class Worker:
             if self.handle_kill:
                 sys.exit(0)
 
-    ## Start methods
-    async def aio_start(
+    async def _aio_start(
         self,
         options: WorkerStartOptions = WorkerStartOptions(),
         _from_start: bool = False,
@@ -259,7 +238,7 @@ class Worker:
             self.name,
             self.action_registry,
             self.validator_registry,
-            self.max_runs,
+            self.slots,
             self.config,
             self.action_queue,
             self.event_queue,
@@ -278,7 +257,7 @@ class Worker:
                 args=(
                     self.name,
                     action_list,
-                    self.max_runs,
+                    self.slots,
                     self.config,
                     self.action_queue,
                     self.event_queue,
@@ -314,7 +293,6 @@ class Worker:
         except Exception as e:
             logger.error(f"error checking listener health: {e}")
 
-    ## Cleanup methods
     def _setup_signal_handlers(self) -> None:
         signal.signal(signal.SIGTERM, self._handle_exit_signal)
         signal.signal(signal.SIGINT, self._handle_exit_signal)
@@ -327,9 +305,9 @@ class Worker:
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
         logger.info("received SIGQUIT...")
-        self.exit_forcefully()
+        self.loop.create_task(self.exit_forcefully())
 
-    async def close(self) -> None:
+    async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
         self.killing = True
         # self.action_queue.close()
@@ -344,7 +322,7 @@ class Worker:
         logger.debug(f"gracefully stopping worker: {self.name}")
 
         if self.killing:
-            return self.exit_forcefully()
+            return await self.exit_forcefully()
 
         self.killing = True
 
@@ -355,19 +333,18 @@ class Worker:
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
 
-        await self.close()
+        await self._close()
         if self.loop and self.owned_loop:
             self.loop.stop()
 
         logger.info("👋")
 
-    def exit_forcefully(self) -> None:
+    async def exit_forcefully(self) -> None:
         self.killing = True
 
         logger.debug(f"forcefully stopping worker: {self.name}")
 
-        ## TODO: `self.close` needs to be awaited / used
-        self.close()  # type: ignore[unused-coroutine]
+        await self._close()
 
         if self.action_listener_process:
             self.action_listener_process.kill()  # Forcefully kill the process

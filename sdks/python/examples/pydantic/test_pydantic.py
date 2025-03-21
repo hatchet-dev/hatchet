@@ -1,5 +1,6 @@
 import pytest
 
+from examples.pydantic.worker import ParentInput, child_workflow, parent_workflow
 from hatchet_sdk import Hatchet, Worker
 
 
@@ -7,12 +8,9 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["pydantic"], indirect=True)
 async def test_run_validation_error(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow(
-        "Parent",
-        {},
-    )
 
-    with pytest.raises(Exception, match="1 validation error for ParentInput"):
+    with pytest.raises(Exception, match="2 validation errors for ChildInput"):
+        run = child_workflow.run(input={})  # type: ignore[arg-type]
         await run.aio_result()
 
 
@@ -20,11 +18,10 @@ async def test_run_validation_error(hatchet: Hatchet, worker: Worker) -> None:
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["pydantic"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow(
-        "Parent",
-        {"x": "foobar"},
+    run = parent_workflow.run(
+        ParentInput(x="foobar"),
     )
 
     result = await run.aio_result()
 
-    assert len(result["spawn"]) == 3
+    assert len(result["spawn"]) == 2

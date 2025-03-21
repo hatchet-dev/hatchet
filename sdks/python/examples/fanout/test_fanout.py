@@ -1,5 +1,6 @@
 import pytest
 
+from examples.fanout.worker import ParentInput, parent_wf
 from hatchet_sdk import Hatchet, Worker
 
 
@@ -7,6 +8,6 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["fanout"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("Parent", {"n": 2})
+    run = parent_wf.run(ParentInput(n=2))
     result = await run.aio_result()
     assert len(result["spawn"]["results"]) == 2

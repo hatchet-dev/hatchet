@@ -2,6 +2,8 @@ import asyncio
 import logging
 import signal
 import time
+from collections import Counter
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from multiprocessing import Queue
 from typing import Any, List, Literal
@@ -24,6 +26,15 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 
 ACTION_EVENT_RETRY_COUNT = 5
+
+ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
+    "ctx_workflow_run_id", default=None
+)
+ctx_step_run_id: ContextVar[str | None] = ContextVar("ctx_step_run_id", default=None)
+ctx_worker_id: ContextVar[str | None] = ContextVar("ctx_worker_id", default=None)
+
+workflow_spawn_indices = Counter[str]()
+spawn_index_lock = asyncio.Lock()
 
 
 @dataclass
@@ -50,7 +61,7 @@ def noop_handler() -> None:
 class WorkerActionListenerProcess:
     name: str
     actions: List[str]
-    max_runs: int
+    slots: int
     config: ClientConfig
     action_queue: "Queue[Action]"
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]"
@@ -93,7 +104,7 @@ class WorkerActionListenerProcess:
                     worker_name=self.name,
                     services=["default"],
                     actions=self.actions,
-                    max_runs=self.max_runs,
+                    slots=self.slots,
                     _labels=self.labels,
                 )
             )
@@ -194,6 +205,10 @@ class WorkerActionListenerProcess:
             async for action in self.listener:
                 if action is None:
                     break
+
+                ctx_step_run_id.set(action.step_run_id)
+                ctx_workflow_run_id.set(action.workflow_run_id)
+                ctx_worker_id.set(action.worker_id)
 
                 # Process the action here
                 match action.action_type:

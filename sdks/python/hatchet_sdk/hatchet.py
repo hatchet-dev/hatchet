@@ -1,46 +1,29 @@
 import asyncio
 import logging
-from typing import Any, Callable, Type, TypeVar, cast, overload
+from datetime import timedelta
+from typing import Any, Type, TypeVar, cast, overload
 
-from hatchet_sdk.client import Client, new_client, new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.context.context import Context
-from hatchet_sdk.contracts.workflows_pb2 import DesiredWorkerLabels
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.scheduled import ScheduledClient
-from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
-from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.worker.worker import Worker
-from hatchet_sdk.workflow import (
+from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     EmptyModel,
-    Step,
-    StepType,
     StickyStrategy,
-    Task,
     TWorkflowInput,
     WorkflowConfig,
-    WorkflowDeclaration,
 )
+from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.worker.worker import Worker
 
 R = TypeVar("R")
-
-
-def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
-    value = d.value
-    return DesiredWorkerLabels(
-        strValue=value if not isinstance(value, int) else None,
-        intValue=value if isinstance(value, int) else None,
-        required=d.required,
-        weight=d.weight,
-        comparator=d.comparator,  # type: ignore[arg-type]
-    )
 
 
 class Hatchet:
@@ -63,16 +46,6 @@ class Hatchet:
     cron: CronClient
     scheduled: ScheduledClient
 
-    @classmethod
-    def from_environment(
-        cls, defaults: ClientConfig = ClientConfig(), **kwargs: Any
-    ) -> "Hatchet":
-        return cls(client=new_client(defaults), **kwargs)
-
-    @classmethod
-    def from_config(cls, config: ClientConfig, **kwargs: Any) -> "Hatchet":
-        return cls(client=new_client_raw(config), **kwargs)
-
     def __init__(
         self,
         debug: bool = False,
@@ -82,16 +55,20 @@ class Hatchet:
         """
         Initialize a new Hatchet instance.
 
-        Args:
-            debug (bool, optional): Enable debug logging. Defaults to False.
-            client (Optional[Client], optional): A pre-configured Client instance. Defaults to None.
-            config (ClientConfig, optional): Configuration for creating a new Client. Defaults to ClientConfig().
+        :param debug: Enable debug logging. Default: `False`
+        :type debug: bool
+
+        :param client: A pre-configured `Client` instance. Default: `None`.
+        :type client: Client | None
+
+        :param config: Configuration for creating a new Client. Defaults to ClientConfig()
+        :type config: ClientConfig
         """
 
         if debug:
             logger.setLevel(logging.DEBUG)
 
-        self._client = client if client else new_client(config, debug)
+        self._client = client if client else Client(config=config, debug=debug)
         self.cron = CronClient(self._client)
         self.scheduled = ScheduledClient(self._client)
 
@@ -123,112 +100,33 @@ class Hatchet:
     def tenant_id(self) -> str:
         return self._client.config.tenant_id
 
-    def step(
-        self,
-        name: str = "",
-        timeout: str = "60m",
-        parents: list[str] = [],
-        retries: int = 0,
-        rate_limits: list[RateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
-        backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[Any, Context], R]], Step[R]]:
-        def inner(func: Callable[[Any, Context], R]) -> Step[R]:
-            return Step(
-                fn=func,
-                type=StepType.DEFAULT,
-                name=name.lower() or str(func.__name__).lower(),
-                timeout=timeout,
-                parents=parents,
-                retries=retries,
-                rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
-                desired_worker_labels={
-                    key: transform_desired_worker_label(d)
-                    for key, d in desired_worker_labels.items()
-                },
-                backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
-            )
-
-        return inner
-
-    def on_failure_step(
-        self,
-        name: str = "",
-        timeout: str = "60m",
-        parents: list[str] = [],
-        retries: int = 0,
-        rate_limits: list[RateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
-        backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[Any, Context], R]], Step[R]]:
-        def inner(func: Callable[[Any, Context], R]) -> Step[R]:
-            return Step(
-                fn=func,
-                type=StepType.ON_FAILURE,
-                name=name.lower() or str(func.__name__).lower(),
-                timeout=timeout,
-                parents=parents,
-                retries=retries,
-                rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
-                desired_worker_labels={
-                    key: transform_desired_worker_label(d)
-                    for key, d in desired_worker_labels.items()
-                },
-                backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
-            )
-
-        return inner
-
-    def task(
-        self,
-        name: str = "",
-        on_events: list[str] = [],
-        on_crons: list[str] = [],
-        version: str = "",
-        timeout: str = "60m",
-        schedule_timeout: str = "5m",
-        sticky: StickyStrategy | None = None,
-        retries: int = 0,
-        rate_limits: list[RateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
-        concurrency: ConcurrencyExpression | None = None,
-        on_failure: Task[Any, Any] | None = None,
-        default_priority: int = 1,
-        input_validator: Type[TWorkflowInput] | None = None,
-        backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[Context], R]], Task[R, TWorkflowInput]]:
-        def inner(func: Callable[[Context], R]) -> Task[R, TWorkflowInput]:
-            return Task[R, TWorkflowInput](
-                func,
-                hatchet=self,
-                name=name,
-                on_events=on_events,
-                on_crons=on_crons,
-                version=version,
-                timeout=timeout,
-                schedule_timeout=schedule_timeout,
-                sticky=sticky,
-                retries=retries,
-                rate_limits=rate_limits,
-                desired_worker_labels=desired_worker_labels,
-                concurrency=concurrency,
-                on_failure=on_failure,
-                default_priority=default_priority,
-                input_validator=input_validator,
-                backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
-            )
-
-        return inner
-
     def worker(
-        self, name: str, max_runs: int | None = None, labels: dict[str, str | int] = {}
+        self,
+        name: str,
+        slots: int = 100,
+        labels: dict[str, str | int] = {},
+        workflows: list[Workflow[Any]] = [],
     ) -> Worker:
+        """
+        Create a Hatchet worker on which to run workflows.
+
+        :param name: The name of the worker.
+        :type name: str
+
+        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time. Default: 100
+        :type slots: int
+
+        :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels. Defaults to an empty dictionary (no labels)
+        :type labels: dict[str, str | int]
+
+        :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them. Defaults to an empty list
+        :type workflows: list[Workflow]
+
+
+        :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
+        :rtype: Worker
+        """
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -236,66 +134,97 @@ class Hatchet:
 
         return Worker(
             name=name,
-            max_runs=max_runs,
+            slots=slots,
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,
             owned_loop=loop is None,
+            workflows=workflows,
         )
 
     @overload
-    def declare_workflow(
+    def workflow(
         self,
         *,
-        name: str = "",
+        name: str,
+        input_validator: None = None,
         on_events: list[str] = [],
         on_crons: list[str] = [],
-        version: str = "",
-        timeout: str = "60m",
-        schedule_timeout: str = "5m",
+        version: str | None = None,
+        schedule_timeout: timedelta | str = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
-        input_validator: None = None,
-    ) -> WorkflowDeclaration[EmptyModel]: ...
+    ) -> Workflow[EmptyModel]: ...
 
     @overload
-    def declare_workflow(
+    def workflow(
         self,
         *,
-        name: str = "",
-        on_events: list[str] = [],
-        on_crons: list[str] = [],
-        version: str = "",
-        timeout: str = "60m",
-        schedule_timeout: str = "5m",
-        sticky: StickyStrategy | None = None,
-        default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        name: str,
         input_validator: Type[TWorkflowInput],
-    ) -> WorkflowDeclaration[TWorkflowInput]: ...
-
-    def declare_workflow(
-        self,
-        *,
-        name: str = "",
         on_events: list[str] = [],
         on_crons: list[str] = [],
-        version: str = "",
-        timeout: str = "60m",
-        schedule_timeout: str = "5m",
+        version: str | None = None,
+        schedule_timeout: timedelta | str = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
+    ) -> Workflow[TWorkflowInput]: ...
+
+    def workflow(
+        self,
+        *,
+        name: str,
         input_validator: Type[TWorkflowInput] | None = None,
-    ) -> WorkflowDeclaration[EmptyModel] | WorkflowDeclaration[TWorkflowInput]:
-        return WorkflowDeclaration[TWorkflowInput](
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        schedule_timeout: timedelta | str = timedelta(minutes=5),
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+    ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
+        """
+        Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
+
+        :param name: The name of the workflow.
+        :type name: str
+
+        :param input_validator: A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`.
+        :type input_validator: Type[BaseModel]
+
+        :param on_events: A list of event triggers for the workflow - events which cause the workflow to be run. Defaults to an empty list, meaning the workflow will not be run on any event pushes.
+        :type on_events: list[str]
+
+        :param on_crons: A list of cron triggers for the workflow. Defaults to an empty list, meaning the workflow will not be run on any cron schedules.
+        :type on_crons: list[str]
+
+        :param version: A version for the workflow. Default: None
+        :type version: str | None
+
+        :param schedule_timeout: The maximum amount of time that a workflow run that has been queued (scheduled) can wait before beginning to execute. For instance, setting `timedelta(minutes=5)` will cancel the workflow run if it does not start after five minutes. Default: five minutes.
+        :type schedule_timeout: `datetime.timedelta`
+
+        :param sticky: A sticky strategy for the workflow. Default: `None`
+        :type sticky: StickyStategy
+
+        :param default_priority: The priority of the workflow. Higher values will cause this workflow to have priority in scheduling over other, lower priority ones. Default: `1`
+        :type default_priority: int
+
+        :param concurrency: A concurrency object controlling the concurrency settings for this workflow.
+        :type concurrency: ConcurrencyExpression | None
+
+        :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
+        :rtype: Workflow
+        """
+
+        return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
                 on_events=on_events,
                 on_crons=on_crons,
-                version=version,
-                timeout=timeout,
+                version=version or "",
                 schedule_timeout=schedule_timeout,
                 sticky=sticky,
                 default_priority=default_priority,
