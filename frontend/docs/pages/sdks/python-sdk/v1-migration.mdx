@@ -65,6 +65,7 @@ Removals:
 Other miscellaneous changes:
 
 1. As shown in the Pydantic example above, there is no longer a `spawn_workflow(s)` method on the `Context`. `run` is now the preferred method for spawning workflows, which will automatically propagate the parent's metadata to the child workflow.
+2. The default behavior of `workflow.run` and `aio_run` are now to _wait_ for the result of workflow. In the past, this would be equivalent to using `run_workflow` and then calling `.result()` on the `WorkflowRunRef`. In v1, you can reproduce the old behavior of "running and forgetting" the workflow with `workflow.run_no_wait` and `workflow.aio_run_no_wait`.
 
 #### Other New features
 
