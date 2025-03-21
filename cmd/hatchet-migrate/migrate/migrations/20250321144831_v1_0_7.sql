@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-ALTER TABLE v1_match ADD COLUMN v1_match_column TEXT;
+ALTER TABLE v1_match ADD COLUMN existing_data JSONB;
 
 ALTER TYPE v1_match_condition_action ADD VALUE 'CREATE_MATCH';
 
@@ -35,7 +35,7 @@ CREATE TABLE v1_durable_sleep (
 
 -- +goose Down
 -- +goose StatementBegin
-ALTER TABLE v1_match DROP COLUMN v1_match_column;
+ALTER TABLE v1_match DROP COLUMN existing_data;
 
 -- Note: Removing the enum value 'CREATE_MATCH' from v1_match_condition_action is not supported by PostgreSQL.
 
