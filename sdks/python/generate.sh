@@ -98,6 +98,7 @@ poetry install --all-extras
 
 # Fix relative imports in _grpc.py files
 find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
+find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/import dispatcher_pb2 as dispatcher__pb2/from hatchet_sdk.contracts.v1 import dispatcher_pb2 as dispatcher__pb2/g'
 find ./hatchet_sdk/contracts -type f -name '*_pb2.pyi' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
 find ./hatchet_sdk/contracts -type f -name '*_pb2.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
 

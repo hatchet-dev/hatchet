@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import dispatcher_pb2 as dispatcher__pb2
+from hatchet_sdk.contracts.v1 import dispatcher_pb2 as dispatcher__pb2
 
 GRPC_GENERATED_VERSION = '1.64.1'
 GRPC_VERSION = grpc.__version__
