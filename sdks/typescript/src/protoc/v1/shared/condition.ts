@@ -55,12 +55,11 @@ export function actionToJSON(object: Action): string {
 }
 
 export interface BaseMatchCondition {
-  eventKey: string; // remove
   readableDataKey: string;
   action: Action;
   /** a UUID defining the OR group for this condition */
   orGroupId: string;
-  expression: string; // options
+  expression: string;
 }
 
 export interface ParentOverrideMatchCondition {
@@ -91,25 +90,22 @@ export interface DurableEventListenerConditions {
 }
 
 function createBaseBaseMatchCondition(): BaseMatchCondition {
-  return { eventKey: '', readableDataKey: '', action: 0, orGroupId: '', expression: '' };
+  return { readableDataKey: '', action: 0, orGroupId: '', expression: '' };
 }
 
 export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
   encode(message: BaseMatchCondition, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.eventKey !== '') {
-      writer.uint32(10).string(message.eventKey);
-    }
     if (message.readableDataKey !== '') {
-      writer.uint32(18).string(message.readableDataKey);
+      writer.uint32(10).string(message.readableDataKey);
     }
     if (message.action !== 0) {
-      writer.uint32(24).int32(message.action);
+      writer.uint32(16).int32(message.action);
     }
     if (message.orGroupId !== '') {
-      writer.uint32(34).string(message.orGroupId);
+      writer.uint32(26).string(message.orGroupId);
     }
     if (message.expression !== '') {
-      writer.uint32(42).string(message.expression);
+      writer.uint32(34).string(message.expression);
     }
     return writer;
   },
@@ -126,35 +122,27 @@ export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
             break;
           }
 
-          message.eventKey = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
           message.readableDataKey = reader.string();
           continue;
         }
-        case 3: {
-          if (tag !== 24) {
+        case 2: {
+          if (tag !== 16) {
             break;
           }
 
           message.action = reader.int32() as any;
           continue;
         }
-        case 4: {
-          if (tag !== 34) {
+        case 3: {
+          if (tag !== 26) {
             break;
           }
 
           message.orGroupId = reader.string();
           continue;
         }
-        case 5: {
-          if (tag !== 42) {
+        case 4: {
+          if (tag !== 34) {
             break;
           }
 
@@ -172,7 +160,6 @@ export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
 
   fromJSON(object: any): BaseMatchCondition {
     return {
-      eventKey: isSet(object.eventKey) ? globalThis.String(object.eventKey) : '',
       readableDataKey: isSet(object.readableDataKey)
         ? globalThis.String(object.readableDataKey)
         : '',
@@ -184,9 +171,6 @@ export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
 
   toJSON(message: BaseMatchCondition): unknown {
     const obj: any = {};
-    if (message.eventKey !== '') {
-      obj.eventKey = message.eventKey;
-    }
     if (message.readableDataKey !== '') {
       obj.readableDataKey = message.readableDataKey;
     }
@@ -207,7 +191,6 @@ export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
   },
   fromPartial(object: DeepPartial<BaseMatchCondition>): BaseMatchCondition {
     const message = createBaseBaseMatchCondition();
-    message.eventKey = object.eventKey ?? '';
     message.readableDataKey = object.readableDataKey ?? '';
     message.action = object.action ?? 0;
     message.orGroupId = object.orGroupId ?? '';

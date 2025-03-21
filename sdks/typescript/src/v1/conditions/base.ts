@@ -8,7 +8,6 @@ export enum Action {
 }
 
 export interface BaseCondition {
-  eventKey?: string; // remove
   readableDataKey?: string;
   action?: Action;
   /** a UUID defining the OR group for this condition */

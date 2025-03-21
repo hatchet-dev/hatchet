@@ -30,7 +30,6 @@ export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditio
       userEventConditions.push({
         base: {
           ...baseToPb(condition.base),
-          eventKey: condition.eventKey,
           expression: condition.expression || '',
         },
         userEventKey: condition.eventKey,
@@ -57,7 +56,6 @@ export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditio
 
 function baseToPb(base: BaseCondition): BaseMatchCondition {
   return {
-    eventKey: base.eventKey || '',
     readableDataKey: base.readableDataKey || '',
     action: base.action!,
     orGroupId: base.orGroupId || generateGroupId(),
