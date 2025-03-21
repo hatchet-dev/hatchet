@@ -23,6 +23,9 @@ type rateLimiter struct {
 
 	tenantId pgtype.UUID
 
+	nextRefillAt   *time.Time
+	nextRefillAtMu sync.RWMutex
+
 	l *zerolog.Logger
 
 	// unacked is a map of taskId to rateLimitSet
@@ -106,6 +109,13 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		if !r.rateLimitsExist(rls) {
 			return res
 		}
+	} else if r.shouldRefill() {
+		err := r.flushToDatabase(ctx)
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("error flushing rate limits to database")
+			return res
+		}
 	}
 
 	currRls := r.copyDbRateLimits()
@@ -152,6 +162,17 @@ func (r *rateLimiter) rateLimitsExist(rls map[string]int32) bool {
 	}
 
 	return true
+}
+
+func (r *rateLimiter) shouldRefill() bool {
+	r.nextRefillAtMu.Lock()
+	defer r.nextRefillAtMu.Unlock()
+
+	if r.nextRefillAt == nil {
+		return false
+	}
+
+	return r.nextRefillAt.After(time.Now().UTC())
 }
 
 func (r *rateLimiter) copyDbRateLimits() rateLimitSet {
@@ -263,11 +284,16 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 		updates[k] = v.val
 	}
 
-	newRateLimits, err := r.rateLimitRepo.UpdateRateLimits(ctx, r.tenantId, updates)
+	newRateLimits, nextRefillAt, err := r.rateLimitRepo.UpdateRateLimits(ctx, r.tenantId, updates)
 
 	if err != nil {
 		return err
 	}
+
+	// update the next refill time
+	r.nextRefillAtMu.Lock()
+	r.nextRefillAt = nextRefillAt
+	r.nextRefillAtMu.Unlock()
 
 	r.dbRateLimits = make(rateLimitSet)
 
