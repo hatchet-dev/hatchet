@@ -118,11 +118,11 @@ class Worker:
 
     def register_workflow(self, workflow: Workflow[Any]) -> None:
         namespace = self.client.config.namespace
+        opts = workflow._get_create_opts(namespace)
+        name = workflow._get_name(namespace)
 
         try:
-            self.client.admin.put_workflow(
-                workflow._get_name(namespace), workflow._get_create_opts(namespace)
-            )
+            self.client.admin.put_workflow(name, opts)
         except Exception as e:
             logger.error(
                 f"failed to register workflow: {workflow._get_name(namespace)}"

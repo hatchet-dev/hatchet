@@ -14,6 +14,7 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
     UserEventMatchCondition,
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -38,6 +39,7 @@ class BaseCondition(BaseModel):
     expression: str | None = None
 
     def to_pb(self) -> BaseMatchCondition:
+        print(self.or_group_id, type(self.or_group_id))
         return BaseMatchCondition(
             readable_data_key=self.readable_data_key,
             action=convert_python_enum_to_proto(self.action, ProtoAction),  # type: ignore[arg-type]
@@ -58,10 +60,10 @@ class Condition(ABC):
 
 
 class SleepCondition(Condition):
-    def __init__(self, duration: timedelta) -> None:
+    def __init__(self, duration: timedelta | str) -> None:
         super().__init__(
             BaseCondition(
-                readable_data_key=f"sleep:{duration.seconds}",
+                readable_data_key=f"sleep:{timedelta_to_expr(duration)}",
             )
         )
 
@@ -70,7 +72,7 @@ class SleepCondition(Condition):
     def to_pb(self) -> SleepMatchCondition:
         return SleepMatchCondition(
             base=self.base.to_pb(),
-            sleep_for=f"{self.duration.seconds}",
+            sleep_for=timedelta_to_expr(self.duration),
         )
 
 
@@ -122,7 +124,7 @@ class ParentCondition(Condition):
 
 class OrGroup:
     def __init__(self, conditions: list[Condition]) -> None:
-        self.or_group_id: str = Field(default_factory=generate_or_group_id)
+        self.or_group_id = generate_or_group_id()
         self.conditions = conditions
 
 
