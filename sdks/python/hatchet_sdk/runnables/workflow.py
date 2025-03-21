@@ -87,6 +87,23 @@ class Workflow(Generic[TWorkflowInput]):
     def _get_name(self, namespace: str) -> str:
         return namespace + self.config.name
 
+    def _raise_for_invalid_concurrency(
+        self, concurrency: ConcurrencyExpression
+    ) -> bool:
+        expr = concurrency.expression
+
+        if not expr.startswith("input."):
+            return True
+
+        _, field = expr.split(".", maxsplit=2)
+
+        if field not in self.config.input_validator.model_fields.keys():
+            raise ValueError(
+                f"The concurrency expression provided relies on the `{field}` field, which was not present in `{self.config.input_validator.__name__}`."
+            )
+
+        return True
+
     @overload
     def _concurrency_to_pb(self, concurrency: None) -> None: ...
 
@@ -98,6 +115,8 @@ class Workflow(Generic[TWorkflowInput]):
     ) -> Concurrency | None:
         if not concurrency:
             return None
+
+        self._raise_for_invalid_concurrency(concurrency)
 
         return Concurrency(
             expression=concurrency.expression,

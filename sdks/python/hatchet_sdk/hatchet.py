@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from datetime import timedelta
 from typing import Any, Type, TypeVar, cast, overload
 
 from hatchet_sdk.client import Client
@@ -21,7 +20,6 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import Workflow
-from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.worker.worker import Worker
 
 R = TypeVar("R")
@@ -148,11 +146,11 @@ class Hatchet:
         self,
         *,
         name: str,
+        description: str | None = None,
         input_validator: None = None,
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -163,11 +161,11 @@ class Hatchet:
         self,
         *,
         name: str,
+        description: str | None = None,
         input_validator: Type[TWorkflowInput],
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -177,11 +175,11 @@ class Hatchet:
         self,
         *,
         name: str,
+        description: str | None = None,
         input_validator: Type[TWorkflowInput] | None = None,
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -192,6 +190,12 @@ class Hatchet:
         :param name: The name of the workflow.
         :type name: str
 
+        :param description: A description for the workflow. Default: None
+        :type description: str | None
+
+        :param version: A version for the workflow. Default: None
+        :type version: str | None
+
         :param input_validator: A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`.
         :type input_validator: Type[BaseModel]
 
@@ -200,12 +204,6 @@ class Hatchet:
 
         :param on_crons: A list of cron triggers for the workflow. Defaults to an empty list, meaning the workflow will not be run on any cron schedules.
         :type on_crons: list[str]
-
-        :param version: A version for the workflow. Default: None
-        :type version: str | None
-
-        :param schedule_timeout: The maximum amount of time that a workflow run that has been queued (scheduled) can wait before beginning to execute. For instance, setting `timedelta(minutes=5)` will cancel the workflow run if it does not start after five minutes. Default: five minutes.
-        :type schedule_timeout: datetime.timedelta | str
 
         :param sticky: A sticky strategy for the workflow. Default: `None`
         :type sticky: StickyStategy
@@ -223,10 +221,10 @@ class Hatchet:
         return Workflow[TWorkflowInput](
             WorkflowConfig(
                 name=name,
+                version=version,
+                description=description,
                 on_events=on_events,
                 on_crons=on_crons,
-                version=version or "",
-                schedule_timeout=schedule_timeout,
                 sticky=sticky,
                 default_priority=default_priority,
                 concurrency=concurrency,

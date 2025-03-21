@@ -1,12 +1,10 @@
 import asyncio
-from datetime import timedelta
 from enum import Enum
 from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from hatchet_sdk.context.context import Context
-from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ValidTaskReturnType = Union[BaseModel, JSONSerializableMapping, None]
@@ -54,11 +52,11 @@ TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)
 class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    name: str = ""
+    name: str
+    description: str | None = None
+    version: str | None = None
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
-    version: str | None = None
-    schedule_timeout: Duration = timedelta(minutes=5)
     sticky: StickyStrategy | None = None
     default_priority: StrictInt = Field(gt=0, lt=4, default=1)
     concurrency: ConcurrencyExpression | None = None

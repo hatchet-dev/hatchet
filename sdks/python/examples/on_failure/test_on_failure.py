@@ -21,13 +21,17 @@ async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
 
     await asyncio.sleep(5)  # Wait for the on_failure job to finish
 
-    details = await hatchet.rest.workflow_runs_api.v1_workflow_run_get(run.workflow_run_id)
+    details = await hatchet.rest.workflow_runs_api.v1_workflow_run_get(
+        run.workflow_run_id
+    )
 
     assert len(details.tasks) == 2
     assert sum(t.status == V1TaskStatus.COMPLETED for t in details.tasks) == 1
     assert sum(t.status == V1TaskStatus.FAILED for t in details.tasks) == 1
 
-    completed_task = next(t for t in details.tasks if t.status == V1TaskStatus.COMPLETED)
+    completed_task = next(
+        t for t in details.tasks if t.status == V1TaskStatus.COMPLETED
+    )
     failed_task = next(t for t in details.tasks if t.status == V1TaskStatus.FAILED)
 
     assert "on_failure" in completed_task.display_name

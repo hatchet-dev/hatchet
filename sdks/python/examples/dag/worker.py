@@ -17,9 +17,7 @@ class RandomSum(BaseModel):
 
 hatchet = Hatchet(debug=True)
 
-dag_workflow = hatchet.workflow(
-    name="DAGWorkflow", schedule_timeout=timedelta(minutes=10)
-)
+dag_workflow = hatchet.workflow(name="DAGWorkflow")
 
 
 @dag_workflow.task(execution_timeout=timedelta(seconds=5))
