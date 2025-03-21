@@ -30,8 +30,8 @@ SELECT
 FROM
     v1_match_condition m
 JOIN
-    input i ON (m.tenant_id, m.event_type, m.event_key, m.is_satisfied, m.event_resource_hint) =
-        ($1::uuid, $2::v1_event_type, i.event_key, FALSE, i.event_resource_hint)
+    input i ON (m.tenant_id, m.event_type, m.event_key, m.is_satisfied, COALESCE(m.event_resource_hint, '')::text) =
+        ($1::uuid, $2::v1_event_type, i.event_key, FALSE, COALESCE(i.event_resource_hint, '')::text)
 `
 
 type ListMatchConditionsForEventParams struct {

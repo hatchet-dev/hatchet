@@ -531,6 +531,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			Parents:             stepCp.Parents,
 			Retries:             &retries,
 			DesiredWorkerLabels: affinity,
+			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
 		}
 
 		if stepCp.BackoffFactor != nil {
@@ -569,6 +570,44 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			}
 
 			steps[j].RateLimits = append(steps[j].RateLimits, opt)
+		}
+
+		for _, userEventCondition := range stepCp.Conditions.UserEventConditions {
+			eventKey := userEventCondition.UserEventKey
+
+			steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
+				MatchConditionKind: "USER_EVENT",
+				ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
+				Action:             userEventCondition.Base.Action.String(),
+				OrGroupId:          userEventCondition.Base.OrGroupId,
+				Expression:         userEventCondition.Base.Expression,
+				EventKey:           &eventKey,
+			})
+		}
+
+		for _, sleepCondition := range stepCp.Conditions.SleepConditions {
+			duration := sleepCondition.SleepFor
+
+			steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
+				MatchConditionKind: "SLEEP",
+				ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
+				Action:             sleepCondition.Base.Action.String(),
+				OrGroupId:          sleepCondition.Base.OrGroupId,
+				SleepDuration:      &duration,
+			})
+		}
+
+		for _, parentOverrideCondition := range stepCp.Conditions.ParentOverrideConditions {
+			parentReadableId := parentOverrideCondition.ParentReadableId
+
+			steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
+				MatchConditionKind: "PARENT_OVERRIDE",
+				ReadableDataKey:    parentReadableId,
+				Action:             parentOverrideCondition.Base.Action.String(),
+				Expression:         parentOverrideCondition.Base.Expression,
+				OrGroupId:          parentOverrideCondition.Base.OrGroupId,
+				ParentReadableId:   &parentReadableId,
+			})
 		}
 	}
 
