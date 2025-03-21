@@ -10,6 +10,7 @@ from typing import Any, List, Literal
 
 import grpc
 
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import (
     Action,
     ActionListener,
@@ -17,6 +18,7 @@ from hatchet_sdk.clients.dispatcher.action_listener import (
     GetActionListenerRequest,
 )
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     GROUP_KEY_EVENT_TYPE_STARTED,
@@ -53,10 +55,6 @@ BLOCKED_THREAD_WARNING = (
 )
 
 
-def noop_handler() -> None:
-    pass
-
-
 @dataclass
 class WorkerActionListenerProcess:
     name: str
@@ -82,11 +80,23 @@ class WorkerActionListenerProcess:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
+        self.client = Client(config=self.config, debug=self.debug)
+
         loop = asyncio.get_event_loop()
-        loop.add_signal_handler(signal.SIGINT, noop_handler)
-        loop.add_signal_handler(signal.SIGTERM, noop_handler)
+        loop.add_signal_handler(
+            signal.SIGINT, lambda: asyncio.create_task(self.pause_task_assignment())
+        )
+        loop.add_signal_handler(
+            signal.SIGTERM, lambda: asyncio.create_task(self.pause_task_assignment())
+        )
         loop.add_signal_handler(
             signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
+        )
+
+    async def pause_task_assignment(self) -> None:
+        await self.client.rest.worker_api.worker_update(
+            worker=self.listener.worker_id,
+            update_worker_request=UpdateWorkerRequest(isPaused=True),
         )
 
     async def start(self, retry_attempt: int = 0) -> None:
@@ -268,6 +278,8 @@ class WorkerActionListenerProcess:
         self.event_queue.put(STOP_LOOP)
 
     async def exit_gracefully(self) -> None:
+        await self.pause_task_assignment()
+
         if self.killing:
             return
 
