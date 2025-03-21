@@ -7,6 +7,7 @@ from hatchet_sdk import (
     Context,
     EmptyModel,
     Hatchet,
+    ParentCondition,
     SleepCondition,
     UserEventCondition,
     or_,
@@ -61,7 +62,40 @@ def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 @dag_waiting_workflow.task(
-    parents=[start, wait_for_sleep, wait_for_event, skip_on_event],
+    parents=[wait_for_sleep],
+    skip_if=[
+        ParentCondition(
+            parent=wait_for_sleep,
+            expression="output.random_number > 50",
+        )
+    ],
+)
+def left_branch(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+@dag_waiting_workflow.task(
+    parents=[wait_for_sleep],
+    skip_if=[
+        ParentCondition(
+            parent=wait_for_sleep,
+            expression="output.random_number <= 50",
+        )
+    ],
+)
+def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+@dag_waiting_workflow.task(
+    parents=[
+        start,
+        wait_for_sleep,
+        wait_for_event,
+        skip_on_event,
+        left_branch,
+        right_branch,
+    ],
 )
 def sum(input: EmptyModel, ctx: Context) -> RandomSum:
     one = ctx.task_output(start).random_number
@@ -73,7 +107,18 @@ def sum(input: EmptyModel, ctx: Context) -> RandomSum:
         else 0
     )
 
-    return RandomSum(sum=one + two + three + four)
+    five = (
+        ctx.task_output(left_branch).random_number
+        if not ctx.was_skipped(left_branch)
+        else 0
+    )
+    six = (
+        ctx.task_output(right_branch).random_number
+        if not ctx.was_skipped(right_branch)
+        else 0
+    )
+
+    return RandomSum(sum=one + two + three + four + five + six)
 
 
 def main() -> None:
