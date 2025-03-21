@@ -11,11 +11,7 @@ from hatchet_sdk.clients.admin import (
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.context.context import Context
-from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
-    BaseMatchCondition,
-    ParentOverrideMatchCondition,
-    TaskConditions,
-)
+from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     Concurrency,
     CreateTaskOpts,
@@ -32,8 +28,12 @@ from hatchet_sdk.runnables.types import R, StepType, TWorkflowInput, WorkflowCon
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.waits.base import Action
-from hatchet_sdk.waits.parent import ParentCondition
+from hatchet_sdk.waits import (
+    Action,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+)
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -129,13 +129,21 @@ class Workflow(Generic[TWorkflowInput]):
 
         conditions = wait_for_conditions + cancel_if_conditions + skip_if_conditions
 
-        for c in conditions:
-            if isinstance(c, ParentCondition):
-                ParentOverrideMatchCondition(
-                    base=BaseMatchCondition(
-                        event_key=c.base.event_key,
-                    )
-                )
+        user_events = [
+            c.to_pb() for c in conditions if isinstance(c, UserEventCondition)
+        ]
+        parent_overrides = [
+            c.to_pb() for c in conditions if isinstance(c, ParentCondition)
+        ]
+        sleep_conditions = [
+            c.to_pb() for c in conditions if isinstance(c, SleepCondition)
+        ]
+
+        return TaskConditions(
+            parent_override_conditions=parent_overrides,
+            sleep_conditions=sleep_conditions,
+            user_event_conditions=user_events,
+        )
 
     def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionRequest:
         service_name = self._get_service_name(namespace)

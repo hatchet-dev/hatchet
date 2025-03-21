@@ -14,7 +14,7 @@ from hatchet_sdk.runnables.types import (
     is_async_fn,
     is_sync_fn,
 )
-from hatchet_sdk.waits.base import Condition
+from hatchet_sdk.waits import Condition
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
