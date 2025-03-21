@@ -95,7 +95,7 @@ WITH input AS (
     -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
     -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = v1_task.id AND rt.task_inserted_at = v1_task.inserted_at AND rt.retry_count = v1_task.retry_count
+        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
     WHERE
         (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
         AND t.tenant_id = $3::uuid
@@ -194,7 +194,7 @@ WITH input AS (
     -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
     -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = v1_task.id AND rt.task_inserted_at = v1_task.inserted_at AND rt.retry_count = v1_task.retry_count
+        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
     WHERE
         (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
         AND t.tenant_id = $4::uuid
