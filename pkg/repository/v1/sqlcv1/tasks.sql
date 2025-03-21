@@ -244,19 +244,19 @@ WITH input AS (
         ) AS subquery
 ), locked_tasks AS (
     SELECT
-        id,
-        inserted_at,
-        step_id
+        t.id,
+        t.inserted_at,
+        t.step_id
     FROM
-        v1_task
+        v1_task t
     -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
     -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
     -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = v1_task.id AND rt.task_inserted_at = v1_task.inserted_at AND rt.retry_count = v1_task.retry_count
+        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
     WHERE
-        (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-        AND tenant_id = @tenantId::uuid
+        (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
+        AND t.tenant_id = @tenantId::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -302,17 +302,17 @@ WITH input AS (
         ) AS subquery
 ), locked_tasks AS (
     SELECT
-        id
+        t.id
     FROM
-        v1_task
+        v1_task t
     -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
     -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
     -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = v1_task.id AND rt.task_inserted_at = v1_task.inserted_at AND rt.retry_count = v1_task.retry_count
+        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
     WHERE
-        (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-        AND tenant_id = @tenantId::uuid
+        (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
+        AND t.tenant_id = @tenantId::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
