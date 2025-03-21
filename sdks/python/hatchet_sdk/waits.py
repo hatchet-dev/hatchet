@@ -76,20 +76,10 @@ class SleepCondition(Condition):
 
 
 class UserEventCondition(Condition):
-    def _create_readable_data_key(self, event_key: str, expression: str | None) -> str:
-        return (
-            f"user_event:{event_key}"
-            if expression is None
-            else f"user_event:{event_key}:{expression}"
-        )
-
     def __init__(self, event_key: str, expression: str | None = None) -> None:
         super().__init__(
             BaseCondition(
-                readable_data_key=self._create_readable_data_key(
-                    event_key=event_key,
-                    expression=expression,
-                ),
+                readable_data_key=event_key,
                 expression=expression,
             )
         )
