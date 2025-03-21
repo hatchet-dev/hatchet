@@ -18,15 +18,15 @@ from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
-from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.worker.action_listener_process import (
+from hatchet_sdk.runnables.contextvars import (
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
