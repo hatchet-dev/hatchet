@@ -1,0 +1,79 @@
+# Hatchet v1 is now available!
+
+For the past several months, we've been working on a complete rewrite of the Hatchet queue with a focus on performance and a set of feature requests which weren’t possible in the v0 architecture.
+
+This discussion outlines the timeline, new features and breaking changes you can expect from the new release.
+
+**If you have feedback or questions, please add them to this Github discussion.**
+
+**Timeline**
+
+- **March 24th, 2025:** Hatchet v1 will be released on Hatchet Cloud and under the latest `v0.55.x` release bundled with the v0 Hatchet engine. It will be opt-in, meaning engine v0 will still be the default engine for each tenant.
+- **March 24th-28th, 2025:** Hatchet v1 launch week. We will be highlighting a new feature or performance improvement in the v1 engine. You can get updates in our Discord [LINK] and we will be updating the top of our README [LINK] each day with new posts.
+- **May 1st, 2025:** Hatchet v1 will become the new default engine for all Hatchet releases after this point. We will be releasing `v1.0.x` on this date.
+- **September 30th, 2025:** Hatchet v0 will become EOL, and will no longer be bundled into the Hatchet runtime.
+
+**New features**
+
+At a high level, Hatchet v1 will support the following new features:
+
+- Complex/conditional workflow logic, like skipping or branching workflows
+- Durable execution features: workflow signaling and durable sleep
+- A documented, stable REST API for interacting with workflows
+- Each SDK will receive a new `v1.0.x` release with the following improvements:
+  - Python will receive improved support for Pydantic validation, dynamic workflow composition, and simpler workflow and task declaration.
+  - Typescript will receive a new factory method for building workflows, and improved typing and validation support
+  - Go will receive improvements for registering workflows and defining tasks.
+- Improved bulk cancellations and replays
+
+**Terminology**
+
+We have gotten feedback that the terminology of Workflows and Steps is confusing, and we’ve seen users use the terms steps/tasks/jobs/workflows interchangeably. In the next major release, we are calling each individual unit of work a **_Task_**, and we are calling the declaration of the work to do a **_Workflow_**. We believe that this naming translates more directly to what Hatchet is actually doing (we are a **_task queue_** built on Postgres, after all). When referring to an instance of a task or workflow, we will internally (and over our REST API) refer to these as **_Task Run_** or **_Workflow Run_**, respectively, though it should be clear from context whether a Workflow or a Task refers to the declaration of work or an instance of the work.
+
+**Breaking changes**
+
+First, a quick note — we are **not removing any features from our existing feature set**. Our goal is for all features to work with minimal changes in Hatchet v1. However, the way that those features are defined at the workflow and task level will in some cases change slightly.
+
+Up to now, we’ve attempted to be as backwards-compatible as possible while keeping up with feature velocity, and we’d like to support users on v0 for as long as possible while providing an easy path for upgrading. Generally, we’d recommend upgrading the Hatchet engine first, followed by the SDK version. Here’s our compatibility matrix between v0 and v1:
+
+|        | Engine v0           | Engine v1   |
+| ------ | ------------------- | ----------- |
+| SDK v0 | Supported           | Supported\* |
+| SDK v1 | Limited support\*\* | Supported   |
+
+\* Some features will behave slightly differently on the v1 engine, but all workflows defined in v0 can be registered in v1
+
+\*\* It will not be possible to register a v1 workflow against the v0 engine, but each SDK will continue to bundle the v0 version until September 30th, 2025.
+
+**List of breaking changes**
+
+While we’d prefer to avoid any breaking changes, v1 is architecturally very different from v0, which means that the following APIs will be modified/replaced:
+
+- We will only be supporting CEL-based concurrency keys, and we will not be supporting custom concurrency methods defined on the client. If you require custom logic to compute the concurrency key that can’t be captured in a CEL expression, we recommend passing the key as part of the input to the workflow. **Workflows registered against a v1 engine with a custom concurrency method (instead of an expression) will not use a concurrency queue.**
+- While we haven’t published an official REST API doc, we have often recommended usage of the REST API in our SDKs to implement replays, retrieving task status, and dead-letter queueing. The following REST APIs will receive significant changes and existing implementations are unlikely to work with v1:
+  - Workflow Runs API —
+    - listing workflow runs,
+    - getting workflow run details
+    - workflow run cancellations/replays will all receive significant changes.
+
+**Performance improvements**
+
+In our benchmarks so far, weve seen:
+
+- 30% lower latency, from 30ms → 20ms average enqueue times
+- 10x higher throughput, from about 1k events/s to 10k events/s
+- Under significant load, we see about 6x less IOPs load and 5x less CPU load on the database
+
+As part of the v1 rewrite, we will be releasing a new load testing container which is designed to benchmark Hatchet setups. We will be publishing a number of benchmarks during our Launch Week.
+
+**Migration guides**
+
+We will be publishing the following migration guides in the next few weeks:
+
+- v1 Hatchet Cloud Migration Guide
+- v1 Self-Hosted Migration Guide
+- v1 Python SDK migration guide
+- v1 Go SDK migration guide
+- v1 Typescript SDK migration guide
+
+These links will become active when each migration guide is available.

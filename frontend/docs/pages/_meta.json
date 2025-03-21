@@ -1,4 +1,9 @@
 {
+    "v1": {
+        "title": "v1",
+        "type": "page",
+        "href": "/v1"
+    },
     "home": {
         "title": "User Guide",
         "type": "page"
