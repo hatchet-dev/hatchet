@@ -32,7 +32,6 @@ class Action(Enum):
 
 
 class BaseCondition(BaseModel):
-    event_key: str | None = None
     readable_data_key: str
     action: Action | None = None
     or_group_id: str = Field(default_factory=generate_or_group_id)
@@ -40,7 +39,6 @@ class BaseCondition(BaseModel):
 
     def to_pb(self) -> BaseMatchCondition:
         return BaseMatchCondition(
-            event_key=self.event_key,
             readable_data_key=self.readable_data_key,
             action=convert_python_enum_to_proto(self.action, ProtoAction),  # type: ignore[arg-type]
             or_group_id=self.or_group_id,
@@ -84,14 +82,13 @@ class UserEventCondition(Condition):
             else f"user_event:{event_key}:{expression}"
         )
 
-    def __init__(self, event_key: str, expression: str) -> None:
+    def __init__(self, event_key: str, expression: str | None = None) -> None:
         super().__init__(
             BaseCondition(
                 readable_data_key=self._create_readable_data_key(
                     event_key=event_key,
                     expression=expression,
                 ),
-                event_key=event_key,
                 expression=expression,
             )
         )
