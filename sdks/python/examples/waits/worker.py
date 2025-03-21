@@ -27,39 +27,48 @@ dag_waiting_workflow = hatchet.workflow(name="DAGWaitingWorkflow")
 
 
 @dag_waiting_workflow.task()
-def step1(input: EmptyModel, ctx: Context) -> StepOutput:
+def start(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
 @dag_waiting_workflow.task(
-    parents=[step1], wait_for=[SleepCondition(timedelta(seconds=10))]
+    parents=[start], wait_for=[SleepCondition(timedelta(seconds=10))]
 )
-def step2(input: EmptyModel, ctx: Context) -> StepOutput:
+def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
 @dag_waiting_workflow.task(
-    parents=[step1],
+    parents=[start],
     wait_for=[
         or_(
-            SleepCondition(timedelta(seconds=15)),
-            UserEventCondition(event_key="step3:start"),
+            SleepCondition(duration=timedelta(minutes=1)),
+            UserEventCondition(event_key="wait_for_event:start"),
         )
     ],
-    skip_if=[UserEventCondition(event_key="step3:skip")],
 )
-def step3(input: EmptyModel, ctx: Context) -> RandomSum:
+def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+@dag_waiting_workflow.task(
+    parents=[start],
+    wait_for=[SleepCondition(timedelta(seconds=30))],
+    skip_if=[UserEventCondition(event_key="skip_on_event:skip")],
+)
+def skip_on_event(input: EmptyModel, ctx: Context) -> RandomSum:
     raise Exception("This task should be skipped")
 
 
 @dag_waiting_workflow.task(
-    parents=[step2],
+    parents=[start, wait_for_sleep, wait_for_event, skip_on_event],
 )
-def step4(input: EmptyModel, ctx: Context) -> RandomSum:
-    one = ctx.task_output(step1).random_number
-    two = ctx.task_output(step2).random_number
+def sum(input: EmptyModel, ctx: Context) -> RandomSum:
+    one = ctx.task_output(start).random_number
+    two = ctx.task_output(wait_for_event).random_number
+    three = ctx.task_output(wait_for_sleep).random_number
 
-    return RandomSum(sum=one + two)
+    return RandomSum(sum=one + two + three)
 
 
 def main() -> None:

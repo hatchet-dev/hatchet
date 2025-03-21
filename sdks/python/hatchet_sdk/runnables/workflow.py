@@ -26,7 +26,7 @@ from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, StepType, TWorkflowInput, WorkflowConfig
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
-from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.waits import (
     Action,
@@ -352,7 +352,7 @@ class Workflow(Generic[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        timeout: timedelta | str = timedelta(minutes=60),
+        timeout: Duration = timedelta(minutes=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -370,7 +370,7 @@ class Workflow(Generic[TWorkflowInput]):
         :type name: str | None
 
         :param timeout: The execution timeout of the task. Defaults to 60 minutes.
-        :type timeout: datetime.timedelta
+        :type timeout: datetime.timedelta | str
 
         :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children. Defaults to an empty list (no parents).
         :type parents: list[Task]
@@ -426,7 +426,7 @@ class Workflow(Generic[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        timeout: timedelta | str = timedelta(minutes=60),
+        timeout: Duration = timedelta(minutes=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
@@ -439,7 +439,7 @@ class Workflow(Generic[TWorkflowInput]):
         :type name: str | None
 
         :param timeout: The execution timeout of the on-failure task. Defaults to 60 minutes.
-        :type timeout: datetime.timedelta
+        :type timeout: datetime.timedelta | str
 
         :param retries: The number of times to retry the on-failure task before failing. Default: `0`
         :type retries: int
