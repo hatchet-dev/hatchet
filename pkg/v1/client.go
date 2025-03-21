@@ -9,7 +9,7 @@ import (
 type HatchetClient interface {
 	V0() v0Client.Client
 
-	Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration
+	Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration[any, any]
 }
 
 type v1HatchetClientImpl struct {
@@ -38,6 +38,17 @@ func (c *v1HatchetClientImpl) V0() v0Client.Client {
 	return *c.v0
 }
 
-func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration {
-	return workflow.NewWorkflowDeclaration(opts, c.v0)
+func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration[any, any] {
+	return workflow.NewWorkflowDeclaration[any, any](opts, c.v0)
+}
+
+// NOTE: i don't love this on the client but there is a circular
+// dependency if it is in the workflow package
+func WorkflowFactory[I any, O any](opts workflow.CreateOpts, client *HatchetClient) workflow.WorkflowDeclaration[I, O] {
+	var v0 v0Client.Client
+	if client != nil {
+		v0 = (*client).V0()
+	}
+
+	return workflow.NewWorkflowDeclaration[I, O](opts, &v0)
 }

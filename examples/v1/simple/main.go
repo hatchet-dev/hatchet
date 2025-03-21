@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
@@ -9,13 +11,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type userCreateEvent struct {
+type Input struct {
 	Username string            `json:"username"`
 	UserID   string            `json:"user_id"`
 	Data     map[string]string `json:"data"`
 }
 
-type stepOutput struct {
+type Result struct {
 	Message string `json:"message"`
 }
 
@@ -38,11 +40,14 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return err
 	}
 
-	simple := hatchet.Workflow(workflow.CreateOpts{
-		Name: "simple",
-	})
+	simple := v1.WorkflowFactory[Input, Result](
+		workflow.CreateOpts{
+			Name: "simple",
+		},
+		&hatchet,
+	)
 
-	toLower := simple.Task(task.CreateOpts{
+	simple.Task(task.CreateOpts{
 		Name: "to_lower",
 		Fn: func(ctx worker.HatchetContext) error {
 			events <- "to_lower"
@@ -50,7 +55,17 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		},
 	})
 
-	println(toLower.Name)
+	res, err := simple.Run(Input{
+		Username: "test",
+		UserID:   "123",
+		Data:     map[string]string{"key": "value"},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(res)
 
 	return nil
 }
