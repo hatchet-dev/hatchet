@@ -53,6 +53,9 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
+		Input:              jsonToMap(task.Input),
+		Output:             jsonToMap(task.Output),
+		Type:               gen.V1WorkflowTypeTASK,
 		DisplayName:        task.DisplayName,
 		Duration:           durationPtr,
 		StartedAt:          startedAt,
@@ -298,6 +301,13 @@ func ToWorkflowRunDetails(
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
 	input := jsonToMap(workflowRun.Input)
+
+	output := make(map[string]interface{})
+
+	if workflowRun.Output != nil {
+		output = jsonToMap(*workflowRun.Output)
+	}
+
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parsedWorkflowRun := gen.V1WorkflowRun{
@@ -318,6 +328,7 @@ func ToWorkflowRunDetails(
 		WorkflowId:        uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowID)),
 		WorkflowVersionId: &workflowVersionId,
 		Input:             input,
+		Output:            output,
 	}
 
 	shapeRows := make([]gen.WorkflowRunShapeItemForWorkflowRunDetails, len(shape))
