@@ -41,19 +41,6 @@ def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
 
 @dag_waiting_workflow.task(
     parents=[start],
-    wait_for=[
-        or_(
-            SleepCondition(duration=timedelta(minutes=1)),
-            UserEventCondition(event_key="wait_for_event:start"),
-        )
-    ],
-)
-def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
-    return StepOutput(random_number=random.randint(1, 100))
-
-
-@dag_waiting_workflow.task(
-    parents=[start],
     wait_for=[SleepCondition(timedelta(seconds=30))],
     skip_if=[UserEventCondition(event_key="skip_on_event:skip")],
 )
@@ -66,7 +53,7 @@ def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
     skip_if=[
         ParentCondition(
             parent=wait_for_sleep,
-            expression="output.random_number > 50",
+            expression="input.random_number > 50",
         )
     ],
 )
@@ -75,11 +62,24 @@ def left_branch(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 @dag_waiting_workflow.task(
+    parents=[start],
+    wait_for=[
+        or_(
+            SleepCondition(duration=timedelta(minutes=1)),
+            UserEventCondition(event_key="wait_for_event:start"),
+        )
+    ],
+)
+def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+@dag_waiting_workflow.task(
     parents=[wait_for_sleep],
     skip_if=[
         ParentCondition(
             parent=wait_for_sleep,
-            expression="output.random_number <= 50",
+            expression="input.random_number <= 50",
         )
     ],
 )
