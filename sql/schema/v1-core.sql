@@ -986,6 +986,30 @@ BEGIN
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
+    ), updated_slot AS (
+        UPDATE
+            v1_concurrency_slot cs
+        SET
+            task_retry_count = nt.retry_count,
+            is_filled = FALSE,
+            priority = 4
+        FROM
+            new_slot_rows nt
+        WHERE
+            cs.task_id = nt.id
+            AND cs.task_inserted_at = nt.inserted_at
+            AND cs.strategy_id = nt.strategy_id
+        RETURNING cs.*
+    ), slots_to_insert AS (
+        -- select the rows that were not updated
+        SELECT
+            nt.*
+        FROM
+            new_slot_rows nt
+        LEFT JOIN
+            updated_slot cs ON cs.task_id = nt.id AND cs.task_inserted_at = nt.inserted_at AND cs.strategy_id = nt.strategy_id
+        WHERE
+            cs.task_id IS NULL
     )
     INSERT INTO v1_concurrency_slot (
         task_id,
@@ -1024,7 +1048,7 @@ BEGIN
         next_keys,
         queue,
         schedule_timeout_at
-    FROM new_slot_rows;
+    FROM slots_to_insert;
 
     INSERT INTO v1_queue_item (
         tenant_id,

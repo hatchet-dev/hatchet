@@ -129,10 +129,19 @@ export function useTenant(): TenantContext {
   const [params] = useSearchParams();
 
   const [lastRedirected, setLastRedirected] = useState<string | undefined>();
+  const [previewV0, setPreviewV0] = useState<boolean>(false);
 
   useEffect(() => {
-    // Only redirect on initial tenant load
-    if (lastRedirected == tenant?.slug) {
+    const previewV0Params = params.get('previewV0');
+
+    if (previewV0Params == 'false' && previewV0) {
+      setPreviewV0(false);
+    } else if (previewV0Params == 'true' && !previewV0) {
+      setPreviewV0(true);
+      return;
+    }
+
+    if (previewV0) {
       return;
     }
 
