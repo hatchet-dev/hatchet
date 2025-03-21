@@ -77,6 +77,9 @@ class Context:
 
         self.input = self.data.input
 
+    def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
+        return self.data.parents.get(task.name, {}).get("skipped", False)
+
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
