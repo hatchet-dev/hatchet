@@ -11,10 +11,10 @@ import { Action, BaseCondition } from './base';
 import { ParentCondition } from './parent-condition';
 
 export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditions {
-  const queueIfConditions = Render(Action.QUEUE, task.waitFor);
+  const waitForConditions = Render(Action.QUEUE, task.waitFor);
   const cancelIfConditions = Render(Action.CANCEL, task.cancelIf);
   const skipIfConditions = Render(Action.SKIP, task.skipIf);
-  const mergedConditions = [...queueIfConditions, ...cancelIfConditions, ...skipIfConditions];
+  const mergedConditions = [...waitForConditions, ...cancelIfConditions, ...skipIfConditions];
 
   const parentOverrideConditions: ParentOverrideMatchCondition[] = [];
   const sleepConditions: SleepMatchCondition[] = [];
