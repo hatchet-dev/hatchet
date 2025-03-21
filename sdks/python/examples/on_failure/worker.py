@@ -25,7 +25,7 @@ def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
     # or notify a user here
 
     # 👀 Fetch the errors from upstream step runs from the context
-    print(ctx.step_run_errors)
+    print(ctx.task_run_errors)
 
     return {"status": "success"}
 
@@ -47,13 +47,14 @@ def details_step1(input: EmptyModel, ctx: Context) -> None:
 
 
 # 👀 After the workflow fails, this special step will run
-@on_failure_wf_with_details.task()
+@on_failure_wf_with_details.on_failure_task()
 def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    failures = ctx.fetch_run_failures()
+    error = ctx.fetch_task_run_error(details_step1)
 
     # 👀 we can access the failure details here
-    print(json.dumps(failures, indent=2))
-    if len(failures) == 1 and "step1 failed" in failures[0].error:
+    print(json.dumps(error, indent=2))
+
+    if error and "step1 failed" in error:
         return {"status": "success"}
 
     raise Exception("unexpected failure")

@@ -214,7 +214,7 @@ class Context:
         return self.action.parent_workflow_run_id
 
     @property
-    def step_run_errors(self) -> dict[str, str]:
+    def task_run_errors(self) -> dict[str, str]:
         errors = self.data.step_run_errors
 
         if not errors:
@@ -224,20 +224,10 @@ class Context:
 
         return errors
 
-    def fetch_run_failures(self) -> list[StepRunError]:
-        data = self.rest_client.workflow_run_get(self.action.workflow_run_id)
-        other_job_runs = [
-            run for run in (data.job_runs or []) if run.job_id != self.action.job_id
-        ]
+    def fetch_task_run_error(
+        self,
+        task: "Task[TWorkflowInput, R]",
+    ) -> str | None:
+        errors = self.data.step_run_errors
 
-        return [
-            StepRunError(
-                step_id=step_run.step_id,
-                step_run_action_name=step_run.step.action,
-                error=step_run.error,
-            )
-            for job_run in other_job_runs
-            if job_run.step_runs
-            for step_run in job_run.step_runs
-            if step_run.error and step_run.step
-        ]
+        return errors.get(task.name)
