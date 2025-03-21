@@ -18,18 +18,16 @@ CANCEL: Action
 SKIP: Action
 
 class BaseMatchCondition(_message.Message):
-    __slots__ = ("event_key", "readable_data_key", "action", "or_group_id", "expression")
-    EVENT_KEY_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("readable_data_key", "action", "or_group_id", "expression")
     READABLE_DATA_KEY_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     OR_GROUP_ID_FIELD_NUMBER: _ClassVar[int]
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
-    event_key: str
     readable_data_key: str
     action: Action
     or_group_id: str
     expression: str
-    def __init__(self, event_key: _Optional[str] = ..., readable_data_key: _Optional[str] = ..., action: _Optional[_Union[Action, str]] = ..., or_group_id: _Optional[str] = ..., expression: _Optional[str] = ...) -> None: ...
+    def __init__(self, readable_data_key: _Optional[str] = ..., action: _Optional[_Union[Action, str]] = ..., or_group_id: _Optional[str] = ..., expression: _Optional[str] = ...) -> None: ...
 
 class ParentOverrideMatchCondition(_message.Message):
     __slots__ = ("base", "parent_readable_id")

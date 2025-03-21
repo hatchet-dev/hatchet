@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import workflows_pb2 as workflows__pb2
+import workflows_pb2 as workflows__pb2
 
 GRPC_GENERATED_VERSION = '1.64.1'
 GRPC_VERSION = grpc.__version__

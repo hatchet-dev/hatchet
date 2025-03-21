@@ -97,15 +97,9 @@ git restore pyproject.toml poetry.lock
 poetry install --all-extras
 
 # Fix relative imports in _grpc.py files
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/^import \([^ ]*\)_pb2/from . import \1_pb2/'
-    find ./hatchet_sdk/contracts -type f -name '*_pb2.pyi' -print0 | xargs -0 sed -i '' 's/^import \([^ ]*\)_pb2/from . import \1_pb2/'
-else
-    # Linux and others
-    find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i 's/^import \([^ ]*\)_pb2/from . import \1_pb2/'
-    find ./hatchet_sdk/contracts -type f -name '*_pb2.pyi' -print0 | xargs -0 sed -i 's/^import \([^ ]*\)_pb2/from . import \1_pb2/'
-fi
+find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
+find ./hatchet_sdk/contracts -type f -name '*_pb2.pyi' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
+find ./hatchet_sdk/contracts -type f -name '*_pb2.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
 
 # ensure that pre-commit is applied without errors
 ./lint.sh
