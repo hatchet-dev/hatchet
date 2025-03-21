@@ -29,7 +29,7 @@ func main() {
 }
 
 func run(ch <-chan interface{}, events chan<- string) error {
-	_, err := v1.NewHatchetClient(v1.Config{})
+	_, err := v1.NewHatchetClient()
 
 	if err != nil {
 		return err

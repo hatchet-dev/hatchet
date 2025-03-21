@@ -8,10 +8,11 @@ import (
 )
 
 type HatchetClient interface {
+	V0() client.Client
 }
 
 type v1ClientImpl struct {
-	client *client.Client
+	v0 *client.Client
 }
 
 // Config represents client configuration
@@ -32,24 +33,30 @@ type TLSConfig struct {
 	TLSServerName string
 }
 
-func NewHatchetClient(config Config) (HatchetClient, error) {
+func NewHatchetClient(config ...Config) (HatchetClient, error) {
+
 	cf := &v0Config.ClientConfigFile{}
 
-	// Apply provided config to the internal configuration
-	// Zero values won't override server defaults
-	cf.TenantId = config.TenantId
-	cf.Token = config.Token
-	cf.HostPort = config.HostPort
-	cf.Namespace = config.Namespace
-	cf.NoGrpcRetry = config.NoGrpcRetry
-	cf.CloudRegisterID = &config.CloudRegisterID
-	cf.RawRunnableActions = config.RawRunnableActions
-	cf.AutoscalingTarget = config.AutoscalingTarget
+	if len(config) > 0 {
+		opts := config[0]
+		cf := &v0Config.ClientConfigFile{}
 
-	if config.TLS != nil {
-		cf.TLS = v0Config.ClientTLSConfigFile{
-			Base:          *config.TLS.Base,
-			TLSServerName: config.TLS.TLSServerName,
+		// Apply provided config to the internal configuration
+		// Zero values won't override server defaults
+		cf.TenantId = opts.TenantId
+		cf.Token = opts.Token
+		cf.HostPort = opts.HostPort
+		cf.Namespace = opts.Namespace
+		cf.NoGrpcRetry = opts.NoGrpcRetry
+		cf.CloudRegisterID = &opts.CloudRegisterID
+		cf.RawRunnableActions = opts.RawRunnableActions
+		cf.AutoscalingTarget = opts.AutoscalingTarget
+
+		if opts.TLS != nil {
+			cf.TLS = v0Config.ClientTLSConfigFile{
+				Base:          *opts.TLS.Base,
+				TLSServerName: opts.TLS.TLSServerName,
+			}
 		}
 	}
 
@@ -59,6 +66,10 @@ func NewHatchetClient(config Config) (HatchetClient, error) {
 	}
 
 	return &v1ClientImpl{
-		client: &client,
+		v0: &client,
 	}, nil
+}
+
+func (c *v1ClientImpl) V0() client.Client {
+	return *c.v0
 }
