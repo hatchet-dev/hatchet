@@ -12,7 +12,7 @@ hatchet = Hatchet(debug=True)
 on_failure_wf = hatchet.workflow(name="OnFailureWorkflow")
 
 
-@on_failure_wf.task(timeout=timedelta(seconds=1))
+@on_failure_wf.task(execution_timeout=timedelta(seconds=1))
 def step1(input: EmptyModel, ctx: Context) -> None:
     # 👀 this step will always raise an exception
     raise Exception("step1 failed")
@@ -41,7 +41,7 @@ on_failure_wf_with_details = hatchet.workflow(name="OnFailureWorkflowWithDetails
 
 
 # ... defined as above
-@on_failure_wf_with_details.task(timeout=timedelta(seconds=1))
+@on_failure_wf_with_details.task(execution_timeout=timedelta(seconds=1))
 def details_step1(input: EmptyModel, ctx: Context) -> None:
     raise Exception("step1 failed")
 

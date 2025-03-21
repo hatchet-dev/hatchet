@@ -7,7 +7,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
     DesiredWorkerLabels,
 )
 from hatchet_sdk.runnables.types import (
-    ConcurrencyLimitStrategy,
+    ConcurrencyExpression,
     R,
     StepType,
     TWorkflowInput,
@@ -31,15 +31,15 @@ class Task(Generic[TWorkflowInput, R]):
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        timeout: Duration = timedelta(minutes=60),
+        execution_timeout: Duration = timedelta(minutes=60),
+        schedule_timeout: Duration = timedelta(minutes=5),
         parents: "list[Task[TWorkflowInput, Any]]" = [],
         retries: int = 0,
         rate_limits: list[CreateTaskRateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabels] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        concurrency__slots: int | None = None,
-        concurrency__limit_strategy: ConcurrencyLimitStrategy | None = None,
+        concurrency: list[ConcurrencyExpression] = [],
         wait_for: list[Condition | OrGroup] = [],
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
@@ -49,7 +49,8 @@ class Task(Generic[TWorkflowInput, R]):
         self.workflow = workflow
 
         self.type = type
-        self.timeout = timeout
+        self.execution_timeout = execution_timeout
+        self.schedule_timeout = schedule_timeout
         self.name = name
         self.parents = parents
         self.retries = retries
@@ -57,8 +58,7 @@ class Task(Generic[TWorkflowInput, R]):
         self.desired_worker_labels = desired_worker_labels
         self.backoff_factor = backoff_factor
         self.backoff_max_seconds = backoff_max_seconds
-        self.concurrency__slots = concurrency__slots
-        self.concurrency__limit_strategy = concurrency__limit_strategy
+        self.concurrency = concurrency
 
         self.wait_for = self._flatten_conditions(wait_for)
         self.skip_if = self._flatten_conditions(skip_if)

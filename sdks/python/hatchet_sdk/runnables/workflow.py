@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Callable, Generic, cast
+from typing import TYPE_CHECKING, Any, Callable, Generic, cast, overload
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel
@@ -24,7 +24,13 @@ from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, StepType, TWorkflowInput, WorkflowConfig
+from hatchet_sdk.runnables.types import (
+    ConcurrencyExpression,
+    R,
+    StepType,
+    TWorkflowInput,
+    WorkflowConfig,
+)
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -81,14 +87,22 @@ class Workflow(Generic[TWorkflowInput]):
     def _get_name(self, namespace: str) -> str:
         return namespace + self.config.name
 
-    def _validate_concurrency_options(self) -> Concurrency | None:
-        if not self.config.concurrency:
+    @overload
+    def _concurrency_to_pb(self, concurrency: None) -> None: ...
+
+    @overload
+    def _concurrency_to_pb(self, concurrency: ConcurrencyExpression) -> Concurrency: ...
+
+    def _concurrency_to_pb(
+        self, concurrency: ConcurrencyExpression | None
+    ) -> Concurrency | None:
+        if not concurrency:
             return None
 
         return Concurrency(
-            expression=self.config.concurrency.expression,
-            max_runs=self.config.concurrency.max_runs,
-            limit_strategy=self.config.concurrency.limit_strategy,
+            expression=concurrency.expression,
+            max_runs=concurrency.max_runs,
+            limit_strategy=concurrency.limit_strategy,
         )
 
     def _validate_on_failure_task(self, service_name: str) -> CreateTaskOpts | None:
@@ -98,7 +112,7 @@ class Workflow(Generic[TWorkflowInput]):
         return CreateTaskOpts(
             readable_id=self._on_failure_task.name,
             action=service_name + ":" + self._on_failure_task.name,
-            timeout=timedelta_to_expr(self._on_failure_task.timeout) or "60s",
+            timeout=timedelta_to_expr(self._on_failure_task.execution_timeout),
             inputs="{}",
             parents=[],
             retries=self._on_failure_task.retries,
@@ -161,7 +175,7 @@ class Workflow(Generic[TWorkflowInput]):
             CreateTaskOpts(
                 readable_id=task.name,
                 action=service_name + ":" + task.name,
-                timeout=timedelta_to_expr(task.timeout) or "60s",
+                timeout=timedelta_to_expr(task.execution_timeout),
                 inputs="{}",
                 parents=[x.name for x in task.parents],
                 retries=task.retries,
@@ -170,6 +184,8 @@ class Workflow(Generic[TWorkflowInput]):
                 backoff_factor=task.backoff_factor,
                 backoff_max_seconds=task.backoff_max_seconds,
                 conditions=self._to_pb_conditions(task),
+                concurrency=[self._concurrency_to_pb(t) for t in task.concurrency],
+                schedule_timeout=timedelta_to_expr(task.schedule_timeout),
             )
             for task in self.tasks
             if task.type == StepType.DEFAULT
@@ -179,19 +195,19 @@ class Workflow(Generic[TWorkflowInput]):
 
         return CreateWorkflowVersionRequest(
             name=name,
+            ## TODO: Fix this
             description=None,
             version=self.config.version,
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
+            tasks=tasks,
+            concurrency=self._concurrency_to_pb(self.config.concurrency),
+            ## TODO: Fix this
             cron_input=None,
-            # schedule_timeout=timedelta_to_expr(self.config.schedule_timeout),
+            on_failure_task=on_failure_job,
             sticky=maybe_int_to_str(
                 convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto)
             ),
-            tasks=tasks,
-            on_failure_task=on_failure_job,
-            concurrency=self._validate_concurrency_options(),
-            # default_priority=self.config.default_priority,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
@@ -352,13 +368,15 @@ class Workflow(Generic[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        timeout: Duration = timedelta(minutes=60),
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(minutes=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        concurrency: list[ConcurrencyExpression] = [],
         wait_for: list[Condition | OrGroup] = [],
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
@@ -402,7 +420,8 @@ class Workflow(Generic[TWorkflowInput]):
                 workflow=self,
                 type=StepType.DEFAULT,
                 name=self._parse_task_name(name, func),
-                timeout=timeout,
+                execution_timeout=execution_timeout,
+                schedule_timeout=schedule_timeout,
                 parents=parents,
                 retries=retries,
                 rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
@@ -412,6 +431,7 @@ class Workflow(Generic[TWorkflowInput]):
                 },
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
+                concurrency=concurrency,
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
@@ -426,11 +446,13 @@ class Workflow(Generic[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        timeout: Duration = timedelta(minutes=60),
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(minutes=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
+        concurrency: list[ConcurrencyExpression] = [],
     ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
         """
         A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.
@@ -465,11 +487,13 @@ class Workflow(Generic[TWorkflowInput]):
                 workflow=self,
                 type=StepType.ON_FAILURE,
                 name=self._parse_task_name(name, func),
-                timeout=timeout,
+                execution_timeout=execution_timeout,
+                schedule_timeout=schedule_timeout,
                 retries=retries,
                 rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
+                concurrency=concurrency,
             )
 
             self._on_failure_task = task

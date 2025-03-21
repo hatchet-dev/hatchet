@@ -11,7 +11,7 @@ dedupe_parent_wf = hatchet.workflow(name="DedupeParent")
 dedupe_child_wf = hatchet.workflow(name="DedupeChild")
 
 
-@dedupe_parent_wf.task(timeout=timedelta(minutes=1))
+@dedupe_parent_wf.task(execution_timeout=timedelta(minutes=1))
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
     print("spawning child")
 
