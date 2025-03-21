@@ -222,7 +222,7 @@ class Workflow(Generic[TWorkflowInput]):
             key=key,
         )
 
-    def run(
+    def run_no_wait(
         self,
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
@@ -233,7 +233,7 @@ class Workflow(Generic[TWorkflowInput]):
             options=options,
         )
 
-    def run_and_get_result(
+    def run(
         self,
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
@@ -246,7 +246,7 @@ class Workflow(Generic[TWorkflowInput]):
 
         return ref.result()
 
-    async def aio_run(
+    async def aio_run_no_wait(
         self,
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
@@ -257,7 +257,7 @@ class Workflow(Generic[TWorkflowInput]):
             options=options,
         )
 
-    async def aio_run_and_get_result(
+    async def aio_run(
         self,
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),

@@ -11,7 +11,7 @@ from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["on_failure"], indirect=True)
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = on_failure_wf.run()
+    run = on_failure_wf.run_no_wait()
     try:
         await run.aio_result()
 

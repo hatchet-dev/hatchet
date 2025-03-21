@@ -8,7 +8,6 @@ from hatchet_sdk import Hatchet, Worker
 def test_run(hatchet: Hatchet, worker: Worker) -> None:
     N = 2
 
-    run = parent.run(ParentInput(n=N))
-    result = run.result()
+    result = parent.run(ParentInput(n=N))
 
     assert len(result["spawn"]["results"]) == N

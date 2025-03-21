@@ -8,6 +8,6 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["logger"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    result = await logging_workflow.aio_run_and_get_result()
+    result = await logging_workflow.aio_run()
 
     assert result["step1"]["status"] == "success"

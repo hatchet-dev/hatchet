@@ -28,7 +28,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, str]:
     ## `input` is an instance of `ParentInput`
     print(f"Parent input: {input.x}")
 
-    child = await child_workflow.aio_run(input=ChildInput(a=1, b=10))
+    child = await child_workflow.aio_run_no_wait(input=ChildInput(a=1, b=10))
 
     return cast(dict[str, str], await child.aio_result())
 

@@ -8,7 +8,7 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["timeout"], indirect=True)
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = timeout_wf.run()
+    run = timeout_wf.run_no_wait()
 
     with pytest.raises(Exception, match="(Task exceeded timeout|TIMED OUT)"):
         await run.aio_result()
@@ -17,7 +17,6 @@ async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
 @pytest.mark.asyncio(scope="session")
 @pytest.mark.parametrize("worker", ["timeout"], indirect=True)
 async def test_run_refresh_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = refresh_timeout_wf.run()
+    result = await refresh_timeout_wf.aio_run()
 
-    result = await run.aio_result()
     assert result["refresh_task"]["status"] == "success"

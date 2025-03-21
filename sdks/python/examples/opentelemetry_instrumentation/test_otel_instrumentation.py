@@ -50,7 +50,7 @@ def test_push_event(hatchet: Hatchet, worker: Worker) -> None:
 @pytest.mark.parametrize("worker", ["otel"], indirect=True)
 async def test_run_workflow(aiohatchet: Hatchet, worker: Worker) -> None:
     with tracer.start_as_current_span("run_workflow"):
-        workflow = otel_workflow.run(
+        workflow = otel_workflow.run_no_wait(
             options=TriggerWorkflowOptions(
                 additional_metadata=create_additional_metadata()
             ),

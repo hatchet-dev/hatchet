@@ -13,9 +13,9 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.parametrize("worker", ["rate_limit"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
 
-    run1 = rate_limit_workflow.run()
-    run2 = rate_limit_workflow.run()
-    run3 = rate_limit_workflow.run()
+    run1 = rate_limit_workflow.run_no_wait()
+    run2 = rate_limit_workflow.run_no_wait()
+    run3 = rate_limit_workflow.run_no_wait()
 
     start_time = time.time()
 
