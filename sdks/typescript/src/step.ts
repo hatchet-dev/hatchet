@@ -87,7 +87,9 @@ export class ContextWorker {
   }
 
   hasWorkflow(workflowName: string) {
-    return !!this.worker.workflow_registry.find((workflow) => workflow.id === workflowName);
+    return !!this.worker.workflow_registry.find((workflow) =>
+      'id' in workflow ? workflow.id === workflowName : workflow.name === workflowName
+    );
   }
 
   labels() {

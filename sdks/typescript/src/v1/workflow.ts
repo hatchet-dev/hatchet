@@ -4,7 +4,7 @@ import { Context, JsonObject } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
-import { CreateTaskOpts } from './task';
+import { CreateTaskOpts, CreateOnFailureTaskOpts, TaskConcurrency, TaskFn } from './task';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -50,29 +50,101 @@ export type CreateWorkflowOpts = {
    * (optional) sticky strategy for the workflow.
    */
   sticky?: WorkflowV0['sticky'];
+
   /**
-   * (optional) schedule timeout for the workflow.
-   */
-  scheduleTimeout?: WorkflowV0['scheduleTimeout'];
-  /**
+   * @deprecated use onCrons and onEvents instead
    * (optional) on config for the workflow.
    */
-  on?: WorkflowV0['on'];
+  on?: WorkflowV0['on']; // TODO map these
 
-  concurrency?: WorkflowV0['concurrency'];
+  /**
+   * (optional) cron config for the workflow.
+   */
+  onCrons?: string[];
+
+  // TODO cron input?
+
+  /**
+   * (optional) event config for the workflow.
+   */
+  onEvents?: string[];
+
+  concurrency?: TaskConcurrency;
 
   /**
    * (optional) onFailure handler for the workflow.
    * Invoked when any task in the workflow fails.
    * @param ctx The context of the workflow.
    */
-  onFailure?: (ctx: Context<any>) => void;
+  onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
+  // TODO onfailure should take a task dfn?
+
+  /**
+   * (optional) default configuration for all tasks in the workflow.
+   */
+  taskDefaults?: TaskDefaults;
+};
+
+/**
+ * Default configuration for all tasks in the workflow.
+ * Can be overridden by task-specific options.
+ */
+export type TaskDefaults = {
+  /**
+   * (optional) execution timeout duration for the task after it starts running
+   * go duration format (e.g., "1s", "5m", "1h").
+   *
+   * default: 60s
+   */
+  executionTimeout?: CreateTaskOpts<any, any>['executionTimeout'];
+
+  /**
+   * (optional) schedule timeout for the task (max duration to allow the task to wait in the queue)
+   * go duration format (e.g., "1s", "5m", "1h").
+   *
+   * default: 5m
+   */
+  scheduleTimeout?: CreateTaskOpts<any, any>['scheduleTimeout'];
+
+  /**
+   * (optional) number of retries for the task.
+   *
+   * default: 0
+   */
+  retries?: CreateTaskOpts<any, any>['retries'];
+
+  /**
+   * (optional) backoff strategy configuration for retries.
+   * - factor: Base of the exponential backoff (base ^ retry count)
+   * - maxSeconds: Maximum backoff duration in seconds
+   */
+  backoff?: CreateTaskOpts<any, any>['backoff'];
+
+  /**
+   * (optional) rate limits for the task.
+   */
+  rateLimits?: CreateTaskOpts<any, any>['rateLimits'];
+
+  /**
+   * (optional) worker labels for task routing and scheduling.
+   * Each label can be a simple string/number value or an object with additional configuration:
+   * - value: The label value (string or number)
+   * - required: Whether the label is required for worker matching
+   * - weight: Priority weight for worker selection
+   * - comparator: Custom comparison logic for label matching
+   */
+  workerLabels?: CreateTaskOpts<any, any>['workerLabels'];
+
+  /**
+   * (optional) the concurrency options for the task.
+   */
+  concurrency?: TaskConcurrency | TaskConcurrency[];
 };
 
 /**
  * Internal definition of a workflow and its tasks.
  */
-type WorkflowDefinition = CreateWorkflowOpts & {
+export type WorkflowDefinition = CreateWorkflowOpts & {
   /**
    * The tasks that make up this workflow.
    */
