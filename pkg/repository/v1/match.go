@@ -482,7 +482,13 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
 
 	for _, condition := range conditions {
-		ast, issues := m.env.Compile(condition.Expression.String)
+		expr := condition.Expression.String
+
+		if expr == "" {
+			expr = "true"
+		}
+
+		ast, issues := m.env.Compile(expr)
 
 		if issues != nil {
 			return nil, issues.Err()
@@ -747,6 +753,11 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 			triggerExternalId := sqlchelpers.UUIDToStr(match.TriggerExternalID)
 			triggerWorkflowRunId := sqlchelpers.UUIDToStr(match.TriggerWorkflowRunID)
 			triggerStepId := sqlchelpers.UUIDToStr(match.TriggerStepID)
+			var triggerExistingTaskId *int64
+
+			if match.TriggerExistingTaskID.Valid {
+				triggerExistingTaskId = &match.TriggerExistingTaskID.Int64
+			}
 
 			// copy over the match data
 			opt := CreateMatchOpts{
@@ -759,7 +770,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerWorkflowRunId:          &triggerWorkflowRunId,
 				TriggerStepId:                 &triggerStepId,
 				TriggerStepIndex:              match.TriggerStepIndex,
-				TriggerExistingTaskId:         &match.TriggerExistingTaskID.Int64,
+				TriggerExistingTaskId:         triggerExistingTaskId,
 				TriggerExistingTaskInsertedAt: match.TriggerExistingTaskInsertedAt,
 				TriggerParentTaskExternalId:   match.TriggerParentTaskExternalID,
 				TriggerParentTaskId:           match.TriggerParentTaskID,

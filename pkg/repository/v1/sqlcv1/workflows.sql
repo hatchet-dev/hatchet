@@ -22,6 +22,8 @@ WITH steps AS (
         AND w."tenantId" = @tenantId::uuid
         AND w."deletedAt" IS NULL
         AND wv."deletedAt" IS NULL
+    GROUP BY
+        s."id", wv."id", w."name", w."id", j."kind"
 ), step_orders AS (
     SELECT
         so."B" as "stepId",
