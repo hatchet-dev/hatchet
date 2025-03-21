@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Generic
 from uuid import uuid4
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import Action as ProtoAction
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
@@ -91,10 +91,10 @@ def generate_or_group_id() -> str:
     return str(uuid4())
 
 
-OrGroup = list[Condition]
+class OrGroup(BaseModel):
+    or_group_id: str = Field(default_factory=generate_or_group_id)
+    conditions: list[Condition]
 
 
 def or_(*conditions: Condition) -> OrGroup:
-    or_group_id = generate_or_group_id()
-
-    return [c.model_copy(update={"or_group_id": or_group_id}) for c in conditions]
+    return OrGroup(conditions=list(conditions))
