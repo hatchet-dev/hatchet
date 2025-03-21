@@ -14,6 +14,7 @@ from hatchet_sdk.runnables.types import (
     is_async_fn,
     is_sync_fn,
 )
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.waits import Condition, OrGroup
 
 if TYPE_CHECKING:
@@ -30,7 +31,7 @@ class Task(Generic[TWorkflowInput, R]):
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        timeout: timedelta | str = timedelta(minutes=60),
+        timeout: Duration = timedelta(minutes=60),
         parents: "list[Task[TWorkflowInput, Any]]" = [],
         retries: int = 0,
         rate_limits: list[CreateTaskRateLimit] = [],

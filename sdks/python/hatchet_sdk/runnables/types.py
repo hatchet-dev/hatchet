@@ -6,6 +6,7 @@ from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Uni
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from hatchet_sdk.context.context import Context
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ValidTaskReturnType = Union[BaseModel, JSONSerializableMapping, None]
@@ -57,7 +58,7 @@ class WorkflowConfig(BaseModel):
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
     version: str | None = None
-    schedule_timeout: timedelta | str = timedelta(minutes=5)
+    schedule_timeout: Duration = timedelta(minutes=5)
     sticky: StickyStrategy | None = None
     default_priority: StrictInt = Field(gt=0, lt=4, default=1)
     concurrency: ConcurrencyExpression | None = None

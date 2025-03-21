@@ -21,6 +21,7 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.worker.worker import Worker
 
 R = TypeVar("R")
@@ -151,7 +152,7 @@ class Hatchet:
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
-        schedule_timeout: timedelta | str = timedelta(minutes=5),
+        schedule_timeout: Duration = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -166,7 +167,7 @@ class Hatchet:
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
-        schedule_timeout: timedelta | str = timedelta(minutes=5),
+        schedule_timeout: Duration = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -180,7 +181,7 @@ class Hatchet:
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
-        schedule_timeout: timedelta | str = timedelta(minutes=5),
+        schedule_timeout: Duration = timedelta(minutes=5),
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
@@ -204,7 +205,7 @@ class Hatchet:
         :type version: str | None
 
         :param schedule_timeout: The maximum amount of time that a workflow run that has been queued (scheduled) can wait before beginning to execute. For instance, setting `timedelta(minutes=5)` will cancel the workflow run if it does not start after five minutes. Default: five minutes.
-        :type schedule_timeout: `datetime.timedelta`
+        :type schedule_timeout: datetime.timedelta | str
 
         :param sticky: A sticky strategy for the workflow. Default: `None`
         :type sticky: StickyStategy

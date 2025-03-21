@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from datetime import timedelta
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -14,7 +13,7 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
     UserEventMatchCondition,
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -59,7 +58,7 @@ class Condition(ABC):
 
 
 class SleepCondition(Condition):
-    def __init__(self, duration: timedelta | str) -> None:
+    def __init__(self, duration: Duration) -> None:
         super().__init__(
             BaseCondition(
                 readable_data_key=f"sleep:{timedelta_to_expr(duration)}",
