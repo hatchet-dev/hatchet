@@ -7,6 +7,7 @@ from hatchet_sdk import (
     Context,
     EmptyModel,
     Hatchet,
+    SkippableTaskOutput,
     SleepCondition,
     UserEventCondition,
     or_,
@@ -15,6 +16,10 @@ from hatchet_sdk import (
 
 class StepOutput(BaseModel):
     random_number: int
+
+
+class MaybeSkippedOutput(SkippableTaskOutput):
+    random_number: int | None = None
 
 
 class RandomSum(BaseModel):
@@ -56,8 +61,8 @@ def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
     wait_for=[SleepCondition(timedelta(seconds=30))],
     skip_if=[UserEventCondition(event_key="skip_on_event:skip")],
 )
-def skip_on_event(input: EmptyModel, ctx: Context) -> RandomSum:
-    raise Exception("This task should be skipped")
+def skip_on_event(input: EmptyModel, ctx: Context) -> MaybeSkippedOutput:
+    return MaybeSkippedOutput(random_number=random.randint(1, 100))
 
 
 @dag_waiting_workflow.task(
