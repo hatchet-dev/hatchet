@@ -39,7 +39,7 @@ def step2(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 @dag_waiting_workflow.task(
-    parents=[step2],
+    parents=[step1],
     wait_for=[
         or_(
             SleepCondition(timedelta(seconds=15)),
