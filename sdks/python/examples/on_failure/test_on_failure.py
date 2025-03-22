@@ -9,6 +9,7 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 # requires scope module or higher for shared event loop
 @pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.parametrize("worker", ["on_failure"], indirect=True)
 async def test_run_timeout(aiohatchet: Hatchet, worker: Worker) -> None:
     run = on_failure_wf.run_no_wait()
     try:

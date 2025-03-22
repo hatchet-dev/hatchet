@@ -1,10 +1,13 @@
-from examples.fanout_sync.worker import ParentInput, sync_fanout_parent
-from hatchet_sdk import Hatchet
+import pytest
+
+from examples.fanout_sync.worker import ParentInput, parent
+from hatchet_sdk import Hatchet, Worker
 
 
-def test_run(hatchet: Hatchet) -> None:
+@pytest.mark.parametrize("worker", ["fanout_sync"], indirect=True)
+def test_run(hatchet: Hatchet, worker: Worker) -> None:
     N = 2
 
-    result = sync_fanout_parent.run(ParentInput(n=N))
+    result = parent.run(ParentInput(n=N))
 
     assert len(result["spawn"]["results"]) == N

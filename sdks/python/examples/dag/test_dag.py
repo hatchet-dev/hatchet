@@ -1,12 +1,13 @@
 import pytest
 
 from examples.dag.worker import dag_workflow
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, Worker
 
 
 # requires scope module or higher for shared event loop
 @pytest.mark.asyncio(loop_scope="session")
-async def test_run(hatchet: Hatchet) -> None:
+@pytest.mark.parametrize("worker", ["dag"], indirect=True)
+async def test_run(hatchet: Hatchet, worker: Worker) -> None:
     result = await dag_workflow.aio_run()
 
     one = result["step1"]["random_number"]
