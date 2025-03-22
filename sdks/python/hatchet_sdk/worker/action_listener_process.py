@@ -119,7 +119,7 @@ class WorkerActionListenerProcess:
                     services=["default"],
                     actions=self.actions,
                     slots=self.slots,
-                    _labels=self.labels,
+                    raw_labels=self.labels,
                 )
             )
 

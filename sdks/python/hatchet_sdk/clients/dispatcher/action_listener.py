@@ -37,11 +37,13 @@ DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
 
 
 class GetActionListenerRequest(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     worker_name: str
     services: list[str]
     actions: list[str]
     slots: int = 100
-    _labels: dict[str, str | int] = Field(default_factory=dict)
+    raw_labels: dict[str, str | int] = Field(default_factory=dict)
 
     labels: dict[str, WorkerLabels] = Field(default_factory=dict)
 
@@ -49,7 +51,7 @@ class GetActionListenerRequest(BaseModel):
     def validate_labels(self) -> "GetActionListenerRequest":
         self.labels = {}
 
-        for key, value in self._labels.items():
+        for key, value in self.raw_labels.items():
             if isinstance(value, int):
                 self.labels[key] = WorkerLabels(intValue=value)
             else:
