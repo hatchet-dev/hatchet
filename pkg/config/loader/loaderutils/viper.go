@@ -2,6 +2,7 @@ package loaderutils
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/creasty/defaults"
@@ -14,6 +15,8 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 	bindFunc(v)
 
 	for _, f := range files {
+		fmt.Println("DEBUG: input config file:", string(f))
+
 		err := v.MergeConfig(bytes.NewBuffer(f))
 
 		if err != nil {
@@ -30,6 +33,14 @@ func LoadConfigFromViper(bindFunc func(v *viper.Viper), configFile interface{}, 
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal viper config: %w", err)
 	}
+
+	configFileBytes, err := json.Marshal(configFile)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal config file: %w", err)
+	}
+
+	fmt.Println("DEBUG: generated config file:", string(configFileBytes))
 
 	return v, nil
 }

@@ -254,6 +254,7 @@ type ServerConfigFileOverride func(*server.ServerConfigFile)
 // CreateServerFromConfig loads the server configuration and returns a server
 func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
+	fmt.Println("DEBUG: shared file path:", sharedFilePath)
 
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
 
@@ -279,6 +280,9 @@ func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...Serve
 }
 
 func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
+	fmt.Println("GRPC INSECURE IS", cf.Runtime.GRPCInsecure)
+	fmt.Println("COOKIE DOMAIN IS", cf.Auth.Cookie.Domain)
+
 	l := logger.NewStdErr(&cf.Logger, "server")
 	queueLogger := logger.NewStdErr(&cf.AdditionalLoggers.Queue, "queue")
 

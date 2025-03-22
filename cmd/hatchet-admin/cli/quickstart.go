@@ -303,6 +303,8 @@ func getFiles(name string) [][]byte {
 
 	basePath := filepath.Join(configDirectory, name)
 
+	fmt.Println("DEBUG: config file exists?", basePath, fileExists(basePath))
+
 	if fileExists(basePath) {
 		configFileBytes, err := os.ReadFile(basePath)
 
