@@ -37,8 +37,8 @@ prometheus-client = "^0.21.1"
 pydantic-settings = "^2.7.1"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.2.2"
-pytest-asyncio = "^0.23.8"
+pytest = "^8.3.5"
+pytest-asyncio = "^0.25.3"
 psutil = "^6.0.0"
 grpc-stubs = "^1.53.0.5"
 
@@ -72,6 +72,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 log_cli = true
 env = ["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True"]
+asyncio_mode = "auto"
 
 [tool.isort]
 profile = "black"
