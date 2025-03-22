@@ -150,17 +150,19 @@ class Worker:
 
     def setup_loop(self, loop: asyncio.AbstractEventLoop | None = None) -> bool:
         try:
-            loop = loop or asyncio.get_running_loop()
-            self.loop = loop
-            created_loop = False
+            self.loop = loop or asyncio.get_running_loop()
             logger.debug("using existing event loop")
-            return created_loop
+
+            created_loop = False
         except RuntimeError:
             self.loop = asyncio.new_event_loop()
+
             logger.debug("creating new event loop")
-            asyncio.set_event_loop(self.loop)
             created_loop = True
-            return created_loop
+
+        asyncio.set_event_loop(self.loop)
+
+        return created_loop
 
     async def health_check_handler(self, request: Request) -> Response:
         response = HealthCheckResponse(
@@ -205,9 +207,7 @@ class Worker:
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
         self.owned_loop = self.setup_loop(options.loop)
 
-        asyncio.run_coroutine_threadsafe(
-            self._aio_start(options, _from_start=True), self.loop
-        )
+        asyncio.run_coroutine_threadsafe(self._aio_start(), self.loop)
 
         # start the loop and wait until its closed
         if self.owned_loop:
@@ -216,12 +216,9 @@ class Worker:
             if self.handle_kill:
                 sys.exit(0)
 
-    async def _aio_start(
-        self,
-        options: WorkerStartOptions = WorkerStartOptions(),
-        _from_start: bool = False,
-    ) -> None:
+    async def _aio_start(self) -> None:
         main_pid = os.getpid()
+
         logger.info("------------------------------------------")
         logger.info("STARTING HATCHET...")
         logger.debug(f"worker runtime starting on PID: {main_pid}")
@@ -229,14 +226,9 @@ class Worker:
         self._status = WorkerStatus.STARTING
 
         if len(self.action_registry.keys()) == 0:
-            logger.error(
+            raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
-            return None
-
-        # non blocking setup
-        if not _from_start:
-            self.setup_loop(options.loop)
 
         if self.config.healthcheck.enabled:
             await self.start_health_server()
@@ -268,14 +260,12 @@ class Worker:
         )
 
     def _start_listener(self) -> multiprocessing.context.SpawnProcess:
-        action_list = [str(key) for key in self.action_registry.keys()]
-
         try:
             process = self.ctx.Process(
                 target=worker_action_listener_process,
                 args=(
                     self.name,
-                    action_list,
+                    list(self.action_registry.keys()),
                     self.slots,
                     self.config,
                     self.action_queue,
@@ -329,8 +319,6 @@ class Worker:
     async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
         self.killing = True
-        # self.action_queue.close()
-        # self.event_queue.close()
 
         if self.action_runner is not None:
             self.action_runner.cleanup()
@@ -369,6 +357,4 @@ class Worker:
             self.action_listener_process.kill()  # Forcefully kill the process
 
         logger.info("👋")
-        sys.exit(
-            1
-        )  # Exit immediately TODO - should we exit with 1 here, there may be other workers to cleanup
+        sys.exit(1)
