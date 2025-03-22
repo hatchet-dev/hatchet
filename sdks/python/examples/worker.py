@@ -1,6 +1,6 @@
 import os
 
-# from examples.affinity_workers.worker import affinity_worker_workflow
+from examples.affinity_workers.worker import affinity_worker_workflow
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
 # from examples.cancellation.worker import wf
 # from examples.concurrency_limit.worker import concurrency_limit_workflow
@@ -30,7 +30,7 @@ def main() -> None:
         "e2e-test-worker",
         slots=100,
         workflows=[
-            # affinity_worker_workflow,
+            affinity_worker_workflow,
             bulk_child_wf,
             bulk_parent_wf,
             # concurrency_limit_workflow,
