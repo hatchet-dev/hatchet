@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     worker = hatchet.worker(
         "e2e-test-worker",
-        slots=10,
+        slots=100,
         workflows=[
             affinity_worker_workflow,
             bulk_child_wf,
