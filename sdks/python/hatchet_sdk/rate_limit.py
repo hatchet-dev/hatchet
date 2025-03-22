@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 from enum import Enum
 
 from celpy import CELEvalError, Environment  # type: ignore
+from pydantic import BaseModel, model_validator
 
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateTaskRateLimit
 
@@ -25,8 +25,7 @@ class RateLimitDuration(str, Enum):
     YEAR = "YEAR"
 
 
-@dataclass
-class RateLimit:
+class RateLimit(BaseModel):
     """
     Represents a rate limit configuration for a step in a workflow.
 
@@ -68,46 +67,41 @@ class RateLimit:
     limit: int | str | None = None
     duration: RateLimitDuration = RateLimitDuration.MINUTE
 
-    _req: CreateTaskRateLimit | None = None
+    @model_validator(mode="after")
+    def validate_rate_limit(self) -> "RateLimit":
+        if self.dynamic_key and self.static_key:
+            raise ValueError("Cannot have both static key and dynamic key set")
 
-    def __post_init__(self) -> None:
-        # juggle the key and key_expr fields
+        if self.dynamic_key and not validate_cel_expression(self.dynamic_key):
+            raise ValueError(f"Invalid CEL expression: {self.dynamic_key}")
+
+        if not isinstance(self.units, int) and not validate_cel_expression(self.units):
+            raise ValueError(f"Invalid CEL expression: {self.units}")
+
+        if (
+            self.limit
+            and not isinstance(self.limit, int)
+            and not validate_cel_expression(self.limit)
+        ):
+            raise ValueError(f"Invalid CEL expression: {self.limit}")
+
+        if self.dynamic_key and not self.limit:
+            raise ValueError("CEL based keys requires limit to be set")
+
+        return self
+
+    def to_proto(self) -> CreateTaskRateLimit:
         key = self.static_key
         key_expression = self.dynamic_key
 
-        if key_expression is not None:
-            if key is not None:
-                raise ValueError("Cannot have both static key and dynamic key set")
+        key = self.static_key or self.dynamic_key
 
-            key = key_expression
-            if not validate_cel_expression(key_expression):
-                raise ValueError(f"Invalid CEL expression: {key_expression}")
+        units = self.units if isinstance(self.units, int) else None
+        units_expression = None if isinstance(self.units, int) else self.units
 
-        # juggle the units and units_expr fields
-        units = None
-        units_expression = None
-        if isinstance(self.units, int):
-            units = self.units
-        else:
-            if not validate_cel_expression(self.units):
-                raise ValueError(f"Invalid CEL expression: {self.units}")
-            units_expression = self.units
+        limit_expression = None if not self.limit else str(self.limit)
 
-        # juggle the limit and limit_expr fields
-        limit_expression = None
-
-        if self.limit:
-            if isinstance(self.limit, int):
-                limit_expression = f"{self.limit}"
-            else:
-                if not validate_cel_expression(self.limit):
-                    raise ValueError(f"Invalid CEL expression: {self.limit}")
-                limit_expression = self.limit
-
-        if key_expression is not None and limit_expression is None:
-            raise ValueError("CEL based keys requires limit to be set")
-
-        self._req = CreateTaskRateLimit(
+        return CreateTaskRateLimit(
             key=key,
             key_expr=key_expression,
             units=units,

@@ -105,12 +105,14 @@ class Workflow(Generic[TWorkflowInput]):
         return True
 
     @overload
-    def _concurrency_to_pb(self, concurrency: None) -> None: ...
+    def _concurrency_to_proto(self, concurrency: None) -> None: ...
 
     @overload
-    def _concurrency_to_pb(self, concurrency: ConcurrencyExpression) -> Concurrency: ...
+    def _concurrency_to_proto(
+        self, concurrency: ConcurrencyExpression
+    ) -> Concurrency: ...
 
-    def _concurrency_to_pb(
+    def _concurrency_to_proto(
         self, concurrency: ConcurrencyExpression | None
     ) -> Concurrency | None:
         if not concurrency:
@@ -138,8 +140,8 @@ class Workflow(Generic[TWorkflowInput]):
             worker_labels=task.desired_worker_labels,
             backoff_factor=task.backoff_factor,
             backoff_max_seconds=task.backoff_max_seconds,
-            concurrency=[self._concurrency_to_pb(t) for t in task.concurrency],
-            conditions=self._to_pb_conditions(task),
+            concurrency=[self._concurrency_to_proto(t) for t in task.concurrency],
+            conditions=self._conditions_to_proto(task),
             schedule_timeout=timedelta_to_expr(task.schedule_timeout),
         )
 
@@ -159,7 +161,7 @@ class Workflow(Generic[TWorkflowInput]):
 
         return condition
 
-    def _to_pb_conditions(self, task: Task[TWorkflowInput, Any]) -> TaskConditions:
+    def _conditions_to_proto(self, task: Task[TWorkflowInput, Any]) -> TaskConditions:
         wait_for_conditions = [
             self._assign_action(w, Action.QUEUE) for w in task.wait_for
         ]
@@ -213,7 +215,7 @@ class Workflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
             tasks=tasks,
-            concurrency=self._concurrency_to_pb(self.config.concurrency),
+            concurrency=self._concurrency_to_proto(self.config.concurrency),
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_job,
@@ -436,7 +438,7 @@ class Workflow(Generic[TWorkflowInput]):
                 schedule_timeout=schedule_timeout,
                 parents=parents,
                 retries=retries,
-                rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
+                rate_limits=[r.to_proto() for r in rate_limits],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
                     for key, d in desired_worker_labels.items()
@@ -502,7 +504,7 @@ class Workflow(Generic[TWorkflowInput]):
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
-                rate_limits=[r for rate_limit in rate_limits if (r := rate_limit._req)],
+                rate_limits=[r.to_proto() for r in rate_limits],
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
