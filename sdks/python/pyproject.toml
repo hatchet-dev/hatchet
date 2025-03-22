@@ -41,6 +41,7 @@ pytest = "^8.3.5"
 pytest-asyncio = "^0.25.3"
 psutil = "^6.0.0"
 grpc-stubs = "^1.53.0.5"
+pytest-xdist = "^3.6.1"
 
 [tool.poetry.group.lint.dependencies]
 mypy = "^1.14.0"
