@@ -136,7 +136,7 @@ class Runner:
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=str(errorWithTraceback(f"{e}", e)),
+                        payload=str(pretty_format_exception(f"{e}", e)),
                     )
                 )
 
@@ -178,7 +178,7 @@ class Runner:
                     ActionEvent(
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=str(errorWithTraceback(f"{e}", e)),
+                        payload=str(pretty_format_exception(f"{e}", e)),
                     )
                 )
 
@@ -245,7 +245,7 @@ class Runner:
                 return await loop.run_in_executor(self.thread_pool, pfunc)
         except Exception as e:
             logger.error(
-                errorWithTraceback(
+                pretty_format_exception(
                     f"exception raised in action ({action.action_id}, retry={action.retry_count}):\n{e}",
                     e,
                 )
@@ -417,7 +417,7 @@ class Runner:
 
         if output is not None:
             try:
-                return json.dumps(output)
+                return json.dumps(output, default=str)
             except Exception as e:
                 logger.error(f"Could not serialize output: {e}")
                 return str(output)
@@ -432,6 +432,6 @@ class Runner:
             running = len(self.tasks.keys())
 
 
-def errorWithTraceback(message: str, e: Exception) -> str:
+def pretty_format_exception(message: str, e: Exception) -> str:
     trace = "".join(traceback.format_exception(type(e), e, e.__traceback__))
     return f"{message}\n{trace}"
