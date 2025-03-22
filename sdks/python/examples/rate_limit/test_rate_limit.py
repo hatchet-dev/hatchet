@@ -9,7 +9,7 @@ from hatchet_sdk import Hatchet, Worker
 
 # requires scope module or higher for shared event loop
 @pytest.mark.skip(reason="The timing for this test is not reliable")
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.parametrize("worker", ["rate_limit"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
 

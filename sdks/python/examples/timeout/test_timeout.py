@@ -5,7 +5,7 @@ from hatchet_sdk import Hatchet, Worker
 
 
 # requires scope module or higher for shared event loop
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.parametrize("worker", ["timeout"], indirect=True)
 async def test_execution_timeout(hatchet: Hatchet, worker: Worker) -> None:
     run = timeout_wf.run_no_wait()
@@ -14,7 +14,7 @@ async def test_execution_timeout(hatchet: Hatchet, worker: Worker) -> None:
         await run.aio_result()
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.parametrize("worker", ["timeout"], indirect=True)
 async def test_run_refresh_timeout(hatchet: Hatchet, worker: Worker) -> None:
     result = await refresh_timeout_wf.aio_run()
