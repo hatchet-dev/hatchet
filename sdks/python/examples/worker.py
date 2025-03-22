@@ -1,5 +1,3 @@
-import os
-
 from examples.affinity_workers.worker import affinity_worker_workflow
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
 from examples.cancellation.worker import wf
@@ -19,12 +17,6 @@ hatchet = Hatchet(debug=True)
 
 
 def main() -> None:
-    print("Running worker")
-    print(hatchet.config)
-
-    print([(k, v) for k, v in os.environ.items() if "HATCHET" in k])
-
-    print("Initializing...")
     worker = hatchet.worker(
         "e2e-test-worker",
         slots=100,
@@ -51,7 +43,6 @@ def main() -> None:
         ],
     )
 
-    print("Starting...")
     worker.start()
 
 
