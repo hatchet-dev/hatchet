@@ -43,9 +43,9 @@ def main() -> None:
             ##
             on_failure_wf,
             on_failure_wf_with_details,
-            # logging_workflow,
-            # rate_limit_workflow,
-            # timeout_wf,
+            logging_workflow,
+            rate_limit_workflow,
+            timeout_wf,
             # refresh_timeout_wf,
             # dag_waiting_workflow,
             # wf,
