@@ -21,7 +21,7 @@ async def aiohatchet() -> AsyncGenerator[Hatchet, None]:
     )
 
 
-@pytest.fixture(loop_scope="session")
+@pytest.fixture(scope="session")
 def hatchet() -> Hatchet:
     return Hatchet(
         debug=True,
