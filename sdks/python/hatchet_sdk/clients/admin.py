@@ -25,7 +25,7 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
+from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -231,11 +231,12 @@ class AdminClient:
         duration_proto = convert_python_enum_to_proto(
             duration, workflow_protos.RateLimitDuration
         )
+
         self.v0_client.PutRateLimit(
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
-                duration=maybe_int_to_str(duration_proto),
+                duration=duration_proto,  # type: ignore[arg-type]
             ),
             metadata=get_metadata(self.token),
         )

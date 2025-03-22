@@ -31,7 +31,7 @@ from hatchet_sdk.runnables.types import (
     TWorkflowInput,
     WorkflowConfig,
 )
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
+from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.waits import (
@@ -219,9 +219,7 @@ class Workflow(Generic[TWorkflowInput]):
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_job,
-            sticky=maybe_int_to_str(
-                convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto)
-            ),
+            sticky=convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto),  # type: ignore[arg-type]
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
