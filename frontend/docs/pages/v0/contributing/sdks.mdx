@@ -1,0 +1,88 @@
+# SDKs
+
+This document tracks the feature support of the various SDKs, and aims to consolidate the expected behavior around environment variables and configuration loading.
+
+## Environment Variables
+
+Each SDK should support the following environment variables:
+
+| Variable                          | Description                                                                                                                                            | Required                                                                                                | Default                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `HATCHET_CLIENT_TOKEN`            | The tenant-scoped API token to use.                                                                                                                    | Yes                                                                                                     | N/A                                       |
+| `HATCHET_CLIENT_HOST_PORT`        | The host and port of the Hatchet server to connect to, in `host:port` format. SDKs should handle schemes and trailing slashes, i.e. `https://host:port | No                                                                                                      | Automatically detected in new tokens.     |
+| `HATCHET_CLIENT_TLS_STRATEGY`     | The TLS strategy to use. Valid values are `none`, `tls`, and `mtls`.                                                                                   | No                                                                                                      | `tls`                                     |
+| `HATCHET_CLIENT_TLS_CERT_FILE`    | The path to the TLS client certificate file to use.                                                                                                    | Only if strategy is set to `mtls`                                                                       | N/A                                       |
+| `HATCHET_CLIENT_TLS_CERT`         | The TLS client key file to use.                                                                                                                        | Only if strategy is set to `mtls`                                                                       | N/A                                       |
+| `HATCHET_CLIENT_TLS_KEY_FILE`     | The path to the TLS client key file to use.                                                                                                            | Only if strategy is set to `mtls`                                                                       | N/A                                       |
+| `HATCHET_CLIENT_TLS_KEY`          | The TLS client key to use.                                                                                                                             | Only if strategy is set to `mtls`                                                                       | N/A                                       |
+| `HATCHET_CLIENT_TLS_ROOT_CA_FILE` | The path to the TLS root CA file to use.                                                                                                               | Only if the server certificate is not signed by a public authority that's available to your environment | N/A                                       |
+| `HATCHET_CLIENT_TLS_ROOT_CA`      | The TLS root CA to use.                                                                                                                                | Only if the server certificate is not signed by a public authority that's available to your environment | N/A                                       |
+| `HATCHET_CLIENT_TLS_SERVER_NAME`  | The TLS server name to use.                                                                                                                            | No                                                                                                      | Defaults to the `host` of the `host:port` |
+
+The following environment variables are deprecated:
+
+| Variable                   | Description           | Explanation                    |
+| -------------------------- | --------------------- | ------------------------------ |
+| `HATCHET_CLIENT_TENANT_ID` | The tenant ID to use. | This is now part of the token. |
+
+## Compatibility Matrices
+
+### DAGs
+
+Whether the SDKs support full DAG-style execution.
+
+| SDK            | DAGs? | Notes |
+| -------------- | ----- | ----- |
+| Go SDK         | Yes   |       |
+| Python SDK     | Yes   |       |
+| Typescript SDK | Yes   |       |
+
+### Timeouts
+
+Whether the SDKs support setting timeouts and cancelling after timeouts.
+
+| SDK            | Timeouts? | Step cancellation? | Notes                                          |
+| -------------- | --------- | ------------------ | ---------------------------------------------- |
+| Go SDK         | Yes       | Yes                |                                                |
+| Python SDK     | Yes       | Yes                | If thread is blocking, this won't be respected |
+| Typescript SDK | Yes       | Unknown            |                                                |
+
+### Middleware
+
+Whether the SDKs support setting middleware.
+
+| SDK            | Middleware? | Notes |
+| -------------- | ----------- | ----- |
+| Go SDK         | Yes         |       |
+| Python SDK     | No          |       |
+| Typescript SDK | No          |       |
+
+### Separately Registering and Calling Actions
+
+Whether the SDKs support separately registering and calling actions, instead of defining them inline in the workflows.
+
+| SDK            | Supported? | Notes |
+| -------------- | ---------- | ----- |
+| Go SDK         | Yes        |       |
+| Python SDK     | No         |       |
+| Typescript SDK | No         |       |
+
+### Custom Services
+
+Whether the SDKs support defining services to logically separate workflows and actions.
+
+| SDK            | Supported? | Notes |
+| -------------- | ---------- | ----- |
+| Go SDK         | Yes        |       |
+| Python SDK     | No         |       |
+| Typescript SDK | No         |       |
+
+### Scheduled Workflows
+
+Whether the SDKs support defining scheduled workflows.
+
+| SDK            | Supported? | Notes |
+| -------------- | ---------- | ----- |
+| Go SDK         | Yes        |       |
+| Python SDK     | No         |       |
+| Typescript SDK | No         |       |

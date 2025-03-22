@@ -1,0 +1,24 @@
+# Running Scheduled Workflows
+
+Workflows can be scheduled from the API to run at some future time by calling `schedule_workflow`. This method is available on the `hatchet.client.admin` client:
+
+```py filename="scheduled_workflow.py" copy
+from hatchet_sdk import Hatchet, ClientConfig
+
+hatchet = Hatchet()
+
+now = datetime.now()
+future_time = now + timedelta(seconds=15)
+
+workflowRun = hatchet.client.admin.schedule_workflow(
+    "ManualTriggerWorkflow",
+    [future_time],
+    {"test": "test"},
+)
+```
+
+This method takes the following parameters:
+
+- `workflow_name` (**required**): The name of the workflow to trigger. If you have not overridden the workflow name in the `hatchet.workflow` decorator, this should match the name of the workflow class.
+- `schedule_time` (**required**): The time at which the workflow should be scheduled to run. This should be a `datetime` object.
+- `input` (**required**): The input to the workflow. This should be a JSON-serializable dict.

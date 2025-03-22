@@ -1,5 +1,5 @@
 import { ConcurrencyLimitStrategy } from '@hatchet/workflow';
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 
 type SimpleInput = {
   Message: string;

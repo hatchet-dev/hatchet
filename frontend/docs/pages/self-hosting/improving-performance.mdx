@@ -1,5 +1,12 @@
 import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const BulkFanoutWorker = {
+  path: "examples/bulk_fanout/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([BulkFanoutWorker]);
 
 # Tuning Hatchet for Performance
 
@@ -123,26 +130,7 @@ c.Event().BulkPush(
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-```python
-@hatchet.workflow("fanout:create")
-class Parent:
-    @hatchet.step()
-    def spawn(self, context: Context):
-        workflow_requests = [
-            {
-                "workflow": "Child",
-                "input": {"a": str(i)},
-                "key": f"child{i}",
-                "options": {}
-            }
-            for i in range(10)
-        ]
-
-        # Spawn the workflows in bulk using spawn_workflows
-        context.spawn_workflows(workflow_requests)
-        return {}
-
-```
+<GithubSnippet src={BulkFanoutWorker} target="BulkFanoutParent" />
 
   </Tabs.Tab>
   <Tabs.Tab>

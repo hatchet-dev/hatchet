@@ -7,7 +7,7 @@ import sleep from '../util/sleep';
 const port = 8369;
 
 describe('webhooks', () => {
-  let hatchet: Hatchet;
+  let hatchet: Hatchet; // TODO upgrade to v1
   let worker: Worker;
 
   beforeEach(async () => {

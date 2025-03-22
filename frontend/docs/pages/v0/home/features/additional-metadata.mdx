@@ -1,0 +1,118 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs";
+
+# Additional Metadata
+
+Hatchet allows you to attach arbitrary key-value string pairs to events and workflow runs, which can be used for filtering, searching, or any other lookup purposes. This additional metadata is not part of the event payload or workflow input data but provides supplementary information for better organization and discoverability.
+
+## Attaching Metadata
+
+You can attach additional metadata when pushing events or triggering workflow runs using the Hatchet client libraries:
+
+<Tabs items={['Event Push', 'Workflow Run Trigger']}>
+  <Tabs.Tab>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+hatchet.event.push("user:create", {'userId': '1234'}, options={
+  "additional_metadata": {
+    "source": "api" # Arbitrary key-value pair
+  }
+})
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+hatchet.event.push(
+  'user:create',
+  {
+    test: 'test',
+  },
+  {
+    additionalMetadata: {
+      source: 'api', // Arbitrary key-value pair
+    },
+  }
+);
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+err := c.Event().Push(
+    context.Background(),
+    "user:create",
+    testEvent,
+    client.WithEventMetadata(map[string]string{
+        "source": "api", // Arbitrary key-value pair
+    }),
+)
+```
+  </Tabs.Tab>
+</UniversalTabs>
+  </Tabs.Tab>
+  <Tabs.Tab>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+workflowRunId = hatchet.admin.run_workflow(
+    "user-workflow",
+    {'userId': '1234'},
+    options={
+        'additional_metadata': {
+          "hello": "moon" # Arbitrary key-value pair
+        }
+    }
+)
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const workflowRunId = await hatchet.admin.run_workflow(
+  'user-workflow',
+  {
+    userId: '1234',
+  },
+  {
+    additionalMetadata: {
+      source: 'api', // Arbitrary key-value pair
+    },
+  }
+);
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+workflowRunId, err := c.Admin().RunWorkflow(
+    "user-workflow",
+    &userCreateEvent{
+        UserID: "1234",
+    },
+    client.WithRunMetadata(map[string]interface{}{
+        "source": "api", // Arbitrary key-value pair
+    }),
+)
+```
+  </Tabs.Tab>
+</UniversalTabs>
+  </Tabs.Tab>
+</Tabs>
+
+> **Note:** This feature is in development. Cron, Schedule, and Child Workflow triggers do not currently support additional metadata.
+
+## Filtering in the Dashboard
+
+Once you've attached additional metadata to events or workflow runs, this data will be available in the Event and Workflow Run list views in the Hatchet dashboard. You can use the filter input field to search for events or workflow runs based on the additional metadata key-value pairs you've attached.
+
+For example, you can filter events by the `source` metadata keys to quickly find events originating from a specific source or environment.
+
+![Blocks](/addl-meta.gif)
+
+## Use Cases
+
+Some common use cases for additional metadata include:
+
+- Tagging events or workflow runs with environment information (e.g., `production`, `staging`, `development`)
+- Specifying the source or origin of events (e.g., `api`, `webhook`, `manual`)
+- Categorizing events or workflow runs based on business-specific criteria (e.g., `priority`, `region`, `product`)
+
+By leveraging additional metadata, you can enhance the organization, searchability, and discoverability of your events and workflow runs within Hatchet.

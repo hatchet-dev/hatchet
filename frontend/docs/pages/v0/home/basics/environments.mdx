@@ -1,0 +1,71 @@
+import { Bleed } from "nextra-theme-docs";
+
+# Managing Environments with Hatchet
+
+When working with Hatchet, it's important to understand how to effectively manage your execution environments. Hatchet provides flexibility in distributing tasks across multiple workers, whether they are running locally or in the cloud. However, this flexibility also requires careful consideration to ensure that your workflows are executed in the desired environment. In this guide, we'll explore how to manage environments with Hatchet and leverage its multi-tenancy feature for better control over event dispatching.
+
+## Understanding Worker Assignment
+
+One key aspect of Hatchet is how it assigns workflow runs to available workers. It's important to keep in mind that Hatchet does not differentiate between local and cloud workers when making assignments. Instead, it follows a random assignment strategy, distributing tasks evenly across all available workers.
+
+Here are a few things to consider:
+
+- **Worker Availability:** Hatchet will assign a workflow run to any worker that is currently available, regardless of whether it's a local worker or a cloud worker.
+- **Random Assignment:** If you have both local and cloud workers set up, Hatchet will randomly assign tasks between them. There is no inherent preference for one type of worker over the other.
+
+## Leveraging Namespaces for Multiple Developers in One Tenant (Beta)
+
+Hatchet introduces the concept of namespaces to allow multiple developers to work within the same tenant without interfering with each other's events and workflows. By setting a unique `HATCHET_CLIENT_NAMESPACE` environment variable for each developer, you can ensure that their events are dispatched to separate workers.
+
+To use namespaces, follow these steps:
+
+1. **Set the Namespace Environment Variable:** Each developer should set the `HATCHET_CLIENT_NAMESPACE` environment variable in their local development environment. The value should be a unique string that identifies the developer, such as their username or initials.
+
+```bash
+export HATCHET_CLIENT_NAMESPACE="developer-initials"
+```
+
+3. **Run Workflows and Workers:** With the namespace configured, developers can run their workflows and trigger events as usual. Hatchet will automatically dispatch events to the appropriate workers based on the namespace.
+
+> Note: Namespaces are currently in beta with limited support and may be subject to change. It is recommended to use this feature only in development environments. Currently, namespaces only support Worker, Workflow, and Events. Future support for features like crons and scheduling is planned.
+
+By leveraging namespaces, multiple developers can work within the same tenant without conflicting with each other. Each developer's events will be dispatched to their own set of workers, ensuring isolation and preventing unintended interactions.
+
+## Best Practices for Using Namespaces
+
+To make the most of namespaces in Hatchet, consider the following best practices:
+
+- **Use Unique Namespace Values:** Ensure that each developer uses a unique value for their `HATCHET_CLIENT_NAMESPACE` environment variable. Avoid using generic or conflicting values to maintain proper separation between developers.
+- **Communicate and Coordinate:** When working in a team, communicate and coordinate with other developers to avoid namespace collisions. Establish a naming convention or use a centralized system to assign unique namespaces to each developer.
+- **Limit Namespace Usage to Development:** Namespaces are primarily intended for use in development environments. When deploying to staging or production, consider using separate tenants or a unified namespace for better control and consistency.
+
+## Leveraging Hatchet's Multi-Tenancy Feature
+
+Hatchet offers multi-tenancy that allows you to segment where events are dispatched. This feature is particularly useful when you want to have separate environments for different purposes, such as local, development, staging, and production.
+
+To take advantage of multi-tenancy in Hatchet, follow these steps:
+
+<iframe
+  className="aspect-video w-full my-4"
+  src="https://www.youtube.com/embed/r9NY_nqvqig?si=8cmpM94uYm43jqJI"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+1. **Access the Tenant Dropdown:** In the Hatchet dashboard, locate the tenant dropdown in the bottom left corner of the screen.
+2. **Create a New Tenant:** Click on the tenant dropdown and select the "Add New Tenant" option.
+3. **Provide a Tenant Name:** Give your new tenant a descriptive name that reflects its purpose, such as "Development", "Staging", or "Production".
+4. **Create the Tenant:** Click the "Create" button to create the new tenant.
+5. **Generate a New Token:** Once the tenant is created, generate a new token specifically for that tenant. This token will be used to authenticate and authorize access to the tenant's resources.
+6. **Update Your Environment Configuration:** In your project's `.env` file, update the relevant configuration variables to use the newly generated token for the specific tenant.
+
+By creating separate tenants for different environments, you can ensure that events are dispatched only within the intended environment. This segregation helps maintain isolation between environments and prevents unintended interactions .
+
+## Best Practices for Environment Management
+
+To effectively manage environments with Hatchet, consider the following best practices:
+
+- **Clearly Define Environment Purposes:** Determine the specific purposes of each environment, such as development, staging, and production. Clearly communicate these purposes to your team to ensure everyone understands the role of each environment. Create one tenant per local developer to prevent conflicts.
+- **Use Descriptive Tenant Names:** Choose descriptive names for your tenants that reflect their intended purpose. This helps avoid confusion and makes it easier to identify the correct tenant for each environment.
+- **Secure Your Tokens:** Treat tenant tokens as sensitive information and keep them secure. Avoid sharing tokens across different environments or exposing them publicly.
+- **Regularly Review and Update Configurations:** Periodically review your environment configurations to ensure they are up to date and aligned with your current needs. Update the `.env` file and other relevant configurations as necessary.

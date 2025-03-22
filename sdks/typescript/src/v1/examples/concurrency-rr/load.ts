@@ -1,5 +1,5 @@
 /* eslint-disable no-plusplus */
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 import { simpleConcurrency } from './workflow';
 
 function generateRandomString(length: number): string {

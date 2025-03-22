@@ -5,7 +5,7 @@ const defaultRepo = "hatchet";
 const localPaths = {
   ts: "sdks/typescript",
   py: "sdks/python",
-  go: "oss",
+  go: "",
 };
 
 export const extToLanguage = {

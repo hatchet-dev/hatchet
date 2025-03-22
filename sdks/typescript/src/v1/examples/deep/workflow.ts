@@ -1,5 +1,5 @@
 import sleep from '@hatchet/util/sleep';
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 
 type SimpleInput = {
   Message: string;

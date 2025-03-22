@@ -1,0 +1,55 @@
+# Setting up Hatchet with an external database
+
+## Connecting to Postgres
+
+To connect to an external Postgres instance, set `postgres.enabled` to `false` in the `values.yaml` file. This will disable the internal Postgres instance and allow you to connect to an external database. You should then add the following configuration for the `hatchet-stack` or `hatchet-ha` charts:
+
+> Note: Either `DATABASE_URL` or `DATABASE_POSTGRES_*` are required
+
+```yaml
+sharedConfig:
+  env:
+    DATABASE_URL: "postgres://<user>:<password>@<host>:5432/<db-name>?sslmode=disable"
+    DATABASE_POSTGRES_HOST: "<host>"
+    DATABASE_POSTGRES_PORT: "5432"
+    DATABASE_POSTGRES_USERNAME: "<user>"
+    DATABASE_POSTGRES_PASSWORD: "<password>"
+    DATABASE_POSTGRES_DB_NAME: "<db-name>"
+    DATABASE_POSTGRES_SSL_MODE: "disable"
+```
+
+## Mounting environment variables
+
+Environment variables can also be mounted from secrets or configmaps via the `deploymentEnvFrom` field, which corresponds to the `envFrom` field in a Kubernetes deployment. For example, to mount the `DATABASE_URL` environment variable from a secret, you can use the following configuration:
+
+```yaml
+hatchet-api:
+  deploymentEnvFrom:
+    - secretRef:
+        name: hatchet-api-secrets
+        key: DATABASE_URL
+
+hatchet-engine:
+  deploymentEnvFrom:
+    - secretRef:
+        name: hatchet-api-secrets
+        key: DATABASE_URL
+```
+
+For more information on mounting environment variables from secrets, refer to the [Kubernetes documentation](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#configure-all-key-value-pairs-in-a-secret-as-container-environment-variables).
+
+## Migrations
+
+In order for migrations to run, the database user requires permissions to write and modify schemas **on a clean database**. It is therefore recommended to create a separate database instance where Hatchet can run and grant permissions on this database to the Hatchet user. For example, to create a new database and user `hatchet` in Postgres, run the following commands (**warning:** change the username/password for production usage):
+
+```sql
+create database hatchet;
+
+create role hatchet
+with
+    login password 'hatchet';
+
+grant hatchet to postgres;
+
+alter database hatchet owner to hatchet;
+```

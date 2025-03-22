@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Context, JsonObject } from '@hatchet/step';
@@ -31,13 +32,19 @@ type TaskOutputType<K, TaskName extends string, InferredType> = TaskName extends
   : InferredType;
 
 /**
- * Options for creating a new workflow.
+ * Options for creating a new workflow stub (for api and external service use)
  */
-export type CreateWorkflowOpts = {
+export type CreateStubWorkflowOpts = {
   /**
    * The name of the workflow.
    */
   name: WorkflowV0['id'];
+};
+
+/**
+ * Options for creating a new workflow.
+ */
+export type CreateWorkflowOpts = CreateStubWorkflowOpts & {
   /**
    * (optional) description of the workflow.
    */
@@ -80,7 +87,8 @@ type WorkflowDefinition = CreateWorkflowOpts & {
 };
 
 /**
- * Represents a workflow that can be executed by Hatchet.
+ * Represents a workflow definition that can be used to run a workflow.
+ * Useful for external service use (api, multiple workers, multiple languages, etc)
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
  */
@@ -96,11 +104,11 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
   definition: WorkflowDefinition;
 
   /**
-   * Creates a new workflow instance.
+   * Creates a new workflow stub instance.
    * @param options The options for creating the workflow.
    * @param client Optional Hatchet client instance.
    */
-  constructor(options: CreateWorkflowOpts, client?: IHatchetClient) {
+  constructor(options: CreateStubWorkflowOpts, client?: IHatchetClient) {
     this.definition = {
       ...options,
       tasks: [],
@@ -211,7 +219,14 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
 
     return cronDef;
   }
+}
 
+/**
+ * Represents a workflow that can be executed by Hatchet.
+ * @template T The input type for the workflow.
+ * @template K The return type of the workflow.
+ */
+export class Workflow<T extends Record<string, any>, K> extends WorkflowStub<T, K> {
   /**
    * Adds a task to the workflow.
    * The return type will be either the property on K that corresponds to the task name,

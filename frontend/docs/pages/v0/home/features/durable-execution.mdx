@@ -1,0 +1,29 @@
+# Understanding Durable Execution in Hatchet
+
+Durable execution is a crucial feature in workflow management systems like Hatchet, which ensures that workflows can continue executing despite encountering errors or interruptions. In other words, a durable workflow can resume processing from a mid-point after a failure, rather than starting from the beginning.
+
+This is particularly beneficial for long-running or resource-intensive workflows. For example, consider a workflow that processes a large dataset and fails after completing 90% of the processing. With durable execution, the workflow can resume from the 90% mark instead of starting from scratch. This minimizes the impact of failures and saves valuable time and resources.
+
+Hatchet provides two primary mechanisms for enabling durable execution:
+
+1. **Automatic Recovery for Transient Failures:** Hatchet can automatically detect and recover from temporary issues, such as network outages, resource limitations, or external service failures. It achieves this through:
+
+   - **Task Retries:** Hatchet automatically retries steps that fail due to transient issues.
+   - **State Preservation:** The state of each workflow (i.e., results of previous steps) is preserved, allowing Hatchet to resume execution from the point of failure.
+   - **Error Isolation:** Errors are isolated to specific steps, minimizing the impact on the overall workflow.
+
+2. **Manual Intervention for Workflow Continuation:** In cases where automatic recovery is insufficient, Hatchet provides options for manual intervention:
+   - **Dashboard Input Changes:** Users can modify inputs or exposed parameters of a workflow through the Hatchet dashboard, allowing for manual correction or adjustment of data to resolve issues and continue execution.
+   - **Code Deploy for Bug Fix:** If a failure is caused by a bug in the workflow code, users can deploy a fix and manually resume the affected workflows from the point of interruption.
+
+To fully leverage Hatchet's durable execution capabilities, it's important to follow best practices in workflow design:
+
+- **Idempotency:** Design steps to be idempotent, so they can be safely retried without causing unintended effects.
+- **Error Handling:** Implement comprehensive error handling within steps and workflows to gracefully manage exceptions and enable recovery.
+- **Decoupling:** Keep steps and workflows loosely coupled to prevent failures from cascading unnecessarily.
+- **Monitoring and Logging:** Establish robust monitoring and logging practices to quickly identify and address issues.
+- **Testing:** Thoroughly test workflows under various failure scenarios to ensure they can recover gracefully.
+
+By combining Hatchet's durable execution features with these best practices, developers can create resilient and reliable workflows that can withstand disruptions and ensure continuity of execution.
+
+In summary, durable execution is a key benefit of building workflows with Hatchet. It allows workflows to recover automatically from transient failures and provides options for manual intervention when needed. By designing workflows with durability in mind and following best practices, developers can create robust and efficient systems that minimize the impact of failures and interruptions.

@@ -26,6 +26,8 @@ func main() {
 	}
 
 	events := make(chan string, 50)
+
+	// ❓ TimeoutStep
 	cleanup, err := run(events, worker.WorkflowJob{
 		Name:        "timeout",
 		Description: "timeout",
@@ -36,6 +38,7 @@ func main() {
 			}).SetName("step-one").SetTimeout("10s"),
 		},
 	})
+	// ‼️
 	if err != nil {
 		panic(err)
 	}

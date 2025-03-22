@@ -1,0 +1,291 @@
+import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../../../components/UniversalTabs";
+
+# Triggering Workflows with Events in Hatchet
+
+Hatchet provides a powerful event-driven architecture that allows you to trigger workflows based on specific events. Events can be external, such as incoming webhooks or messages from a message queue, or internal, such as the pushed from another workflow. By leveraging event-based triggers, you can create reactive and dynamic workflows that respond to real-time data and business logic.
+
+## Configuring Event Triggers
+
+To trigger a workflow based on an event, you need to configure the `on event` property in the workflow definition. Here's an example of how to define an event trigger:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.workflow(on_events=["user:created"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const myWorkflow: Workflow = {
+  id: "my-workflow",
+  description: "A workflow triggered by an event",
+  on: {
+    event: "user:created",
+  },
+  steps: [
+    // Define your workflow steps here
+  ],
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "post-user-create",
+        On: worker.Event("user:created"),
+        Description: "Cron workflow example.",
+        Steps: []*worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    fmt.Println("triggered at:", time.Now())
+                    return nil
+                },
+            },
+        },
+    },
+)
+```
+  </Tabs.Tab>
+</UniversalTabs>
+
+In this example, the `on` property is set to an object with an `event` property. The `event` property specifies the name of the event that should trigger the workflow. When an event with the specified name is received by Hatchet, it will automatically start a new instance of the workflow.
+
+## Event Payloads
+
+When an event triggers a workflow, Hatchet passes the event payload to the workflow as input data. The event payload can contain relevant information or context that the workflow steps can use during execution.
+
+For example, if the event is `user:created`, the event payload might include details about the newly created user, such as their ID, email, or any other relevant attributes. You can access this event payload within your workflow steps using the `context.workflowInput()` method.
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+```python
+@hatchet.workflow(on_events=["user:created"])
+class MyWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        event_payload = context.workflow_input()
+        # Use the event payload data in your step logic
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const myStep: Step = async (context: Context<UserCreatedEvent>) => {
+  const eventPayload = context.workflowInput();
+  // Use the event payload data in your step logic
+  // ...
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+type workflowInputExample struct{}
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "post-user-create",
+        On: worker.Event("user:created"),
+        Description: "Cron workflow example.",
+        Steps: []*worker.WorkflowStep{
+            {
+                Function: func(ctx context.Context) error {
+                    input := &workflowInputExample{}
+                    ctx.WorkflowInput(input)
+                    // Use the event payload data in your step logic
+                },
+            },
+        },
+    },
+)
+```
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Event Sources
+
+Hatchet supports various event sources that can trigger workflows. Some common event sources include:
+
+### Internal Events
+
+Hatchet allows you to generate internal events using our SDKs from within your existing APIs. For example, you can push an event when a specific user request is made.
+
+Here is an example of how to push a single event:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()
+
+hatchet.client.event.push(
+"user:create",
+{
+"test": "test"
+}
+)
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+hatchet.event.push("user:create", {
+  test: "test",
+});
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+panic(err)
+}
+
+c.Event().Push(
+context.Background(),
+"test-called",
+&events.TestEvent{
+Name: "testing",
+},
+)
+
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+Here is an example of how to push multiple events at once:
+
+ <UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()
+
+events: List[BulkPushEventWithMetadata] = [
+    {
+        "key": "event1",
+        "payload": {"message": "This is event 1"},
+        "additional_metadata": {"source": "test", "user_id": "user123"},
+    },
+    {
+        "key": "event2",
+        "payload": {"message": "This is event 2"},
+        "additional_metadata": {"source": "test", "user_id": "user456"},
+    },
+    {
+        "key": "event3",
+        "payload": {"message": "This is event 3"},
+        "additional_metadata": {"source": "test", "user_id": "user789"},
+    },
+]
+
+
+result =
+hatchet.client.event.bulk_push(
+    events
+)
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const events = [
+  {
+    payload: { test: "test1" },
+    additionalMetadata: { user_id: "user1", source: "test" },
+  },
+  {
+    payload: { test: "test2" },
+    additionalMetadata: { user_id: "user2", source: "test" },
+  },
+  {
+    payload: { test: "test3" },
+    additionalMetadata: { user_id: "user3", source: "test" },
+  },
+];
+
+hatchet.event.bulkPush("user:create:bulk", events);
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+  panic(err)
+}
+
+events := []client.EventWithMetadata{
+  {
+    Event: &events.TestEvent{
+      Name: "testing",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world1"},
+    Key: "event1",
+  },
+  {
+    Event: &events.TestEvent{
+      Name: "testing2",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world2"},
+    Key: "event2",
+  },
+}
+
+c.Event().BulkPush(
+  context.Background(),
+  events,
+)
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Webhooks
+
+Hatchet can expose webhook endpoints that listen for incoming HTTP requests. When a webhook is triggered, it generates an event that can be used to start a workflow.
+
+## Event-Driven Best Practices
+
+When working with event-driven workflows, consider the following best practices:
+
+1. **Event Naming**: Use clear and descriptive names for your events to make them easily understandable and maintainable. Follow a consistent naming convention across your workflows.
+
+2. **Event Granularity**: Strike a balance between granularity and complexity when designing your events. Too many fine-grained events can lead to increased complexity, while too few events may limit the flexibility and reactivity of your workflows.
+
+3. **Event Validation**: Implement proper event validation and error handling in your workflows. Ensure that the event payloads conform to the expected schema and handle any invalid or missing data gracefully.
+
+4. **Idempotency**: Design your workflows to be idempotent, meaning that they can handle duplicate events without causing unintended side effects.
+
+## Events Dashboard
+
+Hatchet provides a visual dashboard for monitoring and managing events. You can view incoming events, inspect event payloads, and configure event triggers directly from the dashboard. This makes it easy to monitor the flow of events and manage your event-driven workflows.

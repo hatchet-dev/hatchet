@@ -1,0 +1,23 @@
+{
+  "rag": {
+    "title": "Retrieval Augmented Generation",
+    "display": "hidden",
+    "type": "menu"
+  },
+  "document-indexing": {
+    "title": "Document Indexing",
+    "display": "hidden",
+    "type": "page"
+  },
+  "transformation": {
+    "title": "Data Transformations",
+    "display": "hidden",
+    "type": "page"
+  },
+  "querying-state": {
+    "title": "Querying Workflow State",
+    "display": "hidden",
+    "type": "page"
+  },
+  "fastapi-react": "Fullstack - FastAPI/React"
+}

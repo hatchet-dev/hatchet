@@ -1,0 +1,272 @@
+import { Tabs, Steps } from "nextra/components";
+import { Tweet } from "react-tweet";
+
+# A code-first prompt engineering platform
+
+**TL;DR** - [Hatchet](https://github.com/hatchet-dev/hatchet) is a platform for creating and scaling workflows as code. We're launching a set of features that enable teams to **iterate on prompts, optimize context, and debug LLM apps faster** - with all changes written back to your own codebase.
+
+## The problem
+
+Most teams building on LLMs use a prompt engineering platform of some kind - think Humanloop or Promptlayer. These platforms are great for prototyping and collaboration with non-technical team members, but as your application grows, there is a very slim chance that they can capture the expanse of customization that your LLMs require. For example, you might deploy a small LLM internal to your infrastructure, which interacts with your larger LLM downstream, but sits outside the scope of your prompt engineering platform.
+
+As you grow, you also realize that you don't hot-swap your prompts as often as you did in the beginning, instead opting for a more rigorous process of testing and deploying your prompts. So you start to introduce tooling that ensures your prompts are tested and versioned.
+
+(At this point, you might start to get the suspicion that you're reinventing VCS.)
+
+As your user base grows, you start to encounter even more problems:
+
+- Safely tracing and replaying production data is challenging.
+- Keeping your internal prompt engineering tools in sync with your codebase is frustrating and time-consuming, requiring an engineer in the loop.
+- Context tuning (i.e. # of docs or chunk size) can have as much impact as prompt tuning on performance but is hard to experiment with.
+
+At some point, you embrace the inevitable - your prompts **will eventually live in your codebase**, using all the same tooling and versioning that you use for the rest of your application. This is where Hatchet comes in.
+
+## The solution: workflows as code
+
+At a high level, Hatchet lets you remotely invoke a function in your codebase, storing inputs and outputs for each function call along the way. If your function errors out, Hatchet handles retries. If you have too many functions for your workers to handle, Hatchet queues up the functions and distributes them fairly based on custom policies you set.
+
+This is particularly useful for LLM calls, which can be slow, have high variance, and are prone to errors like...this:
+
+<Tweet id="1760080088614175068" />
+
+It's typical to fight the non-deterministic nature of LLM-enabled application by breaking up your LLM calls into smaller steps in a workflow, with optimized prompts and model selection sitting at each step.
+
+These are modeled in Hatchet as a workflow:
+
+```py filename="rag_workflow.py"
+@hatchet.workflow(on_events=["question:create"])
+class BasicRagWorkflow:
+    @hatchet.step()
+    def load_docs(self, context: Context):
+        # use beautiful soup to parse the html content
+        url = context.workflow_input()['request']['url']
+
+        html_content = requests.get(url).text
+        soup = BeautifulSoup(html_content, 'html.parser')
+        element = soup.find('body')
+        text_content = element.get_text(separator=' | ')
+
+        return {
+            "status": "making sense of the docs",
+            "docs": text_content,
+        }
+
+    @hatchet.step(parents=["load_docs"])
+    def reason_docs(self, ctx: Context):
+        message = ctx.workflow_input()['request']["messages"][-1]
+        docs = ctx.step_output("load_docs")['docs']
+
+        prompt = ctx.playground("prompt", "The user is asking the following question:\
+            {message}\
+            What are the most relevant sentences in the following document?\
+            {docs}")
+
+        prompt = prompt.format(message=message['content'], docs=docs)
+
+        model = ctx.playground("model", "gpt-3.5-turbo")
+
+        completion = openai.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+                message
+            ]
+        )
+
+        return {
+            "status": "writing a response",
+            "research": completion.choices[0].message.content,
+        }
+
+    @hatchet.step(parents=["reason_docs"])
+    def generate_response(self, ctx: Context):
+        messages = ctx.workflow_input()['request']["messages"]
+        research = ctx.step_output("reason_docs")['research']
+
+        prompt = ctx.playground("prompt", "You are a sales engineer for a company called Hatchet. Help address the user's question. Use the following context:\
+            {research}")
+
+        prompt = prompt.format(research=research)
+
+        model = ctx.playground("model", "gpt-3.5-turbo")
+
+        completion = openai.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": prompt},
+            ] + messages
+        )
+
+        return {
+            "completed": "true",
+            "status": "idle",
+            "message": completion.choices[0].message.content,
+        }
+```
+
+## What we're launching
+
+We're launching three new features that turn Hatchet into a flexible prompt engineering platform.
+
+**A UI for iterating on LLM workflows:** engineers get to choose which variables to expose on the playground, which can then be consumed by any team member:
+
+<div style={{ position: "relative", paddingTop: "61.36363636363637%" }}>
+  <iframe
+    src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/0da867b78c2be7d2271a73dca75a5340/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F0da867b78c2be7d2271a73dca75a5340%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
+    loading="lazy"
+    style={{
+      border: "none",
+      position: "absolute",
+      top: 0,
+      left: 0,
+      height: "100%",
+      width: "100%",
+    }}
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowFullScreen={true}
+  ></iframe>
+</div>
+
+We do this by providing a method in our SDK called `playground` which then exposes the variable in the Hatchet UI:
+
+![Screenshot of Playground SDK](https://github.com/hatchet-dev/hatchet/assets/25448214/14e2e71d-cdde-4856-b254-4959afd1da1e)
+
+**Full history of customer interactions:** with Hatchet, you automatically get a full history of the inputs and outputs to each step in your workflow, which is particularly useful when debugging bad customer interactions with your LLMs.
+
+<div style={{ position: "relative", paddingTop: "61.36363636363637%" }}>
+  <iframe
+    src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/1fb52fb3f2b8068c0ea109923de7a503/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F1fb52fb3f2b8068c0ea109923de7a503%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
+    loading="lazy"
+    style={{
+      border: "none",
+      position: "absolute",
+      top: 0,
+      left: 0,
+      height: "100%",
+      width: "100%",
+    }}
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowFullScreen={true}
+  ></iframe>
+</div>
+
+**Sync changes back to Github:** useful for non-technical founders and product managers to quickly request changes to your codebase without waiting for an engineer.
+
+<div style={{ position: "relative", paddingTop: "61.36363636363637%" }}>
+  <iframe
+    src="https://customer-yselgi4iabg1w16w.cloudflarestream.com/5a6f9797dc2e9b34251b50576f3bbae5/iframe?poster=https%3A%2F%2Fcustomer-yselgi4iabg1w16w.cloudflarestream.com%2F5a6f9797dc2e9b34251b50576f3bbae5%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
+    loading="lazy"
+    style={{
+      border: "none",
+      position: "absolute",
+      top: 0,
+      left: 0,
+      height: "100%",
+      width: "100%",
+    }}
+    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+    allowFullScreen={true}
+  ></iframe>
+</div>
+
+## Getting started
+
+Let's take a look at how you can get started with a self-hosted instance of Hatchet (if you'd like to use our cloud version, [request access here](https://hatchet.run/request-access)).
+
+We'll be using the [Hatchet Python Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart) repository in this example. It assumes that you have the following tools installed:
+
+1. Python 3.7 or higher installed on your machine.
+2. Poetry package manager installed. You can install it by running `pip install poetry`, or by following instructions in the [Poetry Docs](https://python-poetry.org/docs/#installation)
+3. Docker installed on your machine. You can install it by following the instructions in the [Docker Docs](https://docs.docker.com/get-docker/)
+
+<Steps>
+### Step 1: Get Hatchet up and running
+
+First, clone the repository:
+
+```sh copy
+git clone https://github.com/hatchet-dev/hatchet-python-quickstart.git
+cd hatchet-python-quickstart
+```
+
+Run the following command to start the Hatchet instance:
+
+```sh copy
+docker compose up
+```
+
+This will start a Hatchet instance on port `8080`. You should be able to navigate to [localhost:8080](localhost:8080) and use the following credentials to log in:
+
+```sh
+Email: admin@example.com
+Password: Admin123!!
+```
+
+Next, navigate to your settings tab in the Hatchet dashboard. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Then copy the environment variable:
+
+```sh
+HATCHET_CLIENT_TOKEN="<token>"
+```
+
+You will need this in the following steps.
+
+### Step 2: Run your first worker
+
+Navigate to the `simple-examples` directory:
+
+```sh copy
+cd simple-examples
+```
+
+Create a `.env` file in the `simple-examples` directory. You will need the `HATCHET_CLIENT_TOKEN` variable created above. If you would like to try the Generative AI examples in [./src/genai](./src/genai), you will also need, a `OPENAI_API_KEY` which can be created on the [OpenAI Website](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key) (if not, you can use the `SimpleWorkflow` below instead of the `SimpleGenAiWorkflow`). Your env file should look like this:
+
+```sh copy
+HATCHET_CLIENT_TLS_STRATEGY=none
+HATCHET_CLIENT_TOKEN="<token>"
+OPENAI_API_KEY="<openai-key>" # (OPTIONAL) only required to run GenAI workflows
+```
+
+Next, install the requirements:
+
+```sh copy
+poetry install
+```
+
+Run the worker:
+
+```sh copy
+poetry run hatchet
+```
+
+### Step 3: Run your first workflow
+
+Navigate to the Hatchet dashboard and select the **Workflows** tab. You should see a workflow called `SimpleGenAiWorkflow`. Use the following input:
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Are cows reptiles?"
+    }
+  ]
+}
+```
+
+Click on it to see the inputs and outputs of each step in the workflow.
+
+### Step 4: Iterate on your workflow
+
+Once you've run the workflow, you can replay it with different inputs from the UI.
+
+![Launch 2](/launch-2.png)
+
+</Steps>
+
+That's it! You've now got a self-hosted instance of Hatchet up and running.
+
+## Next Steps
+
+- Check out our [Docs](https://docs.hatchet.run) for more information on how to use Hatchet
+- Join our [Discord](https://discord.gg/ZMeUafwH89) to chat with us and other users
+- Check out our [Github](https://github.com/hatchet-dev/hatchet) if you'd like to contribute to the project

@@ -1,0 +1,61 @@
+# Running Child Workflows
+
+Hatchet supports running child workflows from within a parent workflow. This allows you to create complex, dynamic workflows that don't map to the concept of a DAG.
+
+To run a child workflow, you can use the `context.spawn_workflow` method. For example:
+
+```py filename="child_workflow.py" copy
+import asyncio
+from hatchet_sdk import Context, Hatchet
+
+hatchet = Hatchet()
+
+@hatchet.workflow()
+class Parent:
+    @hatchet.step(timeout="5m")
+    async def spawn(self, context: Context):
+        results = []
+
+        for i in range(10):
+            results.append(
+                (
+                    await context.aio.spawn_workflow(
+                        "Child", {"a": str(i)}, key=f"child{i}"
+                    )
+                ).result()
+            )
+
+        result = await asyncio.gather(*results)
+
+        return {"results": result}
+
+
+@hatchet.workflow()
+class Child:
+    @hatchet.step()
+    async def process(self, context: Context):
+        a = context.workflow_input()["a"]
+        return {"status": "success " + a}
+
+def main():
+    worker = hatchet.worker("fanout-worker", max_runs=40)
+    worker.register_workflow(Parent())
+    worker.register_workflow(Child())
+    worker.start()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+The `spawn_workflow` method takes the following parameters:
+
+- `workflow_name` (**required**): The name of the workflow to trigger. If you have not overridden the workflow name in the `hatchet.workflow` decorator, this should match the name of the workflow class.
+- `input` (**required**): The input to pass to the child workflow.
+- `key` (**optional**): A caching key for the child workflow. If this is not set, the child workflow will be cached on the index that it was triggered at. The cache is used on retries of the parent workflow so that child workflows which were already triggered are skipped.
+
+For more information on how to interact with the return value of `spawn_workflow`, see the documentation for [getting workflow run results](./get-workflow-results).
+
+## `context.spawn_workflow` vs `context.aio.spawn_workflow`
+
+The `context.spawn_workflow` method is a synchronous method that will block the parent workflow until the child workflow has been sent to the Hatchet API. If you are relying heavily on `async` methods, you should use `context.aio.spawn_workflow` instead, which will provide performance improvements and allows you to parallelize the spawning of child workflows.

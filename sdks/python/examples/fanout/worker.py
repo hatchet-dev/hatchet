@@ -9,6 +9,9 @@ from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
 hatchet = Hatchet(debug=True)
 
 
+# ❓ FanoutParent
+
+
 class ParentInput(BaseModel):
     n: int = 100
 
@@ -43,6 +46,11 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     return {"results": result}
 
 
+# ‼️
+
+# ❓ FanoutChild
+
+
 @child_wf.task()
 def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     print(f"child process {input.a}")
@@ -53,6 +61,9 @@ def process(input: ChildInput, ctx: Context) -> dict[str, str]:
 def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     print("child process2")
     return {"status2": "success"}
+
+
+# ‼️
 
 
 def main() -> None:

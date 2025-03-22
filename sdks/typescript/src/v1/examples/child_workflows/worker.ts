@@ -1,4 +1,4 @@
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 import { parent, child } from './workflow';
 
 async function main() {

@@ -1,0 +1,102 @@
+# Set up the FastAPI application to spawn background workflows
+
+Now, let's set up the FastAPI application structure and configure the necessary dependencies.
+
+In create `/backend/src/api/main.py` and setup a stub FastAPI service and hatchet service.
+
+```python
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse # we'll use this later in the tutorial
+import uvicorn
+from dotenv import load_dotenv
+import json
+from hatchet_sdk import Hatchet
+from .models import MessageRequest
+
+load_dotenv() # we'll use dotenv to load the required Hatchet and OpenAI api keys
+
+app = FastAPI()
+hatchet = Hatchet()
+
+# This is required for running a local react app,
+# but is not recommended for production.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+def start():
+    """Launched with `poetry run api` at root level"""
+    uvicorn.run("src.api.main:app", host="0.0.0.0", port=8000, reload=True)
+```
+
+In this step, we set up the FastAPI application, configure CORS middleware, and initialize the Hatchet SDK.
+
+## Defining basic request objects
+
+Now, let's define some simple [pydantic](https://docs.pydantic.com) models for our Request body. Create a file `/backend/src/api/models.py` and define a `Message` and a `MessageRequest` model:
+
+```py
+from pydantic import BaseModel
+from typing import List
+
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+
+class MessageRequest(BaseModel):
+    messages: List[Message]
+    url: str
+```
+
+## Create an endpoint to trigger the workflow
+
+Next, let's create an endpoint that the client can call to trigger the workflow. Back in `/backend/src/api/main.py`, let's add a simple `POST` endpoint.
+
+```python
+@app.post("/message")
+def message(data: MessageRequest):
+    ''' This endpoint is called by the client to start a message generation workflow. '''
+    messageId = hatchet.client.admin.run_workflow("BasicRagWorkflow", {
+        "request": data.dict()
+    })
+    # normally, we'd save the workflowRunId to a database and return a reference to the client
+    # for this simple example, we just return the workflowRunId
+    return {"messageId": messageId}
+```
+
+[View Complete File on GitHub](https://github.com/hatchet-dev/hatchet-python-quickstart/blob/main/fast-api-react/backend/src/api/main.py)
+
+Using data.dict() allows us to convert the MessageRequest instance to a dictionary that can be easily passed as input to the run_workflow method. The run_workflow method expects a dictionary as the second argument, representing the input data for the workflow.
+
+By passing data.dict() as the "request" field in the input dictionary, we ensure that the workflow receives the necessary data (messages and URL) to process the request. The run_workflow method will use this dictionary to access the required information within the workflow.
+
+## Start the FastAPI server
+
+Finally, let's start the FastAPI server using Uvicorn and our poetry script:
+
+```sh
+poetry run api
+```
+
+You can use `curl` to make a request to this endpoint and observe the run in the Hatchet Dashboard
+
+```sh
+curl -X POST -H "Content-Type: application/json" -d '{
+    "messages": [
+        {
+            "role": "user",
+            "content": "how do i install hatchet?"
+        }
+    ],
+    "url": "https://docs.hatchet.run/home"
+}' http://localhost:8000/message
+```
+
+## [Next Steps: Streaming Results →](./result-streaming.mdx)

@@ -1,0 +1,197 @@
+# Implementing Real-time Progress Streaming with Hatchet and React
+
+In this tutorial, we'll walk through how to build a single-page React application that streams real-time progress updates from a Hatchet workflow. We'll cover how to:
+
+1. Set up a new React project using Create React App
+2. Send a request to the FastAPI server to trigger a workflow
+3. Subscribe to the Hatchet event stream for the workflow run
+4. Display the real-time progress updates in the React UI
+
+## Set up a new React project
+
+First, let's create a new React project using Create React App. Open your terminal and navigate to the directory where you want to create your project. Then, run the following command:
+
+```bash
+npx create-react-app frontend --template typescript
+```
+
+This will create a new directory called `frontend` with a basic React project set up using TypeScript.
+
+Navigate to the `frontend` directory and start the development server:
+
+```bash
+cd frontend
+npm start
+```
+
+Open your browser and navigate to `http://localhost:3000`. You should see the default Create React App page.
+
+## Set up the React component
+
+Now, let's set up the basic structure of our React component. Open the `src/App.tsx` file and replace its contents with the following code:
+
+```tsx
+import { useEffect, useState } from "react";
+import "./App.css";
+
+interface Messages {
+  role: "user" | "assistant";
+  content: string;
+  messageId?: string;
+}
+
+const API_URL = "http://localhost:8000";
+
+function App() {
+  const [openRequest, setOpenRequest] = useState<string>();
+  const [message, setMessage] = useState<string>("");
+  const [messages, setMessages] = useState<Messages[]>([
+    { role: "assistant", content: "How can I help you?" },
+  ]);
+  const [status, setStatus] = useState("idle");
+
+  // ... rest of the component code
+}
+
+export default App;
+```
+
+## Trigger the Hatchet workflow
+
+Next, let's create a function to send a request to the FastAPI server to trigger the Hatchet workflow:
+
+```tsx
+const sendMessage = async (content: string) => {
+  try {
+    setMessages((prev) => [...prev, { role: "user", content }]);
+
+    const response = await fetch(`${API_URL}/message`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: "https://docs.hatchet.run/home",
+        messages: [
+          ...messages,
+          {
+            role: "user",
+            content,
+          },
+        ],
+      }),
+    });
+
+    if (response.ok) {
+      // Handle successful response
+      setOpenRequest((await response.json()).messageId);
+    } else {
+      // Handle error response
+    }
+  } catch (error) {
+    // Handle network error
+  }
+};
+```
+
+In this step, we create a function that sends a POST request to the FastAPI server with the user's message and the URL of the documentation page. If the response is successful, we set the `openRequest` state to the `messageId` returned by the server.
+
+## Subscribe to the Hatchet event stream
+
+Now, let's use the `useEffect` hook to subscribe to the Hatchet event stream for the workflow run:
+
+```tsx
+useEffect(() => {
+  if (!openRequest) return;
+
+  const sse = new EventSource(`${API_URL}/message/${openRequest}`, {
+    withCredentials: true,
+  });
+
+  function getMessageStream(data: any) {
+    console.log(data);
+    if (data === null) return;
+    if (data.payload?.status) {
+      setStatus(data.payload?.status);
+    }
+    if (data.payload?.message) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.payload.message,
+          messageId: data.messageId,
+        },
+      ]);
+      setOpenRequest(undefined);
+    }
+  }
+
+  sse.onmessage = (e) => getMessageStream(JSON.parse(e.data));
+
+  sse.onerror = () => {
+    setOpenRequest(undefined);
+    sse.close();
+  };
+
+  return () => {
+    setOpenRequest(undefined);
+    sse.close();
+  };
+}, [openRequest]);
+```
+
+In this step, we use the `EventSource` API to subscribe to the event stream for the `openRequest`. We define a `getMessageStream` function to handle the incoming events. If the event contains a status update, we set the `status` state. If the event contains the final message, we add it to the `messages` state and clear the `openRequest` state.
+
+## Render the UI
+
+Finally, let's render the UI with the messages and the real-time progress updates:
+
+```tsx
+return (
+  <div className="App">
+    <div className="Messages">
+      {messages.map(({ role, content, messageId }, i) => (
+        <p key={i}>
+          <b>{role === "assistant" ? "Agent" : "You"}</b>: {content}
+          {messageId && (
+            <a
+              target="_blank"
+              rel="noreferrer"
+              href={`http://localhost:8080/workflow-runs/${messageId}`}
+            >
+              🪓
+            </a>
+          )}
+        </p>
+      ))}
+
+      {openRequest && (
+        <a
+          target="_blank"
+          rel="noreferrer"
+          href={`http://localhost:8080/workflow-runs/${openRequest}`}
+        >
+          {status}
+        </a>
+      )}
+    </div>
+
+    <div className="Input">
+      <textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+      ></textarea>
+      <button onClick={() => sendMessage(message)}>Ask</button>
+    </div>
+  </div>
+);
+```
+
+[View Complete File on GitHub](https://github.com/hatchet-dev/hatchet-python-quickstart/blob/main/fast-api-react/frontend/src/App.tsx)
+
+> Note: CSS to make the frontend pretty can be found [here](https://github.com/hatchet-dev/hatchet-python-quickstart/blob/main/fast-api-react/frontend/src/App.css)
+
+In this step, we render the messages with the user's role and content. If the message has a `messageId`, we render a link to the Hatchet dashboard for the workflow run. We also render the current status of the workflow run if there is an `openRequest`.
+
+And that's it! You now have a single-page React application that streams real-time progress updates from a Hatchet workflow. You can further customize the UI and add additional features as needed.

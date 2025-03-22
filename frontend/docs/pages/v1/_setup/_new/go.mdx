@@ -1,0 +1,70 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+
+#### Create a new project directory and cd into it
+
+```bash copy
+mkdir hatchet-tutorial && cd hatchet-tutorial
+```
+
+#### Initialize a new go project with required dependencies
+
+```bash copy
+go mod init hatchet-tutorial
+```
+
+## Create project directories
+
+```bash copy
+mkdir workflows &&
+mkdir workers
+```
+
+## Instantiate your Hatchet Client
+
+It is recommended to instantiate a shared Hatchet Client Factory in a separate file.
+
+Create a new directory called `hatchet_client` and a new file called `main.go` in it.
+```bash copy
+mkdir hatchet_client &&
+touch hatchet_client/main.go
+```
+
+Add the following code to the file:
+
+```go copy
+package hatchet
+
+import (
+	"github.com/hatchet-dev/hatchet/pkg/client"
+)
+
+func Client() (client.Client, error) {
+	return client.New()
+}
+```
+
+#### Install the Hatchet SDK and required dependencies
+
+```bash copy
+go mod tidy
+```
+
+#### Import the Hatchet Client Factory
+You can now import the Hatchet Client Factory in any file that needs it.
+
+```go copy
+package main
+
+import (
+	"log"
+
+	hatchet "hatchet-tutorial/hatchet_client"
+)
+
+func main() {
+	hatchet, err := hatchet.Client()
+	if err != nil {
+		log.Fatal(err)
+	}
+}

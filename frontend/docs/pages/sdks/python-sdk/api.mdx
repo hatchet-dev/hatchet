@@ -27,23 +27,23 @@ list : WorkflowList = hatchet.client.rest().workflow_list()
 Creates or updates a workflow. This can use an existing workflow class to extend from and overwrite. For example:
 
 ```py
-@hatchet.workflow()
-class BaseWorkflow:
-    @hatchet.step()
-    def step1(self, context: Context):
-        return {
-            "result": "success!"
-        }
+api_workflow = hatchet.workflow(name="APIWorkflow")
 
-    @hatchet.step(parents=["step1"],timeout='4s')
-    def step2(self, context):
-        return {
-            "result2": "success!"
-        }
+@api_workflow.task()
+def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {
+        "result": "success!"
+    }
+
+@api_workflow.task()
+def step2(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {
+        "result2": "success!"
+    }
 
 hatchet.client.admin.put_workflow(
-    "workflow-copy",
-    BaseWorkflow(),
+    wf.config.name,
+    wf._get_create_opts(hatchet.config.namespace),
     overrides=CreateWorkflowVersionOpts(
         cron_triggers=["*/15 * * * *"],
         cron_input=json.dumps({"test": "test"}),

@@ -1,0 +1,88 @@
+# Running Workflows via API
+
+Workflows can be triggered from the API by calling `runWorkflow`. This method is available on the `hatchet.admin` client:
+
+```ts filename="run-workflow.ts" copy
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const workflowRun = hatchet.admin.runWorkflow(
+  "api-trigger-workflow",
+  {
+    test: "test",
+  },
+  {
+    additionalMetadata: {
+      hello: "moon",
+    },
+  },
+);
+```
+
+## Usage
+
+### Type Parameters
+
+- `Q`: The type of the input data for the workflow. Default is `JsonValue`.
+- `P`: The type of the output data from the workflow. Default is `JsonValue`.
+
+### Parameters
+
+- `workflowName` (`string`): The name of the workflow to be spawned. This will be concatenated with the client's namespace to form the full workflow name.
+- `input` (`Q`): The input data for the workflow. The type of this data is specified by the generic type parameter `Q`.
+- `options` (**optional**): Additional options to pass to the workflow. The current options are supported:
+  - `additionalMetadata`: A dict of key-value strings to attach to the workflow run. This metadata will be shown in the Hatchet UI and will be available in API endpoints for listing/filtering.
+
+### Returns
+
+- [`WorkflowRunRef`](./get-workflow-results): A reference to the workflow run, with the output data type specified by the generic type parameter `P`.
+
+### Exceptions
+
+- `HatchetError`: Thrown if there is any error during the workflow spawning process, with the error message provided.
+
+## Running Workflows in Bulk via API
+
+Workflows can also be triggered in bulk by calling `runWorkflows`. This method is available on the `hatchet.admin` client:
+
+```ts filename="run-workflows.ts" copy
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+const workflowRuns: WorkflowRun[] = [];
+
+workflowRuns[0] = {
+  workflowName: "bulk-parent-workflow",
+  input: {},
+  options: {
+    additionalMetadata: {
+      key: "value",
+    },
+  },
+};
+
+workflowRuns[1] = {
+  workflowName: "bulk-parent-workflow",
+  input: { second: "second" },
+  options: {
+    additionalMetadata: {
+      key: "value",
+    },
+  },
+};
+
+const workflowRunResponse = hatchet.admin.runWorkflows(workflowRuns);
+```
+
+### Parameters
+
+- `workflowRuns` (`WorkflowRun[]`): An array of `WorkflowRun` objects.
+
+### Returns
+
+- [`WorkflowRunRef`](./get-workflow-results): An array of references to the workflow runs, with the output data type specified by the generic type parameter `P`.
+
+### Exceptions
+
+- `HatchetError`: Thrown if there is any error during the workflow spawning process, with the error message provided.

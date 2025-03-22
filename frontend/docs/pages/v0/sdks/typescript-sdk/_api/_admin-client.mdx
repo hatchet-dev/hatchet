@@ -1,0 +1,219 @@
+[@hatchet-dev/typescript-sdk](../README.md) / [Exports](../modules.md) / AdminClient
+
+# Class: AdminClient
+
+AdminClient is a client for interacting with the Hatchet Admin API. This allows you to configure, trigger,
+and monitor workflows.
+
+The admin client can be accessed via:
+
+```typescript
+const hatchet = Hatchet.init();
+const admin = hatchet.admin as AdminClient;
+
+// Now you can use the admin client to interact with the Hatchet Admin API
+admin.list_workflows().then((res) => {
+  res.rows?.forEach((row) => {
+    console.log(row);
+  });
+});
+```
+
+### Methods
+
+- [get_workflow](admin-client.mdx#get_workflow)
+- [get_workflow_run](admin-client.mdx#get_workflow_run)
+- [get_workflow_version](admin-client.mdx#get_workflow_version)
+- [list_workflow_runs](admin-client.mdx#list_workflow_runs)
+- [list_workflows](admin-client.mdx#list_workflows)
+- [put_workflow](admin-client.mdx#put_workflow)
+- [run_workflow](admin-client.mdx#run_workflow)
+- [schedule_workflow](admin-client.mdx#schedule_workflow)
+
+## Methods
+
+### get_workflow
+
+▸ **get_workflow**(`workflowId`): `Promise`\<[`Workflow`](./_interfaces/APIContracts.Workflow.md)\>
+
+Get a workflow by its ID.
+
+#### Parameters
+
+| Name         | Type     | Description                                                                 |
+| :----------- | :------- | :-------------------------------------------------------------------------- |
+| `workflowId` | `string` | the workflow ID (**note:** this is not the same as the workflow version id) |
+
+#### Returns
+
+`Promise`\<[`Workflow`](./_interfaces/APIContracts.Workflow.md)\>
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:97](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L97)
+
+---
+
+### get_workflow_run
+
+▸ **get_workflow_run**(`workflowRunId`): `Promise`\<[`WorkflowRun`](./_interfaces/APIContracts.WorkflowRun.md)\>
+
+Get a workflow run.
+
+#### Parameters
+
+| Name            | Type     | Description                       |
+| :-------------- | :------- | :-------------------------------- |
+| `workflowRunId` | `string` | the id of the workflow run to get |
+
+#### Returns
+
+`Promise`\<[`WorkflowRun`](./_interfaces/APIContracts.WorkflowRun.md)\>
+
+the workflow run
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:121](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L121)
+
+---
+
+### get_workflow_version
+
+▸ **get_workflow_version**(`workflowId`, `version?`): `Promise`\<[`WorkflowVersion`](./_interfaces/APIContracts.WorkflowVersion.md)\>
+
+Get a workflow version.
+
+#### Parameters
+
+| Name         | Type     | Description                                                                               |
+| :----------- | :------- | :---------------------------------------------------------------------------------------- |
+| `workflowId` | `string` | the workflow ID                                                                           |
+| `version?`   | `string` | the version of the workflow to get. If not provided, the latest version will be returned. |
+
+#### Returns
+
+`Promise`\<[`WorkflowVersion`](./_interfaces/APIContracts.WorkflowVersion.md)\>
+
+the workflow version
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:108](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L108)
+
+---
+
+### list_workflow_runs
+
+▸ **list_workflow_runs**(`query`): `Promise`\<[`WorkflowRunList`](./_interfaces/APIContracts.WorkflowRunList.md)\>
+
+List workflow runs in the tenant associated with the API token.
+
+#### Parameters
+
+| Name                | Type     | Description                                   |
+| :------------------ | :------- | :-------------------------------------------- |
+| `query`             | `Object` | the query to filter the list of workflow runs |
+| `query.eventId?`    | `string` | -                                             |
+| `query.limit?`      | `number` | -                                             |
+| `query.offset?`     | `number` | -                                             |
+| `query.workflowId?` | `string` | -                                             |
+
+#### Returns
+
+`Promise`\<[`WorkflowRunList`](./_interfaces/APIContracts.WorkflowRunList.md)\>
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:131](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L131)
+
+---
+
+### list_workflows
+
+▸ **list_workflows**(): `Promise`\<[`WorkflowList`](./_interfaces/APIContracts.WorkflowList.md)\>
+
+List workflows in the tenant associated with the API token.
+
+#### Returns
+
+`Promise`\<[`WorkflowList`](./_interfaces/APIContracts.WorkflowList.md)\>
+
+a list of all workflows in the tenant
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:87](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L87)
+
+---
+
+### put_workflow
+
+▸ **put_workflow**(`workflow`): `Promise`\<`void`\>
+
+Creates a new workflow or updates an existing workflow. If the workflow already exists, Hatchet will automatically
+determine if the workflow definition has changed and create a new version if necessary.
+
+#### Parameters
+
+| Name       | Type                        | Description                     |
+| :--------- | :-------------------------- | :------------------------------ |
+| `workflow` | `CreateWorkflowVersionOpts` | a workflow definition to create |
+
+#### Returns
+
+`Promise`\<`void`\>
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:51](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L51)
+
+---
+
+### run_workflow
+
+▸ **run_workflow**(`workflowName`, `input`): `Promise`\<`string`\>
+
+Run a new instance of a workflow with the given input. This will create a new workflow run and return the ID of the
+new run.
+
+#### Parameters
+
+| Name           | Type     | Description                                    |
+| :------------- | :------- | :--------------------------------------------- |
+| `workflowName` | `string` | the name of the workflow to run                |
+| `input`        | `object` | an object containing the input to the workflow |
+
+#### Returns
+
+`Promise`\<`string`\>
+
+the ID of the new workflow run
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:68](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L68)
+
+---
+
+### schedule_workflow
+
+▸ **schedule_workflow**(`workflowId`, `options?`): `void`
+
+Schedule a workflow to run at a specific time or times.
+
+#### Parameters
+
+| Name                 | Type     | Description                               |
+| :------------------- | :------- | :---------------------------------------- |
+| `workflowId`         | `string` | the ID of the workflow to schedule        |
+| `options?`           | `Object` | an object containing the schedules to set |
+| `options.schedules?` | `Date`[] | -                                         |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[src/clients/admin/admin-client.ts:146](https://github.com/hatchet-dev/hatchet/blob/af21f67/typescript-sdk/src/clients/admin/admin-client.ts#L146)
