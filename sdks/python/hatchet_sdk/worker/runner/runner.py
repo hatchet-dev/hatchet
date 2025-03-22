@@ -30,17 +30,17 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TWorkflowInput
-from hatchet_sdk.utils.typing import WorkflowValidator
-from hatchet_sdk.worker.action_listener_process import (
-    ActionEvent,
+from hatchet_sdk.runnables.contextvars import (
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.types import R, TWorkflowInput
+from hatchet_sdk.utils.typing import WorkflowValidator
+from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars
 
 
@@ -56,11 +56,11 @@ class Runner:
         self,
         name: str,
         event_queue: "Queue[ActionEvent]",
+        config: ClientConfig,
         slots: int | None = None,
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
         validator_registry: dict[str, WorkflowValidator] = {},
-        config: ClientConfig = ClientConfig(),
         labels: dict[str, str | int] = {},
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
@@ -136,7 +136,7 @@ class Runner:
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=str(errorWithTraceback(f"{e}", e)),
+                        payload=str(pretty_format_exception(f"{e}", e)),
                     )
                 )
 
@@ -178,7 +178,7 @@ class Runner:
                     ActionEvent(
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=str(errorWithTraceback(f"{e}", e)),
+                        payload=str(pretty_format_exception(f"{e}", e)),
                     )
                 )
 
@@ -245,7 +245,7 @@ class Runner:
                 return await loop.run_in_executor(self.thread_pool, pfunc)
         except Exception as e:
             logger.error(
-                errorWithTraceback(
+                pretty_format_exception(
                     f"exception raised in action ({action.action_id}, retry={action.retry_count}):\n{e}",
                     e,
                 )
@@ -417,7 +417,7 @@ class Runner:
 
         if output is not None:
             try:
-                return json.dumps(output)
+                return json.dumps(output, default=str)
             except Exception as e:
                 logger.error(f"Could not serialize output: {e}")
                 return str(output)
@@ -432,6 +432,6 @@ class Runner:
             running = len(self.tasks.keys())
 
 
-def errorWithTraceback(message: str, e: Exception) -> str:
+def pretty_format_exception(message: str, e: Exception) -> str:
     trace = "".join(traceback.format_exception(type(e), e, e.__traceback__))
     return f"{message}\n{trace}"

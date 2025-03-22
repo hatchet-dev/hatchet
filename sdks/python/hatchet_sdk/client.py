@@ -15,7 +15,7 @@ from hatchet_sdk.connection import new_conn
 class Client:
     def __init__(
         self,
-        config: ClientConfig = ClientConfig(),
+        config: ClientConfig,
         event_client: EventClient | None = None,
         admin_client: AdminClient | None = None,
         dispatcher_client: DispatcherClient | None = None,

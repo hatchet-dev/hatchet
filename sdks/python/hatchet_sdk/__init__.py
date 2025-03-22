@@ -143,6 +143,14 @@ from hatchet_sdk.runnables.types import (
     StickyStrategy,
     WorkflowConfig,
 )
+from hatchet_sdk.waits import (
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    or_,
+)
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 
 __all__ = [
@@ -245,4 +253,10 @@ __all__ = [
     "WorkflowConfig",
     "Task",
     "EmptyModel",
+    "Condition",
+    "OrGroup",
+    "or_",
+    "SleepCondition",
+    "UserEventCondition",
+    "ParentCondition",
 ]

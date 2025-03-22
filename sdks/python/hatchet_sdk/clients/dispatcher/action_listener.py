@@ -1,14 +1,14 @@
 import asyncio
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import field
 from enum import Enum
-from typing import Any, AsyncGenerator, Optional, cast
+from typing import Any, AsyncGenerator, cast
 
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.clients.events import proto_timestamp_now
@@ -36,24 +36,28 @@ DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
 
 
-@dataclass
-class GetActionListenerRequest:
+class GetActionListenerRequest(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     worker_name: str
     services: list[str]
     actions: list[str]
     slots: int = 100
-    _labels: dict[str, str | int] = field(default_factory=dict)
+    raw_labels: dict[str, str | int] = Field(default_factory=dict)
 
-    labels: dict[str, WorkerLabels] = field(init=False)
+    labels: dict[str, WorkerLabels] = Field(default_factory=dict)
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def validate_labels(self) -> "GetActionListenerRequest":
         self.labels = {}
 
-        for key, value in self._labels.items():
+        for key, value in self.raw_labels.items():
             if isinstance(value, int):
                 self.labels[key] = WorkerLabels(intValue=value)
             else:
                 self.labels[key] = WorkerLabels(strValue=str(value))
+
+        return self
 
 
 class ActionPayload(BaseModel):
@@ -65,6 +69,7 @@ class ActionPayload(BaseModel):
     user_data: JSONSerializableMapping = Field(default_factory=dict)
     step_run_errors: dict[str, str] = Field(default_factory=dict)
     triggered_by: str | None = None
+    triggers: JSONSerializableMapping = Field(default_factory=dict)
 
     @field_validator(
         "input", "parents", "overrides", "user_data", "step_run_errors", mode="before"
@@ -142,29 +147,24 @@ def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMappi
         return {}
 
 
-@dataclass
 class ActionListener:
-    config: ClientConfig
-    worker_id: str
+    def __init__(self, config: ClientConfig, worker_id: str) -> None:
+        self.config = config
+        self.worker_id = worker_id
 
-    client: DispatcherStub = field(init=False)
-    aio_client: DispatcherStub = field(init=False)
-    token: str = field(init=False)
-    retries: int = field(default=0, init=False)
-    last_connection_attempt: float = field(default=0, init=False)
-    last_heartbeat_succeeded: bool = field(default=True, init=False)
-    time_last_hb_succeeded: float = field(default=9999999999999, init=False)
-    heartbeat_task: Optional[asyncio.Task[None]] = field(default=None, init=False)
-    run_heartbeat: bool = field(default=True, init=False)
-    listen_strategy: str = field(default="v2", init=False)
-    stop_signal: bool = field(default=False, init=False)
-
-    missed_heartbeats: int = field(default=0, init=False)
-
-    def __post_init__(self) -> None:
         self.client = DispatcherStub(new_conn(self.config, False))  # type: ignore[no-untyped-call]
         self.aio_client = DispatcherStub(new_conn(self.config, True))  # type: ignore[no-untyped-call]
         self.token = self.config.token
+
+        self.retries = 0
+        self.last_heartbeat_succeeded = True
+        self.time_last_hb_succeeded = 9999999999999.0
+        self.last_connection_attempt = 0.0
+        self.heartbeat_task: asyncio.Task[None] | None = None
+        self.run_heartbeat = True
+        self.listen_strategy = "v2"
+        self.stop_signal = False
+        self.missed_heartbeats = 0
 
     def is_healthy(self) -> bool:
         return self.last_heartbeat_succeeded

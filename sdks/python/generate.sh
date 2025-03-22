@@ -62,22 +62,48 @@ MIN_GRPCIO_VERSION=$(grep -A 1 'grpcio =' pyproject.toml | grep 'version' | sed 
 
 poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
 
-poetry run python -m grpc_tools.protoc --proto_path=../../api-contracts/dispatcher --python_out=./hatchet_sdk/contracts --pyi_out=./hatchet_sdk/contracts --grpc_python_out=./hatchet_sdk/contracts dispatcher.proto
-poetry run python -m grpc_tools.protoc --proto_path=../../api-contracts/events --python_out=./hatchet_sdk/contracts --pyi_out=./hatchet_sdk/contracts --grpc_python_out=./hatchet_sdk/contracts events.proto
-poetry run python -m grpc_tools.protoc --proto_path=../../api-contracts/workflows --python_out=./hatchet_sdk/contracts --pyi_out=./hatchet_sdk/contracts --grpc_python_out=./hatchet_sdk/contracts workflows.proto
+proto_paths=(
+  "../../api-contracts/dispatcher dispatcher.proto"
+  "../../api-contracts/events events.proto"
+  "../../api-contracts/workflows workflows.proto"
+  "../../api-contracts v1/shared/condition.proto"
+  "../../api-contracts v1/dispatcher.proto"
+  "../../api-contracts v1/workflows.proto"
+)
+
+for entry in "${proto_paths[@]}"; do
+  proto_path=$(echo "$entry" | cut -d' ' -f1)
+  proto_file=$(echo "$entry" | cut -d' ' -f2-)
+
+  echo "Generating Python code for $proto_file with proto_path=$proto_path"
+
+  poetry run python -m grpc_tools.protoc \
+    --proto_path="$proto_path" \
+    --python_out=./hatchet_sdk/contracts \
+    --pyi_out=./hatchet_sdk/contracts \
+    --grpc_python_out=./hatchet_sdk/contracts \
+    "$proto_file"
+done
+
+## Hack to fix broken import paths with absolute paths
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  find ./hatchet_sdk/contracts -type f -name '*.py.*' -exec sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
+else
+  find ./hatchet_sdk/contracts -type f -name '*.py.*' -exec sed -i 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
+fi
 
 git restore pyproject.toml poetry.lock
 
 poetry install --all-extras
 
 # Fix relative imports in _grpc.py files
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/^import \([^ ]*\)_pb2/from . import \1_pb2/'
-else
-    # Linux and others
-    find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i 's/^import \([^ ]*\)_pb2/from . import \1_pb2/'
-fi
+find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
+find ./hatchet_sdk/contracts -type f -name '*_pb2.pyi' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
+find ./hatchet_sdk/contracts -type f -name '*_pb2.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
+
+find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/import dispatcher_pb2 as dispatcher__pb2/from hatchet_sdk.contracts import dispatcher_pb2 as dispatcher__pb2/g'
+find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/import events_pb2 as events__pb2/from hatchet_sdk.contracts import events_pb2 as events__pb2/g'
+find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/import workflows_pb2 as workflows__pb2/from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2/g'
 
 # ensure that pre-commit is applied without errors
 ./lint.sh

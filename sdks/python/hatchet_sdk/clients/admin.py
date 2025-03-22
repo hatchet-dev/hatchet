@@ -12,19 +12,21 @@ from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts import workflows_pb2 as workflow_protos
+from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
+from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
+from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
-from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.worker.action_listener_process import (
+from hatchet_sdk.runnables.contextvars import (
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -61,7 +63,8 @@ class AdminClient:
     def __init__(self, config: ClientConfig):
         conn = new_conn(config, False)
         self.config = config
-        self.client = WorkflowServiceStub(conn)  # type: ignore[no-untyped-call]
+        self.client = AdminServiceStub(conn)  # type: ignore[no-untyped-call]
+        self.v0_client = WorkflowServiceStub(conn)  # type: ignore[no-untyped-call]
         self.token = config.token
         self.listener_client = RunEventListenerClient(config=config)
         self.namespace = config.namespace
@@ -97,7 +100,7 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> workflow_protos.TriggerWorkflowRequest:
+    ) -> v0_workflow_protos.TriggerWorkflowRequest:
         try:
             payload_data = json.dumps(input)
         except json.JSONDecodeError as e:
@@ -107,24 +110,22 @@ class AdminClient:
             options.model_dump()
         ).model_dump()
 
-        return workflow_protos.TriggerWorkflowRequest(
+        return v0_workflow_protos.TriggerWorkflowRequest(
             name=workflow_name, input=payload_data, **_options
         )
 
     def _prepare_put_workflow_request(
         self,
         name: str,
-        workflow: workflow_protos.CreateWorkflowVersionOpts,
-        overrides: workflow_protos.CreateWorkflowVersionOpts | None = None,
-    ) -> workflow_protos.PutWorkflowRequest:
+        workflow: workflow_protos.CreateWorkflowVersionRequest,
+        overrides: workflow_protos.CreateWorkflowVersionRequest | None = None,
+    ) -> workflow_protos.CreateWorkflowVersionRequest:
         if overrides is not None:
             workflow.MergeFrom(overrides)
 
         workflow.name = name
 
-        return workflow_protos.PutWorkflowRequest(
-            opts=workflow,
-        )
+        return workflow
 
     def _parse_schedule(
         self, schedule: datetime | timestamp_pb2.Timestamp
@@ -147,8 +148,8 @@ class AdminClient:
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
         input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> workflow_protos.ScheduleWorkflowRequest:
-        return workflow_protos.ScheduleWorkflowRequest(
+    ) -> v0_workflow_protos.ScheduleWorkflowRequest:
+        return v0_workflow_protos.ScheduleWorkflowRequest(
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
             input=json.dumps(input),
@@ -159,9 +160,9 @@ class AdminClient:
     async def aio_put_workflow(
         self,
         name: str,
-        workflow: workflow_protos.CreateWorkflowVersionOpts,
-        overrides: workflow_protos.CreateWorkflowVersionOpts | None = None,
-    ) -> workflow_protos.WorkflowVersion:
+        workflow: workflow_protos.CreateWorkflowVersionRequest,
+        overrides: workflow_protos.CreateWorkflowVersionRequest | None = None,
+    ) -> workflow_protos.CreateWorkflowVersionResponse:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
         ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
         ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
@@ -192,7 +193,7 @@ class AdminClient:
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
         input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> workflow_protos.WorkflowVersion:
+    ) -> v0_workflow_protos.WorkflowVersion:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
         ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
         ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
@@ -207,17 +208,18 @@ class AdminClient:
     def put_workflow(
         self,
         name: str,
-        workflow: workflow_protos.CreateWorkflowVersionOpts,
-        overrides: workflow_protos.CreateWorkflowVersionOpts | None = None,
-    ) -> workflow_protos.WorkflowVersion:
+        workflow: workflow_protos.CreateWorkflowVersionRequest,
+        overrides: workflow_protos.CreateWorkflowVersionRequest | None = None,
+    ) -> workflow_protos.CreateWorkflowVersionResponse:
         opts = self._prepare_put_workflow_request(name, workflow, overrides)
 
-        resp: workflow_protos.WorkflowVersion = self.client.PutWorkflow(
-            opts,
-            metadata=get_metadata(self.token),
+        return cast(
+            workflow_protos.CreateWorkflowVersionResponse,
+            self.client.PutWorkflow(
+                opts,
+                metadata=get_metadata(self.token),
+            ),
         )
-
-        return resp
 
     @tenacity_retry
     def put_rate_limit(
@@ -229,11 +231,12 @@ class AdminClient:
         duration_proto = convert_python_enum_to_proto(
             duration, workflow_protos.RateLimitDuration
         )
-        self.client.PutRateLimit(
-            workflow_protos.PutRateLimitRequest(
+
+        self.v0_client.PutRateLimit(
+            v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
-                duration=maybe_int_to_str(duration_proto),
+                duration=duration_proto,  # type: ignore[arg-type]
             ),
             metadata=get_metadata(self.token),
         )
@@ -245,7 +248,7 @@ class AdminClient:
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
         input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> workflow_protos.WorkflowVersion:
+    ) -> v0_workflow_protos.WorkflowVersion:
         try:
             namespace = options.namespace or self.namespace
 
@@ -257,8 +260,8 @@ class AdminClient:
             )
 
             return cast(
-                workflow_protos.WorkflowVersion,
-                self.client.ScheduleWorkflow(
+                v0_workflow_protos.WorkflowVersion,
+                self.v0_client.ScheduleWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -274,7 +277,7 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> workflow_protos.TriggerWorkflowRequest:
+    ) -> v0_workflow_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
@@ -322,8 +325,8 @@ class AdminClient:
 
         try:
             resp = cast(
-                workflow_protos.TriggerWorkflowResponse,
-                self.client.TriggerWorkflow(
+                v0_workflow_protos.TriggerWorkflowResponse,
+                self.v0_client.TriggerWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -331,8 +334,6 @@ class AdminClient:
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise DedupeViolationErr(e.details())
-
-            raise e
 
         return WorkflowRunRef(
             workflow_run_id=resp.workflow_run_id,
@@ -359,8 +360,8 @@ class AdminClient:
 
         try:
             resp = cast(
-                workflow_protos.TriggerWorkflowResponse,
-                self.client.TriggerWorkflow(
+                v0_workflow_protos.TriggerWorkflowResponse,
+                self.v0_client.TriggerWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -386,7 +387,7 @@ class AdminClient:
         if not self.pooled_workflow_listener:
             self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
 
-        bulk_request = workflow_protos.BulkTriggerWorkflowRequest(
+        bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
             workflows=[
                 self._create_workflow_run_request(
                     workflow.workflow_name, workflow.input, workflow.options
@@ -396,8 +397,8 @@ class AdminClient:
         )
 
         resp = cast(
-            workflow_protos.BulkTriggerWorkflowResponse,
-            self.client.BulkTriggerWorkflow(
+            v0_workflow_protos.BulkTriggerWorkflowResponse,
+            self.v0_client.BulkTriggerWorkflow(
                 bulk_request,
                 metadata=get_metadata(self.token),
             ),
@@ -424,7 +425,7 @@ class AdminClient:
             self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
 
         async with spawn_index_lock:
-            bulk_request = workflow_protos.BulkTriggerWorkflowRequest(
+            bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
                 workflows=[
                     self._create_workflow_run_request(
                         workflow.workflow_name, workflow.input, workflow.options
@@ -434,8 +435,8 @@ class AdminClient:
             )
 
         resp = cast(
-            workflow_protos.BulkTriggerWorkflowResponse,
-            self.client.BulkTriggerWorkflow(
+            v0_workflow_protos.BulkTriggerWorkflowResponse,
+            self.v0_client.BulkTriggerWorkflow(
                 bulk_request,
                 metadata=get_metadata(self.token),
             ),

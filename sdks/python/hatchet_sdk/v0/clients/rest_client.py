@@ -9,6 +9,7 @@ from pydantic import StrictInt
 from hatchet_sdk.v0.clients.rest.api.event_api import EventApi
 from hatchet_sdk.v0.clients.rest.api.log_api import LogApi
 from hatchet_sdk.v0.clients.rest.api.step_run_api import StepRunApi
+from hatchet_sdk.v0.clients.rest.api.worker_api import WorkerApi
 from hatchet_sdk.v0.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.v0.clients.rest.api.workflow_run_api import WorkflowRunApi
 from hatchet_sdk.v0.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -85,6 +86,7 @@ class AsyncRestApi:
         self._step_run_api = None
         self._event_api = None
         self._log_api = None
+        self._worker_api = None
 
     @property
     def api_client(self):
@@ -103,6 +105,13 @@ class AsyncRestApi:
         if self._workflow_run_api is None:
             self._workflow_run_api = WorkflowRunApi(self.api_client)
         return self._workflow_run_api
+
+    @property
+    def worker_api(self):
+        if self._worker_api is None:
+            self._worker_api = WorkerApi(self.api_client)
+
+        return self._worker_api
 
     @property
     def step_run_api(self):

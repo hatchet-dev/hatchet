@@ -9,8 +9,10 @@ from pydantic import StrictInt
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.log_api import LogApi
 from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
+from hatchet_sdk.clients.rest.api.worker_api import WorkerApi
 from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
 from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
@@ -106,9 +108,11 @@ class RestApi:
         self._api_client: ApiClient | None = None
         self._workflow_api: WorkflowApi | None = None
         self._workflow_run_api: WorkflowRunApi | None = None
+        self._workflow_runs_api: WorkflowRunsApi | None = None
         self._step_run_api: StepRunApi | None = None
         self._event_api: EventApi | None = None
         self._log_api: LogApi | None = None
+        self._worker_api: WorkerApi | None = None
 
     @property
     def api_client(self) -> ApiClient:
@@ -133,6 +137,23 @@ class RestApi:
         if self._workflow_run_api is None:
             self._workflow_run_api = WorkflowRunApi(self.api_client)
         return self._workflow_run_api
+
+    @property
+    def workflow_runs_api(self) -> WorkflowRunsApi:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._workflow_runs_api is None:
+            self._workflow_runs_api = WorkflowRunsApi(self.api_client)
+        return self._workflow_runs_api
+
+    @property
+    def worker_api(self) -> WorkerApi:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._worker_api is None:
+            self._worker_api = WorkerApi(self.api_client)
+
+        return self._worker_api
 
     @property
     def step_run_api(self) -> StepRunApi:

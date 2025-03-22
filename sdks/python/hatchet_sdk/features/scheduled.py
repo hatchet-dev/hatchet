@@ -20,7 +20,7 @@ from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
-class CreateScheduledTriggerJSONSerializableMapping(BaseModel):
+class CreateScheduledTriggerConfig(BaseModel):
     """
     Schema for creating a scheduled workflow run.
 
@@ -75,7 +75,7 @@ class ScheduledClient:
             ScheduledWorkflows: The created scheduled workflow instance.
         """
 
-        validated_input = CreateScheduledTriggerJSONSerializableMapping(
+        validated_input = CreateScheduledTriggerConfig(
             trigger_at=trigger_at, input=input, additional_metadata=additional_metadata
         )
 

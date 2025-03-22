@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import events_pb2 as events__pb2
+from hatchet_sdk.contracts import events_pb2 as events__pb2
 
 GRPC_GENERATED_VERSION = '1.64.1'
 GRPC_VERSION = grpc.__version__

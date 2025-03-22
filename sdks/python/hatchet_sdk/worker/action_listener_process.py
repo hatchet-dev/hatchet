@@ -2,14 +2,13 @@ import asyncio
 import logging
 import signal
 import time
-from collections import Counter
-from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from multiprocessing import Queue
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 import grpc
 
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import (
     Action,
     ActionListener,
@@ -17,24 +16,21 @@ from hatchet_sdk.clients.dispatcher.action_listener import (
     GetActionListenerRequest,
 )
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     GROUP_KEY_EVENT_TYPE_STARTED,
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.contextvars import (
+    ctx_step_run_id,
+    ctx_worker_id,
+    ctx_workflow_run_id,
+)
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 
 ACTION_EVENT_RETRY_COUNT = 5
-
-ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
-    "ctx_workflow_run_id", default=None
-)
-ctx_step_run_id: ContextVar[str | None] = ContextVar("ctx_step_run_id", default=None)
-ctx_worker_id: ContextVar[str | None] = ContextVar("ctx_worker_id", default=None)
-
-workflow_spawn_indices = Counter[str]()
-spawn_index_lock = asyncio.Lock()
 
 
 @dataclass
@@ -53,40 +49,58 @@ BLOCKED_THREAD_WARNING = (
 )
 
 
-def noop_handler() -> None:
-    pass
-
-
-@dataclass
 class WorkerActionListenerProcess:
-    name: str
-    actions: List[str]
-    slots: int
-    config: ClientConfig
-    action_queue: "Queue[Action]"
-    event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]"
-    handle_kill: bool = True
-    debug: bool = False
-    labels: dict[str, str | int] = field(default_factory=dict)
+    def __init__(
+        self,
+        name: str,
+        actions: list[str],
+        slots: int,
+        config: ClientConfig,
+        action_queue: "Queue[Action]",
+        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
+        handle_kill: bool = True,
+        debug: bool = False,
+        labels: dict[str, str | int] = {},
+    ) -> None:
+        self.name = name
+        self.actions = actions
+        self.slots = slots
+        self.config = config
+        self.action_queue = action_queue
+        self.event_queue = event_queue
+        self.debug = debug
+        self.labels = labels
+        self.handle_kill = handle_kill
 
-    listener: ActionListener = field(init=False)
+        self.listener: ActionListener | None = None
+        self.killing = False
+        self.action_loop_task: asyncio.Task[None] | None = None
+        self.event_send_loop_task: asyncio.Task[None] | None = None
+        self.running_step_runs: dict[str, float] = {}
 
-    killing: bool = field(init=False, default=False)
-
-    action_loop_task: asyncio.Task[None] | None = field(init=False, default=None)
-    event_send_loop_task: asyncio.Task[None] | None = field(init=False, default=None)
-
-    running_step_runs: dict[str, float] = field(init=False, default_factory=dict)
-
-    def __post_init__(self) -> None:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
+        self.client = Client(config=self.config, debug=self.debug)
+
         loop = asyncio.get_event_loop()
-        loop.add_signal_handler(signal.SIGINT, noop_handler)
-        loop.add_signal_handler(signal.SIGTERM, noop_handler)
+        loop.add_signal_handler(
+            signal.SIGINT, lambda: asyncio.create_task(self.pause_task_assignment())
+        )
+        loop.add_signal_handler(
+            signal.SIGTERM, lambda: asyncio.create_task(self.pause_task_assignment())
+        )
         loop.add_signal_handler(
             signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
+        )
+
+    async def pause_task_assignment(self) -> None:
+        if self.listener is None:
+            raise ValueError("listener not started")
+
+        await self.client.rest.worker_api.worker_update(
+            worker=self.listener.worker_id,
+            update_worker_request=UpdateWorkerRequest(isPaused=True),
         )
 
     async def start(self, retry_attempt: int = 0) -> None:
@@ -105,7 +119,7 @@ class WorkerActionListenerProcess:
                     services=["default"],
                     actions=self.actions,
                     slots=self.slots,
-                    _labels=self.labels,
+                    raw_labels=self.labels,
                 )
             )
 
@@ -201,6 +215,9 @@ class WorkerActionListenerProcess:
         return time.time()
 
     async def start_action_loop(self) -> None:
+        if self.listener is None:
+            raise ValueError("listener not started")
+
         try:
             async for action in self.listener:
                 if action is None:
@@ -268,6 +285,8 @@ class WorkerActionListenerProcess:
         self.event_queue.put(STOP_LOOP)
 
     async def exit_gracefully(self) -> None:
+        await self.pause_task_assignment()
+
         if self.killing:
             return
 

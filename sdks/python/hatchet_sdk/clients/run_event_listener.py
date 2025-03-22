@@ -132,7 +132,6 @@ class RunEventListener:
 
                         try:
                             if workflow_event.eventPayload:
-                                ## TODO: Should this be `dumps` instead?
                                 payload = json.loads(workflow_event.eventPayload)
                         except Exception:
                             payload = workflow_event.eventPayload

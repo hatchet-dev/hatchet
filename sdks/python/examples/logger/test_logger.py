@@ -1,13 +1,12 @@
 import pytest
 
 from examples.logger.workflow import logging_workflow
-from hatchet_sdk import Hatchet, Worker
+from hatchet_sdk import Hatchet
 
 
 # requires scope module or higher for shared event loop
-@pytest.mark.asyncio(scope="session")
-@pytest.mark.parametrize("worker", ["logger"], indirect=True)
-async def test_run(hatchet: Hatchet, worker: Worker) -> None:
-    result = await logging_workflow.aio_run_and_get_result()
+@pytest.mark.asyncio(loop_scope="session")
+async def test_run(hatchet: Hatchet) -> None:
+    result = await logging_workflow.aio_run()
 
     assert result["step1"]["status"] == "success"

@@ -55,17 +55,19 @@ class DispatcherClient:
         for key, value in preset_labels.items():
             req.labels[key] = WorkerLabels(strValue=str(value))
 
-        # Register the worker
-        response: WorkerRegisterResponse = await self.aio_client.Register(
-            WorkerRegisterRequest(
-                workerName=req.worker_name,
-                actions=req.actions,
-                services=req.services,
-                maxRuns=req.slots,
-                labels=req.labels,
+        response = cast(
+            WorkerRegisterResponse,
+            await self.aio_client.Register(
+                WorkerRegisterRequest(
+                    workerName=req.worker_name,
+                    actions=req.actions,
+                    services=req.services,
+                    maxRuns=req.slots,
+                    labels=req.labels,
+                ),
+                timeout=DEFAULT_REGISTER_TIMEOUT,
+                metadata=get_metadata(self.token),
             ),
-            timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=get_metadata(self.token),
         )
 
         return ActionListener(self.config, response.workerId)
@@ -93,8 +95,8 @@ class DispatcherClient:
     async def _try_send_step_action_event(
         self, action: Action, event_type: StepActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
-        eventTimestamp = Timestamp()
-        eventTimestamp.GetCurrentTime()
+        event_timestamp = Timestamp()
+        event_timestamp.GetCurrentTime()
 
         event = StepActionEvent(
             workerId=action.worker_id,
@@ -103,7 +105,7 @@ class DispatcherClient:
             stepId=action.step_id,
             stepRunId=action.step_run_id,
             actionId=action.action_id,
-            eventTimestamp=eventTimestamp,
+            eventTimestamp=event_timestamp,
             eventType=event_type,
             eventPayload=payload,
             retryCount=action.retry_count,
@@ -120,15 +122,15 @@ class DispatcherClient:
     async def send_group_key_action_event(
         self, action: Action, event_type: GroupKeyActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse]:
-        eventTimestamp = Timestamp()
-        eventTimestamp.GetCurrentTime()
+        event_timestamp = Timestamp()
+        event_timestamp.GetCurrentTime()
 
         event = GroupKeyActionEvent(
             workerId=action.worker_id,
             workflowRunId=action.workflow_run_id,
             getGroupKeyRunId=action.get_group_key_run_id,
             actionId=action.action_id,
-            eventTimestamp=eventTimestamp,
+            eventTimestamp=event_timestamp,
             eventType=event_type,
             eventPayload=payload,
         )

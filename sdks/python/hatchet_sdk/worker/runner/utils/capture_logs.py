@@ -7,10 +7,7 @@ from typing import Any, Awaitable, Callable, ItemsView, ParamSpec, TypeVar
 
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.worker.action_listener_process import (
-    ctx_step_run_id,
-    ctx_workflow_run_id,
-)
+from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
 
 T = TypeVar("T")
 P = ParamSpec("P")

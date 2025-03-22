@@ -31,13 +31,17 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
     task_external_id: Annotated[
         str, Field(min_length=36, strict=True, max_length=36)
     ] = Field(alias="taskExternalId")
-    children_external_ids: List[
+    step_id: Annotated[str, Field(min_length=36, strict=True, max_length=36)] = Field(
+        alias="stepId"
+    )
+    children_step_ids: List[
         Annotated[str, Field(min_length=36, strict=True, max_length=36)]
-    ] = Field(alias="childrenExternalIds")
+    ] = Field(alias="childrenStepIds")
     task_name: StrictStr = Field(alias="taskName")
     __properties: ClassVar[List[str]] = [
         "taskExternalId",
-        "childrenExternalIds",
+        "stepId",
+        "childrenStepIds",
         "taskName",
     ]
 
@@ -92,7 +96,8 @@ class WorkflowRunShapeItemForWorkflowRunDetails(BaseModel):
         _obj = cls.model_validate(
             {
                 "taskExternalId": obj.get("taskExternalId"),
-                "childrenExternalIds": obj.get("childrenExternalIds"),
+                "stepId": obj.get("stepId"),
+                "childrenStepIds": obj.get("childrenStepIds"),
                 "taskName": obj.get("taskName"),
             }
         )

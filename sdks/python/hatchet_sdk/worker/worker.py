@@ -15,11 +15,12 @@ from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
+from pydantic import BaseModel
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
+from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import Workflow
@@ -48,11 +49,20 @@ class WorkerStartOptions:
     loop: asyncio.AbstractEventLoop | None = field(default=None)
 
 
+class HealthCheckResponse(BaseModel):
+    status: str
+    name: str
+    slots: int
+    actions: list[str]
+    labels: dict[str, str | int]
+    python_version: str
+
+
 class Worker:
     def __init__(
         self,
         name: str,
-        config: ClientConfig = ClientConfig(),
+        config: ClientConfig,
         slots: int | None = None,
         labels: dict[str, str | int] = {},
         debug: bool = False,
@@ -98,7 +108,7 @@ class Worker:
 
         self.register_workflows(workflows)
 
-    def register_workflow_from_opts(self, opts: CreateWorkflowVersionOpts) -> None:
+    def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
             self.client.admin.put_workflow(opts.name, opts)
         except Exception as e:
@@ -108,11 +118,11 @@ class Worker:
 
     def register_workflow(self, workflow: Workflow[Any]) -> None:
         namespace = self.client.config.namespace
+        opts = workflow._get_create_opts(namespace)
+        name = workflow._get_name(namespace)
 
         try:
-            self.client.admin.put_workflow(
-                workflow._get_name(namespace), workflow._get_create_opts(namespace)
-            )
+            self.client.admin.put_workflow(name, opts)
         except Exception as e:
             logger.error(
                 f"failed to register workflow: {workflow._get_name(namespace)}"
@@ -140,20 +150,31 @@ class Worker:
 
     def setup_loop(self, loop: asyncio.AbstractEventLoop | None = None) -> bool:
         try:
-            loop = loop or asyncio.get_running_loop()
-            self.loop = loop
-            created_loop = False
+            self.loop = loop or asyncio.get_running_loop()
             logger.debug("using existing event loop")
-            return created_loop
+
+            created_loop = False
         except RuntimeError:
             self.loop = asyncio.new_event_loop()
+
             logger.debug("creating new event loop")
-            asyncio.set_event_loop(self.loop)
             created_loop = True
-            return created_loop
+
+        asyncio.set_event_loop(self.loop)
+
+        return created_loop
 
     async def health_check_handler(self, request: Request) -> Response:
-        return web.json_response({"status": self.status.name})
+        response = HealthCheckResponse(
+            status=self.status.name,
+            name=self.name,
+            slots=self.slots or 0,
+            actions=list(self.action_registry.keys()),
+            labels=self.labels,
+            python_version=sys.version,
+        ).model_dump()
+
+        return web.json_response(response)
 
     async def metrics_handler(self, request: Request) -> Response:
         self.worker_status_gauge.set(1 if self.status == WorkerStatus.HEALTHY else 0)
@@ -186,9 +207,7 @@ class Worker:
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
         self.owned_loop = self.setup_loop(options.loop)
 
-        asyncio.run_coroutine_threadsafe(
-            self._aio_start(options, _from_start=True), self.loop
-        )
+        asyncio.run_coroutine_threadsafe(self._aio_start(), self.loop)
 
         # start the loop and wait until its closed
         if self.owned_loop:
@@ -197,12 +216,9 @@ class Worker:
             if self.handle_kill:
                 sys.exit(0)
 
-    async def _aio_start(
-        self,
-        options: WorkerStartOptions = WorkerStartOptions(),
-        _from_start: bool = False,
-    ) -> None:
+    async def _aio_start(self) -> None:
         main_pid = os.getpid()
+
         logger.info("------------------------------------------")
         logger.info("STARTING HATCHET...")
         logger.debug(f"worker runtime starting on PID: {main_pid}")
@@ -210,14 +226,9 @@ class Worker:
         self._status = WorkerStatus.STARTING
 
         if len(self.action_registry.keys()) == 0:
-            logger.error(
+            raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
-            return None
-
-        # non blocking setup
-        if not _from_start:
-            self.setup_loop(options.loop)
 
         if self.config.healthcheck.enabled:
             await self.start_health_server()
@@ -249,14 +260,12 @@ class Worker:
         )
 
     def _start_listener(self) -> multiprocessing.context.SpawnProcess:
-        action_list = [str(key) for key in self.action_registry.keys()]
-
         try:
             process = self.ctx.Process(
                 target=worker_action_listener_process,
                 args=(
                     self.name,
-                    action_list,
+                    list(self.action_registry.keys()),
                     self.slots,
                     self.config,
                     self.action_queue,
@@ -310,8 +319,6 @@ class Worker:
     async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
         self.killing = True
-        # self.action_queue.close()
-        # self.event_queue.close()
 
         if self.action_runner is not None:
             self.action_runner.cleanup()
@@ -350,6 +357,4 @@ class Worker:
             self.action_listener_process.kill()  # Forcefully kill the process
 
         logger.info("👋")
-        sys.exit(
-            1
-        )  # Exit immediately TODO - should we exit with 1 here, there may be other workers to cleanup
+        sys.exit(1)
