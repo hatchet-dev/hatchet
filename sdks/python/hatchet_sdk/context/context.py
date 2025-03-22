@@ -87,11 +87,13 @@ class Context:
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
+        action_prefix = self.action.action_id.split(":")[0]
+
         workflow_validator = next(
             (
                 v
                 for k, v in self.validator_registry.items()
-                if k.split(":")[-1] == task.name
+                if k == f"{action_prefix}:{task.name}"
             ),
             None,
         )
