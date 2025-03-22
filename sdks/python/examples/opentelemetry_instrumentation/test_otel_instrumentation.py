@@ -28,8 +28,7 @@ def create_push_options() -> PushEventOptions:
     return PushEventOptions(additional_metadata=create_additional_metadata())
 
 
-@pytest.mark.parametrize("worker", ["otel"], indirect=True)
-def test_push_event(hatchet: Hatchet, worker: Worker) -> None:
+def test_push_event(hatchet: Hatchet) -> None:
     key = "otel:event"
     payload = {"test": "test"}
 
@@ -47,7 +46,6 @@ def test_push_event(hatchet: Hatchet, worker: Worker) -> None:
 
 @pytest.mark.skip("Failing in CI for unknown reason")
 @pytest.mark.asyncio()
-@pytest.mark.parametrize("worker", ["otel"], indirect=True)
 async def test_run_workflow(aiohatchet: Hatchet, worker: Worker) -> None:
     with tracer.start_as_current_span("run_workflow"):
         workflow = otel_workflow.run_no_wait(

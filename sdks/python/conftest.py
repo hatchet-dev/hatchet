@@ -4,7 +4,7 @@ import subprocess
 import time
 from io import BytesIO
 from threading import Thread
-from typing import AsyncGenerator, Callable, Generator, cast
+from typing import AsyncGenerator, Callable, Generator
 
 import psutil
 import pytest
@@ -48,15 +48,11 @@ def wait_for_worker_health() -> bool:
         worker_healthcheck_attempts += 1
 
 
-@pytest.fixture()
-def worker(
-    request: pytest.FixtureRequest,
-) -> Generator[subprocess.Popen[bytes], None, None]:
-    example = cast(str, request.param)
+@pytest.fixture(scope="session", autouse=True)
+def worker() -> Generator[subprocess.Popen[bytes], None, None]:
 
-    command = ["poetry", "run", example]
-
-    logging.info(f"Starting background worker: {' '.join(command)}")
+    logging.info("Starting background worker")
+    command = ["poetry", "run", "python", "examples/worker.py"]
 
     proc = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ.copy()
