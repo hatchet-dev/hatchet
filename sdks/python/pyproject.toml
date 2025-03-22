@@ -74,6 +74,7 @@ build-backend = "poetry.core.masonry.api"
 log_cli = true
 env = ["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.isort]
 profile = "black"
