@@ -128,10 +128,6 @@ jobs:
           SHORT_SHA=$(git rev-parse --short HEAD)
           echo "HATCHET_CLIENT_NAMESPACE=${PYTHON_VERSION}-${SHORT_SHA}" >> $GITHUB_ENV
 
-      - name: Run worker
-        run: |
-          poetry run python examples/worker.py
-
       - name: Run pytest
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
