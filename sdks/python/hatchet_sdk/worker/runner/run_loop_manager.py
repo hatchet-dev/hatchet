@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from dataclasses import dataclass, field
 from multiprocessing import Queue
 from typing import Any, Literal, TypeVar
 
@@ -20,28 +19,39 @@ STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"
 T = TypeVar("T")
 
 
-@dataclass
 class WorkerActionRunLoopManager:
-    name: str
-    action_registry: dict[str, Task[Any, Any]]
-    validator_registry: dict[str, WorkflowValidator]
-    slots: int | None
-    config: ClientConfig
-    action_queue: "Queue[Action | STOP_LOOP_TYPE]"
-    event_queue: "Queue[ActionEvent]"
-    loop: asyncio.AbstractEventLoop
-    handle_kill: bool = True
-    debug: bool = False
-    labels: dict[str, str | int] = field(default_factory=dict)
+    def __init__(
+        self,
+        name: str,
+        action_registry: dict[str, Task[Any, Any]],
+        validator_registry: dict[str, WorkflowValidator],
+        slots: int | None,
+        config: ClientConfig,
+        action_queue: "Queue[Action | STOP_LOOP_TYPE]",
+        event_queue: "Queue[ActionEvent]",
+        loop: asyncio.AbstractEventLoop,
+        handle_kill: bool = True,
+        debug: bool = False,
+        labels: dict[str, str | int] = {},
+    ) -> None:
+        self.name = name
+        self.action_registry = action_registry
+        self.validator_registry = validator_registry
+        self.slots = slots
+        self.config = config
+        self.action_queue = action_queue
+        self.event_queue = event_queue
+        self.loop = loop
+        self.handle_kill = handle_kill
+        self.debug = debug
+        self.labels = labels
 
-    client: Client = field(init=False)
-
-    killing: bool = field(init=False, default=False)
-    runner: Runner | None = field(init=False, default=None)
-
-    def __post_init__(self) -> None:
         if self.debug:
             logger.setLevel(logging.DEBUG)
+
+        self.killing = False
+        self.runner: Runner | None = None
+
         self.client = Client(config=self.config, debug=self.debug)
         self.start()
 
