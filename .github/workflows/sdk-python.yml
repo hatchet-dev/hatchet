@@ -131,7 +131,7 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --timeout=180 --capture=no -n 5
+          poetry run pytest -s -vvv --maxfail=5 --timeout=180 --capture=no
 
   publish:
     runs-on: ubuntu-latest
