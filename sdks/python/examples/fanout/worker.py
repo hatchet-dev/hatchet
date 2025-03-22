@@ -23,6 +23,14 @@ child_wf = hatchet.workflow(name="FanoutChild", input_validator=ChildInput)
 
 @parent_wf.task(execution_timeout=timedelta(minutes=5))
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
+    import os
+    print("\n\n\nRunning worker")
+    print(hatchet.config)
+
+    print([(k, v) for k, v in os.environ.items() if "HATCHET" in k])
+
+    print("Initializing...\n\n\n")
+
     print("spawning child")
 
     children = await child_wf.aio_run_many(
