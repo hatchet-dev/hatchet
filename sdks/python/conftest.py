@@ -48,6 +48,11 @@ def wait_for_worker_health() -> bool:
         worker_healthcheck_attempts += 1
 
 
+def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
+    for line in iter(pipe.readline, b""):
+        print(line.decode().strip())
+
+
 @pytest.fixture(scope="session", autouse=True)
 def worker() -> Generator[subprocess.Popen[bytes], None, None]:
     command = ["poetry", "run", "python", "examples/worker.py"]
@@ -62,10 +67,6 @@ def worker() -> Generator[subprocess.Popen[bytes], None, None]:
     if proc.poll() is not None:
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
-    def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
-        for line in iter(pipe.readline, b""):
-            print(line.decode().strip())
-
     Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
     Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()
 
@@ -74,13 +75,17 @@ def worker() -> Generator[subprocess.Popen[bytes], None, None]:
     yield proc
 
     logging.info("Cleaning up background worker")
+
     parent = psutil.Process(proc.pid)
     children = parent.children(recursive=True)
+
     for child in children:
         child.terminate()
+
     parent.terminate()
 
     _, alive = psutil.wait_procs([parent] + children, timeout=5)
+
     for p in alive:
         logging.warning(f"Force killing process {p.pid}")
         p.kill()
