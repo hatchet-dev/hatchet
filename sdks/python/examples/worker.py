@@ -45,7 +45,7 @@ def main() -> None:
             logging_workflow,
             rate_limit_workflow,
             timeout_wf,
-            # refresh_timeout_wf,
+            refresh_timeout_wf,
             # dag_waiting_workflow,
             # wf,
             # sync_fanout_parent,
