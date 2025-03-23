@@ -1,9 +1,8 @@
 -- +goose Up
--- +goose StatementBegin
+-- +goose NO TRANSACTION
 ALTER TYPE "LimitResource" ADD VALUE 'TASK_RUN';
 
 ALTER TYPE "LimitResource" ADD VALUE 'WORKER_SLOT';
-
 -- Insert WORKER_SLOT entries (limitValue = 1000x WORKER limit, customValueMeter = true)
 INSERT INTO "TenantResourceLimit" (
     "id",
@@ -61,7 +60,6 @@ SELECT
     false
 FROM "TenantResourceLimit"
 WHERE "resource" = 'WORKFLOW_RUN';
--- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
