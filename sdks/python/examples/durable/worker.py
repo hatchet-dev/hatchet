@@ -13,7 +13,7 @@ async def ephemeral_task(input: EmptyModel, ctx: Context) -> None:
     print("Running non-durable task")
 
 
-@durable_workflow.durable()
+@durable_workflow.durable_task()
 async def durable_task(input: EmptyModel, ctx: DurableContext) -> None:
     print("Waiting for signal")
     await ctx.wait_for("foobar", SleepCondition(duration=timedelta(seconds=10)))
@@ -26,9 +26,7 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
 
 
 def main() -> None:
-    worker = hatchet.worker(
-        "durable-worker", workflows=[durable_workflow, ephemeral_workflow]
-    )
+    worker = hatchet.worker("durable-worker", workflows=[durable_workflow])
     worker.start()
 
 

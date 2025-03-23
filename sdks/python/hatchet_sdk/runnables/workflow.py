@@ -466,7 +466,7 @@ class Workflow(Generic[TWorkflowInput]):
 
         return inner
 
-    def durable(
+    def durable_task(
         self,
         name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
