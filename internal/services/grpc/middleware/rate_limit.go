@@ -145,7 +145,7 @@ func matchServiceName(name string) string {
 	switch {
 	case strings.HasPrefix(name, "/Dispatcher"):
 		return "dispatcher"
-	case strings.HasPrefix(name, "/v1.DispatcherService"):
+	case strings.HasPrefix(name, "/v1.V1Dispatcher"):
 		return "dispatcher"
 	case strings.HasPrefix(name, "/EventsService"):
 		return "events"

@@ -14,21 +14,20 @@ service V1Dispatcher {
 
 message RegisterDurableEventRequest {
     string task_id = 1; // external uuid for the task run
-    string workflow_run_id = 2; // external uuid for the workflow run
-    DurableEventListenerConditions conditions = 3; // (optional) the task conditions for creating the task
+    string signal_key = 2; // the signal key for the event
+    DurableEventListenerConditions conditions = 3; // the task conditions for creating the task
 }
 
 message RegisterDurableEventResponse {
-    int64 match_id = 1;
 }
 
 message ListenForDurableEventRequest {
     string task_id = 1; // single listener per worker
-    int64 match_id = 2; // the match id for the listener
+    string signal_key = 2; // the match id for the listener
 }
 
 message DurableEvent {
     string task_id = 1;
-    int64 match_id = 2;
+    string signal_key = 2;
     bytes data = 3; // the data for the event
 }
