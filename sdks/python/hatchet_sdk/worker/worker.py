@@ -132,11 +132,6 @@ class Worker:
         opts = workflow._get_create_opts(namespace)
         name = workflow._get_name(namespace)
 
-        if workflow.has_any_durable:
-            self.has_any_durable = True
-        else:
-            self.has_any_non_durable = True
-
         try:
             self.client.admin.put_workflow(name, opts)
         except Exception as e:
@@ -146,13 +141,14 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-        ## TODO: Make sure durables are registered here correctly
         for step in workflow.tasks:
             action_name = workflow._create_action_name(namespace, step)
 
-            if workflow.has_any_durable:
+            if workflow.is_durable:
+                self.has_any_durable = True
                 self.durable_action_registry[action_name] = step
             else:
+                self.has_any_non_durable = True
                 self.action_registry[action_name] = step
 
             return_type = get_type_hints(step.fn).get("return")

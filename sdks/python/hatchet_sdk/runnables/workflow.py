@@ -239,7 +239,7 @@ class Workflow(Generic[TWorkflowInput]):
         return tasks
 
     @property
-    def has_any_durable(self) -> bool:
+    def is_durable(self) -> bool:
         return any(task.is_durable for task in self.tasks)
 
     def create_run_workflow_config(
