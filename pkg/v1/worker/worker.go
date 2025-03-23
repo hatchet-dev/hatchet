@@ -18,11 +18,11 @@ type WorkerLabels map[string]interface{}
 
 // CreateOpts defines the options for creating a new worker.
 type CreateOpts struct {
-	// the friendly name of the worker
+	// (required) the friendly name of the worker
 	Name string
 
-	// (optional) maximum number of concurrent runs on this worker
-	Slots *int
+	// (optional) maximum number of concurrent runs on this worker, defaults to 100
+	Slots int
 
 	// (optional) labels to set on the worker
 	Labels WorkerLabels
@@ -85,8 +85,10 @@ func NewWorker(client *v0Client.Client, opts CreateOpts, optFns ...func(*WorkerI
 		optFn(w)
 	}
 
-	if opts.Slots == nil {
+	if opts.Slots == 0 {
 		w.slots = 100 // default to 100 slots
+	} else {
+		w.slots = opts.Slots
 	}
 
 	// create the worker

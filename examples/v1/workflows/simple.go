@@ -1,8 +1,10 @@
 package v1_workflows
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
@@ -32,16 +34,34 @@ func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Resul
 	simple := v1.WorkflowFactory[Input, Result](
 		workflow.CreateOpts{
 			Name: "simple",
+			TaskDefaults: &task.TaskDefaults{
+				ExecutionTimeout:       10 * time.Second,
+				Retries:                3,
+				RetryBackoffFactor:     2,
+				RetryMaxBackoffSeconds: 60,
+			},
 		},
 		hatchet,
 	)
 
 	simple.Task(task.CreateOpts[Input, Result]{
-		Name: "to_lower",
+		Name:                   "to_lower",
+		ExecutionTimeout:       10 * time.Second,
+		Retries:                3,
+		RetryBackoffFactor:     2,
+		RetryMaxBackoffSeconds: 60,
 		Fn: func(input Input, ctx worker.HatchetContext) (*Result, error) {
 			// TODO: this is a hack to get the result out of the function
 
-			fmt.Println("input", input)
+			time.Sleep(15 * time.Second)
+
+			select {
+			case <-ctx.Done():
+				return nil, errors.New("context done")
+			default:
+				fmt.Println("input", input)
+			}
+
 			result := &Result{
 				ToLower: LowerOutput{
 					TransformedMessage: strings.ToLower(input.Message),

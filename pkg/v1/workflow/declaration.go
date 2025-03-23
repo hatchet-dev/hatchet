@@ -16,52 +16,34 @@ import (
 // It takes a HatchetContext and returns an interface{} result and an error.
 type WrappedTaskFn func(ctx worker.HatchetContext) (interface{}, error)
 
-// TaskDefaults defines default configuration values for tasks within a workflow.
-type TaskDefaults struct {
-	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
-	ExecutionTimeout string
-
-	// ScheduleTimeout specifies the maximum time a task can wait to be scheduled
-	ScheduleTimeout string
-
-	// Retries defines the number of times to retry a failed task
-	Retries int32
-
-	// RetryBackoffFactor is the multiplier for increasing backoff between retries
-	RetryBackoffFactor *float32
-
-	// RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
-	RetryMaxBackoffSeconds *int32
-}
-
 // CreateOpts contains configuration options for creating a new workflow.
 type CreateOpts struct {
-	// The friendly name of the workflow
+	// (required) The friendly name of the workflow
 	Name string
 
-	// The version of the workflow
+	// (optional) The version of the workflow
 	Version string
 
-	// The human-readable description of the workflow
+	// (optional) The human-readable description of the workflow
 	Description string
 
-	// The event names that trigger the workflow
+	// (optional) The event names that trigger the workflow
 	OnEvents []string
 
-	// The cron expressions for scheduled workflow runs
+	// (optional) The cron expressions for scheduled workflow runs
 	OnCron []string
 
-	// Concurrency settings to control parallel execution
+	// (optional) Concurrency settings to control parallel execution
 	Concurrency *types.Concurrency
 
-	// Task to execute when workflow fails
+	// (optional) Task to execute when workflow fails
 	OnFailureTask *task.OnFailureTaskDeclaration[any, any]
 
-	// Strategy for sticky execution of workflow runs
+	// (optional) Strategy for sticky execution of workflow runs
 	StickyStrategy *types.StickyStrategy
 
-	// Default settings for all tasks within this workflow
-	TaskDefaults *TaskDefaults
+	// (optional) Default settings for all tasks within this workflow
+	TaskDefaults *task.TaskDefaults
 }
 
 // WorkflowBase defines the common interface for all workflow types.
@@ -90,17 +72,16 @@ type WorkflowDeclaration[I any, O any] interface {
 type workflowDeclarationImpl[I any, O any] struct {
 	v0 *v0Client.Client
 
-	Name            string
-	ScheduleTimeout string
-	Version         string
-	Description     string
-	OnEvents        []string
-	OnCron          []string
-	Concurrency     *types.Concurrency
-	OnFailureTask   *task.OnFailureTaskDeclaration[any, any]
-	StickyStrategy  *types.StickyStrategy
+	Name           string
+	Version        *string
+	Description    *string
+	OnEvents       []string
+	OnCron         []string
+	Concurrency    *types.Concurrency
+	OnFailureTask  *task.OnFailureTaskDeclaration[any, any]
+	StickyStrategy *types.StickyStrategy
 
-	TaskDefaults *TaskDefaults
+	TaskDefaults *task.TaskDefaults
 
 	tasks []*task.TaskDeclaration[I, O]
 }
@@ -108,11 +89,9 @@ type workflowDeclarationImpl[I any, O any] struct {
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
 // The workflow will have input type I and output type O.
 func NewWorkflowDeclaration[I any, O any](opts CreateOpts, v0 *v0Client.Client) WorkflowDeclaration[I, O] {
-	return &workflowDeclarationImpl[I, O]{
+	wf := &workflowDeclarationImpl[I, O]{
 		v0:             v0,
 		Name:           opts.Name,
-		Version:        opts.Version,
-		Description:    opts.Description,
 		OnEvents:       opts.OnEvents,
 		OnCron:         opts.OnCron,
 		Concurrency:    opts.Concurrency,
@@ -121,6 +100,16 @@ func NewWorkflowDeclaration[I any, O any](opts CreateOpts, v0 *v0Client.Client) 
 		TaskDefaults:   opts.TaskDefaults,
 		tasks:          []*task.TaskDeclaration[I, O]{},
 	}
+
+	if opts.Version != "" {
+		wf.Version = &opts.Version
+	}
+
+	if opts.Description != "" {
+		wf.Description = &opts.Description
+	}
+
+	return wf
 }
 
 // Task creates a new task declaration with the provided options and adds it to the workflow.
@@ -158,17 +147,23 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I) (*O, error) {
 func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersionRequest, []WrappedTaskFn, WrappedTaskFn) {
 	taskOpts := make([]*contracts.CreateTaskOpts, len(w.tasks))
 	for i, task := range w.tasks {
-		taskOpts[i] = task.Dump(w.Name)
+		taskOpts[i] = task.Dump(w.Name, w.TaskDefaults)
 	}
 
 	req := &contracts.CreateWorkflowVersionRequest{
 		Tasks: taskOpts,
 
 		Name:          w.Name,
-		Version:       w.Version,
-		Description:   w.Description,
 		EventTriggers: w.OnEvents,
 		CronTriggers:  w.OnCron,
+	}
+
+	if w.Version != nil {
+		req.Version = *w.Version
+	}
+
+	if w.Description != nil {
+		req.Description = *w.Description
 	}
 
 	if w.Concurrency != nil {
@@ -186,7 +181,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	}
 
 	if w.OnFailureTask != nil {
-		req.OnFailureTask = w.OnFailureTask.Dump(w.Name)
+		req.OnFailureTask = w.OnFailureTask.Dump(w.Name, w.TaskDefaults)
 	}
 
 	if w.StickyStrategy != nil {

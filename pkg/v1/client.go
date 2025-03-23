@@ -72,6 +72,7 @@ func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts) workflow.Workfl
 
 // Worker creates and configures a new worker with the provided options and optional configuration functions.
 func (c *v1HatchetClientImpl) Worker(opts worker.CreateOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error) {
+
 	return worker.NewWorker(c.v0, opts, optFns...)
 }
 
