@@ -24,7 +24,6 @@ from hatchet_sdk.runnables.types import (
     StepType,
     TWorkflowInput,
     is_async_fn,
-    is_durable_async_fn,
     is_durable_sync_fn,
     is_sync_fn,
 )
@@ -125,20 +124,12 @@ class Task(Generic[TWorkflowInput, R]):
     ) -> None:
         self.is_durable = is_durable
 
-        if is_durable is True:
-            self.fn = cast(
-                Callable[[TWorkflowInput, DurableContext], R]
-                | Callable[[TWorkflowInput, DurableContext], Awaitable[R]],
-                _fn,
-            )
-            self.is_async_function = is_durable_async_fn(self.fn)
-        else:
-            self.fn = cast(
-                Callable[[TWorkflowInput, Context], R]
-                | Callable[[TWorkflowInput, Context], Awaitable[R]],
-                _fn,
-            )
-            self.is_async_function = is_async_fn(self.fn)
+        self.fn = cast(
+            Callable[[TWorkflowInput, Context], R]
+            | Callable[[TWorkflowInput, Context], Awaitable[R]],
+            _fn,
+        )
+        self.is_async_function = is_async_fn(self.fn)
 
         self.workflow = workflow
 
@@ -203,7 +194,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         workflow_input = self.workflow._get_workflow_input(ctx)
 
-        if is_async_fn(self.fn):  # type: ignore
-            return await self.fn(workflow_input, cast(Context, ctx))  # type: ignore
+        if is_async_fn(self.fn):
+            return await self.fn(workflow_input, cast(Context, ctx))
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
