@@ -24,11 +24,9 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
-DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL = 3  # seconds
-DEFAULT_WORKFLOW_LISTENER_RETRY_COUNT = 5
-DEFAULT_WORKFLOW_LISTENER_INTERRUPT_INTERVAL = 1800  # 30 minutes
-
-DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
+DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL = 3  # seconds
+DEFAULT_DURABLE_EVENT_LISTENER_RETRY_COUNT = 5
+DEFAULT_DURABLE_EVENT_LISTENER_INTERRUPT_INTERVAL = 1800  # 30 minutes
 
 
 class _Subscription:
@@ -115,7 +113,6 @@ class DurableEventListener:
 
         self.curr_requester: int = 0
 
-        # events have keys of the format workflow_run_id + subscription_id
         self.events: dict[int, _Subscription] = {}
 
         self.interrupter: asyncio.Task[None] | None = None
@@ -124,7 +121,7 @@ class DurableEventListener:
         """
         _interrupter runs in a separate thread and interrupts the listener according to a configurable duration.
         """
-        await asyncio.sleep(DEFAULT_WORKFLOW_LISTENER_INTERRUPT_INTERVAL)
+        await asyncio.sleep(DEFAULT_DURABLE_EVENT_LISTENER_INTERRUPT_INTERVAL)
 
         if self.interrupt is not None:
             self.interrupt.set()
@@ -155,16 +152,15 @@ class DurableEventListener:
                             await self.interrupt.wait()
 
                             if not t.done():
-                                # print a warning
                                 logger.warning(
-                                    "Interrupted read_with_interrupt task of workflow run listener"
+                                    "Interrupted read_with_interrupt task of durable event listener"
                                 )
 
                                 t.cancel()
                                 if self.listener:
                                     self.listener.cancel()
                                 await asyncio.sleep(
-                                    DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL
+                                    DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL
                                 )
                                 break
 
@@ -173,7 +169,7 @@ class DurableEventListener:
                             if event is cygrpc.EOF:
                                 break
 
-                            # get a list of subscriptions for this workflow
+                            # get a list of subscriptions for this task-signal pair
                             subscriptions = (
                                 self.task_id_signal_key_to_subscriptions.get(
                                     (event.task_id, event.signal_key), []
@@ -184,12 +180,14 @@ class DurableEventListener:
                                 await self.events[subscription_id].put(event)
 
                     except grpc.RpcError as e:
-                        logger.debug(f"grpc error in workflow run listener: {e}")
-                        await asyncio.sleep(DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL)
+                        logger.debug(f"grpc error in durable event listener: {e}")
+                        await asyncio.sleep(
+                            DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL
+                        )
                         continue
 
         except Exception as e:
-            logger.error(f"Error in workflow run listener: {e}")
+            logger.error(f"Error in durable event listener: {e}")
 
             self.listener = None
 
@@ -277,10 +275,10 @@ class DurableEventListener:
     ) -> grpc.aio.UnaryStreamCall[ListenForDurableEventRequest, DurableEvent]:
         retries = 0
 
-        while retries < DEFAULT_WORKFLOW_LISTENER_RETRY_COUNT:
+        while retries < DEFAULT_DURABLE_EVENT_LISTENER_RETRY_COUNT:
             try:
                 if retries > 0:
-                    await asyncio.sleep(DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL)
+                    await asyncio.sleep(DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL)
 
                 # signal previous async iterator to stop
                 if self.curr_requester != 0:
@@ -301,7 +299,7 @@ class DurableEventListener:
                 else:
                     raise ValueError(f"gRPC error: {e}")
 
-        raise ValueError("Failed to connect to workflow run listener")
+        raise ValueError("Failed to connect to durable event listener")
 
     def register_durable_event(
         self, request: RegisterDurableEventRequest
