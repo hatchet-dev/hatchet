@@ -20,7 +20,7 @@ func main() {
 
 	simple := v1_workflows.Simple(&hatchet)
 
-	_, err = simple.Run(v1_workflows.Input{
+	_, err = simple.Run(v1_workflows.SimpleInput{
 		Message: "Hello, World!",
 	})
 
@@ -28,5 +28,4 @@ func main() {
 		panic(err)
 	}
 
-	// TODO bind result object
 }

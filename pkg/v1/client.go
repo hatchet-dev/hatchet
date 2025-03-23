@@ -14,7 +14,7 @@ type HatchetClient interface {
 	V0() v0Client.Client
 
 	// Workflow creates a new workflow declaration with the provided options.
-	Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration[any, any]
+	Workflow(opts workflow.CreateOpts[any]) workflow.WorkflowDeclaration[any, any]
 
 	// Worker creates and configures a new worker with the provided options and optional configuration functions.
 	// @example
@@ -61,7 +61,7 @@ func (c *v1HatchetClientImpl) V0() v0Client.Client {
 }
 
 // Workflow creates a new workflow declaration with the provided options.
-func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts) workflow.WorkflowDeclaration[any, any] {
+func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts[any]) workflow.WorkflowDeclaration[any, any] {
 	var v0 v0Client.Client
 	if c.v0 != nil {
 		v0 = *c.v0
@@ -79,7 +79,7 @@ func (c *v1HatchetClientImpl) Worker(opts worker.CreateOpts, optFns ...func(*wor
 // WorkflowFactory creates a new workflow declaration with the specified input and output types before a client is initialized.
 // This function is used to create strongly typed workflow declarations with the given client.
 // NOTE: This is placed on the client due to circular dependency concerns.
-func WorkflowFactory[I any, O any](opts workflow.CreateOpts, client *HatchetClient) workflow.WorkflowDeclaration[I, O] {
+func WorkflowFactory[I any, O any](opts workflow.CreateOpts[I], client *HatchetClient) workflow.WorkflowDeclaration[I, O] {
 	var v0 v0Client.Client
 	if client != nil {
 		v0 = (*client).V0()

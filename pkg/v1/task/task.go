@@ -6,7 +6,6 @@ import (
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 // TaskDefaults defines default configuration values for tasks within a workflow.
@@ -26,10 +25,6 @@ type TaskDefaults struct {
 	// (optional) RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
 	RetryMaxBackoffSeconds int32
 }
-
-// TaskFn is the function that will be executed when the task runs.
-// It takes an input and a Hatchet context and returns an output and an error.
-type TaskFn[I any, O any] func(input I, ctx worker.HatchetContext) (*O, error)
 
 // CreateOpts is the options for creating a task.
 type CreateOpts[I any] struct {
@@ -64,14 +59,18 @@ type CreateOpts[I any] struct {
 	Conditions *types.TaskConditions
 
 	// (optional) Parents defines the tasks that must complete before this task can start
-	Parents []*TaskDeclaration[I, any]
+	Parents []*TaskDeclaration[I]
+
+	// (optional) Fn is the function to execute when the task runs
+	// must be a function that takes an input and a worker.HatchetContext and returns an output and an error
+	Fn interface{}
 }
 
 type TaskBase interface {
 	Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts
 }
 
-type TaskShared[I any, O any] struct {
+type TaskShared struct {
 	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
 	ExecutionTimeout *time.Duration
 
@@ -96,26 +95,28 @@ type TaskShared[I any, O any] struct {
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
-	// Fn is the function to execute when the task runs
-	Fn func(input I, ctx worker.HatchetContext) (*O, error)
+	// The function to execute when the task runs
+	// must be a function that takes an input and a Hatchet context and returns an output and an error
+	Fn interface{} // TODO reflect type
 }
 
 // TaskDeclaration represents a task configuration that can be added to a workflow.
-type TaskDeclaration[I any, O any] struct {
+type TaskDeclaration[I any] struct {
 	TaskBase
-	TaskShared[I, O]
+	TaskShared
 
 	// The friendly name of the task
 	Name string
 
 	// The tasks that must successfully complete before this task can start
-	Parents []*TaskDeclaration[I, any]
+	Parents []*TaskDeclaration[I]
 
 	// Conditions specifies when this task should be executed
 	Conditions *types.TaskConditions
 
 	// The function to execute when the task runs
-	Fn func(input I, ctx worker.HatchetContext) (*O, error)
+	// must be a function that takes an input and a Hatchet context and returns an output and an error
+	Fn interface{} // TODO reflect type
 
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	// and group key expression to evaluate when determining if a task can run
@@ -124,64 +125,15 @@ type TaskDeclaration[I any, O any] struct {
 
 // OnFailureTaskDeclaration represents a task that will be executed if
 // any tasks in the workflow fail.
-type OnFailureTaskDeclaration[I any, O any] struct {
+type OnFailureTaskDeclaration[I any] struct {
 	TaskBase
-	TaskShared[I, O]
+	TaskShared
 
 	// The function to execute when any tasks in the workflow have failed
-	Fn func(input I, ctx worker.HatchetContext) (*O, error)
+	Fn interface{} // TODO reflect type
 }
 
-// NewTaskDeclaration creates a new task declaration with the specified options.
-func NewTaskDeclaration[I any, O any](opts CreateOpts[I], fn TaskFn[I, O]) *TaskDeclaration[I, O] {
-	// Initialize pointers only for non-zero values
-	var retryBackoffFactor *float32
-	var retryMaxBackoffSeconds *int32
-
-	var executionTimeout *time.Duration
-	var scheduleTimeout *time.Duration
-	var retries *int32
-
-	if opts.RetryBackoffFactor != 0 {
-		retryBackoffFactor = &opts.RetryBackoffFactor
-	}
-
-	if opts.RetryMaxBackoffSeconds != 0 {
-		retryMaxBackoffSeconds = &opts.RetryMaxBackoffSeconds
-	}
-
-	if opts.ExecutionTimeout != 0 {
-		executionTimeout = &opts.ExecutionTimeout
-	}
-
-	if opts.ScheduleTimeout != 0 {
-		scheduleTimeout = &opts.ScheduleTimeout
-	}
-
-	if opts.Retries != 0 {
-		retries = &opts.Retries
-	}
-
-	return &TaskDeclaration[I, O]{
-		Name:       opts.Name,
-		Fn:         fn,
-		Parents:    opts.Parents,
-		Conditions: opts.Conditions,
-
-		TaskShared: TaskShared[I, O]{
-			ExecutionTimeout:       executionTimeout,
-			ScheduleTimeout:        scheduleTimeout,
-			Retries:                retries,
-			RetryBackoffFactor:     retryBackoffFactor,
-			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
-			RateLimits:             opts.RateLimits,
-			WorkerLabels:           opts.WorkerLabels,
-			Concurrency:            opts.Concurrency,
-		},
-	}
-}
-
-func makeContractTaskOpts[I any, O any](t *TaskShared[I, O], taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+func makeContractTaskOpts(t *TaskShared, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
 	taskOpts := &contracts.CreateTaskOpts{
 		RateLimits:  make([]*contracts.CreateTaskRateLimit, len(t.RateLimits)),
 		Concurrency: make([]*contracts.Concurrency, len(t.Concurrency)),
@@ -254,7 +206,7 @@ func makeContractTaskOpts[I any, O any](t *TaskShared[I, O], taskDefaults *TaskD
 }
 
 // Dump converts the task declaration into a protobuf request.
-func (t *TaskDeclaration[I, O]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
 
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 
@@ -272,7 +224,7 @@ func (t *TaskDeclaration[I, O]) Dump(workflowName string, taskDefaults *TaskDefa
 }
 
 // Dump converts the on failure task declaration into a protobuf request.
-func (t *OnFailureTaskDeclaration[I, O]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 
 	base.ReadableId = "on-failure"

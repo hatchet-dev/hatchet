@@ -18,14 +18,20 @@ type OnFailureOutput struct {
 	FailureRan bool `json:"FailureRan"`
 }
 
-func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Result] {
+type OnFailureSuccessResult struct {
+	AlwaysFails AlwaysFailsOutput `json:"AlwaysFails"`
+}
 
-	simple := v1.WorkflowFactory[any, Result](
-		workflow.CreateOpts{
+func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, OnFailureSuccessResult] {
+
+	simple := v1.WorkflowFactory[any, OnFailureSuccessResult](
+		workflow.CreateOpts[any]{
 			Name: "on-failure",
-			OnFailureTask: &task.OnFailureTaskDeclaration[any, any]{
-				Fn: func(_ any, ctx worker.HatchetContext) (*any, error) {
-					return nil, nil
+			OnFailureTask: &task.OnFailureTaskDeclaration[any]{
+				Fn: func(_ any, ctx worker.HatchetContext) (*OnFailureOutput, error) {
+					return &OnFailureOutput{
+						FailureRan: true,
+					}, nil
 				},
 			},
 		},
@@ -35,11 +41,11 @@ func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Resu
 	simple.Task(
 		task.CreateOpts[any]{
 			Name: "AlwaysFails",
-		},
-		func(_ any, ctx worker.HatchetContext) (*AlwaysFailsOutput, error) {
-			return &AlwaysFailsOutput{
-				TransformedMessage: "always fails",
-			}, errors.New("always fails")
+			Fn: func(_ any, ctx worker.HatchetContext) (*AlwaysFailsOutput, error) {
+				return &AlwaysFailsOutput{
+					TransformedMessage: "always fails",
+				}, errors.New("always fails")
+			},
 		},
 	)
 

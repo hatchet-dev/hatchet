@@ -11,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type Input struct {
+type SimpleInput struct {
 	Message string `json:"message"`
 }
 
@@ -19,14 +19,14 @@ type LowerOutput struct {
 	TransformedMessage string `json:"message"`
 }
 
-type Result struct {
+type SimpleResult struct {
 	ToLower LowerOutput `json:"ToLower"` // to_lower is the task name
 }
 
-func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Result] {
+func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
 
-	simple := v1.WorkflowFactory[Input, Result](
-		workflow.CreateOpts{
+	simple := v1.WorkflowFactory[SimpleInput, SimpleResult](
+		workflow.CreateOpts[SimpleInput]{
 			Name: "simple",
 			TaskDefaults: &task.TaskDefaults{
 				ExecutionTimeout:       10 * time.Second,
@@ -39,14 +39,14 @@ func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Resul
 	)
 
 	toLower := simple.Task(
-		task.CreateOpts[Input]{
+		task.CreateOpts[SimpleInput]{
 			Name:             "ToLower", // field name in Result
 			ExecutionTimeout: 10 * time.Second,
-		},
-		func(input Input, ctx worker.HatchetContext) (*LowerOutput, error) {
-			return &LowerOutput{
-				TransformedMessage: strings.ToLower(input.Message),
-			}, nil
+			Fn: func(input SimpleInput, ctx worker.HatchetContext) (*LowerOutput, error) {
+				return &LowerOutput{
+					TransformedMessage: strings.ToLower(input.Message),
+				}, nil
+			},
 		},
 	)
 

@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 )
 
 type HatchetWorkerContext interface {
@@ -68,6 +69,8 @@ type HatchetContext interface {
 	RefreshTimeout(incrementTimeoutBy string) error
 
 	RetryCount() int
+
+	ParentOutput(parent *task.TaskDeclaration[any], target interface{}) error
 
 	client() client.Client
 
@@ -187,6 +190,16 @@ func (h *hatchetContext) StepOutput(step string, target interface{}) error {
 	}
 
 	return fmt.Errorf("step %s not found in action payload", step)
+}
+
+func (h *hatchetContext) ParentOutput(parent *task.TaskDeclaration[any], target interface{}) error {
+	stepName := parent.Name
+
+	if val, ok := h.stepData.Parents[stepName]; ok {
+		return toTarget(val, target)
+	}
+
+	return fmt.Errorf("parent %s not found in action payload", stepName)
 }
 
 func (h *hatchetContext) TriggeredByEvent() bool {
