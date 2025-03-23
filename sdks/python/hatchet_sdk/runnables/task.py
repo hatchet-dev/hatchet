@@ -4,11 +4,9 @@ from typing import (
     Awaitable,
     Callable,
     Generic,
-    Literal,
     TypeVar,
     Union,
     cast,
-    overload,
 )
 
 from hatchet_sdk.context.context import Context, DurableContext
@@ -47,56 +45,6 @@ def fall_back_to_default(value: T, default: T, fallback_value: T) -> T:
 
 
 class Task(Generic[TWorkflowInput, R]):
-    @overload
-    def __init__(
-        self,
-        _fn: (
-            Callable[[TWorkflowInput, DurableContext], R]
-            | Callable[[TWorkflowInput, DurableContext], Awaitable[R]]
-        ),
-        is_durable: Literal[True],
-        type: StepType,
-        workflow: "Workflow[TWorkflowInput]",
-        name: str,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        parents: "list[Task[TWorkflowInput, Any]]" = [],
-        retries: int = 0,
-        rate_limits: list[CreateTaskRateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabels] = {},
-        backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self,
-        _fn: (
-            Callable[[TWorkflowInput, Context], R]
-            | Callable[[TWorkflowInput, Context], Awaitable[R]]
-        ),
-        is_durable: Literal[False],
-        type: StepType,
-        workflow: "Workflow[TWorkflowInput]",
-        name: str,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        parents: "list[Task[TWorkflowInput, Any]]" = [],
-        retries: int = 0,
-        rate_limits: list[CreateTaskRateLimit] = [],
-        desired_worker_labels: dict[str, DesiredWorkerLabels] = {},
-        backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
-        concurrency: list[ConcurrencyExpression] = [],
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
-    ) -> None: ...
-
     def __init__(
         self,
         _fn: Union[
@@ -124,12 +72,8 @@ class Task(Generic[TWorkflowInput, R]):
     ) -> None:
         self.is_durable = is_durable
 
-        self.fn = cast(
-            Callable[[TWorkflowInput, Context], R]
-            | Callable[[TWorkflowInput, Context], Awaitable[R]],
-            _fn,
-        )
-        self.is_async_function = is_async_fn(self.fn)
+        self.fn = _fn
+        self.is_async_function = is_async_fn(self.fn)  # type: ignore
 
         self.workflow = workflow
 
@@ -194,7 +138,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         workflow_input = self.workflow._get_workflow_input(ctx)
 
-        if is_async_fn(self.fn):
-            return await self.fn(workflow_input, cast(Context, ctx))
+        if is_async_fn(self.fn):  # type: ignore
+            return await self.fn(workflow_input, cast(Context, ctx))  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
