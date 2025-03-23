@@ -1,6 +1,7 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import grpc
 import grpc.aio
@@ -234,10 +235,9 @@ class DurableEventListener:
     async def subscribe(self, task_id: str, signal_key: str) -> DurableEvent:
         try:
             # create a new subscription id, place a mutex on the counter
-            await self.subscription_counter_lock.acquire()
-            self.subscription_counter += 1
-            subscription_id = self.subscription_counter
-            self.subscription_counter_lock.release()
+            async with self.subscription_counter_lock:
+                self.subscription_counter += 1
+                subscription_id = self.subscription_counter
 
             self.subscriptions_to_task_id_signal_key[subscription_id] = (
                 task_id,
@@ -311,3 +311,8 @@ class DurableEventListener:
         )
 
         return True
+
+    async def result(self, task_id: str, signal_key: str) -> dict[str, Any]:
+        event = await self.subscribe(task_id, signal_key)
+
+        return cast(dict[str, Any], json.loads(event.data.decode("utf-8")))
