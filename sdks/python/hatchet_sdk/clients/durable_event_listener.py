@@ -6,7 +6,7 @@ from typing import Any, Literal, cast
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.config import ClientConfig
@@ -59,6 +59,8 @@ class _Subscription:
 
 
 class RegisterDurableEventRequest(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     task_id: str
     signal_key: str
     conditions: list[SleepCondition | UserEventCondition]

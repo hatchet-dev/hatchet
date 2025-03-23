@@ -2,7 +2,7 @@ import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
 
@@ -22,6 +22,7 @@ from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
+from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -242,8 +243,23 @@ class Context:
 
 
 class DurableContext(Context):
-    def wait_for(self, request: RegisterDurableEventRequest) -> None:
+    async def wait_for(
+        self, signal_key: str, *conditions: SleepCondition | UserEventCondition
+    ) -> dict[str, Any]:
         if self.durable_event_listener is None:
             raise ValueError("Durable event listener is not available")
 
+        task_id = self.step_run_id
+
+        request = RegisterDurableEventRequest(
+            task_id=task_id,
+            signal_key=signal_key,
+            conditions=list(conditions),
+        )
+
         self.durable_event_listener.register_durable_event(request)
+
+        return await self.durable_event_listener.result(
+            task_id,
+            signal_key,
+        )

@@ -10,7 +10,7 @@ from hatchet_sdk.clients.admin import (
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.context.context import Context
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     Concurrency,
@@ -73,6 +73,7 @@ class Workflow(Generic[TWorkflowInput]):
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
         self.config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
+        self._durable_tasks: list[Task[TWorkflowInput, Any]] = []
         self._on_failure_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
@@ -230,12 +231,16 @@ class Workflow(Generic[TWorkflowInput]):
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
-        tasks = self._default_tasks
+        tasks = self._default_tasks + self._durable_tasks
 
         if self._on_failure_task:
             tasks += [self._on_failure_task]
 
         return tasks
+
+    @property
+    def has_any_durable(self) -> bool:
+        return any(task.is_durable for task in self.tasks)
 
     def create_run_workflow_config(
         self,
@@ -371,7 +376,12 @@ class Workflow(Generic[TWorkflowInput]):
         )
 
     def _parse_task_name(
-        self, name: str | None, func: Callable[[TWorkflowInput, Context], R]
+        self,
+        name: str | None,
+        func: (
+            Callable[[TWorkflowInput, Context], R]
+            | Callable[[TWorkflowInput, DurableContext], R]
+        ),
     ) -> str:
         non_null_name = name or func.__name__
 
@@ -428,7 +438,8 @@ class Workflow(Generic[TWorkflowInput]):
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
             task = Task(
-                fn=func,
+                _fn=func,
+                is_durable=False,
                 workflow=self,
                 type=StepType.DEFAULT,
                 name=self._parse_task_name(name, func),
@@ -450,6 +461,87 @@ class Workflow(Generic[TWorkflowInput]):
             )
 
             self._default_tasks.append(task)
+
+            return task
+
+        return inner
+
+    def durable(
+        self,
+        name: str | None = None,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(minutes=60),
+        parents: list[Task[TWorkflowInput, Any]] = [],
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        concurrency: list[ConcurrencyExpression] = [],
+        wait_for: list[Condition | OrGroup] = [],
+        skip_if: list[Condition | OrGroup] = [],
+        cancel_if: list[Condition | OrGroup] = [],
+    ) -> Callable[
+        [Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]
+    ]:
+        """
+        A decorator to transform a function into a Hatchet task that run as part of a workflow.
+
+        :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
+        :type name: str | None
+
+        :param timeout: The execution timeout of the task. Defaults to 60 minutes.
+        :type timeout: datetime.timedelta | str
+
+        :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children. Defaults to an empty list (no parents).
+        :type parents: list[Task]
+
+        :param retries: The number of times to retry the task before failing. Default: `0`
+        :type retries: int
+
+        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list (no rate limits).
+        :type rate_limits: list[RateLimit]
+
+        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. Defaults to an empty dictionary (no desired worker labels).
+        :type desired_worker_labels: dict[str, DesiredWorkerLabel]
+
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :type backoff_factor: float | None
+
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :type backoff_max_seconds: int | None
+
+        :returns: A decorator which creates a `Task` object.
+        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
+        """
+
+        def inner(
+            func: Callable[[TWorkflowInput, DurableContext], R]
+        ) -> Task[TWorkflowInput, R]:
+            task = Task(
+                _fn=func,
+                is_durable=True,
+                workflow=self,
+                type=StepType.DEFAULT,
+                name=self._parse_task_name(name, func),
+                execution_timeout=execution_timeout,
+                schedule_timeout=schedule_timeout,
+                parents=parents,
+                retries=retries,
+                rate_limits=[r.to_proto() for r in rate_limits],
+                desired_worker_labels={
+                    key: transform_desired_worker_label(d)
+                    for key, d in desired_worker_labels.items()
+                },
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+                concurrency=concurrency,
+                wait_for=wait_for,
+                skip_if=skip_if,
+                cancel_if=cancel_if,
+            )
+
+            self._durable_tasks.append(task)
 
             return task
 
@@ -495,7 +587,8 @@ class Workflow(Generic[TWorkflowInput]):
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
             task = Task(
-                fn=func,
+                is_durable=False,
+                _fn=func,
                 workflow=self,
                 type=StepType.ON_FAILURE,
                 name=self._parse_task_name(name, func),

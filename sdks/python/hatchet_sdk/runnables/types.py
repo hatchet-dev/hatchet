@@ -1,7 +1,7 @@
 import asyncio
 from datetime import timedelta
 from enum import Enum
-from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
+from typing import Any, Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
@@ -127,7 +127,7 @@ DurableTaskFunc = Union[
 
 
 def is_durable_async_fn(
-    fn: DurableTaskFunc[TWorkflowInput, R]
+    fn: Callable[..., Any]
 ) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
     return asyncio.iscoroutinefunction(fn)
 

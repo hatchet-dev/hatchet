@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from multiprocessing import Queue
 from threading import Thread, current_thread
-from typing import Any, Callable, Dict, cast
+from typing import Any, Callable, Dict, Literal, cast, overload
 
 from pydantic import BaseModel
 
@@ -20,7 +20,7 @@ from hatchet_sdk.clients.durable_event_listener import DurableEventListener
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.context.context import Context
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     GROUP_KEY_EVENT_TYPE_COMPLETED,
@@ -71,7 +71,7 @@ class Runner:
         self.slots = slots
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
-        self.action_registry: dict[str, Task[TWorkflowInput, R]] = action_registry
+        self.action_registry = action_registry
         self.validator_registry = validator_registry
 
         self.event_queue = event_queue
@@ -266,8 +266,22 @@ class Runner:
         if run_id in self.contexts:
             del self.contexts[run_id]
 
-    def create_context(self, action: Action) -> Context:
-        return Context(
+    @overload
+    def create_context(
+        self, action: Action, is_durable: Literal[True] = True
+    ) -> DurableContext: ...
+
+    @overload
+    def create_context(
+        self, action: Action, is_durable: Literal[False] = False
+    ) -> Context: ...
+
+    def create_context(
+        self, action: Action, is_durable: bool = True
+    ) -> Context | DurableContext:
+        constructor = DurableContext if is_durable else Context
+
+        return constructor(
             action,
             self.dispatcher_client,
             self.admin_client,
@@ -288,11 +302,12 @@ class Runner:
         # Find the corresponding action function from the registry
         action_func = self.action_registry.get(action_name)
 
-        context = self.create_context(action)
-
-        self.contexts[action.step_run_id] = context
-
         if action_func:
+            context = self.create_context(
+                action, True if action_func.is_durable else False
+            )
+
+            self.contexts[action.step_run_id] = context
             self.event_queue.put(
                 ActionEvent(action=action, type=STEP_EVENT_TYPE_STARTED, payload="")
             )
