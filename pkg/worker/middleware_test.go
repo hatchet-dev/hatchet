@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 )
 
 type testHatchetContext struct {
@@ -21,6 +22,10 @@ func (c *testHatchetContext) GetContext() context.Context {
 }
 
 func (c *testHatchetContext) StepOutput(step string, target interface{}) error {
+	return nil
+}
+
+func (c *testHatchetContext) ParentOutput(task *task.TaskDeclaration[any], target interface{}) error {
 	return nil
 }
 
