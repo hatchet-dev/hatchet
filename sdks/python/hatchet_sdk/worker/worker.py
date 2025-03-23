@@ -5,8 +5,6 @@ import os
 import re
 import signal
 import sys
-import threading
-import time
 from dataclasses import dataclass, field
 from enum import Enum
 from multiprocessing import Queue
@@ -62,7 +60,7 @@ class HealthCheckResponse(BaseModel):
     python_version: str
 
 
-class BaseWorker:
+class Worker:
     def __init__(
         self,
         name: str,
@@ -83,20 +81,28 @@ class BaseWorker:
         self.owned_loop = owned_loop
 
         self.action_registry: dict[str, Task[Any, Any]] = {}
+        self.durable_action_registry: dict[str, Task[Any, Any]] = {}
 
         self.validator_registry: dict[str, WorkflowValidator] = {}
 
         self.killing: bool = False
         self._status: WorkerStatus
 
-        self.action_listener_process: BaseProcess
+        self.action_listener_process: BaseProcess | None = None
+        self.durable_action_listener_process: BaseProcess | None = None
+
         self.action_listener_health_check: asyncio.Task[None]
-        self.action_runner: WorkerActionRunLoopManager
+
+        self.action_runner: WorkerActionRunLoopManager | None = None
+        self.durable_action_runner: WorkerActionRunLoopManager | None = None
 
         self.ctx = multiprocessing.get_context("spawn")
 
         self.action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
         self.event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
+
+        self.durable_action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
+        self.durable_event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
 
         self.loop: asyncio.AbstractEventLoop
 
@@ -108,6 +114,9 @@ class BaseWorker:
             "hatchet_worker_status_" + re.sub(r"\W+", "", name),
             "Current status of the Hatchet worker",
         )
+
+        self.has_any_durable = False
+        self.has_any_non_durable = False
 
         self.register_workflows(workflows)
 
@@ -124,6 +133,11 @@ class BaseWorker:
         opts = workflow._get_create_opts(namespace)
         name = workflow._get_name(namespace)
 
+        if workflow.has_any_durable:
+            self.has_any_durable = True
+        else:
+            self.has_any_non_durable = True
+
         try:
             self.client.admin.put_workflow(name, opts)
         except Exception as e:
@@ -137,7 +151,10 @@ class BaseWorker:
         for step in workflow.tasks:
             action_name = workflow._create_action_name(namespace, step)
 
-            self.action_registry[action_name] = step
+            if workflow.has_any_durable:
+                self.durable_action_registry[action_name] = step
+            else:
+                self.action_registry[action_name] = step
 
             return_type = get_type_hints(step.fn).get("return")
 
@@ -231,7 +248,10 @@ class BaseWorker:
 
         self._status = WorkerStatus.STARTING
 
-        if len(self.action_registry.keys()) == 0:
+        if (
+            len(self.action_registry.keys()) == 0
+            and len(self.durable_action_registry.keys()) == 0
+        ):
             raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
@@ -239,9 +259,15 @@ class BaseWorker:
         if self.config.healthcheck.enabled:
             await self._start_health_server()
 
-        self.action_listener_process = self._start_action_listener()
+        if self.has_any_non_durable:
+            self.action_listener_process = self._start_action_listener(is_durable=False)
+            self.action_runner = self._run_action_runner(is_durable=False)
 
-        self.action_runner = self._run_action_runner()
+        if self.has_any_durable:
+            self.durable_action_listener_process = self._start_action_listener(
+                is_durable=True
+            )
+            self.durable_action_runner = self._run_action_runner(is_durable=True)
 
         self.action_listener_health_check = self.loop.create_task(
             self._check_listener_health()
@@ -249,33 +275,39 @@ class BaseWorker:
 
         await self.action_listener_health_check
 
-    def _run_action_runner(self) -> WorkerActionRunLoopManager:
+    def _run_action_runner(self, is_durable: bool) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         return WorkerActionRunLoopManager(
-            self.name,
-            self.action_registry,
+            self.name + ("_durable" if is_durable else ""),
+            self.durable_action_registry if is_durable else self.action_registry,
             self.validator_registry,
-            self.slots,
+            1_000 if is_durable else self.slots,
             self.config,
-            self.action_queue,
-            self.event_queue,
+            self.durable_action_queue if is_durable else self.action_queue,
+            self.durable_event_queue if is_durable else self.event_queue,
             self.loop,
             self.handle_kill,
             self.client.debug,
             self.labels,
         )
 
-    def _start_action_listener(self) -> multiprocessing.context.SpawnProcess:
+    def _start_action_listener(
+        self, is_durable: bool
+    ) -> multiprocessing.context.SpawnProcess:
         try:
             process = self.ctx.Process(
                 target=worker_action_listener_process,
                 args=(
-                    self.name,
-                    list(self.action_registry.keys()),
-                    self.slots,
+                    self.name + ("_durable" if is_durable else ""),
+                    (
+                        list(self.durable_action_registry.keys())
+                        if is_durable
+                        else list(self.action_registry.keys())
+                    ),
+                    1_000 if is_durable else self.slots,
                     self.config,
-                    self.action_queue,
-                    self.event_queue,
+                    self.durable_action_queue if is_durable else self.action_queue,
+                    self.durable_event_queue if is_durable else self.event_queue,
                     self.handle_kill,
                     self.client.debug,
                     self.labels,
@@ -294,8 +326,13 @@ class BaseWorker:
         try:
             while not self.killing:
                 if (
-                    self.action_listener_process is None
-                    or not self.action_listener_process.is_alive()
+                    not self.action_listener_process
+                    and not self.durable_action_listener_process
+                ) or (
+                    self.action_listener_process
+                    and self.durable_action_listener_process
+                    and not self.action_listener_process.is_alive()
+                    and not self.durable_action_listener_process.is_alive()
                 ):
                     logger.debug("child action listener process killed...")
                     self._status = WorkerStatus.UNHEALTHY
@@ -331,6 +368,9 @@ class BaseWorker:
         if self.action_runner is not None:
             self.action_runner.cleanup()
 
+        if self.durable_action_runner is not None:
+            self.durable_action_runner.cleanup()
+
         await self.action_listener_health_check
 
     async def exit_gracefully(self) -> None:
@@ -341,11 +381,22 @@ class BaseWorker:
 
         self.killing = True
 
-        await self.action_runner.wait_for_tasks()
-        await self.action_runner.exit_gracefully()
+        if self.action_runner:
+            await self.action_runner.wait_for_tasks()
+            await self.action_runner.exit_gracefully()
+
+        if self.durable_action_runner:
+            await self.durable_action_runner.wait_for_tasks()
+            await self.durable_action_runner.exit_gracefully()
 
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
+
+        if (
+            self.durable_action_listener_process
+            and self.durable_action_listener_process.is_alive()
+        ):
+            self.durable_action_listener_process.kill()
 
         await self._close()
         if self.loop and self.owned_loop:
@@ -361,114 +412,10 @@ class BaseWorker:
         await self._close()
 
         if self.action_listener_process:
-            self.action_listener_process.kill()  # Forcefully kill the process
+            self.action_listener_process.kill()
+
+        if self.durable_action_listener_process:
+            self.durable_action_listener_process.kill()
 
         logger.info("👋")
         sys.exit(1)
-
-
-class Worker:
-    def __init__(
-        self,
-        name: str,
-        config: ClientConfig,
-        slots: int | None = None,
-        labels: dict[str, str | int] = {},
-        debug: bool = False,
-        owned_loop: bool = True,
-        handle_kill: bool = True,
-        workflows: list[Workflow[Any]] = [],
-    ) -> None:
-        self.config = config
-        self.name = self.config.namespace + name
-        self.slots = slots
-        self.debug = debug
-        self.labels = labels
-        self.handle_kill = handle_kill
-        self.owned_loop = owned_loop
-
-        self.main: BaseWorker | None = None
-
-        self.durable: BaseWorker | None = None
-
-        for workflow in workflows:
-            self.register_workflow(workflow)
-
-    @property
-    def workers(self) -> list[BaseWorker]:
-        w: list[BaseWorker] = []
-
-        if self.durable:
-            w.append(self.durable)
-
-        if self.main:
-            w.append(self.main)
-
-        return w
-
-    def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
-        threads: list[threading.Thread] = []
-
-        for worker in self.workers:
-
-            def worker_thread(w: BaseWorker) -> None:
-                w.start(options=options)
-
-            thread = threading.Thread(target=worker_thread, args=(worker,))
-            thread.daemon = True  # Make thread exit when main program exits
-            thread.start()
-            threads.append(thread)
-
-        self.worker_threads = threads
-
-        while True:
-            time.sleep(1)
-
-            all_stopped = all(
-                worker.status == WorkerStatus.STOPPED for worker in self.workers
-            )
-
-            if all_stopped:
-                for thread in threads:
-                    thread.join(timeout=5)
-
-                break
-
-    def register_workflow(self, workflow: Workflow[Any]) -> None:
-        if workflow.has_any_durable:
-            if not self.durable:
-                self.durable = BaseWorker(
-                    self.name + "-durable",
-                    self.config,
-                    1_000,
-                    self.labels,
-                    self.debug,
-                    self.owned_loop,
-                    self.handle_kill,
-                )
-
-            self.durable.register_workflow(workflow)
-        else:
-            if not self.main:
-                self.main = BaseWorker(
-                    self.name,
-                    self.config,
-                    self.slots,
-                    self.labels,
-                    self.debug,
-                    self.owned_loop,
-                    self.handle_kill,
-                )
-
-            self.main.register_workflow(workflow)
-
-    def register_workflows(self, workflows: list[Workflow[Any]]) -> None:
-        for workflow in workflows:
-            self.register_workflow(workflow)
-
-    async def exit_gracefully(self) -> None:
-        if self.main:
-            await self.main.exit_gracefully()
-
-        if self.durable:
-            await self.durable.exit_gracefully()
