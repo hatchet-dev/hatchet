@@ -13,6 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
 	"github.com/hatchet-dev/timediff"
 )
@@ -66,6 +68,57 @@ func (t *TenantAlertManager) HandleAlert(tenantId string) error {
 		}
 
 		return t.sendWorkflowRunAlert(ctx, tenantAlerting, lastAlertedAt)
+	}
+
+	return nil
+}
+
+func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns []*v1.WorkflowRunData) error {
+	if len(failedRuns) == 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// read in the tenant alerting settings and determine if we should alert
+	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
+
+	if err != nil {
+		return err
+	}
+
+	failedItems := t.getFailedItemsV1(failedRuns)
+
+	if len(failedItems) == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC()
+
+	err = t.repo.TenantAlertingSettings().UpdateTenantAlertingSettings(ctx, tenantId, &repository.UpdateTenantAlertingSettingsOpts{
+		LastAlertedAt: &now,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// iterate through possible alerters
+	for _, slackWebhook := range tenantAlerting.SlackWebhooks {
+		if innerErr := t.sendSlackWorkflowRunAlert(slackWebhook, len(failedRuns), failedItems); innerErr != nil {
+			err = multierror.Append(err, innerErr)
+		}
+	}
+
+	for _, emailGroup := range tenantAlerting.EmailGroups {
+		if innerErr := t.sendEmailWorkflowRunAlert(tenantAlerting.Tenant, emailGroup, len(failedRuns), failedItems); innerErr != nil {
+			err = multierror.Append(err, innerErr)
+		}
+	}
+
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -162,6 +215,42 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 			RelativeDate:          timediff.TimeDiff(workflowRun.WorkflowRun.FinishedAt.Time),
 			AbsoluteDate:          workflowRun.WorkflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
 		})
+	}
+
+	return res
+}
+
+func (t *TenantAlertManager) getFailedItemsV1(failedRuns []*v1.WorkflowRunData) []alerttypes.WorkflowRunFailedItem {
+	res := make([]alerttypes.WorkflowRunFailedItem, 0)
+
+	for i, workflowRun := range failedRuns {
+		if i >= 5 {
+			break
+		}
+
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ExternalID)
+		tenantId := sqlchelpers.UUIDToStr(workflowRun.TenantID)
+
+		readableId := workflowRun.DisplayName
+
+		switch workflowRun.Kind {
+		case sqlcv1.V1RunKindDAG:
+			res = append(res, alerttypes.WorkflowRunFailedItem{
+				Link:                  fmt.Sprintf("%s/v1/workflow-runs/%s?tenant=%s", t.serverURL, workflowRunId, tenantId),
+				WorkflowName:          readableId,
+				WorkflowRunReadableId: readableId,
+				RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
+				AbsoluteDate:          workflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
+			})
+		case sqlcv1.V1RunKindTASK:
+			res = append(res, alerttypes.WorkflowRunFailedItem{
+				Link:                  fmt.Sprintf("%s/v1/task-runs/%s?tenant=%s", t.serverURL, workflowRunId, tenantId),
+				WorkflowName:          readableId,
+				WorkflowRunReadableId: readableId,
+				RelativeDate:          timediff.TimeDiff(workflowRun.FinishedAt.Time),
+				AbsoluteDate:          workflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
+			})
+		}
 	}
 
 	return res

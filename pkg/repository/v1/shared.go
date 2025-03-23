@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	celgo "github.com/google/cel-go/cel"
-	"github.com/google/cel-go/checker/decls"
 )
 
 // implements comparable for the lru cache
@@ -45,9 +44,8 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 	celParser := cel.NewCELParser()
 
 	env, err := celgo.NewEnv(
-		celgo.Declarations(
-			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
-		),
+		celgo.Variable("input", celgo.MapType(celgo.StringType, celgo.DynType)),
+		celgo.Variable("output", celgo.MapType(celgo.StringType, celgo.DynType)),
 	)
 
 	if err != nil {

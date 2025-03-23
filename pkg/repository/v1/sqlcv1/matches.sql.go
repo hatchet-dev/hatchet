@@ -293,7 +293,9 @@ WITH match_counts AS (
         COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CANCEL' THEN or_group_id END) AS satisfied_cancel_groups,
         COUNT(DISTINCT CASE WHEN action = 'SKIP' THEN or_group_id END) AS total_skip_groups,
-        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'SKIP' THEN or_group_id END) AS satisfied_skip_groups
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'SKIP' THEN or_group_id END) AS satisfied_skip_groups,
+        COUNT(DISTINCT CASE WHEN action = 'CREATE_MATCH' THEN or_group_id END) AS total_create_match_groups,
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE_MATCH' THEN or_group_id END) AS satisfied_create_match_groups
     FROM v1_match_condition main
     WHERE v1_match_id = ANY($1::bigint[])
     GROUP BY v1_match_id
@@ -301,10 +303,11 @@ WITH match_counts AS (
     SELECT
         m.id, m.tenant_id, m.kind, m.is_satisfied, m.existing_data, m.signal_task_id, m.signal_task_inserted_at, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_workflow_run_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at,
         CASE WHEN
-            (mc.total_create_groups > 0 AND mc.total_create_groups = mc.satisfied_create_groups) THEN 'CREATE'
-            WHEN (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups) THEN 'QUEUE'
+            (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
             WHEN (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups) THEN 'CANCEL'
-            WHEN (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
+            WHEN (mc.total_create_groups > 0 AND mc.total_create_groups = mc.satisfied_create_groups) THEN 'CREATE'
+            WHEN (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups) THEN 'QUEUE'
+            WHEN (mc.total_create_match_groups > 0 AND mc.total_create_match_groups = mc.satisfied_create_match_groups) THEN 'CREATE_MATCH'
         END::v1_match_condition_action AS action
     FROM
         v1_match m
@@ -316,6 +319,7 @@ WITH match_counts AS (
             OR (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups)
             OR (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups)
             OR (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups)
+            OR (mc.total_create_match_groups > 0 AND mc.total_create_match_groups = mc.satisfied_create_match_groups)
         )
 ), locked_conditions AS (
     SELECT

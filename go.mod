@@ -6,8 +6,8 @@ require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/creasty/defaults v1.8.0
 	github.com/fatih/color v1.18.0
-	github.com/getkin/kin-openapi v0.129.0
-	github.com/go-co-op/gocron/v2 v2.16.0
+	github.com/getkin/kin-openapi v0.131.0
+	github.com/go-co-op/gocron/v2 v2.16.1
 	github.com/google/go-github/v57 v57.0.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.3.0
@@ -38,7 +38,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	golang.org/x/time v0.11.0
-	google.golang.org/api v0.226.0
+	google.golang.org/api v0.227.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a
 	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
@@ -74,7 +74,7 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.5 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
@@ -93,8 +93,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/oasdiff/yaml v0.0.0-20241210131133-6b86fb107d80 // indirect
-	github.com/oasdiff/yaml3 v0.0.0-20241210130736-a94c01f36349 // indirect
+	github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 // indirect
+	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
@@ -158,7 +158,7 @@ require (
 	golang.org/x/sync v0.12.0
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250303144028-a0af3efb3deb // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250313205543-e70fdf4c4cb4 // indirect
 	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/ini.v1 v1.67.0 // indirect
