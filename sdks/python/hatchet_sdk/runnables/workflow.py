@@ -485,7 +485,11 @@ class Workflow(Generic[TWorkflowInput]):
         [Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]
     ]:
         """
-        A decorator to transform a function into a Hatchet task that run as part of a workflow.
+        A decorator to transform a function into a durable Hatchet task that run as part of a workflow.
+
+        **IMPORTANT:** This decorator creates a _durable_ task, which works using Hatchet's durable execution capabilities. This is an advanced feature of Hatchet.
+
+        See the Hatchet docs for more information on durable execution to decide if this is right for you.
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
         :type name: str | None
