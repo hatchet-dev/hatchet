@@ -26,7 +26,7 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
 
 
 def main() -> None:
-    worker = hatchet.worker("durable-worker", workflows=[durable_workflow])
+    worker = hatchet.worker("durable-worker", workflows=[durable_workflow, ephemeral_workflow])
     worker.start()
 
 
