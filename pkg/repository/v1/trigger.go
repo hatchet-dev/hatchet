@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -99,6 +100,12 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
+	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
+
+	if err := pre(); err != nil {
+		return nil, nil, err
+	}
+
 	eventKeys := make([]string, 0, len(opts))
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
 	uniqueEventKeys := make(map[string]struct{})
@@ -146,7 +153,15 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	return r.triggerWorkflows(ctx, tenantId, triggerOpts)
+	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	post()
+
+	return tasks, dags, nil
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
@@ -333,6 +348,33 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 		workflowVersionToSteps[workflowVersionId] = append(workflowVersionToSteps[workflowVersionId], step)
 
 		stepIdsToReadableIds[sqlchelpers.UUIDToStr(step.ID)] = step.ReadableId.String
+	}
+
+	countWorkflowRuns := 0
+	countTasks := 0
+
+	for _, tuple := range tuples {
+		countWorkflowRuns++
+
+		steps, ok := workflowVersionToSteps[tuple.workflowVersionId]
+
+		if !ok {
+			continue
+		}
+
+		countTasks += len(steps)
+	}
+
+	preWR, postWR := r.m.Meter(ctx, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(countWorkflowRuns)) // nolint: gosec
+
+	if err := preWR(); err != nil {
+		return nil, nil, err
+	}
+
+	preTask, postTask := r.m.Meter(ctx, dbsqlc.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
+
+	if err := preTask(); err != nil {
+		return nil, nil, err
 	}
 
 	// start constructing options for creating tasks, DAGs, and triggers. logic is as follows:
@@ -671,6 +713,9 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	if err := commit(ctx); err != nil {
 		return nil, nil, err
 	}
+
+	postWR()
+	postTask()
 
 	return tasks, dags, nil
 }

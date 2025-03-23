@@ -9,7 +9,9 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -34,9 +36,12 @@ type sharedRepository struct {
 	celParser                 *cel.CELParser
 	env                       *celgo.Env
 	taskLookupCache           *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
+	m                         *metered.Metered
 }
 
-func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*sharedRepository, func() error) {
+func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, entitlements repository.EntitlementsRepository) (*sharedRepository, func() error) {
+	m := metered.NewMetered(entitlements, l)
+
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
 	stepExpressionCache := cache.New(5 * time.Minute)
@@ -71,6 +76,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 			celParser:                 celParser,
 			env:                       env,
 			taskLookupCache:           lookupCache,
+			m:                         m,
 		}, func() error {
 			queueCache.Stop()
 			stepExpressionCache.Stop()
