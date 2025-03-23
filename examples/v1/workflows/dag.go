@@ -10,12 +10,12 @@ import (
 )
 
 type SimpleOutput struct {
-	Step int `json:"step"`
+	Step int
 }
 
 type DagResult struct {
-	Step1 SimpleOutput `json:"Step1,omitempty"`
-	Step2 SimpleOutput `json:"Step2,omitempty"`
+	Step1 SimpleOutput
+	Step2 SimpleOutput
 }
 
 func DagWorkflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, DagResult] {
@@ -52,7 +52,7 @@ func DagWorkflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Da
 					return nil, err
 				}
 
-				fmt.Println(step1Output)
+				fmt.Println(step1Output.Step)
 
 				return &SimpleOutput{
 					Step: 2,

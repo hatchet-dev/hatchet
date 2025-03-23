@@ -1,7 +1,6 @@
 package v1_workflows
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -20,7 +19,7 @@ type LowerOutput struct {
 }
 
 type SimpleResult struct {
-	ToLower LowerOutput `json:"ToLower"` // to_lower is the task name
+	ToLower LowerOutput
 }
 
 func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
@@ -38,9 +37,9 @@ func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput,
 		hatchet,
 	)
 
-	toLower := simple.Task(
+	simple.Task(
 		task.CreateOpts[SimpleInput]{
-			Name:             "ToLower", // field name in Result
+			Name:             "ToLower",
 			ExecutionTimeout: 10 * time.Second,
 			Fn: func(input SimpleInput, ctx worker.HatchetContext) (*LowerOutput, error) {
 				return &LowerOutput{
@@ -49,8 +48,6 @@ func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput,
 			},
 		},
 	)
-
-	fmt.Println(toLower.Name)
 
 	return simple
 }

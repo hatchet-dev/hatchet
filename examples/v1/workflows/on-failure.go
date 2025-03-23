@@ -10,16 +10,15 @@ import (
 )
 
 type AlwaysFailsOutput struct {
-	TransformedMessage string `json:"message"`
+	TransformedMessage string
 }
 
-// TODO type output..
 type OnFailureOutput struct {
-	FailureRan bool `json:"FailureRan"`
+	FailureRan bool
 }
 
 type OnFailureSuccessResult struct {
-	AlwaysFails AlwaysFailsOutput `json:"AlwaysFails"`
+	AlwaysFails AlwaysFailsOutput
 }
 
 func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, OnFailureSuccessResult] {
