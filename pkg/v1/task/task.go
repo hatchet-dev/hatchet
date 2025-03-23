@@ -32,8 +32,8 @@ type TaskDefaults struct {
 type TaskFn[I any, O any] func(input I, ctx worker.HatchetContext) (*O, error)
 
 // CreateOpts is the options for creating a task.
-type CreateOpts[I any, O any] struct {
-	// (required) Name is the unique identifier for the task
+type CreateOpts[I any] struct {
+	// (required) The name of the task
 	Name string
 
 	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
@@ -64,10 +64,7 @@ type CreateOpts[I any, O any] struct {
 	Conditions *types.TaskConditions
 
 	// (optional) Parents defines the tasks that must complete before this task can start
-	Parents []*TaskDeclaration[I, O]
-
-	// (required) Fn is the function to execute when the task runs
-	Fn TaskFn[I, O]
+	Parents []*TaskDeclaration[I, any]
 }
 
 type TaskBase interface {
@@ -112,7 +109,7 @@ type TaskDeclaration[I any, O any] struct {
 	Name string
 
 	// The tasks that must successfully complete before this task can start
-	Parents []*TaskDeclaration[I, O]
+	Parents []*TaskDeclaration[I, any]
 
 	// Conditions specifies when this task should be executed
 	Conditions *types.TaskConditions
@@ -136,7 +133,7 @@ type OnFailureTaskDeclaration[I any, O any] struct {
 }
 
 // NewTaskDeclaration creates a new task declaration with the specified options.
-func NewTaskDeclaration[I any, O any](opts CreateOpts[I, O]) *TaskDeclaration[I, O] {
+func NewTaskDeclaration[I any, O any](opts CreateOpts[I], fn TaskFn[I, O]) *TaskDeclaration[I, O] {
 	// Initialize pointers only for non-zero values
 	var retryBackoffFactor *float32
 	var retryMaxBackoffSeconds *int32
@@ -167,7 +164,7 @@ func NewTaskDeclaration[I any, O any](opts CreateOpts[I, O]) *TaskDeclaration[I,
 
 	return &TaskDeclaration[I, O]{
 		Name:       opts.Name,
-		Fn:         opts.Fn,
+		Fn:         fn,
 		Parents:    opts.Parents,
 		Conditions: opts.Conditions,
 
@@ -185,18 +182,25 @@ func NewTaskDeclaration[I any, O any](opts CreateOpts[I, O]) *TaskDeclaration[I,
 }
 
 func makeContractTaskOpts[I any, O any](t *TaskShared[I, O], taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+	taskOpts := &contracts.CreateTaskOpts{
+		RateLimits:  make([]*contracts.CreateTaskRateLimit, len(t.RateLimits)),
+		Concurrency: make([]*contracts.Concurrency, len(t.Concurrency)),
+	}
 
-	rateLimits := make([]*contracts.CreateTaskRateLimit, len(t.RateLimits))
+	// Only set Retries if it's not nil
+	if t.Retries != nil {
+		taskOpts.Retries = *t.Retries
+	}
+
 	for j, rateLimit := range t.RateLimits {
-		rateLimits[j] = &contracts.CreateTaskRateLimit{
+		taskOpts.RateLimits[j] = &contracts.CreateTaskRateLimit{
 			Key:     rateLimit.Key,
 			KeyExpr: rateLimit.KeyExpr,
 		}
 	}
 
-	concurrencyOpts := make([]*contracts.Concurrency, len(t.Concurrency))
 	for j, concurrency := range t.Concurrency {
-		concurrencyOpts[j] = &contracts.Concurrency{
+		concurrencyOpts := &contracts.Concurrency{
 			Expression: concurrency.Expression,
 			MaxRuns:    concurrency.MaxRuns,
 		}
@@ -205,17 +209,10 @@ func makeContractTaskOpts[I any, O any](t *TaskShared[I, O], taskDefaults *TaskD
 			strategy := *concurrency.LimitStrategy
 			strategyInt := contracts.ConcurrencyLimitStrategy_value[string(strategy)]
 			strategyEnum := contracts.ConcurrencyLimitStrategy(strategyInt)
-			concurrencyOpts[j].LimitStrategy = &strategyEnum
+			concurrencyOpts.LimitStrategy = &strategyEnum
 		}
-	}
 
-	taskOpts := &contracts.CreateTaskOpts{
-		Retries:    *t.Retries,
-		RateLimits: rateLimits,
-		// TODO WorkerLabels:      task.WorkerLabels,
-		BackoffFactor:     t.RetryBackoffFactor,
-		BackoffMaxSeconds: t.RetryMaxBackoffSeconds,
-		Concurrency:       concurrencyOpts,
+		taskOpts.Concurrency[j] = concurrencyOpts
 	}
 
 	if t.ExecutionTimeout != nil {

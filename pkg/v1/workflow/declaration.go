@@ -9,6 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 
+	"reflect"
+
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
@@ -58,13 +60,18 @@ type WorkflowBase interface {
 type WorkflowDeclaration[I any, O any] interface {
 	WorkflowBase
 
-	// Task creates and adds a new task to the workflow based on the provided options.
-	// Returns a pointer to the created task declaration for future reference.
-	Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O]
+	// Task registers a task that will be executed as part of the workflow
+	Task(opts task.CreateOpts[I], fn interface{}) *task.TaskDeclaration[I, any]
 
 	// Run executes the workflow with the provided input.
-	// Returns the workflow output and any error encountered during execution.
 	Run(input I) (*O, error)
+}
+
+// Define a TaskDeclaration with specific output type
+type TaskWithSpecificOutput[I any, T any] struct {
+	Name string
+	Fn   func(input I, ctx worker.HatchetContext) (*T, error)
+	// other fields
 }
 
 // workflowDeclarationImpl is the concrete implementation of WorkflowDeclaration.
@@ -83,7 +90,13 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 	TaskDefaults *task.TaskDefaults
 
-	tasks []*task.TaskDeclaration[I, O]
+	tasks []*task.TaskDeclaration[I, any]
+
+	// Store task functions with their specific output types
+	taskFuncs map[string]interface{}
+
+	// Map to store task output setters
+	outputSetters map[string]func(*O, interface{})
 }
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
@@ -98,7 +111,9 @@ func NewWorkflowDeclaration[I any, O any](opts CreateOpts, v0 *v0Client.Client) 
 		OnFailureTask:  opts.OnFailureTask,
 		StickyStrategy: opts.StickyStrategy,
 		TaskDefaults:   opts.TaskDefaults,
-		tasks:          []*task.TaskDeclaration[I, O]{},
+		tasks:          []*task.TaskDeclaration[I, any]{},
+		taskFuncs:      make(map[string]interface{}),
+		outputSetters:  make(map[string]func(*O, interface{})),
 	}
 
 	if opts.Version != "" {
@@ -112,12 +127,52 @@ func NewWorkflowDeclaration[I any, O any](opts CreateOpts, v0 *v0Client.Client) 
 	return wf
 }
 
-// Task creates a new task declaration with the provided options and adds it to the workflow.
-// Returns a pointer to the created task declaration for future reference.
-func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O] {
-	task := task.NewTaskDeclaration(opts)
-	w.tasks = append(w.tasks, task)
-	return task
+// TaskOutput registers a task with a specific output type and how to map it to the final result
+func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I], fn interface{}) *task.TaskDeclaration[I, any] {
+
+	name := opts.Name
+	// Use reflection to validate the function type
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func ||
+		fnType.NumIn() != 2 ||
+		fnType.NumOut() != 2 ||
+		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		panic("Invalid function type for task " + name + ": must be func(I, worker.HatchetContext) (*T, error)")
+	}
+
+	// Create a setter function that can set this specific output type to the corresponding field in O
+	w.outputSetters[name] = func(result *O, output interface{}) {
+		resultValue := reflect.ValueOf(result).Elem()
+		field := resultValue.FieldByName(name)
+
+		if field.IsValid() && field.CanSet() {
+			outputValue := reflect.ValueOf(output).Elem()
+			field.Set(outputValue)
+		}
+	}
+
+	// Create a generic task function that wraps the specific one
+	genericFn := func(input I, ctx worker.HatchetContext) (*any, error) {
+		// Use reflection to call the specific function
+		fnValue := reflect.ValueOf(fn)
+		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+		results := fnValue.Call(inputs)
+
+		// Handle errors
+		if !results[1].IsNil() {
+			return nil, results[1].Interface().(error)
+		}
+
+		// Return the output as any
+		output := results[0].Interface()
+		return &output, nil
+	}
+
+	taskDecl := task.NewTaskDeclaration(opts, genericFn)
+	w.tasks = append(w.tasks, taskDecl)
+	w.taskFuncs[name] = fn
+
+	return taskDecl
 }
 
 // Run executes the workflow with the provided input.
@@ -189,10 +244,12 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		req.Sticky = &stickyStrategy
 	}
 
-	// wrap the v1 task functions to be compatible with the v0 worker
+	// Create wrapper functions for each task
 	fns := make([]WrappedTaskFn, len(w.tasks))
 	for i, task := range w.tasks {
-		t := task // Create a local copy to avoid closure issues
+		taskName := task.Name
+		originalFn := w.taskFuncs[taskName]
+
 		fns[i] = func(ctx worker.HatchetContext) (interface{}, error) {
 			var input I
 			err := ctx.WorkflowInput(&input)
@@ -200,12 +257,18 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 				return nil, err
 			}
 
-			result, err := t.Fn(input, ctx)
-			if err != nil {
-				return nil, err
+			// Call the original function using reflection
+			fnValue := reflect.ValueOf(originalFn)
+			inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+			results := fnValue.Call(inputs)
+
+			// Handle errors
+			if !results[1].IsNil() {
+				return nil, results[1].Interface().(error)
 			}
 
-			return result, nil
+			// Return the output
+			return results[0].Interface(), nil
 		}
 	}
 
@@ -229,3 +292,5 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 	return req, fns, onFailureFn
 }
+
+// When executing a task, use type assertions to handle the specific output

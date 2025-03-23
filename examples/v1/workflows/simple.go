@@ -1,7 +1,6 @@
 package v1_workflows
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -20,13 +19,8 @@ type LowerOutput struct {
 	TransformedMessage string `json:"message"`
 }
 
-type ReverseOutput struct {
-	TransformedMessage string `json:"message"`
-}
-
 type Result struct {
-	ToLower LowerOutput   `json:"to_lower"` // to_lower is the task name
-	Reverse ReverseOutput `json:"reverse"`  // reverse is the task name
+	ToLower LowerOutput `json:"ToLower"` // to_lower is the task name
 }
 
 func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Result] {
@@ -44,33 +38,19 @@ func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Resul
 		hatchet,
 	)
 
-	simple.Task(task.CreateOpts[Input, Result]{
-		Name:                   "to_lower",
-		ExecutionTimeout:       10 * time.Second,
-		Retries:                3,
-		RetryBackoffFactor:     2,
-		RetryMaxBackoffSeconds: 60,
-		Fn: func(input Input, ctx worker.HatchetContext) (*Result, error) {
-			// TODO: this is a hack to get the result out of the function
-
-			time.Sleep(15 * time.Second)
-
-			select {
-			case <-ctx.Done():
-				return nil, errors.New("context done")
-			default:
-				fmt.Println("input", input)
-			}
-
-			result := &Result{
-				ToLower: LowerOutput{
-					TransformedMessage: strings.ToLower(input.Message),
-				},
-			}
-
-			return result, nil
+	toLower := simple.Task(
+		task.CreateOpts[Input]{
+			Name:             "ToLower", // field name in Result
+			ExecutionTimeout: 10 * time.Second,
 		},
-	})
+		func(input Input, ctx worker.HatchetContext) (*LowerOutput, error) {
+			return &LowerOutput{
+				TransformedMessage: strings.ToLower(input.Message),
+			}, nil
+		},
+	)
+
+	fmt.Println(toLower.Name)
 
 	return simple
 }

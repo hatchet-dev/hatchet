@@ -15,7 +15,7 @@ type AlwaysFailsOutput struct {
 
 // TODO type output..
 type OnFailureOutput struct {
-	FailureRan bool `json:"failure_ran"`
+	FailureRan bool `json:"FailureRan"`
 }
 
 func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Result] {
@@ -32,12 +32,16 @@ func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Resu
 		hatchet,
 	)
 
-	simple.Task(task.CreateOpts[any, Result]{
-		Name: "always_fails",
-		Fn: func(_ any, ctx worker.HatchetContext) (*Result, error) {
-			return nil, errors.New("always fails")
+	simple.Task(
+		task.CreateOpts[any]{
+			Name: "AlwaysFails",
 		},
-	})
+		func(_ any, ctx worker.HatchetContext) (*AlwaysFailsOutput, error) {
+			return &AlwaysFailsOutput{
+				TransformedMessage: "always fails",
+			}, errors.New("always fails")
+		},
+	)
 
 	return simple
 }
