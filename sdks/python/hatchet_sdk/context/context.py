@@ -233,3 +233,7 @@ class Context:
         errors = self.data.step_run_errors
 
         return errors.get(task.name)
+
+
+class DurableContext(Context):
+    pass

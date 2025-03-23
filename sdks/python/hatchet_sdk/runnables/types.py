@@ -5,7 +5,7 @@ from typing import Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Uni
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
-from hatchet_sdk.context.context import Context
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -116,4 +116,23 @@ def is_async_fn(
 def is_sync_fn(
     fn: TaskFunc[TWorkflowInput, R]
 ) -> TypeGuard[SyncFunc[TWorkflowInput, R]]:
+    return not asyncio.iscoroutinefunction(fn)
+
+
+DurableAsyncFunc = Callable[[TWorkflowInput, DurableContext], Awaitable[R]]
+DurableSyncFunc = Callable[[TWorkflowInput, DurableContext], R]
+DurableTaskFunc = Union[
+    DurableAsyncFunc[TWorkflowInput, R], DurableSyncFunc[TWorkflowInput, R]
+]
+
+
+def is_durable_async_fn(
+    fn: DurableTaskFunc[TWorkflowInput, R]
+) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
+    return asyncio.iscoroutinefunction(fn)
+
+
+def is_durable_sync_fn(
+    fn: DurableTaskFunc[TWorkflowInput, R]
+) -> TypeGuard[DurableSyncFunc[TWorkflowInput, R]]:
     return not asyncio.iscoroutinefunction(fn)
