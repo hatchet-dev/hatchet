@@ -26,7 +26,7 @@ import { WorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/workflow';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import { CreateOnFailureTaskOpts } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
-import { Context, CreateStep, mapRateLimit, StepRunFunction } from '../../step';
+import { Context, CreateStep, DurableContext, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -137,6 +137,19 @@ export class V0Worker {
     return this.registerWorkflow(initWorkflow);
   }
 
+  registerDurableActionsV1(workflow: WorkflowDefinition) {
+    const newActions = workflow.durableTasks.reduce<ActionRegistry>((acc, task) => {
+      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
+        task.fn(ctx.workflowInput(), ctx);
+      return acc;
+    }, {});
+
+    this.action_registry = {
+      ...this.action_registry,
+      ...newActions,
+    };
+  }
+
   private registerActionsV1(workflow: WorkflowDefinition) {
     const newActions = workflow.tasks.reduce<ActionRegistry>((acc, task) => {
       acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
@@ -239,7 +252,7 @@ export class V0Worker {
         sticky: workflow.sticky,
         concurrency,
         onFailureTask,
-        tasks: workflow.tasks.map<CreateTaskOpts>((task) => ({
+        tasks: [...workflow.tasks, ...workflow.durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
           timeout:
@@ -375,7 +388,8 @@ export class V0Worker {
     const { actionId } = action;
 
     try {
-      const context = new Context(action, this.client, this);
+      // Note: we always use a DurableContext since its a superset of the Context class
+      const context = new DurableContext(action, this.client, this);
       this.contexts[action.stepRunId] = context;
 
       const step = this.action_registry[actionId];
@@ -672,6 +686,10 @@ export class V0Worker {
   async start() {
     // ensure all workflows are registered
     await Promise.all(this.registeredWorkflowPromises);
+
+    if (Object.keys(this.action_registry).length === 0) {
+      return;
+    }
 
     try {
       this.listener = await this.client.dispatcher.getActionListener({

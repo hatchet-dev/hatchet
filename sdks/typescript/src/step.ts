@@ -13,6 +13,7 @@ import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
 import { CreateTaskOpts } from './v1/task';
 import { WorkflowDeclaration as WorkflowV1 } from './v1/workflow';
+import sleep from './util/sleep';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -507,6 +508,18 @@ export class Context<T, K = {}> {
 
   parentWorkflowRunId(): string | undefined {
     return this.action.parentWorkflowRunId;
+  }
+}
+
+export class DurableContext<T, K = {}> extends Context<T, K> {
+  sleepFor(duration: number): Promise<unknown> {
+    // TODO implement
+    throw new HatchetError('sleepFor is not implemented for durable contexts');
+  }
+
+  waitFor(): string {
+    // TODO implement
+    throw new HatchetError('waitFor is not implemented for durable contexts');
   }
 }
 

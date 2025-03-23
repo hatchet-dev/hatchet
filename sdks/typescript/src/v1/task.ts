@@ -1,5 +1,5 @@
 import { ConcurrencyLimitStrategy } from '@hatchet/protoc/v1/workflows';
-import { Context, CreateStep } from '@hatchet/step';
+import { Context, CreateStep, DurableContext } from '@hatchet/step';
 import { Conditions } from './conditions';
 
 /**
@@ -32,6 +32,7 @@ export type TaskConcurrency = {
 };
 
 export type TaskFn<T, K> = (input: T, ctx: Context<T>) => K | Promise<K>;
+export type DurableTaskFn<T, K> = (input: T, ctx: DurableContext<T>) => K | Promise<K>;
 
 /**
  * Options for creating a hatchet task which is an atomic unit of work in a workflow.
@@ -167,6 +168,21 @@ export type CreateTaskOpts<T, K> = {
    * ```
    */
   skipIf?: Conditions | Conditions[];
+};
+
+/**
+ * Options for creating a hatchet durable task which is an atomic unit of work in a workflow.
+ * @template T The input type for the task function.
+ * @template K The return type of the task function (can be inferred from the return value of fn).
+ */
+export type CreateDurableTaskOpts<T, K> = CreateTaskOpts<T, K> & {
+  /**
+   * The function to execute when the task runs.
+   * @param input The input data for the workflow invocation.
+   * @param ctx The execution context for the task.
+   * @returns The result of the task execution.
+   */
+  fn: DurableTaskFn<T, K>;
 };
 
 /**

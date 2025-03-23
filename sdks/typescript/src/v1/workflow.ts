@@ -1,10 +1,16 @@
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context, JsonObject } from '@hatchet/step';
+import { Context, DurableContext, JsonObject } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
-import { CreateTaskOpts, CreateOnFailureTaskOpts, TaskConcurrency, TaskFn } from './task';
+import {
+  CreateTaskOpts,
+  CreateOnFailureTaskOpts,
+  TaskConcurrency,
+  TaskFn,
+  CreateDurableTaskOpts,
+} from './task';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -149,6 +155,11 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
    * The tasks that make up this workflow.
    */
   tasks: CreateTaskOpts<any, any>[];
+
+  /**
+   * The durable tasks that make up this workflow.
+   */
+  durableTasks: CreateDurableTaskOpts<any, any>[];
 };
 
 /**
@@ -176,6 +187,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     this.definition = {
       ...options,
       tasks: [],
+      durableTasks: [],
     };
 
     this.client = client;
@@ -304,6 +316,29 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
   ): CreateTaskOpts<T, TaskOutputType<K, Name, L>> {
     const typedOptions = options as CreateTaskOpts<T, TaskOutputType<K, Name, L>>;
     this.definition.tasks.push(typedOptions);
+    return typedOptions;
+  }
+
+  /**
+   * Adds a durable task to the workflow.
+   * The return type will be either the property on K that corresponds to the task name,
+   * or if there is no matching property, the inferred return type of the function.
+   * @template Name The literal string name of the task.
+   * @template L The inferred return type of the task function.
+   * @param options The task configuration options.
+   * @returns The task options that were added.
+   */
+  durableTask<Name extends string, L>(
+    options: Omit<CreateTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+      name: Name;
+      fn: (
+        input: T,
+        ctx: DurableContext<T>
+      ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+    }
+  ): CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>> {
+    const typedOptions = options as unknown as CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>>;
+    this.definition.durableTasks.push(typedOptions);
     return typedOptions;
   }
 
