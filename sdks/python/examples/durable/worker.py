@@ -5,6 +5,7 @@ from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, SleepCondi
 hatchet = Hatchet(debug=True)
 
 durable_workflow = hatchet.workflow(name="DurableWorkflow")
+ephemeral_workflow = hatchet.workflow(name="EphemeralWorkflow")
 
 
 @durable_workflow.task()
@@ -19,8 +20,15 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> None:
     print("Signal received")
 
 
+@ephemeral_workflow.task()
+def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
+    print("Running non-durable task")
+
+
 def main() -> None:
-    worker = hatchet.worker("durable-worker", workflows=[durable_workflow])
+    worker = hatchet.worker(
+        "durable-worker", workflows=[durable_workflow, ephemeral_workflow]
+    )
     worker.start()
 
 
