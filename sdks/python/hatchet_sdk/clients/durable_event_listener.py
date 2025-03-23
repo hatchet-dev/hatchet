@@ -30,9 +30,10 @@ DEFAULT_DURABLE_EVENT_LISTENER_INTERRUPT_INTERVAL = 1800  # 30 minutes
 
 
 class _Subscription:
-    def __init__(self, id: int, task_id: str):
+    def __init__(self, id: int, task_id: str, signal_key: str):
         self.id = id
         self.task_id = task_id
+        self.signal_key = signal_key
         self.queue: asyncio.Queue[DurableEvent | None] = asyncio.Queue()
 
     async def __aiter__(self) -> "_Subscription":
@@ -224,10 +225,12 @@ class DurableEventListener:
             self.requests.task_done()
 
     def cleanup_subscription(self, subscription_id: int) -> None:
-        task_id = self.subscriptions_to_task_id_signal_key[subscription_id]
+        task_id_signal_key = self.subscriptions_to_task_id_signal_key[subscription_id]
 
-        if task_id in self.task_id_signal_key_to_subscriptions:
-            self.task_id_signal_key_to_subscriptions[task_id].remove(subscription_id)
+        if task_id_signal_key in self.task_id_signal_key_to_subscriptions:
+            self.task_id_signal_key_to_subscriptions[task_id_signal_key].remove(
+                subscription_id
+            )
 
         del self.subscriptions_to_task_id_signal_key[subscription_id]
         del self.events[subscription_id]
@@ -253,7 +256,9 @@ class DurableEventListener:
                     subscription_id
                 )
 
-            self.events[subscription_id] = _Subscription(subscription_id, task_id)
+            self.events[subscription_id] = _Subscription(
+                subscription_id, task_id, signal_key
+            )
 
             await self.requests.put(
                 ListenForDurableEventRequest(
