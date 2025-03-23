@@ -16,6 +16,7 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.durable_event_listener import DurableEventListener
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
@@ -88,6 +89,7 @@ class Runner:
         self.admin_client = AdminClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
         self.client.workflow_listener = PooledWorkflowRunListener(self.config)
+        self.durable_event_listener = DurableEventListener(self.config)
 
         self.worker_context = WorkerContext(
             labels=labels, client=Client(config=config).dispatcher
@@ -272,6 +274,7 @@ class Runner:
             self.client.event,
             self.client.rest,
             self.client.workflow_listener,
+            self.durable_event_listener,
             self.workflow_run_event_listener,
             self.worker_context,
             self.client.config.namespace,

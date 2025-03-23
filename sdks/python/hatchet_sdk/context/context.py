@@ -11,6 +11,10 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
     Action,
     DispatcherClient,
 )
+from hatchet_sdk.clients.durable_event_listener import (
+    DurableEventListener,
+    RegisterDurableEventRequest,
+)
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
@@ -48,6 +52,7 @@ class Context:
         event_client: EventClient,
         rest_client: RestApi,
         workflow_listener: PooledWorkflowRunListener | None,
+        durable_event_listener: DurableEventListener | None,
         workflow_run_event_listener: RunEventListenerClient,
         worker: WorkerContext,
         namespace: str = "",
@@ -67,6 +72,7 @@ class Context:
         self.event_client = event_client
         self.rest_client = rest_client
         self.workflow_listener = workflow_listener
+        self.durable_event_listener = durable_event_listener
         self.workflow_run_event_listener = workflow_run_event_listener
         self.namespace = namespace
 
@@ -236,4 +242,8 @@ class Context:
 
 
 class DurableContext(Context):
-    pass
+    def wait_for(self, request: RegisterDurableEventRequest) -> None:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable event listener is not available")
+
+        self.durable_event_listener.register_durable_event(request)

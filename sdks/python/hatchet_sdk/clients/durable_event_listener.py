@@ -1,10 +1,11 @@
 import asyncio
 from collections.abc import AsyncIterator
-from typing import cast
+from typing import Literal, cast
 
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
+from pydantic import BaseModel
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.config import ClientConfig
@@ -13,9 +14,14 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableEvent,
     ListenForDurableEventRequest,
 )
+from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    RegisterDurableEventRequest as RegisterDurableEventRequestProto,
+)
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
+from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL = 3  # seconds
 DEFAULT_WORKFLOW_LISTENER_RETRY_COUNT = 5
@@ -51,6 +57,28 @@ class _Subscription:
         await self.queue.put(None)
 
 
+class RegisterDurableEventRequest(BaseModel):
+    task_id: str
+    signal_key: str
+    conditions: list[SleepCondition | UserEventCondition]
+
+    def to_proto(self) -> RegisterDurableEventRequestProto:
+        return RegisterDurableEventRequestProto(
+            task_id=self.task_id,
+            signal_key=self.signal_key,
+            conditions=DurableEventListenerConditions(
+                sleep_conditions=[
+                    c.to_pb() for c in self.conditions if isinstance(c, SleepCondition)
+                ],
+                user_event_conditions=[
+                    c.to_pb()
+                    for c in self.conditions
+                    if isinstance(c, UserEventCondition)
+                ],
+            ),
+        )
+
+
 class DurableEventListener:
     def __init__(self, config: ClientConfig):
         try:
@@ -64,11 +92,11 @@ class DurableEventListener:
         self.token = config.token
         self.config = config
 
-        # list of all active subscriptions, mapping from a subscription id to a task run id
-        self.subscriptions_to_task_id: dict[int, str] = {}
+        # list of all active subscriptions, mapping from a subscription id to a task id and signal key
+        self.subscriptions_to_task_id_signal_key: dict[int, tuple[str, str]] = {}
 
-        # list of task run ids mapped to an array of subscription ids
-        self.task_id_to_subscriptions: dict[str, list[int]] = {}
+        # task id-signal key tuples mapped to an array of subscription ids
+        self.task_id_signal_key_to_subscriptions: dict[tuple[str, str], list[int]] = {}
 
         self.subscription_counter: int = 0
         self.subscription_counter_lock: asyncio.Lock = asyncio.Lock()
@@ -143,8 +171,10 @@ class DurableEventListener:
                                 break
 
                             # get a list of subscriptions for this workflow
-                            subscriptions = self.task_id_to_subscriptions.get(
-                                event.task_id, []
+                            subscriptions = (
+                                self.task_id_signal_key_to_subscriptions.get(
+                                    (event.task_id, event.signal_key), []
+                                )
                             )
 
                             for subscription_id in subscriptions:
@@ -170,9 +200,12 @@ class DurableEventListener:
         self.curr_requester = self.curr_requester + 1
 
         # replay all existing subscriptions
-        for task_id in set(self.subscriptions_to_task_id.values()):
+        for task_id, signal_key in set(
+            self.subscriptions_to_task_id_signal_key.values()
+        ):
             yield ListenForDurableEventRequest(
                 task_id=task_id,
+                signal_key=signal_key,
             )
 
         while True:
@@ -190,15 +223,15 @@ class DurableEventListener:
             self.requests.task_done()
 
     def cleanup_subscription(self, subscription_id: int) -> None:
-        task_id = self.subscriptions_to_task_id[subscription_id]
+        task_id = self.subscriptions_to_task_id_signal_key[subscription_id]
 
-        if task_id in self.task_id_to_subscriptions:
-            self.task_id_to_subscriptions[task_id].remove(subscription_id)
+        if task_id in self.task_id_signal_key_to_subscriptions:
+            self.task_id_signal_key_to_subscriptions[task_id].remove(subscription_id)
 
-        del self.subscriptions_to_task_id[subscription_id]
+        del self.subscriptions_to_task_id_signal_key[subscription_id]
         del self.events[subscription_id]
 
-    async def subscribe(self, task_id: str) -> DurableEvent:
+    async def subscribe(self, task_id: str, signal_key: str) -> DurableEvent:
         try:
             # create a new subscription id, place a mutex on the counter
             await self.subscription_counter_lock.acquire()
@@ -206,12 +239,19 @@ class DurableEventListener:
             subscription_id = self.subscription_counter
             self.subscription_counter_lock.release()
 
-            self.subscriptions_to_task_id[subscription_id] = task_id
+            self.subscriptions_to_task_id_signal_key[subscription_id] = (
+                task_id,
+                signal_key,
+            )
 
-            if task_id not in self.task_id_to_subscriptions:
-                self.task_id_to_subscriptions[task_id] = [subscription_id]
+            if (task_id, signal_key) not in self.task_id_signal_key_to_subscriptions:
+                self.task_id_signal_key_to_subscriptions[(task_id, signal_key)] = [
+                    subscription_id
+                ]
             else:
-                self.task_id_to_subscriptions[task_id].append(subscription_id)
+                self.task_id_signal_key_to_subscriptions[(task_id, signal_key)].append(
+                    subscription_id
+                )
 
             self.events[subscription_id] = _Subscription(subscription_id, task_id)
 
@@ -260,3 +300,14 @@ class DurableEventListener:
                     raise ValueError(f"gRPC error: {e}")
 
         raise ValueError("Failed to connect to workflow run listener")
+
+    def register_durable_event(
+        self, request: RegisterDurableEventRequest
+    ) -> Literal[True]:
+        self.client.RegisterDurableEvent(
+            request.to_proto(),
+            timeout=5,
+            metadata=get_metadata(self.token),
+        )
+
+        return True
