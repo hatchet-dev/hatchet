@@ -5,7 +5,7 @@ import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
 import { WorkflowDeclaration } from '../workflow';
 
-const DEFAULT_DURABLE_SLOTS = 100_000;
+const DEFAULT_DURABLE_SLOTS = 1_000;
 
 /**
  * Options for creating a new hatchet worker
@@ -23,7 +23,7 @@ export interface CreateWorkerOpts {
   /** @deprecated Use slots instead */
   maxRuns?: number;
 
-  /** (optional) Maximum number of concurrent runs on the durable worker, defaults to 100,000 */
+  /** (optional) Maximum number of concurrent runs on the durable worker, defaults to 1,000 */
   durableSlots?: number;
 }
 
