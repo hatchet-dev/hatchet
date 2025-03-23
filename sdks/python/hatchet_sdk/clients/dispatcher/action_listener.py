@@ -291,13 +291,16 @@ class ActionListener:
 
                     self.retries = 0
 
-                    action_payload = (
-                        ActionPayload()
-                        if not assigned_action.actionPayload
-                        else ActionPayload.model_validate_json(
-                            assigned_action.actionPayload
+                    try:
+                        action_payload = (
+                            ActionPayload()
+                            if not assigned_action.actionPayload
+                            else ActionPayload.model_validate_json(
+                                assigned_action.actionPayload
+                            )
                         )
-                    )
+                    except (ValueError, json.JSONDecodeError) as e:
+                        raise ValueError(f"Error decoding payload: {e}")
 
                     action = Action(
                         tenant_id=assigned_action.tenantId,
