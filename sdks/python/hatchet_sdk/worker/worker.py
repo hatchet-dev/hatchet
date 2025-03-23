@@ -22,7 +22,7 @@ from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.task import DurableTask, Task
 from hatchet_sdk.runnables.workflow import Workflow
 from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
 from hatchet_sdk.worker.action_listener_process import (
@@ -80,6 +80,7 @@ class Worker:
 
         self.client: Client
 
+        self.durable_action_registry: dict[str, DurableTask[Any, Any]] = {}
         self.action_registry: dict[str, Task[Any, Any]] = {}
         self.validator_registry: dict[str, WorkflowValidator] = {}
 
@@ -233,7 +234,12 @@ class Worker:
         if self.config.healthcheck.enabled:
             await self.start_health_server()
 
-        self.action_listener_process = self._start_listener()
+        self.action_listener_process = self._start_action_listener()
+        self.durable_event_listener_process = (
+            self._start_durable_event_listener()
+            if self.durable_action_registry
+            else None
+        )
 
         self.action_runner = self._run_action_runner()
 
@@ -259,7 +265,31 @@ class Worker:
             self.labels,
         )
 
-    def _start_listener(self) -> multiprocessing.context.SpawnProcess:
+    def _start_action_listener(self) -> multiprocessing.context.SpawnProcess:
+        try:
+            process = self.ctx.Process(
+                target=worker_action_listener_process,
+                args=(
+                    self.name,
+                    list(self.action_registry.keys()),
+                    self.slots,
+                    self.config,
+                    self.action_queue,
+                    self.event_queue,
+                    self.handle_kill,
+                    self.client.debug,
+                    self.labels,
+                ),
+            )
+            process.start()
+            logger.debug(f"action listener starting on PID: {process.pid}")
+
+            return process
+        except Exception as e:
+            logger.error(f"failed to start action listener: {e}")
+            sys.exit(1)
+
+    def _start_durable_event_listener(self) -> multiprocessing.context.SpawnProcess:
         try:
             process = self.ctx.Process(
                 target=worker_action_listener_process,
