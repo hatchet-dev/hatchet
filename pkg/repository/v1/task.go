@@ -107,6 +107,17 @@ type TaskIdInsertedAtRetryCount struct {
 	RetryCount int32
 }
 
+type TaskIdInsertedAtSignalKey struct {
+	// (required) the external id
+	Id int64 `validate:"required"`
+
+	// (required) the inserted at time
+	InsertedAt pgtype.Timestamptz
+
+	// (required) the signal key for the event
+	SignalKey string
+}
+
 type CompleteTaskOpts struct {
 	*TaskIdInsertedAtRetryCount
 
@@ -225,6 +236,8 @@ type TaskRepository interface {
 	RefreshTimeoutBy(ctx context.Context, tenantId string, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 
 	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.V1TaskRuntime, error)
+
+	ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -2955,4 +2968,24 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	return resMap, nil
+}
+
+func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error) {
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	eventKeys := make([]string, 0)
+
+	for _, task := range tasks {
+		taskIds = append(taskIds, task.Id)
+		taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+		eventKeys = append(eventKeys, task.SignalKey)
+	}
+
+	return r.queries.ListMatchingSignalEvents(ctx, r.pool, sqlcv1.ListMatchingSignalEventsParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Eventkeys:       eventKeys,
+	})
 }
