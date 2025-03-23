@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -30,6 +31,9 @@ type DispatcherClient interface {
 	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
 
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
+
+	// TODO: GABE
+	RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error)
 }
 
 const (
@@ -151,7 +155,8 @@ type ActionEventResponse struct {
 }
 
 type dispatcherClientImpl struct {
-	client dispatchercontracts.DispatcherClient
+	client   dispatchercontracts.DispatcherClient
+	clientv1 sharedcontracts.V1DispatcherClient
 
 	tenantId string
 
@@ -167,6 +172,7 @@ type dispatcherClientImpl struct {
 func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) DispatcherClient {
 	return &dispatcherClientImpl{
 		client:             dispatchercontracts.NewDispatcherClient(conn),
+		clientv1:           sharedcontracts.NewV1DispatcherClient(conn),
 		tenantId:           opts.tenantId,
 		l:                  opts.l,
 		v:                  opts.v,
@@ -663,4 +669,8 @@ func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.Worke
 		labels[k] = &label
 	}
 	return labels
+}
+
+func (a *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
+	return a.clientv1.RegisterDurableEvent(a.ctx.newContext(ctx), req)
 }

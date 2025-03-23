@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+
+	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 type testHatchetContext struct {
@@ -84,6 +86,10 @@ func (c *testHatchetContext) StreamEvent(message []byte) {
 }
 
 func (c *testHatchetContext) RetryCount() int {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) WaitFor(*sharedcontracts.RegisterDurableEventRequest) ([]byte, error) {
 	panic("not implemented")
 }
 

@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+
+	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 type HatchetWorkerContext interface {
@@ -69,6 +71,8 @@ type HatchetContext interface {
 
 	RetryCount() int
 
+	WaitFor(c *sharedcontracts.RegisterDurableEventRequest) ([]byte, error)
+
 	client() client.Client
 
 	action() *client.Action
@@ -117,6 +121,9 @@ type hatchetContext struct {
 	indexMu    sync.Mutex
 	listener   *client.WorkflowRunsListener
 	listenerMu sync.Mutex
+
+	durableEventListener *client.DurableEventsListener
+	durableListenerMu    sync.Mutex
 }
 
 type hatchetWorkerContext struct {
@@ -295,6 +302,7 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 		return h.listener, nil
 	}
 
+	// TODO: SHOULD THIS BE THE STEP CONTEXT? PROBABLY NOT
 	listener, err := h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
 
 	if err != nil {
@@ -304,6 +312,26 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 	h.listener = listener
 
 	return listener, nil
+}
+
+func (h *hatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
+	h.durableListenerMu.Lock()
+	defer h.durableListenerMu.Unlock()
+
+	if h.durableEventListener != nil {
+		return h.durableEventListener, nil
+	}
+
+	// TODO: SHOULD THIS BE THE STEP CONTEXT? PROBABLY NOT
+	l, err := h.client().Subscribe().ListenForDurableEvents(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	h.durableEventListener = l
+
+	return l, nil
 }
 
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
@@ -352,6 +380,38 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	h.inc()
 
 	return client.NewWorkflow(workflowRunId, listener), nil
+}
+
+// TODO: GABE
+func (h *hatchetContext) WaitFor(c *sharedcontracts.RegisterDurableEventRequest) ([]byte, error) {
+	durableListener, err := h.saveOrLoadDurableEventListener()
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = h.client().Dispatcher().RegisterDurableEvent(h, c)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to register durable event: %w", err)
+	}
+
+	// TODO: there should probably an an index for signal keys
+	// h.inc()
+	resCh := make(chan []byte)
+
+	// TODO: we're just waiting for the result, but we might want to make return type more dynamic/awaitable
+	err = durableListener.AddSignal(c.TaskId, c.SignalKey, func(e client.DurableEvent) error {
+		resCh <- e.Data
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to add signal: %w", err)
+	}
+
+	return <-resCh, nil
 }
 
 type SpawnWorkflowsOpts struct {
