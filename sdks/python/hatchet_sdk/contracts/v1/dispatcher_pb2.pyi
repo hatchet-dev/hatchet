@@ -6,35 +6,33 @@ from typing import ClassVar as _ClassVar, Mapping as _Mapping, Optional as _Opti
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class RegisterDurableEventRequest(_message.Message):
-    __slots__ = ("task_id", "workflow_run_id", "conditions")
+    __slots__ = ("task_id", "signal_key", "conditions")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
-    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    SIGNAL_KEY_FIELD_NUMBER: _ClassVar[int]
     CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     task_id: str
-    workflow_run_id: str
+    signal_key: str
     conditions: _condition_pb2.DurableEventListenerConditions
-    def __init__(self, task_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ...) -> None: ...
+    def __init__(self, task_id: _Optional[str] = ..., signal_key: _Optional[str] = ..., conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ...) -> None: ...
 
 class RegisterDurableEventResponse(_message.Message):
-    __slots__ = ("match_id",)
-    MATCH_ID_FIELD_NUMBER: _ClassVar[int]
-    match_id: int
-    def __init__(self, match_id: _Optional[int] = ...) -> None: ...
+    __slots__ = ()
+    def __init__(self) -> None: ...
 
 class ListenForDurableEventRequest(_message.Message):
-    __slots__ = ("task_id", "match_id")
+    __slots__ = ("task_id", "signal_key")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
-    MATCH_ID_FIELD_NUMBER: _ClassVar[int]
+    SIGNAL_KEY_FIELD_NUMBER: _ClassVar[int]
     task_id: str
-    match_id: int
-    def __init__(self, task_id: _Optional[str] = ..., match_id: _Optional[int] = ...) -> None: ...
+    signal_key: str
+    def __init__(self, task_id: _Optional[str] = ..., signal_key: _Optional[str] = ...) -> None: ...
 
 class DurableEvent(_message.Message):
-    __slots__ = ("task_id", "match_id", "data")
+    __slots__ = ("task_id", "signal_key", "data")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
-    MATCH_ID_FIELD_NUMBER: _ClassVar[int]
+    SIGNAL_KEY_FIELD_NUMBER: _ClassVar[int]
     DATA_FIELD_NUMBER: _ClassVar[int]
     task_id: str
-    match_id: int
+    signal_key: str
     data: bytes
-    def __init__(self, task_id: _Optional[str] = ..., match_id: _Optional[int] = ..., data: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, task_id: _Optional[str] = ..., signal_key: _Optional[str] = ..., data: _Optional[bytes] = ...) -> None: ...
