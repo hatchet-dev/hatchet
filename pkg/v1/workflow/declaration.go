@@ -77,7 +77,7 @@ type WorkflowDeclaration[I any, O any] interface {
 	WorkflowBase
 
 	// Task creates and adds a new task to the workflow based on the provided options.
-	// Returns a pointer to the created task declaration.
+	// Returns a pointer to the created task declaration for future reference.
 	Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O]
 
 	// Run executes the workflow with the provided input.

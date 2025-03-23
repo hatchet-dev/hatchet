@@ -1,4 +1,4 @@
-package simple
+package v1_workflows
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ type Result struct {
 	Reverse ReverseOutput `json:"reverse"`  // reverse is the task name
 }
 
-func Workflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Result] {
+func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Result] {
 
 	simple := v1.WorkflowFactory[Input, Result](
 		workflow.CreateOpts{

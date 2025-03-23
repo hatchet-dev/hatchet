@@ -1,4 +1,4 @@
-package simple
+package v1_workflows
 
 import (
 	"errors"
@@ -13,16 +13,12 @@ type AlwaysFailsOutput struct {
 	TransformedMessage string `json:"message"`
 }
 
-type Result struct {
-	AlwaysFails AlwaysFailsOutput `json:"always_fails"` // always_fails is the task name
-}
-
 // TODO type output..
 type OnFailureOutput struct {
 	FailureRan bool `json:"failure_ran"`
 }
 
-func Workflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Result] {
+func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Result] {
 
 	simple := v1.WorkflowFactory[any, Result](
 		workflow.CreateOpts{
