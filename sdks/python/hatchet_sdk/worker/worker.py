@@ -82,6 +82,7 @@ class Worker:
 
         self.durable_action_registry: dict[str, DurableTask[Any, Any]] = {}
         self.action_registry: dict[str, Task[Any, Any]] = {}
+
         self.validator_registry: dict[str, WorkflowValidator] = {}
 
         self.killing: bool = False
@@ -131,9 +132,17 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
+        ## TODO: Make sure durables are registered here correctly
         for step in workflow.tasks:
             action_name = workflow._create_action_name(namespace, step)
-            self.action_registry[action_name] = step
+
+            if isinstance(step, DurableTask):
+                self.durable_action_registry[action_name] = step
+            elif isinstance(step, Task):
+                self.action_registry[action_name] = step
+            else:
+                raise ValueError(f"invalid step type: {type(step)}")
+
             return_type = get_type_hints(step.fn).get("return")
 
             self.validator_registry[action_name] = WorkflowValidator(
@@ -295,7 +304,7 @@ class Worker:
                 target=worker_action_listener_process,
                 args=(
                     self.name,
-                    list(self.action_registry.keys()),
+                    list(self.durable_action_registry.keys()),
                     self.slots,
                     self.config,
                     self.action_queue,
