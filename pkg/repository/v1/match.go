@@ -624,6 +624,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 
 	for _, event := range events {
 		inputData := map[string]interface{}{}
+		outputData := map[string]interface{}{}
 
 		if len(event.Data) > 0 {
 			switch eventType {
@@ -639,7 +640,7 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				}
 
 				if len(outputEventData.Output) > 0 {
-					err = json.Unmarshal(outputEventData.Output, &inputData)
+					err = json.Unmarshal(outputEventData.Output, &outputData)
 
 					if err != nil {
 						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield %s", string(event.Data))
@@ -676,14 +677,22 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			}
 
 			out, _, err := program.ContextEval(ctx, map[string]interface{}{
-				"input": inputData,
+				"input":  inputData,
+				"output": outputData,
 			})
 
 			if err != nil {
-				return nil, err
+				// FIXME: we'd like to display this error to the user somehow, which is difficult as the
+				// task hasn't necessarily been created yet. Additionally, we might have other conditions
+				// which are valid, so we don't necessarily want to fail the entire match process. At the
+				// same time, we need to remove it from the database, so we'll want to mark the condition as
+				// satisfied and write an error to it. If the relevant conditions have errors, the task
+				// should be created in a failed state.
+				// How should we handle signals?
+				m.l.Warn().Err(err).Msgf("failed to eval CEL program")
 			}
 
-			if out.Value().(bool) {
+			if b, ok := out.Value().(bool); ok && b {
 				matches[event.ID] = append(matches[event.ID], conditionIdsToConditions[conditionId])
 			}
 		}

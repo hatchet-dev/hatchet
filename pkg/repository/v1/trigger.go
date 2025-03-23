@@ -1070,7 +1070,7 @@ func getParentInDAGGroupMatch(
 			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
 			ReadableDataKey:   parentReadableId,
 			EventResourceHint: &parentExternalId,
-			Expression:        "has(input.skipped) && input.skipped",
+			Expression:        "has(output.skipped) && output.skipped",
 			Action:            sqlcv1.V1MatchConditionActionSKIP,
 		})
 	}
