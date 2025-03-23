@@ -138,10 +138,10 @@ WITH match_counts AS (
     SELECT
         m.*,
         CASE WHEN
-            (mc.total_create_groups > 0 AND mc.total_create_groups = mc.satisfied_create_groups) THEN 'CREATE'
-            WHEN (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups) THEN 'QUEUE'
+            (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
             WHEN (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups) THEN 'CANCEL'
-            WHEN (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
+            WHEN (mc.total_create_groups > 0 AND mc.total_create_groups = mc.satisfied_create_groups) THEN 'CREATE'
+            WHEN (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups) THEN 'QUEUE'
             WHEN (mc.total_create_match_groups > 0 AND mc.total_create_match_groups = mc.satisfied_create_match_groups) THEN 'CREATE_MATCH'
         END::v1_match_condition_action AS action
     FROM

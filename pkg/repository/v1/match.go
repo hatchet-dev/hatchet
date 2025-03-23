@@ -323,7 +323,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	}
 
 	// pass match conditions through CEL expressions parser
-	matches, err := m.processCELExpressions(ctx, events, matchConditions)
+	matches, err := m.processCELExpressions(ctx, events, matchConditions, eventType)
 
 	if err != nil {
 		return nil, err
@@ -591,7 +591,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	return res, nil
 }
 
-func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow, eventType sqlcv1.V1EventType) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
 	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
@@ -626,11 +626,40 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		inputData := map[string]interface{}{}
 
 		if len(event.Data) > 0 {
-			err := json.Unmarshal(event.Data, &inputData)
+			switch eventType {
+			case sqlcv1.V1EventTypeINTERNAL:
+				// first unmarshal to event data, then parse the output data
+				outputEventData := &TaskOutputEvent{}
 
-			if err != nil {
-				m.l.Error().Err(err).Msgf("failed to unmarshal event data %s", string(event.Data))
-				return nil, err
+				err := json.Unmarshal(event.Data, &outputEventData)
+
+				if err != nil {
+					m.l.Warn().Err(err).Msgf("[0] failed to unmarshal output event data %s", string(event.Data))
+					continue
+				}
+
+				if len(outputEventData.Output) > 0 {
+					err = json.Unmarshal(outputEventData.Output, &inputData)
+
+					if err != nil {
+						m.l.Warn().Err(err).Msgf("failed to unmarshal output event data, output subfield %s", string(event.Data))
+						continue
+					}
+				} else {
+					err = json.Unmarshal(event.Data, &inputData)
+
+					if err != nil {
+						m.l.Warn().Err(err).Msgf("[1] failed to unmarshal output event data %s", string(event.Data))
+						continue
+					}
+				}
+			case sqlcv1.V1EventTypeUSER:
+				err := json.Unmarshal(event.Data, &inputData)
+
+				if err != nil {
+					m.l.Warn().Err(err).Msgf("failed to unmarshal user event data %s", string(event.Data))
+					continue
+				}
 			}
 		}
 
