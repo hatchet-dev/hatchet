@@ -43,7 +43,6 @@ class WorkerStatus(Enum):
     STARTING = 2
     HEALTHY = 3
     UNHEALTHY = 4
-    STOPPED = 5
 
 
 @dataclass
@@ -351,13 +350,11 @@ class Worker:
         signal.signal(signal.SIGQUIT, self._handle_force_quit_signal)
 
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
-        self._status = WorkerStatus.STOPPED
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
         self.loop.create_task(self.exit_gracefully())
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
-        self._status = WorkerStatus.STOPPED
         logger.info("received SIGQUIT...")
         self.loop.create_task(self._exit_forcefully())
 
