@@ -152,7 +152,6 @@ class ActionListener:
         self.config = config
         self.worker_id = worker_id
 
-        self.client = DispatcherStub(new_conn(self.config, False))  # type: ignore[no-untyped-call]
         self.aio_client = DispatcherStub(new_conn(self.config, True))  # type: ignore[no-untyped-call]
         self.token = self.config.token
 
@@ -293,9 +292,11 @@ class ActionListener:
                     self.retries = 0
 
                     action_payload = (
-                        {}
+                        ActionPayload()
                         if not assigned_action.actionPayload
-                        else self.parse_action_payload(assigned_action.actionPayload)
+                        else ActionPayload.model_validate_json(
+                            assigned_action.actionPayload
+                        )
                     )
 
                     action = Action(
@@ -309,7 +310,7 @@ class ActionListener:
                         step_id=assigned_action.stepId,
                         step_run_id=assigned_action.stepRunId,
                         action_id=assigned_action.actionId,
-                        action_payload=ActionPayload.model_validate(action_payload),
+                        action_payload=action_payload,
                         action_type=convert_proto_enum_to_python(
                             assigned_action.actionType,
                             ActionType,
@@ -352,16 +353,10 @@ class ActionListener:
 
                     self.retries = self.retries + 1
 
-    def parse_action_payload(self, payload: str) -> JSONSerializableMapping:
-        try:
-            return cast(JSONSerializableMapping, json.loads(payload))
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Error decoding payload: {e}")
-
     async def get_listen_client(
         self,
     ) -> grpc.aio.UnaryStreamCall[WorkerListenRequest, AssignedAction]:
-        current_time = int(time.time())
+        current_time = time.time()
 
         if (
             current_time - self.last_connection_attempt
@@ -438,8 +433,10 @@ class ActionListener:
                 timeout=5,
                 metadata=get_metadata(self.token),
             )
+
             if self.interrupt is not None:
                 self.interrupt.set()
+
             return cast(WorkerUnsubscribeRequest, req)
         except grpc.RpcError as e:
             raise Exception(f"Failed to unsubscribe: {e}")
