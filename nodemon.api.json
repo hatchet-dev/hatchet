@@ -6,8 +6,8 @@
         "cmd/hatchet-api",
         "api",
         "internal",
-        "pkg",
         "go.mod",
         "go.sum"
     ]
+
 }

@@ -1,7 +1,7 @@
 package main
 
 import (
-	simpleWorkflow "github.com/hatchet-dev/hatchet/examples/v1/simple/workflow"
+	wf "github.com/hatchet-dev/hatchet/examples/v1/dag/workflow"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
 	"github.com/joho/godotenv"
@@ -19,13 +19,13 @@ func main() {
 		panic(err)
 	}
 
-	simple := simpleWorkflow.Workflow(&hatchet)
+	dag := wf.Workflow(&hatchet)
 
 	worker, err := hatchet.Worker(
 		worker.CreateOpts{
-			Name: "simple-worker",
+			Name: "dag-worker",
 		},
-		worker.WithWorkflows(simple),
+		worker.WithWorkflows(dag),
 	)
 
 	if err != nil {

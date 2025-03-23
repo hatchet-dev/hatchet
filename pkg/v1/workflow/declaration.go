@@ -1,63 +1,236 @@
+// Package workflow provides functionality for defining, managing, and executing
+// workflows in Hatchet. A workflow is a collection of tasks with defined
+// dependencies and execution logic.
 package workflow
 
 import (
-	"reflect"
-
-	"github.com/hatchet-dev/hatchet/pkg/client"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
+// WrappedTaskFn represents a task function that can be executed by the Hatchet worker.
+// It takes a HatchetContext and returns an interface{} result and an error.
+type WrappedTaskFn func(ctx worker.HatchetContext) (interface{}, error)
+
+// TaskDefaults defines default configuration values for tasks within a workflow.
+type TaskDefaults struct {
+	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
+	ExecutionTimeout string
+
+	// ScheduleTimeout specifies the maximum time a task can wait to be scheduled
+	ScheduleTimeout string
+
+	// Retries defines the number of times to retry a failed task
+	Retries int32
+
+	// RetryBackoffFactor is the multiplier for increasing backoff between retries
+	RetryBackoffFactor *float32
+
+	// RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
+	RetryMaxBackoffSeconds *int32
+}
+
+// CreateOpts contains configuration options for creating a new workflow.
 type CreateOpts struct {
+	// The friendly name of the workflow
 	Name string
 
-	InputType  reflect.Type
-	OutputType reflect.Type
+	// The version of the workflow
+	Version string
+
+	// The human-readable description of the workflow
+	Description string
+
+	// The event names that trigger the workflow
+	OnEvents []string
+
+	// The cron expressions for scheduled workflow runs
+	OnCron []string
+
+	// Concurrency settings to control parallel execution
+	Concurrency *types.Concurrency
+
+	// Task to execute when workflow fails
+	OnFailureTask *task.OnFailureTaskDeclaration[any, any]
+
+	// Strategy for sticky execution of workflow runs
+	StickyStrategy *types.StickyStrategy
+
+	// Default settings for all tasks within this workflow
+	TaskDefaults *TaskDefaults
 }
 
+// WorkflowBase defines the common interface for all workflow types.
 type WorkflowBase interface {
-	Name() string
+	// Dump converts the workflow declaration into a protobuf request and function mappings.
+	// Returns the workflow definition, the task functions, and the on failure task function.
+	Dump() (*contracts.CreateWorkflowVersionRequest, []WrappedTaskFn, WrappedTaskFn)
 }
 
+// WorkflowDeclaration represents a workflow with input type I and output type O.
+// It provides methods to define tasks, specify dependencies, and execute the workflow.
 type WorkflowDeclaration[I any, O any] interface {
 	WorkflowBase
-	Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O]
-	WithParents(parents ...*task.TaskDeclaration[I, O]) []*task.TaskDeclaration[I, O]
 
-	// TODO bind runs and things
+	// Task creates and adds a new task to the workflow based on the provided options.
+	// Returns a pointer to the created task declaration.
+	Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O]
+
+	// Run executes the workflow with the provided input.
+	// Returns the workflow output and any error encountered during execution.
 	Run(input I) (*O, error)
 }
 
+// workflowDeclarationImpl is the concrete implementation of WorkflowDeclaration.
+// It contains all the data and logic needed to define and execute a workflow.
 type workflowDeclarationImpl[I any, O any] struct {
 	v0 *v0Client.Client
 
-	name  string
+	Name            string
+	ScheduleTimeout string
+	Version         string
+	Description     string
+	OnEvents        []string
+	OnCron          []string
+	Concurrency     *types.Concurrency
+	OnFailureTask   *task.OnFailureTaskDeclaration[any, any]
+	StickyStrategy  *types.StickyStrategy
+
+	TaskDefaults *TaskDefaults
+
 	tasks []*task.TaskDeclaration[I, O]
 }
 
-func NewWorkflowDeclaration[I any, O any](opts CreateOpts, v0 *client.Client) WorkflowDeclaration[I, O] {
+// NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
+// The workflow will have input type I and output type O.
+func NewWorkflowDeclaration[I any, O any](opts CreateOpts, v0 *v0Client.Client) WorkflowDeclaration[I, O] {
 	return &workflowDeclarationImpl[I, O]{
-		v0:    v0,
-		name:  opts.Name,
-		tasks: []*task.TaskDeclaration[I, O]{},
+		v0:             v0,
+		Name:           opts.Name,
+		Version:        opts.Version,
+		Description:    opts.Description,
+		OnEvents:       opts.OnEvents,
+		OnCron:         opts.OnCron,
+		Concurrency:    opts.Concurrency,
+		OnFailureTask:  opts.OnFailureTask,
+		StickyStrategy: opts.StickyStrategy,
+		TaskDefaults:   opts.TaskDefaults,
+		tasks:          []*task.TaskDeclaration[I, O]{},
 	}
 }
 
+// Task creates a new task declaration with the provided options and adds it to the workflow.
+// Returns a pointer to the created task declaration for future reference.
 func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I, O]) *task.TaskDeclaration[I, O] {
 	task := task.NewTaskDeclaration(opts)
 	w.tasks = append(w.tasks, task)
 	return task
 }
 
-func (w *workflowDeclarationImpl[I, O]) WithParents(parents ...*task.TaskDeclaration[I, O]) []*task.TaskDeclaration[I, O] {
-	w.tasks = append(w.tasks, parents...)
-	return w.tasks
-}
-
+// Run executes the workflow with the provided input.
+// It triggers a workflow run via the Hatchet client and waits for the result.
+// Returns the workflow output and any error encountered during execution.
 func (w *workflowDeclarationImpl[I, O]) Run(input I) (*O, error) {
+	// TODO run opts
+	run, err := (*w.v0).Admin().RunWorkflow(w.Name, input)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO the result method does not work as expect at this time
+	_, err = run.Result()
+
+	if err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
-func (w *workflowDeclarationImpl[I, O]) Name() string {
-	return w.name
+// Dump converts the workflow declaration into a protobuf request and function mappings.
+// This is used to serialize the workflow for transmission to the Hatchet server.
+// Returns the workflow definition as a protobuf request, the task functions, and the on-failure task function.
+func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersionRequest, []WrappedTaskFn, WrappedTaskFn) {
+	taskOpts := make([]*contracts.CreateTaskOpts, len(w.tasks))
+	for i, task := range w.tasks {
+		taskOpts[i] = task.Dump(w.Name)
+	}
+
+	req := &contracts.CreateWorkflowVersionRequest{
+		Tasks: taskOpts,
+
+		Name:          w.Name,
+		Version:       w.Version,
+		Description:   w.Description,
+		EventTriggers: w.OnEvents,
+		CronTriggers:  w.OnCron,
+	}
+
+	if w.Concurrency != nil {
+		req.Concurrency = &contracts.Concurrency{
+			Expression: w.Concurrency.Expression,
+			MaxRuns:    w.Concurrency.MaxRuns,
+		}
+
+		if w.Concurrency.LimitStrategy != nil {
+			strategy := *w.Concurrency.LimitStrategy
+			strategyInt := contracts.ConcurrencyLimitStrategy_value[string(strategy)]
+			strategyEnum := contracts.ConcurrencyLimitStrategy(strategyInt)
+			req.Concurrency.LimitStrategy = &strategyEnum
+		}
+	}
+
+	if w.OnFailureTask != nil {
+		req.OnFailureTask = w.OnFailureTask.Dump(w.Name)
+	}
+
+	if w.StickyStrategy != nil {
+		stickyStrategy := contracts.StickyStrategy(*w.StickyStrategy)
+		req.Sticky = &stickyStrategy
+	}
+
+	// wrap the v1 task functions to be compatible with the v0 worker
+	fns := make([]WrappedTaskFn, len(w.tasks))
+	for i, task := range w.tasks {
+		t := task // Create a local copy to avoid closure issues
+		fns[i] = func(ctx worker.HatchetContext) (interface{}, error) {
+			var input I
+			err := ctx.WorkflowInput(&input)
+			if err != nil {
+				return nil, err
+			}
+
+			result, err := t.Fn(input, ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			return result, nil
+		}
+	}
+
+	var onFailureFn WrappedTaskFn
+	if w.OnFailureTask != nil {
+		onFailureFn = func(ctx worker.HatchetContext) (interface{}, error) {
+			var input I
+			err := ctx.WorkflowInput(&input)
+			if err != nil {
+				return nil, err
+			}
+
+			result, err := w.OnFailureTask.Fn(input, ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			return result, nil
+		}
+	}
+
+	return req, fns, onFailureFn
 }

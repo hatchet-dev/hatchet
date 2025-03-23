@@ -55,6 +55,10 @@ func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 	return nil
 }
 
+func (r *WorkflowResult) Results() (interface{}, error) {
+	return r.workflowRun.Results, nil
+}
+
 func (c *Workflow) Result() (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
 

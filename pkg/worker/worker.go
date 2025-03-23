@@ -18,6 +18,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 type actionFunc func(args ...any) []any
@@ -123,27 +125,11 @@ type WorkerOpts struct {
 }
 
 func defaultWorkerOpts() *WorkerOpts {
-	logger := logger.NewDefaultLogger("worker")
 
 	return &WorkerOpts{
 		name:         getHostName(),
-		l:            &logger,
 		integrations: []integrations.Integration{},
 		alerter:      errors.NoOpAlerter{},
-	}
-}
-
-// Deprecated: use WithLogger instead
-func WithLogLevel(lvl string) WorkerOpt {
-	return func(opts *WorkerOpts) {
-		logger := logger.NewDefaultLogger("worker")
-		lvl, err := zerolog.ParseLevel(lvl)
-
-		if err == nil {
-			logger = logger.Level(lvl)
-		}
-
-		opts.l = &logger
 	}
 }
 
@@ -191,7 +177,32 @@ func WithLabels(labels map[string]interface{}) WorkerOpt {
 
 func WithLogger(l *zerolog.Logger) WorkerOpt {
 	return func(opts *WorkerOpts) {
+		if opts.l != nil {
+			opts.l.Warn().Msg("WithLogger called multiple times or after WithLogLevel, ignoring")
+			return
+		}
+
 		opts.l = l
+	}
+}
+
+func WithLogLevel(lvl string) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		var l zerolog.Logger
+
+		if opts.l == nil {
+			l = logger.NewDefaultLogger("worker")
+		} else {
+			l = *opts.l
+		}
+
+		lvl, err := zerolog.ParseLevel(lvl)
+
+		if err == nil {
+			l = l.Level(lvl)
+		}
+
+		opts.l = &l
 	}
 }
 
@@ -211,6 +222,11 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 				return nil, fmt.Errorf("invalid label value: %v", value)
 			}
 		}
+	}
+
+	if opts.l == nil {
+		l := logger.NewDefaultLogger("worker")
+		opts.l = &l
 	}
 
 	w := &Worker{
@@ -278,6 +294,18 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 	return w.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
+func (w *Worker) RegisterWorkflowV1(workflow *contracts.CreateWorkflowVersionRequest) error {
+	namespace := w.client.Namespace()
+	namespaced := namespace + workflow.Name
+
+	w.registered_workflows[namespaced] = true
+
+	// FIXME: rip services... they're very much not used
+	w.NewService(workflow.Name)
+
+	return w.client.Admin().PutWorkflowV1(workflow)
+}
+
 // Deprecated: Use RegisterWorkflow instead
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	svcName := workflow.ToWorkflow("", "").Name
@@ -314,6 +342,7 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 }
 
 func (w *Worker) registerAction(service, verb string, method any, compute *compute.Compute) error {
+
 	actionId := fmt.Sprintf("%s:%s", service, verb)
 
 	// if the service is "concurrency", then this is a special action
@@ -332,6 +361,7 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 	actionFunc, err := getFnFromMethod(method)
 
 	if err != nil {
+		fmt.Println("err", err)
 		return fmt.Errorf("could not get function from method: %w", err)
 	}
 
@@ -386,6 +416,8 @@ func (w *Worker) Run(ctx context.Context) error {
 
 func (w *Worker) startBlocking(ctx context.Context) error {
 	actionNames := []string{}
+
+	fmt.Println("actions", w.actions)
 
 	for _, action := range w.actions {
 

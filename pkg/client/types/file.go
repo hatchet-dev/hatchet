@@ -20,6 +20,16 @@ func StickyStrategyPtr(v StickyStrategy) *StickyStrategy {
 	return &v
 }
 
+type Concurrency struct {
+	Expression    string                            `yaml:"expression,omitempty"`
+	MaxRuns       *int32                            `yaml:"maxRuns,omitempty"`
+	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
+}
+
+type TaskConditions struct {
+	// TODO
+}
+
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 
@@ -46,16 +56,18 @@ const (
 	CancelInProgress WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
 	CancelNewest     WorkflowConcurrencyLimitStrategy = "CANCEL_NEWEST"
 	GroupRoundRobin  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	DropNewest       WorkflowConcurrencyLimitStrategy = "DROP_NEWEST"
+	QueueNewest      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
 type WorkflowConcurrency struct {
-	ActionID *string `yaml:"action,omitempty"`
-
 	Expression *string `yaml:"expression,omitempty"`
 
 	MaxRuns int32 `yaml:"maxRuns,omitempty"`
 
 	LimitStrategy WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
+
+	ActionID *string `yaml:"action,omitempty"`
 }
 
 type WorkflowTriggers struct {

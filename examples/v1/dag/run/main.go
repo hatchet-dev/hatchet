@@ -1,7 +1,7 @@
 package main
 
 import (
-	simpleWf "github.com/hatchet-dev/hatchet/examples/v1/simple/workflow"
+	wf "github.com/hatchet-dev/hatchet/examples/v1/dag/workflow"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/joho/godotenv"
 )
@@ -18,11 +18,9 @@ func main() {
 		panic(err)
 	}
 
-	simple := simpleWf.Workflow(&hatchet)
+	dag := wf.Workflow(&hatchet)
 
-	_, err = simple.Run(simpleWf.Input{
-		Message: "Hello, World!",
-	})
+	_, err = dag.Run(nil)
 
 	if err != nil {
 		panic(err)

@@ -1,6 +1,7 @@
 package simple
 
 import (
+	"fmt"
 	"strings"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
@@ -26,7 +27,7 @@ type Result struct {
 	Reverse ReverseOutput `json:"reverse"`  // reverse is the task name
 }
 
-func SimpleWorkflow(hatchet *v1.HatchetClient) (workflow.WorkflowDeclaration[Input, Result], error) {
+func Workflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Input, Result] {
 
 	simple := v1.WorkflowFactory[Input, Result](
 		workflow.CreateOpts{
@@ -35,10 +36,12 @@ func SimpleWorkflow(hatchet *v1.HatchetClient) (workflow.WorkflowDeclaration[Inp
 		hatchet,
 	)
 
-	lower := simple.Task(task.CreateOpts[Input, Result]{
+	simple.Task(task.CreateOpts[Input, Result]{
 		Name: "to_lower",
 		Fn: func(input Input, ctx worker.HatchetContext) (*Result, error) {
 			// TODO: this is a hack to get the result out of the function
+
+			fmt.Println("input", input)
 			result := &Result{
 				ToLower: LowerOutput{
 					TransformedMessage: strings.ToLower(input.Message),
@@ -49,24 +52,5 @@ func SimpleWorkflow(hatchet *v1.HatchetClient) (workflow.WorkflowDeclaration[Inp
 		},
 	})
 
-	simple.Task(task.CreateOpts[Input, Result]{
-		Name:    "reverse",
-		Parents: simple.WithParents(lower),
-		Fn: func(input Input, ctx worker.HatchetContext) (*Result, error) {
-			reversed := ""
-			for _, char := range input.Message {
-				reversed = string(char) + reversed
-			}
-
-			result := &Result{
-				Reverse: ReverseOutput{
-					TransformedMessage: reversed,
-				},
-			}
-
-			return result, nil
-		},
-	})
-
-	return simple, nil
+	return simple
 }
