@@ -31,24 +31,6 @@ func DurableSleep(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[Durabl
 		hatchet,
 	)
 
-	simple.Task(
-		task.CreateOpts[DurableSleepInput]{
-			Name: "Non-Durable-Sleep",
-			Fn: func(input DurableSleepInput, ctx worker.DurableHatchetContext) (*SleepOutput, error) {
-
-				_, err := ctx.SleepFor(time.Minute)
-
-				if err != nil {
-					return nil, err
-				}
-
-				return &SleepOutput{
-					TransformedMessage: strings.ToLower(input.Message),
-				}, nil
-			},
-		},
-	)
-
 	simple.DurableTask(
 		task.CreateOpts[DurableSleepInput]{
 			Name: "Sleep",
