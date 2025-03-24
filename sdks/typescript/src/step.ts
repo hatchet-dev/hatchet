@@ -86,20 +86,38 @@ export class ContextWorker {
     this.worker = worker;
   }
 
+  /**
+   * Gets the ID of the worker.
+   * @returns The ID of the worker.
+   */
   id() {
     return this.worker.workerId;
   }
 
+  /**
+   * Checks if the worker has a registered workflow.
+   * @param workflowName - The name of the workflow to check.
+   * @returns True if the workflow is registered, otherwise false.
+   */
   hasWorkflow(workflowName: string) {
     return !!this.worker.workflow_registry.find((workflow) =>
       'id' in workflow ? workflow.id === workflowName : workflow.name === workflowName
     );
   }
 
+  /**
+   * Gets the current state of the worker labels.
+   * @returns The labels of the worker.
+   */
   labels() {
     return this.worker.labels;
   }
 
+  /**
+   * Upserts the a set of labels on the worker.
+   * @param labels - The labels to upsert.
+   * @returns A promise that resolves when the labels have been upserted.
+   */
   upsertLabels(labels: WorkerLabels) {
     return this.worker.upsertLabels(labels);
   }
@@ -141,8 +159,15 @@ export class Context<T, K = {}> {
     }
   }
 
-  // NOTE: parentData is async since we plan on potentially making this a cacheable server call
-  async parentData<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
+  /**
+   * Retrieves the output of a parent task.
+   * @param task - The name of the task or a CreateTaskOpts object.
+   * @returns The output of the specified parent task.
+   * @throws An error if the task output is not found.
+   *
+   */
+  async parentOutput<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
+    // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
     if (typeof task === 'string') {
       return this.stepOutput<L>(task);
     }
@@ -150,72 +175,122 @@ export class Context<T, K = {}> {
     return this.stepOutput<L>(task.name) as L;
   }
 
-  // TODO deprecated
-  stepOutput<L = NextStep>(step: string): L {
+  /**
+   * Get the output of a task.
+   * @param task - The name of the task to get the output for.
+   * @returns The output of the task.
+   * @throws An error if the task output is not found.
+   * @deprecated use ctx.parentOutput instead
+   */
+  stepOutput<L = NextStep>(step: string): L | undefined {
     if (!this.data.parents) {
-      throw new HatchetError('Step output not found');
+      throw new HatchetError('output not found');
     }
     if (!this.data.parents[step]) {
-      throw new HatchetError(`Step output for '${step}' not found`);
+      throw new HatchetError(`output for '${step}' not found`);
     }
     return this.data.parents[step];
   }
 
+  /**
+   * Returns errors from any task runs in the workflow.
+   * @returns A record mapping task names to error messages.
+   * @throws A warning if no errors are found (this method should be used in on-failure tasks).
+   * @deprecated use ctx.errors instead
+   */
   stepRunErrors(): Record<string, string> {
+    return this.errors();
+  }
+
+  /**
+   * Returns errors from any task runs in the workflow.
+   * @returns A record mapping task names to error messages.
+   * @throws A warning if no errors are found (this method should be used in on-failure tasks).
+   */
+  errors(): Record<string, string> {
     const errors = this.data.step_run_errors || {};
 
     if (Object.keys(errors).length === 0) {
       this.logger.error(
-        'No step run errors found. `ctx.stepRunErrors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10'
+        'No run errors found. `ctx.errors` is intended to be run in an on-failure task, and will only work on engine versions more recent than v0.53.10'
       );
     }
 
     return errors;
   }
 
+  /**
+   * Determines if the workflow was triggered by an event.
+   * @returns True if the workflow was triggered by an event, otherwise false.
+   */
   triggeredByEvent(): boolean {
     return this.data?.triggered_by === 'event';
   }
 
+  /**
+   * Gets the input data for the current workflow.
+   * @returns The input data for the workflow.
+   */
   workflowInput(): T {
     return this.input;
   }
 
+  /**
+   * Gets the name of the current workflow.
+   * @returns The name of the workflow.
+   */
   workflowName(): string {
     return this.action.jobName;
   }
 
+  /**
+   * Gets the user data associated with the workflow.
+   * @returns The user data.
+   */
   userData(): K {
     return this.data?.user_data;
   }
 
+  /**
+   * Gets the name of the current task.
+   * @returns The name of the task.
+   * @deprecated use ctx.taskName instead
+   */
   stepName(): string {
+    return this.taskName();
+  }
+
+  /**
+   * Gets the name of the current running task.
+   * @returns The name of the task.
+   */
+  taskName(): string {
     return this.action.stepName;
   }
 
+  /**
+   * Gets the ID of the current workflow run.
+   * @returns The workflow run ID.
+   */
   workflowRunId(): string {
     return this.action.workflowRunId;
   }
 
+  /**
+   * Gets the number of times the current task has been retried.
+   * @returns The retry count.
+   */
   retryCount(): number {
     return this.action.retryCount;
   }
 
-  playground(name: string, defaultValue: string = ''): string {
-    if (name in this.overridesData) {
-      return this.overridesData[name];
-    }
-
-    this.client.dispatcher.putOverridesData({
-      stepRunId: this.action.stepRunId,
-      path: name,
-      value: JSON.stringify(defaultValue),
-    });
-
-    return defaultValue;
-  }
-
+  /**
+   * Logs a message from the current task.
+   * @param message - The message to log.
+   * @param level - The log level (optional).
+   */
   log(message: string, level?: LogLevel) {
+    // TODO improve this...
     const { stepRunId } = this.action;
 
     if (!stepRunId) {
@@ -228,12 +303,11 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Refreshes the timeout for the current step.
+   * Refreshes the timeout for the current task.
    * @param incrementBy - The interval by which to increment the timeout.
-   *                     The interval should be specified in the format of '10s' for 10 seconds,
-   *                     '1m' for 1 minute, or '1d' for 1 day.
+   * The interval should be specified in the format of '10s' for 10 seconds, '1m' for 1 minute, or '1d' for 1 day.
    */
-  async refreshTimeout(incrementBy: string) {
+  async refreshTimeout(incrementBy: Duration) {
     const { stepRunId } = this.action;
 
     if (!stepRunId) {
@@ -245,12 +319,22 @@ export class Context<T, K = {}> {
     await this.client.dispatcher.refreshTimeout(incrementBy, stepRunId);
   }
 
+  /**
+   * Releases a worker slot for a task run such that the worker can pick up another task.
+   * Note: this is an advanced feature that may lead to unexpected behavior if used incorrectly.
+   * @returns A promise that resolves when the slot has been released.
+   */
   async releaseSlot(): Promise<void> {
     await this.client.dispatcher.client.releaseSlot({
       stepRunId: this.action.stepRunId,
     });
   }
 
+  /**
+   * Streams data from the current task run.
+   * @param data - The data to stream (string or binary).
+   * @returns A promise that resolves when the data has been streamed.
+   */
   async putStream(data: string | Uint8Array) {
     const { stepRunId } = this.action;
 
@@ -264,11 +348,11 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Enqueues multiple children workflows in parallel.
-   * @param children an array of objects containing the workflow name, input data, and options for each workflow
-   * @returns a list of workflow run references to the enqueued runs
+   * Runs multiple children workflows in parallel without waiting for their results.
+   * @param children - An array of  objects containing the workflow name, input data, and options for each workflow.
+   * @returns A list of workflow run references to the enqueued runs.
    */
-  bulkEnqueueChildren<Q extends JsonObject = any, P extends JsonObject = any>(
+  bulkRunNoWaitChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
@@ -283,9 +367,9 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Runs multiple children workflows in parallel.
-   * @param children an array of objects containing the workflow name, input data, and options for each workflow
-   * @returns a list of results from the children workflows
+   * Runs multiple children workflows in parallel and waits for all results.
+   * @param children - An array of objects containing the workflow name, input data, and options for each workflow.
+   * @returns A list of results from the children workflows.
    */
   async bulkRunChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
@@ -298,7 +382,7 @@ export class Context<T, K = {}> {
       };
     }>
   ): Promise<P[]> {
-    const runs = await this.bulkEnqueueChildren(children);
+    const runs = await this.bulkRunNoWaitChildren(children);
     const res = runs.map((run) => run.result());
     return Promise.all(res);
   }
@@ -306,9 +390,9 @@ export class Context<T, K = {}> {
   /**
    * Spawns multiple workflows.
    *
-   * @param workflows an array of objects containing the workflow name, input data, and options for each workflow
-   * @returns a list of references to the spawned workflow runs
-   * @deprecated use bulkEnqueueChildren or bulkRunChildren instead
+   * @param workflows - An array of objects containing the workflow name, input data, and options for each workflow.
+   * @returns A list of references to the spawned workflow runs.
+   * @deprecated Use bulkRunNoWaitChildren or bulkRunChildren instead.
    */
   spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
     workflows: Array<{
@@ -376,14 +460,12 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Runs a new workflow.
+   * Runs a new workflow and waits for its result.
    *
-   * @param workflow the workflow to run
-   * @param input the input data for the workflow
-   * @param options additional options for spawning the workflow. If a string is provided, it is used as the key.
-   * @param <Q> the type of the input data
-   * @param <P> the type of the output data
-   * @return the result of the workflow
+   * @param workflow - The workflow to run (name, Workflow instance, or WorkflowV1 instance).
+   * @param input - The input data for the workflow.
+   * @param options - Additional options for spawning the workflow. If a string is provided, it is used as the key.
+   * @returns The result of the workflow.
    */
   async runChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
@@ -397,19 +479,14 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Enqueues a new workflow.
+   * Enqueues a new workflow without waiting for its result.
    *
-   * @param workflowName the name of the workflow to spawn
-   * @param input the input data for the workflow
-   * @param options additional options for spawning the workflow. If a string is provided, it is used as the key.
-   *                If an object is provided, it can include:
-   *                - key: a unique identifier for the workflow (deprecated, use options.key instead)
-   *                - sticky: a boolean indicating whether to use sticky execution
-   * @param <Q> the type of the input data
-   * @param <P> the type of the output data
-   * @return a reference to the spawned workflow run
+   * @param workflow - The workflow to enqueue (name, Workflow instance, or WorkflowV1 instance).
+   * @param input - The input data for the workflow.
+   * @param options - Additional options for spawning the workflow.
+   * @returns A reference to the spawned workflow run.
    */
-  enqueueChild<Q extends JsonObject, P extends JsonObject>(
+  runNoWaitChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?:
@@ -422,16 +499,11 @@ export class Context<T, K = {}> {
   /**
    * Spawns a new workflow.
    *
-   * @param workflowName the name of the workflow to spawn
-   * @param input the input data for the workflow
-   * @param options additional options for spawning the workflow. If a string is provided, it is used as the key.
-   *                If an object is provided, it can include:
-   *                - key: a unique identifier for the workflow (deprecated, use options.key instead)
-   *                - sticky: a boolean indicating whether to use sticky execution
-   * @param <Q> the type of the input data
-   * @param <P> the type of the output data
-   * @return a reference to the spawned workflow run
-   * @deprecated use runChild or enqueueChild instead
+   * @param workflow - The workflow to spawn (name, Workflow instance, or WorkflowV1 instance).
+   * @param input - The input data for the workflow.
+   * @param options - Additional options for spawning the workflow.
+   * @returns A reference to the spawned workflow run.
+   * @deprecated Use runChild or runNoWaitChild instead.
    */
   spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
@@ -491,6 +563,10 @@ export class Context<T, K = {}> {
     }
   }
 
+  /**
+   * Retrieves additional metadata associated with the current workflow run.
+   * @returns A record of metadata key-value pairs.
+   */
   additionalMetadata(): Record<string, string> {
     if (!this.action.additionalMetadata) {
       return {};
@@ -501,14 +577,26 @@ export class Context<T, K = {}> {
     return res;
   }
 
+  /**
+   * Gets the index of this workflow if it was spawned as part of a bulk operation.
+   * @returns The child index number, or undefined if not set.
+   */
   childIndex(): number | undefined {
     return this.action.childWorkflowIndex;
   }
 
+  /**
+   * Gets the key associated with this workflow if it was spawned as a child workflow.
+   * @returns The child key, or undefined if not set.
+   */
   childKey(): string | undefined {
     return this.action.childWorkflowKey;
   }
 
+  /**
+   * Gets the ID of the parent workflow run if this workflow was spawned as a child.
+   * @returns The parent workflow run ID, or undefined if not a child workflow.
+   */
   parentWorkflowRunId(): string | undefined {
     return this.action.parentWorkflowRunId;
   }
@@ -517,10 +605,22 @@ export class Context<T, K = {}> {
 export class DurableContext<T, K = {}> extends Context<T, K> {
   waitKey: number = 0;
 
+  /**
+   * Pauses execution for the specified duration.
+   * Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
+   * @param duration - The duration to sleep for.
+   * @returns A promise that resolves when the sleep duration has elapsed.
+   */
   async sleepFor(duration: Duration): Promise<unknown> {
     return this.waitFor({ sleepFor: duration });
   }
 
+  /**
+   * Pauses execution until the specified conditions are met.
+   * Conditions are "global" meaning they will wait in real time regardless of transient failures like worker restarts.
+   * @param conditions - The conditions to wait for.
+   * @returns A promise that resolves with the event that satisfied the conditions.
+   */
   async waitFor(conditions: Conditions | Conditions[]): Promise<unknown> {
     const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
 
@@ -548,6 +648,11 @@ export type StepRunFunction<T, K> = (
   ctx: Context<T, K>
 ) => Promise<NextStep | void> | NextStep | void;
 
+/**
+ * A step is a unit of work that can be run by a worker.
+ * It is defined by a name, a function that returns the next step, and optional configuration.
+ * @deprecated use hatchet.workflows.task factory instead
+ */
 export interface CreateStep<T, K> extends z.infer<typeof CreateStepSchema> {
   run: StepRunFunction<T, K>;
 }
