@@ -53,6 +53,10 @@
   "timeouts": "Timeouts",
   "on-failure-tasks": "On Failure Tasks",
 
+  "retries": {
+    "title": "Retries"
+  },
+
   "--assignment": {
     "title": "Advanced Assignment",
     "type": "separator"
@@ -75,10 +79,6 @@
   "docker": "Running with Docker",
   "worker-healthchecks": "Worker Health Checks",
 
-  "retries": {
-    "title": "Retries",
-    "display": "hidden"
-  },
   "--advanced-workflows": {
     "title": "Advanced Workflows",
     "type": "separator",
