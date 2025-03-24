@@ -1,5 +1,11 @@
 {
+  "--v1": {
+    "title": "V1",
+    "type": "separator"
+  },
   "announcement": "Announcement",
+  "migration-guide-python": "Migration Guide (Python)",
+  "migration-guide-typescript": "Migration Guide (TypeScript)",
   "--quickstart": {
     "title": "Quickstart",
     "type": "separator"
@@ -20,7 +26,7 @@
   "run-on-event": "Run on Event",
   "streaming-results": "Streaming Results",
   "running-from-external-services": "Running from External Services",
-  
+
   "--advanced-workflows": {
     "title": "Advanced Workflows",
     "type": "separator"
@@ -51,7 +57,6 @@
   "timeouts": "Timeouts",
   "on-failure-tasks": "On Failure Tasks",
 
-
   "--assignment": {
     "title": "Advanced Assignment",
     "type": "separator"
@@ -60,7 +65,6 @@
   "worker-affinity": "Worker Affinity",
   "manual-slot-release": "Manual Slot Release",
 
-  
   "--observability": {
     "title": "Observability",
     "type": "separator"
