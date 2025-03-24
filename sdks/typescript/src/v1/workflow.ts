@@ -12,6 +12,7 @@ import {
   CreateDurableTaskOpts,
 } from './task';
 import { Duration } from './client/duration';
+import { MetricsClient } from './client/features/metrics';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -360,6 +361,25 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     const typedOptions = options as unknown as CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>>;
     this.definition.durableTasks.push(typedOptions);
     return typedOptions;
+  }
+
+  metrics(opts?: Parameters<MetricsClient['getWorkflowMetrics']>[1]) {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.metrics.getWorkflowMetrics(this.definition.name, opts);
+  }
+
+  queueMetrics(opts?: Omit<Parameters<MetricsClient['getQueueMetrics']>[0], 'workflows'>) {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.metrics.getQueueMetrics({
+      ...opts,
+      workflows: [this.definition.name],
+    });
   }
 
   // @deprecated use definition.name instead
