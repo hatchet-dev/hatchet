@@ -263,6 +263,7 @@ class DurableEventListener:
             await self.requests.put(
                 ListenForDurableEventRequest(
                     task_id=task_id,
+                    signal_key=signal_key,
                 )
             )
 
