@@ -34,9 +34,7 @@ worker.start()
 
 ## Starting a Worker
 
-Workers can be started by calling either `worker.start` or `worker.async_start`. We recommend that `worker.start` is the last call made when running a worker.
-
-The `worker.start` method is blocking, while `worker.async_start` can be awaited or started via `asyncio.create_task`.
+Workers can be started by calling `worker.start`. We recommend that `worker.start` is the last call made when running a worker, as the `worker.start` method is blocking.
 
 ### Example: `worker.start`
 
@@ -54,22 +52,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
-### Example: `worker.async_start`
-
-```py
-from hatchet_sdk import Context, Hatchet
-
-hatchet = Hatchet()
-
-# ... workflow definitions
-
-async def main():
-    worker = hatchet.worker("test-worker", max_runs=4)
-    worker.register_workflow(Workflow())
-    await worker.async_start()
-
-if __name__ == "__main__":
-    asyncio.run(main())
 ```

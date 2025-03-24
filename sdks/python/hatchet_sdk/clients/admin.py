@@ -5,7 +5,7 @@ from typing import Union, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
@@ -18,6 +18,13 @@ from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.worker.action_listener_process import (
+    ctx_step_run_id,
+    ctx_worker_id,
+    ctx_workflow_run_id,
+    spawn_index_lock,
+    workflow_spawn_indices,
+)
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -29,28 +36,19 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
     namespace: str | None = None
 
 
-class ChildTriggerWorkflowOptions(BaseModel):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    sticky: bool = False
-
-
-class ChildWorkflowRunDict(BaseModel):
-    workflow_name: str
-    input: JSONSerializableMapping
-    options: ChildTriggerWorkflowOptions
-    key: str | None = None
-
-
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     desired_worker_id: str | None = None
     namespace: str | None = None
+    sticky: bool = False
+    key: str | None = None
 
 
-class WorkflowRunDict(BaseModel):
+class WorkflowRunTriggerConfig(BaseModel):
     workflow_name: str
     input: JSONSerializableMapping
     options: TriggerWorkflowOptions
+    key: str | None = None
 
 
 class DedupeViolationErr(Exception):
@@ -70,6 +68,30 @@ class AdminClient:
 
         self.pooled_workflow_listener: PooledWorkflowRunListener | None = None
 
+    class TriggerWorkflowRequest(BaseModel):
+        model_config = ConfigDict(extra="ignore")
+
+        parent_id: str | None = None
+        parent_step_run_id: str | None = None
+        child_index: int | None = None
+        child_key: str | None = None
+        additional_metadata: str | None = None
+        desired_worker_id: str | None = None
+        priority: int | None = None
+
+        @field_validator("additional_metadata", mode="before")
+        @classmethod
+        def validate_additional_metadata(
+            cls, v: JSONSerializableMapping | None
+        ) -> bytes | None:
+            if not v:
+                return None
+
+            try:
+                return json.dumps(v).encode("utf-8")
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Error encoding payload: {e}")
+
     def _prepare_workflow_request(
         self,
         workflow_name: str,
@@ -78,25 +100,16 @@ class AdminClient:
     ) -> workflow_protos.TriggerWorkflowRequest:
         try:
             payload_data = json.dumps(input)
-            _options = options.model_dump()
-
-            _options.pop("namespace")
-
-            try:
-                _options = {
-                    **_options,
-                    "additional_metadata": json.dumps(
-                        options.additional_metadata
-                    ).encode("utf-8"),
-                }
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Error encoding payload: {e}")
-
-            return workflow_protos.TriggerWorkflowRequest(
-                name=workflow_name, input=payload_data, **_options
-            )
         except json.JSONDecodeError as e:
             raise ValueError(f"Error encoding payload: {e}")
+
+        _options = self.TriggerWorkflowRequest.model_validate(
+            options.model_dump()
+        ).model_dump()
+
+        return workflow_protos.TriggerWorkflowRequest(
+            name=workflow_name, input=payload_data, **_options
+        )
 
     def _prepare_put_workflow_request(
         self,
@@ -141,36 +154,6 @@ class AdminClient:
             input=json.dumps(input),
             **options.model_dump(),
         )
-
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
-    async def aio_run_workflow(
-        self,
-        workflow_name: str,
-        input: JSONSerializableMapping,
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
-        ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
-        ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
-        ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
-        return await asyncio.to_thread(self.run_workflow, workflow_name, input, options)
-
-    @tenacity_retry
-    async def aio_run_workflows(
-        self,
-        workflows: list[WorkflowRunDict],
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> list[WorkflowRunRef]:
-        ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
-        ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
-        ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
-        return await asyncio.to_thread(self.run_workflows, workflows, options)
 
     @tenacity_retry
     async def aio_put_workflow(
@@ -286,6 +269,44 @@ class AdminClient:
 
             raise e
 
+    def _create_workflow_run_request(
+        self,
+        workflow_name: str,
+        input: JSONSerializableMapping,
+        options: TriggerWorkflowOptions,
+    ) -> workflow_protos.TriggerWorkflowRequest:
+        workflow_run_id = ctx_workflow_run_id.get()
+        step_run_id = ctx_step_run_id.get()
+        worker_id = ctx_worker_id.get()
+        spawn_index = workflow_spawn_indices[workflow_run_id] if workflow_run_id else 0
+
+        ## Increment the spawn_index for the parent workflow
+        if workflow_run_id:
+            workflow_spawn_indices[workflow_run_id] += 1
+
+        desired_worker_id = (
+            (options.desired_worker_id or worker_id) if options.sticky else None
+        )
+        child_index = (
+            options.child_index if options.child_index is not None else spawn_index
+        )
+
+        trigger_options = TriggerWorkflowOptions(
+            parent_id=options.parent_id or workflow_run_id,
+            parent_step_run_id=options.parent_step_run_id or step_run_id,
+            child_key=options.child_key,
+            child_index=child_index,
+            additional_metadata=options.additional_metadata,
+            desired_worker_id=desired_worker_id,
+        )
+
+        namespace = options.namespace or self.namespace
+
+        if namespace != "" and not workflow_name.startswith(self.namespace):
+            workflow_name = f"{namespace}{workflow_name}"
+
+        return self._prepare_workflow_request(workflow_name, input, trigger_options)
+
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     @tenacity_retry
     def run_workflow(
@@ -294,17 +315,12 @@ class AdminClient:
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
+        request = self._create_workflow_run_request(workflow_name, input, options)
+
+        if not self.pooled_workflow_listener:
+            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
+
         try:
-            if not self.pooled_workflow_listener:
-                self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
-            namespace = options.namespace or self.namespace
-
-            if namespace != "" and not workflow_name.startswith(self.namespace):
-                workflow_name = f"{namespace}{workflow_name}"
-
-            request = self._prepare_workflow_request(workflow_name, input, options)
-
             resp = cast(
                 workflow_protos.TriggerWorkflowResponse,
                 self.client.TriggerWorkflow(
@@ -312,11 +328,42 @@ class AdminClient:
                     metadata=get_metadata(self.token),
                 ),
             )
+        except (grpc.RpcError, grpc.aio.AioRpcError) as e:
+            if e.code() == grpc.StatusCode.ALREADY_EXISTS:
+                raise DedupeViolationErr(e.details())
 
-            return WorkflowRunRef(
-                workflow_run_id=resp.workflow_run_id,
-                workflow_listener=self.pooled_workflow_listener,
-                workflow_run_event_listener=self.listener_client,
+            raise e
+
+        return WorkflowRunRef(
+            workflow_run_id=resp.workflow_run_id,
+            workflow_listener=self.pooled_workflow_listener,
+            workflow_run_event_listener=self.listener_client,
+        )
+
+    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
+    @tenacity_retry
+    async def aio_run_workflow(
+        self,
+        workflow_name: str,
+        input: JSONSerializableMapping,
+        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+    ) -> WorkflowRunRef:
+        ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
+        ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
+        ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
+        async with spawn_index_lock:
+            request = self._create_workflow_run_request(workflow_name, input, options)
+
+        if not self.pooled_workflow_listener:
+            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
+
+        try:
+            resp = cast(
+                workflow_protos.TriggerWorkflowResponse,
+                self.client.TriggerWorkflow(
+                    request,
+                    metadata=get_metadata(self.token),
+                ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
@@ -324,36 +371,67 @@ class AdminClient:
 
             raise e
 
-    def _prepare_workflow_run_request(
-        self, workflow: WorkflowRunDict, options: TriggerWorkflowOptions
-    ) -> workflow_protos.TriggerWorkflowRequest:
-        workflow_name = workflow.workflow_name
-        input_data = workflow.input
-        options = workflow.options
-
-        namespace = options.namespace or self.namespace
-
-        if namespace != "" and not workflow_name.startswith(self.namespace):
-            workflow_name = f"{namespace}{workflow_name}"
-
-        return self._prepare_workflow_request(workflow_name, input_data, options)
+        return WorkflowRunRef(
+            workflow_run_id=resp.workflow_run_id,
+            workflow_listener=self.pooled_workflow_listener,
+            workflow_run_event_listener=self.listener_client,
+        )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     @tenacity_retry
     def run_workflows(
         self,
-        workflows: list[WorkflowRunDict],
-        options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
+        workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
         if not self.pooled_workflow_listener:
             self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
 
         bulk_request = workflow_protos.BulkTriggerWorkflowRequest(
             workflows=[
-                self._prepare_workflow_run_request(workflow, options)
+                self._create_workflow_run_request(
+                    workflow.workflow_name, workflow.input, workflow.options
+                )
                 for workflow in workflows
             ]
         )
+
+        resp = cast(
+            workflow_protos.BulkTriggerWorkflowResponse,
+            self.client.BulkTriggerWorkflow(
+                bulk_request,
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        return [
+            WorkflowRunRef(
+                workflow_run_id=workflow_run_id,
+                workflow_listener=self.pooled_workflow_listener,
+                workflow_run_event_listener=self.listener_client,
+            )
+            for workflow_run_id in resp.workflow_run_ids
+        ]
+
+    @tenacity_retry
+    async def aio_run_workflows(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+    ) -> list[WorkflowRunRef]:
+        ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
+        ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
+        ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
+        if not self.pooled_workflow_listener:
+            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
+
+        async with spawn_index_lock:
+            bulk_request = workflow_protos.BulkTriggerWorkflowRequest(
+                workflows=[
+                    self._create_workflow_run_request(
+                        workflow.workflow_name, workflow.input, workflow.options
+                    )
+                    for workflow in workflows
+                ]
+            )
 
         resp = cast(
             workflow_protos.BulkTriggerWorkflowResponse,

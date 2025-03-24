@@ -8,11 +8,11 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from multiprocessing import Queue
 from threading import Thread, current_thread
-from typing import Any, Callable, Dict, TypeVar, cast
+from typing import Any, Callable, Dict, cast
 
 from pydantic import BaseModel
 
-from hatchet_sdk.client import new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -30,12 +30,18 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.utils.typing import WorkflowValidator
-from hatchet_sdk.worker.action_listener_process import ActionEvent
-from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars, sr, wr
-from hatchet_sdk.workflow import Step
-
-T = TypeVar("T")
+from hatchet_sdk.worker.action_listener_process import (
+    ActionEvent,
+    ctx_step_run_id,
+    ctx_worker_id,
+    ctx_workflow_run_id,
+    spawn_index_lock,
+    workflow_spawn_indices,
+)
+from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars
 
 
 class WorkerStatus(Enum):
@@ -49,28 +55,28 @@ class Runner:
     def __init__(
         self,
         name: str,
-        event_queue: "Queue[Any]",
-        max_runs: int | None = None,
+        event_queue: "Queue[ActionEvent]",
+        slots: int | None = None,
         handle_kill: bool = True,
-        action_registry: dict[str, Step[T]] = {},
+        action_registry: dict[str, Task[TWorkflowInput, R]] = {},
         validator_registry: dict[str, WorkflowValidator] = {},
         config: ClientConfig = ClientConfig(),
         labels: dict[str, str | int] = {},
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
-        self.client = new_client_raw(config)
+        self.client = Client(config)
         self.name = self.client.config.namespace + name
-        self.max_runs = max_runs
+        self.slots = slots
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
-        self.action_registry: dict[str, Step[T]] = action_registry
+        self.action_registry: dict[str, Task[TWorkflowInput, R]] = action_registry
         self.validator_registry = validator_registry
 
         self.event_queue = event_queue
 
         # The thread pool is used for synchronous functions which need to run concurrently
-        self.thread_pool = ThreadPoolExecutor(max_workers=max_runs)
+        self.thread_pool = ThreadPoolExecutor(max_workers=slots)
         self.threads: Dict[str, Thread] = {}  # Store run ids and threads
 
         self.killing = False
@@ -84,7 +90,7 @@ class Runner:
         self.client.workflow_listener = PooledWorkflowRunListener(self.config)
 
         self.worker_context = WorkerContext(
-            labels=labels, client=new_client_raw(config).dispatcher
+            labels=labels, client=Client(config=config).dispatcher
         )
 
     def create_workflow_run_url(self, action: Action) -> str:
@@ -195,7 +201,9 @@ class Runner:
 
         return inner_callback
 
-    def thread_action_func(self, context: Context, step: Step[T], action: Action) -> T:
+    def thread_action_func(
+        self, ctx: Context, task: Task[TWorkflowInput, R], action: Action
+    ) -> R:
         if action.step_run_id is not None and action.step_run_id != "":
             self.threads[action.step_run_id] = current_thread()
         elif (
@@ -204,22 +212,23 @@ class Runner:
         ):
             self.threads[action.get_group_key_run_id] = current_thread()
 
-        return step.call(context)
+        return task.call(ctx)
 
     # We wrap all actions in an async func
     async def async_wrapped_action_func(
         self,
-        context: Context,
-        step: Step[T],
+        ctx: Context,
+        task: Task[TWorkflowInput, R],
         action: Action,
         run_id: str,
-    ) -> T:
-        wr.set(context.workflow_run_id)
-        sr.set(context.step_run_id)
+    ) -> R:
+        ctx_step_run_id.set(action.step_run_id)
+        ctx_workflow_run_id.set(action.workflow_run_id)
+        ctx_worker_id.set(action.worker_id)
 
         try:
-            if step.is_async_function:
-                return await step.aio_call(context)
+            if task.is_async_function:
+                return await task.aio_call(ctx)
             else:
                 pfunc = functools.partial(
                     # we must copy the context vars to the new thread, as only asyncio natively supports
@@ -227,8 +236,8 @@ class Runner:
                     copy_context_vars,
                     contextvars.copy_context().items(),
                     self.thread_action_func,
-                    context,
-                    step,
+                    ctx,
+                    task,
                     action,
                 )
 
@@ -301,20 +310,16 @@ class Runner:
                 # do nothing, this should be caught in the callback
                 pass
 
+        ## Once the step run completes, we need to remove the workflow spawn index
+        ## so we don't leak memory
+        if action.workflow_run_id in workflow_spawn_indices:
+            async with spawn_index_lock:
+                workflow_spawn_indices.pop(action.workflow_run_id)
+
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_group_key_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
-        context = Context(
-            action,
-            self.dispatcher_client,
-            self.admin_client,
-            self.client.event,
-            self.client.rest,
-            self.client.workflow_listener,
-            self.workflow_run_event_listener,
-            self.worker_context,
-            self.client.config.namespace,
-        )
+        context = self.create_context(action)
 
         self.contexts[action.get_group_key_run_id] = context
 

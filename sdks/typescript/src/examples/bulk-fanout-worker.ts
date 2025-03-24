@@ -35,7 +35,7 @@ const parentWorkflow: Workflow = {
 
         const results = await Promise.all(
           spawnedWorkflows.map((workflowRef) =>
-            workflowRef.result().then((result) => {
+            workflowRef.output.then((result) => {
               ctx.log('spawned workflow result:');
               return result;
             })

@@ -4,15 +4,15 @@ from dataclasses import dataclass, field
 from multiprocessing import Queue
 from typing import Any, Literal, TypeVar
 
-from hatchet_sdk.client import Client, new_client_raw
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.utils.typing import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import capture_logs
-from hatchet_sdk.workflow import Step
 
 STOP_LOOP_TYPE = Literal["STOP_LOOP"]
 STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"
@@ -23,9 +23,9 @@ T = TypeVar("T")
 @dataclass
 class WorkerActionRunLoopManager:
     name: str
-    action_registry: dict[str, Step[Any]]
+    action_registry: dict[str, Task[Any, Any]]
     validator_registry: dict[str, WorkflowValidator]
-    max_runs: int | None
+    slots: int | None
     config: ClientConfig
     action_queue: "Queue[Action | STOP_LOOP_TYPE]"
     event_queue: "Queue[ActionEvent]"
@@ -42,7 +42,7 @@ class WorkerActionRunLoopManager:
     def __post_init__(self) -> None:
         if self.debug:
             logger.setLevel(logging.DEBUG)
-        self.client = new_client_raw(self.config, self.debug)
+        self.client = Client(config=self.config, debug=self.debug)
         self.start()
 
     def start(self, retry_count: int = 1) -> None:
@@ -75,7 +75,7 @@ class WorkerActionRunLoopManager:
         self.runner = Runner(
             self.name,
             self.event_queue,
-            self.max_runs,
+            self.slots,
             self.handle_kill,
             self.action_registry,
             self.validator_registry,

@@ -53,6 +53,7 @@ export const routes: RouteObject[] = [
           import('./pages/onboarding/verify-email').then((res) => {
             return {
               Component: res.default,
+              loader: res.loader,
             };
           }),
       },
@@ -99,6 +100,7 @@ export const routes: RouteObject[] = [
               import('./pages/onboarding/invites').then((res) => {
                 return {
                   Component: res.default,
+                  loader: res.loader,
                 };
               }),
           },

@@ -38,7 +38,7 @@ UPDATE
 SET
     "value" = get_refill_value(rl) - (SELECT "units" FROM input WHERE "key" = rl."key"),
     "lastRefill" = CASE
-        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
+        WHEN NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds') THEN
             CURRENT_TIMESTAMP
         ELSE
             rl."lastRefill"
@@ -216,7 +216,7 @@ WITH rls_to_update AS (
         "RateLimit" rl
     WHERE
         rl."tenantId" = $1::uuid
-        AND NOW() - rl."lastRefill" >= rl."window"::INTERVAL
+        AND NOW() - rl."lastRefill" >= (rl."window"::INTERVAL - INTERVAL '10 milliseconds')
     ORDER BY
         rl."tenantId" ASC, rl."key" ASC
     FOR UPDATE
@@ -235,7 +235,7 @@ WITH rls_to_update AS (
 )
 SELECT
     rl."tenantId", rl.key, rl."limitValue", rl.value, rl."window", rl."lastRefill",
-    (rl."lastRefill" + rl."window"::INTERVAL)::timestamp AS "nextRefillAt"
+    (rl."lastRefill" + rl."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt"
 FROM
     "RateLimit" rl
 WHERE
@@ -247,7 +247,7 @@ UNION ALL
 SELECT
     refill."tenantId", refill.key, refill."limitValue", refill.value, refill."window", refill."lastRefill",
     -- return the next refill time
-    (refill."lastRefill" + refill."window"::INTERVAL)::timestamp AS "nextRefillAt"
+    (refill."lastRefill" + refill."window"::INTERVAL - INTERVAL '10 milliseconds')::timestamp AS "nextRefillAt"
 FROM
     refill
 `

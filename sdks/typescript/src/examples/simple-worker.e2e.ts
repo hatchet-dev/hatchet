@@ -60,7 +60,7 @@ describe('e2e', () => {
 
     console.log('pushing event...');
 
-    await hatchet.event.push('user:create-simple', {
+    await hatchet.events.push('user:create-simple', {
       test: 'test',
     });
 

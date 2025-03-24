@@ -1,12 +1,12 @@
 import asyncio
 import random
 
+from examples.bulk_fanout.worker import ParentInput, bulk_parent_wf
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
 
 async def main() -> None:
-
     hatchet = Hatchet()
 
     # Generate a random stream key to use to track all
@@ -20,10 +20,8 @@ async def main() -> None:
 
     # This key gets propagated to all child workflows
     # and can have an arbitrary property name.
-
-    hatchet.admin.run_workflow(
-        "Parent",
-        {"n": 2},
+    bulk_parent_wf.run(
+        input=ParentInput(n=2),
         options=TriggerWorkflowOptions(additional_metadata={streamKey: streamVal}),
     )
 

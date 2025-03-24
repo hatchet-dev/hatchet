@@ -859,7 +859,7 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 	matchResult, err := tc.repov1.Matches().ProcessUserEventMatches(ctx, tenantId, candidateMatches)
 
 	if err != nil {
-		return fmt.Errorf("could not process internal event matches: %w", err)
+		return fmt.Errorf("could not process user event matches: %w", err)
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {

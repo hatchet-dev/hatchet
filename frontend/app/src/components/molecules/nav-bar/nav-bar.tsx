@@ -144,7 +144,9 @@ function AccountDropdown({ user }: MainNavProps) {
         </DropdownMenuItem>
         {tenant?.version == TenantVersion.V1 &&
           location.pathname.includes('v1') && (
-            <DropdownMenuItem onClick={() => navigate('/')}>
+            <DropdownMenuItem
+              onClick={() => navigate('/workflow-runs?previewV0=true')}
+            >
               View Legacy V0 Data
             </DropdownMenuItem>
           )}
@@ -206,7 +208,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
         onAction: () => {
           navigate({
             pathname: '/v1' + pathname,
-            search: params.toString(),
+            search: '?previewV0=false',
           });
         },
       };

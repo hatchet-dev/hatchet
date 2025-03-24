@@ -17,9 +17,9 @@ const workflow: Workflow = {
         // eslint-disable-next-line no-plusplus
         for (let i = 0; i < count; i++) {
           const result = await ctx.spawnWorkflow(childWorkflow, {}, { sticky: true });
-          results.push(result.result());
+          results.push(result.output);
           const result2 = await ctx.spawnWorkflow(softChildWorkflow, {}, { sticky: true });
-          results.push(result2.result());
+          results.push(result2.output);
         }
         console.log('Spawned ', count, ' child workflows of each type');
         console.log('Results:', await Promise.all(results));
