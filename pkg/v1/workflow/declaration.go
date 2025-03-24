@@ -103,14 +103,14 @@ type WorkflowDeclaration[I any, O any] interface {
 	// Get retrieves the current state of the workflow.
 	Get() (*rest.Workflow, error)
 
-	// IsPaused checks if the workflow is currently paused.
-	IsPaused() (bool, error)
+	// // IsPaused checks if the workflow is currently paused.
+	// IsPaused() (bool, error)
 
-	// Pause pauses the assignment of new workflow runs.
-	Pause() error
+	// // Pause pauses the assignment of new workflow runs.
+	// Pause() error
 
-	// Unpause resumes the assignment of workflow runs.
-	Unpause() error
+	// // Unpause resumes the assignment of workflow runs.
+	// Unpause() error
 
 	// Metrics retrieves metrics for this workflow.
 	Metrics(opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
@@ -646,35 +646,35 @@ func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
 	return workflow, nil
 }
 
-// IsPaused checks if the workflow is currently paused.
-func (w *workflowDeclarationImpl[I, O]) IsPaused() (bool, error) {
-	paused, err := (*w.workflows).IsPaused(w.Name)
-	if err != nil {
-		return false, err
-	}
+// // IsPaused checks if the workflow is currently paused.
+// func (w *workflowDeclarationImpl[I, O]) IsPaused() (bool, error) {
+// 	paused, err := (*w.workflows).IsPaused(w.Name)
+// 	if err != nil {
+// 		return false, err
+// 	}
 
-	return paused, nil
-}
+// 	return paused, nil
+// }
 
-// Pause pauses the assignment of new workflow runs.
-func (w *workflowDeclarationImpl[I, O]) Pause() error {
-	_, err := (*w.workflows).Pause(w.Name)
-	if err != nil {
-		return err
-	}
+// // Pause pauses the assignment of new workflow runs.
+// func (w *workflowDeclarationImpl[I, O]) Pause() error {
+// 	_, err := (*w.workflows).Pause(w.Name)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-// Unpause resumes the assignment of workflow runs.
-func (w *workflowDeclarationImpl[I, O]) Unpause() error {
-	_, err := (*w.workflows).Unpause(w.Name)
-	if err != nil {
-		return err
-	}
+// // Unpause resumes the assignment of workflow runs.
+// func (w *workflowDeclarationImpl[I, O]) Unpause() error {
+// 	_, err := (*w.workflows).Unpause(w.Name)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // Metrics retrieves metrics for this workflow.
 func (w *workflowDeclarationImpl[I, O]) Metrics(opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
