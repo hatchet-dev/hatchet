@@ -22,10 +22,11 @@ Scheduled runs allow you to trigger a workflow at a specific time in the future.
 
 * Sending a reminder email at a specific time after a user took an action.
 * Running a one-time maintenance task at a predetermined time as determined by your application. For instance, you might want to run a database vacuum during a maintenance window any time a task matches a certain criteria.
+* Allowing a customer to decide when they want your application to perform a specific task. For instance, if your application is a simple alarm app that sends a customer a notification at a time that they specify, you might create a scheduled run for each alarm that the customer sets.
 
 Hatchet supports scheduled runs to run on a schedule defined in a few different ways:
 
-- [Programmatically](./scheduled-runs.mdx#programmatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a workflow (i.e. customer defined schedule).
+- [Programmatically](./scheduled-runs.mdx#programmatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a workflow.
 - [Hatchet Dashboard](./scheduled-runs.mdx#managing-scheduled-runs-in-the-hatchet-dashboard): Manually create scheduled runs from the Hatchet Dashboard.
 
 <Callout type="warning">
