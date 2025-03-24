@@ -20,11 +20,11 @@ export const getStaticProps = ({}) =>
 
 It is often desirable to assign workflows to specific workers based on certain criteria, such as worker capabilities, resource availability, or location. Worker affinity allows you to specify that a workflow should be assigned to a specific worker based on worker label state. Labels can be set dynamically on workers to reflect their current state, such as a specific model loaded into memory or specific disk requirements.
 
-Specific steps can then specify desired label state to ensure that workflows are assigned to workers that meet specific criteria. If no worker meets the specified criteria, the step run will remain in a pending state until a suitable worker becomes available or the step is cancelled. (See [Scheduling Timeouts](../timeouts.mdx))
+Specific tasks can then specify desired label state to ensure that workflows are assigned to workers that meet specific criteria. If no worker meets the specified criteria, the task run will remain in a pending state until a suitable worker becomes available or the task is cancelled. (See [Scheduling Timeouts](./timeouts.mdx#task-level-timeouts))
 
 ## Specifying Worker Labels
 
-Labels can be set on workers when they are registered with the Hatchet service. Labels are key-value pairs that can be used to specify worker capabilities, resource availability, or other criteria that can be used to match workflows to workers. Values can be strings or numbers, and multiple labels can be set on a worker.
+Labels can be set on workers when they are registered with Hatchet. Labels are key-value pairs that can be used to specify worker capabilities, resource availability, or other criteria that can be used to match workflows to workers. Values can be strings or numbers, and multiple labels can be set on a worker.
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
@@ -56,7 +56,7 @@ Labels can be set on workers when they are registered with the Hatchet service. 
 
 ## Specifying Step Desired Labels
 
-You can specify desired worker label state for specific steps in a workflow by setting the `worker_labels` property on the step definition. This property is an object where the keys are the label keys and the values are objects with the following properties:
+You can specify desired worker label state for specific tasks in a workflow by setting the `desired_worker_labels` property on the task definition. This property is an object where the keys are the label keys and the values are objects with the following properties:
 
 - `value`: The desired value of the label
 - `comparator` (default: `EQUAL`): The comparison operator to use when matching the label value.
@@ -66,8 +66,8 @@ You can specify desired worker label state for specific steps in a workflow by s
   - `GREATER_THAN_OR_EQUAL`: The label value must be greater than or equal to the desired value
   - `LESS_THAN`: The label value must be less than the desired value
   - `LESS_THAN_OR_EQUAL`: The label value must be less than or equal to the desired value
-- `required` (default: `true`): Whether the label is required for the step to run. If `true`, the step will remain in a pending state until a worker with the desired label state becomes available. If `false`, the worker will be prioritized based on the sum of the highest matching weights.
-- `weight` (optional, default: `100`): The weight of the label. Higher weights are prioritized over lower weights when selecting a worker for the step. If multiple workers have the same highest weight, the worker with the highest sum of weights will be selected. Ignored if `required` is `true`.
+- `required` (default: `true`): Whether the label is required for the task to run. If `true`, the task will remain in a pending state until a worker with the desired label state becomes available. If `false`, the worker will be prioritized based on the sum of the highest matching weights.
+- `weight` (optional, default: `100`): The weight of the label. Higher weights are prioritized over lower weights when selecting a worker for the task. If multiple workers have the same highest weight, the worker with the highest sum of weights will be selected. Ignored if `required` is `true`.
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
@@ -88,12 +88,12 @@ You can specify desired worker label state for specific steps in a workflow by s
 			Name:        "affinity",
 			Description: "affinity",
 			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					return &stepOneOutput{
+				worker.Fn(func(ctx worker.HatchetContext) (result *taskOneOutput, err error) {
+					return &taskOneOutput{
 						Message: ctx.Worker().ID(),
 					}, nil
 				}).
-					SetName("step-one").
+					SetName("task-one").
 					SetDesiredLabels(map[string]*types.DesiredWorkerLabel{
 						"model": {
 							Value:  "fancy-ai-model-v2",
@@ -115,7 +115,7 @@ You can specify desired worker label state for specific steps in a workflow by s
 <Callout type="warning">
   Use extra care when using worker affinity with [sticky assignment `HARD`
   strategy](./sticky-assignment.mdx). In this case, it is recommended to set
-  desired labels on the first step of the workflow to ensure that the workflow
+  desired labels on the first task of the workflow to ensure that the workflow
   is assigned to a worker that meets the desired criteria and remains on that
   worker for the duration of the workflow.
 </Callout>
@@ -138,9 +138,9 @@ TODO V1 DOCS
 const affinity: Workflow = {
   id: "dynamic-affinity-workflow",
   description: "test",
-  steps: [
+  tasks: [
     {
-      name: "child-step1",
+      name: "child-task1",
       worker_labels: {
         model: {
           value: "fancy-vision-model",
@@ -174,7 +174,7 @@ TODO V1 DOCS
 			Name:        "affinity",
 			Description: "affinity",
 			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				worker.Fn(func(ctx worker.HatchetContext) (result *taskOneOutput, err error) {
 
     				model := ctx.Worker().GetLabels()["model"]
 
@@ -190,11 +190,11 @@ TODO V1 DOCS
     					})
     				}
 
-    				return &stepOneOutput{
+    				return &taskOneOutput{
     					Message: ctx.Worker().ID(),
     				}, nil
     			}).
-    				SetName("step-one").
+    				SetName("task-one").
     				SetDesiredLabels(map[string]*types.DesiredWorkerLabel{
     					"model": {
     						Value:  "fancy-vision-model",
