@@ -1,10 +1,19 @@
+/* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context, JsonObject } from '@hatchet/step';
+import { Context, DurableContext, JsonObject } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
-import { CreateTaskOpts } from './task';
+import {
+  CreateTaskOpts,
+  CreateOnFailureTaskOpts,
+  TaskConcurrency,
+  TaskFn,
+  CreateDurableTaskOpts,
+} from './task';
+import { Duration } from './client/duration';
+import { MetricsClient } from './client/features/metrics';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -50,33 +59,107 @@ export type CreateWorkflowOpts = {
    * (optional) sticky strategy for the workflow.
    */
   sticky?: WorkflowV0['sticky'];
-  /**
-   * (optional) schedule timeout for the workflow.
-   */
-  scheduleTimeout?: WorkflowV0['scheduleTimeout'];
+
   /**
    * (optional) on config for the workflow.
+   * @deprecated use onCrons and onEvents instead
    */
   on?: WorkflowV0['on'];
 
-  concurrency?: WorkflowV0['concurrency'];
+  /**
+   * (optional) cron config for the workflow.
+   */
+  onCrons?: string[];
+
+  /**
+   * (optional) event config for the workflow.
+   */
+  onEvents?: string[];
+
+  concurrency?: TaskConcurrency;
 
   /**
    * (optional) onFailure handler for the workflow.
    * Invoked when any task in the workflow fails.
    * @param ctx The context of the workflow.
    */
-  onFailure?: (ctx: Context<any>) => void;
+  onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
+
+  /**
+   * (optional) default configuration for all tasks in the workflow.
+   */
+  taskDefaults?: TaskDefaults;
+};
+
+/**
+ * Default configuration for all tasks in the workflow.
+ * Can be overridden by task-specific options.
+ */
+export type TaskDefaults = {
+  /**
+   * (optional) execution timeout duration for the task after it starts running
+   * go duration format (e.g., "1s", "5m", "1h").
+   *
+   * default: 60s
+   */
+  executionTimeout?: Duration;
+
+  /**
+   * (optional) schedule timeout for the task (max duration to allow the task to wait in the queue)
+   * go duration format (e.g., "1s", "5m", "1h").
+   *
+   * default: 5m
+   */
+  scheduleTimeout?: Duration;
+
+  /**
+   * (optional) number of retries for the task.
+   *
+   * default: 0
+   */
+  retries?: CreateTaskOpts<any, any>['retries'];
+
+  /**
+   * (optional) backoff strategy configuration for retries.
+   * - factor: Base of the exponential backoff (base ^ retry count)
+   * - maxSeconds: Maximum backoff duration in seconds
+   */
+  backoff?: CreateTaskOpts<any, any>['backoff'];
+
+  /**
+   * (optional) rate limits for the task.
+   */
+  rateLimits?: CreateTaskOpts<any, any>['rateLimits'];
+
+  /**
+   * (optional) worker labels for task routing and scheduling.
+   * Each label can be a simple string/number value or an object with additional configuration:
+   * - value: The label value (string or number)
+   * - required: Whether the label is required for worker matching
+   * - weight: Priority weight for worker selection
+   * - comparator: Custom comparison logic for label matching
+   */
+  workerLabels?: CreateTaskOpts<any, any>['workerLabels'];
+
+  /**
+   * (optional) the concurrency options for the task.
+   */
+  concurrency?: TaskConcurrency | TaskConcurrency[];
 };
 
 /**
  * Internal definition of a workflow and its tasks.
  */
-type WorkflowDefinition = CreateWorkflowOpts & {
+export type WorkflowDefinition = CreateWorkflowOpts & {
   /**
    * The tasks that make up this workflow.
    */
   tasks: CreateTaskOpts<any, any>[];
+
+  /**
+   * The durable tasks that make up this workflow.
+   */
+  durableTasks: CreateDurableTaskOpts<any, any>[];
 };
 
 /**
@@ -104,6 +187,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     this.definition = {
       ...options,
       tasks: [],
+      durableTasks: [],
     };
 
     this.client = client;
@@ -116,14 +200,36 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  enqueue(input: T, options?: RunOpts): WorkflowRunRef<K> {
+  runNoWait(input: T, options?: RunOpts): WorkflowRunRef<K> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return this.client.v0.admin.runWorkflow(this.definition.name, input, options);
+    return this.client._v0.admin.runWorkflow(this.definition.name, input, options);
   }
 
+  /**
+   * @alias run
+   * Triggers a workflow run and waits for the result.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param input - The input data for the workflow
+   * @param options - Configuration options for the workflow run
+   * @returns A promise that resolves with the workflow result
+   */
+  async runAndWait(input: T, options?: RunOpts): Promise<K>;
+  async runAndWait(input: T[], options?: RunOpts): Promise<K[]>;
+  async runAndWait(input: T | T[], options?: RunOpts): Promise<K | K[]> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    if (Array.isArray(input)) {
+      return Promise.all(input.map((i) => this.runAndWait(i, options)));
+    }
+
+    return this.run(input, options);
+  }
   /**
    * Executes the workflow with the given input and awaits the results.
    * @param input The input data for the workflow.
@@ -143,7 +249,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       return Promise.all(input.map((i) => this.run(i, options)));
     }
 
-    const res = this.client.v0.admin.runWorkflow(this.definition.name, input, options);
+    const res = this.client._v0.admin.runWorkflow(this.definition.name, input, options);
     return res.result() as Promise<K>;
   }
 
@@ -160,7 +266,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       throw UNBOUND_ERR;
     }
 
-    const scheduled = this.client.v0.schedule.create(this.definition.name, {
+    const scheduled = this.client._v0.schedule.create(this.definition.name, {
       triggerAt: enqueueAt,
       input,
       additionalMetadata: options?.additionalMetadata,
@@ -202,7 +308,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       throw UNBOUND_ERR;
     }
 
-    const cronDef = this.client.v0.cron.create(this.definition.name, {
+    const cronDef = this.client._v0.cron.create(this.definition.name, {
       expression,
       input,
       additionalMetadata: options?.additionalMetadata,
@@ -233,6 +339,84 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     const typedOptions = options as CreateTaskOpts<T, TaskOutputType<K, Name, L>>;
     this.definition.tasks.push(typedOptions);
     return typedOptions;
+  }
+
+  /**
+   * Adds a durable task to the workflow.
+   * The return type will be either the property on K that corresponds to the task name,
+   * or if there is no matching property, the inferred return type of the function.
+   * @template Name The literal string name of the task.
+   * @template L The inferred return type of the task function.
+   * @param options The task configuration options.
+   * @returns The task options that were added.
+   */
+  durableTask<Name extends string, L>(
+    options: Omit<CreateTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+      name: Name;
+      fn: (
+        input: T,
+        ctx: DurableContext<T>
+      ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+    }
+  ): CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>> {
+    const typedOptions = options as unknown as CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>>;
+    this.definition.durableTasks.push(typedOptions);
+    return typedOptions;
+  }
+
+  metrics(opts?: Parameters<MetricsClient['getWorkflowMetrics']>[1]) {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.metrics.getWorkflowMetrics(this.definition.name, opts);
+  }
+
+  queueMetrics(opts?: Omit<Parameters<MetricsClient['getQueueMetrics']>[0], 'workflows'>) {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.metrics.getQueueMetrics({
+      ...opts,
+      workflows: [this.definition.name],
+    });
+  }
+
+  // get current state
+  get() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.get(this);
+  }
+
+  // gets the pause state of the workflow
+  isPaused() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.isPaused(this);
+  }
+
+  // pause assignment of workflow
+  pause() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.pause(this);
+  }
+
+  // unpause assignment of workflow
+  unpause() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.unpause(this);
   }
 
   // @deprecated use definition.name instead

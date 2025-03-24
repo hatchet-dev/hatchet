@@ -1,5 +1,8 @@
 /* eslint-disable max-classes-per-file */
-import { ListenerClient, StepRunEvent } from '@hatchet/clients/listener/listener-client';
+import {
+  RunListenerClient,
+  StepRunEvent,
+} from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Status } from 'nice-grpc';
 import { WorkflowRunEventType } from '../protoc/dispatcher';
 
@@ -45,7 +48,7 @@ async function getWorkflowRunId(workflowRunId: EventualWorkflowRunId): Promise<s
 export default class WorkflowRunRef<T> {
   workflowRunId: EventualWorkflowRunId;
   parentWorkflowRunId?: string;
-  private client: ListenerClient;
+  private client: RunListenerClient;
 
   constructor(
     workflowRunId:
@@ -54,7 +57,7 @@ export default class WorkflowRunRef<T> {
       | Promise<{
           workflowRunId: string;
         }>,
-    client: ListenerClient,
+    client: RunListenerClient,
     parentWorkflowRunId?: string
   ) {
     this.workflowRunId = workflowRunId;
@@ -62,6 +65,12 @@ export default class WorkflowRunRef<T> {
     this.client = client;
   }
 
+  // TODO docstrings
+  get runId() {
+    return this.getWorkflowRunId();
+  }
+
+  // @deprecated use runId
   async getWorkflowRunId(): Promise<string> {
     return getWorkflowRunId(this.workflowRunId);
   }
@@ -71,6 +80,15 @@ export default class WorkflowRunRef<T> {
     return this.client.stream(workflowRunId);
   }
 
+  // TODO not sure if i want this to be a get since it might be blocking for a long time..
+  get output() {
+    return this.result();
+  }
+
+  /**
+   * @alias output
+   * @deprecated use output
+   */
   async result(): Promise<T> {
     const workflowRunId = await getWorkflowRunId(this.workflowRunId);
 

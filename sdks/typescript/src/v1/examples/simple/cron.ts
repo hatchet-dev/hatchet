@@ -9,7 +9,7 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log(cron.metadata.id);
 
-  await hatchet.cron.delete(cron);
+  await hatchet.crons.delete(cron);
 }
 
 if (require.main === module) {

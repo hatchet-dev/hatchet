@@ -62,7 +62,7 @@ xdescribe('e2e', () => {
 
     console.log('pushing event...');
 
-    await hatchet.event.push('user:create-namespaced', {
+    await hatchet.events.push('user:create-namespaced', {
       test: 'test',
     });
 
