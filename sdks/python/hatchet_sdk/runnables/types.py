@@ -15,8 +15,8 @@ R = TypeVar("R", bound=Union[ValidTaskReturnType, Awaitable[ValidTaskReturnType]
 P = ParamSpec("P")
 
 
-DEFAULT_EXECUTION_TIMEOUT = timedelta(minutes=60)
-DEFAULT_SCHEDULE_TIMEOUT = timedelta(minutes=5)
+DEFAULT_EXECUTION_TIMEOUT = timedelta(seconds=60)
+DEFAULT_SCHEDULE_TIMEOUT = timedelta(seconds=5)
 DEFAULT_PRIORITY = 1
 
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Generic, cast, overload
 
 from google.protobuf import timestamp_pb2
@@ -25,6 +25,8 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
+    DEFAULT_EXECUTION_TIMEOUT,
+    DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
     R,
     StepType,
@@ -390,8 +392,8 @@ class Workflow(Generic[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(minutes=60),
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -469,8 +471,8 @@ class Workflow(Generic[TWorkflowInput]):
     def durable_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(minutes=60),
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -554,8 +556,8 @@ class Workflow(Generic[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = timedelta(minutes=5),
-        execution_timeout: Duration = timedelta(minutes=60),
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
