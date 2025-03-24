@@ -27,33 +27,10 @@
   "streaming-results": "Streaming Results",
   "running-from-external-services": "Running from External Services",
 
-  "--advanced-workflows": {
-    "title": "Advanced Workflows",
-    "type": "separator"
-  },
-  "dags": "Directed Acyclic Graphs (DAGs)",
-  "child-spawning": "Child Spawning",
-  "additional-metadata": "Additional Metadata",
-
-  "--flow-control": {
-    "title": "Flow Control",
-    "type": "separator"
-  },
-  "concurrency-keys": "Concurrency Keys",
-  "rate-limits": "Rate Limits",
-
-  "--cancellation": {
-    "title": "Cancellation",
-    "type": "separator"
-  },
-  "cancellation": "Cancellation",
-  "bulk-cancellation": "Bulk Cancellation",
-
   "--error-handling": {
     "title": "Error Handling",
     "type": "separator"
   },
-  "retries": "Retries",
   "timeouts": "Timeouts",
   "on-failure-tasks": "On Failure Tasks",
 
