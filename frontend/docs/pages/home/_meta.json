@@ -76,7 +76,7 @@
     "type": "separator"
   },
   "docker": "Running with Docker",
-  "worker-healthchecks": "Worker Healthchecks",
+  "worker-healthchecks": "Worker Health Checks",
 
   "retries": {
     "title": "Retries",
