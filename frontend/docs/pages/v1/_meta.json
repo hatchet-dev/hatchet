@@ -54,6 +54,5 @@
     "type": "separator"
   },
   "docker": "Running with Docker",
-  "webhook-workers": "Webhook Workers",
   "worker-healthchecks": "Worker Healthchecks"
 }
