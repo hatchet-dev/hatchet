@@ -3,7 +3,7 @@ import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig } from '@clients/hatchet-client';
 import { AdminClient } from './admin-client';
 import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
-import { ListenerClient } from '../listener/listener-client';
+import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 
 describe('AdminClient', () => {
   let client: AdminClient;
@@ -30,7 +30,7 @@ describe('AdminClient', () => {
       mockFactory,
       {} as any,
       'tenantId',
-      new ListenerClient(config, mockChannel, mockFactory, {} as any)
+      new RunListenerClient(config, mockChannel, mockFactory, {} as any)
     );
 
     expect(x).toBeDefined();
@@ -58,7 +58,7 @@ describe('AdminClient', () => {
       mockFactory,
       {} as any,
       'tenantId',
-      new ListenerClient(config, mockChannel, mockFactory, {} as any)
+      new RunListenerClient(config, mockChannel, mockFactory, {} as any)
     );
   });
 

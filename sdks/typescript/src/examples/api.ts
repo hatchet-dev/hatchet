@@ -49,11 +49,14 @@ async function main() {
 
   const worker = await hatchet.worker('example-worker');
 
-  worker.nonDurable.registerAction('slack:example', async (ctx: Context<StepOneInput, CustomUserData>) => {
-    const setData = ctx.userData();
-    console.log('executed step1!', setData);
-    return { step1: 'step1' };
-  });
+  worker.nonDurable.registerAction(
+    'slack:example',
+    async (ctx: Context<StepOneInput, CustomUserData>) => {
+      const setData = ctx.userData();
+      console.log('executed step1!', setData);
+      return { step1: 'step1' };
+    }
+  );
 
   await hatchet.admin.runWorkflow('api-workflow', {});
 

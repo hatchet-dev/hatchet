@@ -7,7 +7,7 @@ import {
 } from '@hatchet/protoc/v1/shared/condition';
 import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
 import { CreateTaskOpts } from '../task';
-import { Action, BaseCondition } from './base';
+import { Action, BaseCondition, Condition } from './base';
 import { ParentCondition } from './parent-condition';
 
 export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditions {
@@ -16,15 +16,19 @@ export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditio
   const skipIfConditions = Render(Action.SKIP, task.skipIf);
   const mergedConditions = [...waitForConditions, ...cancelIfConditions, ...skipIfConditions];
 
+  return conditionsToPb(mergedConditions);
+}
+
+export function conditionsToPb(conditions: Condition[]): TaskConditions {
   const parentOverrideConditions: ParentOverrideMatchCondition[] = [];
   const sleepConditions: SleepMatchCondition[] = [];
   const userEventConditions: UserEventMatchCondition[] = [];
 
-  mergedConditions.forEach((condition) => {
+  conditions.forEach((condition) => {
     if (condition instanceof SleepCondition) {
       sleepConditions.push({
         base: baseToPb(condition.base),
-        sleepFor: condition.sleepFor.toString(), // TODO consistent duration format
+        sleepFor: `${condition.sleepFor}s`, // TODO consistent duration format
       });
     } else if (condition instanceof UserEventCondition) {
       userEventConditions.push({
@@ -42,16 +46,11 @@ export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditio
     }
   });
 
-  const res = {
+  return {
     parentOverrideConditions,
     sleepConditions,
     userEventConditions,
   };
-
-  // TODO remove
-  console.log(JSON.stringify(res, null, 2));
-
-  return res;
 }
 
 function baseToPb(base: BaseCondition): BaseMatchCondition {

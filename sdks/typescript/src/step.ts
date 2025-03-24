@@ -13,7 +13,9 @@ import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
 import { CreateTaskOpts } from './v1/task';
 import { WorkflowDeclaration as WorkflowV1 } from './v1/workflow';
-import sleep from './util/sleep';
+import { Conditions, Render } from './v1/conditions';
+import { Action as ConditionAction } from './protoc/v1/shared/condition';
+import { conditionsToPb } from './v1/conditions/transformer';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -512,14 +514,32 @@ export class Context<T, K = {}> {
 }
 
 export class DurableContext<T, K = {}> extends Context<T, K> {
-  sleepFor(duration: number): Promise<unknown> {
-    // TODO implement
-    throw new HatchetError('sleepFor is not implemented for durable contexts');
+  waitKey: number = 0;
+
+  async sleepFor(duration: number): Promise<unknown> {
+    return this.waitFor({ sleepFor: duration });
   }
 
-  waitFor(): string {
-    // TODO implement
-    throw new HatchetError('waitFor is not implemented for durable contexts');
+  async waitFor(conditions: Conditions | Conditions[]): Promise<unknown> {
+    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+
+    // eslint-disable-next-line no-plusplus
+    const key = `waitFor-${this.waitKey++}`;
+    await this.client.durableListener.registerDurableEvent({
+      taskId: this.action.stepRunId,
+      signalKey: key,
+      sleepConditions: pbConditions.sleepConditions,
+      userEventConditions: pbConditions.userEventConditions,
+    });
+
+    const listener = this.client.durableListener.subscribe({
+      taskId: this.action.stepRunId,
+      signalKey: key,
+    });
+
+    const event = await listener.get();
+
+    return event;
   }
 }
 

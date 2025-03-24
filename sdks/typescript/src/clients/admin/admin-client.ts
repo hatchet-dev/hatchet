@@ -23,7 +23,7 @@ import {
   WorkflowRunStatus,
   WorkflowRunStatusList,
 } from '../rest/generated/data-contracts';
-import { ListenerClient } from '../listener/listener-client';
+import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 
 type WorkflowMetricsQuery = {
   workflowId?: string;
@@ -51,7 +51,7 @@ export class AdminClient {
   api: Api;
   tenantId: string;
   logger: Logger;
-  listenerClient: ListenerClient;
+  listenerClient: RunListenerClient;
 
   constructor(
     config: ClientConfig,
@@ -59,7 +59,7 @@ export class AdminClient {
     factory: ClientFactory,
     api: Api,
     tenantId: string,
-    listenerClient: ListenerClient
+    listenerClient: RunListenerClient
   ) {
     this.config = config;
     this.client = factory.create(WorkflowServiceDefinition, channel);

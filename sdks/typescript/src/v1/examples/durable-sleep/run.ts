@@ -1,12 +1,11 @@
 import { durableSleep } from './workflow';
 
 async function main() {
-  const res = await durableSleep.run({
-    N: 10,
-  });
-
+  const timeStart = Date.now();
+  const res = await durableSleep.run({});
+  const timeEnd = Date.now();
   // eslint-disable-next-line no-console
-  console.log(res.value.Value);
+  console.log(`Time taken: ${timeEnd - timeStart}ms`);
 }
 
 if (require.main === module) {

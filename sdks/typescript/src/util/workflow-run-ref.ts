@@ -1,5 +1,8 @@
 /* eslint-disable max-classes-per-file */
-import { ListenerClient, StepRunEvent } from '@hatchet/clients/listener/listener-client';
+import {
+  RunListenerClient,
+  StepRunEvent,
+} from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Status } from 'nice-grpc';
 import { WorkflowRunEventType } from '../protoc/dispatcher';
 
@@ -45,7 +48,7 @@ async function getWorkflowRunId(workflowRunId: EventualWorkflowRunId): Promise<s
 export default class WorkflowRunRef<T> {
   workflowRunId: EventualWorkflowRunId;
   parentWorkflowRunId?: string;
-  private client: ListenerClient;
+  private client: RunListenerClient;
 
   constructor(
     workflowRunId:
@@ -54,7 +57,7 @@ export default class WorkflowRunRef<T> {
       | Promise<{
           workflowRunId: string;
         }>,
-    client: ListenerClient,
+    client: RunListenerClient,
     parentWorkflowRunId?: string
   ) {
     this.workflowRunId = workflowRunId;

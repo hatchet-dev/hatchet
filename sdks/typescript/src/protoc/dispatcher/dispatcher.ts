@@ -391,6 +391,9 @@ export interface AssignedAction {
   workflowRunId: string;
   /** the get group key run id (optional) */
   getGroupKeyRunId: string;
+  /** task id */
+  taskId?: number;
+
   /** the job id */
   jobId: string;
   /** the job name */
