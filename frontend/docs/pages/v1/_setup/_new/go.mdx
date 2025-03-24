@@ -25,6 +25,7 @@ mkdir workers
 It is recommended to instantiate a shared Hatchet Client Factory in a separate file.
 
 Create a new directory called `hatchet_client` and a new file called `main.go` in it.
+
 ```bash copy
 mkdir hatchet_client &&
 touch hatchet_client/main.go
@@ -51,6 +52,7 @@ go mod tidy
 ```
 
 #### Import the Hatchet Client Factory
+
 You can now import the Hatchet Client Factory in any file that needs it.
 
 ```go copy
@@ -68,3 +70,4 @@ func main() {
 		log.Fatal(err)
 	}
 }
+```

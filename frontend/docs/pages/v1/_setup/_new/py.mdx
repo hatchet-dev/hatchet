@@ -21,7 +21,7 @@ mkdir hatchet-tutorial && cd hatchet-tutorial
         poetry init --dependency hatchet-sdk
         ```
     </Tabs.Tab>
-    <Tabs.Tab title="pip">  
+    <Tabs.Tab title="pip">
         ###### Create a virtual environment
         ```bash copy
         python -m venv venv
@@ -38,8 +38,8 @@ mkdir hatchet-tutorial && cd hatchet-tutorial
         pip freeze > requirements.txt
         ```
     </Tabs.Tab>
-</UniversalTabs>
 
+</UniversalTabs>
 
 ## Create project directories
 
@@ -54,6 +54,7 @@ mkdir src/workers
 It is recommended to instantiate a shared Hatchet Client in a separate file as a singleton.
 
 Create a new file called `hatchet_client.py`
+
 ```bash copy
 touch src/hatchet_client.py
 ```

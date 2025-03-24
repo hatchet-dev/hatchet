@@ -3,7 +3,11 @@ import { Callout } from "nextra/components";
 ## 🪓 Hatchet `v1` is nearly here!
 
 <Callout type="info" emoji="🚀">
-The first Hatchet Launch Week is coming up! From March 24th to March 28th, we will be highlighting a new feature or performance improvement in the v1 engine each day. You can get updates in our Discord [here](https://discord.gg/ZMeUafwH89) and we will be updating the top of our README [here](https://github.com/hatchet-dev/hatchet) with new announcements.
+  The first Hatchet Launch Week is coming up! From March 24th to March 28th, we
+  will be highlighting a new feature or performance improvement in the v1 engine
+  each day. You can get updates in our Discord
+  [here](https://discord.gg/ZMeUafwH89) and we will be updating the top of our
+  README [here](https://github.com/hatchet-dev/hatchet) with new announcements.
 </Callout>
 
 For the past several months, we’ve been working on a complete rewrite of the Hatchet queue with a focus on performance and a set of feature requests which weren’t possible in the v0 architecture.
@@ -27,9 +31,9 @@ At a high level, Hatchet v1 will support the following new features:
 - Durable execution features: workflow signaling and durable sleep
 - A documented, stable REST API for interacting with workflows
 - Each SDK will receive a new `v1.0.x` release with the following improvements:
-    - Python will receive improved support for Pydantic validation, dynamic workflow composition, simpler workflow and task declaration, and significantly improved type support.
-    - Typescript will receive a new factory method for building workflows, and improved typing and validation support
-    - Go will receive improvements for registering workflows and defining tasks.
+  - Python will receive improved support for Pydantic validation, dynamic workflow composition, simpler workflow and task declaration, and significantly improved type support.
+  - Typescript will receive a new factory method for building workflows, and improved typing and validation support
+  - Go will receive improvements for registering workflows and defining tasks.
 - Improved bulk cancellations and replays
 
 We are currently working on documentation and specs for the new features. If you would like to beta test a new feature, please let us know in our [Discord](https://discord.gg/ZMeUafwH89).
@@ -40,18 +44,20 @@ First, a quick note — we are **not removing any features from our existing fea
 
 Up to now, we’ve attempted to be as backwards-compatible as possible while keeping up with feature velocity, and we’d like to support users on v0 for as long as possible while providing an easy path for upgrading. Generally, we’d recommend upgrading the Hatchet engine first, followed by the SDK version. Here’s our compatibility matrix between v0 and v1:
 
-|  | Engine v0 | Engine v1 |
-| --- | --- | --- |
-| SDK v0 | Supported | Supported* |
-| SDK v1 | Limited support** | Supported |
-
+|        | Engine v0           | Engine v1   |
+| ------ | ------------------- | ----------- |
+| SDK v0 | Supported           | Supported\* |
+| SDK v1 | Limited support\*\* | Supported   |
 
 <Callout type="info" emoji="🪓">
-\* Some features will behave slightly differently on the v1 engine, but all workflows defined in v0 can be registered in v1
+  \* Some features will behave slightly differently on the v1 engine, but all
+  workflows defined in v0 can be registered in v1
 </Callout>
 
 <Callout type="warning" emoji="🚨">
-\** It will not be possible to register a v1 workflow against the v0 engine, but each SDK will continue to bundle the v0 version until September 30th, 2025.
+  \** It will not be possible to register a v1 workflow against the v0 engine,
+  but each SDK will continue to bundle the v0 version until September 30th,
+  2025.
 </Callout>
 
 ### List of breaking changes
@@ -67,7 +73,7 @@ _These are the most important breaking changes, but we will add any small modifi
 
 ## Terminology
 
-We have gotten feedback that the terminology of Workflows and Steps is confusing, and we’ve seen users use the terms steps/tasks/jobs/workflows interchangeably. In the next major release, we are calling each individual unit of work a ***Task***, and we are calling the declaration of the work to do a ***Workflow***. We believe that this naming translates more directly to what Hatchet is actually doing (we are a ***task queue*** built on Postgres, after all). When referring to an instance of a task or workflow, we will internally (and over our REST API) refer to these as ***Task Run*** or ***Workflow Run***, respectively, though it should be clear from context whether a Workflow or a Task refers to the declaration of work or an instance of the work.
+We have gotten feedback that the terminology of Workflows and Steps is confusing, and we’ve seen users use the terms steps/tasks/jobs/workflows interchangeably. In the next major release, we are calling each individual unit of work a **_Task_**, and we are calling the declaration of the work to do a **_Workflow_**. We believe that this naming translates more directly to what Hatchet is actually doing (we are a **_task queue_** built on Postgres, after all). When referring to an instance of a task or workflow, we will internally (and over our REST API) refer to these as **_Task Run_** or **_Workflow Run_**, respectively, though it should be clear from context whether a Workflow or a Task refers to the declaration of work or an instance of the work.
 
 ## Performance improvements
 
@@ -94,6 +100,10 @@ These links will become active when each migration guide is available.
 
 Hatchet pre-release [v0.55.11](https://github.com/hatchet-dev/hatchet/releases/tag/v0.55.11) bundles a beta version of the v1 engine for testing. If you upgrade to `v0.55.11` and navigate to your Tenant Settings, you will see an option to upgrade the tenant to v1:
 
-<img width="1591" alt="image" src="https://github.com/user-attachments/assets/55f6b343-e9a9-4d6b-9c03-43eba105357d" />
+<img
+  width="1591"
+  alt="image"
+  src="https://github.com/user-attachments/assets/55f6b343-e9a9-4d6b-9c03-43eba105357d"
+/>
 
 Feedback + bug reports are much appreciated!
