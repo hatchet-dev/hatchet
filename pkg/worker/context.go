@@ -71,7 +71,7 @@ type HatchetContext interface {
 
 	RetryCount() int
 
-	ParentOutput(parent *task.TaskDeclaration[any], target interface{}) error
+	ParentOutput(parent task.NamedTask, output interface{}) error
 
 	client() client.Client
 
@@ -192,11 +192,11 @@ func (h *hatchetContext) StepOutput(step string, target interface{}) error {
 	return fmt.Errorf("step %s not found in action payload", step)
 }
 
-func (h *hatchetContext) ParentOutput(parent *task.TaskDeclaration[any], target interface{}) error {
-	stepName := parent.Name
+func (h *hatchetContext) ParentOutput(parent task.NamedTask, output interface{}) error {
+	stepName := parent.GetName()
 
 	if val, ok := h.stepData.Parents[stepName]; ok {
-		return toTarget(val, target)
+		return toTarget(val, output)
 	}
 
 	return fmt.Errorf("parent %s not found in action payload", stepName)
