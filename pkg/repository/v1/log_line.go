@@ -15,7 +15,7 @@ type ListLogsOpts struct {
 	Offset *int
 
 	// (optional) number of logs to return
-	Limit *int `validate:"omitnil,min=1,max=1000"`
+	Limit *int `validate:"omitnil,min=1,max=10000"`
 
 	// (optional) a list of log levels to filter by
 	Levels []string `validate:"omitnil,dive,oneof=INFO ERROR WARN DEBUG"`
