@@ -182,8 +182,7 @@ export class DurableEventGrpcPooledListener {
       conditions,
     };
 
-    const registerResponse = await this.client.client.registerDurableEvent(registerRequest);
-    return registerResponse;
+    return await this.client.client.registerDurableEvent(registerRequest);
   }
 
   replayRequests() {
