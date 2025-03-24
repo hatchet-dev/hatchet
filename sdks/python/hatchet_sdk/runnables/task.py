@@ -1,6 +1,15 @@
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generic, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Generic,
+    TypeVar,
+    Union,
+    cast,
+)
 
-from hatchet_sdk.context.context import Context
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskRateLimit,
     DesiredWorkerLabels,
@@ -13,6 +22,7 @@ from hatchet_sdk.runnables.types import (
     StepType,
     TWorkflowInput,
     is_async_fn,
+    is_durable_sync_fn,
     is_sync_fn,
 )
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -37,10 +47,13 @@ def fall_back_to_default(value: T, default: T, fallback_value: T) -> T:
 class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,
-        fn: (
+        _fn: Union[
             Callable[[TWorkflowInput, Context], R]
-            | Callable[[TWorkflowInput, Context], Awaitable[R]]
-        ),
+            | Callable[[TWorkflowInput, Context], Awaitable[R]],
+            Callable[[TWorkflowInput, DurableContext], R]
+            | Callable[[TWorkflowInput, DurableContext], Awaitable[R]],
+        ],
+        is_durable: bool,
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
@@ -57,8 +70,11 @@ class Task(Generic[TWorkflowInput, R]):
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
     ) -> None:
-        self.fn = fn
-        self.is_async_function = is_async_fn(fn)
+        self.is_durable = is_durable
+
+        self.fn = _fn
+        self.is_async_function = is_async_fn(self.fn)  # type: ignore
+
         self.workflow = workflow
 
         self.type = type
@@ -97,28 +113,32 @@ class Task(Generic[TWorkflowInput, R]):
 
         return flattened
 
-    def call(self, ctx: Context) -> R:
+    def call(self, ctx: Context | DurableContext) -> R:
         if self.is_async_function:
             raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
-        sync_fn = self.fn
         workflow_input = self.workflow._get_workflow_input(ctx)
 
-        if is_sync_fn(sync_fn):
-            return sync_fn(workflow_input, ctx)
+        if self.is_durable:
+            fn = cast(Callable[[TWorkflowInput, DurableContext], R], self.fn)
+            if is_durable_sync_fn(fn):
+                return fn(workflow_input, cast(DurableContext, ctx))
+        else:
+            fn = cast(Callable[[TWorkflowInput, Context], R], self.fn)
+            if is_sync_fn(fn):
+                return fn(workflow_input, cast(Context, ctx))
 
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
-    async def aio_call(self, ctx: Context) -> R:
+    async def aio_call(self, ctx: Context | DurableContext) -> R:
         if not self.is_async_function:
             raise TypeError(
                 f"{self.name} is not an async function. Use `call` instead."
             )
 
-        async_fn = self.fn
         workflow_input = self.workflow._get_workflow_input(ctx)
 
-        if is_async_fn(async_fn):
-            return await async_fn(workflow_input, ctx)
+        if is_async_fn(self.fn):  # type: ignore
+            return await self.fn(workflow_input, cast(Context, ctx))  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
