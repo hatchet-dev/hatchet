@@ -155,6 +155,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
+        task_defaults: TaskDefaults = TaskDefaults(),
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -170,6 +171,7 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
+        task_defaults: TaskDefaults = TaskDefaults(),
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
