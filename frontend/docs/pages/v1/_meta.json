@@ -24,7 +24,10 @@
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
   "run-on-event": "Run on Event",
-  "streaming-results": "Streaming Results",
+  "streaming-results": {
+    "title": "Streaming Results",
+    "display": "hidden"
+  },
   "running-from-external-services": "Running from External Services",
 
   "--error-handling": {
@@ -54,5 +57,54 @@
     "type": "separator"
   },
   "docker": "Running with Docker",
-  "worker-healthchecks": "Worker Healthchecks"
+  "worker-healthchecks": "Worker Healthchecks",
+
+  "retries": {
+    "title": "Retries",
+    "display": "hidden"
+  },
+  "--advanced-workflows": {
+    "title": "Advanced Workflows",
+    "type": "separator",
+    "display": "hidden"
+  },
+  "dags": {
+    "title": "Directed Acyclic Graphs (DAGs)",
+    "display": "hidden"
+  },
+  "child-spawning": {
+    "title": "Child Spawning",
+    "display": "hidden"
+  },
+  "additional-metadata": {
+    "title": "Additional Metadata",
+    "display": "hidden"
+  },
+  "--flow-control": {
+    "title": "Flow Control",
+    "type": "separator",
+    "display": "hidden"
+  },
+  "concurrency-keys": {
+    "title": "Concurrency Keys",
+    "display": "hidden"
+  },
+  "rate-limits": {
+    "title": "Rate Limits",
+    "display": "hidden"
+  },
+
+  "--cancellation": {
+    "title": "Cancellation",
+    "type": "separator",
+    "display": "hidden"
+  },
+  "cancellation": {
+    "title": "Cancellation",
+    "display": "hidden"
+  },
+  "bulk-cancellation": {
+    "title": "Bulk Cancellation",
+    "display": "hidden"
+  }
 }
