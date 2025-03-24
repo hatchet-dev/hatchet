@@ -4,6 +4,7 @@ import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
 
@@ -11,6 +12,10 @@ from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
+)
+from hatchet_sdk.clients.durable_event_listener import (
+    DurableEventListener,
+    RegisterDurableEventRequest,
 )
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.rest_client import RestApi
@@ -20,6 +25,7 @@ from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
+from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -50,6 +56,7 @@ class Context:
         event_client: EventClient,
         rest_client: RestApi,
         workflow_listener: PooledWorkflowRunListener | None,
+        durable_event_listener: DurableEventListener | None,
         workflow_run_event_listener: RunEventListenerClient,
         worker: WorkerContext,
         namespace: str = "",
@@ -69,6 +76,7 @@ class Context:
         self.event_client = event_client
         self.rest_client = rest_client
         self.workflow_listener = workflow_listener
+        self.durable_event_listener = durable_event_listener
         self.workflow_run_event_listener = workflow_run_event_listener
         self.namespace = namespace
 
@@ -238,3 +246,26 @@ class Context:
         errors = self.data.step_run_errors
 
         return errors.get(task.name)
+
+
+class DurableContext(Context):
+    async def wait_for(
+        self, signal_key: str, *conditions: SleepCondition | UserEventCondition
+    ) -> dict[str, Any]:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable event listener is not available")
+
+        task_id = self.step_run_id
+
+        request = RegisterDurableEventRequest(
+            task_id=task_id,
+            signal_key=signal_key,
+            conditions=list(conditions),
+        )
+
+        self.durable_event_listener.register_durable_event(request)
+
+        return await self.durable_event_listener.result(
+            task_id,
+            signal_key,
+        )
