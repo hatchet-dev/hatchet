@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 import {
   ClientConfig,
   InternalHatchetClient,
@@ -10,6 +11,10 @@ import { JsonObject } from '@hatchet/step';
 import { CreateWorkflow, CreateWorkflowOpts, RunOpts, WorkflowDeclaration } from '../workflow';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker';
+import { MetricsClient } from './features/metrics';
+import { WorkersClient } from './features/workers';
+import { WorkflowsClient } from './features/workflows';
+import { RunsClient } from './features/runs';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -129,18 +134,114 @@ export class HatchetClient implements IHatchetClient {
     return run.result() as Promise<K>;
   }
 
-  get cron() {
+  /**
+   * Get the cron client for creating and managing cron workflow runs
+   * @returns A cron client instance
+   */
+  get crons() {
     return this.v0.cron;
   }
 
-  get schedule() {
+  /**
+   * Get the cron client for creating and managing cron workflow runs
+   * @returns A cron client instance
+   * @deprecated use client.crons instead
+   */
+  get cron() {
+    return this.crons;
+  }
+
+  /**
+   * Get the schedules client for creating and managing scheduled workflow runs
+   * @returns A schedules client instance
+   */
+  get schedules() {
     return this.v0.schedule;
   }
 
-  get event() {
+  /**
+   * Get the schedule client for creating and managing scheduled workflow runs
+   * @returns A schedule client instance
+   * @deprecated use client.schedules instead
+   */
+  get schedule() {
+    return this.schedules;
+  }
+
+  /**
+   * Get the event client for creating and managing event workflow runs
+   * @returns A event client instance
+   */
+  get events() {
     return this.v0.event;
   }
 
+  /**
+   * Get the event client for creating and managing event workflow runs
+   * @returns A event client instance
+   * @deprecated use client.events instead
+   */
+  get event() {
+    return this.events;
+  }
+
+  private _metrics: MetricsClient | undefined;
+
+  /**
+   * Get the metrics client for creating and managing metrics
+   * @returns A metrics client instance
+   */
+  get metrics() {
+    if (!this._metrics) {
+      this._metrics = new MetricsClient(this);
+    }
+    return this._metrics;
+  }
+
+  private _runs: RunsClient | undefined;
+
+  /**
+   * Get the runs client for creating and managing runs
+   * @returns A runs client instance
+   */
+  get runs() {
+    if (!this._runs) {
+      this._runs = new RunsClient(this);
+    }
+    return this._runs;
+  }
+
+  private _workflows: WorkflowsClient | undefined;
+
+  /**
+   * Get the workflows client for creating and managing workflows
+   * @returns A workflows client instance
+   */
+  get workflows() {
+    if (!this._workflows) {
+      this._workflows = new WorkflowsClient(this);
+    }
+    return this._workflows;
+  }
+
+  private _workers: WorkersClient | undefined;
+
+  /**
+   * Get the workers client for creating and managing workers
+   * @returns A workers client instance
+   */
+  get workers() {
+    if (!this._workers) {
+      this._workers = new WorkersClient(this);
+    }
+    return this._workers;
+  }
+
+  /**
+   * Get the API client for making HTTP requests to the Hatchet API
+   * Note: This is not recommended for general use, but is available for advanced scenarios
+   * @returns A API client instance
+   */
   get api() {
     return this.v0.api;
   }
