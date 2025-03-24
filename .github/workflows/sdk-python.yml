@@ -138,14 +138,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: engine-logs
+          name: ${{ matrix.python-version }}-engine-logs
           path: engine.log
 
       - name: Upload API logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: api-logs
+          name: ${{ matrix.python-version }}-api-logs
           path: api.log
 
   publish:
