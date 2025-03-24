@@ -2,6 +2,7 @@ import asyncio
 import multiprocessing
 import multiprocessing.context
 import os
+import re
 import signal
 import sys
 from dataclasses import dataclass, field
@@ -15,11 +16,12 @@ from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
+from pydantic import BaseModel
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
+from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import Workflow
@@ -48,11 +50,20 @@ class WorkerStartOptions:
     loop: asyncio.AbstractEventLoop | None = field(default=None)
 
 
+class HealthCheckResponse(BaseModel):
+    status: str
+    name: str
+    slots: int
+    actions: list[str]
+    labels: dict[str, str | int]
+    python_version: str
+
+
 class Worker:
     def __init__(
         self,
         name: str,
-        config: ClientConfig = ClientConfig(),
+        config: ClientConfig,
         slots: int | None = None,
         labels: dict[str, str | int] = {},
         debug: bool = False,
@@ -60,45 +71,55 @@ class Worker:
         handle_kill: bool = True,
         workflows: list[Workflow[Any]] = [],
     ) -> None:
-        self.name = name
         self.config = config
+        self.name = self.config.namespace + name
         self.slots = slots
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
         self.owned_loop = owned_loop
 
-        self.client: Client
-
         self.action_registry: dict[str, Task[Any, Any]] = {}
+        self.durable_action_registry: dict[str, Task[Any, Any]] = {}
+
         self.validator_registry: dict[str, WorkflowValidator] = {}
 
         self.killing: bool = False
         self._status: WorkerStatus
 
-        self.action_listener_process: BaseProcess
+        self.action_listener_process: BaseProcess | None = None
+        self.durable_action_listener_process: BaseProcess | None = None
+
         self.action_listener_health_check: asyncio.Task[None]
-        self.action_runner: WorkerActionRunLoopManager
+
+        self.action_runner: WorkerActionRunLoopManager | None = None
+        self.durable_action_runner: WorkerActionRunLoopManager | None = None
 
         self.ctx = multiprocessing.get_context("spawn")
 
         self.action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
         self.event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
 
+        self.durable_action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
+        self.durable_event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
+
         self.loop: asyncio.AbstractEventLoop
 
         self.client = Client(config=self.config, debug=self.debug)
-        self.name = self.client.config.namespace + self.name
 
         self._setup_signal_handlers()
 
         self.worker_status_gauge = Gauge(
-            "hatchet_worker_status", "Current status of the Hatchet worker"
+            "hatchet_worker_status_" + re.sub(r"\W+", "", name),
+            "Current status of the Hatchet worker",
         )
+
+        self.has_any_durable = False
+        self.has_any_non_durable = False
 
         self.register_workflows(workflows)
 
-    def register_workflow_from_opts(self, opts: CreateWorkflowVersionOpts) -> None:
+    def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
             self.client.admin.put_workflow(opts.name, opts)
         except Exception as e:
@@ -108,11 +129,11 @@ class Worker:
 
     def register_workflow(self, workflow: Workflow[Any]) -> None:
         namespace = self.client.config.namespace
+        opts = workflow._get_create_opts(namespace)
+        name = workflow._get_name(namespace)
 
         try:
-            self.client.admin.put_workflow(
-                workflow._get_name(namespace), workflow._get_create_opts(namespace)
-            )
+            self.client.admin.put_workflow(name, opts)
         except Exception as e:
             logger.error(
                 f"failed to register workflow: {workflow._get_name(namespace)}"
@@ -122,7 +143,14 @@ class Worker:
 
         for step in workflow.tasks:
             action_name = workflow._create_action_name(namespace, step)
-            self.action_registry[action_name] = step
+
+            if workflow.is_durable:
+                self.has_any_durable = True
+                self.durable_action_registry[action_name] = step
+            else:
+                self.has_any_non_durable = True
+                self.action_registry[action_name] = step
+
             return_type = get_type_hints(step.fn).get("return")
 
             self.validator_registry[action_name] = WorkflowValidator(
@@ -138,36 +166,47 @@ class Worker:
     def status(self) -> WorkerStatus:
         return self._status
 
-    def setup_loop(self, loop: asyncio.AbstractEventLoop | None = None) -> bool:
+    def _setup_loop(self, loop: asyncio.AbstractEventLoop | None = None) -> bool:
         try:
-            loop = loop or asyncio.get_running_loop()
-            self.loop = loop
-            created_loop = False
+            self.loop = loop or asyncio.get_running_loop()
             logger.debug("using existing event loop")
-            return created_loop
+
+            created_loop = False
         except RuntimeError:
             self.loop = asyncio.new_event_loop()
+
             logger.debug("creating new event loop")
-            asyncio.set_event_loop(self.loop)
             created_loop = True
-            return created_loop
 
-    async def health_check_handler(self, request: Request) -> Response:
-        return web.json_response({"status": self.status.name})
+        asyncio.set_event_loop(self.loop)
 
-    async def metrics_handler(self, request: Request) -> Response:
+        return created_loop
+
+    async def _health_check_handler(self, request: Request) -> Response:
+        response = HealthCheckResponse(
+            status=self.status.name,
+            name=self.name,
+            slots=self.slots or 0,
+            actions=list(self.action_registry.keys()),
+            labels=self.labels,
+            python_version=sys.version,
+        ).model_dump()
+
+        return web.json_response(response)
+
+    async def _metrics_handler(self, request: Request) -> Response:
         self.worker_status_gauge.set(1 if self.status == WorkerStatus.HEALTHY else 0)
 
         return web.Response(body=generate_latest(), content_type="text/plain")
 
-    async def start_health_server(self) -> None:
+    async def _start_health_server(self) -> None:
         port = self.config.healthcheck.port
 
         app = web.Application()
         app.add_routes(
             [
-                web.get("/health", self.health_check_handler),
-                web.get("/metrics", self.metrics_handler),
+                web.get("/health", self._health_check_handler),
+                web.get("/metrics", self._metrics_handler),
             ]
         )
 
@@ -184,11 +223,9 @@ class Worker:
         logger.info(f"healthcheck server running on port {port}")
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
-        self.owned_loop = self.setup_loop(options.loop)
+        self.owned_loop = self._setup_loop(options.loop)
 
-        asyncio.run_coroutine_threadsafe(
-            self._aio_start(options, _from_start=True), self.loop
-        )
+        asyncio.run_coroutine_threadsafe(self._aio_start(), self.loop)
 
         # start the loop and wait until its closed
         if self.owned_loop:
@@ -197,34 +234,35 @@ class Worker:
             if self.handle_kill:
                 sys.exit(0)
 
-    async def _aio_start(
-        self,
-        options: WorkerStartOptions = WorkerStartOptions(),
-        _from_start: bool = False,
-    ) -> None:
+    async def _aio_start(self) -> None:
         main_pid = os.getpid()
+
         logger.info("------------------------------------------")
         logger.info("STARTING HATCHET...")
         logger.debug(f"worker runtime starting on PID: {main_pid}")
 
         self._status = WorkerStatus.STARTING
 
-        if len(self.action_registry.keys()) == 0:
-            logger.error(
+        if (
+            len(self.action_registry.keys()) == 0
+            and len(self.durable_action_registry.keys()) == 0
+        ):
+            raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
-            return None
-
-        # non blocking setup
-        if not _from_start:
-            self.setup_loop(options.loop)
 
         if self.config.healthcheck.enabled:
-            await self.start_health_server()
+            await self._start_health_server()
 
-        self.action_listener_process = self._start_listener()
+        if self.has_any_non_durable:
+            self.action_listener_process = self._start_action_listener(is_durable=False)
+            self.action_runner = self._run_action_runner(is_durable=False)
 
-        self.action_runner = self._run_action_runner()
+        if self.has_any_durable:
+            self.durable_action_listener_process = self._start_action_listener(
+                is_durable=True
+            )
+            self.durable_action_runner = self._run_action_runner(is_durable=True)
 
         self.action_listener_health_check = self.loop.create_task(
             self._check_listener_health()
@@ -232,35 +270,39 @@ class Worker:
 
         await self.action_listener_health_check
 
-    def _run_action_runner(self) -> WorkerActionRunLoopManager:
+    def _run_action_runner(self, is_durable: bool) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         return WorkerActionRunLoopManager(
-            self.name,
-            self.action_registry,
+            self.name + ("_durable" if is_durable else ""),
+            self.durable_action_registry if is_durable else self.action_registry,
             self.validator_registry,
-            self.slots,
+            1_000 if is_durable else self.slots,
             self.config,
-            self.action_queue,
-            self.event_queue,
+            self.durable_action_queue if is_durable else self.action_queue,
+            self.durable_event_queue if is_durable else self.event_queue,
             self.loop,
             self.handle_kill,
             self.client.debug,
             self.labels,
         )
 
-    def _start_listener(self) -> multiprocessing.context.SpawnProcess:
-        action_list = [str(key) for key in self.action_registry.keys()]
-
+    def _start_action_listener(
+        self, is_durable: bool
+    ) -> multiprocessing.context.SpawnProcess:
         try:
             process = self.ctx.Process(
                 target=worker_action_listener_process,
                 args=(
-                    self.name,
-                    action_list,
-                    self.slots,
+                    self.name + ("_durable" if is_durable else ""),
+                    (
+                        list(self.durable_action_registry.keys())
+                        if is_durable
+                        else list(self.action_registry.keys())
+                    ),
+                    1_000 if is_durable else self.slots,
                     self.config,
-                    self.action_queue,
-                    self.event_queue,
+                    self.durable_action_queue if is_durable else self.action_queue,
+                    self.durable_event_queue if is_durable else self.event_queue,
                     self.handle_kill,
                     self.client.debug,
                     self.labels,
@@ -279,8 +321,13 @@ class Worker:
         try:
             while not self.killing:
                 if (
-                    self.action_listener_process is None
-                    or not self.action_listener_process.is_alive()
+                    not self.action_listener_process
+                    and not self.durable_action_listener_process
+                ) or (
+                    self.action_listener_process
+                    and self.durable_action_listener_process
+                    and not self.action_listener_process.is_alive()
+                    and not self.durable_action_listener_process.is_alive()
                 ):
                     logger.debug("child action listener process killed...")
                     self._status = WorkerStatus.UNHEALTHY
@@ -305,16 +352,17 @@ class Worker:
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
         logger.info("received SIGQUIT...")
-        self.loop.create_task(self.exit_forcefully())
+        self.loop.create_task(self._exit_forcefully())
 
     async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")
         self.killing = True
-        # self.action_queue.close()
-        # self.event_queue.close()
 
         if self.action_runner is not None:
             self.action_runner.cleanup()
+
+        if self.durable_action_runner is not None:
+            self.durable_action_runner.cleanup()
 
         await self.action_listener_health_check
 
@@ -322,16 +370,26 @@ class Worker:
         logger.debug(f"gracefully stopping worker: {self.name}")
 
         if self.killing:
-            return await self.exit_forcefully()
+            return await self._exit_forcefully()
 
         self.killing = True
 
-        await self.action_runner.wait_for_tasks()
+        if self.action_runner:
+            await self.action_runner.wait_for_tasks()
+            await self.action_runner.exit_gracefully()
 
-        await self.action_runner.exit_gracefully()
+        if self.durable_action_runner:
+            await self.durable_action_runner.wait_for_tasks()
+            await self.durable_action_runner.exit_gracefully()
 
         if self.action_listener_process and self.action_listener_process.is_alive():
             self.action_listener_process.kill()
+
+        if (
+            self.durable_action_listener_process
+            and self.durable_action_listener_process.is_alive()
+        ):
+            self.durable_action_listener_process.kill()
 
         await self._close()
         if self.loop and self.owned_loop:
@@ -339,7 +397,7 @@ class Worker:
 
         logger.info("👋")
 
-    async def exit_forcefully(self) -> None:
+    async def _exit_forcefully(self) -> None:
         self.killing = True
 
         logger.debug(f"forcefully stopping worker: {self.name}")
@@ -347,9 +405,10 @@ class Worker:
         await self._close()
 
         if self.action_listener_process:
-            self.action_listener_process.kill()  # Forcefully kill the process
+            self.action_listener_process.kill()
+
+        if self.durable_action_listener_process:
+            self.durable_action_listener_process.kill()
 
         logger.info("👋")
-        sys.exit(
-            1
-        )  # Exit immediately TODO - should we exit with 1 here, there may be other workers to cleanup
+        sys.exit(1)

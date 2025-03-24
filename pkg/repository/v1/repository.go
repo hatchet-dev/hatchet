@@ -3,7 +3,9 @@ package v1
 import (
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
@@ -16,6 +18,7 @@ type Repository interface {
 	OLAP() OLAPRepository
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
+	OverwriteLogsRepository(l LogLineRepository)
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
@@ -33,10 +36,10 @@ type repositoryImpl struct {
 	ticker    TickerRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
 	matchRepo, err := newMatchRepository(shared)
 
@@ -87,6 +90,10 @@ func (r *repositoryImpl) OverwriteOLAPRepository(o OLAPRepository) {
 
 func (r *repositoryImpl) Logs() LogLineRepository {
 	return r.logs
+}
+
+func (r *repositoryImpl) OverwriteLogsRepository(l LogLineRepository) {
+	r.logs = l
 }
 
 func (r *repositoryImpl) Workers() WorkerRepository {

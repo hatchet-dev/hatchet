@@ -96,3 +96,10 @@ FROM "Worker"
 WHERE "tenantId" = @tenantId::uuid
 AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
 AND "isActive" = true;
+
+-- name: CountTenantWorkerSlots :one
+SELECT SUM(w."maxRuns") AS "count"
+FROM "Worker" w
+WHERE "tenantId" = @tenantId::uuid
+AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+AND "isActive" = true;

@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -116,11 +118,20 @@ func NewAPIRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...Po
 		logsAPIRepo = opts.logsAPIRepository.WithAdditionalConfig(opts.v, opts.l)
 	}
 
+	defaultEngineVersion := dbsqlc.TenantMajorEngineVersionV0
+
+	switch strings.ToLower(cf.DefaultEngineVersion) {
+	case "v0":
+		defaultEngineVersion = dbsqlc.TenantMajorEngineVersionV0
+	case "v1":
+		defaultEngineVersion = dbsqlc.TenantMajorEngineVersionV1
+	}
+
 	return &apiRepository{
 		apiToken:       NewAPITokenRepository(shared, opts.cache),
 		event:          NewEventAPIRepository(shared),
 		log:            logsAPIRepo,
-		tenant:         NewTenantAPIRepository(shared, opts.cache),
+		tenant:         NewTenantAPIRepository(shared, opts.cache, defaultEngineVersion),
 		tenantAlerting: NewTenantAlertingRepository(shared, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(shared),
 		workflow:       NewWorkflowRepository(shared),

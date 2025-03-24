@@ -47,7 +47,7 @@ export class DurableEventGrpcPooledListener {
 
   private subscriptionCounter = 0;
   private currRequester = 0;
-  private readonly DEFAULT_INTERRUPT_INTERVAL = 1800000; // 30 minutes in milliseconds
+  private readonly DEFAULT_INTERRUPT_INTERVAL = 15 * 60 * 1000; // 15 minutes in milliseconds
 
   constructor(client: DurableListenerClient, onFinish: () => void) {
     this.client = client;
@@ -99,7 +99,7 @@ export class DurableEventGrpcPooledListener {
       for await (const event of this.listener) {
         retryCount = 0;
 
-        const subscriptionKey = `${event.taskId}-${event.signalKey}`;
+        const subscriptionKey = keyHelper(event.taskId, event.signalKey);
         const subscriptionIds = this.taskSignalKeyToSubscriptionIds[subscriptionKey] || [];
 
         for (const subId of subscriptionIds) {
@@ -149,7 +149,7 @@ export class DurableEventGrpcPooledListener {
 
     this.subscribers[subscriptionId] = subscriber;
 
-    const key = `${taskId}-${signalKey}`;
+    const key = keyHelper(taskId, signalKey);
     if (!this.taskSignalKeyToSubscriptionIds[key]) {
       this.taskSignalKeyToSubscriptionIds[key] = [];
     }
@@ -182,8 +182,7 @@ export class DurableEventGrpcPooledListener {
       conditions,
     };
 
-    const registerResponse = await this.client.client.registerDurableEvent(registerRequest);
-    return registerResponse;
+    return this.client.client.registerDurableEvent(registerRequest);
   }
 
   replayRequests() {
@@ -215,7 +214,7 @@ export class DurableEventGrpcPooledListener {
       if (currRequester !== this.currRequester) break;
 
       const request = e[0] as ListenForDurableEventRequest;
-      const key = `${request.taskId}-${request.signalKey}`;
+      const key = keyHelper(request.taskId, request.signalKey);
 
       // Only send unique subscriptions
       if (!existingSubscriptions.has(key)) {
@@ -225,3 +224,5 @@ export class DurableEventGrpcPooledListener {
     }
   }
 }
+
+const keyHelper = (taskId: string, signalKey: string) => `${taskId}-${signalKey}`;

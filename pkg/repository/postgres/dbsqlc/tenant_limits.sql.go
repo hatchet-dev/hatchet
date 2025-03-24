@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTenantWorkerSlots = `-- name: CountTenantWorkerSlots :one
+SELECT SUM(w."maxRuns") AS "count"
+FROM "Worker" w
+WHERE "tenantId" = $1::uuid
+AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+AND "isActive" = true
+`
+
+func (q *Queries) CountTenantWorkerSlots(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countTenantWorkerSlots, tenantid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countTenantWorkers = `-- name: CountTenantWorkers :one
 SELECT COUNT(distinct id) AS "count"
 FROM "Worker"

@@ -208,13 +208,17 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 			}
 		}
 
+		taskId := signalMatch.SignalTaskId
+		externalId := signalMatch.SignalExternalId
+		signalKey := signalMatch.SignalKey
+
 		eventMatches = append(eventMatches, CreateMatchOpts{
 			Kind:                 sqlcv1.V1MatchKindSIGNAL,
 			Conditions:           conditions,
-			SignalTaskId:         &signalMatch.SignalTaskId,
+			SignalTaskId:         &taskId,
 			SignalTaskInsertedAt: signalMatch.SignalTaskInsertedAt,
-			SignalExternalId:     &signalMatch.SignalExternalId,
-			SignalKey:            &signalMatch.SignalKey,
+			SignalExternalId:     &externalId,
+			SignalKey:            &signalKey,
 		})
 	}
 

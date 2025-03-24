@@ -58,6 +58,13 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 			CustomValueMeter: false,
 		},
 		{
+			Resource:         dbsqlc.LimitResourceTASKRUN,
+			Limit:            int32(t.config.Limits.DefaultTaskRunLimit),      // nolint: gosec
+			Alarm:            int32(t.config.Limits.DefaultTaskRunAlarmLimit), // nolint: gosec
+			Window:           &t.config.Limits.DefaultTaskRunWindow,
+			CustomValueMeter: false,
+		},
+		{
 			Resource:         dbsqlc.LimitResourceEVENT,
 			Limit:            int32(t.config.Limits.DefaultEventLimit),      // nolint: gosec
 			Alarm:            int32(t.config.Limits.DefaultEventAlarmLimit), // nolint: gosec
@@ -68,6 +75,13 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 			Resource:         dbsqlc.LimitResourceWORKER,
 			Limit:            int32(t.config.Limits.DefaultWorkerLimit),      // nolint: gosec
 			Alarm:            int32(t.config.Limits.DefaultWorkerAlarmLimit), // nolint: gosec
+			Window:           nil,
+			CustomValueMeter: true,
+		},
+		{
+			Resource:         dbsqlc.LimitResourceWORKERSLOT,
+			Limit:            int32(t.config.Limits.DefaultWorkerSlotLimit),      // nolint: gosec
+			Alarm:            int32(t.config.Limits.DefaultWorkerSlotAlarmLimit), // nolint: gosec
 			Window:           nil,
 			CustomValueMeter: true,
 		},
@@ -195,6 +209,14 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 				return nil, err
 			}
 			limit.Value = int32(workerCount) // nolint: gosec
+		}
+
+		if limit.Resource == dbsqlc.LimitResourceWORKERSLOT {
+			workerSlotCount, err := t.queries.CountTenantWorkerSlots(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
+			if err != nil {
+				return nil, err
+			}
+			limit.Value = int32(workerSlotCount) // nolint: gosec
 		}
 
 	}

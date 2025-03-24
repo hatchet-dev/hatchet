@@ -249,7 +249,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	worker, err := s.repo.Worker().CreateNewWorker(ctx, tenantId, opts)
 
 	if err == metered.ErrResourceExhausted {
-		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit exceeded")
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: tenant worker limit or concurrency limit exceeded")
 	}
 
 	if err != nil {

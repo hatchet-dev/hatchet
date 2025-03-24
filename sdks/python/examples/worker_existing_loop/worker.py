@@ -24,7 +24,7 @@ async def async_main() -> None:
         )
         worker.start()
 
-        ref = existing_loop_worker.run()
+        ref = existing_loop_worker.run_no_wait()
         print(await ref.aio_result())
         while True:
             await asyncio.sleep(1)

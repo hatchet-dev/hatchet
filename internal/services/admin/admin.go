@@ -104,6 +104,10 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
+	if opts.entitlements == nil {
+		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
+	}
+
 	return &AdminServiceImpl{
 		repo:         opts.repo,
 		repov1:       opts.repov1,
