@@ -1,3 +1,5 @@
+// ❓ Declaring a Child
+
 import { hatchet } from '../hatchet-client';
 
 type ChildInput = {
@@ -22,6 +24,10 @@ child.task({
     };
   },
 });
+
+// !!
+
+// ❓ Declaring a Parent
 
 type ParentInput = {
   N: number;
@@ -55,3 +61,5 @@ parent.task({
     };
   },
 });
+
+// !!
