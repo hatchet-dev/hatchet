@@ -382,7 +382,7 @@ export class Context<T, K = {}> {
     }>
   ): Promise<P[]> {
     const runs = await this.bulkRunNoWaitChildren(children);
-    const res = runs.map((run) => run.result());
+    const res = runs.map((run) => run.output);
     return Promise.all(res);
   }
 
@@ -474,7 +474,7 @@ export class Context<T, K = {}> {
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): Promise<P> {
     const run = await this.spawnWorkflow(workflow, input, options);
-    return run.result();
+    return run.output();
   }
 
   /**

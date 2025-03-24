@@ -131,7 +131,7 @@ export class HatchetClient implements IHatchetClient {
     options: RunOpts = {}
   ): Promise<K> {
     const run = this.runNoWait<T, K>(workflow, input, options);
-    return run.result() as Promise<K>;
+    return run.output as Promise<K>;
   }
 
   /**

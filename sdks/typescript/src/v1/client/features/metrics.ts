@@ -23,8 +23,19 @@ export class MetricsClient {
     return data;
   }
 
-  async getQueueMetrics(opts?: Parameters<typeof this.api.tenantGetQueueMetrics>[1]) {
-    const { data } = await this.api.tenantGetQueueMetrics(this.tenantId, opts);
+  async getQueueMetrics(
+    opts?: Parameters<typeof this.api.tenantGetQueueMetrics>[1] & {
+      // TODO override the workflows to this...
+      // workflows?: (string | WorkflowDeclaration<any, any> | Workflow)[];
+    }
+  ) {
+    // TODO IMPORTANT workflow id is the uuid for the workflow... not its name
+    // const stringWorkflows = opts?.workflows?
+
+    const { data } = await this.api.tenantGetQueueMetrics(this.tenantId, {
+      ...opts,
+      // workflows: stringWorkflows,
+    });
     return data;
   }
 
