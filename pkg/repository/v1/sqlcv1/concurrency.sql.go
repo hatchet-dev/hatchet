@@ -1259,7 +1259,7 @@ func (q *Queries) RunChildGroupRoundRobin(ctx context.Context, db DBTX, arg RunC
 
 const runGroupRoundRobin = `-- name: RunGroupRoundRobin :many
 WITH eligible_slots_per_group AS (
-    SELECT 
+    SELECT
     FROM (
         SELECT DISTINCT key
         FROM v1_concurrency_slot
