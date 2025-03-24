@@ -83,7 +83,6 @@ export type CreateWorkflowOpts = {
    * @param ctx The context of the workflow.
    */
   onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
-  // TODO onfailure should take a task dfn?
 
   /**
    * (optional) default configuration for all tasks in the workflow.
