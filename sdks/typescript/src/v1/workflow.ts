@@ -382,6 +382,42 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     });
   }
 
+  // get current state
+  get() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.get(this);
+  }
+
+  // gets the pause state of the workflow
+  isPaused() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.isPaused(this);
+  }
+
+  // pause assignment of workflow
+  pause() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.pause(this);
+  }
+
+  // unpause assignment of workflow
+  unpause() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.unpause(this);
+  }
+
   // @deprecated use definition.name instead
   get id() {
     return this.definition.name;
