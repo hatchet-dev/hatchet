@@ -28,18 +28,15 @@
   "environments": "Environments",
 
   "--running-workflows": {
-    "title": "Running Workflows",
+    "title": "Ways of Running Workflows",
     "type": "separator"
   },
   "running-workflows": "Introduction",
-  "run-with-results": "Run with Results",
-  "enqueue-runs": "Enqueue a Run",
-  "scheduled-runs": "Scheduled Runs",
-  "cron-runs": "Cron Runs",
-  "run-on-event": {
-    "title": "Run on Event",
-    "display": "hidden"
-  },
+  "run-with-results": "Run and Wait Trigger",
+  "enqueue-runs": "Enqueue (Run Without Waiting) Trigger",
+  "scheduled-runs": "Scheduled Trigger",
+  "cron-runs": "Cron Trigger",
+  "run-on-event": "Event Trigger",
   "streaming-results": {
     "title": "Streaming Results",
     "display": "hidden"
