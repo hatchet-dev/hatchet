@@ -4,6 +4,7 @@ import pino from 'pino';
 import Hatchet from '../sdk';
 import { Workflow } from '../workflow';
 
+// ❓ Create Pino logger
 const logger = pino();
 
 class PinoLogger implements Logger {
@@ -41,6 +42,11 @@ const hatchet = Hatchet.init({
   logger: (ctx, level) => new PinoLogger(ctx, level),
 });
 
+// !!
+
+
+// ❓ Use the logger
+
 const sleep = (ms: number) =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -67,6 +73,8 @@ const workflow: Workflow = {
     },
   ],
 };
+
+// !!
 
 async function main() {
   const worker = await hatchet.worker('byo-logger-worker', 1);

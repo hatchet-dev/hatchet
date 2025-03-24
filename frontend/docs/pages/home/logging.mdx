@@ -15,14 +15,19 @@ export const LoggerWorkflowTs = {
   path: "src/examples/logger.ts",
 };
 
+export const ByoLoggerTs = {
+  path: "src/examples/byo-logger.ts",
+};
+
 export const getStaticProps = ({}) =>
-  getSnippets([LoggerClientPy, LoggerWorkflowPy, LoggerWorkflowTs]);
+  getSnippets([LoggerClientPy, LoggerWorkflowPy, LoggerWorkflowTs, ByoLoggerTs]);
 
 # Logging
 
-Hatchet comes with a built-in logging view where you can push debug logs from your workflows. This is useful for debugging and monitoring your workflows.
+Hatchet comes with a built-in logging view where you can push logs from your workflows. This is useful for debugging and monitoring your workflows.
 
-<UniversalTabs items={['Python', 'TypeScript', 'Go']}>
+<UniversalTabs items={['Python', 'TypeScript']}>
+{/* <UniversalTabs items={['Python', 'TypeScript', 'Go']}> TODO V1 DOCS -- Add Go logging and add this tab back */}
   <Tabs.Tab>
 You can use either Python's built-in `logging` package, or the `context.log` method for more control over the logs that are sent.
 
@@ -52,21 +57,33 @@ And then in `workflows/workflow.py`, you should create a child logger:
 
 ## Using the `context.log` method
 
-You can also use the `context.log` method to log messages from your workflows. This method is available on the `Context` object that is passed to each step in your workflow. For example:
+You can also use the `context.log` method to log messages from your workflows. This method is available on the `Context` object that is passed to each task in your workflow. For example:
 
 <GithubSnippet src={LoggerWorkflowPy} target="ContextLogger" />
 
-Each step is currently limited to 1000 log lines.
+Each task is currently limited to 1000 log lines.
 
 </Tabs.Tab>
 
 <Tabs.Tab>
+
+In TypeScript, there are two options for logging from your tasks. The first is to use the `ctx.log()` method (from the `Context`) to send logs:
 
 <GithubSnippet src={LoggerWorkflowTs} target="Logger" />
 
+This has the benefit of being easy to use out of the box (no setup required!), but it's limited in its flexibiliy and how pluggable it is with your existing logging setup. Hatchet also allows you to "bring your own" logger when you define a workflow:
+
+<GithubSnippet src={ByoLoggerTs} target="Create Pino logger" />
+
+In this example, we create Pino logger that implement's Hatchet's `Logger` interface and pass it to the Hatchet client constructor. We can then use that logger in our steps:
+
+<GithubSnippet src={ByoLoggerTs} target="Use the logger" />
+
+
+
 </Tabs.Tab>
-<Tabs.Tab>
-TODO V1 DOCS
-</Tabs.Tab>
+{/* <Tabs.Tab>
+TODO V1 DOCS - ADD GO LOGGING HERE
+</Tabs.Tab> */}
 
 </UniversalTabs>
