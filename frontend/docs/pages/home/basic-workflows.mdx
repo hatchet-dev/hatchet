@@ -17,6 +17,11 @@ In Hatchet the fundamental unit of invocable work is a [Workflow](#defining-a-wo
 
 As we continue to build with Hatchet, we'll add additional configuration options to the workflow and task objects to support more complex workflows.
 
+## Declarative Workflow Design (DAGs)
+
+Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each task is a node in the graph, and the dependencies between tasks are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies. By defining the sequence and dependencies of tasks upfront, you can easily understand the actual runtime state as compared to the expected state when debugging or troubleshooting.
+
+
 ## Defining a Workflow
 
 Start by declaring a workflow with a name. The workflow object can declare additional workflow-level configuration options which we'll cover later.
@@ -40,7 +45,7 @@ The returned object is an instance of the `Workflow` class which is the primary 
   <Callout variant="info">
     Declaring input and output types are optional, but recommended. When
     declaring output types, the keys of the object will be the names of the
-    steps in the workflow where the output will be returned.
+    tasks in the workflow where the output will be returned.
   </Callout>
 </Tabs.Tab>
 <Tabs.Tab title="Go">
@@ -48,7 +53,7 @@ The returned object is an instance of the `Workflow` class which is the primary 
     w.RegisterWorkflow(
         &worker.WorkflowJob{
             Name:        "simple-workflow",
-            Description: "Simple one-step workflow.",
+            Description: "Simple one-task workflow.",
             On:          worker.Event("user:created"),
             Steps: []*worker.WorkflowStep{
                 worker.Fn(func(ctx worker.HatchetContext) error {
@@ -72,8 +77,8 @@ The `task` method takes a name and a function that defines the task's behavior. 
 <Tabs.Tab title="Python">
   ```python
   @simple.task()
-  def step1(input: EmptyModel, ctx: Context) -> None:
-      print("executed step1")
+  def task_1(input: EmptyModel, ctx: Context) -> None:
+      print("executed task_1")
   ```
 
 </Tabs.Tab>

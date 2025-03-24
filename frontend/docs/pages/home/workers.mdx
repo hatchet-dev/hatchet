@@ -10,7 +10,20 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs]);
 
 # Workers
 
-In Hatchet, a worker is a process that executes tasks.
+Workers are the backbone of Hatchet, responsible for executing the individual steps defined within your workflows. They operate autonomously across different nodes in your infrastructure, allowing for distributed and scalable task execution. Understanding how to deploy and manage workers effectively is crucial to fully leverage the power of Hatchet.
+
+
+## How Workers Operate
+
+In Hatchet, workers are long-running processes that wait for instructions from the Hatchet engine to execute specific steps. They communicate with the Hatchet engine to receive tasks, execute them, and report back the results.
+
+Here are the key characteristics of workers in Hatchet:
+
+1. **Distributed Execution**: Workers can be deployed across multiple systems or even different cloud environments, enabling distributed task execution.
+
+2. **Language Agnostic**: Workers can be implemented in various programming languages, as long as they can communicate with the Hatchet engine and execute the required steps.
+
+3. **Scalability**: By adding more workers, you can scale your system horizontally to handle increased loads and distribute tasks across a wider set of resources.
 
 ## Declaring a Worker
 
@@ -87,3 +100,21 @@ Slots are the number of concurrent _task_ runs that a worker can execute. For in
 As a simple example, if we have a worker with `slots` set to `1` and we have a single task declared that sleeps for 1 second, then if we submit more than one task per second, the tasks will begin to queue up, as the worker can only handle one task at a time. Increasing the number of `slots` on your worker will allow you to handle more concurrent work (and thus more throughput, in many cases), without needing to run more workers.
 
 An important caveat is that slot-level concurrency is only helpful up to the point where the worker is not bottlenecked by another resource, such as CPU, memory, or network bandwidth. If your worker is bottlenecked by one of these resources, increasing the number of slots will not improve throughput.
+
+## Best Practices for Managing Workers
+
+To ensure a robust and efficient Hatchet implementation, consider the following best practices when managing your workers:
+
+1. **Reliability**: Deploy workers in a stable environment with sufficient resources to avoid resource contention and ensure reliable execution.
+
+2. **Monitoring and Logging**: Implement robust monitoring and logging mechanisms to track worker health, performance, and task execution status.
+
+3. **Error Handling**: Design workers to handle errors gracefully, report execution failures to Hatchet, and retry tasks based on configured policies.
+
+4. **Secure Communication**: Ensure secure communication between workers and the Hatchet engine, especially when distributed across different networks.
+
+5. **Lifecycle Management**: Implement proper lifecycle management for workers, including automatic restarts on critical failures and graceful shutdown procedures.
+
+6. **Scalability**: Plan for scalability by designing your system to easily add or remove workers based on demand, leveraging containerization, orchestration tools, or cloud auto-scaling features.
+
+7. **Consistent Updates**: Keep worker implementations up to date with the latest Hatchet SDKs and ensure compatibility with the Hatchet engine version.
