@@ -40,7 +40,8 @@
   },
   "contributing": {
     "title": "Contributing",
-    "type": "page"
+    "type": "page",
+    "display": "hidden"
   },
   "sdks": {
     "title": "SDK Reference",
@@ -65,7 +66,7 @@
     "display": "hidden"
   },
   "v0": {
-    "title": "v0",
+    "title": "V0 (Old docs)",
     "type": "page",
     "href": "/v0"
   }
