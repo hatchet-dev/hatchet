@@ -6,9 +6,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 hatchet = Hatchet(debug=True)
 
 # ❓ ScheduleTimeout
-timeout_wf = hatchet.workflow(
-    name="TimeoutWorkflow", schedule_timeout=timedelta(minutes=2)
-)
+timeout_wf = hatchet.workflow(name="TimeoutWorkflow")
 # ‼️
 
 

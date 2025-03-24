@@ -1,6 +1,5 @@
 import random
 import time
-from datetime import timedelta
 
 from pydantic import BaseModel
 
@@ -21,7 +20,6 @@ class LoadRRInput(BaseModel):
 load_rr_workflow = hatchet.workflow(
     name="LoadRoundRobin",
     on_events=["concurrency-test"],
-    schedule_timeout=timedelta(minutes=10),
     concurrency=ConcurrencyExpression(
         expression="input.group",
         max_runs=1,
