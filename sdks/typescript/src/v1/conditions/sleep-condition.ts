@@ -1,17 +1,23 @@
+import { Duration } from '../client/duration';
 import { Condition, Action } from './base';
 
 export interface Sleep {
-  sleepFor: number; // seconds
+  /**
+   * Amount of time to sleep for.
+   *
+   * Go duration string format:
+   * @example "10s", "1m", "1m5s"
+   */
+  sleepFor: Duration;
 }
 
 export class SleepCondition extends Condition {
-  // TODO duration consistency
-  sleepFor: number; // seconds
+  sleepFor: Duration;
 
-  constructor(sleepFor: number, action?: Action) {
+  constructor(sleepFor: Duration, action?: Action) {
     super({
       // TODO readableDataKey
-      readableDataKey: `key-${sleepFor}`,
+      readableDataKey: `sleep-${sleepFor}`,
       action,
       orGroupId: '',
       expression: '',

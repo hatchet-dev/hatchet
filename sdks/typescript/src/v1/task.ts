@@ -1,6 +1,7 @@
 import { ConcurrencyLimitStrategy } from '@hatchet/protoc/v1/workflows';
 import { Context, CreateStep, DurableContext } from '@hatchet/step';
 import { Conditions } from './conditions';
+import { Duration } from './client/duration';
 
 /**
  * Options for configuring the concurrency for a task.
@@ -70,7 +71,7 @@ export type CreateTaskOpts<T, K> = {
    *
    * default: 60s
    */
-  executionTimeout?: CreateStep<T, K>['timeout'];
+  executionTimeout?: Duration;
 
   /**
    * (optional) schedule timeout for the task (max duration to allow the task to wait in the queue)
@@ -78,7 +79,7 @@ export type CreateTaskOpts<T, K> = {
    *
    * default: 5m
    */
-  scheduleTimeout?: CreateStep<T, K>['timeout'];
+  scheduleTimeout?: Duration;
 
   /**
    * (optional) number of retries for the task.

@@ -25,9 +25,9 @@ export function render(condition: Condition | OrCondition): string {
 describe('Conditions', () => {
   // Basic condition creation tests
   it('should be able to create a sleep condition', () => {
-    const condition = new SleepCondition(10);
+    const condition = new SleepCondition('10s');
     expect(condition).toBeDefined();
-    expect(condition.sleepFor).toBe(10);
+    expect(condition.sleepFor).toBe('10s');
   });
 
   it('should be able to create a user event condition', () => {
@@ -39,21 +39,21 @@ describe('Conditions', () => {
 
   // Wait function tests
   it('should create conditions from object syntax using Wait()', () => {
-    const sleep: Sleep = { sleepFor: 15 };
+    const sleep: Sleep = { sleepFor: '15s' };
     const userEvent: UserEvent = { eventKey: 'user:update', expression: 'user.status == "active"' };
 
     const conditions = Render(Action.CREATE, [sleep, userEvent]);
 
     expect(conditions.length).toBe(2);
     expect(conditions[0]).toBeInstanceOf(SleepCondition);
-    expect((conditions[0] as SleepCondition).sleepFor).toBe(15);
+    expect((conditions[0] as SleepCondition).sleepFor).toBe('15s');
     expect(conditions[1]).toBeInstanceOf(UserEventCondition);
     expect((conditions[1] as UserEventCondition).eventKey).toBe('user:update');
     expect((conditions[1] as UserEventCondition).expression).toBe('user.status == "active"');
   });
 
   it('should accept condition instances in Wait()', () => {
-    const sleepCondition = new SleepCondition(5);
+    const sleepCondition = new SleepCondition('5s');
     const userEvent: UserEvent = { eventKey: 'user:login' };
     const conditions = Render(Action.CREATE, [sleepCondition, userEvent]);
 
@@ -64,7 +64,7 @@ describe('Conditions', () => {
 
   // Or function tests
   it('should create an OR condition using Or()', () => {
-    const sleep: Sleep = { sleepFor: 10 };
+    const sleep: Sleep = { sleepFor: '10s' };
     const userEvent: UserEvent = { eventKey: 'user:create' };
 
     const orCondition = Or(sleep, userEvent);
@@ -79,7 +79,7 @@ describe('Conditions', () => {
   });
 
   it('should accept condition instances in Or()', () => {
-    const sleepCondition = new SleepCondition(7);
+    const sleepCondition = new SleepCondition('7s');
     const eventCondition = new UserEventCondition('user:delete', '');
 
     const orCondition = Or(sleepCondition, eventCondition);
@@ -96,9 +96,9 @@ describe('Conditions', () => {
 
   // Nested conditions tests
   it('should support Wait(Or()) nested composition', () => {
-    const sleep1: Sleep = { sleepFor: 10 };
+    const sleep1: Sleep = { sleepFor: '10s' };
     const userEvent: UserEvent = { eventKey: 'user:create' };
-    const sleep2: Sleep = { sleepFor: 5 };
+    const sleep2: Sleep = { sleepFor: '5s' };
 
     const conditions = Render(Action.CREATE, [Or(sleep1, userEvent), sleep2]);
 
@@ -120,17 +120,17 @@ describe('Conditions', () => {
 
   // Render function tests
   it('should render conditions as readable strings', () => {
-    const sleepCondition = new SleepCondition(20);
+    const sleepCondition = new SleepCondition('20s');
     const eventCondition = new UserEventCondition('user:update', 'user.role == "admin"');
 
-    const sleep: Sleep = { sleepFor: 10 };
+    const sleep: Sleep = { sleepFor: '10s' };
     const userEvent: UserEvent = { eventKey: 'user:create', expression: 'user.email != null' };
     const orCondition = Or(sleep, userEvent);
 
-    expect(render(sleepCondition)).toBe('sleepFor: 20');
+    expect(render(sleepCondition)).toBe('sleepFor: 20s');
     expect(render(eventCondition)).toBe('event: user:update, expression: user.role == "admin"');
     expect(render(orCondition)).toMatch(
-      /OR\(sleepFor: 10 \|\| event: user:create, expression: user.email != null\)/
+      /OR\(sleepFor: 10s \|\| event: user:create, expression: user.email != null\)/
     );
   });
 
@@ -147,21 +147,21 @@ describe('Conditions', () => {
 
   // Edge cases
   it('should handle zero sleep duration', () => {
-    const sleep: Sleep = { sleepFor: 0 };
+    const sleep: Sleep = { sleepFor: '0s' };
     const condition = Render(Action.CREATE, sleep)[0] as SleepCondition;
-    expect(condition.sleepFor).toBe(0);
+    expect(condition.sleepFor).toBe('0s');
   });
 
   it('should handle negative sleep duration', () => {
-    const sleep: Sleep = { sleepFor: -1 };
+    const sleep: Sleep = { sleepFor: '-1s' };
     const condition = Render(Action.CREATE, sleep)[0] as SleepCondition;
-    expect(condition.sleepFor).toBe(-1);
+    expect(condition.sleepFor).toBe('-1s');
   });
 
   // Mixed AND/OR combinations
   it('should handle complex AND/OR combinations', () => {
-    const sleep1: Sleep = { sleepFor: 5 };
-    const sleep2: Sleep = { sleepFor: 10 };
+    const sleep1: Sleep = { sleepFor: '5s' };
+    const sleep2: Sleep = { sleepFor: '10s' };
     const userEvent1: UserEvent = { eventKey: 'user:create' };
     const userEvent2: UserEvent = { eventKey: 'user:update' };
     const userEvent3: UserEvent = { eventKey: 'user:delete' };
@@ -189,7 +189,7 @@ describe('Conditions', () => {
 
   it('should handle complex AND/OR combinations', () => {
     const conditions = Render(Action.CREATE, [
-      Or({ sleepFor: 5 }, { eventKey: 'user:update' }),
+      Or({ sleepFor: '5s' }, { eventKey: 'user:update' }),
       { eventKey: 'user:create' },
       Or({ eventKey: 'user:update' }, { eventKey: 'user:delete' }),
     ]);

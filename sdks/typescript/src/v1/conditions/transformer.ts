@@ -28,7 +28,7 @@ export function conditionsToPb(conditions: Condition[]): TaskConditions {
     if (condition instanceof SleepCondition) {
       sleepConditions.push({
         base: baseToPb(condition.base),
-        sleepFor: `${condition.sleepFor}s`, // TODO consistent duration format
+        sleepFor: condition.sleepFor,
       });
     } else if (condition instanceof UserEventCondition) {
       userEventConditions.push({

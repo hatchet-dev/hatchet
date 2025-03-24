@@ -16,6 +16,7 @@ import { WorkflowDeclaration as WorkflowV1 } from './v1/workflow';
 import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
+import { Duration } from './v1/client/duration';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -516,7 +517,7 @@ export class Context<T, K = {}> {
 export class DurableContext<T, K = {}> extends Context<T, K> {
   waitKey: number = 0;
 
-  async sleepFor(duration: number): Promise<unknown> {
+  async sleepFor(duration: Duration): Promise<unknown> {
     return this.waitFor({ sleepFor: duration });
   }
 
