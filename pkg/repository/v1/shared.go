@@ -81,6 +81,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 			queueCache.Stop()
 			stepExpressionCache.Stop()
 			tenantIdWorkflowNameCache.Stop()
+			m.Stop()
 			return nil
 		}
 }
