@@ -135,12 +135,14 @@ jobs:
           poetry run pytest -s -vvv --maxfail=5 --timeout=180 --capture=no -n 5
 
       - name: Upload engine logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: engine-logs
           path: engine.log
 
       - name: Upload API logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: api-logs
