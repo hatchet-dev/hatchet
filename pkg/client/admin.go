@@ -478,7 +478,6 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 
 		opts.Concurrency.LimitStrategy = &limitStrat
 
-		// TODO: should be a pointer because users might want to set maxRuns temporarily for disabling
 		if workflow.Concurrency.MaxRuns != 0 {
 			maxRuns := workflow.Concurrency.MaxRuns
 			opts.Concurrency.MaxRuns = &maxRuns

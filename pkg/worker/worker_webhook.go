@@ -52,7 +52,7 @@ type WebhookWorkerOpts struct {
 	WebhookId string
 }
 
-// TODO do not expose this to the end-user client somehow
+// FIXME do not expose this to the end-user client somehow
 func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	listener, _, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{

@@ -80,7 +80,6 @@ type HatchetContext interface {
 	inc()
 }
 
-// TODO: move this into proto definitions
 type TriggeredBy string
 
 const (

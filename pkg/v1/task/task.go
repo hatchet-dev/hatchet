@@ -97,7 +97,7 @@ type TaskShared struct {
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
-	Fn interface{} // TODO reflect type
+	Fn interface{}
 }
 
 // TaskDeclaration represents a task configuration that can be added to a workflow.
@@ -116,7 +116,7 @@ type TaskDeclaration[I any] struct {
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
-	Fn interface{} // TODO reflect type
+	Fn interface{}
 
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	// and group key expression to evaluate when determining if a task can run
@@ -130,7 +130,7 @@ type OnFailureTaskDeclaration[I any] struct {
 	TaskShared
 
 	// The function to execute when any tasks in the workflow have failed
-	Fn interface{} // TODO reflect type
+	Fn interface{}
 }
 
 func makeContractTaskOpts(t *TaskShared, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {

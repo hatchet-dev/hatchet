@@ -244,7 +244,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	mws.add(w.panicMiddleware)
 
-	// TODO: Remove integrations
+	// FIXME: Remove integrations
 	// register all integrations
 	for _, integration := range opts.integrations {
 		actions := integration.Actions()
