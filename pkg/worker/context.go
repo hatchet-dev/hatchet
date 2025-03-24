@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -540,4 +541,77 @@ func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) erro
 
 	wc.worker.labels = labels
 	return nil
+}
+
+// DurableHatchetContext extends HatchetContext with methods for durable tasks.
+type DurableHatchetContext interface {
+	HatchetContext
+
+	// SleepFor pauses execution for the specified duration and returns after that time has elapsed.
+	// Duration is "global" meaning it will wait in real time regardless of transient failures
+	// like worker restarts.
+	// Example: "10s" for 10 seconds, "1m" for 1 minute, etc.
+	SleepFor(duration time.Duration) (interface{}, error)
+
+	// WaitFor pauses execution until the specified conditions are met.
+	// Conditions are "global" meaning they will wait in real time regardless of transient failures
+	// like worker restarts.
+	WaitFor(conditions map[string]interface{}) (interface{}, error)
+}
+
+// durableHatchetContext implements the DurableHatchetContext interface.
+type durableHatchetContext struct {
+	*hatchetContext
+	waitKeyCounter int
+}
+
+// SleepFor implements the DurableHatchetContext.SleepFor method.
+func (d *durableHatchetContext) SleepFor(duration time.Duration) (interface{}, error) {
+	// Implement SleepFor functionality
+	// Call appropriate client methods to register a durable event
+	return d.WaitFor(map[string]interface{}{
+		"sleepFor": duration,
+	})
+}
+
+// WaitFor implements the DurableHatchetContext.WaitFor method.
+func (d *durableHatchetContext) WaitFor(conditions map[string]interface{}) (interface{}, error) {
+	// Increment wait key to ensure unique keys for multiple wait operations
+	d.waitKeyCounter++
+	// key := fmt.Sprintf("waitFor-%d", d.waitKeyCounter)
+
+	// Convert conditions to appropriate format and register with the durable event system
+	// This is a simplified implementation - in a real system, you'd need to convert
+	// the conditions to the format expected by your durable event subsystem
+
+	// Call client methods to register and wait for the event
+	// For now, we'll return a placeholder implementation
+	return nil, fmt.Errorf("WaitFor not fully implemented yet")
+}
+
+// NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.
+func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
+	// Try to cast directly if it's already a DurableHatchetContext
+	if durableCtx, ok := ctx.(DurableHatchetContext); ok {
+		return durableCtx
+	}
+
+	// If it's a hatchetContext, wrap it in a durableHatchetContext
+	if hCtx, ok := ctx.(*hatchetContext); ok {
+		return &durableHatchetContext{
+			hatchetContext: hCtx,
+			waitKeyCounter: 0,
+		}
+	}
+
+	// Create a new wrapper if it's some other implementation
+	return &durableHatchetContext{
+		hatchetContext: &hatchetContext{
+			Context: ctx,
+			a:       ctx.action(),
+			c:       ctx.client(),
+			w:       ctx.Worker().(*hatchetWorkerContext),
+		},
+		waitKeyCounter: 0,
+	}
 }

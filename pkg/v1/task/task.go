@@ -59,11 +59,15 @@ type CreateOpts[I any] struct {
 	Conditions *types.TaskConditions
 
 	// (optional) Parents defines the tasks that must complete before this task can start
-	Parents []*TaskDeclaration[I]
+	Parents []*NamedTask
 
 	// (optional) Fn is the function to execute when the task runs
 	// must be a function that takes an input and a worker.HatchetContext and returns an output and an error
 	Fn interface{}
+}
+
+type NamedTask struct {
+	Name string
 }
 
 type TaskBase interface {
@@ -100,16 +104,17 @@ type TaskShared struct {
 	Fn interface{}
 }
 
-// TaskDeclaration represents a task configuration that can be added to a workflow.
+// TaskDeclaration represents a standard (non-durable) task configuration that can be added to a workflow.
 type TaskDeclaration[I any] struct {
 	TaskBase
+	NamedTask
 	TaskShared
 
 	// The friendly name of the task
 	Name string
 
 	// The tasks that must successfully complete before this task can start
-	Parents []*TaskDeclaration[I]
+	Parents []string
 
 	// Conditions specifies when this task should be executed
 	Conditions *types.TaskConditions
@@ -117,10 +122,31 @@ type TaskDeclaration[I any] struct {
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
 	Fn interface{}
+}
+
+// DurableTaskDeclaration represents a durable task configuration that can be added to a workflow.
+// Durable tasks can use the DurableHatchetContext for operations that persist across worker restarts.
+type DurableTaskDeclaration[I any] struct {
+	TaskBase
+	NamedTask
+	TaskShared
+
+	// The friendly name of the task
+	Name string
+
+	// The tasks that must successfully complete before this task can start
+	Parents []string
 
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	// and group key expression to evaluate when determining if a task can run
 	Concurrency []*types.Concurrency
+
+	// Conditions specifies when this task should be executed
+	Conditions *types.TaskConditions
+
+	// The function to execute when the task runs
+	// must be a function that takes an input and a DurableHatchetContext and returns an output and an error
+	Fn interface{}
 }
 
 // OnFailureTaskDeclaration represents a task that will be executed if
@@ -207,19 +233,20 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *TaskDefaults) *contracts.
 
 // Dump converts the task declaration into a protobuf request.
 func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
-
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
-
 	base.ReadableId = t.Name
 	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
-
 	base.Parents = make([]string, len(t.Parents))
-	for i, parent := range t.Parents {
-		base.Parents[i] = parent.Name
-	}
+	copy(base.Parents, t.Parents)
+	return base
+}
 
-	// TODO: Conditions
-
+func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
+	base.ReadableId = t.Name
+	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
+	base.Parents = make([]string, len(t.Parents))
+	copy(base.Parents, t.Parents)
 	return base
 }
 

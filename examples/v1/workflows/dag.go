@@ -41,8 +41,8 @@ func DagWorkflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Da
 	simple.Task(
 		task.CreateOpts[any]{
 			Name: "Step2",
-			Parents: []*task.TaskDeclaration[any]{
-				step1,
+			Parents: []*task.NamedTask{
+				&step1.NamedTask, // TODO improve this
 			},
 			Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
 

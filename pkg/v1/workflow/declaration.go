@@ -20,6 +20,10 @@ import (
 // It takes a HatchetContext and returns an interface{} result and an error.
 type WrappedTaskFn func(ctx worker.HatchetContext) (interface{}, error)
 
+// DurableWrappedTaskFn represents a durable task function that can be executed by the Hatchet worker.
+// It takes a DurableHatchetContext and returns an interface{} result and an error.
+type DurableWrappedTaskFn func(ctx worker.DurableHatchetContext) (interface{}, error)
+
 // CreateOpts contains configuration options for creating a new workflow.
 type CreateOpts[I any] struct {
 	// (required) The friendly name of the workflow
@@ -50,11 +54,17 @@ type CreateOpts[I any] struct {
 	TaskDefaults *task.TaskDefaults
 }
 
+// NamedFunction represents a function with its associated action ID
+type NamedFunction struct {
+	ActionID string
+	Fn       WrappedTaskFn
+}
+
 // WorkflowBase defines the common interface for all workflow types.
 type WorkflowBase interface {
 	// Dump converts the workflow declaration into a protobuf request and function mappings.
-	// Returns the workflow definition, the task functions, and the on failure task function.
-	Dump() (*contracts.CreateWorkflowVersionRequest, []WrappedTaskFn, WrappedTaskFn)
+	// Returns the workflow definition, regular task functions, durable task functions, and the on failure task function.
+	Dump() (*contracts.CreateWorkflowVersionRequest, []NamedFunction, []NamedFunction, WrappedTaskFn)
 }
 
 // WorkflowDeclaration represents a workflow with input type I and output type O.
@@ -65,8 +75,15 @@ type WorkflowDeclaration[I any, O any] interface {
 	// Task registers a task that will be executed as part of the workflow
 	Task(opts task.CreateOpts[I]) *task.TaskDeclaration[I]
 
+	// DurableTask registers a durable task that will be executed as part of the workflow.
+	// Durable tasks can be paused and resumed across workflow runs, making them suitable
+	// for long-running operations or tasks that require human intervention.
+	DurableTask(opts task.CreateOpts[I]) *task.DurableTaskDeclaration[I]
+
 	// Run executes the workflow with the provided input.
 	Run(input I) (*O, error)
+
+	// TODO RunNoWait, Cron, Schedule
 }
 
 // Define a TaskDeclaration with specific output type
@@ -92,10 +109,12 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 	TaskDefaults *task.TaskDefaults
 
-	tasks []*task.TaskDeclaration[I]
+	tasks        []*task.TaskDeclaration[I]
+	durableTasks []*task.DurableTaskDeclaration[I]
 
 	// Store task functions with their specific output types
-	taskFuncs map[string]interface{}
+	taskFuncs        map[string]interface{}
+	durableTaskFuncs map[string]interface{}
 
 	// Map to store task output setters
 	outputSetters map[string]func(*O, interface{})
@@ -105,17 +124,19 @@ type workflowDeclarationImpl[I any, O any] struct {
 // The workflow will have input type I and output type O.
 func NewWorkflowDeclaration[I any, O any](opts CreateOpts[I], v0 *v0Client.Client) WorkflowDeclaration[I, O] {
 	wf := &workflowDeclarationImpl[I, O]{
-		v0:             v0,
-		Name:           opts.Name,
-		OnEvents:       opts.OnEvents,
-		OnCron:         opts.OnCron,
-		Concurrency:    opts.Concurrency,
-		OnFailureTask:  opts.OnFailureTask,
-		StickyStrategy: opts.StickyStrategy,
-		TaskDefaults:   opts.TaskDefaults,
-		tasks:          []*task.TaskDeclaration[I]{},
-		taskFuncs:      make(map[string]interface{}),
-		outputSetters:  make(map[string]func(*O, interface{})),
+		v0:               v0,
+		Name:             opts.Name,
+		OnEvents:         opts.OnEvents,
+		OnCron:           opts.OnCron,
+		Concurrency:      opts.Concurrency,
+		OnFailureTask:    opts.OnFailureTask,
+		StickyStrategy:   opts.StickyStrategy,
+		TaskDefaults:     opts.TaskDefaults,
+		tasks:            []*task.TaskDeclaration[I]{},
+		taskFuncs:        make(map[string]interface{}),
+		durableTasks:     []*task.DurableTaskDeclaration[I]{},
+		durableTaskFuncs: make(map[string]interface{}),
+		outputSetters:    make(map[string]func(*O, interface{})),
 	}
 
 	if opts.Version != "" {
@@ -129,9 +150,8 @@ func NewWorkflowDeclaration[I any, O any](opts CreateOpts[I], v0 *v0Client.Clien
 	return wf
 }
 
-// TaskOutput registers a task with a specific output type and how to map it to the final result
+// Task registers a standard (non-durable) task with the workflow
 func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.TaskDeclaration[I] {
-
 	name := opts.Name
 
 	fn := opts.Fn
@@ -172,9 +192,150 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.Task
 		return &output, nil
 	}
 
-	taskDecl := NewTaskDeclaration(opts, genericFn)
+	// Initialize pointers only for non-zero values
+	var retryBackoffFactor *float32
+	var retryMaxBackoffSeconds *int32
+	var executionTimeout *time.Duration
+	var scheduleTimeout *time.Duration
+	var retries *int32
+
+	if opts.RetryBackoffFactor != 0 {
+		retryBackoffFactor = &opts.RetryBackoffFactor
+	}
+	if opts.RetryMaxBackoffSeconds != 0 {
+		retryMaxBackoffSeconds = &opts.RetryMaxBackoffSeconds
+	}
+	if opts.ExecutionTimeout != 0 {
+		executionTimeout = &opts.ExecutionTimeout
+	}
+	if opts.ScheduleTimeout != 0 {
+		scheduleTimeout = &opts.ScheduleTimeout
+	}
+	if opts.Retries != 0 {
+		retries = &opts.Retries
+	}
+
+	// Convert parent task declarations to parent task names
+	parentNames := make([]string, len(opts.Parents))
+	for i, parent := range opts.Parents {
+		parentNames[i] = parent.Name
+	}
+
+	taskDecl := &task.TaskDeclaration[I]{
+		Name:       opts.Name,
+		Fn:         genericFn,
+		Parents:    parentNames,
+		Conditions: opts.Conditions,
+
+		TaskShared: task.TaskShared{
+			ExecutionTimeout:       executionTimeout,
+			ScheduleTimeout:        scheduleTimeout,
+			Retries:                retries,
+			RetryBackoffFactor:     retryBackoffFactor,
+			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
+			RateLimits:             opts.RateLimits,
+			WorkerLabels:           opts.WorkerLabels,
+			Concurrency:            opts.Concurrency,
+		},
+	}
+
 	w.tasks = append(w.tasks, taskDecl)
 	w.taskFuncs[name] = fn
+
+	return taskDecl
+}
+
+// DurableTask registers a durable task with the workflow
+func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *task.DurableTaskDeclaration[I] {
+	name := opts.Name
+
+	fn := opts.Fn
+	// Use reflection to validate the function type
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func ||
+		fnType.NumIn() != 2 ||
+		fnType.NumOut() != 2 ||
+		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		panic("Invalid function type for durable task " + name + ": must be func(I, worker.DurableHatchetContext) (*T, error)")
+	}
+
+	// Create a setter function that can set this specific output type to the corresponding field in O
+	w.outputSetters[name] = func(result *O, output interface{}) {
+		resultValue := reflect.ValueOf(result).Elem()
+		field := resultValue.FieldByName(name)
+
+		if field.IsValid() && field.CanSet() {
+			outputValue := reflect.ValueOf(output).Elem()
+			field.Set(outputValue)
+		}
+	}
+
+	// Create a generic task function that wraps the specific one
+	genericFn := func(input I, ctx worker.DurableHatchetContext) (*any, error) {
+		// Use reflection to call the specific function
+		fnValue := reflect.ValueOf(fn)
+		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+		results := fnValue.Call(inputs)
+
+		// Handle errors
+		if !results[1].IsNil() {
+			return nil, results[1].Interface().(error)
+		}
+
+		// Return the output as any
+		output := results[0].Interface()
+		return &output, nil
+	}
+
+	// Initialize pointers only for non-zero values
+	var retryBackoffFactor *float32
+	var retryMaxBackoffSeconds *int32
+	var executionTimeout *time.Duration
+	var scheduleTimeout *time.Duration
+	var retries *int32
+
+	if opts.RetryBackoffFactor != 0 {
+		retryBackoffFactor = &opts.RetryBackoffFactor
+	}
+	if opts.RetryMaxBackoffSeconds != 0 {
+		retryMaxBackoffSeconds = &opts.RetryMaxBackoffSeconds
+	}
+	if opts.ExecutionTimeout != 0 {
+		executionTimeout = &opts.ExecutionTimeout
+	}
+	if opts.ScheduleTimeout != 0 {
+		scheduleTimeout = &opts.ScheduleTimeout
+	}
+	if opts.Retries != 0 {
+		retries = &opts.Retries
+	}
+
+	// Convert parent task declarations to parent task names
+	parentNames := make([]string, len(opts.Parents))
+	for i, parent := range opts.Parents {
+		parentNames[i] = parent.Name
+	}
+
+	taskDecl := &task.DurableTaskDeclaration[I]{
+		Name:       opts.Name,
+		Fn:         genericFn,
+		Parents:    parentNames,
+		Conditions: opts.Conditions,
+
+		TaskShared: task.TaskShared{
+			ExecutionTimeout:       executionTimeout,
+			ScheduleTimeout:        scheduleTimeout,
+			Retries:                retries,
+			RetryBackoffFactor:     retryBackoffFactor,
+			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
+			RateLimits:             opts.RateLimits,
+			WorkerLabels:           opts.WorkerLabels,
+			Concurrency:            opts.Concurrency,
+		},
+	}
+
+	w.durableTasks = append(w.durableTasks, taskDecl)
+	w.durableTaskFuncs[name] = fn
 
 	return taskDecl
 }
@@ -203,15 +364,21 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I) (*O, error) {
 // Dump converts the workflow declaration into a protobuf request and function mappings.
 // This is used to serialize the workflow for transmission to the Hatchet server.
 // Returns the workflow definition as a protobuf request, the task functions, and the on-failure task function.
-func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersionRequest, []WrappedTaskFn, WrappedTaskFn) {
+func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersionRequest, []NamedFunction, []NamedFunction, WrappedTaskFn) {
 	taskOpts := make([]*contracts.CreateTaskOpts, len(w.tasks))
 	for i, task := range w.tasks {
 		taskOpts[i] = task.Dump(w.Name, w.TaskDefaults)
 	}
 
-	req := &contracts.CreateWorkflowVersionRequest{
-		Tasks: taskOpts,
+	durableOpts := make([]*contracts.CreateTaskOpts, len(w.durableTasks))
+	for i, task := range w.durableTasks {
+		durableOpts[i] = task.Dump(w.Name, w.TaskDefaults)
+	}
 
+	tasksToRegister := append(taskOpts, durableOpts...)
+
+	req := &contracts.CreateWorkflowVersionRequest{
+		Tasks:         tasksToRegister,
 		Name:          w.Name,
 		EventTriggers: w.OnEvents,
 		CronTriggers:  w.OnCron,
@@ -248,31 +415,68 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		req.Sticky = &stickyStrategy
 	}
 
-	// Create wrapper functions for each task
-	fns := make([]WrappedTaskFn, len(w.tasks))
+	// Create named function objects for regular tasks
+	regularNamedFns := make([]NamedFunction, len(w.tasks))
 	for i, task := range w.tasks {
 		taskName := task.Name
 		originalFn := w.taskFuncs[taskName]
 
-		fns[i] = func(ctx worker.HatchetContext) (interface{}, error) {
-			var input I
-			err := ctx.WorkflowInput(&input)
-			if err != nil {
-				return nil, err
-			}
+		regularNamedFns[i] = NamedFunction{
+			ActionID: taskOpts[i].Action,
+			Fn: func(ctx worker.HatchetContext) (interface{}, error) {
+				var input I
+				err := ctx.WorkflowInput(&input)
+				if err != nil {
+					return nil, err
+				}
 
-			// Call the original function using reflection
-			fnValue := reflect.ValueOf(originalFn)
-			inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
-			results := fnValue.Call(inputs)
+				// Call the original function using reflection
+				fnValue := reflect.ValueOf(originalFn)
+				inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+				results := fnValue.Call(inputs)
 
-			// Handle errors
-			if !results[1].IsNil() {
-				return nil, results[1].Interface().(error)
-			}
+				// Handle errors
+				if !results[1].IsNil() {
+					return nil, results[1].Interface().(error)
+				}
 
-			// Return the output
-			return results[0].Interface(), nil
+				// Return the output
+				return results[0].Interface(), nil
+			},
+		}
+	}
+
+	// Create named function objects for durable tasks
+	durableNamedFns := make([]NamedFunction, len(w.durableTasks))
+	for i, task := range w.durableTasks {
+		taskName := task.Name
+		originalFn := w.durableTaskFuncs[taskName]
+
+		durableNamedFns[i] = NamedFunction{
+			ActionID: durableOpts[i].Action,
+			Fn: func(ctx worker.HatchetContext) (interface{}, error) {
+				var input I
+				err := ctx.WorkflowInput(&input)
+				if err != nil {
+					return nil, err
+				}
+
+				// Create a DurableHatchetContext from the HatchetContext
+				durableCtx := worker.NewDurableHatchetContext(ctx)
+
+				// Call the original function using reflection
+				fnValue := reflect.ValueOf(originalFn)
+				inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(durableCtx)}
+				results := fnValue.Call(inputs)
+
+				// Handle errors
+				if !results[1].IsNil() {
+					return nil, results[1].Interface().(error)
+				}
+
+				// Return the output
+				return results[0].Interface(), nil
+			},
 		}
 	}
 
@@ -302,56 +506,5 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		}
 	}
 
-	return req, fns, onFailureFn
-}
-
-// NewTaskDeclaration creates a new task declaration with the specified options.
-// @params opts - The options for creating a task
-// @params fn - The function to execute when the task runs (must be a function that takes an input and a Hatchet context and returns an output and an error)
-func NewTaskDeclaration[I any](opts task.CreateOpts[I], fn func(input I, ctx worker.HatchetContext) (*any, error)) *task.TaskDeclaration[I] {
-	// Initialize pointers only for non-zero values
-	var retryBackoffFactor *float32
-	var retryMaxBackoffSeconds *int32
-
-	var executionTimeout *time.Duration
-	var scheduleTimeout *time.Duration
-	var retries *int32
-
-	if opts.RetryBackoffFactor != 0 {
-		retryBackoffFactor = &opts.RetryBackoffFactor
-	}
-
-	if opts.RetryMaxBackoffSeconds != 0 {
-		retryMaxBackoffSeconds = &opts.RetryMaxBackoffSeconds
-	}
-
-	if opts.ExecutionTimeout != 0 {
-		executionTimeout = &opts.ExecutionTimeout
-	}
-
-	if opts.ScheduleTimeout != 0 {
-		scheduleTimeout = &opts.ScheduleTimeout
-	}
-
-	if opts.Retries != 0 {
-		retries = &opts.Retries
-	}
-
-	return &task.TaskDeclaration[I]{
-		Name:       opts.Name,
-		Fn:         fn,
-		Parents:    opts.Parents,
-		Conditions: opts.Conditions,
-
-		TaskShared: task.TaskShared{
-			ExecutionTimeout:       executionTimeout,
-			ScheduleTimeout:        scheduleTimeout,
-			Retries:                retries,
-			RetryBackoffFactor:     retryBackoffFactor,
-			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
-			RateLimits:             opts.RateLimits,
-			WorkerLabels:           opts.WorkerLabels,
-			Concurrency:            opts.Concurrency,
-		},
-	}
+	return req, regularNamedFns, durableNamedFns, onFailureFn
 }

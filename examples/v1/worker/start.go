@@ -27,7 +27,7 @@ func main() {
 	var workflowName string
 	if len(os.Args) > 1 {
 		workflowName = os.Args[1]
-		fmt.Println("workflow name provided", workflowName)
+		fmt.Println("workflow name provided:", workflowName)
 	}
 
 	// Define workflows map
@@ -35,6 +35,7 @@ func main() {
 		"dag":        v1_workflows.DagWorkflow(&hatchet),
 		"on-failure": v1_workflows.OnFailure(&hatchet),
 		"simple":     v1_workflows.Simple(&hatchet),
+		"sleep":      v1_workflows.DurableSleep(&hatchet),
 	}
 
 	// Lookup workflow from map
