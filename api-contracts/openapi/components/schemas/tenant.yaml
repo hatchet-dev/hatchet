@@ -30,7 +30,6 @@ TenantVersion:
     - "V1"
   type: string
 
-
 TenantAlertingSettings:
   properties:
     metadata:
@@ -109,8 +108,10 @@ UpdateTenantRequest:
 TenantResource:
   enum:
     - "WORKER"
+    - "WORKER_SLOT"
     - "EVENT"
     - "WORKFLOW_RUN"
+    - "TASK_RUN"
     - "CRON"
     - "SCHEDULE"
   type: string
