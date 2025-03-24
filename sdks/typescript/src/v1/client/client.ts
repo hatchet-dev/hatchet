@@ -266,7 +266,7 @@ export class HatchetClient implements IHatchetClient {
       opts = options || {};
     }
 
-    return Worker.create(this.v0, name, opts);
+    return Worker.create(this, this.v0, name, opts);
   }
 
   /**
