@@ -474,7 +474,7 @@ export class Context<T, K = {}> {
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): Promise<P> {
     const run = await this.spawnWorkflow(workflow, input, options);
-    return run.output();
+    return run.output;
   }
 
   /**
