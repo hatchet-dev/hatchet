@@ -23,13 +23,15 @@ import (
 type tenantAPIRepository struct {
 	*sharedRepository
 
-	cache cache.Cacheable
+	cache                cache.Cacheable
+	defaultTenantVersion dbsqlc.TenantMajorEngineVersion
 }
 
-func NewTenantAPIRepository(shared *sharedRepository, cache cache.Cacheable) repository.TenantAPIRepository {
+func NewTenantAPIRepository(shared *sharedRepository, cache cache.Cacheable, defaultTenantVersion dbsqlc.TenantMajorEngineVersion) repository.TenantAPIRepository {
 	return &tenantAPIRepository{
-		sharedRepository: shared,
-		cache:            cache,
+		sharedRepository:     shared,
+		cache:                cache,
+		defaultTenantVersion: defaultTenantVersion,
 	}
 }
 
@@ -63,6 +65,10 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 		Slug:                opts.Slug,
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
+		Version: dbsqlc.NullTenantMajorEngineVersion{
+			TenantMajorEngineVersion: r.defaultTenantVersion,
+			Valid:                    true,
+		},
 	})
 
 	if err != nil {
