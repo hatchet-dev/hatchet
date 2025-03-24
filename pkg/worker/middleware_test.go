@@ -25,7 +25,7 @@ func (c *testHatchetContext) StepOutput(step string, target interface{}) error {
 	return nil
 }
 
-func (c *testHatchetContext) ParentOutput(task *task.TaskDeclaration[any], target interface{}) error {
+func (c *testHatchetContext) ParentOutput(task task.NamedTask, target interface{}) error {
 	return nil
 }
 
