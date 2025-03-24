@@ -21,7 +21,7 @@ As we continue to build with Hatchet, we'll add additional configuration options
 
 Start by declaring a workflow with a name. The workflow object can declare additional workflow-level configuration options which we'll cover later.
 
-The returned object is an instance of the `Workflow` class which is the primary interface for interacting with the workflow (i.e. [running](./run-with-results.mdx), [enqueuing](./fire-and-forget.mdx), [scheduling](./scheduled-runs.mdx), etc).
+The returned object is an instance of the `Workflow` class which is the primary interface for interacting with the workflow (i.e. [running](./run-with-results.mdx), [enqueuing](./enqueue-runs.mdx), [scheduling](./scheduled-runs.mdx), etc).
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -90,4 +90,3 @@ The `task` method takes a name and a function that defines the task's behavior. 
 ## Running a Workflow
 
 Now that you have defined a complete workflow with a task, you can move on to [declaring a worker to execute the workflow](./workers.mdx).
-````
