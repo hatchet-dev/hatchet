@@ -26,6 +26,7 @@ import { ColumnFiltersState } from '@tanstack/react-table';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { SdkInfo } from './sdk-info';
+import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 
 export function WorkersTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -65,6 +66,16 @@ export function WorkersTable() {
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
+  }
+
+  if (!listWorkersQuery.isLoading && !listWorkersQuery.data?.rows?.length) {
+    return (
+      <IntroDocsEmptyState
+        link="/home/basics/workers"
+        linkPreambleText="To learn more about how workers function in Hatchet,"
+        linkText="check out our documentation."
+      />
+    );
   }
 
   const emptyState = (

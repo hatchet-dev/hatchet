@@ -42,6 +42,7 @@ import { usePagination } from '../hooks/pagination';
 import { useTaskRuns } from '../hooks/task-runs';
 import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
+import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -161,6 +162,16 @@ export function TaskRunsTable({
   }, [isTaskRunsLoading, isMetricsLoading]);
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
+
+  if (!isFetching && tableRows.length === 0) {
+    return (
+      <IntroDocsEmptyState
+        link="/home"
+        linkText="check out our quickstart documentation."
+        linkPreambleText="To learn about how to get started running tasks,"
+      />
+    );
+  }
 
   return (
     <>

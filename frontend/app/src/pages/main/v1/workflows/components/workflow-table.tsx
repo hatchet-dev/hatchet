@@ -28,6 +28,7 @@ import {
 import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
+import { IntroDocsEmptyState } from '@/pages/onboarding/intro-docs-empty-state';
 
 export function WorkflowTable() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -86,6 +87,16 @@ export function WorkflowTable() {
 
   if (listWorkflowQuery.isLoading) {
     return <Loading />;
+  }
+
+  if (!listWorkflowQuery.isLoading && !listWorkflowQuery.data?.rows?.length) {
+    return (
+      <IntroDocsEmptyState
+        link="/home"
+        linkText="check out our quickstart documentation."
+        linkPreambleText="To learn about how to get started running tasks,"
+      />
+    );
   }
 
   const emptyState = (
