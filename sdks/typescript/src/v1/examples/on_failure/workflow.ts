@@ -1,6 +1,8 @@
 /* eslint-disable no-console */
 import { hatchet } from '../client';
 
+// ❓ On Failure Task
+
 export const alwaysFail = hatchet.workflow({
   name: 'always-fail',
   onFailure: (ctx) => {
@@ -10,6 +12,8 @@ export const alwaysFail = hatchet.workflow({
     };
   },
 });
+
+// !!
 
 alwaysFail.task({
   name: 'always-fail',
