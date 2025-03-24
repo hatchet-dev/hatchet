@@ -104,12 +104,15 @@ export class AdminClient {
   }
 
   /**
-   * @deprecated use putRateLimit instead
+   * @deprecated use hatchet.ratelimits.upsert instead
    */
   async put_rate_limit(key: string, limit: number, duration: RateLimitDuration) {
     return this.putRateLimit(key, limit, duration);
   }
 
+  /**
+   * @deprecated use hatchet.ratelimits.upsert instead
+   */
   async putRateLimit(
     key: string,
     limit: number,
