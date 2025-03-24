@@ -8,7 +8,7 @@ When multiple developers share a single Hatchet orchestrator, conflicts can aris
 
 Hatchet provides three key solutions for managing this challenge: namespaces, multi-tenancy, and a local Hatchet instance.
 
-### Solution 1: Namespaces (Beta)
+### Solution 1: Namespaces
 
 Namespaces provide isolation within a single tenant, allowing multiple developers to work simultaneously without conflicts.
 
@@ -23,7 +23,6 @@ export HATCHET_CLIENT_NAMESPACE="dev-alice"
    - Events remain isolated to their originating namespace
    - Workers only process jobs from their assigned namespace
 
-> Note: Namespaces are currently in beta with limited UI support.
 
 ### Solution 2: Multi-Tenancy
 
