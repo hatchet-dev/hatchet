@@ -13,6 +13,8 @@ export class RunsClient {
     this.tenantId = client.tenantId;
   }
 
+  // TODO expose streaming methods?
+
   async get<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { V0Worker } from '@clients/worker';
@@ -34,8 +35,8 @@ export interface CreateWorkerOpts {
 export class Worker {
   config: CreateWorkerOpts;
   name: string;
-  v1: HatchetClient;
-  v0: InternalHatchetClient;
+  _v1: HatchetClient;
+  _v0: InternalHatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
   nonDurable: V0Worker;
@@ -52,8 +53,8 @@ export class Worker {
     config: CreateWorkerOpts,
     name: string
   ) {
-    this.v1 = v1;
-    this.v0 = v0;
+    this._v1 = v1;
+    this._v0 = v0;
     this.nonDurable = nonDurable;
     this.config = config;
     this.name = name;
@@ -94,7 +95,7 @@ export class Worker {
 
           if (wf.definition.durableTasks.length > 0) {
             if (!this.durable) {
-              this.durable = await this.v0.worker(`${this.name}-durable`, {
+              this.durable = await this._v0.worker(`${this.name}-durable`, {
                 ...this.config,
                 maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
               });
@@ -178,10 +179,10 @@ export class Worker {
   async isPaused() {
     const promises: Promise<any>[] = [];
     if (this.nonDurable?.workerId) {
-      promises.push(this.v1.workers.isPaused(this.nonDurable.workerId));
+      promises.push(this._v1.workers.isPaused(this.nonDurable.workerId));
     }
     if (this.durable?.workerId) {
-      promises.push(this.v1.workers.isPaused(this.durable.workerId));
+      promises.push(this._v1.workers.isPaused(this.durable.workerId));
     }
 
     const res = await Promise.all(promises);
@@ -193,10 +194,10 @@ export class Worker {
   pause() {
     const promises: Promise<any>[] = [];
     if (this.nonDurable?.workerId) {
-      promises.push(this.v1.workers.pause(this.nonDurable.workerId));
+      promises.push(this._v1.workers.pause(this.nonDurable.workerId));
     }
     if (this.durable?.workerId) {
-      promises.push(this.v1.workers.pause(this.durable.workerId));
+      promises.push(this._v1.workers.pause(this.durable.workerId));
     }
     return Promise.all(promises);
   }
@@ -204,10 +205,10 @@ export class Worker {
   unpause() {
     const promises: Promise<any>[] = [];
     if (this.nonDurable?.workerId) {
-      promises.push(this.v1.workers.unpause(this.nonDurable.workerId));
+      promises.push(this._v1.workers.unpause(this.nonDurable.workerId));
     }
     if (this.durable?.workerId) {
-      promises.push(this.v1.workers.unpause(this.durable.workerId));
+      promises.push(this._v1.workers.unpause(this.durable.workerId));
     }
     return Promise.all(promises);
   }

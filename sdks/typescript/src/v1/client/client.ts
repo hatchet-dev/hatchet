@@ -22,11 +22,24 @@ import { RunsClient } from './features/runs';
  */
 export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
-  v0: InternalHatchetClient;
+  _v0: InternalHatchetClient;
+
+  /**
+   * @deprecated v0 client will be removed in a future release, please upgrade to v1
+   */
+  get v0() {
+    return this._v0;
+  }
 
   /** The tenant ID for the Hatchet client */
   get tenantId() {
-    return this.v0.tenantId;
+    return this._v0.tenantId;
+  }
+
+  _isV1: boolean | undefined = true;
+
+  get isV1() {
+    return true;
   }
 
   /**
@@ -40,7 +53,7 @@ export class HatchetClient implements IHatchetClient {
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
   ) {
-    this.v0 = new InternalHatchetClient(config, options, axiosConfig);
+    this._v0 = new InternalHatchetClient(config, options, axiosConfig);
   }
 
   /**
@@ -95,7 +108,7 @@ export class HatchetClient implements IHatchetClient {
       throw new Error('unable to identify workflow');
     }
 
-    return this.v0.admin.runWorkflow<T, K>(name, input, options);
+    return this._v0.admin.runWorkflow<T, K>(name, input, options);
   }
 
   /**
@@ -139,7 +152,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A cron client instance
    */
   get crons() {
-    return this.v0.cron;
+    return this._v0.cron;
   }
 
   /**
@@ -156,7 +169,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A schedules client instance
    */
   get schedules() {
-    return this.v0.schedule;
+    return this._v0.schedule;
   }
 
   /**
@@ -173,7 +186,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A event client instance
    */
   get events() {
-    return this.v0.event;
+    return this._v0.event;
   }
 
   /**
@@ -243,14 +256,14 @@ export class HatchetClient implements IHatchetClient {
    * @returns A API client instance
    */
   get api() {
-    return this.v0.api;
+    return this._v0.api;
   }
 
   /**
    * @deprecated use workflow.run, client.run, or client.* feature methods instead
    */
   get admin() {
-    return this.v0.admin;
+    return this._v0.admin;
   }
 
   /**
@@ -266,7 +279,7 @@ export class HatchetClient implements IHatchetClient {
       opts = options || {};
     }
 
-    return Worker.create(this, this.v0, name, opts);
+    return Worker.create(this, this._v0, name, opts);
   }
 
   /**
@@ -275,6 +288,6 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves when the webhook is registered
    */
   webhooks(workflows: V0Workflow[]) {
-    return this.v0.webhooks(workflows);
+    return this._v0.webhooks(workflows);
   }
 }

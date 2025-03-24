@@ -5,7 +5,7 @@ import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 
 export interface IHatchetClient {
-  v0: InternalHatchetClient;
+  _v0: InternalHatchetClient;
 
   metrics: MetricsClient;
   runs: RunsClient;

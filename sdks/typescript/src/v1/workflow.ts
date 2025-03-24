@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Context, DurableContext, JsonObject } from '@hatchet/step';
@@ -204,7 +205,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       throw UNBOUND_ERR;
     }
 
-    return this.client.v0.admin.runWorkflow(this.definition.name, input, options);
+    return this.client._v0.admin.runWorkflow(this.definition.name, input, options);
   }
 
   /**
@@ -248,7 +249,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       return Promise.all(input.map((i) => this.run(i, options)));
     }
 
-    const res = this.client.v0.admin.runWorkflow(this.definition.name, input, options);
+    const res = this.client._v0.admin.runWorkflow(this.definition.name, input, options);
     return res.result() as Promise<K>;
   }
 
@@ -265,7 +266,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       throw UNBOUND_ERR;
     }
 
-    const scheduled = this.client.v0.schedule.create(this.definition.name, {
+    const scheduled = this.client._v0.schedule.create(this.definition.name, {
       triggerAt: enqueueAt,
       input,
       additionalMetadata: options?.additionalMetadata,
@@ -307,7 +308,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       throw UNBOUND_ERR;
     }
 
-    const cronDef = this.client.v0.cron.create(this.definition.name, {
+    const cronDef = this.client._v0.cron.create(this.definition.name, {
       expression,
       input,
       additionalMetadata: options?.additionalMetadata,
