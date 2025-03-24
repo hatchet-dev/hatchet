@@ -182,7 +182,7 @@ export class Context<T, K = {}> {
    * @throws An error if the task output is not found.
    * @deprecated use ctx.parentOutput instead
    */
-  stepOutput<L = NextStep>(step: string): L | undefined {
+  stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
       throw new HatchetError('output not found');
     }
