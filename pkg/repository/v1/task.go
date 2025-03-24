@@ -70,7 +70,7 @@ type ReplayTasksResult struct {
 
 	UpsertedTasks []*sqlcv1.V1Task
 
-	InternalEventResults *InternalEventMatchResults
+	InternalEventResults *EventMatchResults
 }
 
 type ReplayTaskOpts struct {
@@ -105,6 +105,17 @@ type TaskIdInsertedAtRetryCount struct {
 
 	// (required) the retry count
 	RetryCount int32
+}
+
+type TaskIdInsertedAtSignalKey struct {
+	// (required) the external id
+	Id int64 `validate:"required"`
+
+	// (required) the inserted at time
+	InsertedAt pgtype.Timestamptz
+
+	// (required) the signal key for the event
+	SignalKey string
 }
 
 type CompleteTaskOpts struct {
@@ -216,6 +227,8 @@ type TaskRepository interface {
 
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error)
 
+	ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error)
+
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
 	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
@@ -223,6 +236,8 @@ type TaskRepository interface {
 	RefreshTimeoutBy(ctx context.Context, tenantId string, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 
 	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.V1TaskRuntime, error)
+
+	ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1095,6 +1110,63 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	}
 
 	return res, len(res) == limit, nil
+}
+
+type durableSleepEventData struct {
+	SleepDuration string `json:"sleep_duration"`
+}
+
+func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	limit := 1000
+
+	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
+		TenantID: sqlchelpers.UUIDFromStr(tenantId),
+		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true},
+	})
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// each emitted item becomes a candidate event match for internal events
+	events := make([]CandidateEventMatch, 0, len(emitted))
+
+	for _, sleep := range emitted {
+		data, err := json.Marshal(durableSleepEventData{
+			SleepDuration: sleep.SleepDuration,
+		})
+
+		if err != nil {
+			return nil, false, err
+		}
+
+		events = append(events, CandidateEventMatch{
+			ID:             uuid.New().String(),
+			EventTimestamp: time.Now(),
+			Key:            getDurableSleepEventKey(sleep.ID),
+			Data:           data,
+		})
+	}
+
+	results, err := r.processEventMatches(ctx, tx, tenantId, events, sqlcv1.V1EventTypeINTERNAL)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return results, len(emitted) == limit, nil
 }
 
 func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error) {
@@ -2410,11 +2482,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	}
 
 	dagIdsToAllTasks := make(map[int64][]*sqlcv1.ListAllTasksInDagsRow)
+	stepIdsInDAGs := make([]pgtype.UUID, 0)
 
 	for _, task := range allTasksInDAGs {
 		if _, ok := dagIdsToAllTasks[task.DagID.Int64]; !ok {
 			dagIdsToAllTasks[task.DagID.Int64] = make([]*sqlcv1.ListAllTasksInDagsRow, 0)
 		}
+
+		stepIdsInDAGs = append(stepIdsInDAGs, task.StepID)
 
 		dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
 	}
@@ -2494,6 +2569,26 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	// we do not reset other match conditions (for example, ones which refer to completed events for tasks
 	// which are outside of this subtree). otherwise, we would end up in a state where these events would
 	// never be matched.
+	// if any steps have additional match conditions, query for the additional matches
+	stepsToAdditionalMatches := make(map[string][]*sqlcv1.V1StepMatchCondition)
+
+	if len(stepIdsInDAGs) > 0 {
+		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+			Stepids:  sqlchelpers.UniqueSet(stepIdsInDAGs),
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
+		}
+
+		for _, match := range additionalMatches {
+			stepId := sqlchelpers.UUIDToStr(match.StepID)
+
+			stepsToAdditionalMatches[stepId] = append(stepsToAdditionalMatches[stepId], match)
+		}
+	}
+
 	for dagId, tasks := range dagIdsToChildTasks {
 		allTasks := dagIdsToAllTasks[dagId]
 
@@ -2537,6 +2632,12 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 				cancelGroupId := uuid.NewString()
 
+				additionalMatches, ok := stepsToAdditionalMatches[stepId]
+
+				if !ok {
+					additionalMatches = make([]*sqlcv1.V1StepMatchCondition, 0)
+				}
+
 				for _, parent := range task.Parents {
 					// FIXME: n^2 complexity here, fix it.
 					for _, otherTask := range allTasks {
@@ -2544,7 +2645,21 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 							parentExternalId := sqlchelpers.UUIDToStr(otherTask.ExternalID)
 							readableId := otherTask.StepReadableID
 
-							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId)...)
+							hasUserEventOrSleepMatches := false
+
+							parentOverrideMatches := make([]*sqlcv1.V1StepMatchCondition, 0)
+
+							for _, match := range additionalMatches {
+								if match.Kind == sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE {
+									if match.ParentReadableID.String == readableId {
+										parentOverrideMatches = append(parentOverrideMatches, match)
+									}
+								} else {
+									hasUserEventOrSleepMatches = true
+								}
+							}
+
+							conditions = append(conditions, getParentInDAGGroupMatch(cancelGroupId, parentExternalId, readableId, parentOverrideMatches, hasUserEventOrSleepMatches)...)
 						}
 					}
 				}
@@ -2586,7 +2701,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 	// process event matches
 	// TODO: signal the event matches to the caller
-	internalMatchResults, err := r.processInternalEventMatches(ctx, tx, tenantId, candidateEvents)
+	internalMatchResults, err := r.processEventMatches(ctx, tx, tenantId, candidateEvents, sqlcv1.V1EventTypeINTERNAL)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to process internal event matches: %w", err)
@@ -2853,4 +2968,24 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	return resMap, nil
+}
+
+func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtSignalKey) ([]*sqlcv1.V1TaskEvent, error) {
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	eventKeys := make([]string, 0)
+
+	for _, task := range tasks {
+		taskIds = append(taskIds, task.Id)
+		taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+		eventKeys = append(eventKeys, task.SignalKey)
+	}
+
+	return r.queries.ListMatchingSignalEvents(ctx, r.pool, sqlcv1.ListMatchingSignalEventsParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Eventkeys:       eventKeys,
+	})
 }

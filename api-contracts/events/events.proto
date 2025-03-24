@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option go_package = "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts";
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts";
 
 import "google/protobuf/timestamp.proto";
 
