@@ -12,7 +12,10 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs]);
 
 > This example assumes we have a [workflow](./basic-workflows.mdx) registered on a running [worker](./workers.mdx).
 
-Often times you may want to run a workflow and wait for it to complete. This is useful for workflows that take a long time to complete or are critical to the immediate operation of your application.
+One method for running a workflow in Hatchet is to run it and wait for its result. Some example use cases for this type of workflow trigger include:
+
+1. Fanout patterns, where a parent fans out work to a number of children, and wants to receive the results of those child tasks and make some decision based on them. For example, if each child run fips a coin, and the parent wants to count up how many heads there were and do something with that information.
+2. Waiting for long-running API calls to complete, such as if calling an LLM. For instance, if you had a part of your product that writes a poem for a user, your backend might run a `write_poem` workflow, which in turn calls an LLM, and then your backend would wait for that workflow to complete and return its result (the poem).
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">

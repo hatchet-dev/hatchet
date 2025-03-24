@@ -18,7 +18,10 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs, SchedulePy, Schedul
 
 > This example assumes we have a [workflow](./basic-workflows.mdx) registered on a running [worker](./workers.mdx).
 
-Scheduled runs allow you to trigger a workflow at a specific time in the future. This is useful when you need to execute a workflow at a specific time, such as sending a reminder email at a specific hour or a one-time maintenance task at a predetermined time.
+Scheduled runs allow you to trigger a workflow at a specific time in the future. Some example use cases of scheduling runs might include:
+
+* Sending a reminder email at a specific time after a user took an action.
+* Running a one-time maintenance task at a predetermined time as determined by your application. For instance, you might want to run a database vacuum during a maintenance window any time a task matches a certain criteria.
 
 Hatchet supports scheduled runs to run on a schedule defined in a few different ways:
 

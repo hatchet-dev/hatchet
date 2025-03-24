@@ -50,7 +50,13 @@ export const getStaticProps = ({}) =>
 
 > This example assumes we have a [workflow](./basic-workflows.mdx) registered on a running [worker](./workers.mdx).
 
-A [Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler that allows you to define when a workflow should be executed automatically. This feature is particularly useful for recurring tasks, such as daily data updates, weekly reports, or periodic maintenance jobs.
+A [Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler that allows you to define when a workflow should be executed automatically on a pre-determined schedule.
+
+Some example use cases for cron-style workflows might include:
+
+1. Running a daily report at a specific time.
+2. Sending weekly digest emails to users about their activity from the past week.
+3. Running a monthly billing process to generate invoices for customers.
 
 Hatchet supports cron triggers to run on a schedule defined in a few different ways:
 

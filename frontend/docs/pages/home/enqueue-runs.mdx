@@ -12,7 +12,12 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs]);
 
 > This example assumes we have a [workflow](./basic-workflows.mdx) registered on a running [worker](./workers.mdx).
 
-Often times you may want to run a workflow without waiting for it to complete. This pattern, often referred to as "fire and forget", is useful for workflows that take a long time to complete or are not critical to the immediate operation of your application.
+Another method of triggering a workflow in Hatchet is to _enqueue_ the workflow without waiting for it to complete, sometimes known as "fire and forget". This pattern is useful for workflows that take a long time to complete or are not critical to the immediate operation of your application.
+
+Some example use cases for fire-and-forget style workflows might be:
+
+1. Sending a shipping confirmation email to a user once their order has shipped. This is a truly async task, in the sense that the user is not necessarily using your application when it happens, and the part of the application triggering the workflow does not need to know the result of the work, just that it has been enqueued (assuming that it will complete, of course).
+2. Triggering a machine learning model training job that can take minutes, hours, or even days to complete. Similarly to above, it's likely that no part of the application needs to wait on the result of this work, it just needs to "fire and forget" it - meaning that it needs to kick it off, and let it complete whenever it completes.
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
