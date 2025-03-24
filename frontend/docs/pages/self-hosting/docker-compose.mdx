@@ -204,11 +204,12 @@ You can also generate an API token by logging in and navigating to the "General"
 Make sure you have the following dependencies installed:
 
 ```sh
-pip install python-dotenv
 pip install hatchet-sdk
 ```
 
-We are using [`python-dotenv`](https://pypi.org/project/python-dotenv/) to load the environment variables from a `.env` file. This isn't required, and you can use your own method to load environment variables.
+<Callout type="info" emoji="💡">
+The Python SDK uses [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) to manage configuration, which will automatically try to load environment variables from a `.env` file, if one is present.
+</Callout>
 
 Create a `worker.py` file with the following contents:
 

@@ -1,3 +1,5 @@
+import { Tabs, Callout } from "nextra/components";
+
 # Introduction to Hatchet
 
 Welcome to the Hatchet User Guide! Hatchet is a distributed, fault-tolerant task queue designed to solve scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration/infrastructure.
@@ -6,11 +8,19 @@ Welcome to the Hatchet User Guide! Hatchet is a distributed, fault-tolerant task
 
 **You run your workers, we manage the rest.**
 
-Hatchet is an orchestrator, which means it manages the execution of your workflows. However, the individual steps of each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows.
+Hatchet is an orchestrator, which means it manages the execution of your workflows. However, the individual tasks comprising each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows.
+
+<Callout type="info" emoji="🪓">
+    Hatchet also has a [Managed Compute](../compute/index.mdx) offering, which makes it even easier to run your workers. With Managed Compute, you can run your workers and let us handle managing the infrastructure.
+
+    Interested in Managed Compute? Ask us about it!
+</Callout>
 
 **What is a workflow?**
 
-The term `workflow` tends to be overloaded, so let's make things more clear - in Hatchet, a workflow is a set of functions which are executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a workflow for that.
+In Hatchet, the fundamental unit of invocable work is a [Workflow](./basic-workflows.mdx#defining-a-workflow). Each workflow is a collection of [Tasks](./basic-workflows.mdx/#defining-a-task), which are atomic functions. The simplest workflow can be a single task.
+
+Workflows can be run directly, or can be executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a workflow for that.
 
 **Why is that useful?**
 
@@ -18,7 +28,7 @@ Instead of processing background tasks and functions in your application handler
 
 **A managed queue**
 
-Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and mission-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
+Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and business-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
 
 ## Quick Starts
 
