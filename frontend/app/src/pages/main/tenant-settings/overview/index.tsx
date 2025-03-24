@@ -88,8 +88,7 @@ const TenantVersionSwitcher = () => {
           Tenant Version
         </h2>
         <p className="text-sm text-muted-foreground">
-          Upgrade your tenant to v1 to access new features and improvements. v1
-          is currently in beta.
+          Upgrade your tenant to v1 to access new features and improvements.
         </p>
         <Button
           onClick={() => setShowUpgradeModal(true)}
@@ -97,14 +96,14 @@ const TenantVersionSwitcher = () => {
           className="w-fit"
         >
           {isPending ? <Spinner /> : null}
-          Upgrade to v1 (beta)
+          Upgrade to v1
         </Button>
       </div>
 
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Upgrade to v1 (beta)</DialogTitle>
+            <DialogTitle>Upgrade to v1</DialogTitle>
           </DialogHeader>
           {!upgradeRestrictedError && (
             <div className="space-y-4 py-4">

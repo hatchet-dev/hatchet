@@ -83,7 +83,7 @@ WITH active_controller_partitions AS (
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
 )
-INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod")
+INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version")
 VALUES (
     $1::uuid,
     $2::text,
@@ -97,16 +97,18 @@ VALUES (
             random()
         LIMIT 1
     ),
-    COALESCE($4::text, '720h')
+    COALESCE($4::text, '720h'),
+    COALESCE($5::"TenantMajorEngineVersion", 'V0')
 )
 RETURNING id, "createdAt", "updatedAt", "deletedAt", version, name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
 `
 
 type CreateTenantParams struct {
-	ID                  pgtype.UUID `json:"id"`
-	Name                string      `json:"name"`
-	Slug                string      `json:"slug"`
-	DataRetentionPeriod pgtype.Text `json:"dataRetentionPeriod"`
+	ID                  pgtype.UUID                  `json:"id"`
+	Name                string                       `json:"name"`
+	Slug                string                       `json:"slug"`
+	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
+	Version             NullTenantMajorEngineVersion `json:"version"`
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantParams) (*Tenant, error) {
@@ -115,6 +117,7 @@ func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantPar
 		arg.Name,
 		arg.Slug,
 		arg.DataRetentionPeriod,
+		arg.Version,
 	)
 	var i Tenant
 	err := row.Scan(
