@@ -39,6 +39,8 @@ In this example, we use a few more new SDK features:
 2. When we want to spawn the child workflow, we can use the `run` methods on the `child_workflow` object, which is a Hatchet `Workflow`, instead of needing to refer to the workflow by its name (a string). The `input` field to `run()` is now also properly typed as `ChildInput`.
 3. The child workflow makes use of some of Hatchet's DAG features, such as defining parent tasks. In the new SDK, `parents` of a task are defined as a list of `Task` objects as opposed to as a list of strings, so now, `process2` has `process` (the `Task`) as its parent, as opposed to `"process"` (the string). This also allows us to use `ctx.task_output(process)` to access the output of the `process` task in the `process2` task, and know the type of that output at type checking time.
 
+See our [Pydantic documentation](./pydantic.mdx) for more.
+
 #### Other Breaking Changes
 
 There have been a number of other breaking changes throughout the SDK in V1.
@@ -59,7 +61,7 @@ Naming changes:
 
 Removals:
 
-1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](./asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
+1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](../sdks/python-sdk/asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
 
 Other miscellaneous changes:
 

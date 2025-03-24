@@ -112,5 +112,11 @@
   "bulk-cancellation": {
     "title": "Bulk Cancellation",
     "display": "hidden"
-  }
+  },
+  "--python": {
+    "title": "Python Specifics",
+    "type": "separator"
+  },
+  "asyncio": "Asyncio",
+  "pydantic": "Pydantic"
 }

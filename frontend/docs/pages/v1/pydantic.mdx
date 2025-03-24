@@ -1,0 +1,53 @@
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const Fanout = {
+  path: "examples/fanout/worker.py",
+};
+
+export const Simple = {
+  path: "examples/simple/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([Fanout, Simple]);
+
+# Pydantic Support
+
+The V1 Hatchet SDK leans heavily on [Pydantic](https://docs.pydantic.dev/latest/) (both internally and externally) for handling validation of workflow inputs and outputs, method inputs, and more.
+
+### Usage
+
+To enable Pydantic for validation, you'll need to:
+
+1. Provide an `input_validator` as a parameter to your `workflow`.
+2. Add return type hints for your `tasks`.
+
+### Default Behavior
+
+By default, if no `input_validator` is provided, the `EmptyModel` is used, which is a Pydantic model that accepts any input. For example:
+
+<GithubSnippet src={Simple} target="Simple" />
+
+In this simple example, the `input` that's injected into the task accepts an argument `input`, which is of type `EmptyModel`. The `EmptyModel` can be imported directly from Hatchet, and is an alias for:
+
+```python
+from pydantic import BaseModel, ConfigDict
+
+class EmptyModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+```
+
+Note that since `extra="allow"` is set, workflows will not fail with validation errors if an extra field is provided.
+
+### Example Usage
+
+We highly recommend creating Pydantic models to represent your workflow inputs and outputs. This will help you catch errors early and ensure that your workflows are well-typed. For example, consider a fanout workflow like this:
+
+<GithubSnippet src={Fanout} target="FanoutParent" />
+
+In this case, we've defined two workflows: a parent and a child. They both have their inputs typed, and the parent spawns the child. Note that `child_wf.create_workflow_run_config` is typed, so the type checker (and your IDE) know the type of the input to the child workflow.
+
+Then, the child tasks are defined as follows:
+
+<GithubSnippet src={Fanout} target="FanoutChild" />
+
+In the children, the inputs are validated by Pydantic, so you can access their attributes directly without needing a type cast or parsing a dictionary with the inputs instead.
