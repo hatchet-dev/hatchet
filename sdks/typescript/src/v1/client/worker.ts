@@ -1,9 +1,11 @@
+/* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
 import { WorkflowDeclaration } from '../workflow';
+import { HatchetClient } from '..';
 
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
@@ -33,7 +35,8 @@ export interface CreateWorkerOpts {
 export class Worker {
   config: CreateWorkerOpts;
   name: string;
-  v0: InternalHatchetClient;
+  _v1: HatchetClient;
+  _v0: InternalHatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
   nonDurable: V0Worker;
@@ -44,12 +47,14 @@ export class Worker {
    * @param nonDurable - The V0 worker implementation
    */
   constructor(
+    v1: HatchetClient,
     v0: InternalHatchetClient,
     nonDurable: V0Worker,
     config: CreateWorkerOpts,
     name: string
   ) {
-    this.v0 = v0;
+    this._v1 = v1;
+    this._v0 = v0;
     this.nonDurable = nonDurable;
     this.config = config;
     this.name = name;
@@ -61,12 +66,17 @@ export class Worker {
    * @param options - Worker creation options
    * @returns A new HatchetWorker instance
    */
-  static async create(v0: InternalHatchetClient, name: string, options: CreateWorkerOpts) {
+  static async create(
+    v1: HatchetClient,
+    v0: InternalHatchetClient,
+    name: string,
+    options: CreateWorkerOpts
+  ) {
     const v0worker = await v0.worker(name, {
       ...options,
       maxRuns: options.slots || options.maxRuns,
     });
-    const worker = new Worker(v0, v0worker, options, name);
+    const worker = new Worker(v1, v0, v0worker, options, name);
     await worker.registerWorkflows(options.workflows);
     return worker;
   }
@@ -85,7 +95,7 @@ export class Worker {
 
           if (wf.definition.durableTasks.length > 0) {
             if (!this.durable) {
-              this.durable = await this.v0.worker(`${this.name}-durable`, {
+              this.durable = await this._v0.worker(`${this.name}-durable`, {
                 ...this.config,
                 maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
               });
@@ -164,5 +174,42 @@ export class Worker {
    */
   registerWebhook(webhook: WebhookWorkerCreateRequest) {
     return this.nonDurable.registerWebhook(webhook);
+  }
+
+  async isPaused() {
+    const promises: Promise<any>[] = [];
+    if (this.nonDurable?.workerId) {
+      promises.push(this._v1.workers.isPaused(this.nonDurable.workerId));
+    }
+    if (this.durable?.workerId) {
+      promises.push(this._v1.workers.isPaused(this.durable.workerId));
+    }
+
+    const res = await Promise.all(promises);
+
+    return !res.includes(false);
+  }
+
+  // TODO docstrings
+  pause() {
+    const promises: Promise<any>[] = [];
+    if (this.nonDurable?.workerId) {
+      promises.push(this._v1.workers.pause(this.nonDurable.workerId));
+    }
+    if (this.durable?.workerId) {
+      promises.push(this._v1.workers.pause(this.durable.workerId));
+    }
+    return Promise.all(promises);
+  }
+
+  unpause() {
+    const promises: Promise<any>[] = [];
+    if (this.nonDurable?.workerId) {
+      promises.push(this._v1.workers.unpause(this.nonDurable.workerId));
+    }
+    if (this.durable?.workerId) {
+      promises.push(this._v1.workers.unpause(this.durable.workerId));
+    }
+    return Promise.all(promises);
   }
 }

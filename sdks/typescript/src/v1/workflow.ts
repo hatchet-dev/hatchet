@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Context, DurableContext, JsonObject } from '@hatchet/step';
@@ -11,6 +12,8 @@ import {
   TaskFn,
   CreateDurableTaskOpts,
 } from './task';
+import { Duration } from './client/duration';
+import { MetricsClient } from './client/features/metrics';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -58,17 +61,15 @@ export type CreateWorkflowOpts = {
   sticky?: WorkflowV0['sticky'];
 
   /**
-   * @deprecated use onCrons and onEvents instead
    * (optional) on config for the workflow.
+   * @deprecated use onCrons and onEvents instead
    */
-  on?: WorkflowV0['on']; // TODO map these
+  on?: WorkflowV0['on'];
 
   /**
    * (optional) cron config for the workflow.
    */
   onCrons?: string[];
-
-  // TODO cron input?
 
   /**
    * (optional) event config for the workflow.
@@ -83,7 +84,6 @@ export type CreateWorkflowOpts = {
    * @param ctx The context of the workflow.
    */
   onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
-  // TODO onfailure should take a task dfn?
 
   /**
    * (optional) default configuration for all tasks in the workflow.
@@ -102,7 +102,7 @@ export type TaskDefaults = {
    *
    * default: 60s
    */
-  executionTimeout?: CreateTaskOpts<any, any>['executionTimeout'];
+  executionTimeout?: Duration;
 
   /**
    * (optional) schedule timeout for the task (max duration to allow the task to wait in the queue)
@@ -110,7 +110,7 @@ export type TaskDefaults = {
    *
    * default: 5m
    */
-  scheduleTimeout?: CreateTaskOpts<any, any>['scheduleTimeout'];
+  scheduleTimeout?: Duration;
 
   /**
    * (optional) number of retries for the task.
@@ -200,14 +200,36 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  enqueue(input: T, options?: RunOpts): WorkflowRunRef<K> {
+  runNoWait(input: T, options?: RunOpts): WorkflowRunRef<K> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return this.client.v0.admin.runWorkflow(this.definition.name, input, options);
+    return this.client._v0.admin.runWorkflow(this.definition.name, input, options);
   }
 
+  /**
+   * @alias run
+   * Triggers a workflow run and waits for the result.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param input - The input data for the workflow
+   * @param options - Configuration options for the workflow run
+   * @returns A promise that resolves with the workflow result
+   */
+  async runAndWait(input: T, options?: RunOpts): Promise<K>;
+  async runAndWait(input: T[], options?: RunOpts): Promise<K[]>;
+  async runAndWait(input: T | T[], options?: RunOpts): Promise<K | K[]> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    if (Array.isArray(input)) {
+      return Promise.all(input.map((i) => this.runAndWait(i, options)));
+    }
+
+    return this.run(input, options);
+  }
   /**
    * Executes the workflow with the given input and awaits the results.
    * @param input The input data for the workflow.
@@ -227,7 +249,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       return Promise.all(input.map((i) => this.run(i, options)));
     }
 
-    const res = this.client.v0.admin.runWorkflow(this.definition.name, input, options);
+    const res = this.client._v0.admin.runWorkflow(this.definition.name, input, options);
     return res.result() as Promise<K>;
   }
 
@@ -244,7 +266,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       throw UNBOUND_ERR;
     }
 
-    const scheduled = this.client.v0.schedule.create(this.definition.name, {
+    const scheduled = this.client._v0.schedule.create(this.definition.name, {
       triggerAt: enqueueAt,
       input,
       additionalMetadata: options?.additionalMetadata,
@@ -286,7 +308,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
       throw UNBOUND_ERR;
     }
 
-    const cronDef = this.client.v0.cron.create(this.definition.name, {
+    const cronDef = this.client._v0.cron.create(this.definition.name, {
       expression,
       input,
       additionalMetadata: options?.additionalMetadata,
@@ -340,6 +362,61 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     const typedOptions = options as unknown as CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>>;
     this.definition.durableTasks.push(typedOptions);
     return typedOptions;
+  }
+
+  metrics(opts?: Parameters<MetricsClient['getWorkflowMetrics']>[1]) {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.metrics.getWorkflowMetrics(this.definition.name, opts);
+  }
+
+  queueMetrics(opts?: Omit<Parameters<MetricsClient['getQueueMetrics']>[0], 'workflows'>) {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.metrics.getQueueMetrics({
+      ...opts,
+      workflows: [this.definition.name],
+    });
+  }
+
+  // get current state
+  get() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.get(this);
+  }
+
+  // gets the pause state of the workflow
+  isPaused() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.isPaused(this);
+  }
+
+  // pause assignment of workflow
+  pause() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.pause(this);
+  }
+
+  // unpause assignment of workflow
+  unpause() {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    return this.client.workflows.unpause(this);
   }
 
   // @deprecated use definition.name instead

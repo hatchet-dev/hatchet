@@ -2,7 +2,7 @@ import { hatchet } from '../client';
 import { SIMPLE_EVENT } from './workflow';
 
 async function main() {
-  const res = await hatchet.event.push(SIMPLE_EVENT, {
+  const res = await hatchet.events.push(SIMPLE_EVENT, {
     Message: 'hello',
   });
 

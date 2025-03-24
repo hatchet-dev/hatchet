@@ -714,7 +714,6 @@ export class V0Worker {
         void this.handleAction(action);
       }
     } catch (e: any) {
-      // TODO TEMP this needs to be handled better
       if (this.killing) {
         this.logger.info(`Exiting worker, ignoring error: ${e.message}`);
         return;

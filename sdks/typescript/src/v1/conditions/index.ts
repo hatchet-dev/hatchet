@@ -8,7 +8,6 @@ import { Sleep, SleepCondition } from './sleep-condition';
 import { UserEvent, UserEventCondition } from './user-event-condition';
 
 export { Sleep, SleepCondition, UserEvent, UserEventCondition };
-// TODO export from root?
 
 export type IConditions = Sleep | UserEvent | Parent;
 

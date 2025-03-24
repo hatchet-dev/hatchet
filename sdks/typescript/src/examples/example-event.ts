@@ -3,7 +3,7 @@ import Hatchet from '../sdk';
 const hatchet = Hatchet.init();
 
 // Push a single event (example)
-hatchet.event.push('user:create', {
+hatchet.events.push('user:create', {
   test: 'test',
 });
 
@@ -24,7 +24,7 @@ const events = [
 ];
 
 // Bulk push the events and compare the keys
-hatchet.event
+hatchet.events
   .bulkPush('user:create:bulk', events)
   .then((result) => {
     const returnedEvents = result.events;

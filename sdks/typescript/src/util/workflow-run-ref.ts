@@ -65,6 +65,12 @@ export default class WorkflowRunRef<T> {
     this.client = client;
   }
 
+  // TODO docstrings
+  get runId() {
+    return this.getWorkflowRunId();
+  }
+
+  // @deprecated use runId
   async getWorkflowRunId(): Promise<string> {
     return getWorkflowRunId(this.workflowRunId);
   }
@@ -74,6 +80,15 @@ export default class WorkflowRunRef<T> {
     return this.client.stream(workflowRunId);
   }
 
+  // TODO not sure if i want this to be a get since it might be blocking for a long time..
+  get output() {
+    return this.result();
+  }
+
+  /**
+   * @alias output
+   * @deprecated use output
+   */
   async result(): Promise<T> {
     const workflowRunId = await getWorkflowRunId(this.workflowRunId);
 

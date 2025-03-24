@@ -1,7 +1,7 @@
 import { hatchet } from '../client';
 
 async function main() {
-  const event = await hatchet.event.push('user:event', {
+  const event = await hatchet.events.push('user:event', {
     Value: 'event',
   });
 }

@@ -16,7 +16,7 @@ async function main() {
       group = 1;
     }
 
-    hatchet.event.push('concurrency:create', {
+    hatchet.events.push('concurrency:create', {
       data: `event ${i}`,
       group,
     });
