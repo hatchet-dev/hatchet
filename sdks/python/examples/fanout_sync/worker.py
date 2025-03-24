@@ -16,17 +16,19 @@ class ChildInput(BaseModel):
     a: str
 
 
-parent = hatchet.workflow(name="SyncFanoutParent", input_validator=ParentInput)
-child = hatchet.workflow(name="SyncFanoutChild", input_validator=ChildInput)
+sync_fanout_parent = hatchet.workflow(
+    name="SyncFanoutParent", input_validator=ParentInput
+)
+sync_fanout_child = hatchet.workflow(name="SyncFanoutChild", input_validator=ChildInput)
 
 
-@parent.task(timeout=timedelta(minutes=5))
+@sync_fanout_parent.task(execution_timeout=timedelta(minutes=5))
 def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     print("spawning child")
 
-    runs = child.run_many(
+    runs = sync_fanout_child.run_many(
         [
-            child.create_run_workflow_config(
+            sync_fanout_child.create_run_workflow_config(
                 input=ChildInput(a=str(i)),
                 key=f"child{i}",
                 options=TriggerWorkflowOptions(additional_metadata={"hello": "earth"}),
@@ -42,13 +44,17 @@ def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     return {"results": results}
 
 
-@child.task()
+@sync_fanout_child.task()
 def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     return {"status": "success " + input.a}
 
 
 def main() -> None:
-    worker = hatchet.worker("sync-fanout-worker", slots=40, workflows=[parent, child])
+    worker = hatchet.worker(
+        "sync-fanout-worker",
+        slots=40,
+        workflows=[sync_fanout_parent, sync_fanout_child],
+    )
     worker.start()
 
 

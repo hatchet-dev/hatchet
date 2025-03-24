@@ -1,21 +1,20 @@
 import pytest
 
 from examples.concurrency_limit.worker import WorkflowInput, concurrency_limit_workflow
-from hatchet_sdk import Hatchet, Worker
+from hatchet_sdk import Hatchet
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
 # requires scope module or higher for shared event loop
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.skip(reason="The timing for this test is not reliable")
-@pytest.mark.parametrize("worker", ["concurrency_limit"], indirect=True)
-async def test_run(hatchet: Hatchet, worker: Worker) -> None:
+async def test_run(hatchet: Hatchet) -> None:
     num_runs = 6
     runs: list[WorkflowRunRef] = []
 
     # Start all runs
     for i in range(1, num_runs + 1):
-        run = concurrency_limit_workflow.run(WorkflowInput(run=i, group=str(i)))
+        run = concurrency_limit_workflow.run_no_wait(WorkflowInput(run=i, group=str(i)))
         runs.append(run)
 
     # Wait for all results

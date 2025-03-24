@@ -3,6 +3,7 @@ from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
+from hatchet_sdk.clients.durable_event_listener import RegisterDurableEventRequest
 from hatchet_sdk.clients.events import PushEventOptions
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 
@@ -127,7 +128,7 @@ from hatchet_sdk.clients.run_event_listener import (
     WorkflowRunEventType,
 )
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.context.context import Context
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import (
     CreateWorkflowVersionOpts,
@@ -142,6 +143,14 @@ from hatchet_sdk.runnables.types import (
     EmptyModel,
     StickyStrategy,
     WorkflowConfig,
+)
+from hatchet_sdk.waits import (
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    or_,
 )
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 
@@ -245,4 +254,12 @@ __all__ = [
     "WorkflowConfig",
     "Task",
     "EmptyModel",
+    "Condition",
+    "OrGroup",
+    "or_",
+    "SleepCondition",
+    "UserEventCondition",
+    "ParentCondition",
+    "DurableContext",
+    "RegisterDurableEventRequest",
 ]

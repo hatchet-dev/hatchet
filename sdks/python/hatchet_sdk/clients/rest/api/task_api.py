@@ -23,10 +23,10 @@ from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
-from hatchet_sdk.clients.rest.models.v1_task import V1Task
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_point_metrics import V1TaskPointMetrics
 from hatchet_sdk.clients.rest.models.v1_task_run_metric import V1TaskRunMetric
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -965,7 +965,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> V1Task:
+    ) -> V1TaskSummary:
         """Get a task
 
         Get a task by id
@@ -1003,7 +1003,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1Task",
+            "200": "V1TaskSummary",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -1036,7 +1036,7 @@ class TaskApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[V1Task]:
+    ) -> ApiResponse[V1TaskSummary]:
         """Get a task
 
         Get a task by id
@@ -1074,7 +1074,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1Task",
+            "200": "V1TaskSummary",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -1145,7 +1145,7 @@ class TaskApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1Task",
+            "200": "V1TaskSummary",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -1561,6 +1561,10 @@ class TaskApi:
             ],
             Field(description="The workflow id to find runs for"),
         ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task's external id"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1583,6 +1587,8 @@ class TaskApi:
         :type since: datetime
         :param workflow_ids: The workflow id to find runs for
         :type workflow_ids: List[str]
+        :param parent_task_external_id: The parent task's external id
+        :type parent_task_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1609,6 +1615,7 @@ class TaskApi:
             tenant=tenant,
             since=since,
             workflow_ids=workflow_ids,
+            parent_task_external_id=parent_task_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1648,6 +1655,10 @@ class TaskApi:
             ],
             Field(description="The workflow id to find runs for"),
         ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task's external id"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1670,6 +1681,8 @@ class TaskApi:
         :type since: datetime
         :param workflow_ids: The workflow id to find runs for
         :type workflow_ids: List[str]
+        :param parent_task_external_id: The parent task's external id
+        :type parent_task_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1696,6 +1709,7 @@ class TaskApi:
             tenant=tenant,
             since=since,
             workflow_ids=workflow_ids,
+            parent_task_external_id=parent_task_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1735,6 +1749,10 @@ class TaskApi:
             ],
             Field(description="The workflow id to find runs for"),
         ] = None,
+        parent_task_external_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The parent task's external id"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1757,6 +1775,8 @@ class TaskApi:
         :type since: datetime
         :param workflow_ids: The workflow id to find runs for
         :type workflow_ids: List[str]
+        :param parent_task_external_id: The parent task's external id
+        :type parent_task_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1783,6 +1803,7 @@ class TaskApi:
             tenant=tenant,
             since=since,
             workflow_ids=workflow_ids,
+            parent_task_external_id=parent_task_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1805,6 +1826,7 @@ class TaskApi:
         tenant,
         since,
         workflow_ids,
+        parent_task_external_id,
         _request_auth,
         _content_type,
         _headers,
@@ -1844,6 +1866,10 @@ class TaskApi:
         if workflow_ids is not None:
 
             _query_params.append(("workflow_ids", workflow_ids))
+
+        if parent_task_external_id is not None:
+
+            _query_params.append(("parent_task_external_id", parent_task_external_id))
 
         # process the header parameters
         # process the form parameters

@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from multiprocessing import Queue
 from threading import Thread, current_thread
-from typing import Any, Callable, Dict, cast
+from typing import Any, Callable, Dict, Literal, cast, overload
 
 from pydantic import BaseModel
 
@@ -16,10 +16,11 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.durable_event_listener import DurableEventListener
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.context.context import Context
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     GROUP_KEY_EVENT_TYPE_COMPLETED,
@@ -30,17 +31,17 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TWorkflowInput
-from hatchet_sdk.utils.typing import WorkflowValidator
-from hatchet_sdk.worker.action_listener_process import (
-    ActionEvent,
+from hatchet_sdk.runnables.contextvars import (
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.types import R, TWorkflowInput
+from hatchet_sdk.utils.typing import WorkflowValidator
+from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars
 
 
@@ -56,11 +57,11 @@ class Runner:
         self,
         name: str,
         event_queue: "Queue[ActionEvent]",
+        config: ClientConfig,
         slots: int | None = None,
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
         validator_registry: dict[str, WorkflowValidator] = {},
-        config: ClientConfig = ClientConfig(),
         labels: dict[str, str | int] = {},
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
@@ -70,7 +71,7 @@ class Runner:
         self.slots = slots
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
-        self.action_registry: dict[str, Task[TWorkflowInput, R]] = action_registry
+        self.action_registry = action_registry
         self.validator_registry = validator_registry
 
         self.event_queue = event_queue
@@ -88,6 +89,7 @@ class Runner:
         self.admin_client = AdminClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
         self.client.workflow_listener = PooledWorkflowRunListener(self.config)
+        self.durable_event_listener = DurableEventListener(self.config)
 
         self.worker_context = WorkerContext(
             labels=labels, client=Client(config=config).dispatcher
@@ -136,7 +138,7 @@ class Runner:
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
-                        payload=str(errorWithTraceback(f"{e}", e)),
+                        payload=str(pretty_format_exception(f"{e}", e)),
                     )
                 )
 
@@ -178,7 +180,7 @@ class Runner:
                     ActionEvent(
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
-                        payload=str(errorWithTraceback(f"{e}", e)),
+                        payload=str(pretty_format_exception(f"{e}", e)),
                     )
                 )
 
@@ -245,7 +247,7 @@ class Runner:
                 return await loop.run_in_executor(self.thread_pool, pfunc)
         except Exception as e:
             logger.error(
-                errorWithTraceback(
+                pretty_format_exception(
                     f"exception raised in action ({action.action_id}, retry={action.retry_count}):\n{e}",
                     e,
                 )
@@ -264,14 +266,29 @@ class Runner:
         if run_id in self.contexts:
             del self.contexts[run_id]
 
-    def create_context(self, action: Action) -> Context:
-        return Context(
+    @overload
+    def create_context(
+        self, action: Action, is_durable: Literal[True] = True
+    ) -> DurableContext: ...
+
+    @overload
+    def create_context(
+        self, action: Action, is_durable: Literal[False] = False
+    ) -> Context: ...
+
+    def create_context(
+        self, action: Action, is_durable: bool = True
+    ) -> Context | DurableContext:
+        constructor = DurableContext if is_durable else Context
+
+        return constructor(
             action,
             self.dispatcher_client,
             self.admin_client,
             self.client.event,
             self.client.rest,
             self.client.workflow_listener,
+            self.durable_event_listener,
             self.workflow_run_event_listener,
             self.worker_context,
             self.client.config.namespace,
@@ -285,11 +302,12 @@ class Runner:
         # Find the corresponding action function from the registry
         action_func = self.action_registry.get(action_name)
 
-        context = self.create_context(action)
-
-        self.contexts[action.step_run_id] = context
-
         if action_func:
+            context = self.create_context(
+                action, True if action_func.is_durable else False
+            )
+
+            self.contexts[action.step_run_id] = context
             self.event_queue.put(
                 ActionEvent(action=action, type=STEP_EVENT_TYPE_STARTED, payload="")
             )
@@ -417,7 +435,7 @@ class Runner:
 
         if output is not None:
             try:
-                return json.dumps(output)
+                return json.dumps(output, default=str)
             except Exception as e:
                 logger.error(f"Could not serialize output: {e}")
                 return str(output)
@@ -432,6 +450,6 @@ class Runner:
             running = len(self.tasks.keys())
 
 
-def errorWithTraceback(message: str, e: Exception) -> str:
+def pretty_format_exception(message: str, e: Exception) -> str:
     trace = "".join(traceback.format_exception(type(e), e, e.__traceback__))
     return f"{message}\n{trace}"

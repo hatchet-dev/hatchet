@@ -2,7 +2,7 @@ import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
 
@@ -11,6 +11,10 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
     Action,
     DispatcherClient,
 )
+from hatchet_sdk.clients.durable_event_listener import (
+    DurableEventListener,
+    RegisterDurableEventRequest,
+)
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
@@ -18,6 +22,7 @@ from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
+from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -48,6 +53,7 @@ class Context:
         event_client: EventClient,
         rest_client: RestApi,
         workflow_listener: PooledWorkflowRunListener | None,
+        durable_event_listener: DurableEventListener | None,
         workflow_run_event_listener: RunEventListenerClient,
         worker: WorkerContext,
         namespace: str = "",
@@ -67,6 +73,7 @@ class Context:
         self.event_client = event_client
         self.rest_client = rest_client
         self.workflow_listener = workflow_listener
+        self.durable_event_listener = durable_event_listener
         self.workflow_run_event_listener = workflow_run_event_listener
         self.namespace = namespace
 
@@ -77,14 +84,23 @@ class Context:
 
         self.input = self.data.input
 
+    def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
+        return self.data.parents.get(task.name, {}).get("skipped", False)
+
+    @property
+    def event_triggers(self) -> JSONSerializableMapping:
+        return self.data.triggers
+
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
+
+        action_prefix = self.action.action_id.split(":")[0]
 
         workflow_validator = next(
             (
                 v
                 for k, v in self.validator_registry.items()
-                if k.split(":")[-1] == task.name
+                if k == f"{action_prefix}:{task.name}"
             ),
             None,
         )
@@ -104,7 +120,7 @@ class Context:
         return parent_step_data
 
     @property
-    def triggered_by_event(self) -> bool:
+    def was_triggered_by_event(self) -> bool:
         return self.data.triggered_by == "event"
 
     @property
@@ -207,7 +223,7 @@ class Context:
         return self.action.parent_workflow_run_id
 
     @property
-    def step_run_errors(self) -> dict[str, str]:
+    def task_run_errors(self) -> dict[str, str]:
         errors = self.data.step_run_errors
 
         if not errors:
@@ -217,20 +233,33 @@ class Context:
 
         return errors
 
-    def fetch_run_failures(self) -> list[StepRunError]:
-        data = self.rest_client.workflow_run_get(self.action.workflow_run_id)
-        other_job_runs = [
-            run for run in (data.job_runs or []) if run.job_id != self.action.job_id
-        ]
+    def fetch_task_run_error(
+        self,
+        task: "Task[TWorkflowInput, R]",
+    ) -> str | None:
+        errors = self.data.step_run_errors
 
-        return [
-            StepRunError(
-                step_id=step_run.step_id,
-                step_run_action_name=step_run.step.action,
-                error=step_run.error,
-            )
-            for job_run in other_job_runs
-            if job_run.step_runs
-            for step_run in job_run.step_runs
-            if step_run.error and step_run.step
-        ]
+        return errors.get(task.name)
+
+
+class DurableContext(Context):
+    async def wait_for(
+        self, signal_key: str, *conditions: SleepCondition | UserEventCondition
+    ) -> dict[str, Any]:
+        if self.durable_event_listener is None:
+            raise ValueError("Durable event listener is not available")
+
+        task_id = self.step_run_id
+
+        request = RegisterDurableEventRequest(
+            task_id=task_id,
+            signal_key=signal_key,
+            conditions=list(conditions),
+        )
+
+        self.durable_event_listener.register_durable_event(request)
+
+        return await self.durable_event_listener.result(
+            task_id,
+            signal_key,
+        )
