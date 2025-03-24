@@ -20,7 +20,7 @@
     "type": "separator"
   },
   "run-with-results": "Run with Results",
-  "enqueue-runs": "Enqueue Runs",
+  "enqueue-runs": "Enqueue a Run",
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
   "run-on-event": "Run on Event",
