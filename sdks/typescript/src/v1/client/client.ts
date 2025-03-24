@@ -76,7 +76,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  enqueue<T extends JsonObject = any, K extends JsonObject = any>(
+  runNoWait<T extends JsonObject = any, K extends JsonObject = any>(
     workflow: WorkflowDeclaration<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts
@@ -94,6 +94,24 @@ export class HatchetClient implements IHatchetClient {
   }
 
   /**
+   * @alias run
+   * Triggers a workflow run and waits for the result.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param workflow - The workflow to run, either as a Workflow instance or workflow name
+   * @param input - The input data for the workflow
+   * @param options - Configuration options for the workflow run
+   * @returns A promise that resolves with the workflow result
+   */
+  async runAndWait<T extends JsonObject = any, K extends JsonObject = any>(
+    workflow: WorkflowDeclaration<T, K> | string | V0Workflow,
+    input: T,
+    options: RunOpts = {}
+  ): Promise<K> {
+    return this.run<T, K>(workflow, input, options);
+  }
+
+  /**
    * Triggers a workflow run and waits for the result.
    * @template T - The input type for the workflow
    * @template K - The return type of the workflow
@@ -107,7 +125,7 @@ export class HatchetClient implements IHatchetClient {
     input: T,
     options: RunOpts = {}
   ): Promise<K> {
-    const run = this.enqueue<T, K>(workflow, input, options);
+    const run = this.runNoWait<T, K>(workflow, input, options);
     return run.result() as Promise<K>;
   }
 

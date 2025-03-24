@@ -200,7 +200,7 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  enqueue(input: T, options?: RunOpts): WorkflowRunRef<K> {
+  runNoWait(input: T, options?: RunOpts): WorkflowRunRef<K> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
@@ -208,6 +208,28 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     return this.client.v0.admin.runWorkflow(this.definition.name, input, options);
   }
 
+  /**
+   * @alias run
+   * Triggers a workflow run and waits for the result.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param input - The input data for the workflow
+   * @param options - Configuration options for the workflow run
+   * @returns A promise that resolves with the workflow result
+   */
+  async runAndWait(input: T, options?: RunOpts): Promise<K>;
+  async runAndWait(input: T[], options?: RunOpts): Promise<K[]>;
+  async runAndWait(input: T | T[], options?: RunOpts): Promise<K | K[]> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    if (Array.isArray(input)) {
+      return Promise.all(input.map((i) => this.runAndWait(i, options)));
+    }
+
+    return this.run(input, options);
+  }
   /**
    * Executes the workflow with the given input and awaits the results.
    * @param input The input data for the workflow.
