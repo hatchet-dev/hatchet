@@ -31,6 +31,7 @@ class WorkflowRunRef:
 
     def result(self) -> dict[str, Any]:
         coro = self.workflow_listener.result(self.workflow_run_id)
+
         loop = get_active_event_loop()
 
         if loop is None:

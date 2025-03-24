@@ -21,13 +21,14 @@ WITH input AS (
     ) as subquery
 )
 INSERT INTO
-    v1_durable_sleep (tenant_id, sleep_until)
+    v1_durable_sleep (tenant_id, sleep_until, sleep_duration)
 SELECT
     $1::uuid,
-    CURRENT_TIMESTAMP + convert_duration_to_interval(sleep_duration)
+    CURRENT_TIMESTAMP + convert_duration_to_interval(sleep_duration),
+    sleep_duration
 FROM
     input
-RETURNING id, tenant_id, sleep_until
+RETURNING id, tenant_id, sleep_until, sleep_duration
 `
 
 type CreateDurableSleepParams struct {
@@ -44,7 +45,64 @@ func (q *Queries) CreateDurableSleep(ctx context.Context, db DBTX, arg CreateDur
 	var items []*V1DurableSleep
 	for rows.Next() {
 		var i V1DurableSleep
-		if err := rows.Scan(&i.ID, &i.TenantID, &i.SleepUntil); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.SleepUntil,
+			&i.SleepDuration,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const popDurableSleep = `-- name: PopDurableSleep :many
+WITH to_delete AS (
+    SELECT
+        id, tenant_id, sleep_until, sleep_duration
+    FROM
+        v1_durable_sleep
+    WHERE
+        tenant_id = $1::uuid
+        AND sleep_until <= CURRENT_TIMESTAMP
+    ORDER BY
+        id ASC
+    LIMIT
+        COALESCE($2::integer, 1000)
+    FOR UPDATE
+)
+DELETE FROM
+    v1_durable_sleep
+WHERE
+    (tenant_id, sleep_until, id) IN (SELECT tenant_id, sleep_until, id FROM to_delete)
+RETURNING id, tenant_id, sleep_until, sleep_duration
+`
+
+type PopDurableSleepParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+func (q *Queries) PopDurableSleep(ctx context.Context, db DBTX, arg PopDurableSleepParams) ([]*V1DurableSleep, error) {
+	rows, err := db.Query(ctx, popDurableSleep, arg.TenantID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1DurableSleep
+	for rows.Next() {
+		var i V1DurableSleep
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.SleepUntil,
+			&i.SleepDuration,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

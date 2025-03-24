@@ -128,7 +128,9 @@ WITH match_counts AS (
         COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CANCEL' THEN or_group_id END) AS satisfied_cancel_groups,
         COUNT(DISTINCT CASE WHEN action = 'SKIP' THEN or_group_id END) AS total_skip_groups,
-        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'SKIP' THEN or_group_id END) AS satisfied_skip_groups
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'SKIP' THEN or_group_id END) AS satisfied_skip_groups,
+        COUNT(DISTINCT CASE WHEN action = 'CREATE_MATCH' THEN or_group_id END) AS total_create_match_groups,
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE_MATCH' THEN or_group_id END) AS satisfied_create_match_groups
     FROM v1_match_condition main
     WHERE v1_match_id = ANY(@matchIds::bigint[])
     GROUP BY v1_match_id
@@ -140,6 +142,7 @@ WITH match_counts AS (
             WHEN (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups) THEN 'QUEUE'
             WHEN (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups) THEN 'CANCEL'
             WHEN (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups) THEN 'SKIP'
+            WHEN (mc.total_create_match_groups > 0 AND mc.total_create_match_groups = mc.satisfied_create_match_groups) THEN 'CREATE_MATCH'
         END::v1_match_condition_action AS action
     FROM
         v1_match m
@@ -151,6 +154,7 @@ WITH match_counts AS (
             OR (mc.total_queue_groups > 0 AND mc.total_queue_groups = mc.satisfied_queue_groups)
             OR (mc.total_cancel_groups > 0 AND mc.total_cancel_groups = mc.satisfied_cancel_groups)
             OR (mc.total_skip_groups > 0 AND mc.total_skip_groups = mc.satisfied_skip_groups)
+            OR (mc.total_create_match_groups > 0 AND mc.total_create_match_groups = mc.satisfied_create_match_groups)
         )
 ), locked_conditions AS (
     SELECT

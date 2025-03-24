@@ -12,11 +12,10 @@ enum Action {
 }
 
 message BaseMatchCondition {
-    string event_key = 1;
-    string readable_data_key = 2;
-    Action action = 3;
-    string or_group_id = 4; // a UUID defining the OR group for this condition
-    string expression = 5;
+    string readable_data_key = 1;
+    Action action = 2;
+    string or_group_id = 3; // a UUID defining the OR group for this condition
+    string expression = 4;
 }
 
 message ParentOverrideMatchCondition {

@@ -24,7 +24,7 @@ parent_wf = hatchet.workflow(name="FanoutParent", input_validator=ParentInput)
 child_wf = hatchet.workflow(name="FanoutChild", input_validator=ChildInput)
 
 
-@parent_wf.task(timeout=timedelta(minutes=5))
+@parent_wf.task(execution_timeout=timedelta(minutes=5))
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     print("spawning child")
 

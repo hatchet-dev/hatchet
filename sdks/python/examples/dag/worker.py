@@ -17,17 +17,15 @@ class RandomSum(BaseModel):
 
 hatchet = Hatchet(debug=True)
 
-dag_workflow = hatchet.workflow(
-    name="DAGWorkflow", schedule_timeout=timedelta(minutes=10)
-)
+dag_workflow = hatchet.workflow(name="DAGWorkflow")
 
 
-@dag_workflow.task(timeout=timedelta(seconds=5))
+@dag_workflow.task(execution_timeout=timedelta(seconds=5))
 def step1(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_workflow.task(timeout=timedelta(seconds=5))
+@dag_workflow.task(execution_timeout=timedelta(seconds=5))
 def step2(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 

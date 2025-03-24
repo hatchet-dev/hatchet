@@ -39,7 +39,7 @@ sticky_child_workflow = hatchet.workflow(
 
 @sticky_workflow.task(parents=[step1a, step1b])
 async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
-    ref = await sticky_child_workflow.aio_run(
+    ref = await sticky_child_workflow.aio_run_no_wait(
         options=TriggerWorkflowOptions(sticky=True)
     )
 

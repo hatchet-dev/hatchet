@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
@@ -22,16 +23,17 @@ func (m *mockRateLimitRepo) ListCandidateRateLimits(ctx context.Context, tenantI
 	return args.Get(0).([]string), args.Error(1)
 }
 
-func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error) {
+func (m *mockRateLimitRepo) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error) {
 	args := m.Called(ctx, tenantId, updates)
-	return args.Get(0).(map[string]int), args.Error(1)
+	arg1 := args.Get(1).(time.Time)
+	return args.Get(0).(map[string]int), &arg1, args.Error(2)
 }
 
 func TestRateLimiter_Use(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5, "key3": 7}, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5, "key3": 7}, time.Now().Add(2*time.Second), nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -62,7 +64,7 @@ func TestRateLimiter_Ack(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, time.Now().Add(2*time.Second), nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -87,7 +89,7 @@ func TestRateLimiter_Nack(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, time.Now().Add(2*time.Second), nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -112,7 +114,7 @@ func TestRateLimiter_Concurrency(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 100, "key2": 100}, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 100, "key2": 100}, time.Now().Add(2*time.Second), nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -151,7 +153,7 @@ func TestRateLimiter_FlushToDatabase(t *testing.T) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{} // Mock implementation of rateLimitRepo
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 10, "key2": 5}, time.Now().Add(2*time.Second), nil)
 
 	rateLimiter := &rateLimiter{
 		dbRateLimits: rateLimitSet{
@@ -184,7 +186,7 @@ func BenchmarkRateLimiter(b *testing.B) {
 	l := zerolog.Nop()
 
 	mockRateLimitRepo := &mockRateLimitRepo{}
-	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 1000, "key2": 1000}, nil)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(map[string]int{"key1": 1000, "key2": 1000}, time.Now().Add(2*time.Second), nil)
 
 	r := rateLimiter{
 		unacked:       make(map[int64]rateLimitSet),

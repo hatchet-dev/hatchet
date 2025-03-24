@@ -4,8 +4,10 @@ DAY = 86400
 HOUR = 3600
 MINUTE = 60
 
+Duration = timedelta | str
 
-def timedelta_to_expr(td: timedelta | str) -> str:
+
+def timedelta_to_expr(td: Duration) -> str:
     if isinstance(td, str):
         return td
 

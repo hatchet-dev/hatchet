@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (o *OLAPControllerImpl) runTenantDAGStatusUpdates(ctx context.Context) func() {
@@ -49,6 +50,10 @@ func (o *OLAPControllerImpl) updateDAGStatuses(ctx context.Context, tenantId str
 			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
 			Status:     row.ReadableStatus,
 		})
+
+		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
+			o.processTenantAlertOperations.RunOrContinue(tenantId)
+		}
 	}
 
 	// send to the tenant queue

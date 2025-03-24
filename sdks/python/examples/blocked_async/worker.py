@@ -15,7 +15,7 @@ hatchet = Hatchet(debug=True)
 blocked_worker_workflow = hatchet.workflow(name="Blocked")
 
 
-@blocked_worker_workflow.task(timeout=timedelta(seconds=11), retries=3)
+@blocked_worker_workflow.task(execution_timeout=timedelta(seconds=11), retries=3)
 async def step1(input: EmptyModel, ctx: Context) -> dict[str, str | int | float]:
     print("Executing step1")
 

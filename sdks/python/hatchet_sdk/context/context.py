@@ -79,14 +79,23 @@ class Context:
 
         self.input = self.data.input
 
+    def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
+        return self.data.parents.get(task.name, {}).get("skipped", False)
+
+    @property
+    def event_triggers(self) -> JSONSerializableMapping:
+        return self.data.triggers
+
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
+
+        action_prefix = self.action.action_id.split(":")[0]
 
         workflow_validator = next(
             (
                 v
                 for k, v in self.validator_registry.items()
-                if k.split(":")[-1] == task.name
+                if k == f"{action_prefix}:{task.name}"
             ),
             None,
         )
@@ -106,7 +115,7 @@ class Context:
         return parent_step_data
 
     @property
-    def triggered_by_event(self) -> bool:
+    def was_triggered_by_event(self) -> bool:
         return self.data.triggered_by == "event"
 
     @property
@@ -212,7 +221,7 @@ class Context:
         return self.action.parent_workflow_run_id
 
     @property
-    def step_run_errors(self) -> dict[str, str]:
+    def task_run_errors(self) -> dict[str, str]:
         errors = self.data.step_run_errors
 
         if not errors:
@@ -222,20 +231,10 @@ class Context:
 
         return errors
 
-    def fetch_run_failures(self) -> list[StepRunError]:
-        data = self.rest_client.workflow_run_get(self.action.workflow_run_id)
-        other_job_runs = [
-            run for run in (data.job_runs or []) if run.job_id != self.action.job_id
-        ]
+    def fetch_task_run_error(
+        self,
+        task: "Task[TWorkflowInput, R]",
+    ) -> str | None:
+        errors = self.data.step_run_errors
 
-        return [
-            StepRunError(
-                step_id=step_run.step_id,
-                step_run_action_name=step_run.step.action,
-                error=step_run.error,
-            )
-            for job_run in other_job_runs
-            if job_run.step_runs
-            for step_run in job_run.step_runs
-            if step_run.error and step_run.step
-        ]
+        return errors.get(task.name)

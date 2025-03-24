@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/v1/task"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
+	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -362,6 +363,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithRepository(sc.V1),
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
+			olap.WithTenantAlertManager(sc.TenantAlerter),
 		)
 
 		if err != nil {
@@ -429,6 +431,16 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
+		dv1, err := dispatcherv1.NewDispatcherService(
+			dispatcherv1.WithRepository(sc.V1),
+			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
+			dispatcherv1.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
+		}
+
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithEventRepository(
@@ -475,6 +487,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
+			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
@@ -789,6 +802,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithRepository(sc.V1),
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
+			olap.WithTenantAlertManager(sc.TenantAlerter),
 		)
 
 		if err != nil {
@@ -856,6 +870,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
+		dv1, err := dispatcherv1.NewDispatcherService(
+			dispatcherv1.WithRepository(sc.V1),
+			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
+			dispatcherv1.WithLogger(sc.Logger),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create dispatcher (v1): %w", err)
+		}
+
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithEventRepository(
@@ -903,6 +927,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
+			grpc.WithDispatcherV1(dv1),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
