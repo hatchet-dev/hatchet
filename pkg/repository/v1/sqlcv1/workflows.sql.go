@@ -11,6 +11,876 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addStepParents = `-- name: AddStepParents :exec
+INSERT INTO "_StepOrder" ("A", "B")
+SELECT
+    step."id",
+    $1::uuid
+FROM
+    unnest($2::text[]) AS parent_readable_id
+JOIN
+    "Step" AS step ON step."readableId" = parent_readable_id AND step."jobId" = $3::uuid
+`
+
+type AddStepParentsParams struct {
+	ID      pgtype.UUID `json:"id"`
+	Parents []string    `json:"parents"`
+	Jobid   pgtype.UUID `json:"jobid"`
+}
+
+func (q *Queries) AddStepParents(ctx context.Context, db DBTX, arg AddStepParentsParams) error {
+	_, err := db.Exec(ctx, addStepParents, arg.ID, arg.Parents, arg.Jobid)
+	return err
+}
+
+const createJob = `-- name: CreateJob :one
+INSERT INTO "Job" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "workflowVersionId",
+    "name",
+    "description",
+    "timeout",
+    "kind"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::uuid,
+    $6::uuid,
+    $7::text,
+    $8::text,
+    -- Deprecated: this is set but unused
+    '5m',
+    coalesce($9::"JobKind", 'DEFAULT')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", name, description, timeout, kind
+`
+
+type CreateJobParams struct {
+	ID                pgtype.UUID      `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	Deletedat         pgtype.Timestamp `json:"deletedat"`
+	Tenantid          pgtype.UUID      `json:"tenantid"`
+	Workflowversionid pgtype.UUID      `json:"workflowversionid"`
+	Name              string           `json:"name"`
+	Description       string           `json:"description"`
+	Kind              NullJobKind      `json:"kind"`
+}
+
+func (q *Queries) CreateJob(ctx context.Context, db DBTX, arg CreateJobParams) (*Job, error) {
+	row := db.QueryRow(ctx, createJob,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Tenantid,
+		arg.Workflowversionid,
+		arg.Name,
+		arg.Description,
+		arg.Kind,
+	)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.WorkflowVersionId,
+		&i.Name,
+		&i.Description,
+		&i.Timeout,
+		&i.Kind,
+	)
+	return &i, err
+}
+
+const createStep = `-- name: CreateStep :one
+INSERT INTO "Step" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "readableId",
+    "tenantId",
+    "jobId",
+    "actionId",
+    "timeout",
+    "customUserData",
+    "retries",
+    "scheduleTimeout",
+    "retryBackoffFactor",
+    "retryMaxBackoff"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::text,
+    $6::uuid,
+    $7::uuid,
+    $8::text,
+    $9::text,
+    coalesce($10::jsonb, '{}'),
+    coalesce($11::integer, 0),
+    coalesce($12::text, '5m'),
+    $13,
+    $14
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout"
+`
+
+type CreateStepParams struct {
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	Deletedat          pgtype.Timestamp `json:"deletedat"`
+	Readableid         string           `json:"readableid"`
+	Tenantid           pgtype.UUID      `json:"tenantid"`
+	Jobid              pgtype.UUID      `json:"jobid"`
+	Actionid           string           `json:"actionid"`
+	Timeout            pgtype.Text      `json:"timeout"`
+	CustomUserData     []byte           `json:"customUserData"`
+	Retries            pgtype.Int4      `json:"retries"`
+	ScheduleTimeout    pgtype.Text      `json:"scheduleTimeout"`
+	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
+}
+
+func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
+	row := db.QueryRow(ctx, createStep,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Readableid,
+		arg.Tenantid,
+		arg.Jobid,
+		arg.Actionid,
+		arg.Timeout,
+		arg.CustomUserData,
+		arg.Retries,
+		arg.ScheduleTimeout,
+		arg.RetryBackoffFactor,
+		arg.RetryMaxBackoff,
+	)
+	var i Step
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ReadableId,
+		&i.TenantId,
+		&i.JobId,
+		&i.ActionId,
+		&i.Timeout,
+		&i.CustomUserData,
+		&i.Retries,
+		&i.RetryBackoffFactor,
+		&i.RetryMaxBackoff,
+		&i.ScheduleTimeout,
+	)
+	return &i, err
+}
+
+const createStepConcurrency = `-- name: CreateStepConcurrency :one
+INSERT INTO v1_step_concurrency (
+    workflow_id,
+    workflow_version_id,
+    step_id,
+    strategy,
+    expression,
+    tenant_id,
+    max_concurrency
+)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::text,
+    $6::uuid,
+    $7::integer
+) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+`
+
+type CreateStepConcurrencyParams struct {
+	Workflowid        pgtype.UUID `json:"workflowid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Stepid            pgtype.UUID `json:"stepid"`
+	Strategy          string      `json:"strategy"`
+	Expression        string      `json:"expression"`
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Maxconcurrency    int32       `json:"maxconcurrency"`
+}
+
+func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg CreateStepConcurrencyParams) (*V1StepConcurrency, error) {
+	row := db.QueryRow(ctx, createStepConcurrency,
+		arg.Workflowid,
+		arg.Workflowversionid,
+		arg.Stepid,
+		arg.Strategy,
+		arg.Expression,
+		arg.Tenantid,
+		arg.Maxconcurrency,
+	)
+	var i V1StepConcurrency
+	err := row.Scan(
+		&i.ID,
+		&i.ParentStrategyID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.StepID,
+		&i.IsActive,
+		&i.Strategy,
+		&i.Expression,
+		&i.TenantID,
+		&i.MaxConcurrency,
+	)
+	return &i, err
+}
+
+const createStepExpressions = `-- name: CreateStepExpressions :exec
+INSERT INTO "StepExpression" (
+    "key",
+    "stepId",
+    "expression",
+    "kind"
+) VALUES (
+    unnest($1::text[]),
+    $2::uuid,
+    unnest($3::text[]),
+    unnest(cast($4::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepId", "kind") DO UPDATE
+SET
+    "expression" = EXCLUDED."expression"
+`
+
+type CreateStepExpressionsParams struct {
+	Keys        []string    `json:"keys"`
+	Stepid      pgtype.UUID `json:"stepid"`
+	Expressions []string    `json:"expressions"`
+	Kinds       []string    `json:"kinds"`
+}
+
+func (q *Queries) CreateStepExpressions(ctx context.Context, db DBTX, arg CreateStepExpressionsParams) error {
+	_, err := db.Exec(ctx, createStepExpressions,
+		arg.Keys,
+		arg.Stepid,
+		arg.Expressions,
+		arg.Kinds,
+	)
+	return err
+}
+
+const createStepMatchCondition = `-- name: CreateStepMatchCondition :one
+INSERT INTO v1_step_match_condition (
+    tenant_id,
+    step_id,
+    readable_data_key,
+    action,
+    or_group_id,
+    expression,
+    kind,
+    sleep_duration,
+    event_key,
+    parent_readable_id
+)
+VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::v1_match_condition_action,
+    $5::uuid,
+    $6::text,
+    $7::v1_step_match_condition_kind,
+    $8::text,
+    $9::text,
+    $10::text
+) RETURNING id, tenant_id, step_id, readable_data_key, action, or_group_id, expression, kind, sleep_duration, event_key, parent_readable_id
+`
+
+type CreateStepMatchConditionParams struct {
+	Tenantid         pgtype.UUID              `json:"tenantid"`
+	Stepid           pgtype.UUID              `json:"stepid"`
+	Readabledatakey  string                   `json:"readabledatakey"`
+	Action           V1MatchConditionAction   `json:"action"`
+	Orgroupid        pgtype.UUID              `json:"orgroupid"`
+	Expression       pgtype.Text              `json:"expression"`
+	Kind             V1StepMatchConditionKind `json:"kind"`
+	SleepDuration    pgtype.Text              `json:"sleepDuration"`
+	EventKey         pgtype.Text              `json:"eventKey"`
+	ParentReadableId pgtype.Text              `json:"parentReadableId"`
+}
+
+func (q *Queries) CreateStepMatchCondition(ctx context.Context, db DBTX, arg CreateStepMatchConditionParams) (*V1StepMatchCondition, error) {
+	row := db.QueryRow(ctx, createStepMatchCondition,
+		arg.Tenantid,
+		arg.Stepid,
+		arg.Readabledatakey,
+		arg.Action,
+		arg.Orgroupid,
+		arg.Expression,
+		arg.Kind,
+		arg.SleepDuration,
+		arg.EventKey,
+		arg.ParentReadableId,
+	)
+	var i V1StepMatchCondition
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.StepID,
+		&i.ReadableDataKey,
+		&i.Action,
+		&i.OrGroupID,
+		&i.Expression,
+		&i.Kind,
+		&i.SleepDuration,
+		&i.EventKey,
+		&i.ParentReadableID,
+	)
+	return &i, err
+}
+
+const createStepRateLimit = `-- name: CreateStepRateLimit :one
+INSERT INTO "StepRateLimit" (
+    "units",
+    "stepId",
+    "rateLimitKey",
+    "tenantId",
+    "kind"
+) VALUES (
+    $1::integer,
+    $2::uuid,
+    $3::text,
+    $4::uuid,
+    $5
+) RETURNING units, "stepId", "rateLimitKey", "tenantId", kind
+`
+
+type CreateStepRateLimitParams struct {
+	Units        int32             `json:"units"`
+	Stepid       pgtype.UUID       `json:"stepid"`
+	Ratelimitkey string            `json:"ratelimitkey"`
+	Tenantid     pgtype.UUID       `json:"tenantid"`
+	Kind         StepRateLimitKind `json:"kind"`
+}
+
+func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateStepRateLimitParams) (*StepRateLimit, error) {
+	row := db.QueryRow(ctx, createStepRateLimit,
+		arg.Units,
+		arg.Stepid,
+		arg.Ratelimitkey,
+		arg.Tenantid,
+		arg.Kind,
+	)
+	var i StepRateLimit
+	err := row.Scan(
+		&i.Units,
+		&i.StepId,
+		&i.RateLimitKey,
+		&i.TenantId,
+		&i.Kind,
+	)
+	return &i, err
+}
+
+const createWorkflow = `-- name: CreateWorkflow :one
+INSERT INTO "Workflow" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "tenantId",
+    "name",
+    "description"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::uuid,
+    $6::text,
+    $7::text
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
+`
+
+type CreateWorkflowParams struct {
+	ID          pgtype.UUID      `json:"id"`
+	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
+	Deletedat   pgtype.Timestamp `json:"deletedat"`
+	Tenantid    pgtype.UUID      `json:"tenantid"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+}
+
+func (q *Queries) CreateWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, createWorkflow,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Tenantid,
+		arg.Name,
+		arg.Description,
+	)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+		&i.IsPaused,
+	)
+	return &i, err
+}
+
+const createWorkflowConcurrency = `-- name: CreateWorkflowConcurrency :one
+INSERT INTO "WorkflowConcurrency" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "workflowVersionId",
+    "getConcurrencyGroupId",
+    "maxRuns",
+    "limitStrategy",
+    "concurrencyGroupExpression"
+) VALUES (
+    gen_random_uuid(),
+    coalesce($1::timestamp, CURRENT_TIMESTAMP),
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    $3::uuid,
+    $4::uuid,
+    coalesce($5::integer, 1),
+    coalesce($6::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS'),
+    $7::text
+) RETURNING id, "createdAt", "updatedAt", "workflowVersionId", "getConcurrencyGroupId", "maxRuns", "limitStrategy", "concurrencyGroupExpression"
+`
+
+type CreateWorkflowConcurrencyParams struct {
+	CreatedAt                  pgtype.Timestamp             `json:"createdAt"`
+	UpdatedAt                  pgtype.Timestamp             `json:"updatedAt"`
+	Workflowversionid          pgtype.UUID                  `json:"workflowversionid"`
+	GetConcurrencyGroupId      pgtype.UUID                  `json:"getConcurrencyGroupId"`
+	MaxRuns                    pgtype.Int4                  `json:"maxRuns"`
+	LimitStrategy              NullConcurrencyLimitStrategy `json:"limitStrategy"`
+	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
+}
+
+func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg CreateWorkflowConcurrencyParams) (*WorkflowConcurrency, error) {
+	row := db.QueryRow(ctx, createWorkflowConcurrency,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Workflowversionid,
+		arg.GetConcurrencyGroupId,
+		arg.MaxRuns,
+		arg.LimitStrategy,
+		arg.ConcurrencyGroupExpression,
+	)
+	var i WorkflowConcurrency
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkflowVersionId,
+		&i.GetConcurrencyGroupId,
+		&i.MaxRuns,
+		&i.LimitStrategy,
+		&i.ConcurrencyGroupExpression,
+	)
+	return &i, err
+}
+
+const createWorkflowTriggerCronRef = `-- name: CreateWorkflowTriggerCronRef :one
+INSERT INTO "WorkflowTriggerCronRef" (
+    "parentId",
+    "cron",
+    "name",
+    "input",
+    "additionalMetadata",
+    "id",
+    "method"
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::jsonb,
+    $5::jsonb,
+    gen_random_uuid(),
+    COALESCE($6::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id, method
+`
+
+type CreateWorkflowTriggerCronRefParams struct {
+	Workflowtriggersid pgtype.UUID                       `json:"workflowtriggersid"`
+	Crontrigger        string                            `json:"crontrigger"`
+	Name               pgtype.Text                       `json:"name"`
+	Input              []byte                            `json:"input"`
+	AdditionalMetadata []byte                            `json:"additionalMetadata"`
+	Method             NullWorkflowTriggerCronRefMethods `json:"method"`
+}
+
+func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggerCronRef,
+		arg.Workflowtriggersid,
+		arg.Crontrigger,
+		arg.Name,
+		arg.Input,
+		arg.AdditionalMetadata,
+		arg.Method,
+	)
+	var i WorkflowTriggerCronRef
+	err := row.Scan(
+		&i.ParentId,
+		&i.Cron,
+		&i.TickerId,
+		&i.Input,
+		&i.Enabled,
+		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.ID,
+		&i.Method,
+	)
+	return &i, err
+}
+
+const createWorkflowTriggerEventRef = `-- name: CreateWorkflowTriggerEventRef :one
+INSERT INTO "WorkflowTriggerEventRef" (
+    "parentId",
+    "eventKey"
+) VALUES (
+    $1::uuid,
+    $2::text
+) RETURNING "parentId", "eventKey"
+`
+
+type CreateWorkflowTriggerEventRefParams struct {
+	Workflowtriggersid pgtype.UUID `json:"workflowtriggersid"`
+	Eventtrigger       string      `json:"eventtrigger"`
+}
+
+func (q *Queries) CreateWorkflowTriggerEventRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerEventRefParams) (*WorkflowTriggerEventRef, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggerEventRef, arg.Workflowtriggersid, arg.Eventtrigger)
+	var i WorkflowTriggerEventRef
+	err := row.Scan(&i.ParentId, &i.EventKey)
+	return &i, err
+}
+
+const createWorkflowTriggers = `-- name: CreateWorkflowTriggers :one
+INSERT INTO "WorkflowTriggers" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "workflowVersionId",
+    "tenantId"
+) VALUES (
+    $1::uuid,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    $2::uuid,
+    $3::uuid
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "workflowVersionId", "tenantId"
+`
+
+type CreateWorkflowTriggersParams struct {
+	ID                pgtype.UUID `json:"id"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Tenantid          pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CreateWorkflowTriggers(ctx context.Context, db DBTX, arg CreateWorkflowTriggersParams) (*WorkflowTriggers, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggers, arg.ID, arg.Workflowversionid, arg.Tenantid)
+	var i WorkflowTriggers
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.WorkflowVersionId,
+		&i.TenantId,
+	)
+	return &i, err
+}
+
+const createWorkflowVersion = `-- name: CreateWorkflowVersion :one
+INSERT INTO "WorkflowVersion" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "checksum",
+    "version",
+    "workflowId",
+    "scheduleTimeout",
+    "sticky",
+    "kind"
+) VALUES (
+    $1::uuid,
+    coalesce($2::timestamp, CURRENT_TIMESTAMP),
+    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $4::timestamp,
+    $5::text,
+    $6::text,
+    $7::uuid,
+    -- Deprecated: this is set but unused
+    '5m',
+    $8::"StickyStrategy",
+    coalesce($9::"WorkflowKind", 'DAG')
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority"
+`
+
+type CreateWorkflowVersionParams struct {
+	ID         pgtype.UUID        `json:"id"`
+	CreatedAt  pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt  pgtype.Timestamp   `json:"updatedAt"`
+	Deletedat  pgtype.Timestamp   `json:"deletedat"`
+	Checksum   string             `json:"checksum"`
+	Version    pgtype.Text        `json:"version"`
+	Workflowid pgtype.UUID        `json:"workflowid"`
+	Sticky     NullStickyStrategy `json:"sticky"`
+	Kind       NullWorkflowKind   `json:"kind"`
+}
+
+func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
+	row := db.QueryRow(ctx, createWorkflowVersion,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.Deletedat,
+		arg.Checksum,
+		arg.Version,
+		arg.Workflowid,
+		arg.Sticky,
+		arg.Kind,
+	)
+	var i WorkflowVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.Order,
+		&i.WorkflowId,
+		&i.Checksum,
+		&i.ScheduleTimeout,
+		&i.OnFailureJobId,
+		&i.Sticky,
+		&i.Kind,
+		&i.DefaultPriority,
+	)
+	return &i, err
+}
+
+const getLatestWorkflowVersionForWorkflows = `-- name: GetLatestWorkflowVersionForWorkflows :many
+WITH latest_versions AS (
+    SELECT DISTINCT ON (workflowVersions."workflowId")
+        workflowVersions."id" AS workflowVersionId,
+        workflowVersions."workflowId",
+        workflowVersions."order"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    WHERE
+        workflowVersions."workflowId" = ANY($2::uuid[]) AND
+        workflowVersions."deletedAt" IS NULL
+    ORDER BY
+        workflowVersions."workflowId", workflowVersions."order" DESC
+)
+SELECT
+    workflowVersions."id"
+FROM
+    latest_versions
+JOIN
+    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
+JOIN
+    "Workflow" as w ON w."id" = workflowVersions."workflowId"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+WHERE
+    w."tenantId" = $1::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL
+`
+
+type GetLatestWorkflowVersionForWorkflowsParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Workflowids []pgtype.UUID `json:"workflowids"`
+}
+
+func (q *Queries) GetLatestWorkflowVersionForWorkflows(ctx context.Context, db DBTX, arg GetLatestWorkflowVersionForWorkflowsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, getLatestWorkflowVersionForWorkflows, arg.Tenantid, arg.Workflowids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkflowByName = `-- name: GetWorkflowByName :one
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = $1::uuid AND
+    workflows."name" = $2::text AND
+    workflows."deletedAt" IS NULL
+`
+
+type GetWorkflowByNameParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Name     string      `json:"name"`
+}
+
+func (q *Queries) GetWorkflowByName(ctx context.Context, db DBTX, arg GetWorkflowByNameParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, getWorkflowByName, arg.Tenantid, arg.Name)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+		&i.IsPaused,
+	)
+	return &i, err
+}
+
+const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
+SELECT
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority",
+    w."name" as "workflowName",
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression"
+FROM
+    "WorkflowVersion" as workflowVersions
+JOIN
+    "Workflow" as w ON w."id" = workflowVersions."workflowId"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+WHERE
+    workflowVersions."id" = ANY($1::uuid[]) AND
+    w."tenantId" = $2::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL
+`
+
+type GetWorkflowVersionForEngineParams struct {
+	Ids      []pgtype.UUID `json:"ids"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+}
+
+type GetWorkflowVersionForEngineRow struct {
+	WorkflowVersion            WorkflowVersion              `json:"workflow_version"`
+	WorkflowName               string                       `json:"workflowName"`
+	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
+	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	ConcurrencyGroupId         pgtype.UUID                  `json:"concurrencyGroupId"`
+	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
+}
+
+func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg GetWorkflowVersionForEngineParams) ([]*GetWorkflowVersionForEngineRow, error) {
+	rows, err := db.Query(ctx, getWorkflowVersionForEngine, arg.Ids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetWorkflowVersionForEngineRow
+	for rows.Next() {
+		var i GetWorkflowVersionForEngineRow
+		if err := rows.Scan(
+			&i.WorkflowVersion.ID,
+			&i.WorkflowVersion.CreatedAt,
+			&i.WorkflowVersion.UpdatedAt,
+			&i.WorkflowVersion.DeletedAt,
+			&i.WorkflowVersion.Version,
+			&i.WorkflowVersion.Order,
+			&i.WorkflowVersion.WorkflowId,
+			&i.WorkflowVersion.Checksum,
+			&i.WorkflowVersion.ScheduleTimeout,
+			&i.WorkflowVersion.OnFailureJobId,
+			&i.WorkflowVersion.Sticky,
+			&i.WorkflowVersion.Kind,
+			&i.WorkflowVersion.DefaultPriority,
+			&i.WorkflowName,
+			&i.ConcurrencyLimitStrategy,
+			&i.ConcurrencyMaxRuns,
+			&i.ConcurrencyGroupId,
+			&i.ConcurrencyGroupExpression,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const linkOnFailureJob = `-- name: LinkOnFailureJob :one
+UPDATE "WorkflowVersion"
+SET "onFailureJobId" = $1::uuid
+WHERE "id" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority"
+`
+
+type LinkOnFailureJobParams struct {
+	Jobid             pgtype.UUID `json:"jobid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+}
+
+func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailureJobParams) (*WorkflowVersion, error) {
+	row := db.QueryRow(ctx, linkOnFailureJob, arg.Jobid, arg.Workflowversionid)
+	var i WorkflowVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.Order,
+		&i.WorkflowId,
+		&i.Checksum,
+		&i.ScheduleTimeout,
+		&i.OnFailureJobId,
+		&i.Sticky,
+		&i.Kind,
+		&i.DefaultPriority,
+	)
+	return &i, err
+}
+
 const listStepExpressions = `-- name: ListStepExpressions :many
 SELECT
     key, "stepId", expression, kind
@@ -34,6 +904,53 @@ func (q *Queries) ListStepExpressions(ctx context.Context, db DBTX, stepids []pg
 			&i.StepId,
 			&i.Expression,
 			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepMatchConditions = `-- name: ListStepMatchConditions :many
+SELECT
+    id, tenant_id, step_id, readable_data_key, action, or_group_id, expression, kind, sleep_duration, event_key, parent_readable_id
+FROM
+    v1_step_match_condition
+WHERE
+    step_id = ANY($1::uuid[])
+    AND tenant_id = $2::uuid
+`
+
+type ListStepMatchConditionsParams struct {
+	Stepids  []pgtype.UUID `json:"stepids"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+}
+
+func (q *Queries) ListStepMatchConditions(ctx context.Context, db DBTX, arg ListStepMatchConditionsParams) ([]*V1StepMatchCondition, error) {
+	rows, err := db.Query(ctx, listStepMatchConditions, arg.Stepids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1StepMatchCondition
+	for rows.Next() {
+		var i V1StepMatchCondition
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.StepID,
+			&i.ReadableDataKey,
+			&i.Action,
+			&i.OrGroupID,
+			&i.Expression,
+			&i.Kind,
+			&i.SleepDuration,
+			&i.EventKey,
+			&i.ParentReadableID,
 		); err != nil {
 			return nil, err
 		}
@@ -151,7 +1068,8 @@ WITH steps AS (
         wv."id" as "workflowVersionId",
         w."name" as "workflowName",
         w."id" as "workflowId",
-        j."kind" as "jobKind"
+        j."kind" as "jobKind",
+        COUNT(mc.id) as "matchConditionCount"
     FROM
         "WorkflowVersion" as wv
     JOIN
@@ -160,11 +1078,15 @@ WITH steps AS (
         "Job" j ON j."workflowVersionId" = wv."id"
     JOIN
         "Step" s ON s."jobId" = j."id"
+    LEFT JOIN
+        v1_step_match_condition mc ON mc.step_id = s."id"
     WHERE
         wv."id" = ANY($1::uuid[])
         AND w."tenantId" = $2::uuid
         AND w."deletedAt" IS NULL
         AND wv."deletedAt" IS NULL
+    GROUP BY
+        s."id", wv."id", w."name", w."id", j."kind"
 ), step_orders AS (
     SELECT
         so."B" as "stepId",
@@ -177,7 +1099,7 @@ WITH steps AS (
         so."B"
 )
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
     steps s
@@ -191,25 +1113,26 @@ type ListStepsByWorkflowVersionIdsParams struct {
 }
 
 type ListStepsByWorkflowVersionIdsRow struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	ReadableId         pgtype.Text      `json:"readableId"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
-	JobId              pgtype.UUID      `json:"jobId"`
-	ActionId           string           `json:"actionId"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            int32            `json:"retries"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
-	ScheduleTimeout    string           `json:"scheduleTimeout"`
-	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
-	WorkflowName       string           `json:"workflowName"`
-	WorkflowId         pgtype.UUID      `json:"workflowId"`
-	JobKind            JobKind          `json:"jobKind"`
-	Parents            []pgtype.UUID    `json:"parents"`
+	ID                  pgtype.UUID      `json:"id"`
+	CreatedAt           pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
+	ReadableId          pgtype.Text      `json:"readableId"`
+	TenantId            pgtype.UUID      `json:"tenantId"`
+	JobId               pgtype.UUID      `json:"jobId"`
+	ActionId            string           `json:"actionId"`
+	Timeout             pgtype.Text      `json:"timeout"`
+	CustomUserData      []byte           `json:"customUserData"`
+	Retries             int32            `json:"retries"`
+	RetryBackoffFactor  pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff     pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout     string           `json:"scheduleTimeout"`
+	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
+	WorkflowName        string           `json:"workflowName"`
+	WorkflowId          pgtype.UUID      `json:"workflowId"`
+	JobKind             JobKind          `json:"jobKind"`
+	MatchConditionCount int64            `json:"matchConditionCount"`
+	Parents             []pgtype.UUID    `json:"parents"`
 }
 
 func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, arg ListStepsByWorkflowVersionIdsParams) ([]*ListStepsByWorkflowVersionIdsRow, error) {
@@ -240,6 +1163,7 @@ func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, ar
 			&i.WorkflowName,
 			&i.WorkflowId,
 			&i.JobKind,
+			&i.MatchConditionCount,
 			&i.Parents,
 		); err != nil {
 			return nil, err
@@ -281,4 +1205,152 @@ func (q *Queries) ListWorkflowNamesByIds(ctx context.Context, db DBTX, ids []pgt
 		return nil, err
 	}
 	return items, nil
+}
+
+const moveCronTriggerToNewWorkflowTriggers = `-- name: MoveCronTriggerToNewWorkflowTriggers :exec
+WITH triggersToUpdate AS (
+    SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = cronTrigger."parentId"
+    WHERE triggers."workflowVersionId" = $2::uuid
+    AND cronTrigger."method" = 'API'
+)
+UPDATE "WorkflowTriggerCronRef"
+SET "parentId" = $1::uuid
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate)
+`
+
+type MoveCronTriggerToNewWorkflowTriggersParams struct {
+	Newworkflowtriggerid pgtype.UUID `json:"newworkflowtriggerid"`
+	Oldworkflowversionid pgtype.UUID `json:"oldworkflowversionid"`
+}
+
+func (q *Queries) MoveCronTriggerToNewWorkflowTriggers(ctx context.Context, db DBTX, arg MoveCronTriggerToNewWorkflowTriggersParams) error {
+	_, err := db.Exec(ctx, moveCronTriggerToNewWorkflowTriggers, arg.Newworkflowtriggerid, arg.Oldworkflowversionid)
+	return err
+}
+
+const moveScheduledTriggerToNewWorkflowTriggers = `-- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
+WITH triggersToUpdate AS (
+    SELECT scheduledTrigger."id" FROM "WorkflowTriggerScheduledRef" scheduledTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = scheduledTrigger."parentId"
+    WHERE triggers."workflowVersionId" = $2::uuid
+    AND scheduledTrigger."method" = 'API'
+)
+UPDATE "WorkflowTriggerScheduledRef"
+SET "parentId" = $1::uuid
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate)
+`
+
+type MoveScheduledTriggerToNewWorkflowTriggersParams struct {
+	Newworkflowtriggerid pgtype.UUID `json:"newworkflowtriggerid"`
+	Oldworkflowversionid pgtype.UUID `json:"oldworkflowversionid"`
+}
+
+func (q *Queries) MoveScheduledTriggerToNewWorkflowTriggers(ctx context.Context, db DBTX, arg MoveScheduledTriggerToNewWorkflowTriggersParams) error {
+	_, err := db.Exec(ctx, moveScheduledTriggerToNewWorkflowTriggers, arg.Newworkflowtriggerid, arg.Oldworkflowversionid)
+	return err
+}
+
+const upsertAction = `-- name: UpsertAction :one
+INSERT INTO "Action" (
+    "id",
+    "actionId",
+    "tenantId"
+)
+VALUES (
+    gen_random_uuid(),
+    LOWER($1::text),
+    $2::uuid
+)
+ON CONFLICT ("tenantId", "actionId") DO UPDATE
+SET
+    "tenantId" = EXCLUDED."tenantId"
+WHERE
+    "Action"."tenantId" = $2 AND "Action"."actionId" = LOWER($1::text)
+RETURNING description, "tenantId", "actionId", id
+`
+
+type UpsertActionParams struct {
+	Action   string      `json:"action"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) UpsertAction(ctx context.Context, db DBTX, arg UpsertActionParams) (*Action, error) {
+	row := db.QueryRow(ctx, upsertAction, arg.Action, arg.Tenantid)
+	var i Action
+	err := row.Scan(
+		&i.Description,
+		&i.TenantId,
+		&i.ActionId,
+		&i.ID,
+	)
+	return &i, err
+}
+
+const upsertDesiredWorkerLabel = `-- name: UpsertDesiredWorkerLabel :one
+INSERT INTO "StepDesiredWorkerLabel" (
+    "createdAt",
+    "updatedAt",
+    "stepId",
+    "key",
+    "intValue",
+    "strValue",
+    "required",
+    "weight",
+    "comparator"
+) VALUES (
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    $2::text,
+    COALESCE($3::int, NULL),
+    COALESCE($4::text, NULL),
+    COALESCE($5::boolean, false),
+    COALESCE($6::int, 100),
+    COALESCE($7::"WorkerLabelComparator", 'EQUAL')
+) ON CONFLICT ("stepId", "key") DO UPDATE
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "intValue" = COALESCE($3::int, null),
+    "strValue" = COALESCE($4::text, null),
+    "required" = COALESCE($5::boolean, false),
+    "weight" = COALESCE($6::int, 100),
+    "comparator" = COALESCE($7::"WorkerLabelComparator", 'EQUAL')
+RETURNING id, "createdAt", "updatedAt", "stepId", key, "strValue", "intValue", required, comparator, weight
+`
+
+type UpsertDesiredWorkerLabelParams struct {
+	Stepid     pgtype.UUID               `json:"stepid"`
+	Key        string                    `json:"key"`
+	IntValue   pgtype.Int4               `json:"intValue"`
+	StrValue   pgtype.Text               `json:"strValue"`
+	Required   pgtype.Bool               `json:"required"`
+	Weight     pgtype.Int4               `json:"weight"`
+	Comparator NullWorkerLabelComparator `json:"comparator"`
+}
+
+func (q *Queries) UpsertDesiredWorkerLabel(ctx context.Context, db DBTX, arg UpsertDesiredWorkerLabelParams) (*StepDesiredWorkerLabel, error) {
+	row := db.QueryRow(ctx, upsertDesiredWorkerLabel,
+		arg.Stepid,
+		arg.Key,
+		arg.IntValue,
+		arg.StrValue,
+		arg.Required,
+		arg.Weight,
+		arg.Comparator,
+	)
+	var i StepDesiredWorkerLabel
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StepId,
+		&i.Key,
+		&i.StrValue,
+		&i.IntValue,
+		&i.Required,
+		&i.Comparator,
+		&i.Weight,
+	)
+	return &i, err
 }

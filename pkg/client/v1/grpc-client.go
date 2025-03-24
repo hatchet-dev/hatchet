@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	grpcMetadata "google.golang.org/grpc/metadata"
 
-	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts/v1"
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
 	"context"

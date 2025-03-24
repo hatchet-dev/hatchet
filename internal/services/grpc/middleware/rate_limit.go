@@ -145,11 +145,13 @@ func matchServiceName(name string) string {
 	switch {
 	case strings.HasPrefix(name, "/Dispatcher"):
 		return "dispatcher"
+	case strings.HasPrefix(name, "/v1.V1Dispatcher"):
+		return "dispatcher"
 	case strings.HasPrefix(name, "/EventsService"):
 		return "events"
 	case strings.HasPrefix(name, "/WorkflowService"):
 		return "workflow"
-	case strings.HasPrefix(name, "/AdminService"):
+	case strings.HasPrefix(name, "/v1.AdminService"):
 		return "admin"
 	default:
 		return "unknown"
