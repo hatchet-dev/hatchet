@@ -26,6 +26,12 @@ type TaskDefaults struct {
 	RetryMaxBackoffSeconds int32
 }
 
+// NamedTask defines an interface for task types that have a name
+type NamedTask interface {
+	// GetName returns the name of the task
+	GetName() string
+}
+
 // CreateOpts is the options for creating a task.
 type CreateOpts[I any] struct {
 	// (required) The name of the task
@@ -59,14 +65,15 @@ type CreateOpts[I any] struct {
 	Conditions *types.TaskConditions
 
 	// (optional) Parents defines the tasks that must complete before this task can start
-	Parents []*NamedTask
+	// Accept either NamedTask pointers (for backward compatibility) or NamedTaskInterface
+	Parents []NamedTask
 
 	// (optional) Fn is the function to execute when the task runs
 	// must be a function that takes an input and a worker.HatchetContext and returns an output and an error
 	Fn interface{}
 }
 
-type NamedTask struct {
+type NamedTaskImpl struct {
 	Name string
 }
 
@@ -107,7 +114,7 @@ type TaskShared struct {
 // TaskDeclaration represents a standard (non-durable) task configuration that can be added to a workflow.
 type TaskDeclaration[I any] struct {
 	TaskBase
-	NamedTask
+	NamedTaskImpl
 	TaskShared
 
 	// The friendly name of the task
@@ -128,7 +135,7 @@ type TaskDeclaration[I any] struct {
 // Durable tasks can use the DurableHatchetContext for operations that persist across worker restarts.
 type DurableTaskDeclaration[I any] struct {
 	TaskBase
-	NamedTask
+	NamedTaskImpl
 	TaskShared
 
 	// The friendly name of the task
@@ -258,4 +265,19 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *Ta
 	base.Action = fmt.Sprintf("%s:%s", workflowName, "on-failure")
 
 	return base
+}
+
+// Implement GetName for TaskDeclaration
+func (t *TaskDeclaration[I]) GetName() string {
+	return t.Name
+}
+
+// Implement GetName for DurableTaskDeclaration
+func (t *DurableTaskDeclaration[I]) GetName() string {
+	return t.Name
+}
+
+// Implement GetName for NamedTask
+func (t *NamedTaskImpl) GetName() string {
+	return t.Name
 }

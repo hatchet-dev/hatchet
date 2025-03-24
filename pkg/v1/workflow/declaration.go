@@ -218,7 +218,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.Task
 	// Convert parent task declarations to parent task names
 	parentNames := make([]string, len(opts.Parents))
 	for i, parent := range opts.Parents {
-		parentNames[i] = parent.Name
+		parentNames[i] = parent.GetName()
 	}
 
 	taskDecl := &task.TaskDeclaration[I]{
@@ -313,7 +313,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *ta
 	// Convert parent task declarations to parent task names
 	parentNames := make([]string, len(opts.Parents))
 	for i, parent := range opts.Parents {
-		parentNames[i] = parent.Name
+		parentNames[i] = parent.GetName()
 	}
 
 	taskDecl := &task.DurableTaskDeclaration[I]{
