@@ -3,6 +3,7 @@ package v1
 import (
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 )
@@ -27,12 +28,30 @@ type HatchetClient interface {
 	// ```
 	Worker(opts worker.CreateOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error)
 
-	// TODO bind run, cron, schedule, etc.
+	// Feature clients
+
+	Metrics() *features.MetricsClient
+	RateLimits() *features.RateLimitsClient
+	Runs() *features.RunsClient
+	Workers() *features.WorkersClient
+	Workflows() *features.WorkflowsClient
+	Crons() *features.CronsClient
+	Schedules() *features.SchedulesClient
+
+	// TODO Run, RunNoWait, bulk
 }
 
 // v1HatchetClientImpl is the implementation of the HatchetClient interface.
 type v1HatchetClientImpl struct {
 	v0 *v0Client.Client
+
+	metrics    *features.MetricsClient
+	rateLimits *features.RateLimitsClient
+	runs       *features.RunsClient
+	workers    *features.WorkersClient
+	workflows  *features.WorkflowsClient
+	crons      *features.CronsClient
+	schedules  *features.SchedulesClient
 }
 
 // NewHatchetClient creates a new V1 Hatchet client with the provided configuration.
@@ -53,6 +72,17 @@ func NewHatchetClient(config ...Config) (HatchetClient, error) {
 	return &v1HatchetClientImpl{
 		v0: &client,
 	}, nil
+}
+
+func (c *v1HatchetClientImpl) Metrics() *features.MetricsClient {
+	if c.metrics == nil {
+		api := c.V0().API()
+		tenantId := c.V0().TenantId()
+		client := features.NewMetricsClient(api, &tenantId)
+		c.metrics = &client
+	}
+
+	return c.metrics
 }
 
 // V0 returns the underlying V0 client for backward compatibility.
@@ -86,4 +116,65 @@ func WorkflowFactory[I any, O any](opts workflow.CreateOpts[I], client *HatchetC
 	}
 
 	return workflow.NewWorkflowDeclaration[I, O](opts, &v0)
+}
+
+func (c *v1HatchetClientImpl) RateLimits() *features.RateLimitsClient {
+	if c.rateLimits == nil {
+		api := c.V0().API()
+		admin := c.V0().Admin()
+		tenantId := c.V0().TenantId()
+		client := features.NewRateLimitsClient(api, &tenantId, &admin)
+		c.rateLimits = &client
+	}
+	return c.rateLimits
+}
+
+func (c *v1HatchetClientImpl) Runs() *features.RunsClient {
+	if c.runs == nil {
+		api := c.V0().API()
+		tenantId := c.V0().TenantId()
+		client := features.NewRunsClient(api, &tenantId)
+		c.runs = &client
+	}
+	return c.runs
+}
+
+func (c *v1HatchetClientImpl) Workers() *features.WorkersClient {
+	if c.workers == nil {
+		api := c.V0().API()
+		tenantId := c.V0().TenantId()
+		client := features.NewWorkersClient(api, &tenantId)
+		c.workers = &client
+	}
+	return c.workers
+}
+
+func (c *v1HatchetClientImpl) Workflows() *features.WorkflowsClient {
+	if c.workflows == nil {
+		api := c.V0().API()
+		tenantId := c.V0().TenantId()
+		client := features.NewWorkflowsClient(api, &tenantId)
+		c.workflows = &client
+	}
+	return c.workflows
+}
+
+func (c *v1HatchetClientImpl) Crons() *features.CronsClient {
+	if c.crons == nil {
+		api := c.V0().API()
+		tenantId := c.V0().TenantId()
+		client := features.NewCronsClient(api, &tenantId)
+		c.crons = &client
+	}
+	return c.crons
+}
+
+func (c *v1HatchetClientImpl) Schedules() *features.SchedulesClient {
+	if c.schedules == nil {
+		api := c.V0().API()
+		tenantId := c.V0().TenantId()
+		client := features.NewSchedulesClient(api, &tenantId)
+		c.schedules = &client
+	}
+	return c.schedules
 }
