@@ -22,7 +22,8 @@ WITH active_setting AS (
         (
             "lastAlertedAt" IS NULL OR
             "lastAlertedAt" <= NOW() - convert_duration_to_interval(alerts."maxFrequency")
-        )
+        ) AND
+        "enableWorkflowRunFailureAlerts" = true
 )
 SELECT
     EXISTS (
