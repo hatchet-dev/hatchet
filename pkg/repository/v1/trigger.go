@@ -998,6 +998,14 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	return tuplesToSkip, nil
 }
 
+// getParentInDAGGroupMatch encodes the following default behavior:
+// - If all parents complete, the child task is created
+// - If all parents are skipped, the child task is skipped
+// - If parents are both created and skipped, the child is created
+// - If any parent is cancelled, the child is cancelled
+// - If any parent fails, the child is cancelled
+//
+// Users can override this behavior by setting their own skip and creation conditions.
 func getParentInDAGGroupMatch(
 	cancelGroupId, parentExternalId, parentReadableId string,
 	parentOverrideMatches []*sqlcv1.V1StepMatchCondition,
@@ -1036,8 +1044,10 @@ func getParentInDAGGroupMatch(
 			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
 			ReadableDataKey:   parentReadableId,
 			EventResourceHint: &parentExternalId,
-			Expression:        "!has(input.skipped) || (has(input.skipped) && !input.skipped)",
-			Action:            completeAction,
+			// NOTE: complete match on skip takes precedence over queue, so we might meet all QUEUE conditions with a skipped
+			// parent but end up skipping anyway
+			Expression: "true",
+			Action:     completeAction,
 		})
 	}
 
@@ -1060,7 +1070,7 @@ func getParentInDAGGroupMatch(
 			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
 			ReadableDataKey:   parentReadableId,
 			EventResourceHint: &parentExternalId,
-			Expression:        "has(input.skipped) && input.skipped",
+			Expression:        "has(output.skipped) && output.skipped",
 			Action:            sqlcv1.V1MatchConditionActionSKIP,
 		})
 	}
