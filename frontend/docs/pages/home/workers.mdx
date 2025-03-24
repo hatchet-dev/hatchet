@@ -10,32 +10,32 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs]);
 
 # Workers
 
-Workers are the backbone of Hatchet, responsible for executing the individual steps defined within your workflows. They operate autonomously across different nodes in your infrastructure, allowing for distributed and scalable task execution. Understanding how to deploy and manage workers effectively is crucial to fully leverage the power of Hatchet.
+Workers are the backbone of Hatchet, responsible for executing the individual tasks defined within your workflows. They operate autonomously across different nodes in your infrastructure, allowing for distributed and scalable task execution. Understanding how to deploy and manage workers effectively is crucial to fully leverage the power of Hatchet.
 
 
 ## How Workers Operate
 
 In Hatchet, workers are long-running processes that wait for instructions from the Hatchet engine to execute specific steps. They communicate with the Hatchet engine to receive tasks, execute them, and report back the results.
 
-Here are the key characteristics of workers in Hatchet:
+The key characteristics of workers in Hatchet are:
 
 1. **Distributed Execution**: Workers can be deployed across multiple systems or even different cloud environments, enabling distributed task execution.
 
-2. **Language Agnostic**: Workers can be implemented in various programming languages, as long as they can communicate with the Hatchet engine and execute the required steps.
+2. **Language Agnosticism**: Workers can be implemented in various programming languages, as long as they can communicate with the Hatchet engine and execute the required tasks.
 
 3. **Scalability**: By adding more workers, you can scale your system horizontally to handle increased loads and distribute tasks across a wider set of resources.
 
 ## Declaring a Worker
 
-Now that we have a [hatchet client](./introduction.mdx) and a [workflow declaration](./basic-workflows.mdx) we can declare a worker that can execute the workflow tasks.
+Now that we have a [workflow declared](./basic-workflows.mdx) we can create a worker that can execute the workflow's tasks.
 
-Declare a worker by calling the `worker` method on the hatchet client. The `worker` method takes a name and an optional configuration object.
+Declare a worker by calling the `worker` method on the Hatchet client. The `worker` method takes a name and an optional configuration object.
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
     ```python
     def main() -> None:
-      worker = hatchet.worker("test-worker", slots=1, workflows=[simple])
+      worker = hatchet.worker("test-worker", workflows=[simple])
       worker.start()
 
     if __name__ == "__main__":
@@ -93,9 +93,31 @@ Declare a worker by calling the `worker` method on the hatchet client. The `work
   </Tabs.Tab>
 </UniversalTabs>
 
+And that's it! Once you run your script to start the worker, you'll see some logs like this, which tell you that your worker is running.
+
+```
+[DEBUG] 🪓 -- 2025-03-24 15:11:32,755 - creating new event loop
+[INFO]  🪓 -- 2025-03-24 15:11:32,755 - ------------------------------------------
+[INFO]  🪓 -- 2025-03-24 15:11:32,755 - STARTING HATCHET...
+[DEBUG] 🪓 -- 2025-03-24 15:11:32,755 - worker runtime starting on PID: 26406
+[DEBUG] 🪓 -- 2025-03-24 15:11:32,758 - action listener starting on PID: 26434
+[INFO]  🪓 -- 2025-03-24 15:11:32,760 - starting runner...
+[DEBUG] 🪓 -- 2025-03-24 15:11:32,761 - starting action listener health check...
+[DEBUG] 🪓 -- 2025-03-24 15:11:32,764 - 'test-worker' waiting for ['simpleworkflow:step1']
+[DEBUG] 🪓 -- 2025-03-24 15:11:33,413 - starting action listener: test-worker
+[DEBUG] 🪓 -- 2025-03-24 15:11:33,542 - acquired action listener: efc4aaf2-be4a-4964-a578-db6465f9297e
+[DEBUG] 🪓 -- 2025-03-24 15:11:33,542 - sending heartbeat
+[DEBUG] 🪓 -- 2025-03-24 15:11:37,658 - sending heartbeat
+```
+
+<Callout type="info">
+Note that many of these logs are `debug` logs, which only are shown if the `debug` option on the Hatchet client is set to `True`
+</Callout>
+
+
 ## Understanding Slots
 
-Slots are the number of concurrent _task_ runs that a worker can execute. For instance, if you set `slots=5` on your worker, then your worker will be able to run five tasks concurrently before new tasks start needing to wait in the queue before being picked up.
+Slots are the number of concurrent _task_ runs that a worker can execute, are are configured using the `slots` option on the worker. For instance, if you set `slots=5` on your worker, then your worker will be able to run five tasks concurrently before new tasks start needing to wait in the queue before being picked up.
 
 As a simple example, if we have a worker with `slots` set to `1` and we have a single task declared that sleeps for 1 second, then if we submit more than one task per second, the tasks will begin to queue up, as the worker can only handle one task at a time. Increasing the number of `slots` on your worker will allow you to handle more concurrent work (and thus more throughput, in many cases), without needing to run more workers.
 
