@@ -7,7 +7,7 @@ WITH active_controller_partitions AS (
     WHERE
         "lastHeartbeat" > NOW() - INTERVAL '1 minute'
 )
-INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod")
+INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version")
 VALUES (
     sqlc.arg('id')::uuid,
     sqlc.arg('name')::text,
@@ -21,7 +21,8 @@ VALUES (
             random()
         LIMIT 1
     ),
-    COALESCE(sqlc.narg('dataRetentionPeriod')::text, '720h')
+    COALESCE(sqlc.narg('dataRetentionPeriod')::text, '720h'),
+    COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", 'V0')
 )
 RETURNING *;
 

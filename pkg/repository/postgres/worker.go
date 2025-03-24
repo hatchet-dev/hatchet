@@ -212,173 +212,190 @@ func (w *workerEngineRepository) GetWorkerForEngine(ctx context.Context, tenantI
 }
 
 func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
-	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKER, tenantId, 1, func() (*string, *dbsqlc.Worker, error) {
-		if err := w.v.Validate(opts); err != nil {
-			return nil, nil, err
-		}
+	preWorker, postWorker := w.m.Meter(ctx, dbsqlc.LimitResourceWORKER, tenantId, 1)
 
-		tx, err := w.pool.Begin(ctx)
+	if err := preWorker(); err != nil {
+		return nil, err
+	}
 
-		if err != nil {
-			return nil, nil, err
-		}
+	maxRuns := int32(100)
 
-		defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
+	if opts.MaxRuns != nil {
+		maxRuns = int32(*opts.MaxRuns) // nolint: gosec
+	}
 
-		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, dbsqlc.LimitResourceWORKERSLOT, tenantId, maxRuns)
 
-		createParams := dbsqlc.CreateWorkerParams{
-			Tenantid:     pgTenantId,
-			Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
-			Name:         opts.Name,
-		}
+	if err := preWorkerSlot(); err != nil {
+		return nil, err
+	}
 
-		// Default to self hosted
+	if err := w.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	tx, err := w.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	createParams := dbsqlc.CreateWorkerParams{
+		Tenantid:     pgTenantId,
+		Dispatcherid: sqlchelpers.UUIDFromStr(opts.DispatcherId),
+		Name:         opts.Name,
+	}
+
+	// Default to self hosted
+	createParams.Type = dbsqlc.NullWorkerType{
+		WorkerType: dbsqlc.WorkerTypeSELFHOSTED,
+		Valid:      true,
+	}
+
+	if opts.WebhookId != nil {
+		createParams.WebhookId = sqlchelpers.UUIDFromStr(*opts.WebhookId)
 		createParams.Type = dbsqlc.NullWorkerType{
-			WorkerType: dbsqlc.WorkerTypeSELFHOSTED,
+			WorkerType: dbsqlc.WorkerTypeWEBHOOK,
 			Valid:      true,
 		}
+	}
 
-		if opts.WebhookId != nil {
-			createParams.WebhookId = sqlchelpers.UUIDFromStr(*opts.WebhookId)
-			createParams.Type = dbsqlc.NullWorkerType{
-				WorkerType: dbsqlc.WorkerTypeWEBHOOK,
-				Valid:      true,
-			}
+	if opts.MaxRuns != nil {
+		createParams.MaxRuns = pgtype.Int4{
+			Int32: int32(*opts.MaxRuns), // nolint: gosec
+			Valid: true,
+		}
+	} else {
+		createParams.MaxRuns = pgtype.Int4{
+			Int32: 100,
+			Valid: true,
+		}
+	}
+
+	var worker *dbsqlc.Worker
+
+	// HACK upsert webhook worker
+	if opts.WebhookId != nil {
+		worker, err = w.queries.GetWorkerByWebhookId(ctx, tx, dbsqlc.GetWorkerByWebhookIdParams{
+			Webhookid: createParams.WebhookId,
+			Tenantid:  pgTenantId,
+		})
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("could not get worker: %w", err)
 		}
 
-		if opts.MaxRuns != nil {
-			createParams.MaxRuns = pgtype.Int4{
-				Int32: int32(*opts.MaxRuns), // nolint: gosec
-				Valid: true,
-			}
-		} else {
-			createParams.MaxRuns = pgtype.Int4{
-				Int32: 100,
-				Valid: true,
-			}
+		if errors.Is(err, pgx.ErrNoRows) {
+			worker = nil
 		}
+	}
 
-		var worker *dbsqlc.Worker
-
-		// HACK upsert webhook worker
-		if opts.WebhookId != nil {
-			worker, err = w.queries.GetWorkerByWebhookId(ctx, tx, dbsqlc.GetWorkerByWebhookIdParams{
-				Webhookid: createParams.WebhookId,
-				Tenantid:  pgTenantId,
-			})
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return nil, nil, fmt.Errorf("could not get worker: %w", err)
-			}
-
-			if errors.Is(err, pgx.ErrNoRows) {
-				worker = nil
-			}
+	if opts.RuntimeInfo != nil {
+		if opts.RuntimeInfo.SdkVersion != nil {
+			createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
 		}
-
-		if opts.RuntimeInfo != nil {
-			if opts.RuntimeInfo.SdkVersion != nil {
-				createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
-			}
-			if opts.RuntimeInfo.Language != nil {
-				switch *opts.RuntimeInfo.Language {
-				case contracts.SDKS_GO:
-					createParams.Language = dbsqlc.NullWorkerSDKS{
-						WorkerSDKS: dbsqlc.WorkerSDKSGO,
-						Valid:      true,
-					}
-				case contracts.SDKS_PYTHON:
-					createParams.Language = dbsqlc.NullWorkerSDKS{
-						WorkerSDKS: dbsqlc.WorkerSDKSPYTHON,
-						Valid:      true,
-					}
-				case contracts.SDKS_TYPESCRIPT:
-					createParams.Language = dbsqlc.NullWorkerSDKS{
-						WorkerSDKS: dbsqlc.WorkerSDKSTYPESCRIPT,
-						Valid:      true,
-					}
-				default:
-					return nil, nil, fmt.Errorf("invalid sdk: %s", *opts.RuntimeInfo.Language)
+		if opts.RuntimeInfo.Language != nil {
+			switch *opts.RuntimeInfo.Language {
+			case contracts.SDKS_GO:
+				createParams.Language = dbsqlc.NullWorkerSDKS{
+					WorkerSDKS: dbsqlc.WorkerSDKSGO,
+					Valid:      true,
 				}
-			}
-			if opts.RuntimeInfo.LanguageVersion != nil {
-				createParams.LanguageVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.LanguageVersion)
-			}
-			if opts.RuntimeInfo.Os != nil {
-				createParams.Os = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Os)
-			}
-			if opts.RuntimeInfo.Extra != nil {
-				createParams.RuntimeExtra = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Extra)
-			}
-		}
-
-		if worker == nil {
-			worker, err = w.queries.CreateWorker(ctx, tx, createParams)
-
-			if err != nil {
-				return nil, nil, fmt.Errorf("could not create worker: %w", err)
+			case contracts.SDKS_PYTHON:
+				createParams.Language = dbsqlc.NullWorkerSDKS{
+					WorkerSDKS: dbsqlc.WorkerSDKSPYTHON,
+					Valid:      true,
+				}
+			case contracts.SDKS_TYPESCRIPT:
+				createParams.Language = dbsqlc.NullWorkerSDKS{
+					WorkerSDKS: dbsqlc.WorkerSDKSTYPESCRIPT,
+					Valid:      true,
+				}
+			default:
+				return nil, fmt.Errorf("invalid sdk: %s", *opts.RuntimeInfo.Language)
 			}
 		}
-
-		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
-
-		for i, svc := range opts.Services {
-			dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
-				Name:     svc,
-				Tenantid: pgTenantId,
-			})
-
-			if err != nil {
-				return nil, nil, fmt.Errorf("could not upsert service: %w", err)
-			}
-
-			svcUUIDs[i] = dbSvc.ID
+		if opts.RuntimeInfo.LanguageVersion != nil {
+			createParams.LanguageVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.LanguageVersion)
 		}
+		if opts.RuntimeInfo.Os != nil {
+			createParams.Os = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Os)
+		}
+		if opts.RuntimeInfo.Extra != nil {
+			createParams.RuntimeExtra = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Extra)
+		}
+	}
 
-		err = w.queries.LinkServicesToWorker(ctx, tx, dbsqlc.LinkServicesToWorkerParams{
-			Services: svcUUIDs,
-			Workerid: worker.ID,
+	if worker == nil {
+		worker, err = w.queries.CreateWorker(ctx, tx, createParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create worker: %w", err)
+		}
+	}
+
+	svcUUIDs := make([]pgtype.UUID, len(opts.Services))
+
+	for i, svc := range opts.Services {
+		dbSvc, err := w.queries.UpsertService(ctx, tx, dbsqlc.UpsertServiceParams{
+			Name:     svc,
+			Tenantid: pgTenantId,
 		})
 
 		if err != nil {
-			return nil, nil, fmt.Errorf("could not link services to worker: %w", err)
+			return nil, fmt.Errorf("could not upsert service: %w", err)
 		}
 
-		actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+		svcUUIDs[i] = dbSvc.ID
+	}
 
-		for i, action := range opts.Actions {
-			dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
-				Action:   action,
-				Tenantid: pgTenantId,
-			})
-
-			if err != nil {
-				return nil, nil, fmt.Errorf("could not upsert action: %w", err)
-			}
-
-			actionUUIDs[i] = dbAction.ID
-		}
-
-		err = w.queries.LinkActionsToWorker(ctx, tx, dbsqlc.LinkActionsToWorkerParams{
-			Actionids: actionUUIDs,
-			Workerid:  worker.ID,
-		})
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not link actions to worker: %w", err)
-		}
-
-		err = tx.Commit(ctx)
-
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not commit transaction: %w", err)
-		}
-
-		id := sqlchelpers.UUIDToStr(worker.ID)
-
-		return &id, worker, nil
+	err = w.queries.LinkServicesToWorker(ctx, tx, dbsqlc.LinkServicesToWorkerParams{
+		Services: svcUUIDs,
+		Workerid: worker.ID,
 	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not link services to worker: %w", err)
+	}
+
+	actionUUIDs := make([]pgtype.UUID, len(opts.Actions))
+
+	for i, action := range opts.Actions {
+		dbAction, err := w.queries.UpsertAction(ctx, tx, dbsqlc.UpsertActionParams{
+			Action:   action,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not upsert action: %w", err)
+		}
+
+		actionUUIDs[i] = dbAction.ID
+	}
+
+	err = w.queries.LinkActionsToWorker(ctx, tx, dbsqlc.LinkActionsToWorkerParams{
+		Actionids: actionUUIDs,
+		Workerid:  worker.ID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not link actions to worker: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	postWorker()
+	postWorkerSlot()
+
+	return worker, nil
 }
 
 // UpdateWorker updates a worker in the repository.

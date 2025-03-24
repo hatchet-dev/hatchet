@@ -279,8 +279,10 @@ type LimitResource string
 
 const (
 	LimitResourceWORKFLOWRUN LimitResource = "WORKFLOW_RUN"
+	LimitResourceTASKRUN     LimitResource = "TASK_RUN"
 	LimitResourceEVENT       LimitResource = "EVENT"
 	LimitResourceWORKER      LimitResource = "WORKER"
+	LimitResourceWORKERSLOT  LimitResource = "WORKER_SLOT"
 	LimitResourceCRON        LimitResource = "CRON"
 	LimitResourceSCHEDULE    LimitResource = "SCHEDULE"
 )
