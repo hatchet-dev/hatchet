@@ -93,8 +93,8 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
+          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
+          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
 
           sleep 30
       - name: Set up Python ${{ matrix.python-version }}
@@ -133,6 +133,18 @@ jobs:
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
           poetry run pytest -s -vvv --maxfail=5 --timeout=180 --capture=no -n 5
+
+      - name: Upload engine logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: engine-logs
+          path: engine.log
+
+      - name: Upload API logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-logs
+          path: api.log
 
   publish:
     runs-on: ubuntu-latest
