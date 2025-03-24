@@ -1,22 +1,46 @@
 {
-  "v0": {
-    "title": "v0",
-    "type": "page",
-    "href": "/v0"
-  },
-  "v1": {
-    "title": "v1",
-    "type": "page",
-    "href": "/v1"
-  },
   "home": {
     "title": "User Guide",
-    "type": "page"
+    "type": "page",
+    "index": "Introduction",
+    "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart"
   },
   "compute": {
     "title": "Managed Compute",
     "type": "page",
-    "href": "/compute"
+    "href": "/compute",
+    "index": "Overview",
+    "getting-started": "Getting Started",
+    "cpu": "CPU Machine Types",
+    "gpu": "GPU Machine Types",
+    "-- SDKs": {
+      "type": "separator",
+      "title": "SDK Deployment Guides"
+    },
+    "python": {
+      "title": "Python ↗",
+      "href": "/sdks/python-sdk/docker"
+    },
+    "typescript": {
+      "title": "TypeScript ↗",
+      "href": "/sdks/typescript-sdk/docker"
+    },
+    "golang": {
+      "title": "Golang ↗",
+      "href": "/sdks/go-sdk"
+    }
+  },
+  "self-hosting": {
+    "title": "Self Hosting",
+    "type": "page"
+  },
+  "blog": {
+    "title": "Blog",
+    "type": "page"
+  },
+  "contributing": {
+    "title": "Contributing",
+    "type": "page"
   },
   "sdks": {
     "title": "SDK Reference",
@@ -25,39 +49,24 @@
       "python": {
         "title": "Python",
         "href": "/sdks/python-sdk",
-        "type": "page",
-        "display": "hidden"
+        "type": "page"
       },
       "typescript": {
         "title": "TypeScript",
         "href": "/sdks/typescript-sdk",
-        "type": "page",
-        "display": "hidden"
+        "type": "page"
       },
       "golang": {
         "title": "Golang",
         "href": "/sdks/go-sdk",
-        "type": "page",
-        "display": "hidden"
+        "type": "page"
       }
-    }
-  },
-  "self-hosting": {
-    "title": "Self Hosting",
-    "type": "page"
-  },
-  "contributing": {
-    "title": "Contributing",
-    "type": "page",
+    },
     "display": "hidden"
   },
-  "launches": {
-    "title": "Launches",
-    "display": "hidden",
-    "type": "page"
-  },
-  "blog": {
-    "title": "Blog",
-    "type": "page"
+  "v0": {
+    "title": "v0",
+    "type": "page",
+    "href": "/v0"
   }
 }
