@@ -23,12 +23,18 @@
   "enqueue-runs": "Enqueue a Run",
   "scheduled-runs": "Scheduled Runs",
   "cron-runs": "Cron Runs",
-  "run-on-event": "Run on Event",
+  "run-on-event": {
+    "title": "Run on Event",
+    "display": "hidden"
+  },
   "streaming-results": {
     "title": "Streaming Results",
     "display": "hidden"
   },
-  "running-from-external-services": "Running from External Services",
+  "running-from-external-services": {
+    "title": "Running from External Services",
+    "display": "hidden"
+  },
 
   "--error-handling": {
     "title": "Error Handling",
