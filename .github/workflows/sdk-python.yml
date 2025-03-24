@@ -135,13 +135,13 @@ jobs:
           poetry run pytest -s -vvv --maxfail=5 --timeout=180 --capture=no -n 5
 
       - name: Upload engine logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: engine-logs
           path: engine.log
 
       - name: Upload API logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: api-logs
           path: api.log
