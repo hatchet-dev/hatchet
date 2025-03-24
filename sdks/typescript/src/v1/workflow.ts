@@ -11,6 +11,7 @@ import {
   TaskFn,
   CreateDurableTaskOpts,
 } from './task';
+import { Duration } from './client/duration';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -58,17 +59,15 @@ export type CreateWorkflowOpts = {
   sticky?: WorkflowV0['sticky'];
 
   /**
-   * @deprecated use onCrons and onEvents instead
    * (optional) on config for the workflow.
+   * @deprecated use onCrons and onEvents instead
    */
-  on?: WorkflowV0['on']; // TODO map these
+  on?: WorkflowV0['on'];
 
   /**
    * (optional) cron config for the workflow.
    */
   onCrons?: string[];
-
-  // TODO cron input?
 
   /**
    * (optional) event config for the workflow.
@@ -101,7 +100,7 @@ export type TaskDefaults = {
    *
    * default: 60s
    */
-  executionTimeout?: CreateTaskOpts<any, any>['executionTimeout'];
+  executionTimeout?: Duration;
 
   /**
    * (optional) schedule timeout for the task (max duration to allow the task to wait in the queue)
@@ -109,7 +108,7 @@ export type TaskDefaults = {
    *
    * default: 5m
    */
-  scheduleTimeout?: CreateTaskOpts<any, any>['scheduleTimeout'];
+  scheduleTimeout?: Duration;
 
   /**
    * (optional) number of retries for the task.

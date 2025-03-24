@@ -247,11 +247,10 @@ export class HatchetClient implements IHatchetClient {
   }
 
   /**
-   * @deprecated use workflow.run or client.run instead
+   * @deprecated use workflow.run, client.run, or client.* feature methods instead
    */
   get admin() {
     return this.v0.admin;
-    // TODO expose ratelimit features
   }
 
   /**

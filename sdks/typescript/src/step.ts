@@ -290,7 +290,6 @@ export class Context<T, K = {}> {
    * @param level - The log level (optional).
    */
   log(message: string, level?: LogLevel) {
-    // TODO improve this...
     const { stepRunId } = this.action;
 
     if (!stepRunId) {
