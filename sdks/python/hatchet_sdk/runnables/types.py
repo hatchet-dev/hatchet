@@ -16,7 +16,7 @@ P = ParamSpec("P")
 
 
 DEFAULT_EXECUTION_TIMEOUT = timedelta(seconds=60)
-DEFAULT_SCHEDULE_TIMEOUT = timedelta(seconds=5)
+DEFAULT_SCHEDULE_TIMEOUT = timedelta(minutes=5)
 DEFAULT_PRIORITY = 1
 
 
