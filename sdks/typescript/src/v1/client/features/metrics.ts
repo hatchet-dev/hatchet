@@ -1,5 +1,5 @@
+import { WorkflowDeclaration, workflowNameString } from '@hatchet/v1';
 import { Workflow } from '@hatchet/workflow';
-import { WorkflowDeclaration } from '@hatchet/v1';
 import { HatchetClient } from '../client';
 /**
  * MetricsClient is used to get metrics for workflows
@@ -14,12 +14,12 @@ export class MetricsClient {
   }
 
   async getWorkflowMetrics(
-    workflowName: Workflow | WorkflowDeclaration<any, any> | string,
+    workflow: string | Workflow | WorkflowDeclaration<any, any>,
     opts?: Parameters<typeof this.api.workflowGetMetrics>[1]
   ) {
-    const workflowNameString = typeof workflowName === 'string' ? workflowName : workflowName.id;
+    const name = workflowNameString(workflow);
 
-    const { data } = await this.api.workflowGetMetrics(workflowNameString, opts);
+    const { data } = await this.api.workflowGetMetrics(name, opts);
     return data;
   }
 
