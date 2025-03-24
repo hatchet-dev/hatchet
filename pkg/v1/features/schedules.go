@@ -12,7 +12,7 @@ import (
 // in the Hatchet platform.
 type SchedulesClient interface {
 	// Create creates a new scheduled workflow run.
-	Create(workflowId string, trigger CreateScheduledRunTrigger, ctx ...context.Context) (*rest.ScheduledWorkflows, error)
+	Create(workflowName string, trigger CreateScheduledRunTrigger, ctx ...context.Context) (*rest.ScheduledWorkflows, error)
 
 	// Delete removes a scheduled workflow run.
 	Delete(scheduledRunId string, ctx ...context.Context) error

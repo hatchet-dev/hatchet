@@ -4,10 +4,13 @@
 package workflow
 
 import (
+	"encoding/json"
 	"time"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 
@@ -67,6 +70,10 @@ type WorkflowBase interface {
 	Dump() (*contracts.CreateWorkflowVersionRequest, []NamedFunction, []NamedFunction, WrappedTaskFn)
 }
 
+type RunOpts struct {
+	AdditionalMetadata *map[string]interface{}
+}
+
 // WorkflowDeclaration represents a workflow with input type I and output type O.
 // It provides methods to define tasks, specify dependencies, and execute the workflow.
 type WorkflowDeclaration[I any, O any] interface {
@@ -81,22 +88,51 @@ type WorkflowDeclaration[I any, O any] interface {
 	DurableTask(opts task.CreateOpts[I]) *task.DurableTaskDeclaration[I]
 
 	// Run executes the workflow with the provided input.
-	Run(input I) (*O, error)
+	Run(input I, opts ...RunOpts) (*O, error)
 
-	// TODO RunNoWait, Cron, Schedule
+	// RunNoWait executes the workflow with the provided input without waiting for it to complete.
+	// Instead it returns a run ID that can be used to check the status of the workflow.
+	RunNoWait(input I, opts ...RunOpts) (*v0Client.Workflow, error)
+
+	// Cron schedules the workflow to run on a regular basis using a cron expression.
+	Cron(name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error)
+
+	// Schedule schedules the workflow to run at a specific time.
+	Schedule(triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error)
+
+	// Get retrieves the current state of the workflow.
+	Get() (*rest.Workflow, error)
+
+	// IsPaused checks if the workflow is currently paused.
+	IsPaused() (bool, error)
+
+	// Pause pauses the assignment of new workflow runs.
+	Pause() error
+
+	// Unpause resumes the assignment of workflow runs.
+	Unpause() error
+
+	// Metrics retrieves metrics for this workflow.
+	Metrics(opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
+
+	// QueueMetrics retrieves queue metrics for this workflow.
+	QueueMetrics(opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error)
 }
 
 // Define a TaskDeclaration with specific output type
 type TaskWithSpecificOutput[I any, T any] struct {
 	Name string
 	Fn   func(input I, ctx worker.HatchetContext) (*T, error)
-	// other fields
 }
 
 // workflowDeclarationImpl is the concrete implementation of WorkflowDeclaration.
 // It contains all the data and logic needed to define and execute a workflow.
 type workflowDeclarationImpl[I any, O any] struct {
-	v0 *v0Client.Client
+	v0        *v0Client.Client
+	crons     *features.CronsClient
+	schedules *features.SchedulesClient
+	metrics   *features.MetricsClient
+	workflows *features.WorkflowsClient
 
 	Name           string
 	Version        *string
@@ -123,8 +159,21 @@ type workflowDeclarationImpl[I any, O any] struct {
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
 // The workflow will have input type I and output type O.
 func NewWorkflowDeclaration[I any, O any](opts CreateOpts[I], v0 *v0Client.Client) WorkflowDeclaration[I, O] {
+
+	api := (*v0).API()
+	tenantId := (*v0).TenantId()
+
+	crons := features.NewCronsClient(api, &tenantId)
+	schedules := features.NewSchedulesClient(api, &tenantId)
+	metrics := features.NewMetricsClient(api, &tenantId)
+	workflows := features.NewWorkflowsClient(api, &tenantId)
+
 	wf := &workflowDeclarationImpl[I, O]{
 		v0:               v0,
+		crons:            &crons,
+		schedules:        &schedules,
+		metrics:          &metrics,
+		workflows:        &workflows,
 		Name:             opts.Name,
 		OnEvents:         opts.OnEvents,
 		OnCron:           opts.OnCron,
@@ -340,16 +389,33 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *ta
 	return taskDecl
 }
 
-// Run executes the workflow with the provided input.
-// It triggers a workflow run via the Hatchet client and waits for the result.
-// Returns the workflow output and any error encountered during execution.
-func (w *workflowDeclarationImpl[I, O]) Run(input I) (*O, error) {
-	// TODO run opts
-	run, err := (*w.v0).Admin().RunWorkflow(w.Name, input)
+// RunNoWait executes the workflow with the provided input without waiting for it to complete.
+// Instead it returns a run ID that can be used to check the status of the workflow.
+func (w *workflowDeclarationImpl[I, O]) RunNoWait(input I, opts ...RunOpts) (*v0Client.Workflow, error) {
 
+	runOpts := []v0Client.RunOptFunc{}
+
+	if len(opts) > 0 {
+		if opts[0].AdditionalMetadata != nil {
+			fn := v0Client.WithRunMetadata(opts[0].AdditionalMetadata)
+			runOpts = append(runOpts, fn)
+		}
+	}
+
+	run, err := (*w.v0).Admin().RunWorkflow(w.Name, input, runOpts...)
 	if err != nil {
 		return nil, err
 	}
+
+	return run, nil
+}
+
+// Run executes the workflow with the provided input.
+// It triggers a workflow run via the Hatchet client and waits for the result.
+// Returns the workflow output and any error encountered during execution.
+func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error) {
+	// TODO run opts
+	run, err := w.RunNoWait(input, opts...)
 
 	// TODO the result method does not work as expect at this time
 	_, err = run.Result()
@@ -359,6 +425,67 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I) (*O, error) {
 	}
 
 	return nil, nil
+}
+
+// Cron schedules the workflow to run on a regular basis using a cron expression.
+func (w *workflowDeclarationImpl[I, O]) Cron(name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error) {
+	// Process additional metadata from options
+	var additionalMetadata map[string]interface{}
+	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
+		additionalMetadata = *opts[0].AdditionalMetadata
+	}
+
+	var inputMap map[string]interface{}
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(inputBytes, &inputMap); err != nil {
+		return nil, err
+	}
+
+	cronWorkflow, err := (*w.crons).Create(w.Name, features.CreateCronTrigger{
+		Name:               name,
+		Expression:         cronExpr,
+		Input:              inputMap,
+		AdditionalMetadata: additionalMetadata,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return cronWorkflow, nil
+}
+
+// Schedule schedules the workflow to run at a specific time.
+func (w *workflowDeclarationImpl[I, O]) Schedule(triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error) {
+	// Process additional metadata from options
+	var additionalMetadata map[string]interface{}
+	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
+		additionalMetadata = *opts[0].AdditionalMetadata
+	}
+
+	var inputMap map[string]interface{}
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(inputBytes, &inputMap); err != nil {
+		return nil, err
+	}
+
+	scheduledWorkflow, err := (*w.schedules).Create(w.Name, features.CreateScheduledRunTrigger{
+		TriggerAt:          triggerAt,
+		Input:              inputMap,
+		AdditionalMetadata: additionalMetadata,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return scheduledWorkflow, nil
 }
 
 // Dump converts the workflow declaration into a protobuf request and function mappings.
@@ -507,4 +634,91 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	}
 
 	return req, regularNamedFns, durableNamedFns, onFailureFn
+}
+
+// Get retrieves the current state of the workflow.
+func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
+	workflow, err := (*w.workflows).Get(w.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return workflow, nil
+}
+
+// IsPaused checks if the workflow is currently paused.
+func (w *workflowDeclarationImpl[I, O]) IsPaused() (bool, error) {
+	paused, err := (*w.workflows).IsPaused(w.Name)
+	if err != nil {
+		return false, err
+	}
+
+	return paused, nil
+}
+
+// Pause pauses the assignment of new workflow runs.
+func (w *workflowDeclarationImpl[I, O]) Pause() error {
+	_, err := (*w.workflows).Pause(w.Name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Unpause resumes the assignment of workflow runs.
+func (w *workflowDeclarationImpl[I, O]) Unpause() error {
+	_, err := (*w.workflows).Unpause(w.Name)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Metrics retrieves metrics for this workflow.
+func (w *workflowDeclarationImpl[I, O]) Metrics(opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
+	var options rest.WorkflowGetMetricsParams
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+
+	metrics, err := (*w.metrics).GetWorkflowMetrics(w.Name, &options)
+	if err != nil {
+		return nil, err
+	}
+
+	return metrics, nil
+}
+
+// QueueMetrics retrieves queue metrics for this workflow.
+func (w *workflowDeclarationImpl[I, O]) QueueMetrics(opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error) {
+	var options rest.TenantGetQueueMetricsParams
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+
+	// Ensure the workflow name is set
+	if options.Workflows == nil {
+		options.Workflows = &[]string{w.Name}
+	} else {
+		// Add this workflow to the list if not already present
+		found := false
+		for _, wf := range *options.Workflows {
+			if wf == w.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			*options.Workflows = append(*options.Workflows, w.Name)
+		}
+	}
+
+	metrics, err := (*w.metrics).GetQueueMetrics(&options)
+	if err != nil {
+		return nil, err
+	}
+
+	return metrics, nil
 }

@@ -12,7 +12,7 @@ import (
 // in the Hatchet platform.
 type CronsClient interface {
 	// Create creates a new cron workflow trigger.
-	Create(workflowId string, cron CreateCronTrigger, ctx ...context.Context) (*rest.CronWorkflows, error)
+	Create(workflowName string, cron CreateCronTrigger, ctx ...context.Context) (*rest.CronWorkflows, error)
 
 	// Delete removes a cron workflow trigger.
 	Delete(cronId string, ctx ...context.Context) error
