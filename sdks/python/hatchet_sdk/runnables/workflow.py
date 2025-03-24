@@ -176,6 +176,11 @@ class Workflow(Generic[TWorkflowInput]):
 
         conditions = wait_for_conditions + cancel_if_conditions + skip_if_conditions
 
+        if len({c.base.readable_data_key for c in conditions}) != len(
+            [c.base.readable_data_key for c in conditions]
+        ):
+            raise ValueError("Conditions must have unique readable data keys.")
+
         user_events = [
             c.to_pb() for c in conditions if isinstance(c, UserEventCondition)
         ]
