@@ -272,7 +272,7 @@ class DurableContext(Context):
             signal_key,
         )
 
-    async def aio_wait_for_sleep(self, duration: Duration) -> dict[str, Any]:
+    async def aio_sleep_for(self, duration: Duration) -> dict[str, Any]:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
