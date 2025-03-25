@@ -1,0 +1,76 @@
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const SimpleWorker = {
+  path: "examples/simple/worker.py",
+};
+export const PydanticWorker = {
+  path: "examples/pydantic/worker.py",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([SimpleWorker, PydanticWorker]);
+
+## Hatchet Python V1 Migration Guide
+
+This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK.
+
+#### Introductory Example
+
+First, a simple example of how to define a workflow with the V1 SDK:
+
+<GithubSnippet src={SimpleWorker} target="Simple" />
+
+The API has changed significantly in the V1 SDK. Even in this simple example, there are some notable highlights:
+
+1. Tasks can now be declared with `hatchet.task`, meaning you no longer _have_ to create a workflow explicitly to define a task. This should feel similar to how e.g. Celery handles task definition. Note that we recommend declaring a workflow in many cases, but the simplest possible way to get set up is to use `hatchet.task`.
+2. Tasks have a new signature. They now take two arguments: `input` and `context`. The `input` is either of type `input_validator` (a Pydantic model you provide to the workflow), or is an `EmptyModel`, which is a helper Pydantic model Hatchet provides and uses as a default. The `context` is once again the Hatchet `Context` object.
+3. Workflows can now be registered on a worker by using the `workflows` keyword argument to the `worker` method, although the old `register_workflows` method is still available.
+4. `max_runs` on the worker has been renamed to `slots`.
+
+#### Pydantic
+
+Hatchet's V1 SDK makes heavy use of Pydantic models, and recommends you do too! Let's dive into a more involved example using Pydantic in a fanout example.
+
+<GithubSnippet src={PydanticWorker} target="Pydantic" />
+
+In this example, we use a few more new SDK features:
+
+1. Workflows are now declared with `hatchet.workflow`, and then have their corresponding tasks registered with `workflow.task`.
+2. We define two Pydantic models, `ParentInput` and `ChildInput`, and pass them to the parent and child workflows as `input_validator`s. Note that now, the `input` parameters for the tasks in those two workflows are Pydantic models of those types, and we can treat them as such. This replaces the old `context.workflow_input` for accessing the input to the workflow / task - now, we just can access the input directly.
+3. When we want to spawn the child workflow, we can use the `run` methods on the `child_workflow` object, which is a Hatchet `Workflow`, instead of needing to refer to the workflow by its name (a string). The `input` field to `run()` is now also properly typed as `ChildInput`.
+4. The child workflow makes use of some of Hatchet's DAG features, such as defining parent tasks. In the new SDK, `parents` of a task are defined as a list of `Task` objects as opposed to as a list of strings, so now, `process2` has `process` (the `Task`) as its parent, as opposed to `"process"` (the string). This also allows us to use `ctx.task_output(process)` to access the output of the `process` task in the `process2` task, and know the type of that output at type checking time.
+
+See our [Pydantic documentation](./pydantic.mdx) for more.
+
+#### Other Breaking Changes
+
+There have been a number of other breaking changes throughout the SDK in V1.
+
+Typing improvements:
+
+1. All times and durations, such as `timeout` and `schedule_timeout` fields are now `datetime.timedelta` objects instead of strings (e.g. `"10s"` becomes `timedelta(seconds=10)`).
+2. External-facing protobuf objects, such as `StickyStrategy` and `ConcurrencyLimitStrategy`, have been replaced by native Python enums to make working with them easier.
+3. All interactions with the `Workflow` object are now typed, so you know e.g. what the type of the input to the workflow needs to be at type checking time (we see this in the Pydantic example above).
+4. All external-facing types that are used for triggering workflows, scheduling workflows, etc. are now Pydantic objects, as opposed to being `TypedDict`s.
+5. The return type of each `Task` is restricted to a `JSONSerializableMapping` or a Pydantic model, to better align with what the Hatchet Engine expects.
+6. The `ClientConfig` now uses Pydantic Settings, and we've removed the static methods on the Client for `from_environment` and `from_config` in favor of passing configuration in correctly. See the [configuration example](./client.mdx) for more details.
+
+Naming changes:
+
+1. We no longer have nested `aio` clients for async methods. Instead, async methods throughout the entire SDK are preferred by `aio_`, similar to [Langchain's use of the `a` prefix](https://python.langchain.com/docs/concepts/streaming/#stream-and-astream) to indicate async. For example, to run a workflow, you may now either use `workflow.run()` or `workflow.aio_run()`.
+2. All functions on Hatchet clients are now _verbs_. For instance `hatchet.admin.workflow_run_get` is now `hatchet.admin.get_workflow_run`.
+
+Removals:
+
+1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](../sdks/python-sdk/asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
+
+Other miscellaneous changes:
+
+1. As shown in the Pydantic example above, there is no longer a `spawn_workflow(s)` method on the `Context`. `run` is now the preferred method for spawning workflows, which will automatically propagate the parent's metadata to the child workflow.
+
+#### Other New features
+
+There are a handful of other new features that will make interfacing with the SDK easier, which are listed below.
+
+1. Concurrency keys using the `input` to a workflow are now checked for validity at runtime. If the workflow's `input_validator` does not contain a field that's used in a key, Hatchet will reject the workflow when it's created. For example, if the key is `input.user_id`, the `input_validator` Pydantic model _must_ contain a `user_id` field.
+2. There is now an `on_success_task` on the `Workflow` object, which works just like an on-failure task, but it runs after all upstream tasks in the workflow have _succeeded_.

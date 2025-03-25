@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.0.0"
+version = "1.0.0a1"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -16,7 +16,6 @@ grpcio-tools = [
     { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
     { version = ">=1.69.0", markers = "python_version >= '3.13'" },
 ]
-python-dotenv = "^1.0.0"
 protobuf = "^5.29.1"
 pyyaml = "^6.0.1"
 pydantic = "^2.6.3"
@@ -38,10 +37,11 @@ prometheus-client = "^0.21.1"
 pydantic-settings = "^2.7.1"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.2.2"
-pytest-asyncio = "^0.23.8"
+pytest = "^8.3.5"
+pytest-asyncio = "^0.25.3"
 psutil = "^6.0.0"
 grpc-stubs = "^1.53.0.5"
+pytest-xdist = "^3.6.1"
 
 [tool.poetry.group.lint.dependencies]
 mypy = "^1.14.0"
@@ -72,10 +72,9 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 log_cli = true
-env = [
-    "HATCHET_CLIENT_TLS_STRATEGY=none",
-    "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True",
-]
+env = ["HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.isort]
 profile = "black"
@@ -148,3 +147,5 @@ retries_with_backoff = "examples.retries_with_backoff.worker:main"
 pydantic = "examples.pydantic.worker:main"
 v2_simple = "examples.v2.simple.worker:main"
 otel = "examples.opentelemetry_instrumentation.worker:main"
+waits = "examples.waits.worker:main"
+durable = "examples.durable.worker:main"

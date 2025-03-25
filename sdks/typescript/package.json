@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "0.20.3",
+  "version": "1.0.0",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -15,7 +15,7 @@
     "url": "https://github.com/hatchet-dev/hatchet-typescript.git"
   },
   "scripts": {
-    "build": "echo 'build hatchet sdk with `npn run tsc:build` to ensure it is not build during the publish step' && exit 0",
+    "build": "echo 'build hatchet sdk with `npm run tsc:build` to ensure it is not build during the publish step' && exit 0",
     "prepare": "npm run build",
     "dump-version": "node -e \"console.log('export const HATCHET_VERSION = \\'' + require('./package.json').version + '\\';');\" > src/version.ts",
     "tsc:build": "npm run dump-version && tsc && resolve-tspaths",

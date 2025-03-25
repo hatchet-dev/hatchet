@@ -1,12 +1,9 @@
-from typing import Any, cast
+from datetime import timedelta
+from typing import Any
 
-from dotenv import load_dotenv
 from pydantic import BaseModel
 
-from hatchet_sdk import BaseWorkflow, ChildTriggerWorkflowOptions, Context, Hatchet
-from hatchet_sdk.workflow import SpawnWorkflowInput
-
-load_dotenv()
+from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
 
 hatchet = Hatchet(debug=True)
 
@@ -19,55 +16,43 @@ class ChildInput(BaseModel):
     a: str
 
 
-parent = hatchet.declare_workflow(
-    on_events=["parent:create"], input_validator=ParentInput
+sync_fanout_parent = hatchet.workflow(
+    name="SyncFanoutParent", input_validator=ParentInput
 )
-child = hatchet.declare_workflow(on_events=["child:create"], input_validator=ChildInput)
+sync_fanout_child = hatchet.workflow(name="SyncFanoutChild", input_validator=ChildInput)
 
 
-class SyncFanoutParent(BaseWorkflow):
-    config = parent.config
+@sync_fanout_parent.task(execution_timeout=timedelta(minutes=5))
+def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
+    print("spawning child")
 
-    @hatchet.step(timeout="5m")
-    def spawn(self, context: Context) -> dict[str, Any]:
-        print("spawning child")
+    results = sync_fanout_child.run_many(
+        [
+            sync_fanout_child.create_run_workflow_config(
+                input=ChildInput(a=str(i)),
+                key=f"child{i}",
+                options=TriggerWorkflowOptions(additional_metadata={"hello": "earth"}),
+            )
+            for i in range(input.n)
+        ],
+    )
 
-        n = parent.get_workflow_input(context).n
+    print(f"results {results}")
 
-        runs = child.spawn_many(
-            context,
-            [
-                SpawnWorkflowInput(
-                    input=ChildInput(a=str(i)),
-                    key=f"child{i}",
-                    options=ChildTriggerWorkflowOptions(
-                        additional_metadata={"hello": "earth"}
-                    ),
-                )
-                for i in range(n)
-            ],
-        )
-
-        results = [r.result() for r in runs]
-
-        print(f"results {results}")
-
-        return {"results": results}
+    return {"results": results}
 
 
-class SyncFanoutChild(BaseWorkflow):
-    config = child.config
-
-    @hatchet.step()
-    def process(self, context: Context) -> dict[str, str]:
-        a = cast(str, context.workflow_input["a"])
-        return {"status": "success " + a}
+@sync_fanout_child.task()
+def process(input: ChildInput, ctx: Context) -> dict[str, str]:
+    return {"status": "success " + input.a}
 
 
 def main() -> None:
-    worker = hatchet.worker("sync-fanout-worker", max_runs=40)
-    worker.register_workflow(SyncFanoutParent())
-    worker.register_workflow(SyncFanoutChild())
+    worker = hatchet.worker(
+        "sync-fanout-worker",
+        slots=40,
+        workflows=[sync_fanout_parent, sync_fanout_child],
+    )
     worker.start()
 
 

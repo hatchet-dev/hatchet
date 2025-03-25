@@ -1,73 +1,40 @@
+import asyncio
 import logging
 import os
 import subprocess
 import time
 from io import BytesIO
 from threading import Thread
-from typing import AsyncGenerator, Callable, Generator, cast
+from typing import AsyncGenerator, Callable, Generator
 
 import psutil
 import pytest
 import pytest_asyncio
 import requests
 
-from hatchet_sdk import ClientConfig, Hatchet
-from hatchet_sdk.config import ClientTLSConfig
+from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+from hatchet_sdk.clients.rest.models.update_tenant_request import UpdateTenantRequest
 
 
-@pytest.fixture(scope="session", autouse=True)
-def token() -> str:
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "run",
-            "--no-deps",
-            "setup-config",
-            "/hatchet/hatchet-admin",
-            "token",
-            "create",
-            "--config",
-            "/hatchet/config",
-            "--tenant-id",
-            "707d0855-80ab-4e1f-a156-f1c4546cbf52",
-        ],
-        capture_output=True,
-        text=True,
-    )
-
-    token = result.stdout.strip()
-
-    os.environ["HATCHET_CLIENT_TOKEN"] = token
-
-    return token
-
-
-@pytest_asyncio.fixture(scope="session")
-async def aiohatchet(token: str) -> AsyncGenerator[Hatchet, None]:
+@pytest_asyncio.fixture(loop_scope="session")
+async def aiohatchet() -> AsyncGenerator[Hatchet, None]:
     yield Hatchet(
         debug=True,
-        config=ClientConfig(
-            token=token,
-            tls_config=ClientTLSConfig(strategy="none"),
-        ),
     )
 
 
 @pytest.fixture(scope="session")
-def hatchet(token: str) -> Hatchet:
+def hatchet() -> Hatchet:
     return Hatchet(
         debug=True,
-        config=ClientConfig(
-            token=token,
-            tls_config=ClientTLSConfig(strategy="none"),
-        ),
     )
 
 
 def wait_for_worker_health() -> bool:
     worker_healthcheck_attempts = 0
-    max_healthcheck_attempts = 10
+    max_healthcheck_attempts = 25
 
     while True:
         if worker_healthcheck_attempts > max_healthcheck_attempts:
@@ -85,13 +52,28 @@ def wait_for_worker_health() -> bool:
         worker_healthcheck_attempts += 1
 
 
-@pytest.fixture()
-def worker(
-    request: pytest.FixtureRequest,
-) -> Generator[subprocess.Popen[bytes], None, None]:
-    example = cast(str, request.param)
+def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
+    for line in iter(pipe.readline, b""):
+        print(line.decode().strip())
 
-    command = ["poetry", "run", example]
+
+@pytest.fixture(scope="session", autouse=True)
+def worker() -> Generator[subprocess.Popen[bytes], None, None]:
+    hatchet = Hatchet()
+
+    api = TenantApi(hatchet.rest.api_client)
+
+    try:
+        asyncio.run(
+            api.tenant_update(
+                tenant=hatchet.config.tenant_id,
+                update_tenant_request=UpdateTenantRequest(version=TenantVersion.V1),
+            )
+        )
+    except Exception as e:
+        print(e)
+
+    command = ["poetry", "run", "python", "examples/worker.py"]
 
     logging.info(f"Starting background worker: {' '.join(command)}")
 
@@ -103,25 +85,25 @@ def worker(
     if proc.poll() is not None:
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
-    wait_for_worker_health()
-
-    def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
-        for line in iter(pipe.readline, b""):
-            print(line.decode().strip())
-
     Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
     Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()
+
+    wait_for_worker_health()
 
     yield proc
 
     logging.info("Cleaning up background worker")
+
     parent = psutil.Process(proc.pid)
     children = parent.children(recursive=True)
+
     for child in children:
         child.terminate()
+
     parent.terminate()
 
     _, alive = psutil.wait_procs([parent] + children, timeout=5)
+
     for p in alive:
         logging.warning(f"Force killing process {p.pid}")
         p.kill()

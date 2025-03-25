@@ -1,10 +1,9 @@
-from hatchet_sdk.client import new_client
 from hatchet_sdk.clients.admin import (
-    ChildTriggerWorkflowOptions,
     DedupeViolationErr,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
+from hatchet_sdk.clients.durable_event_listener import RegisterDurableEventRequest
 from hatchet_sdk.clients.events import PushEventOptions
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 
@@ -76,7 +75,6 @@ from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
 from hatchet_sdk.clients.rest.models.reject_invite_request import RejectInviteRequest
 from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
 from hatchet_sdk.clients.rest.models.rerun_step_run_request import RerunStepRunRequest
-from hatchet_sdk.clients.rest.models.step import Step
 from hatchet_sdk.clients.rest.models.step_run import StepRun
 from hatchet_sdk.clients.rest.models.step_run_diff import StepRunDiff
 from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
@@ -130,7 +128,7 @@ from hatchet_sdk.clients.run_event_listener import (
     WorkflowRunEventType,
 )
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.context.context import Context
+from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import (
     CreateWorkflowVersionOpts,
@@ -138,15 +136,24 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     WorkerLabelComparator,
 )
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.utils.aio_utils import sync_to_async
-from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
-from hatchet_sdk.workflow import (
-    BaseWorkflow,
+from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
+    EmptyModel,
     StickyStrategy,
+    TaskDefaults,
     WorkflowConfig,
 )
+from hatchet_sdk.waits import (
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+    or_,
+)
+from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 
 __all__ = [
     "AcceptInviteRequest",
@@ -191,11 +198,9 @@ __all__ = [
     "RejectInviteRequest",
     "ReplayEventRequest",
     "RerunStepRunRequest",
-    "Step",
     "StepRun",
     "StepRunDiff",
     "StepRunStatus",
-    "sync_to_async",
     "Tenant",
     "TenantInvite",
     "TenantInviteList",
@@ -231,8 +236,6 @@ __all__ = [
     "CreateWorkflowVersionOpts",
     "RateLimitDuration",
     "StickyStrategy",
-    "new_client",
-    "ChildTriggerWorkflowOptions",
     "DedupeViolationErr",
     "ScheduleTriggerWorkflowOptions",
     "TriggerWorkflowOptions",
@@ -243,14 +246,22 @@ __all__ = [
     "WorkerContext",
     "ClientConfig",
     "Hatchet",
-    "concurrency",
-    "on_failure_step",
-    "step",
     "workflow",
     "Worker",
     "WorkerStartOptions",
     "WorkerStatus",
     "ConcurrencyExpression",
-    "BaseWorkflow",
+    "Workflow",
     "WorkflowConfig",
+    "Task",
+    "EmptyModel",
+    "Condition",
+    "OrGroup",
+    "or_",
+    "SleepCondition",
+    "UserEventCondition",
+    "ParentCondition",
+    "DurableContext",
+    "RegisterDurableEventRequest",
+    "TaskDefaults",
 ]

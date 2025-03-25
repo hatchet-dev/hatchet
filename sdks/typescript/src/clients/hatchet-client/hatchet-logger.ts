@@ -23,7 +23,6 @@ export class HatchetLogger implements Logger {
         minute: '2-digit',
         second: '2-digit',
       });
-      // eslint-disable-next-line no-console
 
       // eslint-disable-next-line prefer-destructuring
       let print = console.log;

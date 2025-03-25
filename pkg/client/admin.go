@@ -18,6 +18,8 @@ import (
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 type ChildWorkflowOpts struct {
@@ -37,6 +39,8 @@ type WorkflowRun struct {
 
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
+	PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, opts ...PutOptFunc) error
+
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
@@ -59,7 +63,8 @@ func (d *DedupeViolationErr) Error() string {
 }
 
 type adminClientImpl struct {
-	client admincontracts.WorkflowServiceClient
+	client   admincontracts.WorkflowServiceClient
+	v1Client v1contracts.AdminServiceClient
 
 	l *zerolog.Logger
 
@@ -80,6 +85,7 @@ type adminClientImpl struct {
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
 	return &adminClientImpl{
 		client:     admincontracts.NewWorkflowServiceClient(conn),
+		v1Client:   v1contracts.NewAdminServiceClient(conn),
 		l:          opts.l,
 		v:          opts.v,
 		ctx:        opts.ctxLoader,
@@ -112,6 +118,22 @@ func (a *adminClientImpl) PutWorkflow(workflow *types.Workflow, fs ...PutOptFunc
 	}
 
 	_, err = a.client.PutWorkflow(a.ctx.newContext(context.Background()), req)
+
+	if err != nil {
+		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
+	}
+
+	return nil
+}
+
+func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVersionRequest, fs ...PutOptFunc) error {
+	opts := defaultPutOpts()
+
+	for _, f := range fs {
+		f(opts)
+	}
+
+	_, err := a.v1Client.PutWorkflow(a.ctx.newContext(context.Background()), workflow)
 
 	if err != nil {
 		return fmt.Errorf("could not create workflow %s: %w", workflow.Name, err)
@@ -456,7 +478,6 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 
 		opts.Concurrency.LimitStrategy = &limitStrat
 
-		// TODO: should be a pointer because users might want to set maxRuns temporarily for disabling
 		if workflow.Concurrency.MaxRuns != 0 {
 			maxRuns := workflow.Concurrency.MaxRuns
 			opts.Concurrency.MaxRuns = &maxRuns
@@ -548,6 +569,29 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 			if rateLimit.Units != nil {
 				units := int32(*rateLimit.Units) // nolint: gosec
 				opt.Units = &units
+			}
+
+			if rateLimit.Duration != nil {
+				var duration admincontracts.RateLimitDuration
+
+				switch *rateLimit.Duration {
+				case types.Year:
+					duration = admincontracts.RateLimitDuration_YEAR
+				case types.Month:
+					duration = admincontracts.RateLimitDuration_MONTH
+				case types.Day:
+					duration = admincontracts.RateLimitDuration_DAY
+				case types.Hour:
+					duration = admincontracts.RateLimitDuration_HOUR
+				case types.Minute:
+					duration = admincontracts.RateLimitDuration_MINUTE
+				case types.Second:
+					duration = admincontracts.RateLimitDuration_SECOND
+				default:
+					duration = admincontracts.RateLimitDuration_MINUTE
+				}
+
+				opt.Duration = &duration
 			}
 
 			stepOpt.RateLimits = append(stepOpt.RateLimits, opt)

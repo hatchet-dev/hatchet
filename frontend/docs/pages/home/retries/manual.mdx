@@ -1,0 +1,16 @@
+# Manual Retries
+
+In addition to [automatic task-level retries](./simple.mdx), Hatchet provides a manual retry mechanism that allows you to handle failed workflow instances flexibly from the Hatchet dashboard.
+
+Navigate to the specific workflow in the Hatchet dashboard and click on the failed run. From there, you can inspect the details of the run, including the input data and the failure reason for each task.
+
+To retry a failed task, simply click on the task in the run details view and then click the "Replay" button. This will create a new instance of the workflow, starting from the failed task, and using the same input data as the original run.
+
+Manual retries give you full control over when and how to reprocess failed instances. For example, you may choose to wait until an external service is back online before retrying instances that depend on that service, or you may need to deploy a bug fix to your workflow code before retrying instances that were affected by the bug.
+
+## Bulk Retries
+
+As of [Hatchet V1](../announcement.mdx), you can also retry tasks in bulk from the dashboard. There are two ways to achieve this:
+
+1. Select any number of rows in the table of task and workflow runs in the dashboard to replay, and then hit the `Replay` button to replay them. You'll be asked for confirmation.
+2. If you hit replay _without_ selecting rows, you'll see a modal showing you filters you can apply to decide which runs to replay. This allows you to replay tasks based on status, workflow name, additional metadata, and so on.

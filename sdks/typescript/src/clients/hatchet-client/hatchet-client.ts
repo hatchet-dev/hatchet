@@ -11,17 +11,18 @@ import {
   createClientFactory,
   Metadata,
 } from 'nice-grpc';
-import { Workflow } from '@hatchet/workflow';
-import { Worker, WorkerOpts } from '@clients/worker';
+import { Workflow as V0Workflow } from '@hatchet/workflow';
+import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { ClientConfig, ClientConfigSchema } from './client-config';
-import { ListenerClient } from '../listener/listener-client';
+import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 import { Api } from '../rest/generated/Api';
 import api from '../rest';
 import { CronClient } from './features/cron-client';
 import { ScheduleClient } from './features/schedule-client';
+import { DurableListenerClient } from '../listeners/durable-listener/durable-listener-client';
 
 export interface HatchetClientOptions {
   config_path?: string;
@@ -62,15 +63,17 @@ export const addTokenMiddleware = (token: string) =>
     return undefined;
   };
 
-export class HatchetClient {
+export class InternalHatchetClient {
   config: ClientConfig;
   credentials: ChannelCredentials;
   event: EventClient;
   dispatcher: DispatcherClient;
   admin: AdminClient;
   api: Api;
-  listener: ListenerClient;
+  listener: RunListenerClient;
   tenantId: string;
+
+  durableListener: DurableListenerClient;
 
   logger: Logger;
 
@@ -125,7 +128,7 @@ export class HatchetClient {
       channelFactory(this.config, this.credentials),
       clientFactory
     );
-    this.listener = new ListenerClient(
+    this.listener = new RunListenerClient(
       this.config,
       channelFactory(this.config, this.credentials),
       clientFactory,
@@ -140,8 +143,15 @@ export class HatchetClient {
       this.listener
     );
 
+    this.durableListener = new DurableListenerClient(
+      this.config,
+      channelFactory(this.config, this.credentials),
+      clientFactory,
+      this.api
+    );
+
     this.logger = this.config.logger('HatchetClient', this.config.log_level);
-    this.logger.info(`Initialized HatchetClient`);
+    this.logger.debug(`Initialized HatchetClient`);
 
     // Feature Clients
     this.cron = new CronClient(this.tenantId, this.config, this.api, this.admin);
@@ -152,12 +162,12 @@ export class HatchetClient {
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): HatchetClient {
-    return new HatchetClient(config, options, axiosConfig);
+  ): InternalHatchetClient {
+    return new InternalHatchetClient(config, options, axiosConfig);
   }
 
   // @deprecated
-  async run(workflow: string | Workflow): Promise<Worker> {
+  async run(workflow: string | V0Workflow): Promise<V0Worker> {
     this.logger.warn(
       'HatchetClient.run is deprecated and will be removed in a future release. Use HatchetClient.worker and Worker.start instead.'
     );
@@ -167,9 +177,9 @@ export class HatchetClient {
   }
 
   async worker(
-    workflow: string | Workflow,
+    workflow: string | V0Workflow,
     opts?: Omit<WorkerOpts, 'name'> | number
-  ): Promise<Worker> {
+  ): Promise<V0Worker> {
     const name = typeof workflow === 'string' ? workflow : workflow.id;
 
     let options: WorkerOpts = {
@@ -185,7 +195,7 @@ export class HatchetClient {
       options = { ...options, ...opts };
     }
 
-    const worker = new Worker(this, options);
+    const worker = new V0Worker(this, options);
 
     if (typeof workflow !== 'string') {
       await worker.registerWorkflow(workflow);
@@ -195,8 +205,9 @@ export class HatchetClient {
     return worker;
   }
 
-  webhooks(workflows: Workflow[]) {
-    const worker = new Worker(this, {
+  webhooks(workflows: Array<V0Workflow>) {
+    // TODO v1 workflows
+    const worker = new V0Worker(this, {
       name: 'webhook-worker',
     });
 

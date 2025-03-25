@@ -1,0 +1,94 @@
+import { FileTree } from "nextra/components";
+import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const LoggerClientPy = {
+  path: "examples/logger/client.py",
+};
+
+export const LoggerWorkflowPy = {
+  path: "examples/logger/workflow.py",
+};
+
+export const LoggerWorkflowTs = {
+  path: "src/examples/logger.ts",
+};
+
+export const ByoLoggerTs = {
+  path: "src/examples/byo-logger.ts",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([
+    LoggerClientPy,
+    LoggerWorkflowPy,
+    LoggerWorkflowTs,
+    ByoLoggerTs,
+  ]);
+
+# Logging
+
+Hatchet comes with a built-in logging view where you can push logs from your workflows. This is useful for debugging and monitoring your workflows.
+
+<UniversalTabs items={['Python', 'TypeScript']}>
+{/* <UniversalTabs items={['Python', 'Typescript']}> TODO V1 DOCS -- Add Go logging and add this tab back */}
+  <Tabs.Tab>
+You can use either Python's built-in `logging` package, or the `context.log` method for more control over the logs that are sent.
+
+## Using the built-in `logging` package
+
+You can pass a custom logger to the `Hatchet` class when initializing it. For example:
+
+<GithubSnippet src={LoggerClientPy} target="RootLogger" />
+
+It's recommended that you pass the root logger to the `Hatchet` class, as this will ensure that all logs are captured by the Hatchet logger. If you have workflows defined in multiple files, they should be children of the root logger. For example, with the following file structure:
+
+<FileTree>
+  <FileTree.File name="client.py" />
+  <FileTree.File name="worker.py" />
+  <FileTree.Folder name="workflows" defaultOpen>
+    <FileTree.File name="workflow.py" />
+  </FileTree.Folder>
+</FileTree>
+
+You should pass the root logger to the `Hatchet` class in `client.py`:
+
+<GithubSnippet src={LoggerClientPy} target="RootLogger" />
+
+And then in `workflows/workflow.py`, you should create a child logger:
+
+<GithubSnippet src={LoggerWorkflowPy} target="LoggingWorkflow" />
+
+## Using the `context.log` method
+
+You can also use the `context.log` method to log messages from your workflows. This method is available on the `Context` object that is passed to each task in your workflow. For example:
+
+<GithubSnippet src={LoggerWorkflowPy} target="ContextLogger" />
+
+Each task is currently limited to 1000 log lines.
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+
+In TypeScript, there are two options for logging from your tasks. The first is to use the `ctx.log()` method (from the `Context`) to send logs:
+
+<GithubSnippet src={LoggerWorkflowTs} target="Logger" />
+
+This has the benefit of being easy to use out of the box (no setup required!), but it's limited in its flexibiliy and how pluggable it is with your existing logging setup.
+
+Hatchet also allows you to "bring your own" logger when you define a workflow:
+
+<GithubSnippet src={ByoLoggerTs} target="Create Pino logger" />
+
+In this example, we create Pino logger that implement's Hatchet's `Logger` interface and pass it to the Hatchet client constructor. We can then use that logger in our steps:
+
+<GithubSnippet src={ByoLoggerTs} target="Use the logger" />
+
+</Tabs.Tab>
+{/* <Tabs.Tab>
+TODO V1 DOCS - ADD GO LOGGING HERE
+</Tabs.Tab> */}
+
+</UniversalTabs>

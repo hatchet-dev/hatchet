@@ -1,0 +1,96 @@
+import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const StickyWorkerPy = {
+  path: "examples/sticky_workers/worker.py",
+};
+export const StickyWorkerTS = {
+  path: "src/v1/examples/sticky/workflow.ts",
+};
+
+export const StickyWorkerGo = {
+  path: "examples/assignment-sticky/run.go",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([StickyWorkerPy, StickyWorkerTS, StickyWorkerGo]);
+
+# Sticky Worker Assignment (Beta)
+
+<Callout type="info">
+  This feature is currently in beta and may be subject to change.
+</Callout>
+
+Sticky assignment is a workflow property that allows you to specify that all tasks of a workflow should be assigned to the same worker for the duration of its execution. This can be useful in situations like when you need to maintain expensive local memory state across multiple tasks in a workflow or ensure that certain workflows are processed by the same worker for consistency.
+
+<Callout type="warning">
+  This feature is only compatible with long lived workers, and not webhook
+  workers.
+</Callout>
+
+## Setting Sticky Assignment
+
+Sticky assignment is set on the workflow level by adding the `sticky` property to the workflow definition. When a workflow is marked as sticky, all tasks within that workflow will be assigned to the same worker for the duration of the workflow execution.
+
+<Callout type="warning">
+  While sticky assignment can be useful in certain scenarios, it can also
+  introduce potential bottlenecks if the assigned worker becomes unavailable, or
+  if local state is not maintained when the job is picked up. Be sure to
+  consider the implications of sticky assignment when designing your workflows
+  and have a plan in place to handle local state issues.
+</Callout>
+
+There are two strategies for setting sticky assignment:
+
+- `SOFT`: The all tasks in the workflow will attempt to be assigned to the same worker, but if that worker is unavailable, it will be assigned to another worker.
+- `HARD`: The all tasks in the workflow will only be assigned to the same worker. If that worker is unavailable, the task run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](./timeouts.mdx#task-level-timeouts))
+
+<UniversalTabs items={['Python', 'Typescript']}>
+  <Tabs.Tab>
+
+<GithubSnippet src={StickyWorkerPy} target="StickyWorker" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+<GithubSnippet src={StickyWorkerTS} target="Sticky Task" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+<GithubSnippet src={StickyWorkerGo} target="StickyWorker" />
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+In this example, the `sticky` property is set to `SOFT`, which means that the workflow will attempt to be assigned to the same worker for the duration of its execution. If the original worker is unavailable, the workflow will be assigned to another worker.
+
+## Sticky Child Workflows
+
+It is possible to spawn child workflows on the same worker as the parent workflow by setting the `sticky` property to `true` in the `spawnWorkflow` method options. This can be useful when you need to maintain local state across multiple workflows or ensure that child workflows are processed by the same worker for consistency.
+
+However, the child workflow must:
+
+1. Specify a `sticky` strategy in the child workflow's definition
+2. Be registered with the same worker as the parent workflow
+
+If either condition is not met, an error will be thrown when the child workflow is spawned.
+
+<UniversalTabs items={['Python', 'Typescript']}>
+  <Tabs.Tab>
+
+<GithubSnippet src={StickyWorkerPy} target="StickyChild" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+<GithubSnippet src={StickyWorkerTS} target="Sticky Task" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+<GithubSnippet src={StickyWorkerGo} target="StickyChild" />
+
+  </Tabs.Tab>
+</UniversalTabs>

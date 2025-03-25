@@ -1,5 +1,12 @@
 import { Tabs, Steps, Callout, FileTree } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const SimpleWorker = {
+  path: "examples/simple/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([SimpleWorker]);
 
 # Docker Compose Deployment
 
@@ -197,36 +204,19 @@ You can also generate an API token by logging in and navigating to the "General"
 Make sure you have the following dependencies installed:
 
 ```sh
-pip install python-dotenv
 pip install hatchet-sdk
 ```
 
-We are using [`python-dotenv`](https://pypi.org/project/python-dotenv/) to load the environment variables from a `.env` file. This isn't required, and you can use your own method to load environment variables.
+<Callout type="info" emoji="💡">
+  The Python SDK uses [Pydantic
+  Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) to
+  manage configuration, which will automatically try to load environment
+  variables from a `.env` file, if one is present.
+</Callout>
 
 Create a `worker.py` file with the following contents:
 
-```python filename="worker.py" copy
-from hatchet_sdk import Hatchet
-from dotenv import load_dotenv
-
-load_dotenv()
-
-hatchet = Hatchet(debug=True)
-
-@hatchet.workflow(name="first-python-workflow",on_events=["user:create"])
-class MyWorkflow:
-    @hatchet.step()
-    def step1(self, context):
-        return {
-            "result": "success"
-        }
-
-if __name__ == "__main__":
-    worker = hatchet.worker('first-worker')
-    worker.register_workflow(MyWorkflow())
-
-    worker.start()
-```
+<GithubSnippet src={SimpleWorker} target="Simple" />
 
 Open a new terminal and start the worker with:
 

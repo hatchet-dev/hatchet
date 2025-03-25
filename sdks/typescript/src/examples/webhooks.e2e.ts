@@ -1,13 +1,13 @@
 import { createServer } from 'node:http';
 import { AxiosError } from 'axios';
-import { Workflow, Worker } from '..';
+// import { InternalHatchetClient as Hatchet } from '@hatchet/clients/hatchet-client';
+import Hatchet, { Workflow, Worker } from '..';
 import sleep from '../util/sleep';
-import Hatchet from '../sdk';
 
 const port = 8369;
 
 describe('webhooks', () => {
-  let hatchet: Hatchet;
+  let hatchet: Hatchet; // TODO upgrade to v1
   let worker: Worker;
 
   beforeEach(async () => {
@@ -89,7 +89,7 @@ describe('webhooks', () => {
 
     console.log('pushing event...');
 
-    await hatchet.event.push('user:create-webhook', {
+    await hatchet.events.push('user:create-webhook', {
       test: 'test',
     });
 

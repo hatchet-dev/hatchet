@@ -1,24 +1,21 @@
-from hatchet_sdk import BaseWorkflow, Context, Hatchet
+# ❓ Simple
+
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
 
-class MyWorkflow(BaseWorkflow):
-    @hatchet.step(timeout="11s", retries=3)
-    def step1(self, context: Context) -> dict[str, str]:
-        print("executed step1")
-        return {
-            "step1": "step1",
-        }
+@hatchet.task(name="SimpleWorkflow")
+def step1(input: EmptyModel, ctx: Context) -> None:
+    print("executed step1")
 
 
 def main() -> None:
-    wf = MyWorkflow()
-
-    worker = hatchet.worker("test-worker", max_runs=1)
-    worker.register_workflow(wf)
+    worker = hatchet.worker("test-worker", slots=1, workflows=[step1])
     worker.start()
 
+
+# ‼️
 
 if __name__ == "__main__":
     main()

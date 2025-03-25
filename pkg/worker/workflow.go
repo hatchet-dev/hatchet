@@ -218,7 +218,7 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 
 		if j.Concurrency.fn != nil {
 			actionId := "concurrency:" + getFnName(j.Concurrency.fn)
-			w.Concurrency.ActionID = &actionId // TODO this should also be namespaced
+			w.Concurrency.ActionID = &actionId
 		}
 
 		if j.Concurrency.expr != nil {
@@ -287,7 +287,7 @@ func (j *WorkflowJob) ToActionMap(svcName string) ActionMap {
 	if j.Concurrency != nil && j.Concurrency.fn != nil {
 		res["concurrency:"+getFnName(j.Concurrency.fn)] = ActionWithCompute{
 			fn:      j.Concurrency.fn,
-			compute: nil, // TODO add compute to concurrency
+			compute: nil, // FIXME add compute to concurrency
 		}
 	}
 
@@ -337,6 +337,9 @@ type RateLimit struct {
 	Units          *int    `yaml:"units,omitempty"`
 	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
 	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
+
+	// Duration is the duration of the rate limit
+	Duration *types.RateLimitDuration `yaml:"duration,omitempty"`
 }
 
 func Fn(f any) *WorkflowStep {
@@ -461,6 +464,7 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 			Units:          rateLimit.Units,
 			UnitsExpr:      rateLimit.UnitsExpr,
 			LimitValueExpr: rateLimit.LimitValueExpr,
+			Duration:       rateLimit.Duration,
 		})
 	}
 

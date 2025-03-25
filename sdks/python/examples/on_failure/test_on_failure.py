@@ -2,15 +2,15 @@ import asyncio
 
 import pytest
 
+from examples.on_failure.worker import on_failure_wf
 from hatchet_sdk import Hatchet, Worker
-from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
 # requires scope module or higher for shared event loop
-@pytest.mark.asyncio(scope="session")
-@pytest.mark.parametrize("worker", ["on_failure"], indirect=True)
-async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("OnFailureWorkflow", {})
+@pytest.mark.asyncio(loop_scope="session")
+async def test_run_timeout(aiohatchet: Hatchet, worker: Worker) -> None:
+    run = on_failure_wf.run_no_wait()
     try:
         await run.aio_result()
 
@@ -20,12 +20,18 @@ async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
 
     await asyncio.sleep(5)  # Wait for the on_failure job to finish
 
-    job_runs = hatchet.rest.workflow_run_get(run.workflow_run_id).job_runs
-    assert job_runs
-    assert len(job_runs) == 2
+    details = await aiohatchet.rest.workflow_runs_api.v1_workflow_run_get(
+        run.workflow_run_id
+    )
 
-    successful_job_runs = [jr for jr in job_runs if jr.status == JobRunStatus.SUCCEEDED]
-    failed_job_runs = [jr for jr in job_runs if jr.status == JobRunStatus.FAILED]
+    assert len(details.tasks) == 2
+    assert sum(t.status == V1TaskStatus.COMPLETED for t in details.tasks) == 1
+    assert sum(t.status == V1TaskStatus.FAILED for t in details.tasks) == 1
 
-    assert len(successful_job_runs) == 1
-    assert len(failed_job_runs) == 1
+    completed_task = next(
+        t for t in details.tasks if t.status == V1TaskStatus.COMPLETED
+    )
+    failed_task = next(t for t in details.tasks if t.status == V1TaskStatus.FAILED)
+
+    assert "on_failure" in completed_task.display_name
+    assert "step1" in failed_task.display_name

@@ -4,6 +4,8 @@ import { Workflow } from '../workflow';
 
 const hatchet = Hatchet.init();
 
+// ❓ AffinityWorkflow
+
 const workflow: Workflow = {
   id: 'affinity-workflow',
   description: 'test',
@@ -15,7 +17,7 @@ const workflow: Workflow = {
         // eslint-disable-next-line no-plusplus
         for (let i = 0; i < 50; i++) {
           const result = await ctx.spawnWorkflow(childWorkflow.id, {});
-          results.push(result.result());
+          results.push(result.output);
         }
         console.log('Spawned 50 child workflows');
         console.log('Results:', await Promise.all(results));
@@ -25,6 +27,8 @@ const workflow: Workflow = {
     },
   ],
 };
+
+// ‼️
 
 const childWorkflow: Workflow = {
   id: 'child-affinity-workflow',
@@ -61,12 +65,17 @@ const childWorkflow: Workflow = {
 };
 
 async function main() {
+  // ❓ AffinityWorker
+
   const worker1 = await hatchet.worker('affinity-worker-1', {
     labels: {
       model: 'abc',
       memory: 1024,
     },
   });
+
+  // ‼️
+
   await worker1.registerWorkflow(workflow);
   await worker1.registerWorkflow(childWorkflow);
   worker1.start();

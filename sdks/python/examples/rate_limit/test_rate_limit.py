@@ -3,18 +3,18 @@ import time
 
 import pytest
 
-from hatchet_sdk import Hatchet, Worker
+from examples.rate_limit.worker import rate_limit_workflow
+from hatchet_sdk import Hatchet
 
 
 # requires scope module or higher for shared event loop
 @pytest.mark.skip(reason="The timing for this test is not reliable")
-@pytest.mark.asyncio(scope="session")
-@pytest.mark.parametrize("worker", ["rate_limit"], indirect=True)
-async def test_run(hatchet: Hatchet, worker: Worker) -> None:
+@pytest.mark.asyncio(loop_scope="session")
+async def test_run(hatchet: Hatchet) -> None:
 
-    run1 = hatchet.admin.run_workflow("RateLimitWorkflow", {})
-    run2 = hatchet.admin.run_workflow("RateLimitWorkflow", {})
-    run3 = hatchet.admin.run_workflow("RateLimitWorkflow", {})
+    run1 = rate_limit_workflow.run_no_wait()
+    run2 = rate_limit_workflow.run_no_wait()
+    run3 = rate_limit_workflow.run_no_wait()
 
     start_time = time.time()
 

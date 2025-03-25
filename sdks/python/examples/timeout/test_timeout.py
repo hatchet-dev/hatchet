@@ -1,23 +1,20 @@
 import pytest
 
-from hatchet_sdk import Hatchet, Worker
+from examples.timeout.worker import refresh_timeout_wf, timeout_wf
+from hatchet_sdk import Hatchet
 
 
 # requires scope module or higher for shared event loop
-@pytest.mark.asyncio(scope="session")
-@pytest.mark.parametrize("worker", ["timeout"], indirect=True)
-async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("TimeoutWorkflow", {})
-    try:
+@pytest.mark.asyncio(loop_scope="session")
+async def test_execution_timeout(hatchet: Hatchet) -> None:
+    run = timeout_wf.run_no_wait()
+
+    with pytest.raises(Exception, match="(Task exceeded timeout|TIMED_OUT)"):
         await run.aio_result()
-        assert False, "Expected workflow to timeout"
-    except Exception as e:
-        assert str(e) == "Workflow Errors: ['TIMED_OUT']"
 
 
-@pytest.mark.asyncio(scope="session")
-@pytest.mark.parametrize("worker", ["timeout"], indirect=True)
-async def test_run_refresh_timeout(hatchet: Hatchet, worker: Worker) -> None:
-    run = hatchet.admin.run_workflow("RefreshTimeoutWorkflow", {})
-    result = await run.aio_result()
-    assert result["step1"]["status"] == "success"
+@pytest.mark.asyncio(loop_scope="session")
+async def test_run_refresh_timeout(hatchet: Hatchet) -> None:
+    result = await refresh_timeout_wf.aio_run()
+
+    assert result["refresh_task"]["status"] == "success"

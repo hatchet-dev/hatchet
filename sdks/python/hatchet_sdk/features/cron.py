@@ -14,7 +14,7 @@ from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
-class CreateCronTriggerJSONSerializableMapping(BaseModel):
+class CreateCronTriggerConfig(BaseModel):
     """
     Schema for creating a workflow run triggered by a cron.
 
@@ -103,7 +103,7 @@ class CronClient:
         Returns:
             CronWorkflows: The created cron workflow instance.
         """
-        validated_input = CreateCronTriggerJSONSerializableMapping(
+        validated_input = CreateCronTriggerConfig(
             expression=expression, input=input, additional_metadata=additional_metadata
         )
 
@@ -197,7 +197,7 @@ class CronClient:
         Returns:
             CronWorkflows: The created cron workflow instance.
         """
-        validated_input = CreateCronTriggerJSONSerializableMapping(
+        validated_input = CreateCronTriggerConfig(
             expression=expression, input=input, additional_metadata=additional_metadata
         )
 

@@ -26,11 +26,14 @@ func run() (func() error, error) {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
+	// ❓ StickyWorker
+
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
-			On:             worker.Events("user:create:sticky"),
-			Name:           "sticky",
-			Description:    "sticky",
+			On:          worker.Events("user:create:sticky"),
+			Name:        "sticky",
+			Description: "sticky",
+			// 👀 Specify a sticky strategy when declaring the workflow
 			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_HARD),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
@@ -62,9 +65,14 @@ func run() (func() error, error) {
 			},
 		},
 	)
+
+	// ‼️
+
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
+
+	// ❓ StickyChild
 
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -80,6 +88,8 @@ func run() (func() error, error) {
 			},
 		},
 	)
+
+	// ‼️
 
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)

@@ -68,7 +68,6 @@ export class CronClient {
   async create(workflow: string | Workflow, cron: CreateCronInput): Promise<CronWorkflows> {
     const workflowId = typeof workflow === 'string' ? workflow : workflow.id;
 
-    console.log('workflowId', workflowId);
     // Validate cron input with zod schema
     try {
       const parsedCron = CreateCronTriggerSchema.parse(cron);

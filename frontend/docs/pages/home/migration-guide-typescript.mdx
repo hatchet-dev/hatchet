@@ -1,0 +1,47 @@
+import { GithubSnippet, getSnippets } from "@/components/code";
+import { Callout } from "nextra/components";
+
+export const SimpleWorker = {
+  path: "src/v1/examples/simple/workflow.ts",
+};
+export const FanoutWorker = {
+  path: "src/v1/examples/child_workflows/workflow.ts",
+};
+
+export const getStaticProps = ({}) => getSnippets([SimpleWorker, FanoutWorker]);
+
+## Hatchet TypeScript V1 Migration Guide
+
+This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK.
+
+#### Introductory Example
+
+First, a simple example of how to define a workflow with the V1 SDK:
+
+<GithubSnippet src={SimpleWorker} target="Declaring a Workflow" />
+
+Once you've declared your workflow, you can bind tasks to it:
+
+<GithubSnippet src={SimpleWorker} target="Binding a Task to a Workflow" />
+
+There are a few important things to note when migrating to the new SDK:
+
+1. The new SDK uses a factory pattern (shown above) for creating workflows and declaring their tasks, which we've found to be more ergonomic than the previous SDK.
+2. The old method of defining workflows will still work in the new SDK, but we recommend migrating over to the new method shown above for improved type checking and for access to new features.
+3. New features of the SDK, such as the new durable execution features rolled out in V1, will only be accessible from the new `WorkflowDeclaration` object in the new SDK.
+
+Since the old pattern for declaring workflows will still work in the new SDK, we recommend migrating existing workflows to the new patterns in V1 gradually.
+
+#### Fanout Example
+
+The new SDK also provides improved type support for spawning workflows (such as children) from around the codebase. Consider the following example:
+
+First, we declare a child workflow:
+
+<GithubSnippet src={FanoutWorker} target="Declaring a Child" />
+
+Next, we spawn that child from a parent workflow:
+
+<GithubSnippet src={FanoutWorker} target="Declaring a Parent" />
+
+In this example, the compiler knows what to expect for the types of `input` and `ctx` for each of the tasks, as well as the type of the input of the `child` task when spawning it from the `parent` task.

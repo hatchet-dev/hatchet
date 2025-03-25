@@ -1,4 +1,3 @@
-import contextvars
 import functools
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -8,14 +7,7 @@ from typing import Any, Awaitable, Callable, ItemsView, ParamSpec, TypeVar
 
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.logger import logger
-
-wr: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "workflow_run_id", default=None
-)
-sr: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "step_run_id", default=None
-)
-
+from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -37,8 +29,8 @@ class InjectingFilter(logging.Filter):
     # otherwise we would use emit within the CustomLogHandler
     def filter(self, record: logging.LogRecord) -> bool:
         ## TODO: Change how we do this to not assign to the log record
-        record.workflow_run_id = wr.get()
-        record.step_run_id = sr.get()
+        record.workflow_run_id = ctx_workflow_run_id.get()
+        record.step_run_id = ctx_step_run_id.get()
         return True
 
 

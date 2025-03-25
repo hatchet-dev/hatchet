@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Coroutine
+from typing import Any
 
 from hatchet_sdk.clients.run_event_listener import (
     RunEventListener,
@@ -10,8 +10,6 @@ from hatchet_sdk.utils.aio_utils import get_active_event_loop
 
 
 class WorkflowRunRef:
-    workflow_run_id: str
-
     def __init__(
         self,
         workflow_run_id: str,
@@ -28,11 +26,12 @@ class WorkflowRunRef:
     def stream(self) -> RunEventListener:
         return self.workflow_run_event_listener.stream(self.workflow_run_id)
 
-    def aio_result(self) -> Coroutine[None, None, dict[str, Any]]:
-        return self.workflow_listener.result(self.workflow_run_id)
+    async def aio_result(self) -> dict[str, Any]:
+        return await self.workflow_listener.result(self.workflow_run_id)
 
     def result(self) -> dict[str, Any]:
         coro = self.workflow_listener.result(self.workflow_run_id)
+
         loop = get_active_event_loop()
 
         if loop is None:
