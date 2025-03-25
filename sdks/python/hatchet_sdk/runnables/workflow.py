@@ -49,6 +49,7 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
+    from hatchet_sdk.runnables.standalone import Standalone
 
 
 def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
@@ -67,12 +68,7 @@ class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
     options: TriggerWorkflowOptions
 
 
-class Workflow(Generic[TWorkflowInput]):
-    """
-    A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow, such as
-    running / spawning children and scheduling future runs.
-    """
-
+class BaseWorkflow(Generic[TWorkflowInput]):
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
         self.config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
@@ -287,6 +283,13 @@ class Workflow(Generic[TWorkflowInput]):
             options=options,
             key=key,
         )
+
+
+class Workflow(BaseWorkflow[TWorkflowInput]):
+    """
+    A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow, such as
+    running / spawning children and scheduling future runs.
+    """
 
     def run_no_wait(
         self,
@@ -724,3 +727,38 @@ class Workflow(Generic[TWorkflowInput]):
             return task
 
         return inner
+
+    def add_task(self, task: "Standalone[TWorkflowInput, Any]") -> None:
+        """
+        Add a task to a workflow. Intended to be used with a previously existing task (a Standalone),
+        such as one created with `@hatchet.task()`, which has been converted to a `Task` object using `to_task`.
+
+        For example:
+
+        ```python
+        @hatchet.task()
+        def my_task(input, ctx) -> None:
+            pass
+
+        wf = hatchet.workflow()
+
+        wf.add_task(my_task.to_task())
+        ```
+        """
+        _task = task._task
+
+        match _task.type:
+            case StepType.DEFAULT:
+                self._default_tasks.append(_task)
+            case StepType.ON_FAILURE:
+                if self._on_failure_task:
+                    raise ValueError("Only one on-failure task is allowed")
+
+                self._on_failure_task = _task
+            case StepType.ON_SUCCESS:
+                if self._on_success_task:
+                    raise ValueError("Only one on-success task is allowed")
+
+                self._on_success_task = _task
+            case _:
+                raise ValueError("Invalid task type")

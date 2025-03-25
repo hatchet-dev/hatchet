@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from typing import Any, Type, TypeVar, cast, overload
+from typing import Any, Callable, Type, cast, overload
 
+from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -11,19 +12,24 @@ from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
+from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.types import (
+    DEFAULT_EXECUTION_TIMEOUT,
+    DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
     EmptyModel,
+    R,
     StickyStrategy,
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
 )
-from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.worker.worker import Worker
-
-R = TypeVar("R")
 
 
 class Hatchet:
@@ -105,7 +111,7 @@ class Hatchet:
         name: str,
         slots: int = 100,
         labels: dict[str, str | int] = {},
-        workflows: list[Workflow[Any]] = [],
+        workflows: list[BaseWorkflow[Any]] = [],
     ) -> Worker:
         """
         Create a Hatchet worker on which to run workflows.
@@ -240,3 +246,338 @@ class Hatchet:
             ),
             self,
         )
+
+    @overload
+    def task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: None = None,
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]: ...
+
+    @overload
+    def task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: Type[TWorkflowInput],
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+    ]: ...
+
+    def task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: Type[TWorkflowInput] | None = None,
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> (
+        Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]
+        | Callable[
+            [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+        ]
+    ):
+        """
+        A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.
+
+        :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
+        :type name: str
+
+        :param description: An optional description for the task. Default: None
+        :type description: str | None
+
+        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
+        :type input_validator: Type[BaseModel]
+
+        :param on_events: A list of event triggers for the task - events which cause the task to be run. Defaults to an empty list.
+        :type on_events: list[str]
+
+        :param on_crons: A list of cron triggers for the task. Defaults to an empty list.
+        :type on_crons: list[str]
+
+        :param version: A version for the task. Default: None
+        :type version: str | None
+
+        :param sticky: A sticky strategy for the task. Default: None
+        :type sticky: StickyStrategy | None
+
+        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling. Default: 1
+        :type default_priority: int
+
+        :param concurrency: A concurrency object controlling the concurrency settings for this task.
+        :type concurrency: ConcurrencyExpression | None
+
+        :param schedule_timeout: The maximum time allowed for scheduling the task. Default: DEFAULT_SCHEDULE_TIMEOUT
+        :type schedule_timeout: Duration
+
+        :param execution_timeout: The maximum time allowed for executing the task. Default: DEFAULT_EXECUTION_TIMEOUT
+        :type execution_timeout: Duration
+
+        :param retries: The number of times to retry the task before failing. Default: 0
+        :type retries: int
+
+        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list.
+        :type rate_limits: list[RateLimit]
+
+        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
+        :type desired_worker_labels: dict[str, DesiredWorkerLabel]
+
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: None
+        :type backoff_factor: float | None
+
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: None
+        :type backoff_max_seconds: int | None
+
+        :returns: A decorator which creates a `Standalone` task object.
+        :rtype: Callable[[Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]]
+        """
+
+        workflow = Workflow[TWorkflowInput](
+            WorkflowConfig(
+                name=name,
+                version=version,
+                description=description,
+                on_events=on_events,
+                on_crons=on_crons,
+                sticky=sticky,
+                concurrency=concurrency,
+                input_validator=input_validator
+                or cast(Type[TWorkflowInput], EmptyModel),
+            ),
+            self,
+        )
+
+        task_wrapper = workflow.task(
+            name=name,
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            parents=[],
+            retries=retries,
+            rate_limits=rate_limits,
+            desired_worker_labels=desired_worker_labels,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            concurrency=[concurrency] if concurrency else [],
+        )
+
+        def inner(
+            func: Callable[[TWorkflowInput, Context], R]
+        ) -> Standalone[TWorkflowInput, R]:
+            created_task = task_wrapper(func)
+
+            return Standalone[TWorkflowInput, R](
+                workflow=workflow,
+                task=created_task,
+            )
+
+        return inner
+
+    @overload
+    def durable_task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: None = None,
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]
+    ]: ...
+
+    @overload
+    def durable_task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: Type[TWorkflowInput],
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [Callable[[TWorkflowInput, DurableContext], R]], Standalone[TWorkflowInput, R]
+    ]: ...
+
+    def durable_task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: Type[TWorkflowInput] | None = None,
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> (
+        Callable[[Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]]
+        | Callable[
+            [Callable[[TWorkflowInput, DurableContext], R]],
+            Standalone[TWorkflowInput, R],
+        ]
+    ):
+        """
+        A decorator to transform a function into a standalone Hatchet _durable_ task that runs as part of a workflow.
+
+        :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
+        :type name: str
+
+        :param description: An optional description for the task. Default: None
+        :type description: str | None
+
+        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
+        :type input_validator: Type[BaseModel]
+
+        :param on_events: A list of event triggers for the task - events which cause the task to be run. Defaults to an empty list.
+        :type on_events: list[str]
+
+        :param on_crons: A list of cron triggers for the task. Defaults to an empty list.
+        :type on_crons: list[str]
+
+        :param version: A version for the task. Default: None
+        :type version: str | None
+
+        :param sticky: A sticky strategy for the task. Default: None
+        :type sticky: StickyStrategy | None
+
+        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling. Default: 1
+        :type default_priority: int
+
+        :param concurrency: A concurrency object controlling the concurrency settings for this task.
+        :type concurrency: ConcurrencyExpression | None
+
+        :param schedule_timeout: The maximum time allowed for scheduling the task. Default: DEFAULT_SCHEDULE_TIMEOUT
+        :type schedule_timeout: Duration
+
+        :param execution_timeout: The maximum time allowed for executing the task. Default: DEFAULT_EXECUTION_TIMEOUT
+        :type execution_timeout: Duration
+
+        :param retries: The number of times to retry the task before failing. Default: 0
+        :type retries: int
+
+        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list.
+        :type rate_limits: list[RateLimit]
+
+        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
+        :type desired_worker_labels: dict[str, DesiredWorkerLabel]
+
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: None
+        :type backoff_factor: float | None
+
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: None
+        :type backoff_max_seconds: int | None
+
+        :returns: A decorator which creates a `Standalone` task object.
+        :rtype: Callable[[Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]]
+        """
+
+        workflow = Workflow[TWorkflowInput](
+            WorkflowConfig(
+                name=name,
+                version=version,
+                description=description,
+                on_events=on_events,
+                on_crons=on_crons,
+                sticky=sticky,
+                concurrency=concurrency,
+                input_validator=input_validator
+                or cast(Type[TWorkflowInput], EmptyModel),
+            ),
+            self,
+        )
+
+        task_wrapper = workflow.durable_task(
+            name=name,
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            parents=[],
+            retries=retries,
+            rate_limits=rate_limits,
+            desired_worker_labels=desired_worker_labels,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            concurrency=[concurrency] if concurrency else [],
+        )
+
+        def inner(
+            func: Callable[[TWorkflowInput, DurableContext], R]
+        ) -> Standalone[TWorkflowInput, R]:
+            created_task = task_wrapper(func)
+
+            return Standalone[TWorkflowInput, R](
+                workflow=workflow,
+                task=created_task,
+            )
+
+        return inner

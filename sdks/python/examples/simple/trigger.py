@@ -1,3 +1,3 @@
-from examples.simple.worker import simple
+from examples.simple.worker import step1
 
-simple.run()
+step1.run()

@@ -25,7 +25,7 @@ async def ephemeral_task(input: EmptyModel, ctx: Context) -> None:
 @durable_workflow.durable_task()
 async def durable_task(input: EmptyModel, ctx: DurableContext) -> None:
     print("Waiting for sleep")
-    await ctx.aio_wait_for_sleep(duration=timedelta(seconds=SLEEP_TIME))
+    await ctx.aio_sleep_for(duration=timedelta(seconds=SLEEP_TIME))
     print("Sleep finished")
 
     print("Waiting for event")
