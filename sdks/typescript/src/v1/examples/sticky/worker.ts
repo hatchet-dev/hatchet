@@ -1,5 +1,5 @@
 import { hatchet } from '../hatchet-client';
-import { retries } from './workflow';
+import { retries } from '../retries/workflow';
 
 async function main() {
   const worker = await hatchet.worker('always-fail-worker', {
