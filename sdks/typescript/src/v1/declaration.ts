@@ -13,6 +13,7 @@ import {
   TaskFn,
   CreateWorkflowDurableTaskOpts,
   CreateBaseTaskOpts,
+  CreateOnSuccessTaskOpts,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -83,6 +84,13 @@ export type CreateBaseWorkflowOpts = {
    * @param ctx The context of the workflow.
    */
   onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
+
+  /**
+   * (optional) onSuccess handler for the workflow.
+   * Invoked when all tasks in the workflow complete successfully.
+   * @param ctx The context of the workflow.
+   */
+  onSuccess?: TaskFn<any, any> | CreateOnSuccessTaskOpts<any, any>;
 };
 
 export type CreateTaskWorkflowOpts<

@@ -24,7 +24,11 @@ import { WebhookHandler } from '@clients/worker/handler';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
-import { CreateOnFailureTaskOpts } from '@hatchet/v1/task';
+import {
+  CreateOnFailureTaskOpts,
+  CreateOnSuccessTaskOpts,
+  CreateWorkflowTaskOpts,
+} from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { Context, CreateStep, DurableContext, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
@@ -191,7 +195,7 @@ export class V0Worker {
 
       if (workflow.onFailure && typeof workflow.onFailure === 'function') {
         onFailureTask = {
-          readableId: 'on-failure',
+          readableId: 'on-failure-task',
           action: onFailureTaskName(workflow),
           timeout: '60s',
           inputs: '{}',
@@ -207,7 +211,7 @@ export class V0Worker {
         const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
 
         onFailureTask = {
-          readableId: 'on-failure',
+          readableId: 'on-failure-task',
           action: onFailureTaskName(workflow),
           timeout: onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
           scheduleTimeout: onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
@@ -223,6 +227,45 @@ export class V0Worker {
           backoffMaxSeconds:
             onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
         };
+      }
+
+      let onSuccessTask: CreateWorkflowTaskOpts<any, any> | undefined;
+
+      if (workflow.onSuccess && typeof workflow.onSuccess === 'function') {
+        const parents = getLeaves(workflow.tasks);
+
+        onSuccessTask = {
+          name: 'on-success-task',
+          fn: workflow.onSuccess,
+          timeout: '60s',
+          parents,
+          retries: 0,
+          rateLimits: [],
+          workerLabels: {},
+          concurrency: [],
+        };
+      }
+
+      if (workflow.onSuccess && typeof workflow.onSuccess === 'object') {
+        const onSuccess = workflow.onSuccess as CreateOnSuccessTaskOpts<any, any>;
+        const parents = getLeaves(workflow.tasks);
+
+        onSuccessTask = {
+          name: 'on-success-task',
+          fn: onSuccess.fn,
+          timeout: onSuccess.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
+          scheduleTimeout: onSuccess.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          parents,
+          retries: onSuccess.retries || workflow.taskDefaults?.retries || 0,
+          rateLimits: onSuccess.rateLimits || workflow.taskDefaults?.rateLimits,
+          workerLabels: onSuccess.workerLabels || workflow.taskDefaults?.workerLabels,
+          concurrency: onSuccess.concurrency || workflow.taskDefaults?.concurrency,
+          backoff: onSuccess.backoff || workflow.taskDefaults?.backoff,
+        };
+      }
+
+      if (onSuccessTask) {
+        workflow.tasks.push(onSuccessTask);
       }
 
       // cron and event triggers
@@ -807,5 +850,16 @@ function toPbWorkerLabel(
 }
 
 function onFailureTaskName(workflow: WorkflowDefinition) {
-  return `${workflow.name}:on-failure`;
+  return `${workflow.name}:on-failure-task`;
+}
+
+function getLeaves(tasks: CreateWorkflowTaskOpts<any, any>[]): CreateWorkflowTaskOpts<any, any>[] {
+  return tasks.filter((task) => isLeafTask(task, tasks));
+}
+
+function isLeafTask(
+  task: CreateWorkflowTaskOpts<any, any>,
+  allTasks: CreateWorkflowTaskOpts<any, any>[]
+): boolean {
+  return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
 }
