@@ -56,6 +56,9 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     ) -> None:
         super().__init__(config=workflow.config, client=workflow.client)
 
+        ## NOTE: This is a hack to assign the task back to the base workflow
+        self._default_tasks = [task]
+
         self._workflow = workflow
         self._task = task
 
