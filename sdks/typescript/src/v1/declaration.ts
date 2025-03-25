@@ -590,7 +590,7 @@ export function CreateDurableTaskWorkflow<
   if (taskWorkflow.definition._tasks.length > 0) {
     const task = taskWorkflow.definition._tasks[0];
     taskWorkflow.definition._tasks = [];
-    taskWorkflow.definition._durableTasks.push(task as any);
+    taskWorkflow.definition._durableTasks.push(task);
   }
 
   return taskWorkflow;
