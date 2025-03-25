@@ -1,12 +1,21 @@
 import asyncio
+from datetime import datetime
 from typing import Any, Generic, cast, get_type_hints
 
-from hatchet_sdk.clients.admin import TriggerWorkflowOptions, WorkflowRunTriggerConfig
+from google.protobuf import timestamp_pb2
+
+from hatchet_sdk.clients.admin import (
+    ScheduleTriggerWorkflowOptions,
+    TriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
+)
+from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
+from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import Workflow
 from hatchet_sdk.utils.aio_utils import get_active_event_loop
-from hatchet_sdk.utils.typing import is_basemodel_subclass
+from hatchet_sdk.utils.typing import JSONSerializableMapping, is_basemodel_subclass
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -120,3 +129,55 @@ class Standalone(Generic[TWorkflowInput, R]):
         refs = await self._workflow.aio_run_many_no_wait(workflows)
 
         return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+
+    def schedule(
+        self,
+        schedules: list[datetime],
+        input: TWorkflowInput | None = None,
+        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+    ) -> WorkflowVersion:
+        return self._workflow.schedule(
+            schedules=schedules,
+            input=input,
+            options=options,
+        )
+
+    async def aio_schedule(
+        self,
+        schedules: list[datetime | timestamp_pb2.Timestamp],
+        input: TWorkflowInput,
+        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+    ) -> WorkflowVersion:
+        return await self._workflow.aio_schedule(
+            schedules=schedules,
+            input=input,
+            options=options,
+        )
+
+    def create_cron(
+        self,
+        cron_name: str,
+        expression: str,
+        input: TWorkflowInput,
+        additional_metadata: JSONSerializableMapping,
+    ) -> CronWorkflows:
+        return self._workflow.create_cron(
+            cron_name=cron_name,
+            expression=expression,
+            input=input,
+            additional_metadata=additional_metadata,
+        )
+
+    async def aio_create_cron(
+        self,
+        cron_name: str,
+        expression: str,
+        input: TWorkflowInput,
+        additional_metadata: JSONSerializableMapping,
+    ) -> CronWorkflows:
+        return await self._workflow.aio_create_cron(
+            cron_name=cron_name,
+            expression=expression,
+            input=input,
+            additional_metadata=additional_metadata,
+        )
