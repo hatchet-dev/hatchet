@@ -34,7 +34,7 @@ const getRawUrl = ({ user, repo, branch, path }: RepoProps) => {
   if (isDev) {
     return getLocalUrl(ext, { path });
   }
-  return `https://raw.githubusercontent.com/${user || defaultUser}/${repo || defaultRepo}/refs/heads/${branch || defaultBranch}/${path}`;
+  return `https://raw.githubusercontent.com/${user || defaultUser}/${repo || defaultRepo}/refs/heads/${branch || defaultBranch}/${localPaths[ext]}/${path}`;
 };
 
 const getUIUrl = ({ user, repo, branch, path }: RepoProps) => {
