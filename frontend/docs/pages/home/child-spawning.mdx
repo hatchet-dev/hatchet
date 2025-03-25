@@ -1,1 +1,416 @@
-    TODO V1 DOCS
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+# Procedural Child Workflow Spawning
+
+Hatchet supports the dynamic creation of child workflows during a parent workflow's execution. This powerful feature enables:
+
+- **Complex, reusable workflow hierarchies** - Break down complex workflows into simpler, reusable components
+- **Fan-out parallelism** - Scale out to multiple parallel tasks dynamically
+- **Dynamic workflow behavior** - Create loops and conditional branches at runtime
+- **Agent-based workflows** - Support AI agents that can create new workflows based on analysis results or loop until a condition is met
+
+## Creating Parent and Child Workflows
+
+To implement child workflow spawning, you first need to create both parent and child workflow definitions.
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+
+```python
+from hatchet_sdk import Context, Hatchet
+from pydantic import BaseModel
+
+hatchet = Hatchet(debug=True)
+
+# Child workflow definition
+class ChildInput(BaseModel):
+    n: int
+
+class ValueOutput(BaseModel):
+    value: int
+
+child = hatchet.workflow(name="child")
+
+@child.task()
+def value_task(input: ChildInput, ctx: Context) -> ValueOutput:
+    return ValueOutput(value=input.n)
+
+# Parent workflow definition
+class ParentInput(BaseModel):
+    n: int
+
+class SumOutput(BaseModel):
+    result: int
+
+parent = hatchet.workflow(name="parent")
+
+@parent.task()
+def sum_task(input: ParentInput, ctx: Context) -> SumOutput:
+    sum_value = 0
+
+    # Run multiple child workflows concurrently
+    child_results = []
+    for i in range(input.n):
+        # Spawn and run a child workflow
+        child_result = child.run_as_child(ctx, ChildInput(n=i))
+        child_results.append(child_result)
+
+    # Sum the results
+    for result in child_results:
+        sum_value += result.value.value
+
+    return SumOutput(result=sum_value)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+import { hatchet } from "../hatchet-client";
+
+// Child workflow definition
+type ChildInput = {
+  N: number;
+};
+
+type ChildOutput = {
+  value: {
+    Value: number;
+  };
+};
+
+export const child = hatchet.workflow<ChildInput, ChildOutput>({
+  name: "child",
+});
+
+child.task({
+  name: "value",
+  fn: (input) => {
+    return {
+      Value: input.N,
+    };
+  },
+});
+
+// Parent workflow definition
+type ParentInput = {
+  N: number;
+};
+
+type ParentOutput = {
+  sum: {
+    Result: number;
+  };
+};
+
+export const parent = hatchet.workflow<ParentInput, ParentOutput>({
+  name: "parent",
+});
+
+parent.task({
+  name: "sum",
+  fn: async (input, ctx) => {
+    const n = input.N;
+    const promises = [];
+
+    // Spawn multiple child workflows in parallel
+    for (let i = 0; i < n; i++) {
+      promises.push(ctx.runChild(child, { N: i }));
+    }
+
+    // Wait for all child workflows to complete
+    const childRes = await Promise.all(promises);
+
+    // Sum the results
+    const sum = childRes.reduce((acc, curr) => acc + curr.value.Value, 0);
+
+    return {
+      Result: sum,
+    };
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+import (
+	"sync"
+
+	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+	"github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+// Child workflow input and output types
+type ChildInput struct {
+	N int `json:"n"`
+}
+
+type ValueOutput struct {
+	Value int `json:"value"`
+}
+
+type ChildResult struct {
+	One ValueOutput `json:"one"`
+}
+
+// Child workflow definition
+func Child(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, ChildResult] {
+	child := v1.WorkflowFactory[ChildInput, ChildResult](
+		workflow.CreateOpts[ChildInput]{
+			Name: "child",
+		},
+		hatchet,
+	)
+
+	child.Task(
+		task.CreateOpts[ChildInput]{
+			Name: "one",
+			Fn: func(input ChildInput, ctx worker.HatchetContext) (*ValueOutput, error) {
+				return &ValueOutput{
+					Value: input.N,
+				}, nil
+			},
+		},
+	)
+
+	return child
+}
+
+// Parent workflow input and output types
+type ParentInput struct {
+	N int `json:"n"`
+}
+
+type SumOutput struct {
+	Result int `json:"result"`
+}
+
+type ParentResult struct {
+	Sum *SumOutput `json:"sum,omitempty"`
+}
+
+// Parent workflow definition
+func Parent(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, ParentResult] {
+	child := Child(hatchet)
+	parent := v1.WorkflowFactory[ParentInput, ParentResult](
+		workflow.CreateOpts[ParentInput]{
+			Name: "parent",
+		},
+		hatchet,
+	)
+
+	parent.Task(
+		task.CreateOpts[ParentInput]{
+			Name: "sum",
+			Fn: func(input ParentInput, ctx worker.HatchetContext) (*SumOutput, error) {
+				sum := 0
+
+				// Use a WaitGroup to coordinate parallel child workflows
+				var wg sync.WaitGroup
+				var mu sync.Mutex
+				var firstErr error
+
+				// Launch child workflows in parallel
+				results := make([]*ChildResult, 0, input.N)
+				wg.Add(input.N)
+				for j := 0; j < input.N; j++ {
+					go func(index int) {
+						defer wg.Done()
+
+						// Spawn and run a child workflow
+						result, err := child.RunAsChild(ctx, ChildInput{N: 1})
+
+						mu.Lock()
+						defer mu.Unlock()
+
+						if err != nil && firstErr == nil {
+							firstErr = err
+							return
+						}
+
+						if firstErr == nil {
+							results = append(results, result)
+						}
+					}(j)
+				}
+
+				// Wait for all goroutines to complete
+				wg.Wait()
+
+				// Check if any errors occurred
+				if firstErr != nil {
+					return nil, firstErr
+				}
+
+				// Sum results from all children
+				for _, result := range results {
+					sum += result.One.Value
+				}
+
+				return &SumOutput{
+					Result: sum,
+				}, nil
+			},
+		},
+	)
+
+	return parent
+}
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Running Child Workflows
+
+To spawn and run a child workflow from a parent task, use the appropriate method for your language:
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+
+```python
+# Inside a parent task
+child_result = child_workflow.run_as_child(ctx, child_input)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// Inside a parent task
+const childResult = await ctx.runChild(childWorkflow, childInput);
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+// Inside a parent task
+result, err := childWorkflow.RunAsChild(ctx, childInput)
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Parallel Child Workflow Execution
+
+As shown in the examples above, you can spawn multiple child workflows in parallel:
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+
+```python
+# Run multiple child workflows concurrently with asyncio
+import asyncio
+
+async def run_child_workflows(ctx, n):
+    tasks = []
+    for i in range(n):
+        tasks.append(asyncio.create_task(
+            child.run_as_child_async(ctx, ChildInput(n=i))
+        ))
+    return await asyncio.gather(*tasks)
+
+# In your parent task
+child_results = await run_child_workflows(ctx, input.n)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// Run multiple child workflows in parallel
+const promises = [];
+for (let i = 0; i < n; i++) {
+  promises.push(ctx.runChild(child, { N: i }));
+}
+const childResults = await Promise.all(promises);
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+// Run multiple child workflows in parallel using goroutines
+var wg sync.WaitGroup
+var mu sync.Mutex
+results := make([]*ChildResult, 0, n)
+
+wg.Add(n)
+for i := 0; i < n; i++ {
+    go func(index int) {
+        defer wg.Done()
+        result, err := child.RunAsChild(ctx, ChildInput{N: index})
+
+        if err == nil {
+            mu.Lock()
+            results = append(results, result)
+            mu.Unlock()
+        }
+    }(i)
+}
+wg.Wait()
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Use Cases for Child Workflows
+
+Child workflows are ideal for:
+
+1. **Dynamic fan-out processing** - When the number of parallel tasks is determined at runtime
+2. **Reusable workflow components** - Create modular workflows that can be reused across different parent workflows
+3. **Resource-intensive operations** - Spread computation across multiple workers
+4. **Agent-based systems** - Allow AI agents to spawn new workflows based on their reasoning
+5. **Long-running operations** - Break down long operations into smaller, trackable units of work
+
+## Error Handling with Child Workflows
+
+When working with child workflows, it's important to properly handle errors. Here are patterns for different languages:
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+
+```python
+try:
+    child_result = child.run_as_child(ctx, ChildInput(n=i))
+except Exception as e:
+    # Handle error from child workflow
+    print(f"Child workflow failed: {e}")
+    # Decide how to proceed - retry, skip, or fail the parent
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+try {
+  const childResult = await ctx.runChild(child, { N: i });
+} catch (error) {
+  // Handle error from child workflow
+  console.error(`Child workflow failed: ${error}`);
+  // Decide how to proceed - retry, skip, or fail the parent
+}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+result, err := child.RunAsChild(ctx, ChildInput{N: i})
+if err != nil {
+    // Handle error from child workflow
+    fmt.Printf("Child workflow failed: %v\n", err)
+    // Decide how to proceed - retry, skip, or fail the parent
+}
+```
+
+</Tabs.Tab>
+</UniversalTabs>

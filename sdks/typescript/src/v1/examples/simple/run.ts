@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-// ❓ Running a Workflow with Results
+// ❓ Running a Task with Results
 import { simple } from './workflow';
 // ...
 async function main() {

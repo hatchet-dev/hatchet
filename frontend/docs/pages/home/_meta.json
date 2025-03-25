@@ -16,8 +16,10 @@
     "type": "separator"
   },
   "setup": "Setup",
-  "basic-workflows": "Workflows",
+  "your-first-task": "Tasks",
   "workers": "Workers",
+  "running-your-task": "Running Tasks",
+  "orchestration": "Workflow Orchestration",
   "environments": "Environments",
   "--running-workflows": {
     "title": "Ways of Running Workflows",
@@ -36,6 +38,17 @@
   "running-from-external-services": {
     "title": "Running from External Services",
     "display": "hidden"
+  },
+
+  "--advanced-workflows": {
+    "title": "Workflows",
+    "type": "separator"
+  },
+  "dags": {
+    "title": "Directed Acyclic Graphs (DAGs)"
+  },
+  "child-spawning": {
+    "title": "Child Spawning"
   },
 
   "--error-handling": {
@@ -70,19 +83,7 @@
   "docker": "Running with Docker",
   "worker-healthchecks": "Worker Health Checks",
 
-  "--advanced-workflows": {
-    "title": "Advanced Workflows",
-    "type": "separator",
-    "display": "hidden"
-  },
-  "dags": {
-    "title": "Directed Acyclic Graphs (DAGs)",
-    "display": "hidden"
-  },
-  "child-spawning": {
-    "title": "Child Spawning",
-    "display": "hidden"
-  },
+
   "additional-metadata": {
     "title": "Additional Metadata",
     "display": "hidden"
