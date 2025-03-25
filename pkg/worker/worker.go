@@ -300,9 +300,6 @@ func (w *Worker) RegisterWorkflowV1(workflow *contracts.CreateWorkflowVersionReq
 
 	w.registered_workflows[namespaced] = true
 
-	// FIXME: rip services... they're very much not used
-	w.NewService(workflow.Name)
-
 	return w.client.Admin().PutWorkflowV1(workflow)
 }
 
