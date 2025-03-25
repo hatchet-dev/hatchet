@@ -16,6 +16,9 @@ type WorkflowsClient interface {
 	// Get retrieves a workflow by its name.
 	Get(workflowName string, ctx ...context.Context) (*rest.Workflow, error)
 
+	// GetId retrieves a workflow by its name.
+	GetId(workflowName string, ctx ...context.Context) (uuid.UUID, error)
+
 	// List retrieves all workflows for the tenant with optional filtering parameters.
 	List(opts *rest.WorkflowListParams, ctx ...context.Context) (*rest.WorkflowList, error)
 
@@ -90,6 +93,16 @@ func (w *workflowsClientImpl) Get(workflowName string, ctx ...context.Context) (
 	return &workflow, nil
 }
 
+// GetId retrieves a workflow by its name.
+func (w *workflowsClientImpl) GetId(workflowName string, ctx ...context.Context) (uuid.UUID, error) {
+	workflow, err := w.Get(workflowName, ctx...)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return uuid.MustParse(workflow.Metadata.Id), nil
+}
+
 // List retrieves all workflows for the tenant with optional filtering parameters.
 func (w *workflowsClientImpl) List(opts *rest.WorkflowListParams, ctx ...context.Context) (*rest.WorkflowList, error) {
 	resp, err := w.api.WorkflowListWithResponse(
@@ -107,17 +120,16 @@ func (w *workflowsClientImpl) List(opts *rest.WorkflowListParams, ctx ...context
 // Delete removes a workflow by its ID or name.
 func (w *workflowsClientImpl) Delete(workflowName string, ctx ...context.Context) (*rest.WorkflowDeleteResponse, error) {
 	// FIXME: this is a hack to get the workflow by name
-	workflow, err := w.Get(workflowName, ctx...)
+	workflowId, err := w.GetId(workflowName, ctx...)
 	if err != nil {
 		return nil, err
 	}
 
-	id := uuid.MustParse(workflow.Metadata.Id)
-
 	resp, err := w.api.WorkflowDeleteWithResponse(
 		getContext(ctx...),
-		id,
+		workflowId,
 	)
+
 	if err != nil {
 		return nil, err
 	}

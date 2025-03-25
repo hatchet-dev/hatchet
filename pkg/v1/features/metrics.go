@@ -22,8 +22,9 @@ type MetricsClient interface {
 
 // metricsClientImpl implements the MetricsClient interface.
 type metricsClientImpl struct {
-	api      *rest.ClientWithResponses
-	tenantId uuid.UUID
+	api       *rest.ClientWithResponses
+	tenantId  uuid.UUID
+	workflows *WorkflowsClient
 }
 
 // NewMetricsClient creates a new client for interacting with metrics.
@@ -32,23 +33,30 @@ func NewMetricsClient(
 	tenantId *string,
 ) MetricsClient {
 	tenantIdUUID := uuid.MustParse(*tenantId)
+	workflows := NewWorkflowsClient(api, tenantId)
 
 	return &metricsClientImpl{
-		api:      api,
-		tenantId: tenantIdUUID,
+		api:       api,
+		workflows: &workflows,
+		tenantId:  tenantIdUUID,
 	}
 }
 
 // GetWorkflowMetrics retrieves metrics for a specific workflow.
-func (m *metricsClientImpl) GetWorkflowMetrics(workflowId string, opts *rest.WorkflowGetMetricsParams, ctx ...context.Context) (*rest.WorkflowMetrics, error) {
-	// TODO by name
-	id := uuid.MustParse(workflowId)
+func (m *metricsClientImpl) GetWorkflowMetrics(workflowName string, opts *rest.WorkflowGetMetricsParams, ctx ...context.Context) (*rest.WorkflowMetrics, error) {
+
+	workflowId, err := (*m.workflows).GetId(workflowName, ctx...)
+
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := m.api.WorkflowGetMetricsWithResponse(
 		getContext(ctx...),
-		id,
+		workflowId,
 		opts,
 	)
+
 	if err != nil {
 		return nil, err
 	}
