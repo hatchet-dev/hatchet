@@ -34,7 +34,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	if !canCreateWR {
 		return nil, status.Error(
 			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached the limit of %d workflow runs", wrLimit),
+			fmt.Sprintf("tenant has reached %d%% of its workflow runs limit", wrLimit),
 		)
 	}
 
@@ -54,7 +54,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	if !canCreateTR {
 		return nil, status.Error(
 			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached the limit of %d task runs", trLimit),
+			fmt.Sprintf("tenant has reached %d%% of its task runs limit", trLimit),
 		)
 	}
 

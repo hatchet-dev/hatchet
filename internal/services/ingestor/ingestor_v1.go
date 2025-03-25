@@ -44,7 +44,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 	if !canCreateEvents {
 		return nil, status.Error(
 			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached the limit of %d events", eLimit),
+			fmt.Sprintf("tenant has reached %d%% of its events limit", eLimit),
 		)
 	}
 
@@ -103,7 +103,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	if !canCreateEvents {
 		return nil, status.Error(
 			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached the limit of %d events", eLimit),
+			fmt.Sprintf("tenant has reached %d%% of its events limit", eLimit),
 		)
 	}
 

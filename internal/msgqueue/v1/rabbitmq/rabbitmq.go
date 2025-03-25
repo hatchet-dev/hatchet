@@ -12,9 +12,9 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
-	"golang.org/x/exp/rand"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/random"
@@ -652,7 +652,7 @@ func (t *MessageQueueImpl) subscribe(
 				}
 
 				t.l.Error().Msgf("could not run inner loop: %v", err)
-				sleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retryCount)
+				queueutils.SleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retryCount)
 				lastRetry = time.Now()
 				retryCount++
 				continue
@@ -669,33 +669,6 @@ func (t *MessageQueueImpl) subscribe(
 	}
 
 	return cleanup, nil
-}
-
-// sleepWithExponentialBackoff sleeps for a duration calculated using exponential backoff and jitter,
-// based on the retry count. The base sleep time and maximum sleep time are provided as inputs.
-// retryCount determines the exponential backoff multiplier.
-func sleepWithExponentialBackoff(base, max time.Duration, retryCount int) { // nolint: revive
-	if retryCount < 0 {
-		retryCount = 0
-	}
-
-	// Calculate exponential backoff
-	backoff := base * (1 << retryCount)
-	if backoff > max {
-		backoff = max
-	}
-
-	backoffInterval := backoff / 2
-
-	if backoffInterval < 1*time.Millisecond {
-		backoffInterval = 1 * time.Millisecond
-	}
-
-	// Apply jitter
-	jitter := time.Duration(rand.Int63n(int64(backoffInterval))) // nolint: gosec
-	sleepDuration := backoffInterval + jitter
-
-	time.Sleep(sleepDuration)
 }
 
 // identity returns the same host/process unique string for the lifetime of
