@@ -51,7 +51,6 @@ const workflow: Workflow = {
         // simulate a really slow network call
         setTimeout(async () => {
           await sleep(1000);
-          ctx.playground('slow', 'call');
         }, 5000);
 
         return { step4: 'step4' };

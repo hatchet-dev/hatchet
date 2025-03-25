@@ -1,0 +1,188 @@
+import { Tabs, Callout } from "nextra/components";
+
+# Dockerizing Hatchet Applications
+
+This guide explains how to create Dockerfiles for Hatchet applications. There are examples for both Python and TypeScript applications here.
+
+## Entrypoint Configuration for Hatchet
+
+Before creating your Dockerfile, understand that Hatchet workers require specific entry point configuration:
+
+1. The entry point must run code that runs the Hatchet worker. This can be done by calling the `worker.start()` method. [See the Python SDK docs for more information](./worker.mdx#starting-a-worker)
+2. Proper environment variables must be set for Hatchet SDK
+3. The worker should be configured to handle your workflows using the `worker.register` method or by passing workflows into the worker constructor or factory.
+
+## Example Dockerfiles
+
+<Tabs items={['Python - Poetry', 'Python - pip', 'JavaScript - npm', 'JavaScript - pnpm', 'JavaScript - yarn']}>
+  <Tabs.Tab>
+
+```dockerfile
+FROM python:3.13-slim
+
+ENV PYTHONUNBUFFERED=1 \
+ POETRY_VERSION=1.4.2 \
+ HATCHET_ENV=production
+
+# Install system dependencies and Poetry
+RUN apt-get update && \
+ apt-get install -y curl && \
+ curl -sSL https://install.python-poetry.org | python3 - && \
+ ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+ apt-get clean && \
+ rm -rf /var/lib/apt/lists/\*
+
+WORKDIR /app
+
+COPY pyproject.toml poetry.lock\* /app/
+
+RUN poetry config virtualenvs.create false && \
+ poetry install --no-interaction --no-ansi
+
+COPY . /app
+
+CMD ["poetry", "run", "python", "worker.py"]
+```
+
+<Callout type="info">
+    If you're using a poetry script to run your worker, you can replace `poetry run python worker.py` with `poetry run <script-name>` in the CMD.
+</Callout>
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```dockerfile
+FROM python:3.13-slim
+
+ENV PYTHONUNBUFFERED=1 \
+ HATCHET_ENV=production
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . /app
+
+CMD ["python", "worker.py"]
+```
+
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+COPY package\*.json ./
+
+RUN npm ci
+
+COPY . .
+
+RUN npm run build
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package\*.json ./
+
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+
+ENV NODE_ENV=production
+
+CMD ["node", "dist/worker.js"]
+```
+
+<Callout type="info">
+    Use `npm ci` instead of `npm install` for more reliable builds. It's faster and ensures consistent installs across environments.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+COPY pnpm-lock.yaml package.json ./
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+RUN pnpm build
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+RUN npm install -g pnpm
+
+COPY pnpm-lock.yaml package.json ./
+
+RUN pnpm install --frozen-lockfile --prod
+
+COPY --from=builder /app/dist ./dist
+
+ENV NODE_ENV=production
+
+CMD ["node", "dist/worker.js"]
+```
+
+<Callout type="info">
+    PNPM's `--frozen-lockfile` flag ensures consistent installs and fails if an update is needed.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+COPY package.json yarn.lock ./
+
+RUN yarn install --frozen-lockfile
+
+COPY . .
+
+RUN yarn build
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package.json yarn.lock ./
+
+RUN yarn install --frozen-lockfile --production
+
+COPY --from=builder /app/dist ./dist
+
+ENV NODE_ENV=production
+
+CMD ["node", "dist/worker.js"]
+
+```
+
+<Callout type="info">
+    Yarn's `--frozen-lockfile` ensures your dependencies match the lock file exactly.
+</Callout>
+  </Tabs.Tab>
+</Tabs>

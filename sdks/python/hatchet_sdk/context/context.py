@@ -2,6 +2,7 @@ import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel
@@ -21,6 +22,7 @@ from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.logger import logger
+from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
 from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
@@ -93,6 +95,9 @@ class Context:
 
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
+
+        if self.was_skipped(task):
+            raise ValueError("{task.name} was skipped")
 
         action_prefix = self.action.action_id.split(":")[0]
 
@@ -194,7 +199,10 @@ class Context:
 
         self.stream_event_thread_pool.submit(self._put_stream, data)
 
-    def refresh_timeout(self, increment_by: str) -> None:
+    def refresh_timeout(self, increment_by: str | timedelta) -> None:
+        if isinstance(increment_by, timedelta):
+            increment_by = timedelta_to_expr(increment_by)
+
         try:
             return self.dispatcher_client.refresh_timeout(
                 step_run_id=self.step_run_id, increment_by=increment_by

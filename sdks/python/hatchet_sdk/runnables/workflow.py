@@ -328,14 +328,14 @@ class Workflow(Generic[TWorkflowInput]):
 
     def schedule(
         self,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
-        input: TWorkflowInput,
+        schedules: list[datetime],
+        input: TWorkflowInput | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self.client.admin.schedule_workflow(
             name=self.config.name,
-            schedules=schedules,
-            input=input.model_dump(),
+            schedules=cast(list[datetime | timestamp_pb2.Timestamp], schedules),
+            input=input.model_dump() if input else {},
             options=options,
         )
 

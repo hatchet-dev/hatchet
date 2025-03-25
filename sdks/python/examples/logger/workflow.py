@@ -1,3 +1,5 @@
+# ❓ LoggingWorkflow
+
 import logging
 import time
 
@@ -12,9 +14,30 @@ logging_workflow = hatchet.workflow(
 
 
 @logging_workflow.task()
-def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def root_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
     for i in range(12):
         logger.info("executed step1 - {}".format(i))
         logger.info({"step1": "step1"})
+
         time.sleep(0.1)
+
     return {"status": "success"}
+
+
+# ‼️
+
+# ❓ ContextLogger
+
+
+@logging_workflow.task()
+def context_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    for i in range(12):
+        ctx.log("executed step1 - {}".format(i))
+        ctx.log({"step1": "step1"})
+
+        time.sleep(0.1)
+
+    return {"status": "success"}
+
+
+# ‼️

@@ -1,10 +1,10 @@
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 
-export const SIMPLE_EVENT = 'simple-event:create';
-
-type Input = {
+export type Input = {
   Message: string;
 };
+
+export const SIMPLE_EVENT = 'simple-event:create';
 
 type LowerOutput = {
   lower: {
@@ -12,12 +12,15 @@ type LowerOutput = {
   };
 };
 
+// ❓ Run workflow on event
 export const lower = hatchet.workflow<Input, LowerOutput>({
   name: 'lower',
   on: {
+    // 👀 Declare the event that will trigger the workflow
     event: SIMPLE_EVENT,
   },
 });
+// !!
 
 lower.task({
   name: 'lower',

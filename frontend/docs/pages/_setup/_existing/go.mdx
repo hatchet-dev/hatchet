@@ -1,0 +1,69 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+
+#### Cd into your project directory
+
+```bash copy
+cd path-to-your-project
+```
+
+## Create project directories
+
+By convention it is recommended to create your workflows in the `workflows` directory and your workers in the `workers` directory.
+
+```bash copy
+mkdir workflows &&
+mkdir workers
+```
+
+## Instantiate your Hatchet Client
+
+It is recommended to instantiate a shared Hatchet Client Factory in a separate file.
+
+Create a new directory called `hatchet_client` and a new file called `main.go` in it.
+
+```bash copy
+mkdir hatchet_client &&
+touch hatchet_client/main.go
+```
+
+Add the following code to the file:
+
+```go copy
+package hatchet
+
+import (
+	"github.com/hatchet-dev/hatchet/pkg/client"
+)
+
+func Client() (client.Client, error) {
+	return client.New()
+}
+```
+
+#### Install the Hatchet SDK and required dependencies
+
+```bash copy
+go mod tidy
+```
+
+#### Import the Hatchet Client Factory
+
+You can now import the Hatchet Client Factory in any file that needs it.
+
+```go copy
+package main
+
+import (
+	"log"
+
+	hatchet "hatchet-tutorial/src/hatchet_client"
+)
+
+func main() {
+	hatchet, err := hatchet.Client()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```

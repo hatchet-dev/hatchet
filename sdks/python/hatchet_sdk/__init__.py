@@ -142,6 +142,7 @@ from hatchet_sdk.runnables.types import (
     ConcurrencyLimitStrategy,
     EmptyModel,
     StickyStrategy,
+    TaskDefaults,
     WorkflowConfig,
 )
 from hatchet_sdk.waits import (
@@ -262,4 +263,5 @@ __all__ = [
     "ParentCondition",
     "DurableContext",
     "RegisterDurableEventRequest",
+    "TaskDefaults",
 ]

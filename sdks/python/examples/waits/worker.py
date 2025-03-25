@@ -1,3 +1,5 @@
+# ❓ Create a workflow
+
 import random
 from datetime import timedelta
 
@@ -13,6 +15,8 @@ from hatchet_sdk import (
     or_,
 )
 
+hatchet = Hatchet(debug=True)
+
 
 class StepOutput(BaseModel):
     random_number: int
@@ -22,24 +26,33 @@ class RandomSum(BaseModel):
     sum: int
 
 
-hatchet = Hatchet(debug=True)
+task_condition_workflow = hatchet.workflow(name="TaskConditionWorkflow")
 
-dag_waiting_workflow = hatchet.workflow(name="DAGWaitingWorkflow")
+# !!
 
 
-@dag_waiting_workflow.task()
+# ❓ Add base task
+@task_condition_workflow.task()
 def start(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_waiting_workflow.task(
+# !!
+
+
+# ❓ Add wait for sleep
+@task_condition_workflow.task(
     parents=[start], wait_for=[SleepCondition(timedelta(seconds=10))]
 )
 def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_waiting_workflow.task(
+# !!
+
+
+# ❓ Add skip on event
+@task_condition_workflow.task(
     parents=[start],
     wait_for=[SleepCondition(timedelta(seconds=30))],
     skip_if=[UserEventCondition(event_key="skip_on_event:skip")],
@@ -48,12 +61,16 @@ def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_waiting_workflow.task(
+# !!
+
+
+# ❓ Add branching
+@task_condition_workflow.task(
     parents=[wait_for_sleep],
     skip_if=[
         ParentCondition(
             parent=wait_for_sleep,
-            expression="input.random_number > 50",
+            expression="output.random_number > 50",
         )
     ],
 )
@@ -61,7 +78,24 @@ def left_branch(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_waiting_workflow.task(
+@task_condition_workflow.task(
+    parents=[wait_for_sleep],
+    skip_if=[
+        ParentCondition(
+            parent=wait_for_sleep,
+            expression="output.random_number <= 50",
+        )
+    ],
+)
+def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+# !!
+
+
+# ❓ Add wait for event
+@task_condition_workflow.task(
     parents=[start],
     wait_for=[
         or_(
@@ -74,20 +108,11 @@ def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
-@dag_waiting_workflow.task(
-    parents=[wait_for_sleep],
-    skip_if=[
-        ParentCondition(
-            parent=wait_for_sleep,
-            expression="input.random_number <= 50",
-        )
-    ],
-)
-def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
-    return StepOutput(random_number=random.randint(1, 100))
+# !!
 
 
-@dag_waiting_workflow.task(
+# ❓ Add sum
+@task_condition_workflow.task(
     parents=[
         start,
         wait_for_sleep,
@@ -121,8 +146,11 @@ def sum(input: EmptyModel, ctx: Context) -> RandomSum:
     return RandomSum(sum=one + two + three + four + five + six)
 
 
+# !!
+
+
 def main() -> None:
-    worker = hatchet.worker("dag-worker", workflows=[dag_waiting_workflow])
+    worker = hatchet.worker("dag-worker", workflows=[task_condition_workflow])
 
     worker.start()
 
