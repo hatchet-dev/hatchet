@@ -29,7 +29,6 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.worker.worker import Worker
 
 
@@ -268,9 +267,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
     ) -> Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]: ...
 
     @overload
@@ -293,9 +289,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
     ]: ...
@@ -319,9 +312,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
     ) -> (
         Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]
         | Callable[
@@ -379,15 +369,6 @@ class Hatchet:
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: None
         :type backoff_max_seconds: int | None
 
-        :param wait_for: A list of conditions that must be met before the task can start. Default: Empty list
-        :type wait_for: list[Condition | OrGroup]
-
-        :param skip_if: A list of conditions that, if true, will cause the task to be skipped. Default: Empty list
-        :type skip_if: list[Condition | OrGroup]
-
-        :param cancel_if: A list of conditions that, if true, will cause the task to be canceled. Default: Empty list
-        :type cancel_if: list[Condition | OrGroup]
-
         :returns: A decorator which creates a `Standalone` task object.
         :rtype: Callable[[Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]]
         """
@@ -418,9 +399,6 @@ class Hatchet:
             backoff_factor=backoff_factor,
             backoff_max_seconds=backoff_max_seconds,
             concurrency=[concurrency] if concurrency else [],
-            wait_for=wait_for,
-            skip_if=skip_if,
-            cancel_if=cancel_if,
         )
 
         def inner(
@@ -455,9 +433,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
     ) -> Callable[
         [Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]
     ]: ...
@@ -482,9 +457,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
     ) -> Callable[
         [Callable[[TWorkflowInput, DurableContext], R]], Standalone[TWorkflowInput, R]
     ]: ...
@@ -508,9 +480,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        wait_for: list[Condition | OrGroup] = [],
-        skip_if: list[Condition | OrGroup] = [],
-        cancel_if: list[Condition | OrGroup] = [],
     ) -> (
         Callable[[Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]]
         | Callable[
@@ -569,15 +538,6 @@ class Hatchet:
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: None
         :type backoff_max_seconds: int | None
 
-        :param wait_for: A list of conditions that must be met before the task can start. Default: Empty list
-        :type wait_for: list[Condition | OrGroup]
-
-        :param skip_if: A list of conditions that, if true, will cause the task to be skipped. Default: Empty list
-        :type skip_if: list[Condition | OrGroup]
-
-        :param cancel_if: A list of conditions that, if true, will cause the task to be canceled. Default: Empty list
-        :type cancel_if: list[Condition | OrGroup]
-
         :returns: A decorator which creates a `Standalone` task object.
         :rtype: Callable[[Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]]
         """
@@ -608,9 +568,6 @@ class Hatchet:
             backoff_factor=backoff_factor,
             backoff_max_seconds=backoff_max_seconds,
             concurrency=[concurrency] if concurrency else [],
-            wait_for=wait_for,
-            skip_if=skip_if,
-            cancel_if=cancel_if,
         )
 
         def inner(
