@@ -9,4 +9,4 @@ from hatchet_sdk import Hatchet
 async def test_run(hatchet: Hatchet) -> None:
     result = await logging_workflow.aio_run()
 
-    assert result["step1"]["status"] == "success"
+    assert result["root_logger"]["status"] == "success"
