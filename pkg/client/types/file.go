@@ -139,11 +139,12 @@ type WorkflowStep struct {
 }
 
 type RateLimit struct {
-	Key            string  `yaml:"key,omitempty"`
-	KeyExpr        *string `yaml:"keyExpr,omitempty"`
-	Units          *int    `yaml:"units,omitempty"`
-	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
-	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
+	Key            string             `yaml:"key,omitempty"`
+	KeyExpr        *string            `yaml:"keyExpr,omitempty"`
+	Units          *int               `yaml:"units,omitempty"`
+	UnitsExpr      *string            `yaml:"unitsExpr,omitempty"`
+	LimitValueExpr *string            `yaml:"limitValueExpr,omitempty"`
+	Duration       *RateLimitDuration `yaml:"duration,omitempty"`
 }
 
 func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {
