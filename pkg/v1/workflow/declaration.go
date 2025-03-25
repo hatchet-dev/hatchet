@@ -232,6 +232,21 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.Task
 		resultValue := reflect.ValueOf(result).Elem()
 		field := resultValue.FieldByName(name)
 
+		// If the field isn't found by name, try to find it by JSON tag
+		resultType := resultValue.Type()
+		for i := 0; i < resultType.NumField(); i++ {
+			fieldType := resultType.Field(i)
+			jsonTag := fieldType.Tag.Get("json")
+			// Extract the name part from the json tag (before any comma)
+			if commaIdx := strings.Index(jsonTag, ","); commaIdx > 0 {
+				jsonTag = jsonTag[:commaIdx]
+			}
+			if jsonTag == name || strings.EqualFold(fieldType.Name, name) {
+				field = resultValue.Field(i)
+				break
+			}
+		}
+
 		if field.IsValid() && field.CanSet() {
 			outputValue := reflect.ValueOf(output).Elem()
 			field.Set(outputValue)
@@ -482,8 +497,6 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error
 		return nil, err
 	}
 
-	fmt.Println("workflowResult", workflowResult)
-
 	// Create a new output object
 	var output O
 
@@ -505,7 +518,7 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error
 		}
 
 		// Extract task output using the StepOutput method
-		err := workflowResult.StepOutput(taskName, taskOutput)
+		err := workflowResult.StepOutput(taskName, &taskOutput)
 		if err != nil {
 			// Log the error but continue with other tasks
 			fmt.Printf("Error extracting output for task %s: %v\n", taskName, err)

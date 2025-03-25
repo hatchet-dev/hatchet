@@ -422,8 +422,6 @@ func (w *Worker) ID() *string {
 func (w *Worker) startBlocking(ctx context.Context) error {
 	actionNames := []string{}
 
-	fmt.Println("actions", w.actions)
-
 	// Create a dictionary of services by splitting actions "service:action"
 	services := make(map[string][]Action)
 	for _, action := range w.actions {

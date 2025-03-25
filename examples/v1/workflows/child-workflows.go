@@ -1,7 +1,7 @@
 package v1_workflows
 
 import (
-	"fmt"
+	"sync"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
@@ -30,7 +30,7 @@ type SumOutput struct {
 }
 
 type ParentResult struct {
-	Sum SumOutput `json:"sum"`
+	Sum *SumOutput `json:"sum,omitempty"`
 }
 
 func Child(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, ChildResult] {
@@ -71,37 +71,48 @@ func Parent(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput,
 			Fn: func(input ParentInput, ctx worker.HatchetContext) (*SumOutput, error) {
 				sum := 0
 
-				// Create a channel to collect results and errors
-				type childResponse struct {
-					result *ChildResult
-					err    error
-				}
-				responses := make(chan childResponse, input.N)
+				// Use a WaitGroup to coordinate parallel child workflows
+				var wg sync.WaitGroup
+				var mu sync.Mutex
+				var firstErr error
 
 				// Launch child workflows in parallel
+				results := make([]*ChildResult, 0, input.N)
+				wg.Add(input.N)
 				for j := 0; j < input.N; j++ {
-					go func() {
-						childResult, err := child.RunAsChild(ctx, ChildInput{N: 1})
-						responses <- childResponse{result: childResult, err: err}
-					}()
+					go func(index int) {
+						defer wg.Done()
+						result, err := child.RunAsChild(ctx, ChildInput{N: 1})
+
+						mu.Lock()
+						defer mu.Unlock()
+
+						if err != nil && firstErr == nil {
+							firstErr = err
+							return
+						}
+
+						if firstErr == nil {
+							results = append(results, result)
+						}
+					}(j)
 				}
 
-				// Collect all results
-				var childResult *ChildResult
-				for j := 0; j < input.N; j++ {
-					response := <-responses
-					if response.err != nil {
-						return nil, response.err
-					}
-					childResult = response.result
+				// Wait for all goroutines to complete
+				wg.Wait()
+
+				// Check if any errors occurred
+				if firstErr != nil {
+					return nil, firstErr
 				}
 
-				fmt.Println("childResult", childResult.One.Value)
-
-				sum += childResult.One.Value
+				// Sum results from all children
+				for _, result := range results {
+					sum += result.One.Value
+				}
 
 				return &SumOutput{
-					Result: 1000,
+					Result: sum,
 				}, nil
 			},
 		},
