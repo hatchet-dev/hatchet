@@ -8,22 +8,22 @@ interface UniversalTabsProps {
   optionKey?: string;
 }
 
-export const UniversalTabs: React.FC<UniversalTabsProps> = ({ 
-  items, 
-  children, 
+export const UniversalTabs: React.FC<UniversalTabsProps> = ({
+  items,
+  children,
   optionKey = "language"
 }) => {
-  const { 
-    selectedLanguage, 
-    setSelectedLanguage, 
-    getSelectedOption, 
-    setSelectedOption 
+  const {
+    selectedLanguage,
+    setSelectedLanguage,
+    getSelectedOption,
+    setSelectedOption
   } = useLanguage();
 
-  const selectedValue = optionKey === "language" 
-    ? selectedLanguage 
+  const selectedValue = optionKey === "language"
+    ? selectedLanguage
     : getSelectedOption(optionKey);
-  
+
   const handleChange = (index: number) => {
     if (optionKey === "language") {
       setSelectedLanguage(items[index]);

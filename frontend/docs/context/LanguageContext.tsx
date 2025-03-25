@@ -67,19 +67,19 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
     if (typeof window !== "undefined") {
       // Save all options to localStorage
       localStorage.setItem("uiOptions", JSON.stringify(options));
-      
+
       // Also save language separately for backward compatibility
       localStorage.setItem("selectedLanguage", options.language || "Python");
     }
   }, [options]);
 
   return (
-    <LanguageContext.Provider 
-      value={{ 
-        selectedLanguage, 
+    <LanguageContext.Provider
+      value={{
+        selectedLanguage,
         setSelectedLanguage,
         getSelectedOption,
-        setSelectedOption 
+        setSelectedOption
       }}
     >
       {children}
