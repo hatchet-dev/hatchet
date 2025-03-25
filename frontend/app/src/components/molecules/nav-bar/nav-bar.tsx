@@ -63,9 +63,7 @@ function HelpDropdown() {
           </DropdownMenuItem>
         )}
         <DropdownMenuItem
-          onClick={() =>
-            window.open('https://docs.hatchet.run/home/basics/steps', '_blank')
-          }
+          onClick={() => window.open('https://docs.hatchet.run', '_blank')}
         >
           <BiBook className="mr-2" />
           Documentation
