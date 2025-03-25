@@ -171,12 +171,12 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
   /**
    * The tasks that make up this workflow.
    */
-  tasks: CreateWorkflowTaskOpts<any, any>[];
+  _tasks: CreateWorkflowTaskOpts<any, any>[];
 
   /**
    * The durable tasks that make up this workflow.
    */
-  durableTasks: CreateWorkflowDurableTaskOpts<any, any>[];
+  _durableTasks: CreateWorkflowDurableTaskOpts<any, any>[];
 };
 
 /**
@@ -203,8 +203,8 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
   constructor(options: CreateWorkflowOpts, client?: IHatchetClient) {
     this.definition = {
       ...options,
-      tasks: [],
-      durableTasks: [],
+      _tasks: [],
+      _durableTasks: [],
     };
 
     this.client = client;
@@ -222,7 +222,7 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
       throw UNBOUND_ERR;
     }
 
-    return this.client._v0.admin.runWorkflow(this.definition.name, input, options);
+    return this.client._v0.admin.runWorkflow(this.name, input, options);
   }
 
   /**
@@ -335,6 +335,12 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
     return cronDef;
   }
 
+  /**
+   * Get metrics for the workflow.
+   * @param opts Optional configuration for the metrics request.
+   * @returns A promise that resolves with the workflow metrics.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
   metrics(opts?: Parameters<MetricsClient['getWorkflowMetrics']>[1]) {
     if (!this.client) {
       throw UNBOUND_ERR;
@@ -343,6 +349,12 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
     return this.client.metrics.getWorkflowMetrics(this.definition.name, opts);
   }
 
+  /**
+   * Get queue metrics for the workflow.
+   * @param opts Optional configuration for the metrics request.
+   * @returns A promise that resolves with the workflow metrics.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
   queueMetrics(opts?: Omit<Parameters<MetricsClient['getQueueMetrics']>[0], 'workflows'>) {
     if (!this.client) {
       throw UNBOUND_ERR;
@@ -354,7 +366,11 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
     });
   }
 
-  // get current state
+  /**
+   * Get the current state of the workflow.
+   * @returns A promise that resolves with the workflow state.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
   get() {
     if (!this.client) {
       throw UNBOUND_ERR;
@@ -394,6 +410,14 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
   get id() {
     return this.definition.name;
   }
+
+  /**
+   * Get the friendly name of the workflow.
+   * @returns The name of the workflow.
+   */
+  get name() {
+    return this.definition.name;
+  }
 }
 
 export class WorkflowDeclaration<
@@ -428,7 +452,7 @@ export class WorkflowDeclaration<
       typedOptions = options as CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
     }
 
-    this.definition.tasks.push(typedOptions);
+    this.definition._tasks.push(typedOptions);
     return typedOptions;
   }
 
@@ -454,7 +478,7 @@ export class WorkflowDeclaration<
       T,
       TaskOutputType<K, Name, L>
     >;
-    this.definition.durableTasks.push(typedOptions);
+    this.definition._durableTasks.push(typedOptions);
     return typedOptions;
   }
 }
@@ -463,14 +487,14 @@ export class TaskWorkflowDeclaration<
   T extends JsonObject,
   K extends JsonObject,
 > extends BaseWorkflowDeclaration<T, K> {
-  name: string;
+  private _standalone_task_name: string;
 
   constructor(options: CreateTaskWorkflowOpts<T, K>, client?: IHatchetClient) {
     super({ ...options }, client);
 
-    this.name = options.name;
+    this._standalone_task_name = options.name;
 
-    this.definition.tasks.push({
+    this.definition._tasks.push({
       ...options,
     });
   }
@@ -481,14 +505,14 @@ export class TaskWorkflowDeclaration<
     const res = await super.run(input as T, options);
 
     if (Array.isArray(res)) {
-      return res.map((r) => r[this.name]);
+      return res.map((r) => r[this._standalone_task_name]);
     }
 
-    return res[this.name] as K;
+    return res[this._standalone_task_name] as K;
   }
 
   get taskDef() {
-    return this.definition.tasks[0];
+    return this.definition._tasks[0];
   }
 }
 
@@ -563,10 +587,10 @@ export function CreateDurableTaskWorkflow<
   const taskWorkflow = new TaskWorkflowDeclaration<I, O>(options as any, client);
 
   // Move the task from tasks to durableTasks
-  if (taskWorkflow.definition.tasks.length > 0) {
-    const task = taskWorkflow.definition.tasks[0];
-    taskWorkflow.definition.tasks = [];
-    taskWorkflow.definition.durableTasks.push(task as any);
+  if (taskWorkflow.definition._tasks.length > 0) {
+    const task = taskWorkflow.definition._tasks[0];
+    taskWorkflow.definition._tasks = [];
+    taskWorkflow.definition._durableTasks.push(task as any);
   }
 
   return taskWorkflow;

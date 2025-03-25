@@ -93,7 +93,7 @@ export class Worker {
           // TODO check if tenant is V1
           const register = this.nonDurable.registerWorkflowV1(wf);
 
-          if (wf.definition.durableTasks.length > 0) {
+          if (wf.definition._durableTasks.length > 0) {
             if (!this.durable) {
               this.durable = await this._v0.worker(`${this.name}-durable`, {
                 ...this.config,

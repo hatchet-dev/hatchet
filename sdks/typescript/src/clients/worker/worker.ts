@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 /* eslint-disable no-nested-ternary */
 import { InternalHatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
@@ -142,7 +143,7 @@ export class V0Worker {
   }
 
   registerDurableActionsV1(workflow: WorkflowDefinition) {
-    const newActions = workflow.durableTasks.reduce<ActionRegistry>((acc, task) => {
+    const newActions = workflow._durableTasks.reduce<ActionRegistry>((acc, task) => {
       acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
         task.fn(ctx.workflowInput(), ctx as DurableContext<any, any>);
       return acc;
@@ -155,7 +156,7 @@ export class V0Worker {
   }
 
   private registerActionsV1(workflow: WorkflowDefinition) {
-    const newActions = workflow.tasks.reduce<ActionRegistry>((acc, task) => {
+    const newActions = workflow._tasks.reduce<ActionRegistry>((acc, task) => {
       acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
         task.fn(ctx.workflowInput(), ctx);
       return acc;
@@ -232,7 +233,7 @@ export class V0Worker {
       let onSuccessTask: CreateWorkflowTaskOpts<any, any> | undefined;
 
       if (workflow.onSuccess && typeof workflow.onSuccess === 'function') {
-        const parents = getLeaves(workflow.tasks);
+        const parents = getLeaves(workflow._tasks);
 
         onSuccessTask = {
           name: 'on-success-task',
@@ -248,7 +249,7 @@ export class V0Worker {
 
       if (workflow.onSuccess && typeof workflow.onSuccess === 'object') {
         const onSuccess = workflow.onSuccess as CreateOnSuccessTaskOpts<any, any>;
-        const parents = getLeaves(workflow.tasks);
+        const parents = getLeaves(workflow._tasks);
 
         onSuccessTask = {
           name: 'on-success-task',
@@ -265,7 +266,7 @@ export class V0Worker {
       }
 
       if (onSuccessTask) {
-        workflow.tasks.push(onSuccessTask);
+        workflow._tasks.push(onSuccessTask);
       }
 
       // cron and event triggers
@@ -295,7 +296,7 @@ export class V0Worker {
         sticky: workflow.sticky,
         concurrency,
         onFailureTask,
-        tasks: [...workflow.tasks, ...workflow.durableTasks].map<CreateTaskOpts>((task) => ({
+        tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
           timeout:
