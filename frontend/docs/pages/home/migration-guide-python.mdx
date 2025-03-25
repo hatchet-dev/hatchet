@@ -22,7 +22,7 @@ First, a simple example of how to define a workflow with the V1 SDK:
 
 The API has changed significantly in the V1 SDK. Even in this simple example, there are some notable highlights:
 
-1. Workflows are now declared with `hatchet.workflow`, and then have their corresponding tasks registered with `workflow.task`.
+1. Tasks can now be declared with `hatchet.task`, meaning you no longer _have_ to create a workflow explicitly to define a task. This should feel similar to how e.g. Celery handles task definition. Note that we recommend declaring a workflow in many cases, but the simplest possible way to get set up is to use `hatchet.task`.
 2. Tasks have a new signature. They now take two arguments: `input` and `context`. The `input` is either of type `input_validator` (a Pydantic model you provide to the workflow), or is an `EmptyModel`, which is a helper Pydantic model Hatchet provides and uses as a default. The `context` is once again the Hatchet `Context` object.
 3. Workflows can now be registered on a worker by using the `workflows` keyword argument to the `worker` method, although the old `register_workflows` method is still available.
 4. `max_runs` on the worker has been renamed to `slots`.
@@ -35,9 +35,10 @@ Hatchet's V1 SDK makes heavy use of Pydantic models, and recommends you do too! 
 
 In this example, we use a few more new SDK features:
 
-1. We define two Pydantic models, `ParentInput` and `ChildInput`, and pass them to the parent and child workflows as `input_validator`s. Note that now, the `input` parameters for the tasks in those two workflows are Pydantic models of those types, and we can treat them as such. This replaces the old `context.workflow_input` for accessing the input to the workflow / task - now, we just can access the input directly.
-2. When we want to spawn the child workflow, we can use the `run` methods on the `child_workflow` object, which is a Hatchet `Workflow`, instead of needing to refer to the workflow by its name (a string). The `input` field to `run()` is now also properly typed as `ChildInput`.
-3. The child workflow makes use of some of Hatchet's DAG features, such as defining parent tasks. In the new SDK, `parents` of a task are defined as a list of `Task` objects as opposed to as a list of strings, so now, `process2` has `process` (the `Task`) as its parent, as opposed to `"process"` (the string). This also allows us to use `ctx.task_output(process)` to access the output of the `process` task in the `process2` task, and know the type of that output at type checking time.
+1. Workflows are now declared with `hatchet.workflow`, and then have their corresponding tasks registered with `workflow.task`.
+2. We define two Pydantic models, `ParentInput` and `ChildInput`, and pass them to the parent and child workflows as `input_validator`s. Note that now, the `input` parameters for the tasks in those two workflows are Pydantic models of those types, and we can treat them as such. This replaces the old `context.workflow_input` for accessing the input to the workflow / task - now, we just can access the input directly.
+3. When we want to spawn the child workflow, we can use the `run` methods on the `child_workflow` object, which is a Hatchet `Workflow`, instead of needing to refer to the workflow by its name (a string). The `input` field to `run()` is now also properly typed as `ChildInput`.
+4. The child workflow makes use of some of Hatchet's DAG features, such as defining parent tasks. In the new SDK, `parents` of a task are defined as a list of `Task` objects as opposed to as a list of strings, so now, `process2` has `process` (the `Task`) as its parent, as opposed to `"process"` (the string). This also allows us to use `ctx.task_output(process)` to access the output of the `process` task in the `process2` task, and know the type of that output at type checking time.
 
 See our [Pydantic documentation](./pydantic.mdx) for more.
 
