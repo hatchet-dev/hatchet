@@ -11,9 +11,16 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
+# ❓ Create a durable workflow
 durable_workflow = hatchet.workflow(name="DurableWorkflow")
+# !!
+
+
 ephemeral_workflow = hatchet.workflow(name="EphemeralWorkflow")
 
+
+
+# ❓ Add durable task
 EVENT_KEY = "durable-example:event"
 SLEEP_TIME = 5
 
@@ -36,10 +43,13 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> None:
     )
     print("Event received")
 
+# !!
 
 @ephemeral_workflow.task()
 def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
     print("Running non-durable task")
+
+
 
 
 def main() -> None:

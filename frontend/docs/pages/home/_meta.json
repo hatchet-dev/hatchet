@@ -4,6 +4,7 @@
     "type": "separator"
   },
   "announcement": "Announcement",
+  "v1-new-features": "New Features",
   "migration-guide-python": "Migration Guide (Python)",
   "migration-guide-typescript": "Migration Guide (TypeScript)",
   "--intro": {

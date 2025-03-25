@@ -96,6 +96,9 @@ class Context:
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
+        if self.was_skipped(task):
+            raise ValueError("{task.name} was skipped")
+
         action_prefix = self.action.action_id.split(":")[0]
 
         workflow_validator = next(
