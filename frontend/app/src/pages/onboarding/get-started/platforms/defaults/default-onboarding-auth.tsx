@@ -1,24 +1,17 @@
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import api, { CreateAPITokenRequest, queries } from '@/lib/api';
+import api, { CreateAPITokenRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 export const DefaultOnboardingAuth: React.FC<{
   tenantId: string;
-  onAuthComplete: () => void;
-  skip: () => void;
-}> = ({ tenantId, onAuthComplete, skip }) => {
+  tokenGenerated: () => void;
+}> = ({ tenantId, tokenGenerated }) => {
   const [generatedToken, setGeneratedToken] = useState<string | undefined>();
 
   const { handleApiError } = useApiError({});
-
-  const tokenQuery = useQuery({
-    ...queries.tokens.list(tenantId),
-    refetchInterval: 5000,
-  });
 
   const createTokenMutation = useMutation({
     mutationKey: ['api-token:create', tenantId],
@@ -35,52 +28,47 @@ export const DefaultOnboardingAuth: React.FC<{
   if (generatedToken) {
     return (
       <div>
-        <p className="mb-4">
-          In the root of your project, create a new file called{' '}
-          <Badge variant="secondary">.env</Badge>. Paste the secret token into
-          this file.
+        <p className="mb-4 text-muted-foreground">
+          Set the following token as an environment variable in your worker.
         </p>
-        <p className="mb-4">
+        <p className="mb-4 text-muted-foreground">
           This is the only time we will show you this auth token. Make sure to
           copy it somewhere safe and do not share it with others. You can manage
           your auth tokens from the settings page.
         </p>
-        <div className="rounded-lg p-4 mb-6" onClick={onAuthComplete}>
+        <div className="rounded-lg mb-6">
           <CodeHighlighter
             language="plaintext"
             className="text-sm"
             wrapLines={false}
-            code={'HATCHET_CLIENT_TOKEN="' + generatedToken + '"'}
+            code={'export HATCHET_CLIENT_TOKEN="' + generatedToken + '"'}
             copy
           />
         </div>
 
-        <p className="text-gray-400">
-          Make sure to save the <Badge variant="secondary">.env</Badge> file
-          after pasting the token.
-        </p>
+        <Button
+          onClick={() => tokenGenerated()}
+          variant="outline"
+          className="mt-2"
+        >
+          Continue
+        </Button>
       </div>
     );
   }
 
   return (
     <div>
-      <p className="mb-4">
+      <p className="mb-4 text-muted-foreground">
         Before you can start your worker, you need to generate an auth token.
       </p>
       <Button
         onClick={() => createTokenMutation.mutate({ name: 'default' })}
         className="mr-2"
-        variant="default"
-        size={'lg'}
+        variant="outline"
       >
         Generate Auth Token
       </Button>
-      {(tokenQuery.data?.rows ?? []).length > 0 && (
-        <Button onClick={() => skip()} size={'lg'} variant="outline">
-          Skip
-        </Button>
-      )}
     </div>
   );
 };

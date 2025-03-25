@@ -92,7 +92,7 @@ export function WorkflowTable() {
   if (!listWorkflowQuery.isLoading && !listWorkflowQuery.data?.rows?.length) {
     return (
       <IntroDocsEmptyState
-        link="/home"
+        link="/home/setup"
         linkText="check out our quickstart documentation."
         linkPreambleText="To learn about how to get started running tasks,"
       />

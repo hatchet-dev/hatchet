@@ -1,85 +1,85 @@
 import { Button } from '@/components/ui/button';
-import api, { WorkflowRun, queries } from '@/lib/api';
+import { useToast } from '@/components/hooks/use-toast';
+import api, { V1WorkflowRunDetails, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export const DefaultOnboardingWorkflow: React.FC<{
   tenantId: string;
-  workerConnected: boolean;
-  workflowName?: string;
-  setWorkflowTriggered: (val: string) => void;
-}> = ({
-  tenantId,
-  workerConnected,
-  workflowName = 'first-workflow',
-  setWorkflowTriggered,
-}) => {
+}> = ({ tenantId }) => {
+  const workflowName = 'first-workflow';
+  const { toast } = useToast();
   const { handleApiError } = useApiError({});
+  const navigate = useNavigate();
 
   const listWorkflows = useQuery({
     ...queries.workflows.list(tenantId, { limit: 200 }),
     refetchInterval: 5000,
   });
 
-  const workflowId = (listWorkflows.data?.rows ?? []).find(
+  const workflow = (listWorkflows.data?.rows ?? []).find(
     (workflow) => workflow.name === workflowName,
-  )?.metadata.id;
+  );
 
   const triggerWorkflowMutation = useMutation({
-    mutationKey: ['workflow-run:create', workflowId],
-    mutationFn: async (input: object) => {
-      if (!workflowId) {
+    mutationKey: ['workflow-run:create', workflow?.metadata.id],
+    mutationFn: async (data: { input: object; addlMeta: object }) => {
+      if (!workflow) {
+        toast({
+          title: 'Error',
+          description:
+            'Workflow not found. Double check that your worker is connected.',
+          duration: 5000,
+        });
+
         return;
       }
 
-      const res = await api.workflowRunCreate(workflowId, {
-        input: input,
+      const res = await api.v1WorkflowRunCreate(tenantId, {
+        workflowName: workflow.name,
+        input: data.input,
+        additionalMetadata: data.addlMeta,
       });
 
       return res.data;
     },
-    onSuccess: (workflowRun: WorkflowRun | undefined) => {
+    onError: handleApiError,
+    onSuccess: (workflowRun: V1WorkflowRunDetails | undefined) => {
       if (!workflowRun) {
         return;
       }
 
-      setWorkflowTriggered(workflowRun.metadata.id);
+      navigate(`/v1/workflow-runs/${workflowRun.run.metadata.id}`);
     },
-    onError: handleApiError,
   });
 
   const [isButtonClicked, setIsButtonClicked] = useState(false);
 
   const handleButtonClick = () => {
     setIsButtonClicked(true);
-    triggerWorkflowMutation.mutate({});
+    triggerWorkflowMutation.mutate({
+      input: {},
+      addlMeta: {},
+    });
     setTimeout(() => setIsButtonClicked(false), 1000);
   };
 
-  if (!workerConnected) {
-    return (
-      <div>
-        <p>
-          Your connection to your worker was lost... please follow instructions
-          in the previous step restart your worker
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <p>Your application is now set up, and your worker is connected!</p>
-      <p className="mt-4">
+      <p className="mt-4 text-muted-foreground">
+        Your application is now set up, and your worker is connected!
+      </p>
+      <p className="mt-4 text-muted-foreground">
         Click the button below to trigger a run, and check out your worker
-        terminal for log output!
+        terminal for log output.
       </p>
 
       <Button
         onClick={handleButtonClick}
         className={`mt-5 ${isButtonClicked ? 'animate-jiggle' : ''}`}
-        size="lg"
+        variant={'outline'}
       >
         Trigger Run
       </Button>

@@ -166,7 +166,7 @@ export function TaskRunsTable({
   if (!isFetching && tableRows.length === 0) {
     return (
       <IntroDocsEmptyState
-        link="/home"
+        link="/home/setup"
         linkText="check out our quickstart documentation."
         linkPreambleText="To learn about how to get started running tasks,"
       />
