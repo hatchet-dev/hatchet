@@ -103,7 +103,7 @@ export type CreateBaseTaskOpts<T, K, C> = {
    * - weight: Priority weight for worker selection
    * - comparator: Custom comparison logic for label matching
    */
-  workerLabels?: CreateStep<T, K>['worker_labels'];
+  desiredWorkerLabels?: CreateStep<T, K>['worker_labels'];
 
   /**
    * (optional) the concurrency options for the task

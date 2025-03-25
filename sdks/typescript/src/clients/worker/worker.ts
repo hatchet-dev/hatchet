@@ -221,7 +221,7 @@ export class V0Worker {
           retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
           rateLimits: mapRateLimit(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
           workerLabels: toPbWorkerLabel(
-            onFailure.workerLabels || workflow.taskDefaults?.workerLabels
+            onFailure.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
           ),
           concurrency: [],
           backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
@@ -242,7 +242,7 @@ export class V0Worker {
           parents,
           retries: 0,
           rateLimits: [],
-          workerLabels: {},
+          desiredWorkerLabels: {},
           concurrency: [],
         };
       }
@@ -259,7 +259,7 @@ export class V0Worker {
           parents,
           retries: onSuccess.retries || workflow.taskDefaults?.retries || 0,
           rateLimits: onSuccess.rateLimits || workflow.taskDefaults?.rateLimits,
-          workerLabels: onSuccess.workerLabels || workflow.taskDefaults?.workerLabels,
+          desiredWorkerLabels: onSuccess.desiredWorkerLabels || workflow.taskDefaults?.workerLabels,
           concurrency: onSuccess.concurrency || workflow.taskDefaults?.concurrency,
           backoff: onSuccess.backoff || workflow.taskDefaults?.backoff,
         };
@@ -310,7 +310,7 @@ export class V0Worker {
           userData: '{}',
           retries: task.retries || workflow.taskDefaults?.retries || 0,
           rateLimits: mapRateLimit(task.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: toPbWorkerLabel(task.workerLabels || workflow.taskDefaults?.workerLabels),
+          workerLabels: toPbWorkerLabel(task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels),
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           conditions: taskConditionsToPb(task),

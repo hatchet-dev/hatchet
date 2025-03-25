@@ -5,11 +5,16 @@ import { GithubSnippet, getSnippets } from "@/components/code";
 export const TimeoutPy = {
   path: "examples/timeout/worker.py",
 };
+
+export const TimeoutTs = {
+  path: "src/v1/examples/with_timeouts/workflow.ts",
+};
+
 export const TimeoutGo = {
   path: "examples/timeout/main.go",
 };
 
-export const getStaticProps = ({}) => getSnippets([TimeoutPy, TimeoutGo]);
+export const getStaticProps = ({}) => getSnippets([TimeoutPy, TimeoutTs, TimeoutGo]);
 
 # Timeouts in Hatchet
 
@@ -51,17 +56,8 @@ You can specify execution and scheduling timeouts for a task using the `executio
 
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-const myStep: CreateStep<any, any> = {
-  name: "my-step",
-  // ...
-  execution_timeout: "30s",
-  schedule_timeout: "30s",
-  run: async (ctx) => {
-    // ...
-  },
-};
-```
+  <GithubSnippet src={TimeoutTs} target="Execution Timeout" />
+
   </Tabs.Tab>
   <Tabs.Tab>
   <GithubSnippet src={TimeoutGo} target="TimeoutStep" />
@@ -92,36 +88,10 @@ For example:
 
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-const myStep: CreateStep<any, any> = {
-  name: "my-step",
-  timeout: "30s",
-  run: async (ctx) => {
-    await sleep(20 * 1000);
-    ctx.refreshTimeout("15s");
-    await sleep(10 * 1000);
-    return { step1: "step1 results!" };
-  },
-};
-```
+  <GithubSnippet src={TimeoutTs} target="Refresh Timeout" />
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-worker.WorkflowJob{
-		Name: "timeout",
-		Description: "timeout",
-		Steps: []*worker.WorkflowStep{
-			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-				time.Sleep(time.Second * 20)
-				ctx.RefreshTimeout("15s")
-        time.Sleep(time.Second * 10)
-        return return &stepOneOutput{
-					Message: "step1 results!",
-				}, nil
-			}).SetName("step-one").SetTimeout("30s"),
-    },
-}
-```
+  <GithubSnippet src={TimeoutGo} target="RefreshTimeout" />
   </Tabs.Tab>
 </UniversalTabs>
 

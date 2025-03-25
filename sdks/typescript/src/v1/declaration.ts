@@ -156,7 +156,7 @@ export type TaskDefaults = {
    * - weight: Priority weight for worker selection
    * - comparator: Custom comparison logic for label matching
    */
-  workerLabels?: CreateWorkflowTaskOpts<any, any>['workerLabels'];
+  workerLabels?: CreateWorkflowTaskOpts<any, any>['desiredWorkerLabels'];
 
   /**
    * (optional) the concurrency options for the task.
