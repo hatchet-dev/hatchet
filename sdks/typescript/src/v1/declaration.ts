@@ -88,7 +88,7 @@ export type CreateBaseWorkflowOpts = {
 export type CreateTaskWorkflowOpts<
   T extends JsonObject = any,
   K extends JsonObject = any,
-> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<T, K>;
+> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
 
 /**
  * Options for creating a new workflow.

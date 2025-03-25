@@ -40,7 +40,8 @@ export type DurableTaskFn<T, K> = (input: T, ctx: DurableContext<T>) => K | Prom
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateBaseTaskOpts<T, K> = {
+//= TaskFn<T, K>
+export type CreateBaseTaskOpts<T, K, C> = {
   /**
    * The name of the task.
    */
@@ -52,7 +53,7 @@ export type CreateBaseTaskOpts<T, K> = {
    * @param ctx The execution context for the task.
    * @returns The result of the task execution.
    */
-  fn: TaskFn<T, K>;
+  fn: C;
 
   /**
    * @deprecated use executionTimeout instead
@@ -110,12 +111,12 @@ export type CreateBaseTaskOpts<T, K> = {
   concurrency?: TaskConcurrency | TaskConcurrency[];
 };
 
-export type CreateWorkflowTaskOpts<T, K> = CreateBaseTaskOpts<T, K> & {
+export type CreateWorkflowTaskOpts<T, K, C = TaskFn<T, K>> = CreateBaseTaskOpts<T, K, C> & {
   /**
    * Parent tasks that must complete before this task runs.
    * Used to define the directed acyclic graph (DAG) of the workflow.
    */
-  parents?: CreateWorkflowTaskOpts<T, any>[];
+  parents?: CreateWorkflowTaskOpts<T, any, any>[];
 
   /**
    * (optional) the conditions to match before the task is queued
@@ -173,33 +174,21 @@ export type CreateWorkflowTaskOpts<T, K> = CreateBaseTaskOpts<T, K> & {
   skipIf?: Conditions | Conditions[];
 };
 
-export type CreateStandaloneTaskOpts<T, K> = CreateBaseTaskOpts<T, K>;
-
-type DurableTaskOpts<T, K> = {
-  /**
-   * The function to execute when the task runs.
-   * @param input The input data for the workflow invocation.
-   * @param ctx The execution context for the task.
-   * @returns The result of the task execution.
-   */
-  fn: DurableTaskFn<T, K>;
-};
+export type CreateStandaloneTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
 
 /**
  * Options for creating a hatchet durable task which is an atomic unit of work in a workflow.
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateWorkflowDurableTaskOpts<T, K> = Omit<CreateWorkflowTaskOpts<T, K>, 'fn'> &
-  DurableTaskOpts<T, K>;
+export type CreateWorkflowDurableTaskOpts<T, K> = CreateWorkflowTaskOpts<T, K, DurableTaskFn<T, K>>;
 
 /**
  * Options for creating a hatchet task which is an atomic unit of work in a workflow.
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateStandaloneDurableTaskOpts<T, K> = Omit<CreateBaseTaskOpts<T, K>, 'fn'> &
-  DurableTaskOpts<T, K>;
+export type CreateStandaloneDurableTaskOpts<T, K> = CreateBaseTaskOpts<T, K, DurableTaskFn<T, K>>;
 
 /**
  * Options for configuring the onFailure task that is invoked when a task fails.

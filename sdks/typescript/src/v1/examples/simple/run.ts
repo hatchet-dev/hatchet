@@ -5,11 +5,11 @@ import { simple } from './workflow';
 async function main() {
   // 👀 Run the workflow with results
   const res = await simple.run({
-    Message: 'hello',
+    Message: 'HeLlO WoRlD',
   });
 
   // 👀 Access the results of the workflow
-  console.log(res['to-lower'].TransformedMessage);
+  console.log(res.TransformedMessage);
   // !!
 }
 
