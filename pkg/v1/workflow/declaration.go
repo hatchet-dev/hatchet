@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -74,6 +75,14 @@ type WorkflowBase interface {
 
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
+
+	childOpts *client.ChildWorkflowOpts
+}
+
+type RunAsChildOpts struct {
+	RunOpts
+	Sticky *bool
+	Key    *string
 }
 
 // WorkflowDeclaration represents a workflow with input type I and output type O.
@@ -91,6 +100,9 @@ type WorkflowDeclaration[I any, O any] interface {
 
 	// Run executes the workflow with the provided input.
 	Run(input I, opts ...RunOpts) (*O, error)
+
+	// RunChild executes a child workflow with the provided input.
+	RunAsChild(ctx worker.HatchetContext, input I, opts ...RunAsChildOpts) (*O, error)
 
 	// RunNoWait executes the workflow with the provided input without waiting for it to complete.
 	// Instead it returns a run ID that can be used to check the status of the workflow.
@@ -395,6 +407,8 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *ta
 // Instead it returns a run ID that can be used to check the status of the workflow.
 func (w *workflowDeclarationImpl[I, O]) RunNoWait(input I, opts ...RunOpts) (*v0Client.Workflow, error) {
 
+	// TODO namespace
+
 	runOpts := []v0Client.RunOptFunc{}
 
 	if len(opts) > 0 {
@@ -412,6 +426,46 @@ func (w *workflowDeclarationImpl[I, O]) RunNoWait(input I, opts ...RunOpts) (*v0
 	return run, nil
 }
 
+// RunAsChild executes the workflow as a child workflow with the provided input.
+func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, input I, opts ...RunAsChildOpts) (*O, error) {
+
+	runOpts := RunOpts{}
+	var desiredWorker *string
+	var key *string
+	if len(opts) > 0 {
+		if opts[0].AdditionalMetadata != nil {
+			runOpts.AdditionalMetadata = opts[0].AdditionalMetadata
+		}
+
+		if opts[0].Sticky != nil {
+			if !ctx.Worker().HasWorkflow(w.Name) {
+				return nil, fmt.Errorf("cannot run with sticky: workflow %s is not registered on this worker", w.Name)
+			}
+
+			id := ctx.Worker().ID()
+			desiredWorker = &id
+		}
+
+		if opts[0].Key != nil {
+			key = opts[0].Key
+		}
+	}
+
+	childOpts := &client.ChildWorkflowOpts{
+		ParentId:        ctx.WorkflowRunId(),
+		ParentStepRunId: ctx.StepRunId(),
+		ChildIndex:      ctx.CurChildIndex(),
+		ChildKey:        key,
+		DesiredWorkerId: desiredWorker,
+	}
+
+	ctx.IncChildIndex()
+
+	runOpts.childOpts = childOpts
+
+	return w.Run(input, runOpts)
+}
+
 // Run executes the workflow with the provided input.
 // It triggers a workflow run via the Hatchet client and waits for the result.
 // Returns the workflow output and any error encountered during execution.
@@ -427,6 +481,8 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("workflowResult", workflowResult)
 
 	// Create a new output object
 	var output O
@@ -776,4 +832,89 @@ func (w *workflowDeclarationImpl[I, O]) QueueMetrics(opts ...rest.TenantGetQueue
 	}
 
 	return metrics, nil
+}
+
+// RunChildWorkflow is a helper function to run a child workflow with full type safety
+// It takes the parent context, the child workflow declaration, and input
+// Returns the typed output of the child workflow
+func RunChildWorkflow[I any, O any](
+	ctx worker.HatchetContext,
+	workflow WorkflowDeclaration[I, O],
+	input I,
+	opts ...RunOpts,
+) (*O, error) {
+	// Get the workflow name
+	wfImpl, ok := workflow.(*workflowDeclarationImpl[I, O])
+	if !ok {
+		return nil, fmt.Errorf("invalid workflow declaration type")
+	}
+
+	// Set up additional metadata if provided
+	var additionalMetadata *map[string]string
+	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
+		metadataStr := make(map[string]string)
+		for k, v := range *opts[0].AdditionalMetadata {
+			// Convert interface{} values to strings
+			switch val := v.(type) {
+			case string:
+				metadataStr[k] = val
+			default:
+				// For non-string values, convert to JSON string
+				bytes, err := json.Marshal(val)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal metadata value: %w", err)
+				}
+				metadataStr[k] = string(bytes)
+			}
+		}
+		additionalMetadata = &metadataStr
+	}
+
+	// Spawn the child workflow
+	childWorkflow, err := ctx.SpawnWorkflow(wfImpl.Name, input, &worker.SpawnWorkflowOpts{
+		AdditionalMetadata: additionalMetadata,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn child workflow: %w", err)
+	}
+
+	// Wait for the result
+	workflowResult, err := childWorkflow.Result()
+	if err != nil {
+		return nil, fmt.Errorf("child workflow execution failed: %w", err)
+	}
+
+	// Create a new output object
+	var output O
+
+	// Iterate through each task with a registered output setter
+	for taskName, setter := range wfImpl.outputSetters {
+		// Extract the specific task output using StepOutput
+		var taskOutput interface{}
+
+		// Use reflection to create the correct type for the task output
+		for fieldName, fieldType := range getStructFields(reflect.TypeOf(output)) {
+			if strings.EqualFold(fieldName, taskName) {
+				taskOutput = reflect.New(fieldType).Interface()
+				break
+			}
+		}
+
+		if taskOutput == nil {
+			continue // Skip if we couldn't find a matching field
+		}
+
+		// Extract task output using the StepOutput method
+		err := workflowResult.StepOutput(taskName, taskOutput)
+		if err != nil {
+			// Log the error but continue with other tasks
+			fmt.Printf("Error extracting output for task %s: %v\n", taskName, err)
+			continue
+		}
+
+		// Set the output value using the registered setter
+		setter(&output, taskOutput)
+	}
+
+	return &output, nil
 }

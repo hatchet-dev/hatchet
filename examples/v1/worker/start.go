@@ -31,11 +31,12 @@ func main() {
 	}
 
 	// Define workflows map
-	workflowMap := map[string]workflow.WorkflowBase{
-		"dag":        v1_workflows.DagWorkflow(&hatchet),
-		"on-failure": v1_workflows.OnFailure(&hatchet),
-		"simple":     v1_workflows.Simple(&hatchet),
-		"sleep":      v1_workflows.DurableSleep(&hatchet),
+	workflowMap := map[string][]workflow.WorkflowBase{
+		"dag":        {v1_workflows.DagWorkflow(&hatchet)},
+		"on-failure": {v1_workflows.OnFailure(&hatchet)},
+		"simple":     {v1_workflows.Simple(&hatchet)},
+		"sleep":      {v1_workflows.DurableSleep(&hatchet)},
+		"child":      {v1_workflows.Parent(&hatchet), v1_workflows.Child(&hatchet)},
 	}
 
 	// Lookup workflow from map
@@ -50,7 +51,7 @@ func main() {
 		worker.CreateOpts{
 			Name: fmt.Sprintf("%s-worker", workflowName),
 		},
-		worker.WithWorkflows(workflow),
+		worker.WithWorkflows(workflow...),
 	)
 
 	if err != nil {
@@ -65,7 +66,7 @@ func main() {
 }
 
 // Helper function to get available workflows as a formatted string
-func getAvailableWorkflows(workflowMap map[string]workflow.WorkflowBase) string {
+func getAvailableWorkflows(workflowMap map[string][]workflow.WorkflowBase) string {
 	var workflows string
 	count := 0
 	for name := range workflowMap {

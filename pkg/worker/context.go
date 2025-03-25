@@ -26,6 +26,8 @@ type HatchetWorkerContext interface {
 	GetLabels() map[string]interface{}
 
 	UpsertLabels(labels map[string]interface{}) error
+
+	HasWorkflow(workflowName string) bool
 }
 
 type HatchetContext interface {
@@ -77,8 +79,8 @@ type HatchetContext interface {
 
 	action() *client.Action
 
-	index() int
-	inc()
+	CurChildIndex() int
+	IncChildIndex()
 }
 
 type TriggeredBy string
@@ -284,11 +286,11 @@ func (h *hatchetContext) RetryCount() int {
 	return int(h.a.RetryCount)
 }
 
-func (h *hatchetContext) index() int {
+func (h *hatchetContext) CurChildIndex() int {
 	return h.i
 }
 
-func (h *hatchetContext) inc() {
+func (h *hatchetContext) IncChildIndex() {
 	h.indexMu.Lock()
 	h.i++
 	h.indexMu.Unlock()
@@ -350,7 +352,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		&client.ChildWorkflowOpts{
 			ParentId:           h.WorkflowRunId(),
 			ParentStepRunId:    h.StepRunId(),
-			ChildIndex:         h.index(),
+			ChildIndex:         h.CurChildIndex(),
 			ChildKey:           opts.Key,
 			DesiredWorkerId:    desiredWorker,
 			AdditionalMetadata: opts.AdditionalMetadata,
@@ -362,7 +364,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	}
 
 	// increment the index
-	h.inc()
+	h.IncChildIndex()
 
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
@@ -402,7 +404,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 		}
 
 		// increment the index
-		h.inc()
+		h.IncChildIndex()
 
 		triggerWorkflows[i] = &client.RunChildWorkflowsOpts{
 			WorkflowName: workflowName,
@@ -410,7 +412,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			Opts: &client.ChildWorkflowOpts{
 				ParentId:           h.WorkflowRunId(),
 				ParentStepRunId:    h.StepRunId(),
-				ChildIndex:         h.index(),
+				ChildIndex:         h.CurChildIndex(),
 				ChildKey:           c.Key,
 				DesiredWorkerId:    desiredWorker,
 				AdditionalMetadata: c.AdditionalMetadata,
@@ -543,6 +545,10 @@ func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) erro
 	return nil
 }
 
+func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
+	return wc.worker.registered_workflows[workflowName]
+}
+
 // DurableHatchetContext extends HatchetContext with methods for durable tasks.
 type DurableHatchetContext interface {
 	HatchetContext
@@ -614,4 +620,21 @@ func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 		},
 		waitKeyCounter: 0,
 	}
+}
+
+// Implementation of RunChild method for the hatchetContext
+func (h *hatchetContext) RunChild(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.WorkflowResult, error) {
+	// Spawn the child workflow
+	workflow, err := h.SpawnWorkflow(workflowName, input, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn child workflow: %w", err)
+	}
+
+	// Wait for the result
+	result, err := workflow.Result()
+	if err != nil {
+		return nil, fmt.Errorf("child workflow execution failed: %w", err)
+	}
+
+	return result, nil
 }

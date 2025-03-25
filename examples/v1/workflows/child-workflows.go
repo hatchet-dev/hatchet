@@ -1,6 +1,8 @@
 package v1_workflows
 
 import (
+	"fmt"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
@@ -8,27 +10,27 @@ import (
 )
 
 type ChildInput struct {
-	N int
+	N int `json:"n"`
 }
 
 type ValueOutput struct {
-	Value int
+	Value int `json:"value"`
 }
 
 type ChildResult struct {
-	Value ValueOutput
+	One ValueOutput `json:"one"`
 }
 
 type ParentInput struct {
-	N int
+	N int `json:"n"`
 }
 
 type SumOutput struct {
-	Result int
+	Result int `json:"result"`
 }
 
 type ParentResult struct {
-	Sum SumOutput
+	Sum SumOutput `json:"sum"`
 }
 
 func Child(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, ChildResult] {
@@ -41,7 +43,7 @@ func Child(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, C
 
 	child.Task(
 		task.CreateOpts[ChildInput]{
-			Name: "value",
+			Name: "one",
 			Fn: func(input ChildInput, ctx worker.HatchetContext) (*ValueOutput, error) {
 				return &ValueOutput{
 					Value: input.N,
@@ -54,6 +56,8 @@ func Child(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, C
 }
 
 func Parent(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, ParentResult] {
+
+	child := Child(hatchet)
 	parent := v1.WorkflowFactory[ParentInput, ParentResult](
 		workflow.CreateOpts[ParentInput]{
 			Name: "parent",
@@ -67,28 +71,37 @@ func Parent(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput,
 			Fn: func(input ParentInput, ctx worker.HatchetContext) (*SumOutput, error) {
 				sum := 0
 
-				for i := 0; i < input.N; i++ {
-					workflow, err := ctx.SpawnWorkflow("child", ChildInput{N: i}, nil)
-					if err != nil {
-						return nil, err
-					}
+				// Create a channel to collect results and errors
+				type childResponse struct {
+					result *ChildResult
+					err    error
+				}
+				responses := make(chan childResponse, input.N)
 
-					result, err := workflow.Result()
-					if err != nil {
-						return nil, err
-					}
-
-					var childResult ChildResult
-					err = result.StepOutput("value", &childResult.Value)
-					if err != nil {
-						return nil, err
-					}
-
-					sum += childResult.Value.Value
+				// Launch child workflows in parallel
+				for j := 0; j < input.N; j++ {
+					go func() {
+						childResult, err := child.RunAsChild(ctx, ChildInput{N: 1})
+						responses <- childResponse{result: childResult, err: err}
+					}()
 				}
 
+				// Collect all results
+				var childResult *ChildResult
+				for j := 0; j < input.N; j++ {
+					response := <-responses
+					if response.err != nil {
+						return nil, response.err
+					}
+					childResult = response.result
+				}
+
+				fmt.Println("childResult", childResult.One.Value)
+
+				sum += childResult.One.Value
+
 				return &SumOutput{
-					Result: sum,
+					Result: 1000,
 				}, nil
 			},
 		},

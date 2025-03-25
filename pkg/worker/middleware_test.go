@@ -96,11 +96,11 @@ func (c *testHatchetContext) action() *client.Action {
 	panic("not implemented")
 }
 
-func (c *testHatchetContext) index() int {
+func (c *testHatchetContext) CurChildIndex() int {
 	panic("not implemented")
 }
 
-func (c *testHatchetContext) inc() {
+func (c *testHatchetContext) IncChildIndex() {
 	panic("not implemented")
 }
 
