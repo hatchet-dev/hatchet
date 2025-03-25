@@ -610,7 +610,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param duration - The duration to sleep for.
    * @returns A promise that resolves when the sleep duration has elapsed.
    */
-  async sleepFor(duration: Duration, readableDataKey?: string): Promise<unknown> {
+  async sleepFor(duration: Duration, readableDataKey?: string) {
     return this.waitFor({ sleepFor: duration, readableDataKey });
   }
 
