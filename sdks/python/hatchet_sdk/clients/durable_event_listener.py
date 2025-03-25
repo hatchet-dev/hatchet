@@ -3,6 +3,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any, Literal, cast
 
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
@@ -307,6 +308,7 @@ class DurableEventListener:
 
         raise ValueError("Failed to connect to durable event listener")
 
+    @tenacity_retry
     def register_durable_event(
         self, request: RegisterDurableEventRequest
     ) -> Literal[True]:
@@ -318,6 +320,7 @@ class DurableEventListener:
 
         return True
 
+    @tenacity_retry
     async def result(self, task_id: str, signal_key: str) -> dict[str, Any]:
         event = await self.subscribe(task_id, signal_key)
 
