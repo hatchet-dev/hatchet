@@ -251,7 +251,7 @@ class Context:
 
 
 class DurableContext(Context):
-    async def wait_for(
+    async def aio_wait_for(
         self, signal_key: str, *conditions: SleepCondition | UserEventCondition
     ) -> dict[str, Any]:
         if self.durable_event_listener is None:
@@ -272,13 +272,13 @@ class DurableContext(Context):
             signal_key,
         )
 
-    async def wait_for_sleep(self, duration: Duration) -> dict[str, Any]:
+    async def aio_wait_for_sleep(self, duration: Duration) -> dict[str, Any]:
         """
-        Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.wait_for` when specifying a sleep condition.
+        Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
-        For more complicated conditions, use `ctx.wait_for` directly.
+        For more complicated conditions, use `ctx.aio_wait_for` directly.
         """
 
-        return await self.wait_for(
+        return await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}", SleepCondition(duration=duration)
         )
