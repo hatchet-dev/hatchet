@@ -6,7 +6,7 @@ export const StickyWorkerPy = {
   path: "examples/sticky_workers/worker.py",
 };
 export const StickyWorkerTS = {
-  path: "src/examples/sticky-worker.ts",
+  path: "src/v1/examples/sticky/workflow.ts",
 };
 
 export const StickyWorkerGo = {
@@ -54,7 +54,7 @@ There are two strategies for setting sticky assignment:
   </Tabs.Tab>
   <Tabs.Tab>
 
-<GithubSnippet src={StickyWorkerTS} target="StickyWorker" />
+<GithubSnippet src={StickyWorkerTS} target="Sticky Task" />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -85,7 +85,7 @@ If either condition is not met, an error will be thrown when the child workflow 
   </Tabs.Tab>
   <Tabs.Tab>
 
-<GithubSnippet src={StickyWorkerTS} target="StickyChild" />
+<GithubSnippet src={StickyWorkerTS} target="Sticky Task" />
 
   </Tabs.Tab>
   <Tabs.Tab>

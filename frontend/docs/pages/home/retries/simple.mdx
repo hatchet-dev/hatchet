@@ -3,14 +3,10 @@ import UniversalTabs from "../../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
 export const SimpleTs = {
-  path: "src/v1/examples/simple/workflow.ts",
+  path: "src/v1/examples/retries/workflow.ts",
 };
 export const RetryPy = {
   path: "examples/retries/worker.py",
-};
-
-export const RetryBackoffTs = {
-  path: "src/examples/retries-with-backoff.ts",
 };
 
 export const RetryBackoffPy = {
@@ -22,7 +18,7 @@ export const RetryBackoffGo = {
 };
 
 export const getStaticProps = ({}) =>
-  getSnippets([RetryBackoffTs, RetryBackoffPy, RetryBackoffGo, RetryPy]);
+  getSnippets([SimpleTs, RetryBackoffPy, RetryBackoffGo, RetryPy]);
 
 # Retry Strategies in Hatchet: Simple Step Retry
 
@@ -49,15 +45,7 @@ To enable retries for a task in your workflow, simply add the `retries` property
   </Tabs.Tab>
   <Tabs.Tab>
 
-```typescript
-import { CreateStepSchema } from "@hatchet-dev/typescript-sdk";
-
-const task1: z.infer<typeof CreateStepSchema> = {
-  name: "task1",
-  timeout: "30s",
-  retries: 3,
-};
-```
+<GithubSnippet src={SimpleTs} target="Simple Step Retries" />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -97,13 +85,7 @@ def task1(self, context: Context):
   </Tabs.Tab>
   <Tabs.Tab>
 
-```typescript
-async function task(context: Context) {
-  const retryCount = context.retryCount();
-  console.log(`Retry count: ${retryCount}`);
-  throw new Error("Step failed");
-}
-```
+<GithubSnippet src={SimpleTs} target="Step Retries with Count" />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -130,7 +112,7 @@ Hatchet also supports exponential backoff for retries, which can be useful for h
     <GithubSnippet src={RetryBackoffPy} target="Backoff" />
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
-    <GithubSnippet src={RetryBackoffTs} target="Backoff" />
+    <GithubSnippet src={SimpleTs} target="Step Retries with Backoff" />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
     <GithubSnippet src={RetryBackoffGo} target="Backoff" />
