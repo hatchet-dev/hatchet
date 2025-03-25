@@ -312,7 +312,13 @@ func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	svc, ok := w.services.Load(svcName)
 
 	if !ok {
-		return w.NewService(svcName).On(t, workflow)
+		newSvc := w.NewService(svcName)
+
+		if w.middlewares != nil {
+			newSvc.Use(w.middlewares.middlewares...)
+		}
+
+		return newSvc.On(t, workflow)
 	}
 
 	return svc.(*Service).On(t, workflow)
