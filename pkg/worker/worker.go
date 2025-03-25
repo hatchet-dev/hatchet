@@ -341,6 +341,11 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 		return fmt.Errorf("could not parse action id: %w", err)
 	}
 
+	// if the service does not exist, create a new service for the action
+	if _, ok := w.services.Load(action.Service); !ok {
+		w.NewService(action.Service)
+	}
+
 	return w.registerAction(action.Service, action.Verb, method, nil)
 }
 
@@ -428,25 +433,7 @@ func (w *Worker) ID() *string {
 func (w *Worker) startBlocking(ctx context.Context) error {
 	actionNames := []string{}
 
-	// Create a dictionary of services by splitting actions "service:action"
-	services := make(map[string][]Action)
 	for _, action := range w.actions {
-		parts := strings.Split(action.Name(), ":")
-		if len(parts) == 2 {
-			serviceName := parts[0]
-			services[serviceName] = append(services[serviceName], action)
-		}
-	}
-
-	// Create a new service for each service name
-	for serviceName := range services {
-		// Create a new service for this group of actions
-		// FIXME none of this service stuff makes sense...
-		w.NewService(serviceName)
-	}
-
-	for _, action := range w.actions {
-
 		if w.client.RunnableActions() != nil {
 			if !slices.Contains(w.client.RunnableActions(), action.Name()) {
 				continue
