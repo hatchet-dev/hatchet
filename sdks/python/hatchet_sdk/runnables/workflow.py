@@ -24,7 +24,6 @@ from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     DEFAULT_EXECUTION_TIMEOUT,
@@ -50,6 +49,7 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
+    from hatchet_sdk.runnables.standalone import Standalone
 
 
 def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
@@ -728,7 +728,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return inner
 
-    def add_task(self, task: Standalone[TWorkflowInput, Any]) -> None:
+    def add_task(self, task: "Standalone[TWorkflowInput, Any]") -> None:
         """
         Add a task to a workflow. Intended to be used with a previously existing task (a Standalone),
         such as one created with `@hatchet.task()`, which has been converted to a `Task` object using `to_task`.
