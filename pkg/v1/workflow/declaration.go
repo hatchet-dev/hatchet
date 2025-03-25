@@ -5,6 +5,8 @@ package workflow
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
@@ -420,14 +422,64 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error
 		return nil, err
 	}
 
-	// TODO the result method does not work as expect at this time
-	_, err = run.Result()
+	workflowResult, err := run.Result()
 
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	// Create a new output object
+	var output O
+
+	// Iterate through each task with a registered output setter
+	for taskName, setter := range w.outputSetters {
+		// Extract the specific task output using StepOutput
+		var taskOutput interface{}
+
+		// Use reflection to create the correct type for the task output
+		for fieldName, fieldType := range getStructFields(reflect.TypeOf(output)) {
+			if strings.EqualFold(fieldName, taskName) {
+				taskOutput = reflect.New(fieldType).Interface()
+				break
+			}
+		}
+
+		if taskOutput == nil {
+			continue // Skip if we couldn't find a matching field
+		}
+
+		// Extract task output using the StepOutput method
+		err := workflowResult.StepOutput(taskName, taskOutput)
+		if err != nil {
+			// Log the error but continue with other tasks
+			fmt.Printf("Error extracting output for task %s: %v\n", taskName, err)
+			continue
+		}
+
+		// Set the output value using the registered setter
+		setter(&output, taskOutput)
+	}
+
+	return &output, nil
+}
+
+// Helper function to get field names and types of a struct
+func getStructFields(t reflect.Type) map[string]reflect.Type {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+
+	fields := make(map[string]reflect.Type)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fields[field.Name] = field.Type
+	}
+
+	return fields
 }
 
 // Cron schedules the workflow to run on a regular basis using a cron expression.

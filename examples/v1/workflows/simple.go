@@ -11,11 +11,11 @@ import (
 )
 
 type SimpleInput struct {
-	Message string `json:"message"`
+	Message string
 }
 
 type LowerOutput struct {
-	TransformedMessage string `json:"message"`
+	TransformedMessage string
 }
 
 type SimpleResult struct {
@@ -27,12 +27,6 @@ func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput,
 	simple := v1.WorkflowFactory[SimpleInput, SimpleResult](
 		workflow.CreateOpts[SimpleInput]{
 			Name: "simple",
-			TaskDefaults: &task.TaskDefaults{
-				ExecutionTimeout:       10 * time.Second,
-				Retries:                3,
-				RetryBackoffFactor:     2,
-				RetryMaxBackoffSeconds: 60,
-			},
 		},
 		hatchet,
 	)

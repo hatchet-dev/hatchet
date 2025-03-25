@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/joho/godotenv"
@@ -20,7 +22,7 @@ func main() {
 
 	simple := v1_workflows.Simple(&hatchet)
 
-	_, err = simple.Run(v1_workflows.SimpleInput{
+	result, err := simple.Run(v1_workflows.SimpleInput{
 		Message: "Hello, World!",
 	})
 
@@ -28,4 +30,5 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Println(result.ToLower.TransformedMessage)
 }

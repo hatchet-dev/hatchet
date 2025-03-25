@@ -56,7 +56,19 @@ func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 }
 
 func (r *WorkflowResult) Results() (interface{}, error) {
-	return r.workflowRun.Results, nil
+	results := make(map[string]interface{})
+
+	for _, stepRunResult := range r.workflowRun.Results {
+		if stepRunResult.Error != nil {
+			return nil, fmt.Errorf("run failed: %s", *stepRunResult.Error)
+		}
+
+		if stepRunResult.Output != nil {
+			results[stepRunResult.StepReadableId] = stepRunResult.Output
+		}
+	}
+
+	return results, nil
 }
 
 func (c *Workflow) Result() (*WorkflowResult, error) {
