@@ -1,4 +1,3 @@
-import asyncio
 from datetime import timedelta
 from typing import Any
 
@@ -24,7 +23,7 @@ bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildIn
 
 # ❓ BulkFanoutParent
 @bulk_parent_wf.task(execution_timeout=timedelta(minutes=5))
-async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[Any]]:
+async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
     # 👀 Create each workflow run to spawn
     child_workflow_runs = [
         bulk_child_wf.create_run_workflow_config(
@@ -38,12 +37,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[Any]]:
     # 👀 Run workflows in bulk to improve performance
     spawn_results = await bulk_child_wf.aio_run_many(child_workflow_runs)
 
-    results = await asyncio.gather(
-        *[workflowRunRef.aio_result() for workflowRunRef in spawn_results],
-        return_exceptions=True,
-    )
-
-    return {"results": results}
+    return {"results": spawn_results}
 
 
 # ‼️

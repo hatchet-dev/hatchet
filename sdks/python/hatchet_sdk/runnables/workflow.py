@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable, Generic, cast, overload
 
@@ -313,12 +314,32 @@ class Workflow(Generic[TWorkflowInput]):
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
+    ) -> list[dict[str, Any]]:
+        refs = self.client.admin.run_workflows(
+            workflows=workflows,
+        )
+
+        return [ref.result() for ref in refs]
+
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+    ) -> list[dict[str, Any]]:
+        refs = await self.client.admin.aio_run_workflows(
+            workflows=workflows,
+        )
+
+        return await asyncio.gather(*[ref.aio_result() for ref in refs])
+
+    def run_many_no_wait(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
         return self.client.admin.run_workflows(
             workflows=workflows,
         )
 
-    async def aio_run_many(
+    async def aio_run_many_no_wait(
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:

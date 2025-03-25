@@ -8,7 +8,7 @@ hatchet = Hatchet()
 
 
 async def main() -> None:
-    workflow_run_refs = bulk_parent_wf.run_many(
+    results = bulk_parent_wf.run_many(
         workflows=[
             bulk_parent_wf.create_run_workflow_config(
                 input=ParentInput(n=i),
@@ -23,16 +23,8 @@ async def main() -> None:
         ],
     )
 
-    results = await asyncio.gather(
-        *[ref.aio_result() for ref in workflow_run_refs],
-        return_exceptions=True,
-    )
-
     for result in results:
-        if isinstance(result, Exception):
-            print(f"An error occurred: {result}")  # Handle the exception here
-        else:
-            print(result)
+        print(result)
 
 
 if __name__ == "__main__":

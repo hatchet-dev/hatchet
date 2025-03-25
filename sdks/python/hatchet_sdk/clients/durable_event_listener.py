@@ -3,13 +3,13 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any, Literal, cast
 
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
 from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
