@@ -8,15 +8,7 @@ To retry a failed task, simply click on the task in the run details view and the
 
 Manual retries give you full control over when and how to reprocess failed instances. For example, you may choose to wait until an external service is back online before retrying instances that depend on that service, or you may need to deploy a bug fix to your workflow code before retrying instances that were affected by the bug.
 
-## Modifying Inputs and Options
-
-In some cases, you may need to modify the input data or configuration options for a failed task before retrying it. Hatchet provides an interface that allows you to do just that directly from the dashboard.
-
-### Inputs
-
-After navigating to a task run, you can modify the input data for the task before retrying it. This allows you to fix any invalid or missing data that may have caused the task to fail, or to test different input variations without needing to modify your workflow code.
-
-### Bulk Retries
+## Bulk Retries
 
 As of [Hatchet V1](../announcement.mdx), you can also retry tasks in bulk from the dashboard. There are two ways to achieve this:
 

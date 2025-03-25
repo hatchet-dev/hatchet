@@ -1,0 +1,70 @@
+## Engine Migration Guide
+
+Please read this document in its entirety before upgrading to a v1 engine.
+
+### How to upgrade
+
+The latest Hatchet engine is available on Hatchet Cloud and in self-hosted Hatchet versions `>0.55.11`. To upgrade, navigate to the Tenant Settings page and click the "Upgrade to v1" button:
+
+![Upgrade to v1](https://github.com/user-attachments/assets/55f6b343-e9a9-4d6b-9c03-43eba105357d)
+
+### How to downgrade
+
+If you navigate to the Tenant Settings page and click the "Downgrade to v0" button, you will be able to downgrade to the v0 engine. Please note that this will not migrate any workflow runs that were created on the v1 engine, see the section on Workflow Run Migration below for more information.
+
+### Viewing v0 Workflow Runs
+
+After upgrading, you will be able to view your old workflows by clicking on your account icon (in the top right) and selecting **View Legacy V0 Data**.
+
+### Setting v1 as the default engine
+
+For self-hosted instances, you can set v1 to be the default engine for all new tenants by setting the following environment variable:
+
+```
+SERVER_DEFAULT_ENGINE_VERSION=V1
+```
+
+### Workflow Run Migration
+
+Please note that upgrading to the v1 engine will **not migrate your existing workflow runs**, including runs which are in a Running or Queued state.
+
+If you have a large number of runs in a Running or Queued state, we recommend the following course of action:
+
+1. Create a new tenant and upgrade it to v1.
+2. Generate a new API token, and create a new set of workers which use this API token. These workers will connect to the tenant with the v1 runtime.
+3. After your workers are connected, change the API token of the service which is publishing events or triggering workflow runs (typically your backend/API) to use the new API token, which is connected to the v1 tenant. The new workers will start processing new work that enters your system.
+4. After the old v0 tenant has processed all of its existing workflow runs, spin down the workers which are connected to the v0 tenant.
+
+Note that if you are dependent on strict FIFO ordering in your queues, this strategy will not work, as new work may be processed on the new tenant before old work is processed on the old tenant. Please reach out to us over Discord or Slack if you need help with migrating this type of workload.
+
+### SDK Compatibility
+
+First, a quick note — we are **not removing any features from our existing feature set**. Our goal is for all features to work with minimal changes in Hatchet v1.
+
+Up to now, we've attempted to be as backwards-compatible as possible while keeping up with feature velocity, and we'd like to support users on v0 for as long as possible while providing an easy path for upgrading. Generally, we'd recommend upgrading the Hatchet engine first, followed by the SDK version. Here's our compatibility matrix between v0 and v1:
+
+|        | Engine v0           | Engine v1   |
+| ------ | ------------------- | ----------- |
+| SDK v0 | Supported           | Supported\* |
+| SDK v1 | Limited support\*\* | Supported   |
+
+\* Some features will behave slightly differently on the v1 engine, but all workflows defined in v0 can be registered in v1
+
+\*\* It will not be possible to register a v1 workflow against the v0 engine, but each SDK will continue to bundle the v0 version until September 30th, 2025.
+
+For instructions on upgrading to the latest SDKs, please refer to the following guides:
+
+- [Python SDK Migration Guide](./migration-guide-python.mdx)
+- [Typescript SDK Migration Guide](./migration-guide-typescript.mdx)
+- [Go SDK Migration Guide](./migration-guide-go.mdx)
+
+### List of breaking changes
+
+While we'd prefer to avoid any breaking changes, v1 is architecturally very different from v0, which means that the following APIs will be modified/replaced:
+
+- While we haven't published an official REST API doc, we have often recommended usage of the REST API in our SDKs to implement replays, retrieving task status, and dead-letter queueing. The current API for listing, cancelling and replaying workflow runs will not work against a v1 engine. We will be providing an upgrade path using new endpoints which are more conducive to bulk replays and cancellations.
+- We will only be supporting [CEL-based concurrency keys](https://docs.hatchet.run/home/features/concurrency/round-robin#how-to-use-group_round_robin), and we will not be supporting custom concurrency methods defined on the client. If you require custom logic to compute the concurrency key that can't be captured in a CEL expression, we recommend computing the key ahead of time and passing it as part of the input to the workflow. **Workflows registered against a v1 engine with a custom concurrency method (instead of an expression) will not use a concurrency queue.**
+- Concurrency queues previously did not respect the `ScheduleTimeout` value set on the workflow level, so concurrency queues had no timeouts. In v1, concurrency queues will respect the schedule timeout value as well.
+- User-defined events sent via `event.push` will no longer be displayed in the Hatchet UI and will not be available over the REST API. Events will still trigger workflows, but in nearly all instances of Hatchet that we surveyed, events were not used, accessed after writes, or replayed. We are considering adding an option to mark a user-defined event as `Durable`, but that will not be available in the initial v1 release. **Please let us know if you are dependent on the events view or APIs.**
+
+_These are the most important breaking changes, but we will add any small modifications to queueing/workflow behavior ahead of March 24th._

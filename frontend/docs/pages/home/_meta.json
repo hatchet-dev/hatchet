@@ -1,12 +1,4 @@
 {
-  "--v1": {
-    "title": "V1",
-    "type": "separator"
-  },
-  "announcement": "Announcement",
-  "v1-new-features": "New Features",
-  "migration-guide-python": "Migration Guide (Python)",
-  "migration-guide-typescript": "Migration Guide (TypeScript)",
   "--intro": {
     "title": "Introduction",
     "type": "separator"
@@ -27,7 +19,6 @@
   "basic-workflows": "Workflows",
   "workers": "Workers",
   "environments": "Environments",
-
   "--running-workflows": {
     "title": "Ways of Running Workflows",
     "type": "separator"
@@ -57,7 +48,6 @@
   "retries": {
     "title": "Retries"
   },
-
   "--assignment": {
     "title": "Advanced Assignment",
     "type": "separator"
@@ -124,6 +114,14 @@
     "title": "Bulk Cancellation",
     "display": "hidden"
   },
+  "--v1": {
+    "title": "V1 Migration Guides",
+    "type": "separator"
+  },
+  "migration-guide-engine": "Engine Migration Guide",
+  "migration-guide-python": "Python Migration Guide",
+  "migration-guide-typescript": "Typescript Migration Guide",
+  "migration-guide-go": "Go Migration Guide",
   "--python": {
     "title": "Python Specifics",
     "type": "separator"
