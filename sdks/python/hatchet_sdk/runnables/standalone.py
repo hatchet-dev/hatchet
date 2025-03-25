@@ -181,3 +181,6 @@ class Standalone(Generic[TWorkflowInput, R]):
             input=input,
             additional_metadata=additional_metadata,
         )
+
+    def to_task(self) -> Task[TWorkflowInput, R]:
+        return self._task
