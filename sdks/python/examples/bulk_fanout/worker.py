@@ -22,13 +22,10 @@ bulk_parent_wf = hatchet.workflow(name="BulkFanoutParent", input_validator=Paren
 bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildInput)
 
 
+# ❓ BulkFanoutParent
 @bulk_parent_wf.task(execution_timeout=timedelta(minutes=5))
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[Any]]:
-    print("spawning child")
-
-    ctx.put_stream("spawning...")
-    results = []
-
+    # 👀 Create each workflow run to spawn
     child_workflow_runs = [
         bulk_child_wf.create_run_workflow_config(
             input=ChildInput(a=str(i)),
@@ -38,9 +35,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[Any]]:
         for i in range(input.n)
     ]
 
-    if len(child_workflow_runs) == 0:
-        return {}
-
+    # 👀 Run workflows in bulk to improve performance
     spawn_results = await bulk_child_wf.aio_run_many(child_workflow_runs)
 
     results = await asyncio.gather(
@@ -48,15 +43,10 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[Any]]:
         return_exceptions=True,
     )
 
-    print("finished spawning children")
-
-    for result in results:
-        if isinstance(result, Exception):
-            print(f"An error occurred: {result}")
-        else:
-            print(result)
-
     return {"results": results}
+
+
+# ‼️
 
 
 @bulk_child_wf.task()

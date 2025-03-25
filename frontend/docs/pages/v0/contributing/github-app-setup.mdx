@@ -1,0 +1,55 @@
+## Setup
+
+### Using `ngrok`
+
+You can use `ngrok` to expose a local port to the internet to accept incoming webhooks from Github. To do this, run the following:
+
+```sh
+task start-ngrok
+```
+
+Make note of the `https` URL as you will need it later.
+
+### Github App Creation
+
+To create a Github app that can read from your repositories, navigate to your organization settings page (alternately, you can navigate to your personal settings page) and select **Developer Settings** in the sidebar. Go to **Github Apps** and select **New Github App**. You should use the following settings:
+
+- Homepage URL: you can set this as https://hatchet.run, or some other domain for your organization.
+- Callback URL: `<protocol>://<your-domain>/api/v1/users/github-app/callback`
+- The **Request user authorization (OAuth) during installation** checkbox should be checked.
+- Webhook URL: `<protocol>://<your-https-ngrok-address>/api/v1/github/webhook`
+- Webhook secret: generate a random webhook secret for your domain, for example by running `cat /dev/urandom | base64 | head -c 32`. **Make note of this secret, as you will need it later**.
+- Permissions:
+  - **Repository:**
+    - **Checks (Read & write)**: required to write Github checks for each commit/PR.
+    - **Contents (Read):** required for Hatchet to read files from the repository.
+    - **Metadata (Read-only):** mandatory, required for Github apps that integrate with repositories.
+    - **Pull Requests (Read & write):** required for Hatchet to add comments to Github PRs, and to create PRs.
+    - **Webhooks (Read & write):** required for Hatchet to create a Github repository webhooks that notify the Hatchet instance when PRs are updated.
+  - **Account:**
+    - **Email addresses (read-only)**: required for Hatchet to read your Github email address for authentication.
+
+### Creating a Secret and Private Key
+
+After creating the Github App, create the following:
+
+- In the "Client secrets" section, select **Generate a new client secret**. You will need this secret in the following section.
+- In the "Private keys" section, download a new private key for your app. You will need this private key in the following section.
+
+### Private Keys and Environment Variables
+
+After creating the private key, you can place it somewhere in your filesystem and set the `SERVER_VCS_GITHUB_APP_SECRET_PATH` environment variable to the path of the private key.
+
+Make sure the following environment variables are set:
+
+```txt
+SERVER_VCS_KIND=github
+SERVER_VCS_GITHUB_ENABLED=true
+SERVER_VCS_GITHUB_APP_CLIENT_ID=<client-id>
+SERVER_VCS_GITHUB_APP_CLIENT_SECRET=<client-secret>
+SERVER_VCS_GITHUB_APP_NAME=<app-name>
+SERVER_VCS_GITHUB_APP_WEBHOOK_SECRET=<webhook-secret>
+SERVER_VCS_GITHUB_APP_WEBHOOK_URL=<webhook-url>
+SERVER_VCS_GITHUB_APP_ID=<app-id>
+SERVER_VCS_GITHUB_APP_SECRET_PATH=<path-to-pem-file>
+```

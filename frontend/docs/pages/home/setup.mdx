@@ -1,0 +1,38 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import New from "../_setup/new.mdx";
+import Existing from "../_setup/existing.mdx";
+import Clone from "../_setup/clone.mdx";
+
+# Get Started with Hatchet
+
+This guide will help you get started with Hatchet, at the end of the guide you will have a Hatchet project with a basic workflow and a worker to execute the workflow.
+
+<UniversalTabs
+  items={[
+    "Clone a Quickstart Project",
+    "Create a New Project from Scratch",
+    "Add to an Existing Project",
+  ]}
+  optionKey="setup"
+>
+  <Tabs.Tab title="Clone a Quickstart Project">
+    <Clone />
+  </Tabs.Tab>
+  <Tabs.Tab title="Create a New Project from Scratch">
+    <New />
+  </Tabs.Tab>
+  <Tabs.Tab title="Add Hatchet to an Existing Project">
+    <Existing />
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Set Your Environment Variables
+
+```bash copy
+export HATCHET_CLIENT_TOKEN="<your-client-token>"
+```
+
+## You're All Set!
+
+Continue to the next section to learn how to [create your first workflow](./basic-workflows)

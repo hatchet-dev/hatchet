@@ -1,0 +1,145 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const TimeoutPy = {
+  path: "examples/timeout/worker.py",
+};
+export const TimeoutGo = {
+  path: "examples/timeout/main.go",
+};
+
+export const getStaticProps = ({}) => getSnippets([TimeoutPy, TimeoutGo]);
+
+# Timeouts in Hatchet
+
+Timeouts are an important concept in Hatchet that allow you to control how long a workflow or task is allowed to run before it is considered to have failed. This is useful for ensuring that your workflows don't run indefinitely and consume unnecessary resources. Timeouts in Hatchet are treated as failures and the task will be [retried](./retries.mdx) if specified.
+
+There are two types of timeouts in Hatchet:
+
+1. **Scheduling Timeouts** (Default 5m) - the time a task is allowed to wait in the queue before it is cancelled
+2. **Execution Timeouts** (Default 60s) - the time a task is allowed to run before it is considered to have failed
+
+## Timeout Format
+
+In Hatchet, timeouts are specified using a string in the format `<number><unit>`, where `<number>` is an integer and `<unit>` is one of:
+
+- `s` for seconds
+- `m` for minutes
+- `h` for hours
+- `d` for days
+
+For example:
+
+- `10s` means 10 seconds
+- `4m` means 4 minutes
+- `1h` means 1 hour
+- `2d` means 2 days
+
+If no unit is specified, seconds are assumed.
+
+<Callout type="info">
+  In the Python SDK, timeouts can also be specified as a `datetime.timedelta`
+  object.
+</Callout>
+
+### Task-Level Timeouts
+
+You can specify execution and scheduling timeouts for a task using the `execution_timeout` and `schedule_timeout` parameters when creating a task.
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+  <GithubSnippet src={TimeoutPy} target="ExecutionTimeout" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const myStep: CreateStep<any, any> = {
+  name: "my-step",
+  // ...
+  execution_timeout: "30s",
+  schedule_timeout: "30s",
+  run: async (ctx) => {
+    // ...
+  },
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+  <GithubSnippet src={TimeoutGo} target="TimeoutStep" />
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+In these tasks, both timeouts are specified, meaning:
+
+1. If the task is not scheduled before the `schedule_timeout` is reached, it will be cancelled.
+2. If the task does not complete before the `execution_timeout` is reached (after starting), it will be cancelled.
+
+<Callout type="warning">
+  A timed out step does not guarantee that the step will be stopped immediately.
+  The step will be stopped as soon as the worker is able to stop the step. See
+  [cancellation](./cancellation.mdx) for more information.
+</Callout>
+
+## Refreshing Timeouts
+
+In some cases, you may need to extend the timeout for a step while it is running. This can be done using the `refreshTimeout` method provided by the step context (`ctx`).
+
+For example:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+  <GithubSnippet src={TimeoutPy} target="RefreshTimeout" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+```typescript
+const myStep: CreateStep<any, any> = {
+  name: "my-step",
+  timeout: "30s",
+  run: async (ctx) => {
+    await sleep(20 * 1000);
+    ctx.refreshTimeout("15s");
+    await sleep(10 * 1000);
+    return { step1: "step1 results!" };
+  },
+};
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+```go
+worker.WorkflowJob{
+		Name: "timeout",
+		Description: "timeout",
+		Steps: []*worker.WorkflowStep{
+			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+				time.Sleep(time.Second * 20)
+				ctx.RefreshTimeout("15s")
+        time.Sleep(time.Second * 10)
+        return return &stepOneOutput{
+					Message: "step1 results!",
+				}, nil
+			}).SetName("step-one").SetTimeout("30s"),
+    },
+}
+```
+  </Tabs.Tab>
+</UniversalTabs>
+
+In this example, the step initially would exceed its execution timeout. But before it does, we call the `refreshTimeout` method, which extends the timeout and allows it to complete. Importantly, refreshing a timeout is an additive operation - the new timeout is added to the existing timeout. So for instance, if the task originally had a timeout of `30s` and we call `refreshTimeout("15s")`, the new timeout will be `45s`.
+
+The `refreshTimeout` function can be called multiple times within a step to further extend the timeout as needed.
+
+## Use Cases
+
+Timeouts are useful in a variety of scenarios:
+
+- Ensuring workflows don't run indefinitely and consume unnecessary resources
+- Failing workflows early if a critical step takes too long
+- Keeping workflows responsive by ensuring individual steps complete in a timely manner
+- Preventing infinite loops or hung processes from blocking the entire system
+
+For example, if you have a workflow that makes an external API call, you may want to set a timeout to ensure the workflow fails quickly if the API is unresponsive, rather than waiting indefinitely.
+
+By carefully considering timeouts for your workflows and steps, you can build more resilient and responsive systems with Hatchet.

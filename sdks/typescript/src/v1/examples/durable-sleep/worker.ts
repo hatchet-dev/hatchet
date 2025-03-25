@@ -1,4 +1,4 @@
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 import { durableSleep } from './workflow';
 
 async function main() {

@@ -1,0 +1,75 @@
+# Worker Configuration
+
+Workers can be created via the `hatchet.worker()` method, after [instantiating a `hatchet` instance](./client). The `hatchet.worker()` method takes the following arguments:
+
+- `name` (**required**): The name of the worker. This is used to identify the worker in the Hatchet UI.
+- `max_runs`: The maximum number of concurrent step runs that the worker can run. If not set, it defaults to `100`. Note that this value is different from the number of concurrent runs per workflow.
+
+## Registering Workflows
+
+Workers can register workflows by calling `worker.register_workflow` with a workflow class instance. There is no limit to the number of workflows which can be registered for each worker. For example:
+
+```py
+from hatchet_sdk import Context, Hatchet
+
+hatchet = Hatchet(debug=True)
+
+@hatchet.workflow()
+class WorkflowOne:
+    @hatchet.step()
+    async def step(self, context: Context):
+        return {"test1": "test1"}
+
+@hatchet.workflow()
+class WorkflowTwo:
+    @hatchet.step()
+    async def step(self, context: Context):
+        return {"test2": "test2"}
+
+worker = hatchet.worker('test-worker')
+worker.register_workflow(WorkflowOne())
+worker.register_workflow(WorkflowTwo())
+worker.start()
+```
+
+## Starting a Worker
+
+Workers can be started by calling either `worker.start` or `worker.async_start`. We recommend that `worker.start` is the last call made when running a worker.
+
+The `worker.start` method is blocking, while `worker.async_start` can be awaited or started via `asyncio.create_task`.
+
+### Example: `worker.start`
+
+```py
+from hatchet_sdk import Context, Hatchet
+
+hatchet = Hatchet()
+
+# ... workflow definitions
+
+def main():
+    worker = hatchet.worker("test-worker", max_runs=4)
+    worker.register_workflow(Workflow())
+    worker.start()
+
+if __name__ == "__main__":
+    main()
+```
+
+### Example: `worker.async_start`
+
+```py
+from hatchet_sdk import Context, Hatchet
+
+hatchet = Hatchet()
+
+# ... workflow definitions
+
+async def main():
+    worker = hatchet.worker("test-worker", max_runs=4)
+    worker.register_workflow(Workflow())
+    await worker.async_start()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```

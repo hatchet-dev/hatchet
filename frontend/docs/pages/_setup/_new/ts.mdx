@@ -1,0 +1,66 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+
+#### Create a new project directory and cd into it
+
+```bash copy
+mkdir hatchet-tutorial && cd hatchet-tutorial
+```
+
+#### Initialize a new typescript project with required dependencies
+
+<UniversalTabs items={["npm", "pnpm", "yarn"]} optionKey="packageManager">
+  <Tabs.Tab title="npm">
+
+    ```bash copy
+    npm init -y && npm i @hatchet-dev/typescript-sdk && npm i ts-node dotenv typescript --save-dev && npx tsc --init
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="pnpm">
+
+    ```bash copy
+    pnpm init && pnpm i @hatchet-dev/typescript-sdk && pnpm i ts-node dotenv typescript --save-dev && npx tsc --init
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="yarn">
+
+    ```bash copy
+    yarn init && yarn add @hatchet-dev/typescript-sdk && yarn add ts-node dotenv typescript --dev && npx tsc --init
+    ```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Create project directories
+
+```bash copy
+mkdir src &&
+mkdir src/workflows &&
+mkdir src/workers
+```
+
+## Instantiate your Hatchet Client
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a singleton.
+
+Create a new file called `hatchet-client.ts`
+
+```bash copy
+touch src/hatchet-client.ts
+```
+
+Add the following code to the file:
+
+```typescript copy
+import { Hatchet } from "@hatchet-dev/typescript-sdk";
+
+export const hatchet = Hatchet.init();
+```
+
+You can now import the Hatchet Client in any file that needs it.
+
+```typescript copy
+import { hatchet } from "./hatchet-client";
+```

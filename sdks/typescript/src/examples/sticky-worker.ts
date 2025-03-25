@@ -3,6 +3,8 @@ import { StickyStrategy, Workflow } from '../workflow';
 
 const hatchet = Hatchet.init();
 
+// ❓ StickyWorker
+
 const workflow: Workflow = {
   id: 'sticky-workflow',
   description: 'test',
@@ -26,9 +28,14 @@ const workflow: Workflow = {
   ],
 };
 
+// ‼️
+
+// ❓ StickyChild
+
 const childWorkflow: Workflow = {
   id: 'child-sticky-workflow',
   description: 'test',
+  // 👀 Specify a sticky strategy when declaring the workflow
   sticky: StickyStrategy.HARD,
   steps: [
     {
@@ -50,6 +57,8 @@ const childWorkflow: Workflow = {
     },
   ],
 };
+
+// ‼️
 
 async function main() {
   const worker1 = await hatchet.worker('sticky-worker-1');

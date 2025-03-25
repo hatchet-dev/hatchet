@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
+
+// ❓ On Failure Task
 
 export const alwaysFail = hatchet.workflow({
   name: 'always-fail',
@@ -10,6 +12,8 @@ export const alwaysFail = hatchet.workflow({
     };
   },
 });
+
+// !!
 
 alwaysFail.task({
   name: 'always-fail',

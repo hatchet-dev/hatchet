@@ -290,4 +290,8 @@ export class HatchetClient implements IHatchetClient {
   webhooks(workflows: V0Workflow[]) {
     return this._v0.webhooks(workflows);
   }
+
+  runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
+    return new WorkflowRunRef<T>(id, this.v0.listener);
+  }
 }

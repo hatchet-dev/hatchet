@@ -8,8 +8,8 @@ const config: DocsThemeConfig = {
   ),
   useNextSeoProps() {
     return {
-      titleTemplate: '%s – Hatchet Docs'
-    }
+      titleTemplate: "%s – Hatchet Docs",
+    };
   },
   primaryHue: 210,
   primarySaturation: 60,
@@ -20,7 +20,8 @@ const config: DocsThemeConfig = {
   chat: {
     link: "https://discord.gg/ZMeUafwH89",
   },
-  docsRepositoryBase: "https://github.com/hatchet-dev/hatchet/blob/main/frontend/docs",
+  docsRepositoryBase:
+    "https://github.com/hatchet-dev/hatchet/blob/main/frontend/docs",
   feedback: {
     labels: "Feedback",
     useLink: (...args: unknown[]) =>
@@ -36,6 +37,9 @@ const config: DocsThemeConfig = {
   ),
   sidebar: {
     defaultMenuCollapseLevel: 2,
+  },
+  toc: {
+    component: null,
   },
 };
 
