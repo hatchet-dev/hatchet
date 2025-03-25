@@ -22,7 +22,7 @@ from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
 from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
@@ -270,4 +270,15 @@ class DurableContext(Context):
         return await self.durable_event_listener.result(
             task_id,
             signal_key,
+        )
+
+    async def wait_for_sleep(self, duration: Duration) -> dict[str, Any]:
+        """
+        Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.wait_for` when specifying a sleep condition.
+
+        For more complicated conditions, use `ctx.wait_for` directly.
+        """
+
+        return await self.wait_for(
+            f"sleep:{timedelta_to_expr(duration)}", SleepCondition(duration=duration)
         )
