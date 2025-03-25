@@ -24,6 +24,7 @@ from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     DEFAULT_EXECUTION_TIMEOUT,
@@ -726,3 +727,38 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             return task
 
         return inner
+
+    def add_task(self, task: Standalone[TWorkflowInput, Any]) -> None:
+        """
+        Add a task to a workflow. Intended to be used with a previously existing task (a Standalone),
+        such as one created with `@hatchet.task()`, which has been converted to a `Task` object using `to_task`.
+
+        For example:
+
+        ```python
+        @hatchet.task()
+        def my_task(input, ctx) -> None:
+            pass
+
+        wf = hatchet.workflow()
+
+        wf.add_task(my_task.to_task())
+        ```
+        """
+        _task = task._task
+
+        match _task.type:
+            case StepType.DEFAULT:
+                self._default_tasks.append(_task)
+            case StepType.ON_FAILURE:
+                if self._on_failure_task:
+                    raise ValueError("Only one on-failure task is allowed")
+
+                self._on_failure_task = _task
+            case StepType.ON_SUCCESS:
+                if self._on_success_task:
+                    raise ValueError("Only one on-success task is allowed")
+
+                self._on_success_task = _task
+            case _:
+                raise ValueError("Invalid task type")
