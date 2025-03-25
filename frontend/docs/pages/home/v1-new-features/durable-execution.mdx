@@ -10,11 +10,11 @@ export const getStaticProps = ({}) => getSnippets([DurablePy]);
 
 Hatchet V1 supports a new set of durable execution features that build off of the [conditions listed above](#complex--conditional-workflow-logic). In the V1 SDKs, you can now call `context.wait_for` to durably wait for either an event or a sleep condition to complete before continuing your task.
 
-
 <Callout type="info" emoji="🪓">
   If you register any durable tasks, the Hatchet SDK will run a second "durable" worker when starting your main worker for running the durable tasks. This durable worker will show up as a second worker in the Hatchet Dashboard.
 
-  **If you register _any_ durable tasks on a workflow, _all_ of the tasks in that workflow will be run by the durable worker.**
+**If you register _any_ durable tasks on a workflow, _all_ of the tasks in that workflow will be run by the durable worker.**
+
 </Callout>
 
 ## Example Workflow

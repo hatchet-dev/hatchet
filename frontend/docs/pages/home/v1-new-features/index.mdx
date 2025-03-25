@@ -10,13 +10,11 @@ export const WaitsPy = {
 
 export const getStaticProps = ({}) => getSnippets([WaitsPy, WaitsTs]);
 
-
 ## 🪓 Hatchet `v1` is here!
 
 For the past several months, we’ve been working on a complete rewrite of the Hatchet queue with a focus on performance and a set of feature requests which weren’t possible in the v0 architecture. To learn more about the V1 release, see the [original announcement](./announcement.mdx).
 
 Here, we'll go into a bit more depth on new features in V1.
-
 
 ## New features
 
@@ -53,11 +51,11 @@ Check out [the conditional logic example](./conditional-logic.mdx) for a detaile
 
 Hatchet V1 supports a new set of durable execution features that build off of the [conditions listed above](#complex--conditional-workflow-logic). In the V1 SDKs, you can now call `context.wait_for` to durably wait for either an event or a sleep condition to complete before continuing your task.
 
-
 <Callout type="info" emoji="🪓">
   If you register any durable tasks, the Hatchet SDK will run a second "durable" worker when starting your main worker for running the durable tasks. This durable worker will show up as a second worker in the Hatchet Dashboard.
 
-  **If you register _any_ durable tasks on a workflow, _all_ of the tasks in that workflow will be run by the durable worker.**
+**If you register _any_ durable tasks on a workflow, _all_ of the tasks in that workflow will be run by the durable worker.**
+
 </Callout>
 
 Check out the [durable execution example](./durable-execution.mdx) for a detailed example of how to use Hatchet's new durable execution features in your V1 workflows.
@@ -75,8 +73,8 @@ There are two ways of bulk cancelling or replaying workflows in both cases:
 
 We've made a number of significant improvements to our SDKs in the V1 release. You can read about the improvements to each SDK in their corresponding migration guides:
 
-* [Python SDK](../migration-guide-python.mdx)
-* [TypeScript](../migration-guide-typescript.mdx)
-* Go (coming soon)
+- [Python SDK](../migration-guide-python.mdx)
+- [TypeScript](../migration-guide-typescript.mdx)
+- Go (coming soon)
 
 {/* TODO V1 DOCS - Go migration guide */}
