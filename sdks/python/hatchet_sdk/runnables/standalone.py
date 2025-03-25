@@ -54,6 +54,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def __init__(
         self, workflow: Workflow[TWorkflowInput], task: Task[TWorkflowInput, R]
     ) -> None:
+        super().__init__(config=workflow.config, client=workflow.client)
+
         self._workflow = workflow
         self._task = task
 
