@@ -5,7 +5,7 @@ import { hatchet } from '../client';
 
 export const alwaysFail = hatchet.workflow({
   name: 'always-fail',
-  onFailure: (ctx) => {
+  onFailure: (input, ctx) => {
     console.log('onFailure for run:', ctx.workflowRunId());
     return {
       'on-failure': 'success',
@@ -17,7 +17,7 @@ export const alwaysFail = hatchet.workflow({
 
 alwaysFail.task({
   name: 'always-fail',
-  fn: () => {
+  fn: async () => {
     throw new Error('intentional failure');
   },
 });

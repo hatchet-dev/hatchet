@@ -17,7 +17,7 @@ const workflow: Workflow = {
         // eslint-disable-next-line no-plusplus
         for (let i = 0; i < 50; i++) {
           const result = await ctx.spawnWorkflow(childWorkflow.id, {});
-          results.push(result.result());
+          results.push(result.output);
         }
         console.log('Spawned 50 child workflows');
         console.log('Results:', await Promise.all(results));

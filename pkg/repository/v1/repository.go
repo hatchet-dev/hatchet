@@ -3,7 +3,9 @@ package v1
 import (
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
@@ -34,10 +36,10 @@ type repositoryImpl struct {
 	ticker    TickerRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32) (Repository, func() error) {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration, maxInternalRetryCount int32, entitlements repository.EntitlementsRepository) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, v, l)
+	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
 	matchRepo, err := newMatchRepository(shared)
 

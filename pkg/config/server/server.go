@@ -184,6 +184,9 @@ type ConfigFileRuntime struct {
 
 	// PreventTenantVersionUpgrade controls whether the server prevents tenant version upgrades
 	PreventTenantVersionUpgrade bool `mapstructure:"preventTenantVersionUpgrade" json:"preventTenantVersionUpgrade,omitempty" default:"false"`
+
+	// DefaultEngineVersion is the default engine version to use for new tenants
+	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V0"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -216,8 +219,15 @@ type LimitConfigFile struct {
 	DefaultWorkflowRunAlarmLimit int           `mapstructure:"defaultWorkflowRunAlarmLimit" json:"defaultWorkflowRunAlarmLimit,omitempty" default:"750"`
 	DefaultWorkflowRunWindow     time.Duration `mapstructure:"defaultWorkflowRunWindow" json:"defaultWorkflowRunWindow,omitempty" default:"24h"`
 
+	DefaultTaskRunLimit      int           `mapstructure:"defaultTaskRunLimit" json:"defaultTaskRunLimit,omitempty" default:"2000"`
+	DefaultTaskRunAlarmLimit int           `mapstructure:"defaultTaskRunAlarmLimit" json:"defaultTaskRunAlarmLimit,omitempty" default:"1500"`
+	DefaultTaskRunWindow     time.Duration `mapstructure:"defaultTaskRunWindow" json:"defaultTaskRunWindow,omitempty" default:"24h"`
+
 	DefaultWorkerLimit      int `mapstructure:"defaultWorkerLimit" json:"defaultWorkerLimit,omitempty" default:"4"`
 	DefaultWorkerAlarmLimit int `mapstructure:"defaultWorkerAlarmLimit" json:"defaultWorkerAlarmLimit,omitempty" default:"2"`
+
+	DefaultWorkerSlotLimit      int `mapstructure:"defaultWorkerSlotLimit" json:"defaultWorkerSlotLimit,omitempty" default:"4000"`
+	DefaultWorkerSlotAlarmLimit int `mapstructure:"defaultWorkerSlotAlarmLimit" json:"defaultWorkerSlotAlarmLimit,omitempty" default:"3000"`
 
 	DefaultEventLimit      int           `mapstructure:"defaultEventLimit" json:"defaultEventLimit,omitempty" default:"1000"`
 	DefaultEventAlarmLimit int           `mapstructure:"defaultEventAlarmLimit" json:"defaultEventAlarmLimit,omitempty" default:"750"`
@@ -530,6 +540,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
+	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -542,8 +553,15 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_ALARM_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultWorkflowRunWindow", "SERVER_LIMITS_DEFAULT_WORKFLOW_RUN_WINDOW")
 
+	_ = v.BindEnv("runtime.limits.defaultTaskRunLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultTaskRunAlarmLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultTaskRunWindow", "SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW")
+
 	_ = v.BindEnv("runtime.limits.defaultWorkerLimit", "SERVER_LIMITS_DEFAULT_WORKER_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultWorkerAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT")
+
+	_ = v.BindEnv("runtime.limits.defaultWorkerSlotLimit", "SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT")
+	_ = v.BindEnv("runtime.limits.defaultWorkerSlotAlarmLimit", "SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT")
 
 	_ = v.BindEnv("runtime.limits.defaultEventLimit", "SERVER_LIMITS_DEFAULT_EVENT_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultEventAlarmLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT")

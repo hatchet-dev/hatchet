@@ -28,7 +28,7 @@ dag.task({
   name: 'reverse',
   parents: [toLower],
   fn: async (input, ctx) => {
-    const lower = await ctx.parentData(toLower);
+    const lower = await ctx.parentOutput(toLower);
     return {
       Original: input.Message,
       Transformed: lower.TransformedMessage.split('').reverse().join(''),

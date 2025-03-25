@@ -10,7 +10,7 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log(scheduled.metadata.id);
 
-  await hatchet.schedule.delete(scheduled);
+  await hatchet.schedules.delete(scheduled);
 }
 
 if (require.main === module) {

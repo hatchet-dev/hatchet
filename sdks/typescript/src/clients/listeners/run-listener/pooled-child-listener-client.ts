@@ -7,7 +7,7 @@ import {
 } from '@hatchet/protoc/dispatcher';
 import { isAbortError } from 'abort-controller-x';
 import sleep from '@hatchet/util/sleep';
-import { ListenerClient } from './listener-client';
+import { RunListenerClient } from './child-listener-client';
 
 export class Streamable {
   listener: AsyncIterable<WorkflowRunEvent>;
@@ -30,16 +30,16 @@ export class Streamable {
   }
 }
 
-export class GrpcPooledListener {
+export class RunGrpcPooledListener {
   listener: AsyncIterable<WorkflowRunEvent> | undefined;
   requestEmitter = new EventEmitter();
   signal: AbortController = new AbortController();
-  client: ListenerClient;
+  client: RunListenerClient;
 
   subscribers: Record<string, Streamable> = {};
   onFinish: () => void = () => {};
 
-  constructor(client: ListenerClient, onFinish: () => void) {
+  constructor(client: RunListenerClient, onFinish: () => void) {
     this.client = client;
     this.init();
     this.onFinish = onFinish;

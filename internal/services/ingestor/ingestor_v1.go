@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -27,6 +29,24 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	canCreateEvents, eLimit, err := i.entitlementsRepository.TenantLimit().CanCreate(
+		ctx,
+		dbsqlc.LimitResourceEVENT,
+		tenantId,
+		1,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check tenant limit: %w", err)
+	}
+
+	if !canCreateEvents {
+		return nil, status.Error(
+			codes.ResourceExhausted,
+			fmt.Sprintf("tenant has reached the limit of %d events", eLimit),
+		)
+	}
 
 	return i.ingestSingleton(tenantId, key, data, metadata)
 }
@@ -66,6 +86,26 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	count := len(eventOpts)
+
+	canCreateEvents, eLimit, err := i.entitlementsRepository.TenantLimit().CanCreate(
+		ctx,
+		dbsqlc.LimitResourceEVENT,
+		tenantId,
+		int32(count), // nolint: gosec
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check tenant limit: %w", err)
+	}
+
+	if !canCreateEvents {
+		return nil, status.Error(
+			codes.ResourceExhausted,
+			fmt.Sprintf("tenant has reached the limit of %d events", eLimit),
+		)
+	}
 
 	results := make([]*dbsqlc.Event, 0, len(eventOpts))
 

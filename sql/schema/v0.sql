@@ -39,8 +39,10 @@ CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY');
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (
     'WORKFLOW_RUN',
+    'TASK_RUN',
     'EVENT',
     'WORKER',
+    'WORKER_SLOT',
     'CRON',
     'SCHEDULE'
 );

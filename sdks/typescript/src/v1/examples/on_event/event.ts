@@ -2,8 +2,7 @@ import { hatchet } from '../hatchet-client';
 import { Input } from './workflow';
 
 async function main() {
-  // ❓ Pushing an Event
-  const res = await hatchet.event.push<Input>('simple-event:create', {
+  const res = await hatchet.events.push<Input>(SIMPLE_EVENT, {
     Message: 'hello',
   });
   // !!

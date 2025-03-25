@@ -16,14 +16,13 @@ import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
-import { WorkflowDeclaration as V1Workflow } from '@hatchet/v1/workflow';
-import { toV0Workflow } from '@hatchet/v1/client/worker';
 import { ClientConfig, ClientConfigSchema } from './client-config';
-import { ListenerClient } from '../listener/listener-client';
+import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 import { Api } from '../rest/generated/Api';
 import api from '../rest';
 import { CronClient } from './features/cron-client';
 import { ScheduleClient } from './features/schedule-client';
+import { DurableListenerClient } from '../listeners/durable-listener/durable-listener-client';
 
 export interface HatchetClientOptions {
   config_path?: string;
@@ -71,8 +70,10 @@ export class InternalHatchetClient {
   dispatcher: DispatcherClient;
   admin: AdminClient;
   api: Api;
-  listener: ListenerClient;
+  listener: RunListenerClient;
   tenantId: string;
+
+  durableListener: DurableListenerClient;
 
   logger: Logger;
 
@@ -127,7 +128,7 @@ export class InternalHatchetClient {
       channelFactory(this.config, this.credentials),
       clientFactory
     );
-    this.listener = new ListenerClient(
+    this.listener = new RunListenerClient(
       this.config,
       channelFactory(this.config, this.credentials),
       clientFactory,
@@ -140,6 +141,13 @@ export class InternalHatchetClient {
       this.api,
       this.tenantId,
       this.listener
+    );
+
+    this.durableListener = new DurableListenerClient(
+      this.config,
+      channelFactory(this.config, this.credentials),
+      clientFactory,
+      this.api
     );
 
     this.logger = this.config.logger('HatchetClient', this.config.log_level);
@@ -197,11 +205,12 @@ export class InternalHatchetClient {
     return worker;
   }
 
-  webhooks(workflows: Array<V1Workflow<any, any> | V0Workflow>) {
+  webhooks(workflows: Array<V0Workflow>) {
+    // TODO v1 workflows
     const worker = new V0Worker(this, {
       name: 'webhook-worker',
     });
 
-    return worker.getHandler(workflows.map(toV0Workflow));
+    return worker.getHandler(workflows);
   }
 }

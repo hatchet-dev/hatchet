@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import subprocess
@@ -12,6 +13,9 @@ import pytest_asyncio
 import requests
 
 from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+from hatchet_sdk.clients.rest.models.update_tenant_request import UpdateTenantRequest
 
 
 @pytest_asyncio.fixture(loop_scope="session")
@@ -55,6 +59,20 @@ def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def worker() -> Generator[subprocess.Popen[bytes], None, None]:
+    hatchet = Hatchet()
+
+    api = TenantApi(hatchet.rest.api_client)
+
+    try:
+        asyncio.run(
+            api.tenant_update(
+                tenant=hatchet.config.tenant_id,
+                update_tenant_request=UpdateTenantRequest(version=TenantVersion.V1),
+            )
+        )
+    except Exception as e:
+        print(e)
+
     command = ["poetry", "run", "python", "examples/worker.py"]
 
     logging.info(f"Starting background worker: {' '.join(command)}")

@@ -13,13 +13,11 @@ import { ClientConfig } from '@clients/hatchet-client/client-config';
 import HatchetError from '@util/errors/hatchet-error';
 import { Logger } from '@hatchet/util/logger';
 import sleep from '@hatchet/util/sleep';
-import { Api } from '../rest';
-import { WorkflowRunStatus } from '../rest/generated/data-contracts';
-import { GrpcPooledListener } from './child-listener-client';
+import { Api } from '../../rest';
+import { RunGrpcPooledListener } from './pooled-child-listener-client';
 
 const DEFAULT_EVENT_LISTENER_RETRY_INTERVAL = 5; // seconds
 const DEFAULT_EVENT_LISTENER_RETRY_COUNT = 5;
-const DEFAULT_EVENT_LISTENER_POLL_INTERVAL = 5000; // milliseconds
 
 // eslint-disable-next-line no-shadow
 export enum RunEventType {
@@ -66,16 +64,6 @@ const resourceTypeMap: Record<
   [ResourceType.RESOURCE_TYPE_WORKFLOW_RUN]: workflowEventTypeMap,
   [ResourceType.RESOURCE_TYPE_UNKNOWN]: undefined,
   [ResourceType.UNRECOGNIZED]: undefined,
-};
-
-const workflowStatusMap: Record<WorkflowRunStatus, RunEventType | undefined> = {
-  [WorkflowRunStatus.SUCCEEDED]: RunEventType.WORKFLOW_RUN_EVENT_TYPE_COMPLETED,
-  [WorkflowRunStatus.FAILED]: RunEventType.WORKFLOW_RUN_EVENT_TYPE_FAILED,
-  [WorkflowRunStatus.CANCELLED]: RunEventType.WORKFLOW_RUN_EVENT_TYPE_CANCELLED,
-  [WorkflowRunStatus.PENDING]: undefined,
-  [WorkflowRunStatus.RUNNING]: undefined,
-  [WorkflowRunStatus.QUEUED]: undefined,
-  [WorkflowRunStatus.BACKOFF]: undefined,
 };
 
 export interface StepRunEvent {
@@ -187,13 +175,13 @@ export class RunEventListener {
   }
 }
 
-export class ListenerClient {
+export class RunListenerClient {
   config: ClientConfig;
   client: PbDispatcherClient;
   logger: Logger;
   api: Api;
 
-  pooledListener: GrpcPooledListener | undefined;
+  pooledListener: RunGrpcPooledListener | undefined;
 
   constructor(config: ClientConfig, channel: Channel, factory: ClientFactory, api: Api) {
     this.config = config;
@@ -204,7 +192,7 @@ export class ListenerClient {
 
   get(workflowRunId: string) {
     if (!this.pooledListener) {
-      this.pooledListener = new GrpcPooledListener(this, () => {
+      this.pooledListener = new RunGrpcPooledListener(this, () => {
         this.pooledListener = undefined;
       });
     }

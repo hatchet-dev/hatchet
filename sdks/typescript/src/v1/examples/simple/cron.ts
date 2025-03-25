@@ -14,18 +14,7 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log(cron.metadata.id);
 
-  // ❓ Delete
-  await hatchet.cron.delete(cronId);
-  // !!
-
-  // ❓ List
-  const crons = await hatchet.cron.list({
-    workflowId: simple.id,
-  });
-  // !!
-
-  // eslint-disable-next-line no-console
-  console.log(crons);
+  await hatchet.crons.delete(cron);
 }
 
 if (require.main === module) {

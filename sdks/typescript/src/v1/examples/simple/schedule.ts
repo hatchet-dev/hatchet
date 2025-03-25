@@ -18,18 +18,7 @@ async function main() {
   console.log(scheduledRunId);
   // !!
 
-  // ❓ Deleting a Scheduled Run
-  // if you need to delete a scheduled run, you can use the delete method
-  await hatchet.schedule.delete(scheduledRunId);
-  // !!
-
-  // ❓ Listing Scheduled Runs
-  // if you need to list all scheduled runs, you can use the list method
-  const scheduledRuns = await hatchet.schedule.list({
-    workflowId: simple.id,
-  });
-  console.log(scheduledRuns);
-  // !!
+  await hatchet.schedules.delete(scheduled);
 }
 
 if (require.main === module) {

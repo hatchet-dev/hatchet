@@ -8,7 +8,7 @@ const sleep = (ms: number) =>
   });
 
 async function main() {
-  hatchet.event.push('concurrency:create', {
+  hatchet.events.push('concurrency:create', {
     data: 'event 1',
     userId: 'user1',
   });
@@ -19,7 +19,7 @@ async function main() {
   // the first run and run the second event
   await sleep(1000);
 
-  hatchet.event.push('concurrency:create', {
+  hatchet.events.push('concurrency:create', {
     data: 'event 2',
     userId: 'user1',
   });

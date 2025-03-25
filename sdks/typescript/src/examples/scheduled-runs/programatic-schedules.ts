@@ -9,7 +9,7 @@ const hatchet = Hatchet.init();
 async function main() {
   // ? Create
   // You can create dynamic scheduled runs programmatically via the API
-  const createdScheduledRun = await hatchet.schedule.create(
+  const createdScheduledRun = await hatchet.schedules.create(
     simpleWorkflow, // workflow object or string workflow id
     {
       triggerAt: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 hours from now
@@ -26,18 +26,18 @@ async function main() {
 
   // ? Get
   // You can get a specific scheduled run by passing in the scheduled run id
-  const scheduledRun = await hatchet.schedule.get(id);
+  const scheduledRun = await hatchet.schedules.get(id);
   // !!
 
   // ? Delete
   // You can delete a scheduled run by passing the scheduled run object
   // or a scheduled run Id to the delete method
-  await hatchet.schedule.delete(scheduledRun);
+  await hatchet.schedules.delete(scheduledRun);
   // !!
 
   // ? List
   // You can list all scheduled runs by passing in a query object
-  const scheduledRunList = await hatchet.schedule.list({
+  const scheduledRunList = await hatchet.schedules.list({
     offset: 0,
     limit: 10,
   });

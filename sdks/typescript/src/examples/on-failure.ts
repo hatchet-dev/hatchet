@@ -32,7 +32,7 @@ const workflow: Workflow = {
       // or notify a user here
 
       // 👀 you can access the error from the failed step(s) like this
-      console.log(ctx.stepRunErrors());
+      console.log(ctx.errors());
 
       return { onFailure: 'step' };
     },

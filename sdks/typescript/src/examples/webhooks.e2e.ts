@@ -89,7 +89,7 @@ describe('webhooks', () => {
 
     console.log('pushing event...');
 
-    await hatchet.event.push('user:create-webhook', {
+    await hatchet.events.push('user:create-webhook', {
       test: 'test',
     });
 
