@@ -1,7 +1,8 @@
 import asyncio
 import logging
-from typing import Any, Type, TypeVar, cast, overload
+from typing import Any, Callable, Type, cast, overload
 
+from hatchet_sdk import Context
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -11,19 +12,25 @@ from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
+from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.types import (
+    DEFAULT_EXECUTION_TIMEOUT,
+    DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
     EmptyModel,
+    R,
     StickyStrategy,
     TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.utils.timedelta_to_expression import Duration
+from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.worker.worker import Worker
-
-R = TypeVar("R")
 
 
 class Hatchet:
@@ -105,7 +112,7 @@ class Hatchet:
         name: str,
         slots: int = 100,
         labels: dict[str, str | int] = {},
-        workflows: list[Workflow[Any]] = [],
+        workflows: list[Workflow[Any] | Standalone[Any, Any]] = [],
     ) -> Worker:
         """
         Create a Hatchet worker on which to run workflows.
@@ -240,3 +247,129 @@ class Hatchet:
             ),
             self,
         )
+
+    @overload
+    def task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: None = None,
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        wait_for: list[Condition | OrGroup] = [],
+        skip_if: list[Condition | OrGroup] = [],
+        cancel_if: list[Condition | OrGroup] = [],
+    ) -> Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]: ...
+
+    @overload
+    def task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: Type[TWorkflowInput],
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        wait_for: list[Condition | OrGroup] = [],
+        skip_if: list[Condition | OrGroup] = [],
+        cancel_if: list[Condition | OrGroup] = [],
+    ) -> Callable[
+        [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+    ]: ...
+
+    def task(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: Type[TWorkflowInput] | None = None,
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        wait_for: list[Condition | OrGroup] = [],
+        skip_if: list[Condition | OrGroup] = [],
+        cancel_if: list[Condition | OrGroup] = [],
+    ) -> (
+        Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]
+        | Callable[
+            [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+        ]
+    ):
+        workflow = Workflow[TWorkflowInput](
+            WorkflowConfig(
+                name=name,
+                version=version,
+                description=description,
+                on_events=on_events,
+                on_crons=on_crons,
+                sticky=sticky,
+                concurrency=concurrency,
+                input_validator=input_validator
+                or cast(Type[TWorkflowInput], EmptyModel),
+            ),
+            self,
+        )
+
+        task_wrapper = workflow.task(
+            name=name,
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            parents=[],
+            retries=retries,
+            rate_limits=rate_limits,
+            desired_worker_labels=desired_worker_labels,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            concurrency=[concurrency] if concurrency else [],
+            wait_for=wait_for,
+            skip_if=skip_if,
+            cancel_if=cancel_if,
+        )
+
+        def inner(
+            func: Callable[[TWorkflowInput, Context], R]
+        ) -> Standalone[TWorkflowInput, R]:
+            created_task = task_wrapper(func)
+
+            return Standalone[TWorkflowInput, R](
+                workflow=workflow,
+                task=created_task,
+            )
+
+        return inner
+
+    def durable_task(self) -> None:
+        pass

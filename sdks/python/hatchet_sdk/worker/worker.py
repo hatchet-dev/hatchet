@@ -23,6 +23,7 @@ from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import Workflow
 from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
@@ -69,7 +70,7 @@ class Worker:
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
-        workflows: list[Workflow[Any]] = [],
+        workflows: list[Workflow[Any] | Standalone[Any, Any]] = [],
     ) -> None:
         self.config = config
         self.name = self.config.namespace + name
@@ -127,24 +128,51 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-    def register_workflow(self, workflow: Workflow[Any]) -> None:
+    def register_workflow(self, workflow: Workflow[Any] | Standalone[Any, Any]) -> None:
         namespace = self.client.config.namespace
-        opts = workflow._get_create_opts(namespace)
-        name = workflow._get_name(namespace)
+
+        _gco = (
+            workflow._get_create_opts
+            if isinstance(workflow, Workflow)
+            else workflow._workflow._get_create_opts
+        )
+
+        _gn = (
+            workflow._get_name
+            if isinstance(workflow, Workflow)
+            else workflow._workflow._get_name
+        )
+
+        opts = _gco(namespace)
+        name = _gn(namespace)
 
         try:
             self.client.admin.put_workflow(name, opts)
         except Exception as e:
-            logger.error(
-                f"failed to register workflow: {workflow._get_name(namespace)}"
-            )
+            logger.error(f"failed to register workflow: {_gn(namespace)}")
             logger.error(e)
             sys.exit(1)
 
-        for step in workflow.tasks:
-            action_name = workflow._create_action_name(namespace, step)
+        _tsks = (
+            workflow.tasks
+            if isinstance(workflow, Workflow)
+            else workflow._workflow.tasks
+        )
 
-            if workflow.is_durable:
+        for step in _tsks:
+            action_name = (
+                workflow._create_action_name(namespace, step)
+                if isinstance(workflow, Workflow)
+                else workflow._workflow._create_action_name(namespace, step)
+            )
+
+            _isdur = (
+                workflow.is_durable
+                if isinstance(workflow, Workflow)
+                else workflow._workflow.is_durable
+            )
+
+            if _isdur:
                 self.has_any_durable = True
                 self.durable_action_registry[action_name] = step
             else:
@@ -153,12 +181,20 @@ class Worker:
 
             return_type = get_type_hints(step.fn).get("return")
 
+            _inval = (
+                workflow.config.input_validator
+                if isinstance(workflow, Workflow)
+                else workflow._workflow.config.input_validator
+            )
+
             self.validator_registry[action_name] = WorkflowValidator(
-                workflow_input=workflow.config.input_validator,
+                workflow_input=_inval,
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
 
-    def register_workflows(self, workflows: list[Workflow[Any]]) -> None:
+    def register_workflows(
+        self, workflows: list[Workflow[Any] | Standalone[Any, Any]]
+    ) -> None:
         for workflow in workflows:
             self.register_workflow(workflow)
 

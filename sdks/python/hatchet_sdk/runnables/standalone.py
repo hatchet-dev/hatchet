@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, Generic, cast, get_type_hints
 
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions, WorkflowRunTriggerConfig
+from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import Workflow
 from hatchet_sdk.utils.aio_utils import get_active_event_loop
@@ -41,9 +42,11 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
 
 
 class Standalone(Generic[TWorkflowInput, R]):
-    def __init__(self, workflow: Workflow[TWorkflowInput]) -> None:
+    def __init__(
+        self, workflow: Workflow[TWorkflowInput], task: Task[TWorkflowInput, R]
+    ) -> None:
         self._workflow = workflow
-        self._task = workflow.tasks[0]
+        self._task = task
 
         return_type = get_type_hints(self._task.fn).get("return")
 
@@ -53,9 +56,6 @@ class Standalone(Generic[TWorkflowInput, R]):
 
     def _extract_result(self, result: dict[str, Any]) -> R:
         output = result.get(self._task.name)
-
-        if not output:
-            raise ValueError(f"Task {self._task.name} did not return any output")
 
         if not self._output_validator:
             return cast(R, output)
