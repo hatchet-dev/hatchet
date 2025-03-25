@@ -1,8 +1,8 @@
 import time
 
-from examples.waits.worker import dag_waiting_workflow, hatchet
+from examples.waits.worker import hatchet, task_condition_workflow
 
-dag_waiting_workflow.run_no_wait()
+task_condition_workflow.run_no_wait()
 
 time.sleep(5)
 

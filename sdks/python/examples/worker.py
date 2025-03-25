@@ -10,7 +10,7 @@ from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
 from examples.logger.workflow import logging_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
-from examples.waits.worker import dag_waiting_workflow
+from examples.waits.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet(debug=True)
@@ -36,7 +36,7 @@ def main() -> None:
             logging_workflow,
             timeout_wf,
             refresh_timeout_wf,
-            dag_waiting_workflow,
+            task_condition_workflow,
             wf,
             sync_fanout_parent,
             sync_fanout_child,
