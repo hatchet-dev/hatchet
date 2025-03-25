@@ -310,7 +310,9 @@ export class V0Worker {
           userData: '{}',
           retries: task.retries || workflow.taskDefaults?.retries || 0,
           rateLimits: mapRateLimit(task.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: toPbWorkerLabel(task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels),
+          workerLabels: toPbWorkerLabel(
+            task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
+          ),
           backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           conditions: taskConditionsToPb(task),
