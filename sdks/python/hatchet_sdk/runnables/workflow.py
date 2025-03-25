@@ -67,12 +67,7 @@ class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
     options: TriggerWorkflowOptions
 
 
-class Workflow(Generic[TWorkflowInput]):
-    """
-    A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow, such as
-    running / spawning children and scheduling future runs.
-    """
-
+class BaseWorkflow(Generic[TWorkflowInput]):
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
         self.config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
@@ -287,6 +282,13 @@ class Workflow(Generic[TWorkflowInput]):
             options=options,
             key=key,
         )
+
+
+class Workflow(BaseWorkflow[TWorkflowInput]):
+    """
+    A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow, such as
+    running / spawning children and scheduling future runs.
+    """
 
     def run_no_wait(
         self,

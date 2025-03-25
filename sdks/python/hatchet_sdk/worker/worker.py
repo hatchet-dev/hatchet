@@ -131,48 +131,22 @@ class Worker:
     def register_workflow(self, workflow: Workflow[Any] | Standalone[Any, Any]) -> None:
         namespace = self.client.config.namespace
 
-        _gco = (
-            workflow._get_create_opts
-            if isinstance(workflow, Workflow)
-            else workflow._workflow._get_create_opts
-        )
-
-        _gn = (
-            workflow._get_name
-            if isinstance(workflow, Workflow)
-            else workflow._workflow._get_name
-        )
-
-        opts = _gco(namespace)
-        name = _gn(namespace)
+        opts = workflow._get_create_opts(namespace)
+        name = workflow._get_name(namespace)
 
         try:
             self.client.admin.put_workflow(name, opts)
         except Exception as e:
-            logger.error(f"failed to register workflow: {_gn(namespace)}")
+            logger.error(
+                f"failed to register workflow: {workflow._get_name(namespace)}"
+            )
             logger.error(e)
             sys.exit(1)
 
-        _tsks = (
-            workflow.tasks
-            if isinstance(workflow, Workflow)
-            else workflow._workflow.tasks
-        )
+        for step in workflow.tasks:
+            action_name = workflow._create_action_name(namespace, step)
 
-        for step in _tsks:
-            action_name = (
-                workflow._create_action_name(namespace, step)
-                if isinstance(workflow, Workflow)
-                else workflow._workflow._create_action_name(namespace, step)
-            )
-
-            _isdur = (
-                workflow.is_durable
-                if isinstance(workflow, Workflow)
-                else workflow._workflow.is_durable
-            )
-
-            if _isdur:
+            if workflow.is_durable:
                 self.has_any_durable = True
                 self.durable_action_registry[action_name] = step
             else:
@@ -181,14 +155,8 @@ class Worker:
 
             return_type = get_type_hints(step.fn).get("return")
 
-            _inval = (
-                workflow.config.input_validator
-                if isinstance(workflow, Workflow)
-                else workflow._workflow.config.input_validator
-            )
-
             self.validator_registry[action_name] = WorkflowValidator(
-                workflow_input=_inval,
+                workflow_input=workflow.config.input_validator,
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
 

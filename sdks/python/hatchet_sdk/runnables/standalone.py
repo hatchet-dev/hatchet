@@ -13,7 +13,7 @@ from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
-from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.aio_utils import get_active_event_loop
 from hatchet_sdk.utils.typing import JSONSerializableMapping, is_basemodel_subclass
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -50,7 +50,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self._s._extract_result(result)
 
 
-class Standalone(Generic[TWorkflowInput, R]):
+class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def __init__(
         self, workflow: Workflow[TWorkflowInput], task: Task[TWorkflowInput, R]
     ) -> None:
@@ -62,6 +62,8 @@ class Standalone(Generic[TWorkflowInput, R]):
         self._output_validator = (
             return_type if is_basemodel_subclass(return_type) else None
         )
+
+        self.config = self._workflow.config
 
     def _extract_result(self, result: dict[str, Any]) -> R:
         output = result.get(self._task.name)
