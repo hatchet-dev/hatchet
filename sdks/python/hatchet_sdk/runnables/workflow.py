@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Generic, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast, overload
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel
@@ -140,7 +140,7 @@ class Workflow(Generic[TWorkflowInput]):
     def _validate_task(self, task: None, service_name: str) -> None: ...
 
     def _validate_task(
-        self, task: "Task[TWorkflowInput, R]" | None, service_name: str
+        self, task: Union["Task[TWorkflowInput, R]", None], service_name: str
     ) -> CreateTaskOpts | None:
         if not task:
             return None
@@ -648,7 +648,7 @@ class Workflow(Generic[TWorkflowInput]):
                 _fn=func,
                 workflow=self,
                 type=StepType.ON_FAILURE,
-                name=self._parse_task_name(name, func),
+                name=self._parse_task_name(name, func) + "-on-failure",
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
@@ -708,7 +708,7 @@ class Workflow(Generic[TWorkflowInput]):
                 _fn=func,
                 workflow=self,
                 type=StepType.ON_SUCCESS,
-                name=self._parse_task_name(name, func),
+                name=self._parse_task_name(name, func) + "-on-success",
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
