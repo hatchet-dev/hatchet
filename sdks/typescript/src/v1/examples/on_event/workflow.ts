@@ -4,6 +4,8 @@ export type Input = {
   Message: string;
 };
 
+export const SIMPLE_EVENT = 'simple-event:create';
+
 type LowerOutput = {
   lower: {
     TransformedMessage: string;
@@ -15,7 +17,7 @@ export const lower = hatchet.workflow<Input, LowerOutput>({
   name: 'lower',
   on: {
     // 👀 Declare the event that will trigger the workflow
-    event: 'simple-event:create',
+    event: SIMPLE_EVENT,
   },
 });
 // !!
@@ -38,7 +40,7 @@ type UpperOutput = {
 export const upper = hatchet.workflow<Input, UpperOutput>({
   name: 'upper',
   on: {
-    event: 'simple-event:create',
+    event: SIMPLE_EVENT,
   },
 });
 

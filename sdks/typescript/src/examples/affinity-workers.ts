@@ -65,7 +65,6 @@ const childWorkflow: Workflow = {
 };
 
 async function main() {
-
   // ❓ AffinityWorker
 
   const worker1 = await hatchet.worker('affinity-worker-1', {
@@ -76,7 +75,6 @@ async function main() {
   });
 
   // ‼️
-
 
   await worker1.registerWorkflow(workflow);
   await worker1.registerWorkflow(childWorkflow);

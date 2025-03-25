@@ -8,7 +8,7 @@ import { SimpleOutput } from './workflow';
 
 async function main() {
   // 👀 Enqueue the workflow
-  const run = await simple.enqueue({
+  const run = await simple.runNoWait({
     Message: 'hello',
   });
 

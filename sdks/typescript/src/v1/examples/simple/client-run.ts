@@ -3,7 +3,7 @@ import { hatchet } from '../hatchet-client';
 
 hatchet.run('simple', { Message: 'Hello, World!' });
 
-hatchet.enqueue('simple', { Message: 'Hello, World!' });
+hatchet.runNoWait('simple', { Message: 'Hello, World!' }, {});
 
 hatchet.schedule.create('simple', {
   triggerAt: new Date(Date.now() + 1000 * 60 * 60 * 24),

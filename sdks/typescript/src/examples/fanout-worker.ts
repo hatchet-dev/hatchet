@@ -1,6 +1,5 @@
-import Hatchet from '../sdk';
 import sleep from '@hatchet/util/sleep';
-
+import Hatchet from '../sdk';
 
 const hatchet = Hatchet.init();
 

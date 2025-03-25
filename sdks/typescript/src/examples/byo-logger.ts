@@ -44,7 +44,6 @@ const hatchet = Hatchet.init({
 
 // !!
 
-
 // ❓ Use the logger
 
 const sleep = (ms: number) =>

@@ -1,5 +1,5 @@
 import { hatchet } from '../hatchet-client';
-import { Input } from './workflow';
+import { Input, SIMPLE_EVENT } from './workflow';
 
 async function main() {
   const res = await hatchet.events.push<Input>(SIMPLE_EVENT, {
