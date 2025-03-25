@@ -37,7 +37,6 @@ const (
 	DefaultActionListenerRetryCount    = 5
 )
 
-// TODO: add validator to client side
 type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string

@@ -5,7 +5,6 @@
     "watch": [
         "cmd/hatchet-engine",
         "internal",
-        "pkg",
         "go.mod",
         "go.sum"
     ]

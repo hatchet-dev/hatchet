@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/v1/task"
 )
 
 type HatchetWorkerContext interface {
@@ -24,6 +26,8 @@ type HatchetWorkerContext interface {
 	GetLabels() map[string]interface{}
 
 	UpsertLabels(labels map[string]interface{}) error
+
+	HasWorkflow(workflowName string) bool
 }
 
 type HatchetContext interface {
@@ -69,15 +73,16 @@ type HatchetContext interface {
 
 	RetryCount() int
 
+	ParentOutput(parent task.NamedTask, output interface{}) error
+
 	client() client.Client
 
 	action() *client.Action
 
-	index() int
-	inc()
+	CurChildIndex() int
+	IncChildIndex()
 }
 
-// TODO: move this into proto definitions
 type TriggeredBy string
 
 const (
@@ -189,6 +194,16 @@ func (h *hatchetContext) StepOutput(step string, target interface{}) error {
 	return fmt.Errorf("step %s not found in action payload", step)
 }
 
+func (h *hatchetContext) ParentOutput(parent task.NamedTask, output interface{}) error {
+	stepName := parent.GetName()
+
+	if val, ok := h.stepData.Parents[stepName]; ok {
+		return toTarget(val, output)
+	}
+
+	return fmt.Errorf("parent %s not found in action payload", stepName)
+}
+
 func (h *hatchetContext) TriggeredByEvent() bool {
 	return h.stepData.TriggeredBy == TriggeredByEvent
 }
@@ -271,11 +286,11 @@ func (h *hatchetContext) RetryCount() int {
 	return int(h.a.RetryCount)
 }
 
-func (h *hatchetContext) index() int {
+func (h *hatchetContext) CurChildIndex() int {
 	return h.i
 }
 
-func (h *hatchetContext) inc() {
+func (h *hatchetContext) IncChildIndex() {
 	h.indexMu.Lock()
 	h.i++
 	h.indexMu.Unlock()
@@ -337,7 +352,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		&client.ChildWorkflowOpts{
 			ParentId:           h.WorkflowRunId(),
 			ParentStepRunId:    h.StepRunId(),
-			ChildIndex:         h.index(),
+			ChildIndex:         h.CurChildIndex(),
 			ChildKey:           opts.Key,
 			DesiredWorkerId:    desiredWorker,
 			AdditionalMetadata: opts.AdditionalMetadata,
@@ -349,7 +364,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	}
 
 	// increment the index
-	h.inc()
+	h.IncChildIndex()
 
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
@@ -389,7 +404,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 		}
 
 		// increment the index
-		h.inc()
+		h.IncChildIndex()
 
 		triggerWorkflows[i] = &client.RunChildWorkflowsOpts{
 			WorkflowName: workflowName,
@@ -397,7 +412,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			Opts: &client.ChildWorkflowOpts{
 				ParentId:           h.WorkflowRunId(),
 				ParentStepRunId:    h.StepRunId(),
-				ChildIndex:         h.index(),
+				ChildIndex:         h.CurChildIndex(),
 				ChildKey:           c.Key,
 				DesiredWorkerId:    desiredWorker,
 				AdditionalMetadata: c.AdditionalMetadata,
@@ -528,4 +543,98 @@ func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) erro
 
 	wc.worker.labels = labels
 	return nil
+}
+
+func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
+	return wc.worker.registered_workflows[workflowName]
+}
+
+// DurableHatchetContext extends HatchetContext with methods for durable tasks.
+type DurableHatchetContext interface {
+	HatchetContext
+
+	// SleepFor pauses execution for the specified duration and returns after that time has elapsed.
+	// Duration is "global" meaning it will wait in real time regardless of transient failures
+	// like worker restarts.
+	// Example: "10s" for 10 seconds, "1m" for 1 minute, etc.
+	SleepFor(duration time.Duration) (interface{}, error)
+
+	// WaitFor pauses execution until the specified conditions are met.
+	// Conditions are "global" meaning they will wait in real time regardless of transient failures
+	// like worker restarts.
+	WaitFor(conditions map[string]interface{}) (interface{}, error)
+}
+
+// durableHatchetContext implements the DurableHatchetContext interface.
+type durableHatchetContext struct {
+	*hatchetContext
+	waitKeyCounter int
+}
+
+// SleepFor implements the DurableHatchetContext.SleepFor method.
+func (d *durableHatchetContext) SleepFor(duration time.Duration) (interface{}, error) {
+	// Implement SleepFor functionality
+	// Call appropriate client methods to register a durable event
+	return d.WaitFor(map[string]interface{}{
+		"sleepFor": duration,
+	})
+}
+
+// WaitFor implements the DurableHatchetContext.WaitFor method.
+func (d *durableHatchetContext) WaitFor(conditions map[string]interface{}) (interface{}, error) {
+	// Increment wait key to ensure unique keys for multiple wait operations
+	d.waitKeyCounter++
+	// key := fmt.Sprintf("waitFor-%d", d.waitKeyCounter)
+
+	// Convert conditions to appropriate format and register with the durable event system
+	// This is a simplified implementation - in a real system, you'd need to convert
+	// the conditions to the format expected by your durable event subsystem
+
+	// Call client methods to register and wait for the event
+	// For now, we'll return a placeholder implementation
+	return nil, fmt.Errorf("WaitFor not fully implemented yet")
+}
+
+// NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.
+func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
+	// Try to cast directly if it's already a DurableHatchetContext
+	if durableCtx, ok := ctx.(DurableHatchetContext); ok {
+		return durableCtx
+	}
+
+	// If it's a hatchetContext, wrap it in a durableHatchetContext
+	if hCtx, ok := ctx.(*hatchetContext); ok {
+		return &durableHatchetContext{
+			hatchetContext: hCtx,
+			waitKeyCounter: 0,
+		}
+	}
+
+	// Create a new wrapper if it's some other implementation
+	return &durableHatchetContext{
+		hatchetContext: &hatchetContext{
+			Context: ctx,
+			a:       ctx.action(),
+			c:       ctx.client(),
+			w:       ctx.Worker().(*hatchetWorkerContext),
+		},
+		waitKeyCounter: 0,
+	}
+}
+
+// Implementation of RunChild method for the hatchetContext
+func (h *hatchetContext) RunChild(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.WorkflowResult, error) {
+	// Spawn the child workflow
+	workflow, err := h.SpawnWorkflow(workflowName, input, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn child workflow: %w", err)
+	}
+
+	// Wait for the result
+	result, err := workflow.Result()
+	if err != nil {
+		return nil, fmt.Errorf("child workflow execution failed: %w", err)
+	}
+
+	return result, nil
 }

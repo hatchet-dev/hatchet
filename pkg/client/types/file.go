@@ -20,6 +20,16 @@ func StickyStrategyPtr(v StickyStrategy) *StickyStrategy {
 	return &v
 }
 
+type Concurrency struct {
+	Expression    string                            `yaml:"expression,omitempty"`
+	MaxRuns       *int32                            `yaml:"maxRuns,omitempty"`
+	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
+}
+
+type TaskConditions struct {
+	// TODO
+}
+
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 
@@ -46,16 +56,18 @@ const (
 	CancelInProgress WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
 	CancelNewest     WorkflowConcurrencyLimitStrategy = "CANCEL_NEWEST"
 	GroupRoundRobin  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	DropNewest       WorkflowConcurrencyLimitStrategy = "DROP_NEWEST"
+	QueueNewest      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
 type WorkflowConcurrency struct {
-	ActionID *string `yaml:"action,omitempty"`
-
 	Expression *string `yaml:"expression,omitempty"`
 
 	MaxRuns int32 `yaml:"maxRuns,omitempty"`
 
 	LimitStrategy WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
+
+	ActionID *string `yaml:"action,omitempty"`
 }
 
 type WorkflowTriggers struct {
@@ -127,11 +139,12 @@ type WorkflowStep struct {
 }
 
 type RateLimit struct {
-	Key            string  `yaml:"key,omitempty"`
-	KeyExpr        *string `yaml:"keyExpr,omitempty"`
-	Units          *int    `yaml:"units,omitempty"`
-	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
-	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
+	Key            string             `yaml:"key,omitempty"`
+	KeyExpr        *string            `yaml:"keyExpr,omitempty"`
+	Units          *int               `yaml:"units,omitempty"`
+	UnitsExpr      *string            `yaml:"unitsExpr,omitempty"`
+	LimitValueExpr *string            `yaml:"limitValueExpr,omitempty"`
+	Duration       *RateLimitDuration `yaml:"duration,omitempty"`
 }
 
 func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {

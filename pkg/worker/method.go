@@ -47,14 +47,16 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 		// if first return value is not a pointer to a struct, return error
 		firstReturn := methodType.Out(0)
 
-		if firstReturn.Kind() != reflect.Ptr {
-			return nil, fmt.Errorf("first return value must be a pointer to a struct")
+		if firstReturn.Kind() != reflect.Ptr && firstReturn.Kind() != reflect.Interface {
+			return nil, fmt.Errorf("first return value must be a pointer to a struct or an interface")
 		}
 
-		firstReturnElem := firstReturn.Elem()
+		if firstReturn.Kind() == reflect.Ptr {
+			firstReturnElem := firstReturn.Elem()
 
-		if firstReturnElem.Kind() != reflect.Struct {
-			return nil, fmt.Errorf("first return value must be a pointer to a struct")
+			if firstReturnElem.Kind() != reflect.Struct && firstReturnElem.Kind() != reflect.Interface {
+				return nil, fmt.Errorf("first return value must be a pointer to a struct or an interface")
+			}
 		}
 	}
 

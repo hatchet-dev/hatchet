@@ -18,6 +18,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 )
 
 type actionFunc func(args ...any) []any
@@ -123,27 +125,11 @@ type WorkerOpts struct {
 }
 
 func defaultWorkerOpts() *WorkerOpts {
-	logger := logger.NewDefaultLogger("worker")
 
 	return &WorkerOpts{
 		name:         getHostName(),
-		l:            &logger,
 		integrations: []integrations.Integration{},
 		alerter:      errors.NoOpAlerter{},
-	}
-}
-
-// Deprecated: use WithLogger instead
-func WithLogLevel(lvl string) WorkerOpt {
-	return func(opts *WorkerOpts) {
-		logger := logger.NewDefaultLogger("worker")
-		lvl, err := zerolog.ParseLevel(lvl)
-
-		if err == nil {
-			logger = logger.Level(lvl)
-		}
-
-		opts.l = &logger
 	}
 }
 
@@ -191,7 +177,32 @@ func WithLabels(labels map[string]interface{}) WorkerOpt {
 
 func WithLogger(l *zerolog.Logger) WorkerOpt {
 	return func(opts *WorkerOpts) {
+		if opts.l != nil {
+			opts.l.Warn().Msg("WithLogger called multiple times or after WithLogLevel, ignoring")
+			return
+		}
+
 		opts.l = l
+	}
+}
+
+func WithLogLevel(lvl string) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		var l zerolog.Logger
+
+		if opts.l == nil {
+			l = logger.NewDefaultLogger("worker")
+		} else {
+			l = *opts.l
+		}
+
+		lvl, err := zerolog.ParseLevel(lvl)
+
+		if err == nil {
+			l = l.Level(lvl)
+		}
+
+		opts.l = &l
 	}
 }
 
@@ -213,6 +224,11 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		}
 	}
 
+	if opts.l == nil {
+		l := logger.NewDefaultLogger("worker")
+		opts.l = &l
+	}
+
 	w := &Worker{
 		client:               opts.client,
 		name:                 opts.name,
@@ -228,7 +244,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	mws.add(w.panicMiddleware)
 
-	// TODO: Remove integrations
+	// FIXME: Remove integrations
 	// register all integrations
 	for _, integration := range opts.integrations {
 		actions := integration.Actions()
@@ -278,6 +294,15 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 	return w.On(workflow.ToWorkflowTrigger(), workflow)
 }
 
+func (w *Worker) RegisterWorkflowV1(workflow *contracts.CreateWorkflowVersionRequest) error {
+	namespace := w.client.Namespace()
+	namespaced := namespace + workflow.Name
+
+	w.registered_workflows[namespaced] = true
+
+	return w.client.Admin().PutWorkflowV1(workflow)
+}
+
 // Deprecated: Use RegisterWorkflow instead
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	svcName := workflow.ToWorkflow("", "").Name
@@ -287,7 +312,13 @@ func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	svc, ok := w.services.Load(svcName)
 
 	if !ok {
-		return w.NewService(svcName).On(t, workflow)
+		newSvc := w.NewService(svcName)
+
+		if w.middlewares != nil {
+			newSvc.Use(w.middlewares.middlewares...)
+		}
+
+		return newSvc.On(t, workflow)
 	}
 
 	return svc.(*Service).On(t, workflow)
@@ -310,10 +341,16 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 		return fmt.Errorf("could not parse action id: %w", err)
 	}
 
+	// if the service does not exist, create a new service for the action
+	if _, ok := w.services.Load(action.Service); !ok {
+		w.NewService(action.Service)
+	}
+
 	return w.registerAction(action.Service, action.Verb, method, nil)
 }
 
 func (w *Worker) registerAction(service, verb string, method any, compute *compute.Compute) error {
+
 	actionId := fmt.Sprintf("%s:%s", service, verb)
 
 	// if the service is "concurrency", then this is a special action
@@ -332,6 +369,7 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 	actionFunc, err := getFnFromMethod(method)
 
 	if err != nil {
+		fmt.Println("err", err)
 		return fmt.Errorf("could not get function from method: %w", err)
 	}
 
@@ -384,11 +422,18 @@ func (w *Worker) Run(ctx context.Context) error {
 	return w.startBlocking(ctx)
 }
 
+func (w *Worker) Logger() *zerolog.Logger {
+	return w.l
+}
+
+func (w *Worker) ID() *string {
+	return w.id
+}
+
 func (w *Worker) startBlocking(ctx context.Context) error {
 	actionNames := []string{}
 
 	for _, action := range w.actions {
-
 		if w.client.RunnableActions() != nil {
 			if !slices.Contains(w.client.RunnableActions(), action.Name()) {
 				continue

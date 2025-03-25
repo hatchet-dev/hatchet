@@ -522,21 +522,37 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 }
 
 func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.CreateStepOpts, error) {
-	steps := make([]v1.CreateStepOpts, len(tasks))
+	// First, check if tasks is nil
+	if tasks == nil {
+		return nil, fmt.Errorf("tasks list cannot be nil")
+	}
 
+	steps := make([]v1.CreateStepOpts, len(tasks))
 	stepReadableIdMap := make(map[string]bool)
 
 	for j, step := range tasks {
+		// Check if this specific task is nil
+		if step == nil {
+			return nil, fmt.Errorf("task at index %d is nil", j)
+		}
+
 		stepCp := step
 
-		parsedAction, err := types.ParseActionID(step.Action)
+		// Verify required fields exist
+		if stepCp.Action == "" {
+			return nil, fmt.Errorf("task at index %d is missing required field 'Action'", j)
+		}
 
+		if stepCp.ReadableId == "" {
+			return nil, fmt.Errorf("task at index %d is missing required field 'ReadableId'", j)
+		}
+
+		parsedAction, err := types.ParseActionID(step.Action)
 		if err != nil {
 			return nil, err
 		}
 
 		retries := int(stepCp.Retries)
-
 		stepReadableIdMap[stepCp.ReadableId] = true
 
 		var affinity map[string]v1.DesiredWorkerLabelOpts
@@ -544,9 +560,12 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 		if stepCp.WorkerLabels != nil {
 			affinity = map[string]v1.DesiredWorkerLabelOpts{}
 			for k, v := range stepCp.WorkerLabels {
+				// Check if v is nil
+				if v == nil {
+					continue
+				}
 
 				var c *string
-
 				if v.Comparator != nil {
 					cPtr := v.Comparator.String()
 					c = &cPtr
@@ -563,15 +582,25 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			}
 		}
 
+		// Create the step with minimal required fields
 		steps[j] = v1.CreateStepOpts{
 			ReadableId:          stepCp.ReadableId,
 			Action:              parsedAction.String(),
-			Parents:             stepCp.Parents,
+			Parents:             nil, // Will be set safely below
 			Retries:             &retries,
 			DesiredWorkerLabels: affinity,
 			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
+			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
 		}
 
+		// Safely set Parents
+		if stepCp.Parents != nil {
+			steps[j].Parents = stepCp.Parents
+		} else {
+			steps[j].Parents = []string{} // Use empty array instead of nil
+		}
+
+		// Safely handle optional fields
 		if stepCp.BackoffFactor != nil {
 			f64 := float64(*stepCp.BackoffFactor)
 			steps[j].RetryBackoffFactor = &f64
@@ -589,63 +618,98 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			steps[j].Timeout = &stepCp.Timeout
 		}
 
-		for _, rateLimit := range stepCp.RateLimits {
-			opt := v1.CreateWorkflowStepRateLimitOpts{
-				Key:       rateLimit.Key,
-				KeyExpr:   rateLimit.KeyExpr,
-				LimitExpr: rateLimit.LimitValuesExpr,
-				UnitsExpr: rateLimit.UnitsExpr,
-			}
+		// Safely handle rate limits
+		if stepCp.RateLimits != nil {
+			for _, rateLimit := range stepCp.RateLimits {
+				// Skip nil rate limits
+				if rateLimit == nil {
+					continue
+				}
 
-			if rateLimit.Duration != nil {
-				dur := rateLimit.Duration.String()
-				opt.Duration = &dur
-			}
+				opt := v1.CreateWorkflowStepRateLimitOpts{
+					Key:       rateLimit.Key,
+					KeyExpr:   rateLimit.KeyExpr,
+					LimitExpr: rateLimit.LimitValuesExpr,
+					UnitsExpr: rateLimit.UnitsExpr,
+				}
 
-			if rateLimit.Units != nil {
-				units := int(*rateLimit.Units)
-				opt.Units = &units
-			}
+				if rateLimit.Duration != nil {
+					dur := rateLimit.Duration.String()
+					opt.Duration = &dur
+				}
 
-			steps[j].RateLimits = append(steps[j].RateLimits, opt)
+				if rateLimit.Units != nil {
+					units := int(*rateLimit.Units)
+					opt.Units = &units
+				}
+
+				steps[j].RateLimits = append(steps[j].RateLimits, opt)
+			}
 		}
 
-		for _, userEventCondition := range stepCp.Conditions.UserEventConditions {
-			eventKey := userEventCondition.UserEventKey
+		// Safely handle conditions
+		if stepCp.Conditions != nil {
+			// Check UserEventConditions
+			if stepCp.Conditions.UserEventConditions != nil {
+				for _, userEventCondition := range stepCp.Conditions.UserEventConditions {
+					// Skip nil conditions
+					if userEventCondition == nil || userEventCondition.Base == nil {
+						continue
+					}
 
-			steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
-				MatchConditionKind: "USER_EVENT",
-				ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
-				Action:             userEventCondition.Base.Action.String(),
-				OrGroupId:          userEventCondition.Base.OrGroupId,
-				Expression:         userEventCondition.Base.Expression,
-				EventKey:           &eventKey,
-			})
-		}
+					eventKey := userEventCondition.UserEventKey
 
-		for _, sleepCondition := range stepCp.Conditions.SleepConditions {
-			duration := sleepCondition.SleepFor
+					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
+						MatchConditionKind: "USER_EVENT",
+						ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
+						Action:             userEventCondition.Base.Action.String(),
+						OrGroupId:          userEventCondition.Base.OrGroupId,
+						Expression:         userEventCondition.Base.Expression,
+						EventKey:           &eventKey,
+					})
+				}
+			}
 
-			steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
-				MatchConditionKind: "SLEEP",
-				ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
-				Action:             sleepCondition.Base.Action.String(),
-				OrGroupId:          sleepCondition.Base.OrGroupId,
-				SleepDuration:      &duration,
-			})
-		}
+			// Check SleepConditions
+			if stepCp.Conditions.SleepConditions != nil {
+				for _, sleepCondition := range stepCp.Conditions.SleepConditions {
+					// Skip nil conditions
+					if sleepCondition == nil || sleepCondition.Base == nil {
+						continue
+					}
 
-		for _, parentOverrideCondition := range stepCp.Conditions.ParentOverrideConditions {
-			parentReadableId := parentOverrideCondition.ParentReadableId
+					duration := sleepCondition.SleepFor
 
-			steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
-				MatchConditionKind: "PARENT_OVERRIDE",
-				ReadableDataKey:    parentReadableId,
-				Action:             parentOverrideCondition.Base.Action.String(),
-				Expression:         parentOverrideCondition.Base.Expression,
-				OrGroupId:          parentOverrideCondition.Base.OrGroupId,
-				ParentReadableId:   &parentReadableId,
-			})
+					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
+						MatchConditionKind: "SLEEP",
+						ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
+						Action:             sleepCondition.Base.Action.String(),
+						OrGroupId:          sleepCondition.Base.OrGroupId,
+						SleepDuration:      &duration,
+					})
+				}
+			}
+
+			// Check ParentOverrideConditions
+			if stepCp.Conditions.ParentOverrideConditions != nil {
+				for _, parentOverrideCondition := range stepCp.Conditions.ParentOverrideConditions {
+					// Skip nil conditions
+					if parentOverrideCondition == nil || parentOverrideCondition.Base == nil {
+						continue
+					}
+
+					parentReadableId := parentOverrideCondition.ParentReadableId
+
+					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
+						MatchConditionKind: "PARENT_OVERRIDE",
+						ReadableDataKey:    parentReadableId,
+						Action:             parentOverrideCondition.Base.Action.String(),
+						Expression:         parentOverrideCondition.Base.Expression,
+						OrGroupId:          parentOverrideCondition.Base.OrGroupId,
+						ParentReadableId:   &parentReadableId,
+					})
+				}
+			}
 		}
 	}
 
