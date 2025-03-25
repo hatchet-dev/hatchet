@@ -1,5 +1,6 @@
+import asyncio
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Generic, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast, overload
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel
@@ -77,6 +78,7 @@ class Workflow(Generic[TWorkflowInput]):
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
         self._durable_tasks: list[Task[TWorkflowInput, Any]] = []
         self._on_failure_task: Task[TWorkflowInput, Any] | None = None
+        self._on_success_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
     def _get_service_name(self, namespace: str) -> str:
@@ -129,9 +131,20 @@ class Workflow(Generic[TWorkflowInput]):
             limit_strategy=concurrency.limit_strategy,
         )
 
+    @overload
     def _validate_task(
         self, task: "Task[TWorkflowInput, R]", service_name: str
-    ) -> CreateTaskOpts:
+    ) -> CreateTaskOpts: ...
+
+    @overload
+    def _validate_task(self, task: None, service_name: str) -> None: ...
+
+    def _validate_task(
+        self, task: Union["Task[TWorkflowInput, R]", None], service_name: str
+    ) -> CreateTaskOpts | None:
+        if not task:
+            return None
+
         return CreateTaskOpts(
             readable_id=task.name,
             action=service_name + ":" + task.name,
@@ -197,11 +210,23 @@ class Workflow(Generic[TWorkflowInput]):
             user_event_conditions=user_events,
         )
 
+    def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
+        return not any(task in t.parents for t in self.tasks if task != t)
+
     def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionRequest:
         service_name = self._get_service_name(namespace)
 
         name = self._get_name(namespace)
         event_triggers = [namespace + event for event in self.config.on_events]
+
+        if self._on_success_task:
+            self._on_success_task.parents = [
+                task
+                for task in self.tasks
+                if task.type == StepType.DEFAULT and self._is_leaf_task(task)
+            ]
+
+        on_success_task = self._validate_task(self._on_success_task, service_name)
 
         tasks = [
             self._validate_task(task, service_name)
@@ -209,16 +234,14 @@ class Workflow(Generic[TWorkflowInput]):
             if task.type == StepType.DEFAULT
         ]
 
-        on_failure_job = (
-            self._validate_task(self._on_failure_task, service_name)
-            if self._on_failure_task
-            else None
-        )
+        if on_success_task:
+            tasks += [on_success_task]
+
+        on_failure_task = self._validate_task(self._on_failure_task, service_name)
 
         return CreateWorkflowVersionRequest(
             name=name,
-            ## TODO: Fix this
-            description=None,
+            description=self.config.description,
             version=self.config.version,
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
@@ -226,7 +249,7 @@ class Workflow(Generic[TWorkflowInput]):
             concurrency=self._concurrency_to_proto(self.config.concurrency),
             ## TODO: Fix this
             cron_input=None,
-            on_failure_task=on_failure_job,
+            on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto),  # type: ignore[arg-type]
         )
 
@@ -242,6 +265,9 @@ class Workflow(Generic[TWorkflowInput]):
 
         if self._on_failure_task:
             tasks += [self._on_failure_task]
+
+        if self._on_success_task:
+            tasks += [self._on_success_task]
 
         return tasks
 
@@ -313,12 +339,32 @@ class Workflow(Generic[TWorkflowInput]):
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
+    ) -> list[dict[str, Any]]:
+        refs = self.client.admin.run_workflows(
+            workflows=workflows,
+        )
+
+        return [ref.result() for ref in refs]
+
+    async def aio_run_many(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
+    ) -> list[dict[str, Any]]:
+        refs = await self.client.admin.aio_run_workflows(
+            workflows=workflows,
+        )
+
+        return await asyncio.gather(*[ref.aio_result() for ref in refs])
+
+    def run_many_no_wait(
+        self,
+        workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
         return self.client.admin.run_workflows(
             workflows=workflows,
         )
 
-    async def aio_run_many(
+    async def aio_run_many_no_wait(
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
@@ -602,7 +648,7 @@ class Workflow(Generic[TWorkflowInput]):
                 _fn=func,
                 workflow=self,
                 type=StepType.ON_FAILURE,
-                name=self._parse_task_name(name, func),
+                name=self._parse_task_name(name, func) + "-on-failure",
                 execution_timeout=execution_timeout,
                 schedule_timeout=schedule_timeout,
                 retries=retries,
@@ -613,6 +659,67 @@ class Workflow(Generic[TWorkflowInput]):
             )
 
             self._on_failure_task = task
+
+            return task
+
+        return inner
+
+    def on_success_task(
+        self,
+        name: str | None = None,
+        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
+        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        concurrency: list[ConcurrencyExpression] = [],
+    ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
+        """
+        A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed.
+
+        :param name: The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
+        :type name: str | None
+
+        :param timeout: The execution timeout of the on-success task. Defaults to 60 minutes.
+        :type timeout: datetime.timedelta | str
+
+        :param retries: The number of times to retry the on-success task before failing. Default: `0`
+        :type retries: int
+
+        :param rate_limits: A list of rate limit configurations for the on-success task. Defaults to an empty list (no rate limits).
+        :type rate_limits: list[RateLimit]
+
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :type backoff_factor: float | None
+
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :type backoff_max_seconds: int | None
+
+        :returns: A decorator which creates a `Task` object.
+        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
+        """
+
+        def inner(
+            func: Callable[[TWorkflowInput, Context], R]
+        ) -> Task[TWorkflowInput, R]:
+            task = Task(
+                is_durable=False,
+                _fn=func,
+                workflow=self,
+                type=StepType.ON_SUCCESS,
+                name=self._parse_task_name(name, func) + "-on-success",
+                execution_timeout=execution_timeout,
+                schedule_timeout=schedule_timeout,
+                retries=retries,
+                rate_limits=[r.to_proto() for r in rate_limits],
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+                concurrency=concurrency,
+                parents=[],
+            )
+
+            self._on_success_task = task
 
             return task
 

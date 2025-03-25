@@ -72,3 +72,4 @@ Other miscellaneous changes:
 There are a handful of other new features that will make interfacing with the SDK easier, which are listed below.
 
 1. Concurrency keys using the `input` to a workflow are now checked for validity at runtime. If the workflow's `input_validator` does not contain a field that's used in a key, Hatchet will reject the workflow when it's created. For example, if the key is `input.user_id`, the `input_validator` Pydantic model _must_ contain a `user_id` field.
+2. There is now an `on_success_task` on the `Workflow` object, which works just like an on-failure task, but it runs after all upstream tasks in the workflow have _succeeded_.

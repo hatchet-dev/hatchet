@@ -9,6 +9,7 @@ from grpc._cython import cygrpc  # type: ignore[attr-defined]
 from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
@@ -307,6 +308,7 @@ class DurableEventListener:
 
         raise ValueError("Failed to connect to durable event listener")
 
+    @tenacity_retry
     def register_durable_event(
         self, request: RegisterDurableEventRequest
     ) -> Literal[True]:
@@ -318,6 +320,7 @@ class DurableEventListener:
 
         return True
 
+    @tenacity_retry
     async def result(self, task_id: str, signal_key: str) -> dict[str, Any]:
         event = await self.subscribe(task_id, signal_key)
 

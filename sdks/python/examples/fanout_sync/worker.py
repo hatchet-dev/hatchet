@@ -23,10 +23,10 @@ sync_fanout_child = hatchet.workflow(name="SyncFanoutChild", input_validator=Chi
 
 
 @sync_fanout_parent.task(execution_timeout=timedelta(minutes=5))
-def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
+def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
     print("spawning child")
 
-    runs = sync_fanout_child.run_many(
+    results = sync_fanout_child.run_many(
         [
             sync_fanout_child.create_run_workflow_config(
                 input=ChildInput(a=str(i)),
@@ -36,8 +36,6 @@ def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
             for i in range(input.n)
         ],
     )
-
-    results = [r.result() for r in runs]
 
     print(f"results {results}")
 

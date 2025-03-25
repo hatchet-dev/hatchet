@@ -1,4 +1,3 @@
-import asyncio
 from datetime import timedelta
 from typing import Any
 
@@ -28,7 +27,7 @@ child_wf = hatchet.workflow(name="FanoutChild", input_validator=ChildInput)
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
     print("spawning child")
 
-    children = await child_wf.aio_run_many(
+    result = await child_wf.aio_run_many(
         [
             child_wf.create_run_workflow_config(
                 input=ChildInput(a=str(i)),
@@ -40,7 +39,6 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
         ]
     )
 
-    result = await asyncio.gather(*[child.aio_result() for child in children])
     print(f"results {result}")
 
     return {"results": result}
