@@ -72,8 +72,11 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
 export type NextStep = { [key: string]: JsonValue };
 
+type TriggerData = Record<string, Record<string, any>>;
+
 interface ContextData<T, K> {
-  input: T; // TODO extend this to include triggers
+  input: T;
+  triggers: TriggerData;
   parents: Record<string, any>;
   triggered_by: string;
   user_data: K;
@@ -217,6 +220,14 @@ export class Context<T, K = {}> {
     }
 
     return errors;
+  }
+
+  /**
+   * Gets the dag conditional triggers for the current workflow run.
+   * @returns The triggers for the current workflow.
+   */
+  triggers(): TriggerData {
+    return this.data.triggers;
   }
 
   /**
