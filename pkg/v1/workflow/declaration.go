@@ -414,8 +414,11 @@ func (w *workflowDeclarationImpl[I, O]) RunNoWait(input I, opts ...RunOpts) (*v0
 // It triggers a workflow run via the Hatchet client and waits for the result.
 // Returns the workflow output and any error encountered during execution.
 func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error) {
-	// TODO run opts
 	run, err := w.RunNoWait(input, opts...)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// TODO the result method does not work as expect at this time
 	_, err = run.Result()
