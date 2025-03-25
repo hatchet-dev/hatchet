@@ -29,13 +29,13 @@ The returned object is an instance of the `Workflow` class, which is the primary
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
-  ```python
-  from hatchet_sdk import Context, EmptyModel, Hatchet
+
+```python
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
 simple = hatchet.workflow(name="SimpleWorkflow")
-
 ```
 
 </Tabs.Tab>
@@ -48,6 +48,7 @@ simple = hatchet.workflow(name="SimpleWorkflow")
 </Callout>
 </Tabs.Tab>
 <Tabs.Tab title="Go">
+
 ```go
   w.RegisterWorkflow(
       &worker.WorkflowJob{
