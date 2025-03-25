@@ -73,7 +73,7 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 export type NextStep = { [key: string]: JsonValue };
 
 interface ContextData<T, K> {
-  input: T;
+  input: T; // TODO extend this to include triggers
   parents: Record<string, any>;
   triggered_by: string;
   user_data: K;
@@ -610,8 +610,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param duration - The duration to sleep for.
    * @returns A promise that resolves when the sleep duration has elapsed.
    */
-  async sleepFor(duration: Duration): Promise<unknown> {
-    return this.waitFor({ sleepFor: duration });
+  async sleepFor(duration: Duration, readableDataKey?: string): Promise<unknown> {
+    return this.waitFor({ sleepFor: duration, readableDataKey });
   }
 
   /**
@@ -620,7 +620,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param conditions - The conditions to wait for.
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
-  async waitFor(conditions: Conditions | Conditions[]): Promise<unknown> {
+  async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
 
     // eslint-disable-next-line no-plusplus
@@ -639,7 +639,12 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     const event = await listener.get();
 
-    return event;
+    // Convert event.data from Uint8Array to string if needed
+    const eventData =
+      event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
+
+    const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
+    return res.CREATE;
   }
 }
 

@@ -2,7 +2,7 @@ import { hatchet } from '../hatchet-client';
 
 async function main() {
   const event = await hatchet.events.push('user:event', {
-    Value: 'event',
+    Data: { Hello: 'World' },
   });
 }
 

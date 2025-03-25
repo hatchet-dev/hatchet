@@ -52,18 +52,28 @@ export function Render(action?: Action, conditions?: Conditions | Conditions[]):
 
     // Handle object syntax
     if ('sleepFor' in conditionOrObj) {
-      return [...acc, new SleepCondition(conditionOrObj.sleepFor, action)];
+      return [...acc, new SleepCondition(conditionOrObj.sleepFor, undefined, action)];
     }
     if ('eventKey' in conditionOrObj) {
       return [
         ...acc,
-        new UserEventCondition(conditionOrObj.eventKey, conditionOrObj.expression || '', action),
+        new UserEventCondition(
+          conditionOrObj.eventKey,
+          conditionOrObj.expression || '',
+          undefined,
+          action
+        ),
       ];
     }
     if ('parent' in conditionOrObj) {
       return [
         ...acc,
-        new ParentCondition(conditionOrObj.parent, conditionOrObj.expression || '', action),
+        new ParentCondition(
+          conditionOrObj.parent,
+          conditionOrObj.expression || '',
+          undefined,
+          action
+        ),
       ];
     }
 
