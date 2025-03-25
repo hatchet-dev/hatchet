@@ -26,7 +26,7 @@ Specific tasks can then specify desired label state to ensure that workflows are
 
 Labels can be set on workers when they are registered with Hatchet. Labels are key-value pairs that can be used to specify worker capabilities, resource availability, or other criteria that can be used to match workflows to workers. Values can be strings or numbers, and multiple labels can be set on a worker.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 <GithubSnippet src={WorkerAffinityPy} target="AffinityWorker" />
@@ -69,7 +69,7 @@ You can specify desired worker label state for specific tasks in a workflow by s
 - `required` (default: `true`): Whether the label is required for the task to run. If `true`, the task will remain in a pending state until a worker with the desired label state becomes available. If `false`, the worker will be prioritized based on the sum of the highest matching weights.
 - `weight` (optional, default: `100`): The weight of the label. Higher weights are prioritized over lower weights when selecting a worker for the task. If multiple workers have the same highest weight, the worker with the highest sum of weights will be selected. Ignored if `required` is `true`.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 <GithubSnippet src={WorkerAffinityPy} target="AffinityWorkflow" />
@@ -124,7 +124,7 @@ You can specify desired worker label state for specific tasks in a workflow by s
 
 Labels can also be set dynamically on workers using the `upsertLabels` method. This can be useful when worker state changes over time, such as when a new model is loaded into memory or when a worker's resource availability changes.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 <GithubSnippet src={WorkerAffinityPy} target="AffinityTask" />

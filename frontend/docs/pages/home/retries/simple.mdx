@@ -39,7 +39,7 @@ This simple retry mechanism can help to mitigate transient failures, such as net
 
 To enable retries for a task in your workflow, simply add the `retries` property to the task object in your workflow definition:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
   <GithubSnippet src={RetryPy} target="Simple" />
   </Tabs.Tab>
@@ -71,7 +71,7 @@ Additionally, if a task interacts with external services or databases, you shoul
 
 If you need to access the current retry count within a task, you can use the `retryCount` method available in the task context:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python

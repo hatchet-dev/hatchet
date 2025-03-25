@@ -46,7 +46,7 @@ There are two strategies for setting sticky assignment:
 - `SOFT`: The all tasks in the workflow will attempt to be assigned to the same worker, but if that worker is unavailable, it will be assigned to another worker.
 - `HARD`: The all tasks in the workflow will only be assigned to the same worker. If that worker is unavailable, the task run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](./timeouts.mdx#task-level-timeouts))
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 <GithubSnippet src={StickyWorkerPy} target="StickyWorker" />
@@ -77,7 +77,7 @@ However, the child workflow must:
 
 If either condition is not met, an error will be thrown when the child workflow is spawned.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 <GithubSnippet src={StickyWorkerPy} target="StickyChild" />
