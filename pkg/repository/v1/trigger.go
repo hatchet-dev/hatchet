@@ -584,26 +584,120 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					TriggerChildKey:             childKey,
 				})
 			case len(step.Parents) == 0:
-				opt := CreateTaskOpts{
-					ExternalId:           taskExternalId,
-					WorkflowRunId:        tuple.externalId,
-					StepId:               sqlchelpers.UUIDToStr(step.ID),
-					Input:                r.newTaskInput(tuple.input, nil),
-					AdditionalMetadata:   tuple.additionalMetadata,
-					InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
-					DesiredWorkerId:      tuple.desiredWorkerId,
-					ParentTaskExternalId: tuple.parentExternalId,
-					ParentTaskId:         tuple.parentTaskId,
-					ParentTaskInsertedAt: tuple.parentTaskInsertedAt,
-					StepIndex:            stepIndex,
-					ChildIndex:           tuple.childIndex,
-					ChildKey:             tuple.childKey,
-				}
+				// if we have additional match conditions, create a match instead of triggering a workflow for this step
+				additionalMatches := stepsToAdditionalMatches[stepId]
 
-				if isDag {
-					dagTaskOpts[tuple.externalId] = append(dagTaskOpts[tuple.externalId], opt)
+				if len(additionalMatches) > 0 {
+					// create an event match
+					groupConditions := make([]GroupMatchCondition, 0)
+
+					for _, condition := range additionalMatches {
+						switch condition.Kind {
+						case sqlcv1.V1StepMatchConditionKindSLEEP:
+							c, err := r.durableSleepCondition(
+								ctx,
+								tx,
+								tenantId,
+								sqlchelpers.UUIDToStr(condition.OrGroupID),
+								condition.ReadableDataKey,
+								condition.SleepDuration.String,
+								condition.Action,
+							)
+
+							if err != nil {
+								return nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
+							}
+
+							groupConditions = append(groupConditions, *c)
+						case sqlcv1.V1StepMatchConditionKindUSEREVENT:
+							groupConditions = append(groupConditions, r.userEventCondition(
+								sqlchelpers.UUIDToStr(condition.OrGroupID),
+								condition.ReadableDataKey,
+								condition.EventKey.String,
+								condition.Expression.String,
+								condition.Action,
+							))
+						default:
+							// PARENT_OVERRIDE is another kind, but it isn't processed here
+							continue
+						}
+					}
+
+					var (
+						parentTaskExternalId pgtype.UUID
+						parentTaskId         pgtype.Int8
+						parentTaskInsertedAt pgtype.Timestamptz
+						childIndex           pgtype.Int8
+						childKey             pgtype.Text
+					)
+
+					if tuple.parentExternalId != nil {
+						parentTaskExternalId = sqlchelpers.UUIDFromStr(*tuple.parentExternalId)
+					}
+
+					if tuple.parentTaskId != nil {
+						parentTaskId = pgtype.Int8{
+							Int64: *tuple.parentTaskId,
+							Valid: true,
+						}
+					}
+
+					if tuple.parentTaskInsertedAt != nil {
+						parentTaskInsertedAt = sqlchelpers.TimestamptzFromTime(*tuple.parentTaskInsertedAt)
+					}
+
+					if tuple.childIndex != nil {
+						childIndex = pgtype.Int8{
+							Int64: *tuple.childIndex,
+							Valid: true,
+						}
+					}
+
+					if tuple.childKey != nil {
+						childKey = pgtype.Text{
+							String: *tuple.childKey,
+							Valid:  true,
+						}
+					}
+
+					eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
+						Kind:                 sqlcv1.V1MatchKindTRIGGER,
+						Conditions:           groupConditions,
+						TriggerExternalId:    &taskExternalId,
+						TriggerWorkflowRunId: &tupleExternalId,
+						TriggerStepId:        &stepId,
+						TriggerStepIndex: pgtype.Int8{
+							Int64: int64(stepIndex),
+							Valid: true,
+						},
+						TriggerParentTaskExternalId: parentTaskExternalId,
+						TriggerParentTaskId:         parentTaskId,
+						TriggerParentTaskInsertedAt: parentTaskInsertedAt,
+						TriggerChildIndex:           childIndex,
+						TriggerChildKey:             childKey,
+					})
 				} else {
-					nonDagTaskOpts = append(nonDagTaskOpts, opt)
+					opt := CreateTaskOpts{
+						ExternalId:           taskExternalId,
+						WorkflowRunId:        tuple.externalId,
+						StepId:               sqlchelpers.UUIDToStr(step.ID),
+						Input:                r.newTaskInput(tuple.input, nil),
+						AdditionalMetadata:   tuple.additionalMetadata,
+						InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
+						DesiredWorkerId:      tuple.desiredWorkerId,
+						ParentTaskExternalId: tuple.parentExternalId,
+						ParentTaskId:         tuple.parentTaskId,
+						ParentTaskInsertedAt: tuple.parentTaskInsertedAt,
+						StepIndex:            stepIndex,
+						ChildIndex:           tuple.childIndex,
+						ChildKey:             tuple.childKey,
+					}
+
+					if isDag {
+						dagTaskOpts[tuple.externalId] = append(dagTaskOpts[tuple.externalId], opt)
+					} else {
+						nonDagTaskOpts = append(nonDagTaskOpts, opt)
+					}
 				}
 			default:
 				conditions := make([]GroupMatchCondition, 0)
