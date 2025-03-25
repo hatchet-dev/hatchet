@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
+
 	"github.com/jackc/puddle/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
@@ -103,7 +105,7 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channe
 
 				if err != nil {
 					l.Error().Msgf("cannot (re)dial: %v: %q", err, p.url)
-					sleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retries)
+					queueutils.SleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retries)
 					retries++
 					continue
 				}

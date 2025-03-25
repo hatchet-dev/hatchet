@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -110,6 +111,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	defer cancel()
 
 	msgs := msgqueuev1.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
+	outerEg := errgroup.Group{}
 
 	for _, innerMsg := range msgs {
 		// load the step runs from the database
@@ -172,8 +174,6 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		for _, task := range bulkDatas {
 			taskIdToData[task.ID] = task
 		}
-
-		outerEg := errgroup.Group{}
 
 		for workerId, stepRunIds := range innerMsg.WorkerIdToTaskIds {
 			workerId := workerId
@@ -242,39 +242,51 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 					retryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 					defer cancel()
 
-					for _, task := range toRetry {
-						msg, err := tasktypesv1.FailedTaskMessage(
-							msg.TenantID,
-							task.ID,
-							task.InsertedAt,
-							sqlchelpers.UUIDToStr(task.ExternalID),
-							sqlchelpers.UUIDToStr(task.WorkflowRunID),
-							task.RetryCount,
-							false,
-							"Could not send task to worker",
-						)
+					retryGroup := errgroup.Group{}
 
-						if err != nil {
-							innerErr = multierror.Append(innerErr, fmt.Errorf("could not create failed task message: %w", err))
-							continue
-						}
+					for _, _task := range toRetry {
+						tenantId := msg.TenantID
+						task := _task
 
-						err = d.mqv1.SendMessage(retryCtx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
+						retryGroup.Go(func() error {
+							msg, err := tasktypesv1.FailedTaskMessage(
+								tenantId,
+								task.ID,
+								task.InsertedAt,
+								sqlchelpers.UUIDToStr(task.ExternalID),
+								sqlchelpers.UUIDToStr(task.WorkflowRunID),
+								task.RetryCount,
+								false,
+								"Could not send task to worker",
+							)
 
-						if err != nil {
-							innerErr = multierror.Append(innerErr, fmt.Errorf("could not send failed task message: %w", err))
-						}
+							if err != nil {
+								return fmt.Errorf("could not create failed task message: %w", err)
+							}
+
+							queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
+
+							err = d.mqv1.SendMessage(retryCtx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
+
+							if err != nil {
+								return fmt.Errorf("could not send failed task message: %w", err)
+							}
+
+							return nil
+						})
+					}
+
+					if err := retryGroup.Wait(); err != nil {
+						innerErr = multierror.Append(innerErr, fmt.Errorf("could not retry failed tasks: %w", err))
 					}
 				}
 
 				return innerErr
 			})
 		}
-
-		return outerEg.Wait()
 	}
 
-	return nil
+	return outerEg.Wait()
 }
 
 func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev1.Message) error {

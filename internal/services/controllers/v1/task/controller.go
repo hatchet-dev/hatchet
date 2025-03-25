@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sync"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -203,7 +202,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 func (tc *TasksControllerImpl) Start() (func() error, error) {
 	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.TASK_PROCESSING_QUEUE, tc.mq, tc.handleBufferedMsgs)
-	wg := sync.WaitGroup{}
 
 	tc.s.Start()
 
@@ -293,8 +291,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		if err := tc.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
-
-		wg.Wait()
 
 		return nil
 	}

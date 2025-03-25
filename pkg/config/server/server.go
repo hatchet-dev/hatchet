@@ -150,8 +150,8 @@ type ConfigFileRuntime struct {
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
 
-	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 3)
-	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"3"`
+	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 10)
+	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"10"`
 
 	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
 	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
