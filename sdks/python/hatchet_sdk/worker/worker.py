@@ -23,9 +23,8 @@ from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -70,7 +69,7 @@ class Worker:
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
-        workflows: list[Workflow[Any] | Standalone[Any, Any]] = [],
+        workflows: list[BaseWorkflow[Any]] = [],
     ) -> None:
         self.config = config
         self.name = self.config.namespace + name
@@ -128,7 +127,7 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-    def register_workflow(self, workflow: Workflow[Any] | Standalone[Any, Any]) -> None:
+    def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         namespace = self.client.config.namespace
 
         opts = workflow._get_create_opts(namespace)
@@ -160,9 +159,7 @@ class Worker:
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
 
-    def register_workflows(
-        self, workflows: list[Workflow[Any] | Standalone[Any, Any]]
-    ) -> None:
+    def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
         for workflow in workflows:
             self.register_workflow(workflow)
 

@@ -27,7 +27,7 @@ from hatchet_sdk.runnables.types import (
     TWorkflowInput,
     WorkflowConfig,
 )
-from hatchet_sdk.runnables.workflow import Workflow
+from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.worker.worker import Worker
@@ -112,7 +112,7 @@ class Hatchet:
         name: str,
         slots: int = 100,
         labels: dict[str, str | int] = {},
-        workflows: list[Workflow[Any] | Standalone[Any, Any]] = [],
+        workflows: list[BaseWorkflow[Any]] = [],
     ) -> Worker:
         """
         Create a Hatchet worker on which to run workflows.
