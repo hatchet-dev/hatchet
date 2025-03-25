@@ -1,6 +1,6 @@
 import sleep from '@hatchet/util/sleep';
 import { Or } from '@hatchet/v1/conditions';
-import { hatchet } from '../client';
+import { hatchet } from '../hatchet-client';
 
 type DagInput = {};
 
