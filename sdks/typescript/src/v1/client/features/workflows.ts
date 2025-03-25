@@ -2,8 +2,9 @@ import { Workflow } from '@hatchet/workflow';
 import { BaseWorkflowDeclaration } from '@hatchet/v1';
 import { HatchetClient } from '../client';
 
-export const workflowNameString = (workflow: string | Workflow | BaseWorkflowDeclaration<any, any>) =>
-  typeof workflow === 'string' ? workflow : workflow.id;
+export const workflowNameString = (
+  workflow: string | Workflow | BaseWorkflowDeclaration<any, any>
+) => (typeof workflow === 'string' ? workflow : workflow.id);
 
 /**
  * WorkflowsClient is used to list and manage workflows
