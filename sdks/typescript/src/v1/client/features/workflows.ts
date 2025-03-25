@@ -1,9 +1,10 @@
 import { Workflow } from '@hatchet/workflow';
-import { WorkflowDeclaration } from '@hatchet/v1';
+import { BaseWorkflowDeclaration } from '@hatchet/v1';
 import { HatchetClient } from '../client';
 
-export const workflowNameString = (workflow: string | Workflow | WorkflowDeclaration<any, any>) =>
-  typeof workflow === 'string' ? workflow : workflow.id;
+export const workflowNameString = (
+  workflow: string | Workflow | BaseWorkflowDeclaration<any, any>
+) => (typeof workflow === 'string' ? workflow : workflow.id);
 
 /**
  * WorkflowsClient is used to list and manage workflows
@@ -25,7 +26,7 @@ export class WorkflowsClient {
     }
   }
 
-  async get(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
+  async get(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
     // Get workflow name string
     const name = workflowNameString(workflow);
 
@@ -68,7 +69,7 @@ export class WorkflowsClient {
     return data;
   }
 
-  async delete(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
+  async delete(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
     const name = workflowNameString(workflow);
 
     try {

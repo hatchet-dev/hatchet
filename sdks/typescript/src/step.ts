@@ -11,8 +11,8 @@ import WorkflowRunRef from './util/workflow-run-ref';
 import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
-import { CreateTaskOpts } from './v1/task';
-import { WorkflowDeclaration as WorkflowV1 } from './v1/workflow';
+import { CreateWorkflowTaskOpts } from './v1/task';
+import { BaseWorkflowDeclaration as WorkflowV1 } from './v1/declaration';
 import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
@@ -72,8 +72,11 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
 export type NextStep = { [key: string]: JsonValue };
 
+type TriggerData = Record<string, Record<string, any>>;
+
 interface ContextData<T, K> {
   input: T;
+  triggers: TriggerData;
   parents: Record<string, any>;
   triggered_by: string;
   user_data: K;
@@ -166,7 +169,7 @@ export class Context<T, K = {}> {
    * @throws An error if the task output is not found.
    *
    */
-  async parentOutput<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
+  async parentOutput<L = NextStep>(task: CreateWorkflowTaskOpts<any, L> | string) {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
     if (typeof task === 'string') {
       return this.stepOutput<L>(task);
@@ -217,6 +220,14 @@ export class Context<T, K = {}> {
     }
 
     return errors;
+  }
+
+  /**
+   * Gets the dag conditional triggers for the current workflow run.
+   * @returns The triggers for the current workflow.
+   */
+  triggers(): TriggerData {
+    return this.data.triggers;
   }
 
   /**
@@ -610,8 +621,8 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param duration - The duration to sleep for.
    * @returns A promise that resolves when the sleep duration has elapsed.
    */
-  async sleepFor(duration: Duration): Promise<unknown> {
-    return this.waitFor({ sleepFor: duration });
+  async sleepFor(duration: Duration, readableDataKey?: string) {
+    return this.waitFor({ sleepFor: duration, readableDataKey });
   }
 
   /**
@@ -620,7 +631,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param conditions - The conditions to wait for.
    * @returns A promise that resolves with the event that satisfied the conditions.
    */
-  async waitFor(conditions: Conditions | Conditions[]): Promise<unknown> {
+  async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
     const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
 
     // eslint-disable-next-line no-plusplus
@@ -639,7 +650,12 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     const event = await listener.get();
 
-    return event;
+    // Convert event.data from Uint8Array to string if needed
+    const eventData =
+      event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
+
+    const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
+    return res.CREATE;
   }
 }
 

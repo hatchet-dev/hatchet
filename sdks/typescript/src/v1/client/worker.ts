@@ -4,7 +4,7 @@ import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
-import { WorkflowDeclaration } from '../workflow';
+import { BaseWorkflowDeclaration } from '../declaration';
 import { HatchetClient } from '..';
 
 const DEFAULT_DURABLE_SLOTS = 1_000;
@@ -17,7 +17,7 @@ export interface CreateWorkerOpts {
   /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
   slots?: number;
   /** (optional) Array of workflows to register */
-  workflows?: WorkflowDeclaration<any, any>[] | V0Workflow[];
+  workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
   /** (optional) Worker labels for affinity-based assignment */
   labels?: WorkerLabels;
   /** (optional) Whether to handle kill signals */
@@ -86,14 +86,14 @@ export class Worker {
    * @param workflows - Array of workflows to register
    * @returns Array of registered workflow promises
    */
-  async registerWorkflows(workflows?: Array<WorkflowDeclaration<any, any> | V0Workflow>) {
+  async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>) {
     return Promise.all(
       workflows?.map(async (wf) => {
-        if (wf instanceof WorkflowDeclaration) {
+        if (wf instanceof BaseWorkflowDeclaration) {
           // TODO check if tenant is V1
           const register = this.nonDurable.registerWorkflowV1(wf);
 
-          if (wf.definition.durableTasks.length > 0) {
+          if (wf.definition._durableTasks.length > 0) {
             if (!this.durable) {
               this.durable = await this._v0.worker(`${this.name}-durable`, {
                 ...this.config,
@@ -118,7 +118,7 @@ export class Worker {
    * @returns A promise that resolves when the workflow is registered
    * @deprecated use registerWorkflows instead
    */
-  registerWorkflow(workflow: WorkflowDeclaration<any, any> | V0Workflow) {
+  registerWorkflow(workflow: BaseWorkflowDeclaration<any, any> | V0Workflow) {
     return this.registerWorkflows([workflow]);
   }
 

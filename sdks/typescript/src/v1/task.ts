@@ -40,7 +40,8 @@ export type DurableTaskFn<T, K> = (input: T, ctx: DurableContext<T>) => K | Prom
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateTaskOpts<T, K> = {
+//= TaskFn<T, K>
+export type CreateBaseTaskOpts<T, K, C> = {
   /**
    * The name of the task.
    */
@@ -52,13 +53,7 @@ export type CreateTaskOpts<T, K> = {
    * @param ctx The execution context for the task.
    * @returns The result of the task execution.
    */
-  fn: TaskFn<T, K>;
-
-  /**
-   * Parent tasks that must complete before this task runs.
-   * Used to define the directed acyclic graph (DAG) of the workflow.
-   */
-  parents?: CreateTaskOpts<T, any>[];
+  fn: C;
 
   /**
    * @deprecated use executionTimeout instead
@@ -114,6 +109,14 @@ export type CreateTaskOpts<T, K> = {
    * (optional) the concurrency options for the task
    */
   concurrency?: TaskConcurrency | TaskConcurrency[];
+};
+
+export type CreateWorkflowTaskOpts<T, K, C = TaskFn<T, K>> = CreateBaseTaskOpts<T, K, C> & {
+  /**
+   * Parent tasks that must complete before this task runs.
+   * Used to define the directed acyclic graph (DAG) of the workflow.
+   */
+  parents?: CreateWorkflowTaskOpts<T, any, any>[];
 
   /**
    * (optional) the conditions to match before the task is queued
@@ -171,77 +174,32 @@ export type CreateTaskOpts<T, K> = {
   skipIf?: Conditions | Conditions[];
 };
 
+export type CreateStandaloneTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
+
 /**
  * Options for creating a hatchet durable task which is an atomic unit of work in a workflow.
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateDurableTaskOpts<T, K> = CreateTaskOpts<T, K> & {
-  /**
-   * The function to execute when the task runs.
-   * @param input The input data for the workflow invocation.
-   * @param ctx The execution context for the task.
-   * @returns The result of the task execution.
-   */
-  fn: DurableTaskFn<T, K>;
-};
+export type CreateWorkflowDurableTaskOpts<T, K> = CreateWorkflowTaskOpts<T, K, DurableTaskFn<T, K>>;
+
+/**
+ * Options for creating a hatchet task which is an atomic unit of work in a workflow.
+ * @template T The input type for the task function.
+ * @template K The return type of the task function (can be inferred from the return value of fn).
+ */
+export type CreateStandaloneDurableTaskOpts<T, K> = CreateBaseTaskOpts<T, K, DurableTaskFn<T, K>>;
+
+/**
+ * Options for configuring the onSuccess task that is invoked when a task succeeds.
+ * @template T The input type for the task function.
+ * @template K The return type of the task function (can be inferred from the return value of fn).
+ */
+export type CreateOnSuccessTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
 
 /**
  * Options for configuring the onFailure task that is invoked when a task fails.
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateOnFailureTaskOpts<T, K> = {
-  /**
-   * The function to execute when the task runs.
-   * @param input The input data for the workflow invocation.
-   * @param ctx The execution context for the task.
-   * @returns The result of the task execution.
-   */
-  fn: TaskFn<T, K>;
-
-  /**
-   * (optional) execution timeout duration for the onFailure task after it starts running
-   * go duration format (e.g., "1s", "5m", "1h").
-   *
-   * default: 60s
-   */
-  executionTimeout?: CreateStep<T, K>['timeout'];
-
-  /**
-   * (optional) schedule timeout for the onFailure task (max duration to allow the task to wait in the queue)
-   * go duration format (e.g., "1s", "5m", "1h").
-   *
-   * default: 5m
-   */
-  scheduleTimeout?: CreateStep<T, K>['timeout'];
-
-  /**
-   * (optional) number of retries for the onFailure task.
-   *
-   * default: 0
-   */
-  retries?: CreateStep<T, K>['retries'];
-
-  /**
-   * (optional) backoff strategy configuration for retries.
-   * - factor: Base of the exponential backoff (base ^ retry count)
-   * - maxSeconds: Maximum backoff duration in seconds
-   */
-  backoff?: CreateStep<T, K>['backoff'];
-
-  /**
-   * (optional) rate limits for the onFailure task.
-   */
-  rateLimits?: CreateStep<T, K>['rate_limits'];
-
-  /**
-   * (optional) worker labels for task routing and scheduling.
-   * Each label can be a simple string/number value or an object with additional configuration:
-   * - value: The label value (string or number)
-   * - required: Whether the label is required for worker matching
-   * - weight: Priority weight for worker selection
-   * - comparator: Custom comparison logic for label matching
-   */
-  workerLabels?: CreateStep<T, K>['worker_labels'];
-};
+export type CreateOnFailureTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K>>;

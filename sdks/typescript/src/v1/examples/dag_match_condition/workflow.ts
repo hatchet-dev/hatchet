@@ -30,8 +30,10 @@ const firstTask = dagWithConditions.task({
 dagWithConditions.task({
   name: 'second-task',
   parents: [firstTask],
-  waitFor: Or({ eventKey: 'user:update' }, { parent: firstTask }),
-  fn: async () => {
+  waitFor: Or({ eventKey: 'user:event' }, { sleepFor: '10s' }),
+  fn: async (_, ctx) => {
+    console.log('triggered by condition', ctx.triggers());
+
     return {
       Completed: true,
     };
