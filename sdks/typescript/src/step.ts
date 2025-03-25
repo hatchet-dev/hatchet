@@ -11,8 +11,8 @@ import WorkflowRunRef from './util/workflow-run-ref';
 import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
-import { CreateTaskOpts } from './v1/task';
-import { WorkflowDeclaration as WorkflowV1 } from './v1/workflow';
+import { CreateWorkflowTaskOpts } from './v1/task';
+import { BaseWorkflowDeclaration as WorkflowV1 } from './v1/declaration';
 import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
@@ -166,7 +166,7 @@ export class Context<T, K = {}> {
    * @throws An error if the task output is not found.
    *
    */
-  async parentOutput<L = NextStep>(task: CreateTaskOpts<any, L> | string) {
+  async parentOutput<L = NextStep>(task: CreateWorkflowTaskOpts<any, L> | string) {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
     if (typeof task === 'string') {
       return this.stepOutput<L>(task);

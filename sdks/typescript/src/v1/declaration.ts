@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -6,11 +7,12 @@ import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generat
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
 import {
-  CreateTaskOpts,
+  CreateWorkflowTaskOpts,
   CreateOnFailureTaskOpts,
   TaskConcurrency,
   TaskFn,
-  CreateDurableTaskOpts,
+  CreateWorkflowDurableTaskOpts,
+  CreateBaseTaskOpts,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -35,14 +37,11 @@ export type RunOpts = {
 /**
  * Extracts a property from an object type based on task name, or falls back to inferred type
  */
-type TaskOutputType<K, TaskName extends string, InferredType> = TaskName extends keyof K
+export type TaskOutputType<K, TaskName extends string, InferredType> = TaskName extends keyof K
   ? K[TaskName]
   : InferredType;
 
-/**
- * Options for creating a new workflow.
- */
-export type CreateWorkflowOpts = {
+export type CreateBaseWorkflowOpts = {
   /**
    * The name of the workflow.
    */
@@ -84,7 +83,17 @@ export type CreateWorkflowOpts = {
    * @param ctx The context of the workflow.
    */
   onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
+};
 
+export type CreateTaskWorkflowOpts<
+  T extends JsonObject = any,
+  K extends JsonObject = any,
+> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<T, K>;
+
+/**
+ * Options for creating a new workflow.
+ */
+export type CreateWorkflowOpts = CreateBaseWorkflowOpts & {
   /**
    * (optional) default configuration for all tasks in the workflow.
    */
@@ -117,19 +126,19 @@ export type TaskDefaults = {
    *
    * default: 0
    */
-  retries?: CreateTaskOpts<any, any>['retries'];
+  retries?: CreateWorkflowTaskOpts<any, any>['retries'];
 
   /**
    * (optional) backoff strategy configuration for retries.
    * - factor: Base of the exponential backoff (base ^ retry count)
    * - maxSeconds: Maximum backoff duration in seconds
    */
-  backoff?: CreateTaskOpts<any, any>['backoff'];
+  backoff?: CreateWorkflowTaskOpts<any, any>['backoff'];
 
   /**
    * (optional) rate limits for the task.
    */
-  rateLimits?: CreateTaskOpts<any, any>['rateLimits'];
+  rateLimits?: CreateWorkflowTaskOpts<any, any>['rateLimits'];
 
   /**
    * (optional) worker labels for task routing and scheduling.
@@ -139,7 +148,7 @@ export type TaskDefaults = {
    * - weight: Priority weight for worker selection
    * - comparator: Custom comparison logic for label matching
    */
-  workerLabels?: CreateTaskOpts<any, any>['workerLabels'];
+  workerLabels?: CreateWorkflowTaskOpts<any, any>['workerLabels'];
 
   /**
    * (optional) the concurrency options for the task.
@@ -154,12 +163,12 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
   /**
    * The tasks that make up this workflow.
    */
-  tasks: CreateTaskOpts<any, any>[];
+  tasks: CreateWorkflowTaskOpts<any, any>[];
 
   /**
    * The durable tasks that make up this workflow.
    */
-  durableTasks: CreateDurableTaskOpts<any, any>[];
+  durableTasks: CreateWorkflowDurableTaskOpts<any, any>[];
 };
 
 /**
@@ -167,7 +176,7 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
  */
-export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
+export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
   /**
    * The Hatchet client instance used to execute the workflow.
    */
@@ -318,52 +327,6 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
     return cronDef;
   }
 
-  /**
-   * Adds a task to the workflow.
-   * The return type will be either the property on K that corresponds to the task name,
-   * or if there is no matching property, the inferred return type of the function.
-   * @template Name The literal string name of the task.
-   * @template L The inferred return type of the task function.
-   * @param options The task configuration options.
-   * @returns The task options that were added.
-   */
-  task<Name extends string, L>(
-    options: Omit<CreateTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
-      name: Name;
-      fn: (
-        input: T,
-        ctx: Context<T>
-      ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
-    }
-  ): CreateTaskOpts<T, TaskOutputType<K, Name, L>> {
-    const typedOptions = options as CreateTaskOpts<T, TaskOutputType<K, Name, L>>;
-    this.definition.tasks.push(typedOptions);
-    return typedOptions;
-  }
-
-  /**
-   * Adds a durable task to the workflow.
-   * The return type will be either the property on K that corresponds to the task name,
-   * or if there is no matching property, the inferred return type of the function.
-   * @template Name The literal string name of the task.
-   * @template L The inferred return type of the task function.
-   * @param options The task configuration options.
-   * @returns The task options that were added.
-   */
-  durableTask<Name extends string, L>(
-    options: Omit<CreateTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
-      name: Name;
-      fn: (
-        input: T,
-        ctx: DurableContext<T>
-      ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
-    }
-  ): CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>> {
-    const typedOptions = options as unknown as CreateDurableTaskOpts<T, TaskOutputType<K, Name, L>>;
-    this.definition.durableTasks.push(typedOptions);
-    return typedOptions;
-  }
-
   metrics(opts?: Parameters<MetricsClient['getWorkflowMetrics']>[1]) {
     if (!this.client) {
       throw UNBOUND_ERR;
@@ -425,6 +388,129 @@ export class WorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
   }
 }
 
+export class WorkflowDeclaration<
+  T extends JsonObject,
+  K extends JsonObject,
+> extends BaseWorkflowDeclaration<T, K> {
+  /**
+   * Adds a task to the workflow.
+   * The return type will be either the property on K that corresponds to the task name,
+   * or if there is no matching property, the inferred return type of the function.
+   * @template Name The literal string name of the task.
+   * @template L The inferred return type of the task function.
+   * @param options The task configuration options.
+   * @returns The task options that were added.
+   */
+  task<Name extends string, L>(
+    options:
+      | (Omit<CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+          name: Name;
+          fn: (
+            input: T,
+            ctx: Context<T>
+          ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+        })
+      | TaskWorkflowDeclaration<any, any>
+  ): CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>> {
+    let typedOptions: CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+
+    if (options instanceof TaskWorkflowDeclaration) {
+      typedOptions = options.taskDef;
+    } else {
+      typedOptions = options as CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+    }
+
+    this.definition.tasks.push(typedOptions);
+    return typedOptions;
+  }
+
+  /**
+   * Adds a durable task to the workflow.
+   * The return type will be either the property on K that corresponds to the task name,
+   * or if there is no matching property, the inferred return type of the function.
+   * @template Name The literal string name of the task.
+   * @template L The inferred return type of the task function.
+   * @param options The task configuration options.
+   * @returns The task options that were added.
+   */
+  durableTask<Name extends string, L>(
+    options: Omit<CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+      name: Name;
+      fn: (
+        input: T,
+        ctx: DurableContext<T>
+      ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+    }
+  ): CreateWorkflowDurableTaskOpts<T, TaskOutputType<K, Name, L>> {
+    const typedOptions = options as unknown as CreateWorkflowDurableTaskOpts<
+      T,
+      TaskOutputType<K, Name, L>
+    >;
+    this.definition.durableTasks.push(typedOptions);
+    return typedOptions;
+  }
+}
+
+export class TaskWorkflowDeclaration<
+  T extends JsonObject,
+  K extends JsonObject,
+> extends BaseWorkflowDeclaration<T, K> {
+  name: string;
+
+  constructor(options: CreateTaskWorkflowOpts<T, K>, client?: IHatchetClient) {
+    super({ ...options }, client);
+
+    this.name = options.name;
+
+    this.definition.tasks.push({
+      ...options,
+    });
+  }
+
+  async run(input: T, options?: RunOpts): Promise<K>;
+  async run(input: T[], options?: RunOpts): Promise<K[]>;
+  async run(input: T | T[], options?: RunOpts): Promise<K | K[]> {
+    const res = await super.run(input as T, options);
+
+    if (Array.isArray(res)) {
+      return res.map((r) => r[this.name]);
+    }
+
+    return res[this.name] as K;
+  }
+
+  get taskDef() {
+    return this.definition.tasks[0];
+  }
+}
+
+/**
+ * Creates a new task workflow declaration with types inferred from the function parameter.
+ * @template Fn The type of the task function
+ * @param options The task configuration options.
+ * @param client Optional Hatchet client instance.
+ * @returns A new TaskWorkflowDeclaration with inferred types.
+ */
+export function CreateTaskWorkflow<
+  // Extract input and return types from the function, but ensure they extend JsonObject
+  Fn extends (input: I, ctx?: any) => O | Promise<O>,
+  I extends JsonObject = Parameters<Fn>[0],
+  O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
+    ? P extends JsonObject
+      ? P
+      : never
+    : ReturnType<Fn> extends JsonObject
+      ? ReturnType<Fn>
+      : never,
+>(
+  options: {
+    fn: Fn;
+  } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'>,
+  client?: IHatchetClient
+): TaskWorkflowDeclaration<I, O> {
+  return new TaskWorkflowDeclaration<I, O>(options as any, client);
+}
+
 /**
  * Creates a new workflow instance.
  * @template T The input type for the workflow.
@@ -438,4 +524,42 @@ export function CreateWorkflow<T extends JsonObject = any, K extends JsonObject 
   client?: IHatchetClient
 ): WorkflowDeclaration<T, K> {
   return new WorkflowDeclaration<T, K>(options, client);
+}
+
+/**
+ * Creates a new durable task workflow declaration with types inferred from the function parameter.
+ * @template Fn The type of the durable task function
+ * @param options The durable task configuration options.
+ * @param client Optional Hatchet client instance.
+ * @returns A new TaskWorkflowDeclaration with inferred types.
+ */
+export function CreateDurableTaskWorkflow<
+  // Extract input and return types from the function, but ensure they extend JsonObject
+  Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
+  I extends JsonObject = Parameters<Fn>[0],
+  O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
+    ? P extends JsonObject
+      ? P
+      : never
+    : ReturnType<Fn> extends JsonObject
+      ? ReturnType<Fn>
+      : never,
+>(
+  options: {
+    fn: Fn;
+  } & Omit<CreateWorkflowDurableTaskOpts<I, O>, 'fn'>,
+  client?: IHatchetClient
+): TaskWorkflowDeclaration<I, O> {
+  // Note: We're using TaskWorkflowDeclaration here since task and durableTask
+  // share the same declaration structure but with different task types
+  const taskWorkflow = new TaskWorkflowDeclaration<I, O>(options as any, client);
+
+  // Move the task from tasks to durableTasks
+  if (taskWorkflow.definition.tasks.length > 0) {
+    const task = taskWorkflow.definition.tasks[0];
+    taskWorkflow.definition.tasks = [];
+    taskWorkflow.definition.durableTasks.push(task as any);
+  }
+
+  return taskWorkflow;
 }

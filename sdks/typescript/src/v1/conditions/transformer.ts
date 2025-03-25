@@ -6,11 +6,13 @@ import {
   BaseMatchCondition,
 } from '@hatchet/protoc/v1/shared/condition';
 import { Render, SleepCondition, UserEventCondition, generateGroupId } from '.';
-import { CreateTaskOpts } from '../task';
+import { CreateWorkflowTaskOpts } from '../task';
 import { Action, BaseCondition, Condition } from './base';
 import { ParentCondition } from './parent-condition';
 
-export function taskConditionsToPb(task: CreateTaskOpts<any, any>): TaskConditions {
+export function taskConditionsToPb(
+  task: Omit<CreateWorkflowTaskOpts<any, any>, 'fn'>
+): TaskConditions {
   const waitForConditions = Render(Action.QUEUE, task.waitFor);
   const cancelIfConditions = Render(Action.CANCEL, task.cancelIf);
   const skipIfConditions = Render(Action.SKIP, task.skipIf);

@@ -22,7 +22,7 @@ import {
 import { Logger } from '@hatchet/util/logger';
 import { WebhookHandler } from '@clients/worker/handler';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
-import { WorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/workflow';
+import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import { CreateOnFailureTaskOpts } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
@@ -140,7 +140,7 @@ export class V0Worker {
   registerDurableActionsV1(workflow: WorkflowDefinition) {
     const newActions = workflow.durableTasks.reduce<ActionRegistry>((acc, task) => {
       acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-        task.fn(ctx.workflowInput(), ctx);
+        task.fn(ctx.workflowInput(), ctx as DurableContext<any, any>);
       return acc;
     }, {});
 
@@ -177,7 +177,7 @@ export class V0Worker {
     };
   }
 
-  async registerWorkflowV1(initWorkflow: WorkflowDeclaration<any, any>) {
+  async registerWorkflowV1(initWorkflow: BaseWorkflowDeclaration<any, any>) {
     // patch the namespace
     const workflow: WorkflowDefinition = {
       ...initWorkflow.definition,

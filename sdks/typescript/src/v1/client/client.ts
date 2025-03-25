@@ -1,3 +1,4 @@
+/* eslint-disable no-dupe-class-members */
 /* eslint-disable no-underscore-dangle */
 import {
   ClientConfig,
@@ -7,14 +8,25 @@ import {
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { JsonObject } from '@hatchet/step';
-import { CreateWorkflow, CreateWorkflowOpts, RunOpts, WorkflowDeclaration } from '../workflow';
+import { JsonObject, DurableContext } from '@hatchet/step';
+import {
+  CreateTaskWorkflowOpts,
+  CreateWorkflow,
+  CreateWorkflowOpts,
+  RunOpts,
+  BaseWorkflowDeclaration,
+  CreateTaskWorkflow,
+  WorkflowDeclaration,
+  TaskWorkflowDeclaration,
+  CreateDurableTaskWorkflow,
+} from '../declaration';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker';
 import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
+import { CreateStandaloneDurableTaskOpts } from '../task';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -86,6 +98,88 @@ export class HatchetClient implements IHatchetClient {
   }
 
   /**
+   * Creates a new task workflow.
+   * Types can be explicitly specified as generics or inferred from the function signature.
+   * @template T The input type for the task
+   * @template K The output type of the task
+   * @param options Task configuration options
+   * @returns A TaskWorkflowDeclaration instance
+   */
+  task<T extends JsonObject, K extends JsonObject>(
+    options: CreateTaskWorkflowOpts<T, K>
+  ): TaskWorkflowDeclaration<T, K>;
+
+  /**
+   * Creates a new task workflow with types inferred from the function parameter.
+   * @template Fn The type of the task function with input and output extending JsonObject
+   * @param options Task configuration options with function that defines types
+   * @returns A TaskWorkflowDeclaration instance with inferred types
+   */
+  task<
+    Fn extends (input: I, ctx?: any) => O | Promise<O>,
+    I extends JsonObject = Parameters<Fn>[0],
+    O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
+      ? P extends JsonObject
+        ? P
+        : never
+      : ReturnType<Fn> extends JsonObject
+        ? ReturnType<Fn>
+        : never,
+  >(
+    options: {
+      fn: Fn;
+    } & Omit<CreateTaskWorkflowOpts<I, O>, 'fn'>
+  ): TaskWorkflowDeclaration<I, O>;
+
+  /**
+   * Implementation of the task method.
+   */
+  task(options: any): TaskWorkflowDeclaration<any, any> {
+    return CreateTaskWorkflow(options, this);
+  }
+
+  /**
+   * Creates a new durable task workflow.
+   * Types can be explicitly specified as generics or inferred from the function signature.
+   * @template T The input type for the durable task
+   * @template K The output type of the durable task
+   * @param options Durable task configuration options
+   * @returns A TaskWorkflowDeclaration instance for a durable task
+   */
+  durableTask<T extends JsonObject, K extends JsonObject>(
+    options: CreateStandaloneDurableTaskOpts<T, K>
+  ): TaskWorkflowDeclaration<T, K>;
+
+  /**
+   * Creates a new durable task workflow with types inferred from the function parameter.
+   * @template Fn The type of the durable task function with input and output extending JsonObject
+   * @param options Durable task configuration options with function that defines types
+   * @returns A TaskWorkflowDeclaration instance with inferred types
+   */
+  durableTask<
+    Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
+    I extends JsonObject = Parameters<Fn>[0],
+    O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
+      ? P extends JsonObject
+        ? P
+        : never
+      : ReturnType<Fn> extends JsonObject
+        ? ReturnType<Fn>
+        : never,
+  >(
+    options: {
+      fn: Fn;
+    } & Omit<CreateStandaloneDurableTaskOpts<I, O>, 'fn'>
+  ): TaskWorkflowDeclaration<I, O>;
+
+  /**
+   * Implementation of the durableTask method.
+   */
+  durableTask(options: any): TaskWorkflowDeclaration<any, any> {
+    return CreateDurableTaskWorkflow(options, this);
+  }
+
+  /**
    * Triggers a workflow run without waiting for completion.
    * @template T - The input type for the workflow
    * @template K - The return type of the workflow
@@ -95,7 +189,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
   runNoWait<T extends JsonObject = any, K extends JsonObject = any>(
-    workflow: WorkflowDeclaration<T, K> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts
   ): WorkflowRunRef<K> {
@@ -122,7 +216,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async runAndWait<T extends JsonObject = any, K extends JsonObject = any>(
-    workflow: WorkflowDeclaration<T, K> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts = {}
   ): Promise<K> {
@@ -139,7 +233,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A promise that resolves with the workflow result
    */
   async run<T extends JsonObject = any, K extends JsonObject = any>(
-    workflow: WorkflowDeclaration<T, K> | string | V0Workflow,
+    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts = {}
   ): Promise<K> {

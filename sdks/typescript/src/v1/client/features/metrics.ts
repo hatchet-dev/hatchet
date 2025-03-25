@@ -1,4 +1,4 @@
-import { WorkflowDeclaration, workflowNameString } from '@hatchet/v1';
+import { BaseWorkflowDeclaration, workflowNameString } from '@hatchet/v1';
 import { Workflow } from '@hatchet/workflow';
 import { HatchetClient } from '../client';
 /**
@@ -14,7 +14,7 @@ export class MetricsClient {
   }
 
   async getWorkflowMetrics(
-    workflow: string | Workflow | WorkflowDeclaration<any, any>,
+    workflow: string | Workflow | BaseWorkflowDeclaration<any, any>,
     opts?: Parameters<typeof this.api.workflowGetMetrics>[1]
   ) {
     const name = workflowNameString(workflow);

@@ -1,15 +1,15 @@
 import { Condition, Action } from './base';
-import { CreateTaskOpts } from '../task';
+import { CreateWorkflowTaskOpts } from '../task';
 
 export interface Parent {
-  parent: CreateTaskOpts<any, any>;
+  parent: CreateWorkflowTaskOpts<any, any>;
   expression?: string;
 }
 
 export class ParentCondition extends Condition {
-  parent: CreateTaskOpts<any, any>;
+  parent: CreateWorkflowTaskOpts<any, any>;
 
-  constructor(parent: CreateTaskOpts<any, any>, expression?: string, action?: Action) {
+  constructor(parent: CreateWorkflowTaskOpts<any, any>, expression?: string, action?: Action) {
     super({
       readableDataKey: '',
       action,
