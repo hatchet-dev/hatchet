@@ -90,7 +90,7 @@ class Context:
         return self.data.parents.get(task.name, {}).get("skipped", False)
 
     @property
-    def event_triggers(self) -> JSONSerializableMapping:
+    def trigger_data(self) -> JSONSerializableMapping:
         return self.data.triggers
 
     def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
