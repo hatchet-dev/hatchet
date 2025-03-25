@@ -98,8 +98,8 @@ class WorkflowConfig(BaseModel):
 
 class StepType(str, Enum):
     DEFAULT = "default"
-    CONCURRENCY = "concurrency"
     ON_FAILURE = "on_failure"
+    ON_SUCCESS = "on_success"
 
 
 AsyncFunc = Callable[[TWorkflowInput, Context], Awaitable[R]]
