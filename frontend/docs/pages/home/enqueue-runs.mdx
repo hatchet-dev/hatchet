@@ -20,6 +20,7 @@ Some example use cases for fire-and-forget style workflows might be:
 2. Triggering a machine learning model training job that can take minutes, hours, or even days to complete. Similarly to above, it's likely that no part of the application needs to wait on the result of this work, it just needs to "fire and forget" it - meaning that it needs to kick it off, and let it complete whenever it completes.
 
 {/* TODO V1 DOCS -- Re-enable Go <UniversalTabs items={["Python", "Typescript", "Go"]}> */}
+
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
     You can use your `Workflow` object to run a workflow and "forget" it by calling the `run_no_wait` method. This method enqueue a workflow run and return a `WorkflowRunRef`, a reference to that run, without waiting for the result.
@@ -53,6 +54,7 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
 Often is is useful to subscribe to the results of a workflow at a later time. The `run_no_wait` method returns a `WorkflowRunRef` object which includes a listener for the result of the workflow.
 
 {/* TODO V1 DOCS -- Re-enable Go <UniversalTabs items={["Python", "Typescript", "Go"]}> */}
+
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
 

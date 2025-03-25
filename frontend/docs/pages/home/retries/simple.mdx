@@ -24,7 +24,6 @@ export const RetryBackoffGo = {
 export const getStaticProps = ({}) =>
   getSnippets([RetryBackoffTs, RetryBackoffPy, RetryBackoffGo, RetryPy]);
 
-
 # Retry Strategies in Hatchet: Simple Step Retry
 
 Hatchet provides a simple and effective way to handle failures in your workflow tasks using the task-level retry configuration. This feature allows you to specify the number of times a task should be retried if it fails, helping to improve the reliability and resilience of your workflows.
@@ -73,7 +72,6 @@ Steps: []*worker.WorkflowStep{
 
   </Tabs.Tab>
 </UniversalTabs>
-
 
 You can add the `retries` property to any task in your workflow, and Hatchet will handle the retry logic automatically.
 

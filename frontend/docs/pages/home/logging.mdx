@@ -20,7 +20,12 @@ export const ByoLoggerTs = {
 };
 
 export const getStaticProps = ({}) =>
-  getSnippets([LoggerClientPy, LoggerWorkflowPy, LoggerWorkflowTs, ByoLoggerTs]);
+  getSnippets([
+    LoggerClientPy,
+    LoggerWorkflowPy,
+    LoggerWorkflowTs,
+    ByoLoggerTs,
+  ]);
 
 # Logging
 
@@ -80,8 +85,6 @@ Hatchet also allows you to "bring your own" logger when you define a workflow:
 In this example, we create Pino logger that implement's Hatchet's `Logger` interface and pass it to the Hatchet client constructor. We can then use that logger in our steps:
 
 <GithubSnippet src={ByoLoggerTs} target="Use the logger" />
-
-
 
 </Tabs.Tab>
 {/* <Tabs.Tab>

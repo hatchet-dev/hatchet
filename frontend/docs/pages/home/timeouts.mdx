@@ -76,7 +76,6 @@ In these tasks, both timeouts are specified, meaning:
 1. If the task is not scheduled before the `schedule_timeout` is reached, it will be cancelled.
 2. If the task does not complete before the `execution_timeout` is reached (after starting), it will be cancelled.
 
-
 <Callout type="warning">
   A timed out step does not guarantee that the step will be stopped immediately.
   The step will be stopped as soon as the worker is able to stop the step. See

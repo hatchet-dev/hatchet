@@ -11,13 +11,14 @@ export const EventTs = {
 };
 
 export const EventPy = {
-  path: "examples/events/worker.py"
-}
+  path: "examples/events/worker.py",
+};
 export const EventPyTrigger = {
-  path: "examples/events/event.py"
-}
+  path: "examples/events/event.py",
+};
 
-export const getStaticProps = ({}) => getSnippets([SimpleTs, EventTs, EventPy, EventPyTrigger]);
+export const getStaticProps = ({}) =>
+  getSnippets([SimpleTs, EventTs, EventPy, EventPyTrigger]);
 
 # Run on Event
 

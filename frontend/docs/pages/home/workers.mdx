@@ -12,7 +12,6 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs]);
 
 Workers are the backbone of Hatchet, responsible for executing the individual tasks defined within your workflows. They operate autonomously across different nodes in your infrastructure, allowing for distributed and scalable task execution. Understanding how to deploy and manage workers effectively is crucial to fully leverage the power of Hatchet.
 
-
 ## How Workers Operate
 
 In Hatchet, workers are long-running processes that wait for instructions from the Hatchet engine to execute specific steps. They communicate with the Hatchet engine to receive tasks, execute them, and report back the results.
@@ -111,9 +110,9 @@ And that's it! Once you run your script to start the worker, you'll see some log
 ```
 
 <Callout type="info">
-Note that many of these logs are `debug` logs, which only are shown if the `debug` option on the Hatchet client is set to `True`
+  Note that many of these logs are `debug` logs, which only are shown if the
+  `debug` option on the Hatchet client is set to `True`
 </Callout>
-
 
 ## Understanding Slots
 
