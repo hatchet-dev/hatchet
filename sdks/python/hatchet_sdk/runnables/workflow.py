@@ -29,6 +29,7 @@ from hatchet_sdk.runnables.types import (
     DEFAULT_EXECUTION_TIMEOUT,
     DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
+    EmptyModel,
     R,
     StepType,
     TWorkflowInput,
@@ -304,7 +305,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def run(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
         ref = self.client._client.admin.run_workflow(

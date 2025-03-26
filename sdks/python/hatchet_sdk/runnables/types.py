@@ -21,7 +21,7 @@ DEFAULT_PRIORITY = 1
 
 
 class EmptyModel(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", frozen=True)
 
 
 class StickyStrategy(str, Enum):
