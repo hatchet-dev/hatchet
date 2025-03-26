@@ -13,7 +13,6 @@ from hatchet_sdk import (
 hatchet = Hatchet(debug=True)
 
 
-
 # ❓ Workflow
 class WorkflowInput(BaseModel):
     run: int
@@ -38,8 +37,6 @@ def step1(input: WorkflowInput, ctx: Context) -> dict[str, Any]:
     time.sleep(3)
     print("executed step1")
     return {"run": input.run}
-
-
 
 
 def main() -> None:

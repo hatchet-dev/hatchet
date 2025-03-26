@@ -17,8 +17,7 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-
-  // ❓ Workflow
+// ❓ Workflow
 export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: {

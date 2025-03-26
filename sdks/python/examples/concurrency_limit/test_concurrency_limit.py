@@ -14,7 +14,7 @@ async def test_run(hatchet: Hatchet) -> None:
 
     # Start all runs
     for i in range(1, num_runs + 1):
-        run = concurrency_limit_workflow.run_no_wait(WorkflowInput(run=i, group=str(i)))
+        run = concurrency_limit_workflow.run_no_wait(WorkflowInput(run=i, group_key=str(i)))
         runs.append(run)
 
     # Wait for all results
