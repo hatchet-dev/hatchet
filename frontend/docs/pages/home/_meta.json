@@ -88,12 +88,10 @@
 
   "--flow-control": {
     "title": "Flow Control",
-    "type": "separator",
-    "display": "hidden"
+    "type": "separator"
   },
-  "concurrency-keys": {
-    "title": "Concurrency Keys",
-    "display": "hidden"
+  "concurrency": {
+    "title": "Concurrency"
   },
   "rate-limits": {
     "title": "Rate Limits",
