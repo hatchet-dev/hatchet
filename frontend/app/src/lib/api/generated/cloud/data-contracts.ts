@@ -597,3 +597,9 @@ export enum TemplateOptions {
 export interface CreateManagedWorkerFromTemplateRequest {
   name: TemplateOptions;
 }
+
+export interface MonthlyComputeCost {
+  cost: number;
+  hasCreditsRemaining: boolean;
+  creditsRemaining?: number;
+}

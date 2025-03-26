@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { TenantBillingState } from './api/generated/cloud/data-contracts';
-import { Evaluate, RejectReason } from './can/shared/permission.base';
+import { Evaluate } from './can/shared/permission.base';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
@@ -42,7 +42,8 @@ export type BillingContext = {
   hasPaymentMethods: boolean;
 };
 
-type Can = (evalFn: Evaluate) => [boolean, RejectReason | undefined];
+type Can = (evalFn: Evaluate) => ReturnType<Evaluate>;
+
 type TenantContextPresent = {
   tenant: Tenant;
   tenantId: string;
@@ -80,6 +81,7 @@ export function useTenant(): TenantContext {
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
+
   const memberships = useMemo(
     () => membershipsQuery.data?.rows || [],
     [membershipsQuery.data],

@@ -80,6 +80,11 @@ export function ManagedWorkersTable() {
       0,
     );
 
+    const buildConfig = data.buildConfig;
+    if (!buildConfig) {
+      return null; // TODO
+    }
+
     return (
       <div
         key={data.metadata?.id}
@@ -95,7 +100,7 @@ export function ManagedWorkersTable() {
           <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
             Created <RelativeDate date={data.metadata?.createdAt} />
           </p>
-          <GithubButton buildConfig={data.buildConfig} prefix="Deploys from" />
+          <GithubButton buildConfig={buildConfig} prefix="Deploys from" />
           <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
             {totReplicas} {totReplicas == 1 ? 'instance' : 'instances'} with{' '}
             {totCpus} CPUs and {totMemory} MB memory

@@ -1,11 +1,7 @@
-import {
-  Evaluate,
-  EvaluateContext,
-  RejectReason,
-} from '../shared/permission.base';
+import { PermissionSet, RejectReason } from '../shared/permission.base';
 
-export const managedCompute: Record<string, Evaluate> = {
-  create: (context: EvaluateContext) => {
+export const managedCompute: PermissionSet = {
+  create: () => (context) => {
     const requireBillingForManagedCompute =
       context.meta?.requireBillingForManagedCompute;
 
@@ -16,6 +12,11 @@ export const managedCompute: Record<string, Evaluate> = {
       return [false, RejectReason.BILLING_REQUIRED];
     }
 
-    return [true, undefined];
+    return [false, RejectReason.BILLING_REQUIRED];
+  },
+  selectCompute: () => {
+    return () => {
+      return [true, undefined];
+    };
   },
 };

@@ -29,6 +29,7 @@ import {
   ManagedWorkerEventList,
   ManagedWorkerList,
   Matrix,
+  MonthlyComputeCost,
   RuntimeConfigActionsResponse,
   TenantBillingState,
   TenantSubscription,
@@ -227,6 +228,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the total compute costs for the tenant
+   *
+   * @tags Cost
+   * @name ComputeCostGet
+   * @summary Get Managed Worker Cost
+   * @request GET:/api/v1/cloud/tenants/{tenant}/managed-worker/cost
+   * @secure
+   */
+  computeCostGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<MonthlyComputeCost, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/managed-worker/cost`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });
