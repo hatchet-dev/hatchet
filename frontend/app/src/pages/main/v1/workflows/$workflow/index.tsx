@@ -102,7 +102,7 @@ export default function ExpandedWorkflow() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-row gap-4 items-center">
             <Square3Stack3DIcon className="h-6 w-6 text-foreground mt-1" />
