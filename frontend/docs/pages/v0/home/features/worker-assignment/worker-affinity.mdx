@@ -32,13 +32,14 @@ worker = hatchet.worker(
   <Tabs.Tab>
 
 ```typescript
-  const worker = await hatchet.worker('affinity-worker', {
-    labels: {
-      model: 'fancy-ai-model-v2',
-      memory: 512,
-    },
-  });
+const worker = await hatchet.worker("affinity-worker", {
+  labels: {
+    model: "fancy-ai-model-v2",
+    memory: 512,
+  },
+});
 ```
+
   </Tabs.Tab>
   <Tabs.Tab>
 
@@ -53,6 +54,7 @@ worker = hatchet.worker(
 		}),
 	)
 ```
+
   </Tabs.Tab>
 </UniversalTabs>
 
