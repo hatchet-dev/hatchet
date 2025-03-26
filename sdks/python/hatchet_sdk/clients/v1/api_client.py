@@ -31,7 +31,7 @@ class BaseRestClient:
         self,
         async_func: Callable[P, Coroutine[Y, S, R]],
         *args: P.args,
-        **kwargs: P.kwargs
+        **kwargs: P.kwargs,
     ) -> R:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -44,7 +44,7 @@ class BaseRestClient:
         self,
         async_func: Callable[P, Coroutine[Y, S, R]],
         *args: P.args,
-        **kwargs: P.kwargs
+        **kwargs: P.kwargs,
     ) -> R:
         try:
             loop = asyncio.get_event_loop()
@@ -56,6 +56,6 @@ class BaseRestClient:
         else:
             with ThreadPoolExecutor() as executor:
                 future = executor.submit(
-                    self._run_async_function, async_func, args, kwargs
+                    lambda: self._run_async_function(async_func, *args, **kwargs)
                 )
                 return future.result()
