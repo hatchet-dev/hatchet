@@ -22,7 +22,7 @@ class WorkflowInput(BaseModel):
 concurrency_limit_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflow",
     concurrency=ConcurrencyExpression(
-        expression="input.group",
+        expression="input.group_key",
         max_runs=5,
         limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
     ),
