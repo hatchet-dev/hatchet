@@ -163,12 +163,6 @@ class AdminClient:
         workflow: workflow_protos.CreateWorkflowVersionRequest,
         overrides: workflow_protos.CreateWorkflowVersionRequest | None = None,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
-        ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
-        ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
-        ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         return await asyncio.to_thread(self.put_workflow, name, workflow, overrides)
 
     @tenacity_retry
@@ -178,12 +172,6 @@ class AdminClient:
         limit: int,
         duration: RateLimitDuration = RateLimitDuration.SECOND,
     ) -> None:
-        ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
-        ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
-        ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         return await asyncio.to_thread(self.put_rate_limit, key, limit, duration)
 
     @tenacity_retry
@@ -194,12 +182,6 @@ class AdminClient:
         input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.WorkflowVersion:
-        ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
-        ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
-        ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         return await asyncio.to_thread(
             self.schedule_workflow, name, schedules, input, options
         )

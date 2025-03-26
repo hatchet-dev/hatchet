@@ -55,7 +55,6 @@ class WorkerStatus(Enum):
 class Runner:
     def __init__(
         self,
-        name: str,
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int | None = None,
@@ -67,7 +66,6 @@ class Runner:
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
         self.client = Client(config)
-        self.name = self.client.config.namespace + name
         self.slots = slots
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
@@ -286,11 +284,8 @@ class Runner:
             self.dispatcher_client,
             self.admin_client,
             self.client.event,
-            self.client.workflow_listener,
             self.durable_event_listener,
-            self.workflow_run_event_listener,
             self.worker_context,
-            self.client.config.namespace,
             validator_registry=self.validator_registry,
         )
 
