@@ -21,6 +21,23 @@ S = TypeVar("S")
 P = ParamSpec("P")
 
 
+def maybe_additional_metadata_to_kv(
+    additional_metadata: dict[str, str] | None
+) -> list[str] | None:
+    if not additional_metadata:
+        return None
+
+    return [f"{k}:{v}" for k, v in additional_metadata.items()]
+
+
+def maybe_uuid_to_str(value: UUID | None) -> str | None:
+    return str(value) if value else None
+
+
+def maybe_uuid_list_to_str_list(value: list[UUID] | None) -> list[str] | None:
+    return [str(uuid) for uuid in value] if value else None
+
+
 class BaseRestClient:
     def __init__(self, config: ClientConfig) -> None:
         self.tenant_id = config.tenant_id
@@ -35,20 +52,6 @@ class BaseRestClient:
 
     def client(self) -> AsyncContextManager[ApiClient]:
         return ApiClient(self.api_config)
-
-    def maybe_additional_metadata_to_kv(
-        self, additional_metadata: dict[str, str] | None
-    ) -> list[str] | None:
-        if not additional_metadata:
-            return None
-
-        return [f"{k}:{v}" for k, v in additional_metadata.items()]
-
-    def maybe_uuid_to_str(self, value: UUID | None) -> str | None:
-        return str(value) if value else None
-
-    def maybe_uuid_list_to_str_list(self, value: list[UUID] | None) -> list[str] | None:
-        return [str(uuid) for uuid in value] if value else None
 
     def _run_async_function_do_not_use_directly(
         self,
