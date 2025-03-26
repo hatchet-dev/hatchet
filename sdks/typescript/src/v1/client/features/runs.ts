@@ -1,5 +1,25 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
+import { V1TaskStatus, V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
 import { HatchetClient } from '../client';
+import { WorkflowsClient } from './workflows';
+
+export type RunFilter = {
+  since: Date;
+  until?: Date;
+  statuses?: V1TaskStatus[];
+  workflowNames?: string[];
+  additionalMetadata?: Record<string, string>;
+};
+
+export type CancelRunOpts = {
+  ids?: string[];
+  filters?: RunFilter;
+};
+
+export type ReplayRunOpts = {
+  ids?: string[];
+  filters?: RunFilter;
+};
 
 /**
  * RunsClient is used to list and manage runs
@@ -7,10 +27,12 @@ import { HatchetClient } from '../client';
 export class RunsClient {
   api: HatchetClient['api'];
   tenantId: string;
+  workflows: WorkflowsClient;
 
   constructor(client: HatchetClient) {
     this.api = client.api;
     this.tenantId = client.tenantId;
+    this.workflows = client.workflows;
   }
 
   // TODO expose streaming methods?
@@ -36,17 +58,39 @@ export class RunsClient {
     return data;
   }
 
-  async replay(opts: Parameters<typeof this.api.v1TaskReplay>[1]) {
-    // TODO is v1 check
-    // TODO   workflowIds?: string[]; on opts.filters
-    const { data } = await this.api.v1TaskReplay(this.tenantId, opts);
-    return data;
+  async cancel(opts: CancelRunOpts) {
+    const filter = opts.filters && (await this.prepareFilter(opts.filters));
+    return this.api.v1TaskCancel(this.tenantId, {
+      externalIds: opts.ids,
+      filter,
+    });
   }
 
-  async cancel(opts: Parameters<typeof this.api.v1TaskCancel>[1]) {
-    // TODO is v1 check
-    // TODO   workflowIds?: string[]; on opts.filters
-    const { data } = await this.api.v1TaskCancel(this.tenantId, opts);
-    return data;
+  async replay(opts: ReplayRunOpts) {
+    const filter = opts.filters && (await this.prepareFilter(opts.filters));
+    return this.api.v1TaskReplay(this.tenantId, {
+      externalIds: opts.ids,
+      filter,
+    });
+  }
+
+  private async prepareFilter({
+    since,
+    until,
+    statuses,
+    workflowNames,
+    additionalMetadata,
+  }: RunFilter): Promise<V1TaskFilter> {
+    return {
+      since: since.toISOString(),
+      until: until?.toISOString(),
+      statuses,
+      workflowIds: await Promise.all(
+        workflowNames?.map(async (name) => (await this.workflows.get(name)).metadata.id) || []
+      ),
+      additionalMetadata: Object.entries(additionalMetadata || {}).map(
+        ([key, value]) => `${key}:${value}`
+      ),
+    };
   }
 }

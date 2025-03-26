@@ -1,5 +1,6 @@
 /**
  * Sleeps for a given number of milliseconds without blocking the event loop
+ *
  * WARNING: This is not a durable sleep. It will not be honored if the worker is
  * restarted or crashes.
  * @param ms - The number of milliseconds to sleep

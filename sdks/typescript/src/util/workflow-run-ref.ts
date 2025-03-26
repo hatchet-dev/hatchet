@@ -4,6 +4,7 @@ import {
   StepRunEvent,
 } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Status } from 'nice-grpc';
+import { RunsClient } from '@hatchet/v1';
 import { WorkflowRunEventType } from '../protoc/dispatcher';
 
 type EventualWorkflowRunId =
@@ -49,7 +50,7 @@ export default class WorkflowRunRef<T> {
   workflowRunId: EventualWorkflowRunId;
   parentWorkflowRunId?: string;
   private client: RunListenerClient;
-
+  private runs: RunsClient | undefined;
   constructor(
     workflowRunId:
       | string
@@ -58,11 +59,13 @@ export default class WorkflowRunRef<T> {
           workflowRunId: string;
         }>,
     client: RunListenerClient,
+    runsClient?: RunsClient,
     parentWorkflowRunId?: string
   ) {
     this.workflowRunId = workflowRunId;
     this.parentWorkflowRunId = parentWorkflowRunId;
     this.client = client;
+    this.runs = runsClient;
   }
 
   // TODO docstrings
@@ -82,6 +85,7 @@ export default class WorkflowRunRef<T> {
 
   // TODO not sure if i want this to be a get since it might be blocking for a long time..
   get output() {
+    // TODO output for single task workflows
     return this.result();
   }
 
@@ -153,6 +157,28 @@ export default class WorkflowRunRef<T> {
   async toJSON(): Promise<string> {
     return JSON.stringify({
       workflowRunId: await this.workflowRunId,
+    });
+  }
+
+  async cancel() {
+    if (!this.runs) {
+      throw new Error('cancel is a v1 only feature, please upgrade your sdk');
+    }
+
+    const workflowRunId = await getWorkflowRunId(this.workflowRunId);
+    await this.runs.cancel({
+      ids: [workflowRunId],
+    });
+  }
+
+  async replay() {
+    if (!this.runs) {
+      throw new Error('replay is a v1 only feature, please upgrade your sdk');
+    }
+
+    const workflowRunId = await getWorkflowRunId(this.workflowRunId);
+    await this.runs.replay({
+      ids: [workflowRunId],
     });
   }
 }
