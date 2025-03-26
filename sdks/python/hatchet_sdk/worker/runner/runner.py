@@ -17,8 +17,6 @@ from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.durable_event_listener import DurableEventListener
-from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
-from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
@@ -55,7 +53,6 @@ class WorkerStatus(Enum):
 class Runner:
     def __init__(
         self,
-        name: str,
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int | None = None,
@@ -67,7 +64,6 @@ class Runner:
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
         self.client = Client(config)
-        self.name = self.client.config.namespace + name
         self.slots = slots
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
@@ -87,8 +83,6 @@ class Runner:
         # otherwise the grpc.aio methods will use a different event loop and we'll get a bunch of errors.
         self.dispatcher_client = DispatcherClient(self.config)
         self.admin_client = AdminClient(self.config)
-        self.workflow_run_event_listener = RunEventListenerClient(self.config)
-        self.client.workflow_listener = PooledWorkflowRunListener(self.config)
         self.durable_event_listener = DurableEventListener(self.config)
 
         self.worker_context = WorkerContext(
