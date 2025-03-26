@@ -163,16 +163,6 @@ export function TaskRunsTable({
 
   const isFetching = !hasLoaded && (isTaskRunsFetching || isMetricsFetching);
 
-  if (!isFetching && tableRows.length === 0) {
-    return (
-      <IntroDocsEmptyState
-        link="/home/setup"
-        linkText="check out our quickstart documentation."
-        linkPreambleText="To learn about how to get started running tasks,"
-      />
-    );
-  }
-
   return (
     <>
       {cf.filters.parentTaskExternalId &&
@@ -336,7 +326,14 @@ export function TaskRunsTable({
         </Sheet>
       )}
       <DataTable
-        emptyState={<>No workflow runs found with the given filters.</>}
+        emptyState={
+          <IntroDocsEmptyState
+            link="/home/basics/workflows"
+            title="No Runs Found"
+            linkPreambleText="To learn more about how workflows function in Hatchet,"
+            linkText="check out our documentation."
+          />
+        }
         isLoading={isFetching}
         columns={columns(cf.setAdditionalMetadata, onTaskRunIdClick)}
         columnVisibility={columnVisibility}

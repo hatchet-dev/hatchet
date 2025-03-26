@@ -89,16 +89,6 @@ export function WorkflowTable() {
     return <Loading />;
   }
 
-  if (!listWorkflowQuery.isLoading && !listWorkflowQuery.data?.rows?.length) {
-    return (
-      <IntroDocsEmptyState
-        link="/home/setup"
-        linkText="check out our quickstart documentation."
-        linkPreambleText="To learn about how to get started running tasks,"
-      />
-    );
-  }
-
   const emptyState = (
     <Card className="w-full text-justify">
       <CardHeader>
@@ -197,7 +187,14 @@ export function WorkflowTable() {
       columns={columns}
       data={data}
       filters={[]}
-      emptyState={emptyState}
+      emptyState={
+        <IntroDocsEmptyState
+          link="/home/basics/workflows"
+          title="No Registered Workflows"
+          linkPreambleText="To learn more about workflows function in Hatchet,"
+          linkText="check out our documentation."
+        />
+      }
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       pagination={pagination}

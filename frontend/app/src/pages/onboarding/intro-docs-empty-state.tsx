@@ -31,17 +31,19 @@ type IntroDocsEmptyStateProps = {
   link: string;
   linkText: string;
   linkPreambleText: string;
+  title?: string;
 };
 
 export const IntroDocsEmptyState: React.FC<IntroDocsEmptyStateProps> = ({
   link,
   linkText,
   linkPreambleText,
+  title,
 }) => {
   return (
     <div className="w-full h-full border border-gray rounded-md p-4 flex flex-col justify-between gap-y-12">
       <div className="flex flex-col gap-y-4 text-foreground">
-        <p className="text-lg font-bold">🪓 Welcome to Hatchet!</p>
+        {title && <p className="text-lg font-bold">{title}</p>}
         <p>
           {linkPreambleText}{' '}
           <DocExternalLink
