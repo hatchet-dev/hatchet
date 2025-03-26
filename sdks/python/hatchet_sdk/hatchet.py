@@ -6,13 +6,15 @@ from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.logs import LogsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.features.workers import WorkersClient
+from hatchet_sdk.features.workflows import WorkflowsClient
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
@@ -73,10 +75,33 @@ class Hatchet:
 
         self._client = client if client else Client(config=config, debug=debug)
 
-        self.cron = CronClient(self.config)
-        self.runs = RunsClient(self.config)
-        self.scheduled = ScheduledClient(self.config)
-        self.rate_limits = RateLimitsClient(self.config)
+    @property
+    def cron(self) -> CronClient:
+        return self._client.cron
+
+    @property
+    def logs(self) -> LogsClient:
+        return self._client.logs
+
+    @property
+    def rate_limits(self) -> RateLimitsClient:
+        return self._client.rate_limits
+
+    @property
+    def runs(self) -> RunsClient:
+        return self._client.runs
+
+    @property
+    def scheduled(self) -> ScheduledClient:
+        return self._client.scheduled
+
+    @property
+    def workers(self) -> WorkersClient:
+        return self._client.workers
+
+    @property
+    def workflows(self) -> WorkflowsClient:
+        return self._client.workflows
 
     @property
     def dispatcher(self) -> DispatcherClient:
@@ -85,10 +110,6 @@ class Hatchet:
     @property
     def event(self) -> EventClient:
         return self._client.event
-
-    @property
-    def rest(self) -> RestApi:
-        return self._client.rest
 
     @property
     def listener(self) -> RunEventListenerClient:

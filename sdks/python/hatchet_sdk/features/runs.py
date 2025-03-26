@@ -11,6 +11,9 @@ from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskR
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
+    V1TriggerWorkflowRunRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
@@ -147,6 +150,32 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+        )
+
+    async def aio_create(
+        self,
+        workflow_name: str,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping = {},
+    ) -> V1WorkflowRunDetails:
+        async with self.client() as client:
+            return await self._wra(client).v1_workflow_run_create(
+                tenant=self.client_config.tenant_id,
+                v1_trigger_workflow_run_request=V1TriggerWorkflowRunRequest(
+                    workflowName=workflow_name,
+                    input=dict(input),
+                    additionalMetadata=dict(additional_metadata),
+                ),
+            )
+
+    def create(
+        self,
+        workflow_name: str,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping = {},
+    ) -> V1WorkflowRunDetails:
+        return self._run_async_from_sync(
+            self.aio_create, workflow_name, input, additional_metadata
         )
 
     async def aio_replay(self, run_id: str) -> None:

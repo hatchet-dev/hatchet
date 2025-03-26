@@ -286,7 +286,6 @@ class Runner:
             self.dispatcher_client,
             self.admin_client,
             self.client.event,
-            self.client.rest,
             self.client.workflow_listener,
             self.durable_event_listener,
             self.workflow_run_event_listener,

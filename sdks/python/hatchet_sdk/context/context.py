@@ -17,7 +17,6 @@ from hatchet_sdk.clients.durable_event_listener import (
     RegisterDurableEventRequest,
 )
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
@@ -53,7 +52,6 @@ class Context:
         dispatcher_client: DispatcherClient,
         admin_client: AdminClient,
         event_client: EventClient,
-        rest_client: RestApi,
         workflow_listener: PooledWorkflowRunListener | None,
         durable_event_listener: DurableEventListener | None,
         workflow_run_event_listener: RunEventListenerClient,
@@ -73,7 +71,6 @@ class Context:
         self.dispatcher_client = dispatcher_client
         self.admin_client = admin_client
         self.event_client = event_client
-        self.rest_client = rest_client
         self.workflow_listener = workflow_listener
         self.durable_event_listener = durable_event_listener
         self.workflow_run_event_listener = workflow_run_event_listener

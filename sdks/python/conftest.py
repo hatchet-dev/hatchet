@@ -14,6 +14,7 @@ import requests
 
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+from hatchet_sdk.clients.rest.configuration import Configuration
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.clients.rest.models.update_tenant_request import UpdateTenantRequest
 
@@ -61,7 +62,10 @@ def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
 def worker() -> Generator[subprocess.Popen[bytes], None, None]:
     hatchet = Hatchet()
 
-    api = TenantApi(hatchet.rest.api_client)
+    api = TenantApi()
+    api.api_client.configuration = Configuration(
+        host=hatchet.config.server_url, access_token=hatchet.config.token
+    )
 
     try:
         asyncio.run(

@@ -98,9 +98,9 @@ class WorkerActionListenerProcess:
         if self.listener is None:
             raise ValueError("listener not started")
 
-        await self.client.rest.worker_api.worker_update(
-            worker=self.listener.worker_id,
-            update_worker_request=UpdateWorkerRequest(isPaused=True),
+        await self.client.workers.aio_update(
+            worker_id=self.listener.worker_id,
+            opts=UpdateWorkerRequest(isPaused=True),
         )
 
     async def start(self, retry_attempt: int = 0) -> None:
