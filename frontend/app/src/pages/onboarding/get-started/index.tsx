@@ -189,8 +189,8 @@ export default function GetStarted() {
                   </TabsList>
                   <TabsContent value="python" className="mt-4">
                     <CodeHighlighter
-                      code="poetry run python -m hatchet.worker"
-                      copyCode="poetry run python -m hatchet.worker"
+                      code="poetry run python src/worker.py"
+                      copyCode="poetry run python src/worker.py"
                       language="shell"
                       copy
                     />
