@@ -51,15 +51,13 @@ def sum_task(input: ParentInput, ctx: Context) -> SumOutput:
     sum_value = 0
 
     # Run multiple child workflows concurrently
-    child_results = []
-    for i in range(input.n):
-        # Spawn and run a child workflow
-        child_result = child.run_no_wait(ChildInput(n=i))
-        child_results.append(child_result)
+    child_results = await child.aio_run_many([
+		child.create_run_workflow_config(input=ChildInput(n=i))
+		for i in range(input.n)
+	])
 
     # Sum the results
-    for result in child_results:
-        sum_value += result.value.value
+	sum_value = sum(child.get("result") for child in child_results.values())
 
     return SumOutput(result=sum_value)
 ```
@@ -276,7 +274,7 @@ To spawn and run a child workflow from a parent task, use the appropriate method
 
 ```python
 # Inside a parent task
-child_result = child_workflow.run(ctx, child_input)
+child_result = child_workflow.run(child_input)
 ```
 
 </Tabs.Tab>
@@ -309,16 +307,18 @@ As shown in the examples above, you can spawn multiple child workflows in parall
 # Run multiple child workflows concurrently with asyncio
 import asyncio
 
-async def run_child_workflows(ctx, n):
-    tasks = []
-    for i in range(n):
-        tasks.append(asyncio.create_task(
-            child.aio_run(ctx, ChildInput(n=i))
-        ))
-    return await asyncio.gather(*tasks)
+async def run_child_workflows(n: int) -> list[dict[str, Any]]:
+	return await child.aio_run_many([
+		create_run_workflow_config(
+			options=TriggerWorkflowOptions(
+				input=ChildInput(n=i),
+			)
+		)
+		for i in range(n)
+	])
 
 # In your parent task
-child_results = await run_child_workflows(ctx, input.n)
+child_results = await run_child_workflows(input.n)
 ```
 
 </Tabs.Tab>
