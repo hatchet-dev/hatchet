@@ -1,6 +1,6 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Coroutine, ParamSpec, TypeVar
+from typing import AsyncContextManager, Callable, Coroutine, ParamSpec, TypeVar
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
@@ -29,7 +29,8 @@ class BaseRestClient:
             access_token=config.token,
         )
 
-        self.client = ApiClient(self.config)
+    def client(self) -> AsyncContextManager[ApiClient]:
+        return ApiClient(self.config)
 
     def _run_async_function_do_not_use_directly(
         self,
