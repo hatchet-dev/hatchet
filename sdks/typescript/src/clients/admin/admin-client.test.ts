@@ -30,7 +30,8 @@ describe('AdminClient', () => {
       mockFactory,
       {} as any,
       'tenantId',
-      new RunListenerClient(config, mockChannel, mockFactory, {} as any)
+      new RunListenerClient(config, mockChannel, mockFactory, {} as any),
+      {} as any
     );
 
     expect(x).toBeDefined();
@@ -58,7 +59,8 @@ describe('AdminClient', () => {
       mockFactory,
       {} as any,
       'tenantId',
-      new RunListenerClient(config, mockChannel, mockFactory, {} as any)
+      new RunListenerClient(config, mockChannel, mockFactory, {} as any),
+      {} as any
     );
   });
 
