@@ -17,8 +17,6 @@ from hatchet_sdk.clients.durable_event_listener import (
     RegisterDurableEventRequest,
 )
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
-from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
@@ -52,9 +50,7 @@ class Context:
         dispatcher_client: DispatcherClient,
         admin_client: AdminClient,
         event_client: EventClient,
-        workflow_listener: PooledWorkflowRunListener | None,
         durable_event_listener: DurableEventListener | None,
-        workflow_run_event_listener: RunEventListenerClient,
         worker: WorkerContext,
         namespace: str = "",
         validator_registry: dict[str, WorkflowValidator] = {},
@@ -71,9 +67,7 @@ class Context:
         self.dispatcher_client = dispatcher_client
         self.admin_client = admin_client
         self.event_client = event_client
-        self.workflow_listener = workflow_listener
         self.durable_event_listener = durable_event_listener
-        self.workflow_run_event_listener = workflow_run_event_listener
         self.namespace = namespace
 
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
