@@ -17,7 +17,7 @@ Labels can be set on workers when they are registered with the Hatchet service. 
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-  
+
 ```python
 worker = hatchet.worker(
     "affinity-worker",
@@ -27,8 +27,10 @@ worker = hatchet.worker(
     },
 )
 ```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
   const worker = await hatchet.worker('affinity-worker', {
     labels: {
@@ -39,6 +41,7 @@ worker = hatchet.worker(
 ```
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 	w, err := worker.NewWorker(
 		worker.WithClient(
