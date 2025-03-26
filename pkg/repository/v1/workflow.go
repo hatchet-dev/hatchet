@@ -843,14 +843,15 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, error) {
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(opts)
+	var err error
+	opts.Tasks, err = orderWorkflowStepsV1(opts.Tasks)
 
 	if err != nil {
 		return "", err
 	}
 
-	opts.Tasks, err = orderWorkflowStepsV1(opts.Tasks)
+	// compute a checksum for the workflow
+	declaredValues, err := datautils.ToJSONMap(opts)
 
 	if err != nil {
 		return "", err

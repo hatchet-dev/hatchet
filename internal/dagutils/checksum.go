@@ -7,13 +7,6 @@ import (
 )
 
 func Checksum(opts *repository.CreateWorkflowVersionOpts) (string, error) {
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(opts)
-
-	if err != nil {
-		return "", err
-	}
-
 	// ensure no cycles
 	for i, job := range opts.Jobs {
 		if HasCycle(job.Steps) {
@@ -28,6 +21,13 @@ func Checksum(opts *repository.CreateWorkflowVersionOpts) (string, error) {
 		if err != nil {
 			return "", err
 		}
+	}
+
+	// compute a checksum for the workflow
+	declaredValues, err := datautils.ToJSONMap(opts)
+
+	if err != nil {
+		return "", err
 	}
 
 	workflowChecksum, err := digest.DigestValues(declaredValues)
