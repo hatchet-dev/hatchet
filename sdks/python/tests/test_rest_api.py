@@ -27,7 +27,7 @@ async def test_get_run(hatchet: Hatchet) -> None:
 
     run = await hatchet.runs.aio_get(dag_ref.workflow_run_id)
 
-    assert run.run.display_name.startswith(dag_workflow.config.name)
+    assert dag_workflow.config.name in run.run.display_name
     assert run.run.status.value == "COMPLETED"
     assert len(run.shape) == 4
     assert {t.name for t in dag_workflow.tasks} == {t.task_name for t in run.shape}
@@ -44,9 +44,11 @@ async def test_list_workflows(hatchet: Hatchet) -> None:
 
     workflow = workflows.rows[0]
 
-    assert workflow.name == dag_workflow.config.name
+    """Using endswith because of namespacing in CI"""
+    assert workflow.name.endswith(dag_workflow.config.name)
 
     fetched_workflow = await hatchet.workflows.aio_get(workflow.metadata.id)
 
-    assert fetched_workflow.name == dag_workflow.config.name
+    """Using endswith because of namespacing in CI"""
+    assert fetched_workflow.name.endswith(dag_workflow.config.name)
     assert fetched_workflow.metadata.id == workflow.metadata.id
