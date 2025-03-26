@@ -1,6 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncContextManager, Callable, Coroutine, ParamSpec, TypeVar
+from uuid import UUID
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
@@ -24,13 +25,30 @@ class BaseRestClient:
     def __init__(self, config: ClientConfig) -> None:
         self.tenant_id = config.tenant_id
 
-        self.config = Configuration(
+        self.client_config = config
+        self.api_config = Configuration(
             host=config.server_url,
             access_token=config.token,
         )
 
+        self.api_config.datetime_format = "%Y-%m-%dT%H:%M:%S.%fZ"
+
     def client(self) -> AsyncContextManager[ApiClient]:
-        return ApiClient(self.config)
+        return ApiClient(self.api_config)
+
+    def maybe_additional_metadata_to_kv(
+        self, additional_metadata: dict[str, str] | None
+    ) -> list[str] | None:
+        if not additional_metadata:
+            return None
+
+        return [f"{k}:{v}" for k, v in additional_metadata.items()]
+
+    def maybe_uuid_to_str(self, value: UUID | None) -> str | None:
+        return str(value) if value else None
+
+    def maybe_uuid_list_to_str_list(self, value: list[UUID] | None) -> list[str] | None:
+        return [str(uuid) for uuid in value] if value else None
 
     def _run_async_function_do_not_use_directly(
         self,
