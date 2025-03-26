@@ -7,8 +7,15 @@ export const SimpleWorker = {
 export const FanoutWorker = {
   path: "src/v1/examples/child_workflows/workflow.ts",
 };
+export const DagsWorker = {
+  path: "src/v1/examples/dags/workflow.ts",
+};
+export const SimpleRun = {
+  path: "src/v1/examples/simple/run.ts",
+};
 
-export const getStaticProps = ({}) => getSnippets([SimpleWorker, FanoutWorker]);
+export const getStaticProps = ({}) =>
+  getSnippets([SimpleWorker, FanoutWorker, DagsWorker, SimpleRun]);
 
 ## Hatchet TypeScript V1 Migration Guide
 
@@ -16,13 +23,17 @@ This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK
 
 #### Introductory Example
 
-First, a simple example of how to define a workflow with the V1 SDK:
+First, we've exposed a new `hatchet.task` method in the V1 SDK for single-task workflows.
 
-<GithubSnippet src={SimpleWorker} target="Declaring a Workflow" />
+<GithubSnippet src={SimpleWorker} target="Declaring a Task" />
 
-Once you've declared your workflow, you can bind tasks to it:
+Dags are still defined as workflows, but they can now be declared using the `hatchet.workflow` method.
 
-<GithubSnippet src={SimpleWorker} target="Binding a Task to a Workflow" />
+<GithubSnippet src={DagsWorker} target="Declaring a DAG Workflow" />
+
+You can now run work for tasks and workflows by directly interacting with the returned object.
+
+<GithubSnippet src={SimpleRun} target="Running a Task with Results" />
 
 There are a few important things to note when migrating to the new SDK:
 

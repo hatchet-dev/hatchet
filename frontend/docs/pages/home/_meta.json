@@ -22,12 +22,12 @@
   "orchestration": "Workflow Orchestration",
   "environments": "Environments",
   "--running-workflows": {
-    "title": "Ways of Running Workflows",
+    "title": "Ways of Running Tasks",
     "type": "separator"
   },
   "running-workflows": "Introduction",
   "run-with-results": "Run and Wait Trigger",
-  "enqueue-runs": "Enqueue (Run Without Waiting) Trigger",
+  "enqueue-runs": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
   "cron-runs": "Cron Trigger",
   "run-on-event": "Event Trigger",
