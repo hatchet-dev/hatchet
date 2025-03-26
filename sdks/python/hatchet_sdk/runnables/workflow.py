@@ -377,26 +377,26 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def schedule(
         self,
-        schedules: list[datetime],
+        run_at: datetime,
         input: TWorkflowInput | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self.client._client.admin.schedule_workflow(
             name=self.config.name,
-            schedules=cast(list[datetime | timestamp_pb2.Timestamp], schedules),
+            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
             input=input.model_dump() if input else {},
             options=options,
         )
 
     async def aio_schedule(
         self,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        run_at: datetime,
         input: TWorkflowInput,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
-            schedules=schedules,
+            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
             input=input.model_dump(),
             options=options,
         )

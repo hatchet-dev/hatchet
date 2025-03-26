@@ -2,8 +2,6 @@ import asyncio
 from datetime import datetime
 from typing import Any, Generic, cast, get_type_hints
 
-from google.protobuf import timestamp_pb2
-
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -140,24 +138,24 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def schedule(
         self,
-        schedules: list[datetime],
+        run_at: datetime,
         input: TWorkflowInput | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self._workflow.schedule(
-            schedules=schedules,
+            run_at=run_at,
             input=input,
             options=options,
         )
 
     async def aio_schedule(
         self,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        run_at: datetime,
         input: TWorkflowInput,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self._workflow.aio_schedule(
-            schedules=schedules,
+            run_at=run_at,
             input=input,
             options=options,
         )
