@@ -16,7 +16,6 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -80,9 +79,6 @@ class BulkCancelReplayOpts(BaseModel):
 
 
 class RunsClient(BaseRestClient):
-    def __init__(self, config: ClientConfig) -> None:
-        super().__init__(config)
-
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
 

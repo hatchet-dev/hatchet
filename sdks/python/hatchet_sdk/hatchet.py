@@ -76,10 +76,10 @@ class Hatchet:
             logger.setLevel(logging.DEBUG)
 
         self._client = client if client else Client(config=config, debug=debug)
-        self.scheduled = ScheduledClient(self._client)
 
-        self.runs = RunsClient(self.config)
         self.cron = CronClient(self.config)
+        self.runs = RunsClient(self.config)
+        self.scheduled = ScheduledClient(self.config)
 
     @property
     def admin(self) -> AdminClient:
