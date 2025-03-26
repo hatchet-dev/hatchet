@@ -28,7 +28,7 @@ const config: DocsThemeConfig = {
       `https://github.com/hatchet-dev/hatchet/issues/new`,
   },
   footer: {
-    text: "Hatchet",
+    component: null,
   },
   head: (
     <>
