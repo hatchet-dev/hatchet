@@ -8,7 +8,7 @@ hatchet = Hatchet()
 
 
 async def main() -> None:
-    await parent_wf.run(
+    await parent_wf.aio_run(
         ParentInput(n=2),
         options=TriggerWorkflowOptions(additional_metadata={"hello": "moon"}),
     )
