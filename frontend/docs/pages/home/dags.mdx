@@ -1,1 +1,294 @@
-    TODO V1 DOCS
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+# Declarative Workflow Design (DAGs)
+
+Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each task is a node in the graph, and the dependencies between tasks are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies. By defining the sequence and dependencies of tasks upfront, you can easily understand the actual runtime state as compared to the expected state when debugging or troubleshooting.
+
+## Defining a Workflow
+
+Start by declaring a workflow with a name. The workflow object can declare additional workflow-level configuration options which we'll cover later.
+
+The returned object is an instance of the `Workflow` class, which is the primary interface for interacting with the workflow (i.e. [running](./run-with-results.mdx), [enqueuing](./enqueue-runs.mdx), [scheduling](./scheduled-runs.mdx), etc).
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+  <Tabs.Tab title="Python">
+
+```python
+from hatchet_sdk import Context, EmptyModel, Hatchet
+
+hatchet = Hatchet(debug=True)
+
+simple = hatchet.workflow(name="SimpleWorkflow")
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+import { hatchet } from "../hatchet-client";
+
+type DagInput = {
+  Message: string;
+};
+
+type DagOutput = {
+  reverse: {
+    Original: string;
+    Transformed: string;
+  };
+};
+
+export const simple = hatchet.workflow<DagInput, DagOutput>({
+  name: "simple",
+});
+```
+
+<Callout variant="info">
+  Declaring input and output types are optional, but recommended. When
+  declaring output types, the keys of the object will be the names of the
+  tasks in the workflow where the output will be returned.
+</Callout>
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+import (
+    v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+    "github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+)
+
+func SimpleWorkflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Result] {
+    simple := v1.WorkflowFactory[any, Result](
+        workflow.CreateOpts[any]{
+            Name: "simple-workflow",
+        },
+        hatchet,
+    )
+    // Add tasks next
+    return simple
+}
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Defining a Task
+
+Now that we have a workflow, we can define a task to be executed as part of the workflow. Tasks are defined by calling the `task` method on the workflow object.
+
+The `task` method takes a name and a function that defines the task's behavior. The function will receive the workflow's input and return the task's output. Tasks also accept a number of other configuration options, which are covered elsewhere in our documentation.
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+  In Python, the `task` method is a decorator, which is used like this to wrap a function:
+
+```python
+@simple.task()
+def task_1(input: EmptyModel, ctx: Context) -> None:
+    print("executed task_1")
+```
+
+The function takes two arguments: `input`, which is a Pydantic model, and `ctx`, which is the Hatchet `Context` object. We'll discuss both of these more later.
+
+<Callout type="info">
+In the internals of Hatchet, the task is called using _positional arguments_, meaning that you can name `input` and `ctx` whatever you like.
+
+For instance, `def task_1(foo: EmptyModel, bar: Context) -> None:` is perfectly valid.
+
+</Callout>
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+const toLower = simple.task({
+  name: "to-lower",
+  fn: (input) => {
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+```
+
+The `fn` argument is a function that takes the workflow's input and a
+context object. The context object contains information about the workflow
+run (e.g. the run ID, the workflow's input, etc). It can be synchronous or
+asynchronous.
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+step1 := simple.Task(
+    task.CreateOpts[any]{
+        Name: "Step1",
+        Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
+            return &SimpleOutput{
+                Step: 1,
+            }, nil
+        },
+    },
+)
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Building a DAG with Task Dependencies
+
+The power of Hatchet's workflow design comes from connecting tasks into a DAG structure. Tasks can specify dependencies (parents) which must complete successfully before the task can start.
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+
+```python
+@simple.task()
+def first_task(input: EmptyModel, ctx: Context) -> dict:
+    return {"result": "Hello World"}
+
+@simple.task(parents=[first_task])
+def second_task(input: EmptyModel, ctx: Context) -> dict:
+    # Access output from parent task
+    first_result = ctx.get_parent_output(first_task)
+    print(f"First task said: {first_result['result']}")
+    return {"final_result": "Completed"}
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+const toLower = dag.task({
+  name: "to-lower",
+  fn: (input) => {
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+
+dag.task({
+  name: "reverse",
+  parents: [toLower],
+  fn: async (input, ctx) => {
+    const lower = await ctx.parentOutput(toLower);
+    return {
+      Original: input.Message,
+      Transformed: lower.TransformedMessage.split("").reverse().join(""),
+    };
+  },
+});
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+step1 := simple.Task(
+    task.CreateOpts[any]{
+        Name: "Step1",
+        Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
+            return &SimpleOutput{
+                Step: 1,
+            }, nil
+        },
+    },
+)
+
+simple.Task(
+    task.CreateOpts[any]{
+        Name: "Step2",
+        Parents: []task.NamedTask{
+            step1,
+        },
+        Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
+            var step1Output SimpleOutput
+            err := ctx.ParentOutput(step1, &step1Output)
+            if err != nil {
+                return nil, err
+            }
+
+            fmt.Println(step1Output.Step)
+
+            return &SimpleOutput{
+                Step: 2,
+            }, nil
+        },
+    },
+)
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Accessing Parent Task Outputs
+
+As shown in the examples above, tasks can access outputs from their parent tasks using the context object:
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+```python
+# Inside a task with parent dependencies
+parent_output = ctx.get_parent_output(parent_task_name)
+```
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+```typescript
+// Inside a task with parent dependencies
+const parentOutput = await ctx.parentOutput(parentTaskName);
+```
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+```go
+// Inside a task with parent dependencies
+var parentOutput ParentOutputType
+err := ctx.ParentOutput(parentTaskName, &parentOutput)
+if err != nil {
+    return nil, err
+}
+```
+</Tabs.Tab>
+</UniversalTabs>
+
+## Running a Workflow
+
+You can run workflows directly or enqueue them for asynchronous execution. All the same methods for running a task are available for workflows!
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+<Tabs.Tab title="Python">
+
+```python
+# Run workflow and wait for the result
+result = simple.run(input_data)
+
+# Enqueue workflow to be executed asynchronously
+run_id = simple.run_no_wait(input_data)
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Typescript">
+
+```typescript
+// Run workflow and wait for the result
+const result = await simple.run({ Message: "Hello World" });
+
+// Enqueue workflow to be executed asynchronously
+const runId = await simple.runNoWait({ Message: "Hello World" });
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+```go
+// Run workflow and wait for the result
+result, err := simple.Run(ctx, input)
+
+// Enqueue workflow to be executed asynchronously
+runID, err := simple.RunNoWait(ctx, input)
+```
+
+</Tabs.Tab>
+</UniversalTabs>

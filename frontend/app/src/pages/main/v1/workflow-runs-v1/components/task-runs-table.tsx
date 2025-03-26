@@ -328,7 +328,7 @@ export function TaskRunsTable({
       <DataTable
         emptyState={
           <IntroDocsEmptyState
-            link="/home/basics/workflows"
+            link="/home/your-first-task"
             title="No Runs Found"
             linkPreambleText="To learn more about how workflows function in Hatchet,"
             linkText="check out our documentation."

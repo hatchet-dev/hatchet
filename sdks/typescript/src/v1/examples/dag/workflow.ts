@@ -11,10 +11,13 @@ type DagOutput = {
   };
 };
 
+// ❓ Declaring a DAG Workflow
+// First, we declare the workflow
 export const dag = hatchet.workflow<DagInput, DagOutput>({
   name: 'simple',
 });
 
+// Next, we declare the tasks bound to the workflow
 const toLower = dag.task({
   name: 'to-lower',
   fn: (input) => {
@@ -24,6 +27,7 @@ const toLower = dag.task({
   },
 });
 
+// Next, we declare the tasks bound to the workflow
 dag.task({
   name: 'reverse',
   parents: [toLower],
@@ -35,3 +39,4 @@ dag.task({
     };
   },
 });
+// !!

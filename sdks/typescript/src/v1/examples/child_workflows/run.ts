@@ -6,7 +6,7 @@ async function main() {
   });
 
   // eslint-disable-next-line no-console
-  console.log(res.sum.Result);
+  console.log(res.Result);
 }
 
 if (require.main === module) {
