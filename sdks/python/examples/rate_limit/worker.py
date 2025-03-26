@@ -13,7 +13,7 @@ def step1(input: EmptyModel, ctx: Context) -> None:
 
 
 def main() -> None:
-    hatchet.admin.put_rate_limit(RATE_LIMIT_KEY, 2, RateLimitDuration.SECOND)
+    hatchet.rate_limits.put(RATE_LIMIT_KEY, 2, RateLimitDuration.SECOND)
 
     worker = hatchet.worker(
         "rate-limit-worker", slots=10, workflows=[rate_limit_workflow]

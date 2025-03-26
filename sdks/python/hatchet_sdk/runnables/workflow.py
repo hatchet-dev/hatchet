@@ -296,7 +296,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
-        return self.client.admin.run_workflow(
+        return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -307,7 +307,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
-        ref = self.client.admin.run_workflow(
+        ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -320,7 +320,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
-        return await self.client.admin.aio_run_workflow(
+        return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -331,7 +331,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
-        ref = await self.client.admin.aio_run_workflow(
+        ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -343,7 +343,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[dict[str, Any]]:
-        refs = self.client.admin.run_workflows(
+        refs = self.client._client.admin.run_workflows(
             workflows=workflows,
         )
 
@@ -353,7 +353,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[dict[str, Any]]:
-        refs = await self.client.admin.aio_run_workflows(
+        refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
@@ -363,7 +363,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        return self.client.admin.run_workflows(
+        return self.client._client.admin.run_workflows(
             workflows=workflows,
         )
 
@@ -371,7 +371,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        return await self.client.admin.aio_run_workflows(
+        return await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
@@ -381,7 +381,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
-        return self.client.admin.schedule_workflow(
+        return self.client._client.admin.schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], schedules),
             input=input.model_dump() if input else {},
@@ -394,7 +394,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
-        return await self.client.admin.aio_schedule_workflow(
+        return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
             schedules=schedules,
             input=input.model_dump(),

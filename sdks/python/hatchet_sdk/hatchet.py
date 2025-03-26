@@ -4,13 +4,13 @@ from typing import Any, Callable, Type, cast, overload
 
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
-from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.labels import DesiredWorkerLabel
@@ -49,10 +49,6 @@ class Hatchet:
         rest (RestApi): Interface for REST API operations.
     """
 
-    _client: Client
-    cron: CronClient
-    scheduled: ScheduledClient
-
     def __init__(
         self,
         debug: bool = False,
@@ -80,10 +76,7 @@ class Hatchet:
         self.cron = CronClient(self.config)
         self.runs = RunsClient(self.config)
         self.scheduled = ScheduledClient(self.config)
-
-    @property
-    def admin(self) -> AdminClient:
-        return self._client.admin
+        self.rate_limits = RateLimitsClient(self.config)
 
     @property
     def dispatcher(self) -> DispatcherClient:
