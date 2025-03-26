@@ -83,6 +83,7 @@ class WorkerActionRunLoopManager:
 
     async def _start_action_loop(self) -> None:
         self.runner = Runner(
+            self.name,
             self.event_queue,
             self.config,
             self.slots,

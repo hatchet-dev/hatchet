@@ -6,7 +6,6 @@ from hatchet_sdk.clients.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.aio_utils import get_active_event_loop
 
 
@@ -14,11 +13,12 @@ class WorkflowRunRef:
     def __init__(
         self,
         workflow_run_id: str,
-        config: ClientConfig,
+        workflow_listener: PooledWorkflowRunListener,
+        workflow_run_event_listener: RunEventListenerClient,
     ):
         self.workflow_run_id = workflow_run_id
-        self.workflow_listener = PooledWorkflowRunListener(config)
-        self.workflow_run_event_listener = RunEventListenerClient(config)
+        self.workflow_listener = workflow_listener
+        self.workflow_run_event_listener = workflow_run_event_listener
 
     def __str__(self) -> str:
         return self.workflow_run_id
