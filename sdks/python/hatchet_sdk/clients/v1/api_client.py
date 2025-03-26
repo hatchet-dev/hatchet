@@ -1,11 +1,11 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncContextManager, Callable, Coroutine, ParamSpec, TypeVar
-from uuid import UUID
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ## Type variables to use with coroutines.
 ## See https://stackoverflow.com/questions/73240620/the-right-way-to-type-hint-a-coroutine-function
@@ -22,20 +22,12 @@ P = ParamSpec("P")
 
 
 def maybe_additional_metadata_to_kv(
-    additional_metadata: dict[str, str] | None
+    additional_metadata: dict[str, str] | JSONSerializableMapping | None
 ) -> list[str] | None:
     if not additional_metadata:
         return None
 
     return [f"{k}:{v}" for k, v in additional_metadata.items()]
-
-
-def maybe_uuid_to_str(value: UUID | None) -> str | None:
-    return str(value) if value else None
-
-
-def maybe_uuid_list_to_str_list(value: list[UUID] | None) -> list[str] | None:
-    return [str(uuid) for uuid in value] if value else None
 
 
 class BaseRestClient:

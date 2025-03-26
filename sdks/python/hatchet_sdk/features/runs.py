@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from typing import Literal, overload
-from uuid import UUID
 
 from pydantic import BaseModel, model_validator
 
@@ -16,8 +15,6 @@ from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRu
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
-    maybe_uuid_list_to_str_list,
-    maybe_uuid_to_str,
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -27,12 +24,12 @@ class RunFilter(BaseModel):
     since: datetime
     until: datetime | None = None
     statuses: list[V1TaskStatus] | None = None
-    workflow_ids: list[UUID] | None = None
+    workflow_ids: list[str] | None = None
     additional_metadata: dict[str, str] | None = None
 
 
 class BulkCancelReplayOpts(BaseModel):
-    ids: list[UUID] | None = None
+    ids: list[str] | None = None
     filters: RunFilter | None = None
 
     @model_validator(mode="after")
@@ -54,7 +51,7 @@ class BulkCancelReplayOpts(BaseModel):
             since=self.filters.since,
             until=self.filters.until,
             statuses=self.filters.statuses,
-            workflowIds=maybe_uuid_list_to_str_list(self.filters.workflow_ids),
+            workflowIds=self.filters.workflow_ids,
             additionalMetadata=maybe_additional_metadata_to_kv(
                 self.filters.additional_metadata
             ),
@@ -71,13 +68,13 @@ class BulkCancelReplayOpts(BaseModel):
     ) -> V1ReplayTaskRequest | V1CancelTaskRequest:
         if request_type == "replay":
             return V1ReplayTaskRequest(
-                externalIds=maybe_uuid_list_to_str_list(self.ids),
+                externalIds=self.ids,
                 filter=self.v1_task_filter,
             )
 
         if request_type == "cancel":
             return V1CancelTaskRequest(
-                externalIds=maybe_uuid_list_to_str_list(self.ids),
+                externalIds=self.ids,
                 filter=self.v1_task_filter,
             )
 
@@ -92,11 +89,11 @@ class RunsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TaskApi:
         return TaskApi(client)
 
-    async def aio_get(self, workflow_run_id: UUID) -> V1WorkflowRunDetails:
+    async def aio_get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
         async with self.client() as client:
             return await self._wra(client).v1_workflow_run_get(str(workflow_run_id))
 
-    def get(self, workflow_run_id: UUID) -> V1WorkflowRunDetails:
+    def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
         return self._run_async_from_sync(self.aio_get, workflow_run_id)
 
     async def aio_list(
@@ -108,9 +105,9 @@ class RunsClient(BaseRestClient):
         statuses: list[V1TaskStatus] | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[UUID] | None = None,
-        worker_id: UUID | None = None,
-        parent_task_external_id: UUID | None = None,
+        workflow_ids: list[str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
     ) -> V1TaskSummaryList:
         async with self.client() as client:
             return await self._wra(client).v1_workflow_run_list(
@@ -124,9 +121,9 @@ class RunsClient(BaseRestClient):
                 additional_metadata=maybe_additional_metadata_to_kv(
                     additional_metadata
                 ),
-                workflow_ids=maybe_uuid_list_to_str_list(workflow_ids),
-                worker_id=maybe_uuid_to_str(worker_id),
-                parent_task_external_id=maybe_uuid_to_str(parent_task_external_id),
+                workflow_ids=workflow_ids,
+                worker_id=worker_id,
+                parent_task_external_id=parent_task_external_id,
             )
 
     def list(
@@ -138,9 +135,9 @@ class RunsClient(BaseRestClient):
         statuses: list[V1TaskStatus] | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[UUID] | None = None,
-        worker_id: UUID | None = None,
-        parent_task_external_id: UUID | None = None,
+        workflow_ids: list[str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
     ) -> V1TaskSummaryList:
         return self._run_async_from_sync(
             self.aio_list,
@@ -156,10 +153,10 @@ class RunsClient(BaseRestClient):
             parent_task_external_id=parent_task_external_id,
         )
 
-    async def aio_replay(self, run_id: UUID) -> None:
+    async def aio_replay(self, run_id: str) -> None:
         await self.aio_bulk_replay(opts=BulkCancelReplayOpts(ids=[run_id]))
 
-    def replay(self, run_id: UUID) -> None:
+    def replay(self, run_id: str) -> None:
         return self._run_async_from_sync(self.aio_replay, run_id)
 
     async def aio_bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
@@ -172,10 +169,10 @@ class RunsClient(BaseRestClient):
     def bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
         return self._run_async_from_sync(self.aio_bulk_replay, opts)
 
-    async def aio_cancel(self, run_id: UUID) -> None:
+    async def aio_cancel(self, run_id: str) -> None:
         await self.aio_bulk_cancel(opts=BulkCancelReplayOpts(ids=[run_id]))
 
-    def cancel(self, run_id: UUID) -> None:
+    def cancel(self, run_id: str) -> None:
         return self._run_async_from_sync(self.aio_cancel, run_id)
 
     async def aio_bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
@@ -188,12 +185,12 @@ class RunsClient(BaseRestClient):
     def bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
         return self._run_async_from_sync(self.aio_bulk_cancel, opts)
 
-    async def aio_get_result(self, run_id: UUID) -> JSONSerializableMapping:
+    async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
         details = await self.aio_get(run_id)
 
         return details.run.output
 
-    def get_result(self, run_id: UUID) -> JSONSerializableMapping:
+    def get_result(self, run_id: str) -> JSONSerializableMapping:
         details = self.get(run_id)
 
         return details.run.output
