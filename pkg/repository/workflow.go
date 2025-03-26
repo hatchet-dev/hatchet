@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
@@ -83,23 +81,6 @@ type CreateWorkflowConcurrencyOpts struct {
 
 	// (optional) a concurrency expression for evaluating the concurrency key
 	Expression *string `validate:"omitempty,celworkflowrunstr"`
-}
-
-func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(o)
-
-	if err != nil {
-		return "", err
-	}
-
-	workflowChecksum, err := digest.DigestValues(declaredValues)
-
-	if err != nil {
-		return "", err
-	}
-
-	return workflowChecksum.String(), nil
 }
 
 type CreateWorkflowSchedulesOpts struct {

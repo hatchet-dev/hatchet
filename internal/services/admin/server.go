@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -245,7 +246,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		}
 
 		// workflow exists, look at checksum
-		newCS, err := createOpts.Checksum()
+		newCS, err := dagutils.Checksum(createOpts)
 
 		if err != nil {
 			return nil, err
