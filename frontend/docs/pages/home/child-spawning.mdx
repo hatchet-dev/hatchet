@@ -281,7 +281,7 @@ import asyncio
 
 async def run_child_workflows(n: int) -> list[dict[str, Any]]:
 	return await child.aio_run_many([
-		create_run_workflow_config(
+		child.create_run_workflow_config(
 			options=TriggerWorkflowOptions(
 				input=ChildInput(n=i),
 			)
@@ -352,7 +352,7 @@ When working with child workflows, it's important to properly handle errors. Her
 
 ```python
 try:
-    child_result = child.run_as_child(ctx, ChildInput(n=i))
+    child_result = child.run(ChildInput(a="foobar"))
 except Exception as e:
     # Handle error from child workflow
     print(f"Child workflow failed: {e}")
