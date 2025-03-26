@@ -12,7 +12,7 @@ export const ConcurrencyTs = {
 export const getStaticProps = ({}) =>
   getSnippets([ConcurrencyPy, ConcurrencyTs]);
 
-# The GROUP_ROUND_ROBIN Concurrency Limit Strategy in Hatchet
+# The `GROUP_ROUND_ROBIN` Concurrency Limit Strategy in Hatchet
 
 Hatchet's `GROUP_ROUND_ROBIN` concurrency limit strategy is an advanced way to manage resource contention in your workflows while ensuring fair distribution of resources across different groups of tenants, users, or other concurrency key. This strategy allows you to process workflow instances in a round-robin fashion within each group, as defined by a key function.
 
@@ -28,7 +28,7 @@ When a new workflow instance is triggered, the `GROUP_ROUND_ROBIN` strategy will
 
 This strategy ensures that workflow instances are processed fairly across different groups, preventing any one group from monopolizing the available resources. It also helps to reduce latency for instances within each group, as they are processed in a round-robin fashion rather than strictly in the order they were triggered.
 
-## When to use GROUP_ROUND_ROBIN
+## When to use `GROUP_ROUND_ROBIN`
 
 The `GROUP_ROUND_ROBIN` strategy is particularly useful in scenarios where:
 
@@ -38,7 +38,7 @@ The `GROUP_ROUND_ROBIN` strategy is particularly useful in scenarios where:
 
 Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all use cases, especially those that require strict ordering or prioritization of the most recent events.
 
-## How to use GROUP_ROUND_ROBIN
+## How to use `GROUP_ROUND_ROBIN`
 
 To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency` configuration in your workflow definition:
 

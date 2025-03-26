@@ -1,4 +1,4 @@
-import { Tabs } from "nextra/components";
+import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
@@ -8,13 +8,13 @@ export const ConcurrencyPy = {
 
 export const getStaticProps = ({}) => getSnippets([ConcurrencyPy]);
 
-# The CANCEL_IN_PROGRESS Concurrency Limit Strategy in Hatchet
+# The `CANCEL_IN_PROGRESS` Concurrency Limit Strategy in Hatchet
 
 Hatchet's `CANCEL_IN_PROGRESS` concurrency limit strategy is a powerful tool for managing resource contention in your workflows. This strategy allows you to cancel currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
 
 ## How it works
 
-When a workflow run finishes and the concurrency limit is reached for the workflow version and group key, the CANCEL_IN_PROGRESS strategy will:
+When a workflow run finishes and the concurrency limit is reached for the workflow version and group key, the `CANCEL_IN_PROGRESS` strategy will:
 
 1. Fetch all currently running workflow runs for the given workflow version and concurrency key.
 2. Fetch the queued workflow runs for the same workflow version and group key, up to the maximum number of concurrent runs allowed.
@@ -23,7 +23,7 @@ When a workflow run finishes and the concurrency limit is reached for the workfl
 
 This strategy ensures that queued workflow runs can start executing as soon as possible, even if the concurrency limit is reached, by canceling older running instances.
 
-## When to use CANCEL_IN_PROGRESS
+## When to use `CANCEL_IN_PROGRESS`
 
 The `CANCEL_IN_PROGRESS` strategy is particularly useful in scenarios where:
 
@@ -32,16 +32,16 @@ The `CANCEL_IN_PROGRESS` strategy is particularly useful in scenarios where:
 - You have resource-intensive workflows where it's more efficient to cancel an in-progress instance and start a new one than to wait for the old instance to complete.
 - Your user UI allows for multiple inputs, but only the most recent is relevant (i.e. chat messages, form submissions, etc.).
 
-However, it's important to note that canceling a workflow instance may leave your system in an inconsistent state if the canceled instance was in the middle of updating a resource. Make sure to design your workflows to handle [cancellation gracefully](../cancellation) and ensure data consistency.
+However, it's important to note that canceling a workflow instance may leave your system in an inconsistent state if the canceled instance was in the middle of updating a resource. Make sure to design your workflows to handle cancellation gracefully and ensure data consistency.
 
-## How to use CANCEL_IN_PROGRESS
+{/* TODO V1 DOCS - Add back link to cancellation docs on `handle cancellation gracefully` when we write those */}
+
+## How to use `CANCEL_IN_PROGRESS`
 
 To use the `CANCEL_IN_PROGRESS` concurrency limit strategy, define a `concurrency` configuration in your workflow definition:
 
 <UniversalTabs items={['Python', 'Typescript']}>
 {/* <UniversalTabs items={['Python', 'Typescript', 'Go']}> TODO V1 DOCS -- Add this back */}
-
-CEL expressions are evaluated on the Hatchet engine (not in your worker) and can be used to extract values from the workflow input or [additional metadata](/features/additional-metadata).
 
   <Tabs.Tab>
 
@@ -89,15 +89,21 @@ Steps: []\*worker.WorkflowStep{
 ```
 
   </Tabs.Tab> */}
+
+ CEL expressions are evaluated on the Hatchet engine (not in your worker) and can be used to extract values from the workflow input or [additional metadata](../additional-metadata.mdx).
+
+
 In this example:
 
 - `maxRuns` sets the maximum number of concurrent instances allowed for this workflow.
 - `limitStrategy` is set to `CANCEL_IN_PROGRESS`, indicating that when the concurrency limit is reached, currently running instances should be canceled to make room for new ones.
-- `expression` (recommended) is a CEL expression that is used to determine the concurrency key. In this example, the expression is `input.userId`, which means that instances are grouped by `userId`.
+- `expression` (recommended) is a CEL expression that is used to determine the concurrency key. In this example, the expression is `input.group_key`, which means that instances are grouped by `group_key`.
 
 </UniversalTabs>
 
-> NOTE: Only one of `key` or `expression` should be provided, not both.
+<Callout type="info">
+ Note that only one of `key` or `expression` should be provided, not both.
+</Callout>
 
 With this configuration, Hatchet will automatically manage your workflow's concurrency, canceling in-progress instances as needed to ensure that new instances can start executing immediately.
 

@@ -23,12 +23,13 @@ There are several reasons why you might want to use concurrency control in your 
 
 - [`CANCEL_IN_PROGRESS`](./cancel-in-progress): Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
 - [`GROUP_ROUND_ROBIN`](./round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
+- `CANCEL_NEWEST`: Cancel the newest workflow runs when the concurrency limit is reached.
 
 > We're always open to adding more strategies to fit your needs. Join our [discord](https://discord.gg/ZMeUafwH89) to let us know.
 
 ### Setting concurrency on workers
 
-In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
+In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `slots` (formerly `max_runs`) option when creating a new `Worker` instance:
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>

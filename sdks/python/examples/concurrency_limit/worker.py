@@ -17,7 +17,7 @@ hatchet = Hatchet(debug=True)
 # ❓ Workflow
 class WorkflowInput(BaseModel):
     run: int
-    group: str
+    group_key: str
 
 
 concurrency_limit_workflow = hatchet.workflow(
