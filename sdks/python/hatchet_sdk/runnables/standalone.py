@@ -86,7 +86,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> R:
         result = await self._workflow.aio_run(input, options)
@@ -94,7 +94,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         ref = self._workflow.run_no_wait(input, options)
@@ -103,7 +103,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     async def aio_run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         ref = await self._workflow.aio_run_no_wait(input, options)

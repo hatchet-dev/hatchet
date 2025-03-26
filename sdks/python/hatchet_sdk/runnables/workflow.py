@@ -294,7 +294,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         return self.client._client.admin.run_workflow(
@@ -318,7 +318,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         return await self.client._client.admin.aio_run_workflow(
@@ -329,7 +329,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
         ref = await self.client._client.admin.aio_run_workflow(
