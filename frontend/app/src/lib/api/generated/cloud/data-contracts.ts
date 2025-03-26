@@ -1,5 +1,6 @@
 /* eslint-disable */
 /* tslint:disable */
+// @ts-nocheck
 /*
  * ---------------------------------------------------------------
  * ## THIS FILE WAS GENERATED VIA SWAGGER-TYPESCRIPT-API        ##
@@ -25,6 +26,11 @@ export interface APICloudMetadata {
    * @example true
    */
   metricsEnabled?: boolean;
+  /**
+   * whether the tenant requires billing for managed compute
+   * @example true
+   */
+  requireBillingForManagedCompute?: boolean;
 }
 
 export interface APIErrors {
@@ -129,7 +135,7 @@ export type ListGithubBranchesResponse = GithubBranch[];
 export interface ManagedWorker {
   metadata: APIResourceMeta;
   name: string;
-  buildConfig: ManagedWorkerBuildConfig;
+  buildConfig?: ManagedWorkerBuildConfig;
   isIac: boolean;
   /** A map of environment variables to set for the worker */
   envVars: Record<string, string>;
@@ -165,7 +171,7 @@ export interface BuildStep {
 export interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
   numReplicas: number;
-  autoscaling?: CreateOrUpdateAutoscalingRequest;
+  autoscaling?: AutoscalingConfig;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
   /** The number of CPUs to use for the worker */
@@ -382,11 +388,6 @@ export enum TenantSubscriptionStatus {
   Canceled = "canceled",
 }
 
-export interface TenantUsage {
-  /** The usage of the tenant. */
-  usage: string;
-}
-
 export interface Coupon {
   /** The name of the coupon. */
   name: string;
@@ -543,13 +544,30 @@ export interface WorkflowRunEventsMetricsCounts {
   results?: WorkflowRunEventsMetric[];
 }
 
+export interface AutoscalingConfig {
+  waitDuration: string;
+  rollingWindowDuration: string;
+  utilizationScaleUpThreshold: number;
+  utilizationScaleDownThreshold: number;
+  increment: number;
+  targetKind: AutoscalingTargetKind;
+  minAwakeReplicas: number;
+  maxReplicas: number;
+  scaleToZero: boolean;
+}
+
+export enum AutoscalingTargetKind {
+  PORTER = "PORTER",
+  FLY = "FLY",
+}
+
 export interface CreateOrUpdateAutoscalingRequest {
   waitDuration: string;
   rollingWindowDuration: string;
   utilizationScaleUpThreshold: number;
   utilizationScaleDownThreshold: number;
   increment: number;
-  targetKind?: "PORTER" | "FLY";
+  targetKind?: AutoscalingTargetKind;
   minAwakeReplicas: number;
   maxReplicas: number;
   scaleToZero: boolean;
@@ -568,4 +586,14 @@ export interface CreatePorterAutoscalingRequest {
 export interface CreateFlyAutoscalingRequest {
   autoscalingKey: string;
   currentReplicas: number;
+}
+
+export enum TemplateOptions {
+  QUICKSTART_PYTHON = "QUICKSTART_PYTHON",
+  QUICKSTART_TYPESCRIPT = "QUICKSTART_TYPESCRIPT",
+  QUICKSTART_GO = "QUICKSTART_GO",
+}
+
+export interface CreateManagedWorkerFromTemplateRequest {
+  name: TemplateOptions;
 }
