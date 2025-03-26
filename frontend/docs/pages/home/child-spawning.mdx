@@ -54,7 +54,7 @@ def sum_task(input: ParentInput, ctx: Context) -> SumOutput:
     child_results = []
     for i in range(input.n):
         # Spawn and run a child workflow
-        child_result = child.run_as_child(ctx, ChildInput(n=i))
+        child_result = child.run_no_wait(ChildInput(n=i))
         child_results.append(child_result)
 
     # Sum the results
@@ -276,7 +276,7 @@ To spawn and run a child workflow from a parent task, use the appropriate method
 
 ```python
 # Inside a parent task
-child_result = child_workflow.run_as_child(ctx, child_input)
+child_result = child_workflow.run(ctx, child_input)
 ```
 
 </Tabs.Tab>
@@ -313,7 +313,7 @@ async def run_child_workflows(ctx, n):
     tasks = []
     for i in range(n):
         tasks.append(asyncio.create_task(
-            child.run_as_child_async(ctx, ChildInput(n=i))
+            child.aio_run(ctx, ChildInput(n=i))
         ))
     return await asyncio.gather(*tasks)
 

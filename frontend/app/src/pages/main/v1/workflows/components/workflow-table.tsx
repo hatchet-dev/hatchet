@@ -152,7 +152,7 @@ export function WorkflowTable() {
       filters={[]}
       emptyState={
         <IntroDocsEmptyState
-          link="/home/basics/workflows"
+          link="/home/your-first-task"
           title="No Registered Workflows"
           linkPreambleText="To learn more about workflows function in Hatchet,"
           linkText="check out our documentation."

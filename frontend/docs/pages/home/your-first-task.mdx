@@ -81,7 +81,9 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-simple = hatchet.workflow(name="SimpleWorkflow")
+@hatchet.task(name="SimpleWorkflow")
+def step1(input: EmptyModel, ctx: Context) -> None:
+    print("executed step1")
 ```
 
 </Tabs.Tab>
@@ -106,5 +108,6 @@ There are many ways to run a task, including:
 - [Enqueuing a task](./enqueue-runs.mdx)
 - [Scheduling a task](./scheduled-runs.mdx)
 - [Scheduling a task with a cron schedule](./cron-schedules.mdx)
+- [Event-driven task execution](./run-on-event.mdx)
 
 Now that you have defined a complete task, you can move on to [creating a worker to execute the task](./workers.mdx).
