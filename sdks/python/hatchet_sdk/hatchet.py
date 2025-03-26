@@ -10,6 +10,7 @@ from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.logs import LogsClient
+from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
@@ -82,6 +83,10 @@ class Hatchet:
     @property
     def logs(self) -> LogsClient:
         return self._client.logs
+
+    @property
+    def metrics(self) -> MetricsClient:
+        return self._client.metrics
 
     @property
     def rate_limits(self) -> RateLimitsClient:

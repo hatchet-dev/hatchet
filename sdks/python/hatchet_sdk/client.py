@@ -11,6 +11,7 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.logs import LogsClient
+from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
@@ -47,6 +48,7 @@ class Client:
 
         self.cron = CronClient(self.config)
         self.logs = LogsClient(self.config)
+        self.metrics = MetricsClient(self.config)
         self.rate_limits = RateLimitsClient(self.config)
         self.runs = RunsClient(self.config)
         self.scheduled = ScheduledClient(self.config)
