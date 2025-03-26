@@ -70,23 +70,6 @@ type CreateConcurrencyOpts struct {
 	Expression string `validate:"celworkflowrunstr"`
 }
 
-func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(o)
-
-	if err != nil {
-		return "", err
-	}
-
-	workflowChecksum, err := digest.DigestValues(declaredValues)
-
-	if err != nil {
-		return "", err
-	}
-
-	return workflowChecksum.String(), nil
-}
-
 type CreateStepOpts struct {
 	// (required) the task name
 	ReadableId string `validate:"hatchetName"`
@@ -354,10 +337,15 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId pgtype.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
-	cs, err := opts.Checksum()
+	cs, err := checksumV1(opts)
 
 	if err != nil {
 		return "", err
+	}
+
+	// if the checksum matches the old checksum, we don't need to create a new workflow version
+	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
+		return sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID), nil
 	}
 
 	createParams := sqlcv1.CreateWorkflowVersionParams{
@@ -852,6 +840,29 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 	}
 
 	return jobId, nil
+}
+
+func checksumV1(opts *CreateWorkflowVersionOpts) (string, error) {
+	// compute a checksum for the workflow
+	declaredValues, err := datautils.ToJSONMap(opts)
+
+	if err != nil {
+		return "", err
+	}
+
+	opts.Tasks, err = orderWorkflowStepsV1(opts.Tasks)
+
+	if err != nil {
+		return "", err
+	}
+
+	workflowChecksum, err := digest.DigestValues(declaredValues)
+
+	if err != nil {
+		return "", err
+	}
+
+	return workflowChecksum.String(), nil
 }
 
 func hasCycleV1(steps []CreateStepOpts) bool {

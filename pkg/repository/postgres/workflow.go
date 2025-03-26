@@ -902,7 +902,7 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		version = sqlchelpers.TextFromStr(*opts.Version)
 	}
 
-	cs, err := opts.Checksum()
+	cs, err := dagutils.Checksum(opts)
 
 	if err != nil {
 		return "", err
