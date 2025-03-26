@@ -8,18 +8,7 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-columns';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from '@/components/v1/ui/card';
-import { cn } from '@/lib/utils';
-import {
-  ArrowPathIcon,
-  QuestionMarkCircleIcon,
-} from '@heroicons/react/24/outline';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import {
   PaginationState,
   SortingState,
@@ -88,32 +77,6 @@ export function WorkflowTable() {
   if (listWorkflowQuery.isLoading) {
     return <Loading />;
   }
-
-  const emptyState = (
-    <Card className="w-full text-justify">
-      <CardHeader>
-        <CardTitle>No Registered Workflows</CardTitle>
-        <CardDescription>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            There are no workflows registered in this tenant. To enable workflow
-            execution, please register a workflow with a worker or{' '}
-            <a href="support@hatchet.run">contact support</a>.
-          </p>
-        </CardDescription>
-      </CardHeader>
-      <CardFooter>
-        <a
-          href="https://docs.hatchet.run/home/basics/workflows"
-          className="flex flex-row item-center"
-        >
-          <Button onClick={() => {}} variant="link" className="p-0 w-fit">
-            <QuestionMarkCircleIcon className={cn('h-4 w-4 mr-2')} />
-            Docs: Understanding Workflows in Hatchet
-          </Button>
-        </a>
-      </CardFooter>
-    </Card>
-  );
 
   const card: React.FC<{ data: Workflow }> = ({ data }) => (
     <div
