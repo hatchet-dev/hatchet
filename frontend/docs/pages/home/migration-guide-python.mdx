@@ -4,7 +4,7 @@ export const SimpleWorker = {
   path: "examples/simple/worker.py",
 };
 export const PydanticWorker = {
-  path: "examples/pydantic/worker.py",
+  path: "examples/fanout/worker.py",
 };
 
 export const getStaticProps = ({}) =>
@@ -31,14 +31,16 @@ The API has changed significantly in the V1 SDK. Even in this simple example, th
 
 Hatchet's V1 SDK makes heavy use of Pydantic models, and recommends you do too! Let's dive into a more involved example using Pydantic in a fanout example.
 
-<GithubSnippet src={PydanticWorker} target="Pydantic" />
+<GithubSnippet src={PydanticWorker} target="FanoutParent" />
 
 In this example, we use a few more new SDK features:
 
 1. Workflows are now declared with `hatchet.workflow`, and then have their corresponding tasks registered with `workflow.task`.
 2. We define two Pydantic models, `ParentInput` and `ChildInput`, and pass them to the parent and child workflows as `input_validator`s. Note that now, the `input` parameters for the tasks in those two workflows are Pydantic models of those types, and we can treat them as such. This replaces the old `context.workflow_input` for accessing the input to the workflow / task - now, we just can access the input directly.
 3. When we want to spawn the child workflow, we can use the `run` methods on the `child_workflow` object, which is a Hatchet `Workflow`, instead of needing to refer to the workflow by its name (a string). The `input` field to `run()` is now also properly typed as `ChildInput`.
-4. The child workflow makes use of some of Hatchet's DAG features, such as defining parent tasks. In the new SDK, `parents` of a task are defined as a list of `Task` objects as opposed to as a list of strings, so now, `process2` has `process` (the `Task`) as its parent, as opposed to `"process"` (the string). This also allows us to use `ctx.task_output(process)` to access the output of the `process` task in the `process2` task, and know the type of that output at type checking time.
+4. The child workflow (see below) makes use of some of Hatchet's DAG features, such as defining parent tasks. In the new SDK, `parents` of a task are defined as a list of `Task` objects as opposed to as a list of strings, so now, `process2` has `process` (the `Task`) as its parent, as opposed to `"process"` (the string). This also allows us to use `ctx.task_output(process)` to access the output of the `process` task in the `process2` task, and know the type of that output at type checking time.
+
+<GithubSnippet src={PydanticWorker} target="FanoutChild" />
 
 See our [Pydantic documentation](./pydantic.mdx) for more.
 
