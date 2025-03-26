@@ -52,7 +52,6 @@ class Context:
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
         worker: WorkerContext,
-        namespace: str = "",
         validator_registry: dict[str, WorkflowValidator] = {},
     ):
         self.worker = worker
@@ -62,13 +61,12 @@ class Context:
 
         self.action = action
 
-        self.step_run_id: str = action.step_run_id
+        self.step_run_id = action.step_run_id
         self.exit_flag = False
         self.dispatcher_client = dispatcher_client
         self.admin_client = admin_client
         self.event_client = event_client
         self.durable_event_listener = durable_event_listener
-        self.namespace = namespace
 
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
         # 100 log lines per second but this depends on network.

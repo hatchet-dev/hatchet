@@ -288,7 +288,6 @@ class Runner:
             self.client.event,
             self.durable_event_listener,
             self.worker_context,
-            self.client.config.namespace,
             validator_registry=self.validator_registry,
         )
 
