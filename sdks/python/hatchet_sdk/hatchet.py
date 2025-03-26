@@ -11,6 +11,7 @@ from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
@@ -77,6 +78,7 @@ class Hatchet:
         self._client = client if client else Client(config=config, debug=debug)
         self.cron = CronClient(self._client)
         self.scheduled = ScheduledClient(self._client)
+        self.runs = RunsClient(self.config)
 
     @property
     def admin(self) -> AdminClient:
