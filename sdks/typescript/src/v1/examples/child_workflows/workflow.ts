@@ -1,30 +1,19 @@
+/* eslint-disable no-plusplus */
 // ❓ Declaring a Child
-
 import { hatchet } from '../hatchet-client';
 
 type ChildInput = {
   N: number;
 };
 
-type ChildOutput = {
-  value: {
-    Value: number;
-  };
-};
-
-export const child = hatchet.workflow<ChildInput, ChildOutput>({
+export const child = hatchet.task({
   name: 'child',
-});
-
-child.task({
-  name: 'value',
-  fn: (input) => {
+  fn: (input: ChildInput) => {
     return {
       Value: input.N,
     };
   },
 });
-
 // !!
 
 // ❓ Declaring a Parent
@@ -33,33 +22,22 @@ type ParentInput = {
   N: number;
 };
 
-type ParentOutput = {
-  sum: {
-    Result: number;
-  };
-};
-
-export const parent = hatchet.workflow<ParentInput, ParentOutput>({
+export const parent = hatchet.task({
   name: 'parent',
-});
-
-parent.task({
-  name: 'sum',
-  fn: async (input, ctx) => {
+  fn: async (input: ParentInput, ctx) => {
     const n = input.N;
     const promises = [];
-    // eslint-disable-next-line no-plusplus
+
     for (let i = 0; i < n; i++) {
       promises.push(ctx.runChild(child, { N: i }));
     }
 
     const childRes = await Promise.all(promises);
-    const sum = childRes.reduce((acc, curr) => acc + curr.value.Value, 0);
+    const sum = childRes.reduce((acc, curr) => acc + curr.Value, 0);
 
     return {
       Result: sum,
     };
   },
 });
-
 // !!
