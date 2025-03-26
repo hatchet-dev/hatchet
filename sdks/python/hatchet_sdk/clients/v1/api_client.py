@@ -2,7 +2,9 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Coroutine, ParamSpec, TypeVar
 
+from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
+from hatchet_sdk.config import ClientConfig
 
 ## Type variables to use with coroutines.
 ## See https://stackoverflow.com/questions/73240620/the-right-way-to-type-hint-a-coroutine-function
@@ -19,15 +21,17 @@ P = ParamSpec("P")
 
 
 class BaseRestClient:
-    def __init__(self, host: str, api_key: str, tenant_id: str):
-        self.tenant_id = tenant_id
+    def __init__(self, config: ClientConfig) -> None:
+        self.tenant_id = config.tenant_id
 
         self.config = Configuration(
-            host=host,
-            access_token=api_key,
+            host=config.server_url,
+            access_token=config.token,
         )
 
-    def _run_async_function(
+        self.client = ApiClient(self.config)
+
+    def _run_async_function_do_not_use_directly(
         self,
         async_func: Callable[P, Coroutine[Y, S, R]],
         *args: P.args,
@@ -56,6 +60,8 @@ class BaseRestClient:
         else:
             with ThreadPoolExecutor() as executor:
                 future = executor.submit(
-                    lambda: self._run_async_function(async_func, *args, **kwargs)
+                    lambda: self._run_async_function_do_not_use_directly(
+                        async_func, *args, **kwargs
+                    )
                 )
                 return future.result()
