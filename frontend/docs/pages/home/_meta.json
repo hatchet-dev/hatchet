@@ -50,6 +50,9 @@
   "child-spawning": {
     "title": "Child Spawning"
   },
+  "additional-metadata": {
+    "title": "Additional Metadata"
+  },
 
   "--error-handling": {
     "title": "Error Handling",
@@ -83,11 +86,6 @@
   "docker": "Running with Docker",
   "worker-healthchecks": "Worker Health Checks",
 
-
-  "additional-metadata": {
-    "title": "Additional Metadata",
-    "display": "hidden"
-  },
   "--flow-control": {
     "title": "Flow Control",
     "type": "separator",
