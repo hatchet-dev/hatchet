@@ -129,6 +129,7 @@ export class ContextWorker {
 export class Context<T, K = {}> {
   data: ContextData<T, K>;
   input: T;
+  // @deprecated use ctx.abortController instead
   controller = new AbortController();
   action: Action;
   client: InternalHatchetClient;
@@ -160,6 +161,14 @@ export class Context<T, K = {}> {
     } catch (e: any) {
       throw new HatchetError(`Could not parse payload: ${e.message}`);
     }
+  }
+
+  get abortController() {
+    return this.controller;
+  }
+
+  get cancelled() {
+    return this.controller.signal.aborted;
   }
 
   /**

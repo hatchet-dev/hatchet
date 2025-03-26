@@ -4,11 +4,16 @@ import {
   ClientConfig,
   InternalHatchetClient,
   HatchetClientOptions,
+  ClientConfigSchema,
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { JsonObject, DurableContext } from '@hatchet/step';
+import api, { Api } from '@hatchet/clients/rest';
+import { ConfigLoader } from '@hatchet/util/config-loader';
+import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
+import { z } from 'zod';
 import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
@@ -35,6 +40,7 @@ import { CreateStandaloneDurableTaskOpts } from '../task';
 export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: InternalHatchetClient;
+  _api: Api;
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -44,9 +50,7 @@ export class HatchetClient implements IHatchetClient {
   }
 
   /** The tenant ID for the Hatchet client */
-  get tenantId() {
-    return this._v0.tenantId;
-  }
+  tenantId: string;
 
   _isV1: boolean | undefined = true;
 
@@ -65,7 +69,33 @@ export class HatchetClient implements IHatchetClient {
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
   ) {
-    this._v0 = new InternalHatchetClient(config, options, axiosConfig);
+    try {
+      const loaded = ConfigLoader.loadClientConfig(config, {
+        path: options?.config_path,
+      });
+
+      const valid = ClientConfigSchema.parse(loaded);
+
+      let logConstructor = config?.logger;
+
+      if (logConstructor == null) {
+        logConstructor = DEFAULT_LOGGER;
+      }
+
+      const clientConfig = {
+        ...valid,
+        logger: logConstructor,
+      };
+
+      this.tenantId = clientConfig.tenant_id;
+      this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
+      this._v0 = new InternalHatchetClient(clientConfig, options, axiosConfig, this.runs);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        throw new Error(`Invalid client config: ${e.message}`);
+      }
+      throw e;
+    }
   }
 
   /**
@@ -350,7 +380,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A API client instance
    */
   get api() {
-    return this._v0.api;
+    return this._api;
   }
 
   /**
@@ -386,6 +416,6 @@ export class HatchetClient implements IHatchetClient {
   }
 
   runRef<T extends Record<string, any> = any>(id: string): WorkflowRunRef<T> {
-    return new WorkflowRunRef<T>(id, this.v0.listener);
+    return new WorkflowRunRef<T>(id, this.v0.listener, this.runs);
   }
 }

@@ -17,6 +17,7 @@ import {
   AdminServiceDefinition,
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
+import { RunsClient } from '@hatchet/v1';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -52,6 +53,7 @@ export class AdminClient {
   tenantId: string;
   logger: Logger;
   listenerClient: RunListenerClient;
+  workflows: RunsClient | undefined;
 
   constructor(
     config: ClientConfig,
@@ -59,7 +61,8 @@ export class AdminClient {
     factory: ClientFactory,
     api: Api,
     tenantId: string,
-    listenerClient: RunListenerClient
+    listenerClient: RunListenerClient,
+    workflows: RunsClient | undefined
   ) {
     this.config = config;
     this.client = factory.create(WorkflowServiceDefinition, channel);
@@ -68,6 +71,7 @@ export class AdminClient {
     this.tenantId = tenantId;
     this.logger = config.logger(`Admin`, config.log_level);
     this.listenerClient = listenerClient;
+    this.workflows = workflows;
   }
 
   /**
@@ -192,7 +196,7 @@ export class AdminClient {
           : undefined,
       });
 
-      return new WorkflowRunRef<P>(resp, this.listenerClient, options?.parentId);
+      return new WorkflowRunRef<P>(resp, this.listenerClient, this.workflows, options?.parentId);
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
@@ -248,7 +252,12 @@ export class AdminClient {
       return bulkTriggerWorkflowResponse.then((res) => {
         return res.workflowRunIds.map((resp, index) => {
           const { options } = workflowRuns[index];
-          return new WorkflowRunRef<P>(resp, this.listenerClient, options?.parentId);
+          return new WorkflowRunRef<P>(
+            resp,
+            this.listenerClient,
+            this.workflows,
+            options?.parentId
+          );
         });
       });
     } catch (e: any) {
@@ -323,7 +332,7 @@ export class AdminClient {
    * @returns the workflow run
    */
   async getWorkflowRun(workflowRunId: string) {
-    return new WorkflowRunRef(workflowRunId, this.listenerClient);
+    return new WorkflowRunRef(workflowRunId, this.listenerClient, this.workflows);
   }
 
   /**

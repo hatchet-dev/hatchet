@@ -16,6 +16,7 @@ import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
+import { RunsClient } from '@hatchet/v1';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 import { Api } from '../rest/generated/Api';
@@ -70,6 +71,8 @@ export class InternalHatchetClient {
   dispatcher: DispatcherClient;
   admin: AdminClient;
   api: Api;
+  runs: RunsClient | undefined;
+
   listener: RunListenerClient;
   tenantId: string;
 
@@ -82,10 +85,13 @@ export class InternalHatchetClient {
   constructor(
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
-    axiosOpts?: AxiosRequestConfig
+    axiosOpts?: AxiosRequestConfig,
+    runs?: RunsClient
   ) {
     // Initializes a new Client instance.
     // Loads config in the following order: config param > yaml file > env vars
+
+    this.runs = runs;
 
     const loaded = ConfigLoader.loadClientConfig(config, {
       path: options?.config_path,
@@ -134,13 +140,15 @@ export class InternalHatchetClient {
       clientFactory,
       this.api
     );
+
     this.admin = new AdminClient(
       this.config,
       channelFactory(this.config, this.credentials),
       clientFactory,
       this.api,
       this.tenantId,
-      this.listener
+      this.listener,
+      this.runs
     );
 
     this.durableListener = new DurableListenerClient(
