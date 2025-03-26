@@ -94,7 +94,7 @@ export default function ExpandedWorkflowRun() {
 
   return (
     <div className="flex-grow h-full w-full">
-      <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
         <V1RunDetailHeader />
         <Separator className="my-4" />
         <div className="flex flex-row gap-x-4 mb-4">
