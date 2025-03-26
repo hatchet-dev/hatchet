@@ -20,6 +20,7 @@ from hatchet_sdk.clients.v1.api_client import (
     maybe_uuid_to_str,
 )
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
 class RunFilter(BaseModel):
@@ -186,3 +187,13 @@ class RunsClient(BaseRestClient):
 
     def bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
         return self._run_async_from_sync(self.aio_bulk_cancel, opts)
+
+    async def aio_get_result(self, run_id: UUID) -> JSONSerializableMapping:
+        details = await self.aio_get(run_id)
+
+        return details.run.output
+
+    def get_result(self, run_id: UUID) -> JSONSerializableMapping:
+        details = self.get(run_id)
+
+        return details.run.output
