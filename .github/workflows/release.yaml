@@ -96,3 +96,13 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest
+      - name: Pull and push hatchet-loadtest
+        run: |
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
+
+          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:latest \
+            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+
+          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:latest

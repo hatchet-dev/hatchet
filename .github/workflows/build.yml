@@ -218,3 +218,23 @@ jobs:
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:amd64 \
             --platform linux/amd64 \
             .
+
+  loadtest:
+    needs: check_path
+    runs-on: ubuntu-latest
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Build loadtest
+        run: docker build -f ./build/package/loadtest.dockerfile .
+
+  loadtest-arm:
+    needs: check_path
+    runs-on: hatchet-arm64-2
+    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Build loadtest
+        run: docker build -f ./build/package/loadtest.dockerfile .

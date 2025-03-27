@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -14,11 +15,7 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-	return "my-key", nil
-}
-
-func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
+func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency, slots int, failureRate float32, eventFanout int) (int64, int64) {
 	c, err := client.New(
 		client.WithLogLevel("warn"),
 	)
@@ -32,7 +29,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 			c,
 		),
 		worker.WithLogLevel("warn"),
-		worker.WithMaxRuns(200),
+		worker.WithMaxRuns(slots),
 	)
 
 	if err != nil {
@@ -46,58 +43,69 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 
 	var concurrencyOpts *worker.WorkflowConcurrency
 	if concurrency > 0 {
-		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency))
+		concurrencyOpts = worker.Expression("'global'").MaxRuns(int32(concurrency))
 	}
 
-	err = w.On(
-		worker.Event("load-test:event"),
-		&worker.WorkflowJob{
-			Name:        "load-test",
-			Description: "Load testing",
-			Concurrency: concurrencyOpts,
-			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					var input Event
-					err = ctx.WorkflowInput(&input)
-					if err != nil {
-						return nil, err
-					}
+	step := func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+		var input Event
+		err = ctx.WorkflowInput(&input)
+		if err != nil {
+			return nil, err
+		}
 
-					took := time.Since(input.CreatedAt)
-					l.Info().Msgf("executing %d took %s", input.ID, took)
+		took := time.Since(input.CreatedAt)
+		l.Info().Msgf("executing %d took %s", input.ID, took)
 
-					mx.Lock()
-					executions <- took
-					// detect duplicate in executed slice
-					var duplicate bool
-					for i := 0; i < len(executed)-1; i++ {
-						if executed[i] == input.ID {
-							duplicate = true
-							break
-						}
-					}
-					if duplicate {
-						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
-					}
-					if !duplicate {
-						uniques++
-					}
-					count++
-					executed = append(executed, input.ID)
-					mx.Unlock()
+		mx.Lock()
+		executions <- took
+		// detect duplicate in executed slice
+		var duplicate bool
+		// for i := 0; i < len(executed)-1; i++ {
+		// 	if executed[i] == input.ID {
+		// 		duplicate = true
+		// 		break
+		// 	}
+		// }
+		if duplicate {
+			l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+		}
+		if !duplicate {
+			uniques++
+		}
+		count++
+		executed = append(executed, input.ID)
+		mx.Unlock()
 
-					time.Sleep(delay)
+		time.Sleep(delay)
 
-					return &stepOneOutput{
-						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
-					}, nil
-				}).SetName("step-one"),
+		if failureRate > 0 {
+			if rand.Float32() < failureRate {
+				return nil, fmt.Errorf("random failure")
+			}
+		}
+
+		return &stepOneOutput{
+			Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+		}, nil
+	}
+
+	for i := range eventFanout {
+		err = w.RegisterWorkflow(
+			&worker.WorkflowJob{
+				Name:        fmt.Sprintf("load-test-%d", i),
+				Description: "Load testing",
+				On:          worker.Event("load-test:event"),
+				Concurrency: concurrencyOpts,
+				// ScheduleTimeout: "30s",
+				Steps: []*worker.WorkflowStep{
+					worker.Fn(step).SetName("step-one").SetTimeout("5m"),
+				},
 			},
-		},
-	)
+		)
 
-	if err != nil {
-		panic(err)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	cleanup, err := w.Start()
