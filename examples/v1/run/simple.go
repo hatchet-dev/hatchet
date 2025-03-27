@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
@@ -65,6 +67,30 @@ func main() {
 				return err
 			}
 			fmt.Println("Sleep workflow completed")
+			return nil
+		},
+		"durable-event": func() error {
+			durableEventWorkflow := v1_workflows.DurableEvent(hatchet)
+			workflow, err := durableEventWorkflow.RunNoWait(v1_workflows.DurableEventInput{
+				Message: "Hello, World!",
+			})
+
+			if err != nil {
+				return err
+			}
+
+			time.Sleep(10 * time.Second)
+
+			hatchet.V0().Event().Push(context.Background(), "user:update", v1_workflows.EventData{
+				Message: "User updated!",
+			})
+
+			_, err = workflow.Result()
+
+			if err != nil {
+				return err
+			}
+			fmt.Println("Durable event workflow completed")
 			return nil
 		},
 	}

@@ -29,9 +29,13 @@ type Concurrency struct {
 }
 
 type TaskConditions struct {
-	// TODO: DOCS
-	WaitFor  condition.Condition
-	SkipIf   condition.Condition
+	// WaitFor represents a set of conditions which must be satisfied before the task can run.
+	WaitFor condition.Condition
+
+	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
+	SkipIf condition.Condition
+
+	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
 	CancelIf condition.Condition
 }
 

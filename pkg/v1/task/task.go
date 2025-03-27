@@ -181,6 +181,43 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
+
+	sleepConditions := make([]*contracts.SleepMatchCondition, 0)
+	userEventConditions := make([]*contracts.UserEventMatchCondition, 0)
+	parentOverrideConditions := make([]*contracts.ParentOverrideMatchCondition, 0)
+
+	if t.Conditions != nil {
+		if t.Conditions.WaitFor != nil {
+			cs := t.Conditions.WaitFor.ToPB(contracts.Action_QUEUE)
+
+			sleepConditions = append(sleepConditions, cs.SleepConditions...)
+			userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+			parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+		}
+
+		if t.Conditions.SkipIf != nil {
+			cs := t.Conditions.SkipIf.ToPB(contracts.Action_SKIP)
+
+			sleepConditions = append(sleepConditions, cs.SleepConditions...)
+			userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+			parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+		}
+
+		if t.Conditions.CancelIf != nil {
+			cs := t.Conditions.CancelIf.ToPB(contracts.Action_CANCEL)
+
+			sleepConditions = append(sleepConditions, cs.SleepConditions...)
+			userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+			parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+		}
+
+		base.Conditions = &contracts.TaskConditions{
+			SleepConditions:          sleepConditions,
+			UserEventConditions:      userEventConditions,
+			ParentOverrideConditions: parentOverrideConditions,
+		}
+	}
+
 	return base
 }
 
