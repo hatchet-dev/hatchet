@@ -6,6 +6,7 @@ import { PostHogProvider } from "posthog-js/react";
 import "../styles/global.css";
 import { useRouter } from "next/router";
 import { LanguageProvider } from "../context/LanguageContext";
+import { LegacyDocsBanner } from "../components/LegacyDocsBanner";
 
 // const inter = Inter({ subsets: ["latin"] });
 
@@ -26,6 +27,7 @@ function MyApp({ Component, pageProps }: AppProps) {
     <LanguageProvider>
       <PostHogProvider client={posthog}>
         <main>
+          <LegacyDocsBanner />
           <Component {...pageProps} />
         </main>
       </PostHogProvider>
