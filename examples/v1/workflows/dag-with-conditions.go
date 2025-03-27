@@ -10,34 +10,30 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type DagInput struct {
+type DagWithConditionsInput struct {
 	Message string
 }
 
-type SimpleOutput struct {
-	Step int
-}
-
-type DagResult struct {
+type DagWithConditionsResult struct {
 	Step1 SimpleOutput
 	Step2 SimpleOutput
 }
 
-type taskOpts = create.WorkflowTask[DagInput, DagResult]
+type conditionOpts = create.WorkflowTask[DagWithConditionsInput, DagWithConditionsResult]
 
-func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput, DagResult] {
+func DagWithConditionsWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagWithConditionsInput, DagWithConditionsResult] {
 
-	simple := factory.NewWorkflow[DagInput, DagResult](
-		create.WorkflowCreateOpts[DagInput]{
+	simple := factory.NewWorkflow[DagWithConditionsInput, DagWithConditionsResult](
+		create.WorkflowCreateOpts[DagWithConditionsInput]{
 			Name: "simple-dag",
 		},
 		hatchet,
 	)
 
 	step1 := simple.Task(
-		taskOpts{
+		conditionOpts{
 			Name: "Step1",
-		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
+		}, func(ctx worker.HatchetContext, input DagWithConditionsInput) (interface{}, error) {
 			return &SimpleOutput{
 				Step: 1,
 			}, nil
@@ -45,12 +41,12 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 	)
 
 	simple.Task(
-		taskOpts{
+		conditionOpts{
 			Name: "Step2",
 			Parents: []create.NamedTask{
 				step1,
 			},
-		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
+		}, func(ctx worker.HatchetContext, input DagWithConditionsInput) (interface{}, error) {
 
 			var step1Output SimpleOutput
 			err := ctx.ParentOutput(step1, &step1Output)
