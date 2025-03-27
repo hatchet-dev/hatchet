@@ -122,8 +122,7 @@
   },
   "v1-bulk-operations": "Bulk Cancel and Replay",
   "v1-sdk-improvements": {
-    "title": "SDK QoL Improvements",
-    "display": "hidden"
+    "title": "SDK Improvements"
   },
   "--v1-migration-guides": {
     "title": "V1 Migration Guides",
