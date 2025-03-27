@@ -36,18 +36,9 @@
     "title": "Self Hosting",
     "type": "page"
   },
-  "contributing": {
-    "title": "Contributing",
-    "type": "page",
-    "display": "hidden"
-  },
   "launches": {
     "title": "Launches",
     "display": "hidden",
-    "type": "page"
-  },
-  "blog": {
-    "title": "Blog",
     "type": "page"
   }
 }
