@@ -4,11 +4,11 @@ import {
   LogLine,
   ManagedWorker,
 } from '@/lib/api/generated/cloud/data-contracts';
-import LoggingComponent from '@/components/cloud/logging/logs';
+import LoggingComponent from '@/components/v1/cloud/logging/logs';
 import { useState, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
-import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/v1/ui/input';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 

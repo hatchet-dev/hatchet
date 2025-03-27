@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/v1/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import {
@@ -9,14 +9,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/components/v1/ui/select';
 import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Input } from '@/components/ui/input';
-import EnvGroupArray, { KeyValueType } from '@/components/ui/envvar';
+import { Label } from '@/components/v1/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Input } from '@/components/v1/ui/input';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
 import {
   getRepoName,
   getRepoOwner,
@@ -35,9 +35,20 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
+} from '@/components/v1/ui/accordion';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
+import { Checkbox } from '@/components/v1/ui/checkbox';
+import { UpgradeMessage } from '../../create/components/create-worker-form';
+import {
+  ComputeType,
+  managedCompute,
+} from '@/lib/can/features/managed-compute';
+import { useTenant } from '@/lib/atoms';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
@@ -295,6 +306,23 @@ export default function UpdateWorkerForm({
     }
   }, [getValues, setValue, isIac]);
 
+  const { can } = useTenant();
+
+  const [isComputeAllowed] = useMemo(() => {
+    const selectedMachine = machineTypes.find((m) => m.title === machineType);
+    if (!selectedMachine || !can) {
+      return [true, undefined];
+    }
+
+    const computeType: ComputeType = {
+      cpuKind: selectedMachine.cpuKind,
+      cpus: selectedMachine.cpus,
+      memoryMb: selectedMachine.memoryMb,
+    };
+
+    return can(managedCompute.selectCompute(computeType));
+  }, [can, machineType]);
+
   // if there are no github accounts linked, ask the user to link one
   if (
     listInstallationsQuery.isSuccess &&
@@ -318,11 +346,27 @@ export default function UpdateWorkerForm({
     );
   }
 
+  const renderMachineTypeSelectItem = (machine: (typeof machineTypes)[0]) => {
+    const computeType: ComputeType = {
+      cpuKind: machine.cpuKind,
+      cpus: machine.cpus,
+      memoryMb: machine.memoryMb,
+    };
+
+    const [allowed] = can(managedCompute.selectCompute(computeType));
+
+    return (
+      <SelectItem key={machine.title} value={machine.title}>
+        {machine.title} {!allowed && '🔒'}
+      </SelectItem>
+    );
+  };
+
   return (
     <>
       <div className="text-sm text-muted-foreground">
-        Change the configuration of your worker. This will trigger a
-        redeployment.
+        Change the configuration of your service. This will trigger a
+        redeployment of all workers.
       </div>
       <div className="mt-6 flex flex-col gap-4">
         <div>
@@ -333,7 +377,11 @@ export default function UpdateWorkerForm({
               name="name"
               render={({ field }) => {
                 return (
-                  <Input {...field} id="name" placeholder="my-awesome-worker" />
+                  <Input
+                    {...field}
+                    id="name"
+                    placeholder="my-awesome-service"
+                  />
                 );
               }}
             />
@@ -511,7 +559,7 @@ export default function UpdateWorkerForm({
             </AccordionTrigger>
             <AccordionContent className="grid gap-4">
               <div className="text-sm text-muted-foreground">
-                Configure the runtime settings for this worker.
+                Configure the runtime settings for this service.
               </div>
               <Label>Environment Variables</Label>
               <EnvGroupArray
@@ -591,11 +639,9 @@ export default function UpdateWorkerForm({
                           {...field}
                           value={machineType}
                           onValueChange={(value) => {
-                            // get the correct machine type from the value
                             const machineType = machineTypes.find(
                               (i) => i.title === value,
                             );
-
                             setMachineType(value);
                             setValue(
                               'runtimeConfig.cpus',
@@ -618,16 +664,17 @@ export default function UpdateWorkerForm({
                             />
                           </SelectTrigger>
                           <SelectContent>
-                            {machineTypes.map((i) => (
-                              <SelectItem key={i.title} value={i.title}>
-                                {i.title}
-                              </SelectItem>
-                            ))}
+                            {machineTypes.map(renderMachineTypeSelectItem)}
                           </SelectContent>
                         </Select>
                       );
                     }}
                   />
+                  {!isComputeAllowed && (
+                    <UpgradeMessage
+                      feature={`The selected machine type (${machineType})`}
+                    />
+                  )}
                   {cpuKindError && (
                     <div className="text-sm text-red-500">{cpuKindError}</div>
                   )}

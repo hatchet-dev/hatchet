@@ -1,6 +1,6 @@
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import LoggingComponent from '@/components/cloud/logging/logs';
+import LoggingComponent from '@/components/v1/cloud/logging/logs';
 
 export function ManagedWorkerIaCLogs({
   managedWorkerId,
