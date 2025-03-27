@@ -192,7 +192,7 @@ export function useTenant(): TenantContext {
   const cloudMeta = useCloudApiMeta();
 
   const billingState = useQuery({
-    ...queries.cloud.billing(tenant!.metadata.id),
+    ...queries.cloud.billing(tenant?.metadata?.id || ''),
     enabled: tenant && !!cloudMeta?.data.canBill,
     refetchInterval: pollBilling ? 1000 : false,
   });
