@@ -14,15 +14,16 @@ The Hatchet SDKs have seen considerable improvements with the V1 release.
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
 
-### highlights
+### Highlights
 
 The Python SDK has a number of notable highlights to showcase for V1. Many of them have been highlighted elsewhere, such as [in the migration guide](./migration-guide-python.mdx), on the [Pydantic page](./pydantic.mdx), an in various examples. Here, we'll list out each of them, along with their motivations and benefits.
 
-First and foremost: Many of the changes in the V1 Python SDK are motivated by improved support for type checking and validation across large codebases and in production use-cases. At a high level, the main highlights in the V1 Python SDK are:
+First and foremost: Many of the changes in the V1 Python SDK are motivated by improved support for type checking and validation across large codebases and in production use-cases. With that in mind, the main highlights in the V1 Python SDK are:
 
-1. Workflows are now declared with `hatchet.workflow`, which returns a `Workflow` object. Workflows then have their corresponding tasks registered with `Workflow.task`. The `Workflow` object can be reused easily across the codebase, and has wrapper methods like `run` and `schedule` that make it easy to run workflows. In these wrapper methods, inputs to the workflow are type checked, and you no longer need to specify the name of the workflow to run as a magic string.
-2. Tasks have their inputs type checked, and are now Pydantic models. The `input` field is either the model you provide to the workflow as the `input_validator`, or is an `EmptyModel`, which is a helper Pydantic model Hatchet provides and uses as a default.
+1. Workflows are now declared with `hatchet.workflow`, which returns a `Workflow` object, or `hatchet.task` (for simple cases) which returns a `Standalone` object. Workflows then have their corresponding tasks registered with `Workflow.task`. The `Workflow` object (and the `Standalone` object) can be reused easily across the codebase, and has wrapper methods like `run` and `schedule` that make it easy to run workflows. In these wrapper methods, inputs to the workflow are type checked, and you no longer need to specify the name of the workflow to run as a magic string.
+2. Tasks have their inputs type checked, and inputs are now Pydantic models. The `input` field is either the model you provide to the workflow as the `input_validator`, or is an `EmptyModel`, which is a helper Pydantic model Hatchet provides and uses as a default.
 3. In the new SDK, we define the `parents` of a task as a list of `Task` objects as opposed to as a list of strings. This also allows us to use `ctx.task_output(my_task)` to access the output of the `my_task` task in the a downstream task, while allowing that output to be type checked correctly.
+4. In the new SDK, inputs are injected directly into the task as the first positional argument, so the signature of a task now will be `Callable[[YourWorkflowInputType, Context]]`. This replaces the old method of accessing workflow inputs via `context.workflow_input()`.
 
 #### Other Breaking Changes
 
@@ -30,27 +31,27 @@ There have been a number of other breaking changes throughout the SDK in V1.
 
 Typing improvements:
 
-1. All times and durations, such as `timeout` and `schedule_timeout` fields are now `datetime.timedelta` objects instead of strings (e.g. `"10s"` becomes `timedelta(seconds=10)`).
-2. External-facing protobuf objects, such as `StickyStrategy` and `ConcurrencyLimitStrategy`, have been replaced by native Python enums to make working with them easier.
-3. All interactions with the `Workflow` object are now typed, so you know e.g. what the type of the input to the workflow needs to be at type checking time (we see this in the Pydantic example above).
-4. All external-facing types that are used for triggering workflows, scheduling workflows, etc. are now Pydantic objects, as opposed to being `TypedDict`s.
-5. The return type of each `Task` is restricted to a `JSONSerializableMapping` or a Pydantic model, to better align with what the Hatchet Engine expects.
-6. The `ClientConfig` now uses Pydantic Settings, and we've removed the static methods on the Client for `from_environment` and `from_config` in favor of passing configuration in correctly. See the [configuration example](./client.mdx) for more details.
-7. The REST API wrappers, which previously were under `hatchet.rest`, have been completely overhauled.
+1. External-facing protobuf objects, such as `StickyStrategy` and `ConcurrencyLimitStrategy`, have been replaced by native Python enums to make working with them easier.
+2. All external-facing types that are used for triggering workflows, scheduling workflows, etc. are now Pydantic objects, as opposed to being `TypedDict`s.
+3. The return type of each `Task` is restricted to a `JSONSerializableMapping` or a Pydantic model, to better align with what the Hatchet Engine expects.
+4. The `ClientConfig` now uses Pydantic Settings, and we've removed the static methods on the Client for `from_environment` and `from_config` in favor of passing configuration in correctly. See the [configuration example](./client.mdx) for more details.
+5. The REST API wrappers, which previously were under `hatchet.rest`, have been completely overhauled.
 
 Naming changes:
 
 1. We no longer have nested `aio` clients for async methods. Instead, async methods throughout the entire SDK are prefixed by `aio_`, similar to [Langchain's use of the `a` prefix](https://python.langchain.com/docs/concepts/streaming/#stream-and-astream) to indicate async. For example, to run a workflow, you may now either use `workflow.run()` or `workflow.aio_run()`.
-2. All functions on Hatchet clients are now _verbs_. For instance the way to list workflow runs is via `hatchet.workflows.list`.
-3. `max_runs` on the worker has been renamed to `slots`.
+2. All functions on Hatchet clients are now _verbs_. For instance, if something was named `hatchet.nounVerb` before, it now will be something more like `hatchet.verb_noun`. For example, `hatchet.runs.get_result` gets the result of a workflow run.
+3. `timeout`, the execution timeout of a task, has been renamed to `execution_timeout` for clarity.
 
 Removals:
 
 1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](./asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
+2. The `AdminClient` has been removed, and refactored into individual clients. For example, if you absolutely need to create a workflow run manually without using `Workflow.run` or `Standalone.run`, you can use `hatchet.runs.create`. This replaces the old `hatchet.admin.run_workflow`.
 
 Other miscellaneous changes:
 
 1. As shown in the Pydantic example above, there is no longer a `spawn_workflow(s)` method on the `Context`. `run` is now the preferred method for spawning workflows, which will automatically propagate the parent's metadata to the child workflow.
+2. All times and durations, such as `execution_timeout` and `schedule_timeout`, now allow `datetime.timedelta` objects instead of only allowing strings (e.g. `"10s"` can be `timedelta(seconds=10)`).
 
 #### Other New features
 

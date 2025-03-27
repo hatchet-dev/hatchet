@@ -22,9 +22,22 @@ Conditions can be used at task _declaration_ time in three ways:
 2. They can be used in a `skip_if` fashion, where a task will be skipped if the conditions evaluate to `True`.
 3. They can be used in a `cancel_if` fashion, where a task will be cancelled if the conditions evaluate to `True`.
 
+## Use Cases
+
+There are a number of use cases that these features unlock. Some examples might be:
+
+1. A workflow that reads a feature flag, and then decides how to progress based on its value. In this case, you'd have two tasks that use parent conditions, where one task runs if the flag value is e.g. `True`, while the other runs if it's `False`.
+2. Any type of human-in-the-loop workflow, where you want to wait for a human to e.g. approve something before continuing the run.
+
 ## Example Workflow
 
-First, let's create a workflow.
+In this example, we're going to build the following workflow:
+
+![Branching DAG Workflow](/branching-dag.png)
+
+Note the branching logic (`left_branch` and `right_branch`), as well as the use of skips and waits.
+
+To get started, let's declare the workflow.
 
 <GithubSnippet src={WaitsPy} target="Create a workflow" />
 

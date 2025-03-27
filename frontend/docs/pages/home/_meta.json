@@ -115,7 +115,7 @@
     "type": "separator"
   },
   "v1-new-features-overview": "Overview",
-  "v1-dags": "Complex Workflows",
+  "v1-complex-workflows": "Complex Workflows",
   "v1-durable-execution": {
     "title": "Durable Execution",
     "display": "hidden"
