@@ -116,9 +116,15 @@
   },
   "v1-new-features-overview": "Overview",
   "v1-dags": "Complex Workflows",
-  "v1-durable-execution": "Durable Execution",
+  "v1-durable-execution": {
+    "title": "Durable Execution",
+    "display": "hidden"
+  },
   "v1-bulk-operations": "Bulk Cancel and Replay",
-  "v1-sdk-improvements": "SDK QoL Improvements",
+  "v1-sdk-improvements": {
+    "title": "SDK QoL Improvements",
+    "display": "hidden"
+  },
   "--v1-migration-guides": {
     "title": "V1 Migration Guides",
     "type": "separator"

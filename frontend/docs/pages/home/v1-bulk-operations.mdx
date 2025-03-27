@@ -1,0 +1,20 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const FanoutPy = {
+  path: "examples/fanout/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([FanoutPy]);
+
+## Bulk Cancellations and Replays
+
+V1 add the ability to cancel or replay workflow runs in bulk, which you can now do either in the Hatchet Dashboard or programmatically via the SDKs and the REST API.
+
+There are two ways of bulk cancelling or replaying workflows in both cases:
+
+1. You can provide a list of workflow run ids to cancel or replay, which will cancel or replay all of the workflows in the list.
+2. You can provide a list of filters, similar to the list of filters on workflow runs in the Dashboard, and cancel or replay runs matching those filters. For instance, if you wanted to replay all failed runs of a `SimpleWorkflow` from the past fifteen minutes that had the `foo` field in `additional_metadata` set to `bar`, you could apply those filters and replay all of the matching runs.
+
+## Examples

@@ -6,6 +6,7 @@ from hatchet_sdk.clients.admin import (
 from hatchet_sdk.clients.durable_event_listener import RegisterDurableEventRequest
 from hatchet_sdk.clients.events import PushEventOptions
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 # import models into sdk package
 from hatchet_sdk.clients.rest.models.api_error import APIError
@@ -135,6 +136,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     RateLimitDuration,
     WorkerLabelComparator,
 )
+from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
@@ -264,4 +266,7 @@ __all__ = [
     "DurableContext",
     "RegisterDurableEventRequest",
     "TaskDefaults",
+    "BulkCancelReplayOpts",
+    "RunFilter",
+    "V1TaskStatus",
 ]
