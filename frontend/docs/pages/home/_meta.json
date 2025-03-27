@@ -94,8 +94,7 @@
     "title": "Concurrency"
   },
   "rate-limits": {
-    "title": "Rate Limits",
-    "display": "hidden"
+    "title": "Rate Limits"
   },
 
   "--cancellation": {
