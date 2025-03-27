@@ -165,23 +165,29 @@ With your rate limit key defined, specify the units of consumption for a specifi
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const workflow: Workflow = {
   // ... the rest of the workflow definition
   steps: [
     {
-      name: 'step1',
-      rate_limits: [{ key: 'example-limit', units: 1 }],
+      name: "step1",
+      rate_limits: [{ key: "example-limit", units: 1 }],
       run: async (ctx) => {
-        console.log('starting step1 with the following input', ctx.workflowInput());
-        return { step1: 'step1 results!' };
+        console.log(
+          "starting step1 with the following input",
+          ctx.workflowInput(),
+        );
+        return { step1: "step1 results!" };
       },
     },
   ],
 };
 ```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 err = w.RegisterWorkflow(
     &worker.WorkflowJob{
@@ -199,6 +205,7 @@ err = w.RegisterWorkflow(
     },
 )
 ```
+
   </Tabs.Tab>
 </UniversalTabs>
 
