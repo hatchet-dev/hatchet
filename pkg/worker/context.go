@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 )
 
 type HatchetWorkerContext interface {
@@ -73,7 +73,7 @@ type HatchetContext interface {
 
 	RetryCount() int
 
-	ParentOutput(parent task.NamedTask, output interface{}) error
+	ParentOutput(parent create.NamedTask, output interface{}) error
 
 	client() client.Client
 
@@ -194,7 +194,7 @@ func (h *hatchetContext) StepOutput(step string, target interface{}) error {
 	return fmt.Errorf("step %s not found in action payload", step)
 }
 
-func (h *hatchetContext) ParentOutput(parent task.NamedTask, output interface{}) error {
+func (h *hatchetContext) ParentOutput(parent create.NamedTask, output interface{}) error {
 	stepName := parent.GetName()
 
 	if val, ok := h.stepData.Parents[stepName]; ok {

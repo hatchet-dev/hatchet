@@ -3,11 +3,16 @@ package v1_workflows
 import (
 	"fmt"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
+
+type DagInput struct {
+	Message string
+}
 
 type SimpleOutput struct {
 	Step int
@@ -18,46 +23,46 @@ type DagResult struct {
 	Step2 SimpleOutput
 }
 
-func DagWorkflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, DagResult] {
+type taskOpts = create.WorkflowTask[DagInput, DagResult]
 
-	simple := v1.WorkflowFactory[any, DagResult](
-		workflow.CreateOpts[any]{
+func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput, DagResult] {
+
+	simple := factory.NewWorkflow[DagInput, DagResult](
+		create.WorkflowCreateOpts[DagInput]{
 			Name: "simple-dag",
 		},
 		hatchet,
 	)
 
 	step1 := simple.Task(
-		task.CreateOpts[any]{
+		taskOpts{
 			Name: "Step1",
-			Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
-				return &SimpleOutput{
-					Step: 1,
-				}, nil
-			},
+		}, func(input DagInput, ctx worker.HatchetContext) (interface{}, error) {
+			return &SimpleOutput{
+				Step: 1,
+			}, nil
 		},
 	)
 
 	simple.Task(
-		task.CreateOpts[any]{
+		taskOpts{
 			Name: "Step2",
-			Parents: []task.NamedTask{
+			Parents: []create.NamedTask{
 				step1,
 			},
-			Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
+		}, func(input DagInput, ctx worker.HatchetContext) (interface{}, error) {
 
-				var step1Output SimpleOutput
-				err := ctx.ParentOutput(step1, &step1Output)
-				if err != nil {
-					return nil, err
-				}
+			var step1Output SimpleOutput
+			err := ctx.ParentOutput(step1, &step1Output)
+			if err != nil {
+				return nil, err
+			}
 
-				fmt.Println(step1Output.Step)
+			fmt.Println(step1Output.Step)
 
-				return &SimpleOutput{
-					Step: 2,
-				}, nil
-			},
+			return &SimpleOutput{
+				Step: 2,
+			}, nil
 		},
 	)
 

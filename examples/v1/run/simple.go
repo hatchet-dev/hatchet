@@ -20,7 +20,7 @@ func main() {
 		panic(err)
 	}
 
-	simple := v1_workflows.Simple(&hatchet)
+	simple := v1_workflows.Simple(hatchet)
 
 	result, err := simple.Run(v1_workflows.SimpleInput{
 		Message: "Hello, World!",
@@ -30,5 +30,5 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(result.ToLower.TransformedMessage)
+	fmt.Println(result.TransformedMessage)
 }

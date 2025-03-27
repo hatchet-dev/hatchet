@@ -2,10 +2,10 @@ package v1_workflows
 
 import (
 	"strings"
-	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -13,34 +13,24 @@ import (
 type SimpleInput struct {
 	Message string
 }
-
-type LowerOutput struct {
+type SimpleResult struct {
 	TransformedMessage string
 }
 
-type SimpleResult struct {
-	ToLower LowerOutput
-}
+func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
 
-func Simple(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
-
-	simple := v1.WorkflowFactory[SimpleInput, SimpleResult](
-		workflow.CreateOpts[SimpleInput]{
-			Name: "simple",
+	// Create a simple standalone task using the task factory
+	// Note the use of typed generics for both input and output
+	simple := factory.NewTask(
+		create.StandaloneTask{
+			Name: "simple-task",
+		}, func(input SimpleInput, ctx worker.HatchetContext) (*SimpleResult, error) {
+			// Transform the input message to lowercase
+			return &SimpleResult{
+				TransformedMessage: strings.ToLower(input.Message),
+			}, nil
 		},
 		hatchet,
-	)
-
-	simple.Task(
-		task.CreateOpts[SimpleInput]{
-			Name:             "ToLower",
-			ExecutionTimeout: 10 * time.Second,
-			Fn: func(input SimpleInput, ctx worker.HatchetContext) (*LowerOutput, error) {
-				return &LowerOutput{
-					TransformedMessage: strings.ToLower(input.Message),
-				}, nil
-			},
-		},
 	)
 
 	return simple

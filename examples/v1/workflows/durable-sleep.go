@@ -1,53 +1,54 @@
 package v1_workflows
 
-import (
-	"strings"
-	"time"
+// import (
+// 	"strings"
+// 	"time"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
-	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
-)
+// 	"github.com/hatchet-dev/hatchet/pkg/client/create"
+// 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+// 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
+// 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+// 	"github.com/hatchet-dev/hatchet/pkg/worker"
+// )
 
-type DurableSleepInput struct {
-	Message string
-}
+// type DurableSleepInput struct {
+// 	Message string
+// }
 
-type SleepOutput struct {
-	TransformedMessage string
-}
+// type SleepOutput struct {
+// 	TransformedMessage string
+// }
 
-type DurableSleepOutput struct {
-	Sleep SleepOutput
-}
+// type DurableSleepOutput struct {
+// 	Sleep SleepOutput
+// }
 
-func DurableSleep(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[DurableSleepInput, DurableSleepOutput] {
+// func DurableSleep(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DurableSleepInput, DurableSleepOutput] {
 
-	simple := v1.WorkflowFactory[DurableSleepInput, DurableSleepOutput](
-		workflow.CreateOpts[DurableSleepInput]{
-			Name: "durable-sleep",
-		},
-		hatchet,
-	)
+// 	simple := factory.NewTask[DurableSleepInput, DurableSleepOutput](
+// 		create.StandaloneTask[DurableSleepInput, DurableSleepOutput]{
+// 			Name: "durable-sleep",
+// 		},
+// 		hatchet,
+// 	)
 
-	simple.DurableTask(
-		task.CreateOpts[DurableSleepInput]{
-			Name: "Sleep",
-			Fn: func(input DurableSleepInput, ctx worker.DurableHatchetContext) (*SleepOutput, error) {
+// 	simple.DurableTask(
+// 		create.StandaloneDurableTaskCreateOpts[DurableSleepInput, DurableSleepOutput]{
+// 			Name: "Sleep",
+// 			Fn: func(input DurableSleepInput, ctx worker.DurableHatchetContext) (*SleepOutput, error) {
 
-				_, err := ctx.SleepFor(time.Minute)
+// 				_, err := ctx.SleepFor(time.Minute)
 
-				if err != nil {
-					return nil, err
-				}
+// 				if err != nil {
+// 					return nil, err
+// 				}
 
-				return &SleepOutput{
-					TransformedMessage: strings.ToLower(input.Message),
-				}, nil
-			},
-		},
-	)
+// 				return &SleepOutput{
+// 					TransformedMessage: strings.ToLower(input.Message),
+// 				}, nil
+// 			},
+// 		},
+// 	)
 
-	return simple
-}
+// 	return simple
+// }
