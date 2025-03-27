@@ -28,7 +28,7 @@ def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
 
     results = sync_fanout_child.run_many(
         [
-            sync_fanout_child.create_run_workflow_config(
+            sync_fanout_child.create_bulk_run_item(
                 input=ChildInput(a=str(i)),
                 key=f"child{i}",
                 options=TriggerWorkflowOptions(additional_metadata={"hello": "earth"}),

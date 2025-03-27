@@ -272,7 +272,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def is_durable(self) -> bool:
         return any(task.is_durable for task in self.tasks)
 
-    def create_run_workflow_config(
+    def create_bulk_run_item(
         self,
         input: TWorkflowInput | None = None,
         key: str | None = None,
@@ -662,6 +662,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 concurrency=concurrency,
             )
 
+            if self._on_failure_task:
+                raise ValueError("Only one on-failure task is allowed")
+
             self._on_failure_task = task
 
             return task
@@ -722,6 +725,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 concurrency=concurrency,
                 parents=[],
             )
+
+            if self._on_failure_task:
+                raise ValueError("Only one on-failure task is allowed")
 
             self._on_success_task = task
 

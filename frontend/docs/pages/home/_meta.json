@@ -94,8 +94,7 @@
     "title": "Concurrency"
   },
   "rate-limits": {
-    "title": "Rate Limits",
-    "display": "hidden"
+    "title": "Rate Limits"
   },
 
   "--cancellation": {
@@ -111,7 +110,21 @@
     "title": "Bulk Cancellation",
     "display": "hidden"
   },
-  "--v1": {
+  "--v1-new-features": {
+    "title": "V1 New Features",
+    "type": "separator"
+  },
+  "v1-new-features-overview": "Overview",
+  "v1-complex-workflows": "Complex Workflows",
+  "v1-durable-execution": {
+    "title": "Durable Execution",
+    "display": "hidden"
+  },
+  "v1-bulk-operations": "Bulk Cancel and Replay",
+  "v1-sdk-improvements": {
+    "title": "SDK Improvements"
+  },
+  "--v1-migration-guides": {
     "title": "V1 Migration Guides",
     "type": "separator"
   },
