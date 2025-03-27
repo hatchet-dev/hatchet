@@ -218,7 +218,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  xxx<T extends JsonObject = any, K extends JsonObject = any>(
+  runNoWait<T extends JsonObject = any, K extends JsonObject = any>(
     workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
     input: T,
     options: RunOpts
