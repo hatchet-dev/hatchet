@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
 type BaseTaskCreateOpts[I any] struct {
@@ -49,8 +50,14 @@ type WorkflowTask[I, O any] struct {
 	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
-	// (optional) Conditions specify when the task should be executed
-	Conditions *types.TaskConditions
+	// WaitFor represents a set of conditions which must be satisfied before the task can run.
+	WaitFor condition.Condition
+
+	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
+	SkipIf condition.Condition
+
+	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
+	CancelIf condition.Condition
 
 	// (optional) Parents are the tasks that must successfully complete before this task can start
 	Parents []NamedTask

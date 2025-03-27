@@ -7,6 +7,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
 type NamedTaskImpl struct {
@@ -59,8 +60,14 @@ type TaskDeclaration[I any] struct {
 	// The tasks that must successfully complete before this task can start
 	Parents []string
 
-	// Conditions specifies when this task should be executed
-	Conditions *types.TaskConditions
+	// WaitFor represents a set of conditions which must be satisfied before the task can run.
+	WaitFor condition.Condition
+
+	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
+	SkipIf condition.Condition
+
+	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
+	CancelIf condition.Condition
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
@@ -84,8 +91,14 @@ type DurableTaskDeclaration[I any] struct {
 	// and group key expression to evaluate when determining if a task can run
 	Concurrency []*types.Concurrency
 
-	// Conditions specifies when this task should be executed
-	Conditions *types.TaskConditions
+	// WaitFor represents a set of conditions which must be satisfied before the task can run.
+	WaitFor condition.Condition
+
+	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
+	SkipIf condition.Condition
+
+	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
+	CancelIf condition.Condition
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a DurableHatchetContext and returns an output and an error
@@ -186,36 +199,34 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	userEventConditions := make([]*contracts.UserEventMatchCondition, 0)
 	parentOverrideConditions := make([]*contracts.ParentOverrideMatchCondition, 0)
 
-	if t.Conditions != nil {
-		if t.Conditions.WaitFor != nil {
-			cs := t.Conditions.WaitFor.ToPB(contracts.Action_QUEUE)
+	if t.WaitFor != nil {
+		cs := t.WaitFor.ToPB(contracts.Action_QUEUE)
 
-			sleepConditions = append(sleepConditions, cs.SleepConditions...)
-			userEventConditions = append(userEventConditions, cs.UserEventConditions...)
-			parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
-		}
+		sleepConditions = append(sleepConditions, cs.SleepConditions...)
+		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+	}
 
-		if t.Conditions.SkipIf != nil {
-			cs := t.Conditions.SkipIf.ToPB(contracts.Action_SKIP)
+	if t.SkipIf != nil {
+		cs := t.SkipIf.ToPB(contracts.Action_SKIP)
 
-			sleepConditions = append(sleepConditions, cs.SleepConditions...)
-			userEventConditions = append(userEventConditions, cs.UserEventConditions...)
-			parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
-		}
+		sleepConditions = append(sleepConditions, cs.SleepConditions...)
+		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+	}
 
-		if t.Conditions.CancelIf != nil {
-			cs := t.Conditions.CancelIf.ToPB(contracts.Action_CANCEL)
+	if t.CancelIf != nil {
+		cs := t.CancelIf.ToPB(contracts.Action_CANCEL)
 
-			sleepConditions = append(sleepConditions, cs.SleepConditions...)
-			userEventConditions = append(userEventConditions, cs.UserEventConditions...)
-			parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
-		}
+		sleepConditions = append(sleepConditions, cs.SleepConditions...)
+		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+	}
 
-		base.Conditions = &contracts.TaskConditions{
-			SleepConditions:          sleepConditions,
-			UserEventConditions:      userEventConditions,
-			ParentOverrideConditions: parentOverrideConditions,
-		}
+	base.Conditions = &contracts.TaskConditions{
+		SleepConditions:          sleepConditions,
+		UserEventConditions:      userEventConditions,
+		ParentOverrideConditions: parentOverrideConditions,
 	}
 
 	return base

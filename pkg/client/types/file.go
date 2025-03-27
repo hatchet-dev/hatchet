@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,17 +24,6 @@ type Concurrency struct {
 	Expression    string                            `yaml:"expression,omitempty"`
 	MaxRuns       *int32                            `yaml:"maxRuns,omitempty"`
 	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
-}
-
-type TaskConditions struct {
-	// WaitFor represents a set of conditions which must be satisfied before the task can run.
-	WaitFor condition.Condition
-
-	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
-	SkipIf condition.Condition
-
-	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
-	CancelIf condition.Condition
 }
 
 type Workflow struct {
