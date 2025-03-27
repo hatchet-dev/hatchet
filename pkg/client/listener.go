@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -232,6 +233,8 @@ type SubscribeClient interface {
 	StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error
 
 	SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error)
+
+	ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error)
 }
 
 type ClientEventListener interface {
@@ -240,6 +243,8 @@ type ClientEventListener interface {
 
 type subscribeClientImpl struct {
 	client dispatchercontracts.DispatcherClient
+
+	clientv1 sharedcontracts.V1DispatcherClient
 
 	l *zerolog.Logger
 
@@ -250,10 +255,11 @@ type subscribeClientImpl struct {
 
 func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient {
 	return &subscribeClientImpl{
-		client: dispatchercontracts.NewDispatcherClient(conn),
-		l:      opts.l,
-		v:      opts.v,
-		ctx:    opts.ctxLoader,
+		client:   dispatchercontracts.NewDispatcherClient(conn),
+		clientv1: sharedcontracts.NewV1DispatcherClient(conn),
+		l:        opts.l,
+		v:        opts.v,
+		ctx:      opts.ctxLoader,
 	}
 }
 
@@ -372,6 +378,32 @@ func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) 
 
 		if err != nil {
 			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
+		}
+	}()
+
+	return l, nil
+}
+
+func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
+	l, err := r.newDurableEventsListener(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		defer func() {
+			err := l.Close()
+
+			if err != nil {
+				r.l.Error().Err(err).Msg("failed to close durable events listener")
+			}
+		}()
+
+		err := l.Listen(ctx)
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("failed to listen for durable events")
 		}
 	}()
 

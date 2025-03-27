@@ -37,7 +37,7 @@ package v1_workflows
 // 			Name: "Sleep",
 // 			Fn: func(input DurableSleepInput, ctx worker.DurableHatchetContext) (*SleepOutput, error) {
 
-// 				_, err := ctx.SleepFor(time.Minute)
+				_, err := ctx.SleepFor(10 * time.Second)
 
 // 				if err != nil {
 // 					return nil, err

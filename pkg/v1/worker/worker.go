@@ -200,6 +200,11 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 
 		// Register durable actions with durable worker
 		if w.durableWorker != nil {
+			err := w.durableWorker.RegisterWorkflowV1(dump)
+			if err != nil {
+				return err
+			}
+
 			for _, namedFn := range durableFns {
 				err := w.durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 				if err != nil {

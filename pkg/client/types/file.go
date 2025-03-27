@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,7 +29,10 @@ type Concurrency struct {
 }
 
 type TaskConditions struct {
-	// TODO
+	// TODO: DOCS
+	WaitFor  condition.Condition
+	SkipIf   condition.Condition
+	CancelIf condition.Condition
 }
 
 type Workflow struct {
