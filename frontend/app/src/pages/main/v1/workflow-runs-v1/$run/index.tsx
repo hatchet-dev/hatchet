@@ -83,7 +83,19 @@ export default function ExpandedWorkflowRun() {
     setIsSidebarOpen(true);
   }, []);
 
-  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
+  const { workflowRun, shape, isLoading, isError, errStatusCode } =
+    useWorkflowDetails();
+
+  if (isError && errStatusCode == 404 && params.run) {
+    // see if this is actually a task run and redirect
+    return (
+      <div className="flex-grow h-full w-full">
+        <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
+          <TaskRunDetail taskRunId={params.run} />
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || isError || !workflowRun) {
     return null;
