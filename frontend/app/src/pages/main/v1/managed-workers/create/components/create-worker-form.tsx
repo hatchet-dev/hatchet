@@ -1,8 +1,8 @@
 import { queries } from '@/lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/v1/ui/button';
 import { useQuery } from '@tanstack/react-query';
-import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import {
   Select,
   SelectContent,
@@ -14,7 +14,6 @@ import { z } from 'zod';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Label } from '@/components/v1/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Input } from '@/components/v1/ui/input';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
@@ -32,6 +31,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/v1/ui/accordion';
+import { useTenant } from '@/lib/atoms';
+import {
+  managedCompute,
+  ComputeType,
+} from '@/lib/can/features/managed-compute';
 
 export const machineTypes = [
   {
@@ -298,6 +302,8 @@ export default function CreateWorkerForm({
   isLoading,
   fieldErrors,
 }: CreateWorkerFormProps) {
+  const { can } = useTenant();
+
   const {
     watch,
     handleSubmit,
@@ -330,12 +336,48 @@ export default function CreateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
+  // Get max replicas based on plan
+  const getMaxReplicas = useMemo(() => {
+    if (!can) {
+      return Infinity;
+    }
+
+    // Check maximum replicas for each plan
+    for (let i = 1; i <= 20; i++) {
+      const [allowed] = can(managedCompute.maxReplicas(i));
+      if (!allowed) {
+        return i - 1; // Return the last valid replica count
+      }
+    }
+    return 20; // Default to maximum
+  }, [can]);
+
+  // Check if the currently selected compute type is available on the user's plan
+  const [isComputeAllowed] = useMemo(() => {
+    const selectedMachine = machineTypes.find((m) => m.title === machineType);
+    if (!selectedMachine || !can) {
+      return [true, undefined];
+    }
+
+    const computeType: ComputeType = {
+      cpuKind: selectedMachine.cpuKind,
+      cpus: selectedMachine.cpus,
+      memoryMb: selectedMachine.memoryMb,
+    };
+
+    return can(managedCompute.selectCompute(computeType));
+  }, [can, machineType]);
+
+  // Display a message when a feature requires an upgrade
+
   const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
   const repoOwnerName = getRepoOwnerName(repoOwner, repoName);
   const branch = watch('buildConfig.githubRepositoryBranch');
+  const numReplicas = watch('runtimeConfig.numReplicas');
+  const autoscalingMaxReplicas = watch('runtimeConfig.autoscaling.maxReplicas');
 
   const listInstallationsQuery = useQuery({
     ...queries.github.listInstallations,
@@ -348,6 +390,24 @@ export default function CreateWorkerForm({
   const listBranchesQuery = useQuery({
     ...queries.github.listBranches(installation, repoOwner, repoName),
   });
+
+  // Check if the current replica count exceeds the plan limit
+  const isReplicaCountAllowed = useMemo(() => {
+    if (!numReplicas || !can) {
+      return true;
+    }
+    const [allowed] = can(managedCompute.maxReplicas(numReplicas));
+    return allowed;
+  }, [can, numReplicas]);
+
+  // Check if the autoscaling max replicas exceeds the plan limit
+  const isAutoscalingMaxReplicasAllowed = useMemo(() => {
+    if (!autoscalingMaxReplicas || !can) {
+      return true;
+    }
+    const [allowed] = can(managedCompute.maxReplicas(autoscalingMaxReplicas));
+    return allowed;
+  }, [can, autoscalingMaxReplicas]);
 
   const [envVars, setEnvVars] = useState<KeyValueType[]>([]);
   const [isIac, setIsIac] = useState(false);
@@ -422,58 +482,57 @@ export default function CreateWorkerForm({
     }
   }, [listInstallationsQuery, setValue, installation]);
 
-  if (
-    listInstallationsQuery.isSuccess &&
-    listInstallationsQuery.data.rows.length === 0
-  ) {
+  // TODO: Add this back in
+  // if (
+  //   listInstallationsQuery.isSuccess &&
+  //   listInstallationsQuery.data.rows.length === 0
+  // ) {
+  //   return (
+  //     <Alert>
+  //       <ExclamationTriangleIcon className="h-4 w-4" />
+  //       <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
+  //       <AlertDescription>
+  //         You don't have any Github accounts linked. Please{' '}
+  //         <a
+  //           href="/api/v1/cloud/users/github-app/start"
+  //           className="text-indigo-400"
+  //         >
+  //           link a Github account
+  //         </a>{' '}
+  //         first.
+  //       </AlertDescription>
+  //     </Alert>
+  //   );
+  // }
+
+  // Render the machine type select
+  // Keep rendering all machine types but add visual indicators if they're not allowed
+  const renderMachineTypeSelectItem = (machine: (typeof machineTypes)[0]) => {
+    const computeType: ComputeType = {
+      cpuKind: machine.cpuKind,
+      cpus: machine.cpus,
+      memoryMb: machine.memoryMb,
+    };
+
+    const [allowed] = can(managedCompute.selectCompute(computeType));
+
     return (
-      <Alert>
-        <ExclamationTriangleIcon className="h-4 w-4" />
-        <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
-        <AlertDescription>
-          You don't have any Github accounts linked. Please{' '}
-          <a
-            href="/api/v1/cloud/users/github-app/start"
-            className="text-indigo-400"
-          >
-            link a Github account
-          </a>{' '}
-          first.
-        </AlertDescription>
-      </Alert>
+      <SelectItem key={machine.title} value={machine.title}>
+        {machine.title} {!allowed && '🔒'}
+      </SelectItem>
     );
-  }
+  };
 
   return (
     <>
       <div className="text-sm text-muted-foreground">
-        Create a new managed worker.
+        Define the compute resources for your services.
       </div>
       <Steps className="mt-6">
-        <Step title="Name">
-          <div className="grid gap-4">
-            <div className="text-sm text-muted-foreground">
-              Give your worker a name.
-            </div>
-            <Label htmlFor="name">Name</Label>
-            <Controller
-              control={control}
-              name="name"
-              render={({ field }) => {
-                return (
-                  <Input {...field} id="name" placeholder="my-awesome-worker" />
-                );
-              }}
-            />
-            {nameError && (
-              <div className="text-sm text-red-500">{nameError}</div>
-            )}
-          </div>
-        </Step>
         <Step title="Build configuration">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Configure the Github repository the worker should deploy from.
+              Configure the Github repository the service should deploy from.
             </div>
 
             <div className="max-w-3xl grid gap-4">
@@ -645,7 +704,7 @@ export default function CreateWorkerForm({
         <Step title="Runtime configuration">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Configure the runtime settings for this worker.
+              Configure the runtime settings for this service.
             </div>
             <Label>Environment Variables</Label>
             <EnvGroupArray
@@ -747,24 +806,31 @@ export default function CreateWorkerForm({
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          {machineTypes.map((i) => (
-                            <SelectItem key={i.title} value={i.title}>
-                              {i.title}
-                            </SelectItem>
-                          ))}
+                          {machineTypes.map(renderMachineTypeSelectItem)}
                         </SelectContent>
                       </Select>
                     );
                   }}
                 />
+                {!isComputeAllowed && (
+                  <UpgradeMessage
+                    feature={`The selected machine type (${machineType})`}
+                  />
+                )}
                 {cpuKindError && (
-                  <div className="text-sm text-red-500">{cpuKindError}</div>
+                  <div className="text-sm text-red-500 dark:text-red-400">
+                    {cpuKindError}
+                  </div>
                 )}
                 {cpusError && (
-                  <div className="text-sm text-red-500">{cpusError}</div>
+                  <div className="text-sm text-red-500 dark:text-red-400">
+                    {cpusError}
+                  </div>
                 )}
                 {memoryMbError && (
-                  <div className="text-sm text-red-500">{memoryMbError}</div>
+                  <div className="text-sm text-red-500 dark:text-red-400">
+                    {memoryMbError}
+                  </div>
                 )}
                 <Label>Scaling Method</Label>
                 <Tabs
@@ -787,7 +853,7 @@ export default function CreateWorkerForm({
                         increment: 1,
                         scaleToZero: true,
                         minAwakeReplicas: 1,
-                        maxReplicas: 10,
+                        maxReplicas: Math.min(10, getMaxReplicas),
                         fly: {
                           autoscalingKey: 'dashboard',
                           currentReplicas: 1,
@@ -804,7 +870,9 @@ export default function CreateWorkerForm({
                     ))}
                   </TabsList>
                   <TabsContent value="Static" className="pt-4 grid gap-4">
-                    <Label htmlFor="numReplicas">Number of replicas</Label>
+                    <Label htmlFor="numReplicas">
+                      Number of replicas (max: {getMaxReplicas})
+                    </Label>
                     <Controller
                       control={control}
                       name="runtimeConfig.numReplicas"
@@ -821,15 +889,19 @@ export default function CreateWorkerForm({
                               field.onChange(parseInt(e.target.value));
                             }}
                             min={0}
-                            max={16}
                             id="numReplicas"
                             placeholder="1"
                           />
                         );
                       }}
                     />
+                    {!isReplicaCountAllowed && (
+                      <UpgradeMessage
+                        feature={`More than ${getMaxReplicas} replicas`}
+                      />
+                    )}
                     {numReplicasError && (
-                      <div className="text-sm text-red-500">
+                      <div className="text-sm text-red-500 dark:text-red-400">
                         {numReplicasError}
                       </div>
                     )}
@@ -846,41 +918,75 @@ export default function CreateWorkerForm({
                             id="minAwakeReplicas"
                             type="number"
                             onChange={(e) => {
-                              field.onChange(parseInt(e.target.value));
+                              const minValue = parseInt(e.target.value);
+                              field.onChange(minValue);
 
                               setValue(
                                 'runtimeConfig.autoscaling.fly.currentReplicas',
-                                parseInt(e.target.value),
+                                minValue,
                               );
+
+                              // If min replicas is greater than max replicas, update max replicas
+                              const maxReplicas = watch(
+                                'runtimeConfig.autoscaling.maxReplicas',
+                              );
+                              if (maxReplicas < minValue) {
+                                setValue(
+                                  'runtimeConfig.autoscaling.maxReplicas',
+                                  minValue,
+                                );
+                              }
                             }}
                           />
                         );
                       }}
                     />
                     {autoscalingMinAwakeReplicasError && (
-                      <div className="text-sm text-red-500">
+                      <div className="text-sm text-red-500 dark:text-red-400">
                         {autoscalingMinAwakeReplicasError}
                       </div>
                     )}
-                    <Label htmlFor="maxReplicas">Max Replicas</Label>
+                    <Label htmlFor="maxReplicas">
+                      Max Replicas (max: {getMaxReplicas})
+                    </Label>
                     <Controller
                       control={control}
                       name="runtimeConfig.autoscaling.maxReplicas"
                       render={({ field }) => {
+                        const minReplicas =
+                          watch('runtimeConfig.autoscaling.minAwakeReplicas') ||
+                          1;
                         return (
                           <Input
                             {...field}
                             id="maxReplicas"
+                            min={minReplicas}
                             type="number"
                             onChange={(e) => {
-                              field.onChange(parseInt(e.target.value));
+                              const maxValue = parseInt(e.target.value);
+                              // Ensure max replicas is never less than min replicas
+                              const validatedMax = Math.max(
+                                maxValue,
+                                minReplicas,
+                              );
+                              field.onChange(validatedMax);
+
+                              if (validatedMax !== maxValue) {
+                                // If we had to adjust the value, update the input
+                                e.target.value = validatedMax.toString();
+                              }
                             }}
                           />
                         );
                       }}
                     />
+                    {!isAutoscalingMaxReplicasAllowed && (
+                      <UpgradeMessage
+                        feature={`More than ${getMaxReplicas} max replicas`}
+                      />
+                    )}
                     {autoscalingMaxReplicasError && (
-                      <div className="text-sm text-red-500">
+                      <div className="text-sm text-red-500 dark:text-red-400">
                         {autoscalingMaxReplicasError}
                       </div>
                     )}
@@ -902,7 +1008,7 @@ export default function CreateWorkerForm({
                       }}
                     />
                     {autoscalingScaleToZeroError && (
-                      <div className="text-sm text-red-500">
+                      <div className="text-sm text-red-500 dark:text-red-400">
                         {autoscalingScaleToZeroError}
                       </div>
                     )}
@@ -932,7 +1038,7 @@ export default function CreateWorkerForm({
                             }}
                           />
                           {autoscalingWaitDurationError && (
-                            <div className="text-sm text-red-500">
+                            <div className="text-sm text-red-500 dark:text-red-400">
                               {autoscalingWaitDurationError}
                             </div>
                           )}
@@ -959,7 +1065,7 @@ export default function CreateWorkerForm({
                             }}
                           />
                           {autoscalingRollingWindowDurationError && (
-                            <div className="text-sm text-red-500">
+                            <div className="text-sm text-red-500 dark:text-red-400">
                               {autoscalingRollingWindowDurationError}
                             </div>
                           )}
@@ -992,7 +1098,7 @@ export default function CreateWorkerForm({
                             }}
                           />
                           {autoscalingUtilizationScaleUpThresholdError && (
-                            <div className="text-sm text-red-500">
+                            <div className="text-sm text-red-500 dark:text-red-400">
                               {autoscalingUtilizationScaleUpThresholdError}
                             </div>
                           )}
@@ -1025,7 +1131,7 @@ export default function CreateWorkerForm({
                             }}
                           />
                           {autoscalingUtilizationScaleDownThresholdError && (
-                            <div className="text-sm text-red-500">
+                            <div className="text-sm text-red-500 dark:text-red-400">
                               {autoscalingUtilizationScaleDownThresholdError}
                             </div>
                           )}
@@ -1051,7 +1157,7 @@ export default function CreateWorkerForm({
                             }}
                           />
                           {autoscalingIncrementError && (
-                            <div className="text-sm text-red-500">
+                            <div className="text-sm text-red-500 dark:text-red-400">
                               {autoscalingIncrementError}
                             </div>
                           )}
@@ -1064,18 +1170,87 @@ export default function CreateWorkerForm({
             </Tabs>
           </div>
         </Step>
+        <Step title="Name">
+          <div className="grid gap-4">
+            <div className="text-sm text-muted-foreground">
+              Give your service a name.
+            </div>
+            <Label htmlFor="name">Name</Label>
+            <Controller
+              control={control}
+              name="name"
+              render={({ field }) => {
+                return (
+                  <Input
+                    {...field}
+                    id="name"
+                    placeholder="my-awesome-service"
+                  />
+                );
+              }}
+            />
+            {nameError && (
+              <div className="text-sm text-red-500">{nameError}</div>
+            )}
+          </div>
+        </Step>
         <Step title="Review">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Review the settings for this worker.
+              Review the settings for this service.
             </div>
+            {/* Show invalid configurations and upgrade messages at review stage */}
+            {(!isComputeAllowed ||
+              !isReplicaCountAllowed ||
+              !isAutoscalingMaxReplicasAllowed) && (
+              <div className="border border-red-300 dark:border-red-500 bg-red-50 dark:bg-red-900/30 p-4 rounded-md">
+                <h3 className="text-red-800 dark:text-red-200 font-medium mb-2">
+                  Your configuration requires a plan upgrade
+                </h3>
+                <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-300 space-y-1">
+                  {!isComputeAllowed && (
+                    <li>
+                      The selected machine type is not available on your current
+                      plan
+                    </li>
+                  )}
+                  {!isReplicaCountAllowed && (
+                    <li>The number of replicas exceeds your plan's limit</li>
+                  )}
+                  {!isAutoscalingMaxReplicasAllowed && (
+                    <li>
+                      The maximum autoscaling replicas exceeds your plan's limit
+                    </li>
+                  )}
+                </ul>
+                <div className="mt-3">
+                  <a
+                    href={getBillingPortalUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="outline" size="sm">
+                      <ArrowUpIcon className="h-4 w-4 mr-1" />
+                      Upgrade Plan
+                    </Button>
+                  </a>
+                </div>
+              </div>
+            )}
             <Button
               onClick={handleSubmit(onSubmit)}
-              disabled={!installation || !repoOwnerName || !branch}
+              disabled={
+                !installation ||
+                !repoOwnerName ||
+                !branch ||
+                !isComputeAllowed ||
+                !isReplicaCountAllowed ||
+                !isAutoscalingMaxReplicasAllowed
+              }
               className="w-fit px-8"
             >
               {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}
-              Create worker
+              Create service
             </Button>
           </div>
         </Step>
@@ -1110,3 +1285,30 @@ export function getRepoName(repoOwnerName?: string) {
     return splArr[1];
   }
 }
+// URL for the billing portal to upgrade
+const getBillingPortalUrl = () => {
+  // Replace with your actual billing portal URL or API call
+  return '/v1/tenant-settings/billing-and-limits';
+};
+
+export const UpgradeMessage = ({ feature }: { feature: string }) => (
+  <div className="flex flex-col gap-2 border border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md my-3">
+    <div className="flex items-start gap-2">
+      <span className="text-yellow-500 dark:text-yellow-400">⚠️</span>
+      <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+        {feature} is available on higher tier plans. Upgrade to access this
+        feature.
+      </p>
+    </div>
+    <a href={getBillingPortalUrl()} target="_blank" rel="noopener noreferrer">
+      <Button
+        variant="outline"
+        size="sm"
+        className="text-xs border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/50"
+      >
+        <ArrowUpIcon className="h-3 w-3 mr-1" />
+        Upgrade Plan
+      </Button>
+    </a>
+  </div>
+);

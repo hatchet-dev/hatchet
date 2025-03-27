@@ -3,6 +3,9 @@ import { Tenant, TenantVersion, queries } from './api';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { TenantBillingState } from './api/generated/cloud/data-contracts';
+import { Evaluate } from './can/shared/permission.base';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
@@ -30,16 +33,31 @@ export const lastTenantAtom = atom(
   },
 );
 
+type Plan = 'free' | 'starter' | 'growth';
+
+export type BillingContext = {
+  state: TenantBillingState | undefined;
+  setPollBilling: (pollBilling: boolean) => void;
+  plan: Plan;
+  hasPaymentMethods: boolean;
+};
+
+type Can = (evalFn: Evaluate) => ReturnType<Evaluate>;
+
 type TenantContextPresent = {
   tenant: Tenant;
   tenantId: string;
   setTenant: (tenant: Tenant) => void;
+  billing: BillingContext;
+  can: Can;
 };
 
 type TenantContextMissing = {
   tenant: undefined;
   tenantId: undefined;
   setTenant: (tenant: Tenant) => void;
+  billing: undefined;
+  can: Can;
 };
 
 type TenantContext = TenantContextPresent | TenantContextMissing;
@@ -63,6 +81,7 @@ export function useTenant(): TenantContext {
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
+
   const memberships = useMemo(
     () => membershipsQuery.data?.rows || [],
     [membershipsQuery.data],
@@ -164,13 +183,59 @@ export function useTenant(): TenantContext {
         search: params.toString(),
       });
     }
-  }, [lastRedirected, navigate, params, pathname, tenant]);
+  }, [lastRedirected, navigate, params, pathname, previewV0, tenant]);
+
+  // Tenant Billing State
+
+  const [pollBilling, setPollBilling] = useState(false);
+
+  const cloudMeta = useCloudApiMeta();
+
+  const billingState = useQuery({
+    ...queries.cloud.billing(tenant!.metadata.id),
+    enabled: tenant && !!cloudMeta?.data.canBill,
+    refetchInterval: pollBilling ? 1000 : false,
+  });
+
+  const subscriptionPlan: Plan = useMemo(() => {
+    const plan = billingState.data?.subscription?.plan;
+    if (!plan) {
+      return 'free';
+    }
+    return plan as Plan;
+  }, [billingState.data?.subscription?.plan]);
+
+  const hasPaymentMethods = useMemo(() => {
+    return (billingState.data?.paymentMethods?.length || 0) > 0;
+  }, [billingState.data?.paymentMethods]);
+
+  const billingContext: BillingContext = useMemo(() => {
+    return {
+      state: billingState.data,
+      setPollBilling,
+      plan: subscriptionPlan,
+      hasPaymentMethods,
+    };
+  }, [billingState.data, setPollBilling, subscriptionPlan, hasPaymentMethods]);
+
+  const can = useCallback(
+    (evalFn: Evaluate) => {
+      return evalFn({
+        tenant,
+        billing: billingContext,
+        meta: cloudMeta?.data,
+      });
+    },
+    [billingContext, cloudMeta?.data, tenant],
+  );
 
   if (!tenant) {
     return {
       tenant: undefined,
       tenantId: undefined,
       setTenant,
+      billing: undefined,
+      can,
     };
   }
 
@@ -178,6 +243,8 @@ export function useTenant(): TenantContext {
     tenant,
     tenantId: tenant.metadata.id,
     setTenant,
+    billing: billingContext,
+    can,
   };
 }
 

@@ -100,10 +100,12 @@ export default function ExpandedWorkflow() {
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Created {relativeDate(managedWorker.metadata.createdAt)}
           </div>
-          <GithubButton
-            buildConfig={managedWorker.buildConfig}
-            prefix="Deploys from"
-          />
+          {managedWorker.buildConfig && (
+            <GithubButton
+              buildConfig={managedWorker.buildConfig}
+              prefix="Deploys from"
+            />
+          )}
         </div>
         <div className="flex flex-row justify-start items-center mt-4"></div>
         <Tabs defaultValue="activity">

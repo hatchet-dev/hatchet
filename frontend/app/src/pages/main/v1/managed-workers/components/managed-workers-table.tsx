@@ -55,10 +55,10 @@ export function ManagedWorkersTable() {
   const emptyState = (
     <Card className="w-full text-justify">
       <CardHeader>
-        <CardTitle>No Managed Workers</CardTitle>
+        <CardTitle>No Managed Services</CardTitle>
         <CardDescription>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            There are no managed workers created in this tenant.
+            There are no managed services created in this tenant.
           </p>
         </CardDescription>
       </CardHeader>
@@ -95,7 +95,12 @@ export function ManagedWorkersTable() {
           <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
             Created <RelativeDate date={data.metadata?.createdAt} />
           </p>
-          <GithubButton buildConfig={data.buildConfig} prefix="Deploys from" />
+          {data.buildConfig && (
+            <GithubButton
+              buildConfig={data.buildConfig}
+              prefix="Deploys from"
+            />
+          )}
           <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
             {totReplicas} {totReplicas == 1 ? 'instance' : 'instances'} with{' '}
             {totCpus} CPUs and {totMemory} MB memory

@@ -3,6 +3,7 @@ import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import api, { cloudApi } from './api';
 import invariant from 'tiny-invariant';
 import { WebhookWorkerCreateRequest } from '.';
+import { TemplateOptions } from './generated/cloud/data-contracts';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
@@ -29,6 +30,21 @@ export const queries = createQueryKeyStore({
       queryKey: ['billing-state:get', tenant],
       queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
     }),
+
+    getComputeCost: (tenant: string) => ({
+      queryKey: ['compute-cost:get', tenant],
+      queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,
+    }),
+    createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({
+      queryKey: ['compute-demo-template:create', tenant, template],
+      queryFn: async () =>
+        (
+          await cloudApi.managedWorkerTemplateCreate(tenant, {
+            name: template,
+          })
+        ).data,
+    }),
+
     getManagedWorker: (worker: string) => ({
       queryKey: ['managed-worker:get', worker],
       queryFn: async () => (await cloudApi.managedWorkerGet(worker)).data,

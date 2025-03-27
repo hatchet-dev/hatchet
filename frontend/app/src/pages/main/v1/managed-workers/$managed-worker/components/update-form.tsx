@@ -1,5 +1,5 @@
 import { queries } from '@/lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
@@ -43,6 +43,12 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { Checkbox } from '@/components/v1/ui/checkbox';
+import { UpgradeMessage } from '../../create/components/create-worker-form';
+import {
+  ComputeType,
+  managedCompute,
+} from '@/lib/can/features/managed-compute';
+import { useTenant } from '@/lib/atoms';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
@@ -114,14 +120,14 @@ export default function UpdateWorkerForm({
     defaultValues: {
       name: managedWorker.name,
       buildConfig: {
-        githubInstallationId: managedWorker.buildConfig.githubInstallationId,
+        githubInstallationId: managedWorker.buildConfig?.githubInstallationId,
         githubRepositoryBranch:
-          managedWorker.buildConfig.githubRepositoryBranch,
+          managedWorker.buildConfig?.githubRepositoryBranch,
         githubRepositoryName:
-          managedWorker.buildConfig.githubRepository.repo_name,
+          managedWorker.buildConfig?.githubRepository?.repo_name,
         githubRepositoryOwner:
-          managedWorker.buildConfig.githubRepository.repo_owner,
-        steps: managedWorker.buildConfig.steps?.map((step) => ({
+          managedWorker.buildConfig?.githubRepository?.repo_owner,
+        steps: managedWorker.buildConfig?.steps?.map((step) => ({
           buildDir: step.buildDir,
           dockerfilePath: step.dockerfilePath,
         })) || [
@@ -280,7 +286,7 @@ export default function UpdateWorkerForm({
     ) {
       setValue(
         'buildConfig.githubInstallationId',
-        managedWorker.buildConfig.githubInstallationId ||
+        managedWorker.buildConfig?.githubInstallationId ||
           listInstallationsQuery.data.rows[0].metadata.id,
       );
     }
@@ -299,6 +305,23 @@ export default function UpdateWorkerForm({
       setValue('runtimeConfig.regions', [ManagedWorkerRegion.Sea]);
     }
   }, [getValues, setValue, isIac]);
+
+  const { can } = useTenant();
+
+  const [isComputeAllowed] = useMemo(() => {
+    const selectedMachine = machineTypes.find((m) => m.title === machineType);
+    if (!selectedMachine || !can) {
+      return [true, undefined];
+    }
+
+    const computeType: ComputeType = {
+      cpuKind: selectedMachine.cpuKind,
+      cpus: selectedMachine.cpus,
+      memoryMb: selectedMachine.memoryMb,
+    };
+
+    return can(managedCompute.selectCompute(computeType));
+  }, [can, machineType]);
 
   // if there are no github accounts linked, ask the user to link one
   if (
@@ -323,11 +346,27 @@ export default function UpdateWorkerForm({
     );
   }
 
+  const renderMachineTypeSelectItem = (machine: (typeof machineTypes)[0]) => {
+    const computeType: ComputeType = {
+      cpuKind: machine.cpuKind,
+      cpus: machine.cpus,
+      memoryMb: machine.memoryMb,
+    };
+
+    const [allowed] = can(managedCompute.selectCompute(computeType));
+
+    return (
+      <SelectItem key={machine.title} value={machine.title}>
+        {machine.title} {!allowed && '🔒'}
+      </SelectItem>
+    );
+  };
+
   return (
     <>
       <div className="text-sm text-muted-foreground">
-        Change the configuration of your worker. This will trigger a
-        redeployment.
+        Change the configuration of your service. This will trigger a
+        redeployment of all workers.
       </div>
       <div className="mt-6 flex flex-col gap-4">
         <div>
@@ -338,7 +377,11 @@ export default function UpdateWorkerForm({
               name="name"
               render={({ field }) => {
                 return (
-                  <Input {...field} id="name" placeholder="my-awesome-worker" />
+                  <Input
+                    {...field}
+                    id="name"
+                    placeholder="my-awesome-service"
+                  />
                 );
               }}
             />
@@ -516,7 +559,7 @@ export default function UpdateWorkerForm({
             </AccordionTrigger>
             <AccordionContent className="grid gap-4">
               <div className="text-sm text-muted-foreground">
-                Configure the runtime settings for this worker.
+                Configure the runtime settings for this service.
               </div>
               <Label>Environment Variables</Label>
               <EnvGroupArray
@@ -596,11 +639,9 @@ export default function UpdateWorkerForm({
                           {...field}
                           value={machineType}
                           onValueChange={(value) => {
-                            // get the correct machine type from the value
                             const machineType = machineTypes.find(
                               (i) => i.title === value,
                             );
-
                             setMachineType(value);
                             setValue(
                               'runtimeConfig.cpus',
@@ -623,16 +664,17 @@ export default function UpdateWorkerForm({
                             />
                           </SelectTrigger>
                           <SelectContent>
-                            {machineTypes.map((i) => (
-                              <SelectItem key={i.title} value={i.title}>
-                                {i.title}
-                              </SelectItem>
-                            ))}
+                            {machineTypes.map(renderMachineTypeSelectItem)}
                           </SelectContent>
                         </Select>
                       );
                     }}
                   />
+                  {!isComputeAllowed && (
+                    <UpgradeMessage
+                      feature={`The selected machine type (${machineType})`}
+                    />
+                  )}
                   {cpuKindError && (
                     <div className="text-sm text-red-500">{cpuKindError}</div>
                   )}

@@ -1,5 +1,6 @@
 /* eslint-disable */
 /* tslint:disable */
+// @ts-nocheck
 /*
  * ---------------------------------------------------------------
  * ## THIS FILE WAS GENERATED VIA SWAGGER-TYPESCRIPT-API        ##
@@ -14,6 +15,7 @@ import {
   APIError,
   APIErrors,
   Build,
+  CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
   CreateOrUpdateAutoscalingRequest,
   FeatureFlags,
@@ -27,10 +29,10 @@ import {
   ManagedWorkerEventList,
   ManagedWorkerList,
   Matrix,
+  MonthlyComputeCost,
   RuntimeConfigActionsResponse,
   TenantBillingState,
   TenantSubscription,
-  TenantUsage,
   UpdateManagedWorkerRequest,
   UpdateTenantSubscription,
   VectorPushRequest,
@@ -203,6 +205,46 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a managed worker from a template
+   *
+   * @tags Managed Worker
+   * @name ManagedWorkerTemplateCreate
+   * @summary Create Managed Worker from Template
+   * @request POST:/api/v1/cloud/tenants/{tenant}/managed-worker/template
+   * @secure
+   */
+  managedWorkerTemplateCreate = (
+    tenant: string,
+    data: CreateManagedWorkerFromTemplateRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<ManagedWorker, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/managed-worker/template`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the total compute costs for the tenant
+   *
+   * @tags Cost
+   * @name ComputeCostGet
+   * @summary Get Managed Worker Cost
+   * @request GET:/api/v1/cloud/tenants/{tenant}/managed-worker/cost
+   * @secure
+   */
+  computeCostGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<MonthlyComputeCost, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/managed-worker/cost`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });
@@ -591,23 +633,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       APIErrors
     >({
       path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Get usage for a tenant
-   *
-   * @tags Billing
-   * @name UsageGet
-   * @summary Get usage for a tenant
-   * @request GET:/api/v1/usage/tenants/{tenant}
-   * @secure
-   */
-  usageGet = (tenant: string, params: RequestParams = {}) =>
-    this.request<TenantUsage, any>({
-      path: `/api/v1/usage/tenants/${tenant}`,
       method: "GET",
       secure: true,
       format: "json",
