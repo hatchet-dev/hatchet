@@ -2,7 +2,7 @@ import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 
 async function main() {
-  const res = await hatchet.run(simple, {
+  const res = await hatchet.runs.createAndWait(simple, {
     Message: 'hello',
   });
 
