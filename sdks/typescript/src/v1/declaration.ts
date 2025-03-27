@@ -77,20 +77,6 @@ export type CreateBaseWorkflowOpts = {
   onEvents?: string[];
 
   concurrency?: TaskConcurrency;
-
-  /**
-   * (optional) onFailure handler for the workflow.
-   * Invoked when any task in the workflow fails.
-   * @param ctx The context of the workflow.
-   */
-  onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
-
-  /**
-   * (optional) onSuccess handler for the workflow.
-   * Invoked when all tasks in the workflow complete successfully.
-   * @param ctx The context of the workflow.
-   */
-  onSuccess?: TaskFn<any, any> | CreateOnSuccessTaskOpts<any, any>;
 };
 
 export type CreateTaskWorkflowOpts<
@@ -177,6 +163,20 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
    * The durable tasks that make up this workflow.
    */
   _durableTasks: CreateWorkflowDurableTaskOpts<any, any>[];
+
+  /**
+   * (optional) onFailure handler for the workflow.
+   * Invoked when any task in the workflow fails.
+   * @param ctx The context of the workflow.
+   */
+  onFailure?: TaskFn<any, any> | CreateOnFailureTaskOpts<any, any>;
+
+  /**
+   * (optional) onSuccess handler for the workflow.
+   * Invoked when all tasks in the workflow complete successfully.
+   * @param ctx The context of the workflow.
+   */
+  onSuccess?: TaskFn<any, any> | CreateOnSuccessTaskOpts<any, any>;
 };
 
 /**
@@ -458,8 +458,7 @@ export class WorkflowDeclaration<
 
   /**
    * Adds an onFailure task to the workflow.
-   * The return type will be either the property on K that corresponds to the task name,
-   * or if there is no matching property, the inferred return type of the function.
+   * This will only run if any task in the workflow fails.
    * @template Name The literal string name of the task.
    * @template L The inferred return type of the task function.
    * @param options The task configuration options.
@@ -485,12 +484,45 @@ export class WorkflowDeclaration<
     }
 
     if (this.definition.onFailure) {
-      this.client?._v0.logger.warn(
-        `onFailure task ${typedOptions.name} will override existing onFailure task ${this.definition.onFailure.name}`
-      );
+      this.client?._v0.logger.warn(`onFailure task will override existing onFailure task`);
     }
 
     this.definition.onFailure = typedOptions;
+    return typedOptions;
+  }
+
+  /**
+   * Adds an onSuccess task to the workflow.
+   * This will only run if all tasks in the workflow complete successfully.
+   * @template Name The literal string name of the task.
+   * @template L The inferred return type of the task function.
+   * @param options The task configuration options.
+   * @returns The task options that were added.
+   */
+  onSuccess<Name extends string, L>(
+    options:
+      | (Omit<CreateOnSuccessTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+          name: Name;
+          fn: (
+            input: T,
+            ctx: Context<T>
+          ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+        })
+      | TaskWorkflowDeclaration<any, any>
+  ): CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>> {
+    let typedOptions: CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+
+    if (options instanceof TaskWorkflowDeclaration) {
+      typedOptions = options.taskDef;
+    } else {
+      typedOptions = options as CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+    }
+
+    if (this.definition.onSuccess) {
+      this.client?._v0.logger.warn(`onSuccess task will override existing onSuccess task`);
+    }
+
+    this.definition.onSuccess = typedOptions;
     return typedOptions;
   }
 

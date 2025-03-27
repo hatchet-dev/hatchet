@@ -202,4 +202,4 @@ export type CreateOnSuccessTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateOnFailureTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
+export type CreateOnFailureTaskOpts<T, K> = Omit<CreateBaseTaskOpts<T, K, TaskFn<T, K>>, 'name'>;
