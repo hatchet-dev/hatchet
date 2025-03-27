@@ -11,19 +11,19 @@ import (
 // in the Hatchet platform.
 type WorkersClient interface {
 	// Get retrieves a worker by its ID.
-	Get(workerId string, ctx ...context.Context) (*rest.Worker, error)
+	Get(ctx context.Context, workerId string) (*rest.Worker, error)
 
 	// List retrieves all workers for the tenant.
-	List(ctx ...context.Context) (*rest.WorkerList, error)
+	List(ctx context.Context) (*rest.WorkerList, error)
 
 	// IsPaused checks if a worker is paused.
-	IsPaused(workerId string, ctx ...context.Context) (bool, error)
+	IsPaused(ctx context.Context, workerId string) (bool, error)
 
 	// Pause pauses a worker.
-	Pause(workerId string, ctx ...context.Context) (*rest.Worker, error)
+	Pause(ctx context.Context, workerId string) (*rest.Worker, error)
 
 	// Unpause unpauses a worker.
-	Unpause(workerId string, ctx ...context.Context) (*rest.Worker, error)
+	Unpause(ctx context.Context, workerId string) (*rest.Worker, error)
 }
 
 // workersClientImpl implements the WorkersClient interface.
@@ -46,14 +46,14 @@ func NewWorkersClient(
 }
 
 // Get retrieves a worker by its ID.
-func (w *workersClientImpl) Get(workerId string, ctx ...context.Context) (*rest.Worker, error) {
+func (w *workersClientImpl) Get(ctx context.Context, workerId string) (*rest.Worker, error) {
 	workerIdUUID, err := uuid.Parse(workerId)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := w.api.WorkerGetWithResponse(
-		getContext(ctx...),
+		ctx,
 		workerIdUUID,
 	)
 	if err != nil {
@@ -64,9 +64,9 @@ func (w *workersClientImpl) Get(workerId string, ctx ...context.Context) (*rest.
 }
 
 // List retrieves all workers for the tenant.
-func (w *workersClientImpl) List(ctx ...context.Context) (*rest.WorkerList, error) {
+func (w *workersClientImpl) List(ctx context.Context) (*rest.WorkerList, error) {
 	resp, err := w.api.WorkerListWithResponse(
-		getContext(ctx...),
+		ctx,
 		w.tenantId,
 	)
 	if err != nil {
@@ -77,8 +77,8 @@ func (w *workersClientImpl) List(ctx ...context.Context) (*rest.WorkerList, erro
 }
 
 // IsPaused checks if a worker is paused.
-func (w *workersClientImpl) IsPaused(workerId string, ctx ...context.Context) (bool, error) {
-	worker, err := w.Get(workerId, ctx...)
+func (w *workersClientImpl) IsPaused(ctx context.Context, workerId string) (bool, error) {
+	worker, err := w.Get(ctx, workerId)
 	if err != nil {
 		return false, err
 	}
@@ -93,7 +93,7 @@ func (w *workersClientImpl) IsPaused(workerId string, ctx ...context.Context) (b
 }
 
 // Pause pauses a worker.
-func (w *workersClientImpl) Pause(workerId string, ctx ...context.Context) (*rest.Worker, error) {
+func (w *workersClientImpl) Pause(ctx context.Context, workerId string) (*rest.Worker, error) {
 	workerIdUUID, err := uuid.Parse(workerId)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (w *workersClientImpl) Pause(workerId string, ctx ...context.Context) (*res
 	}
 
 	resp, err := w.api.WorkerUpdateWithResponse(
-		getContext(ctx...),
+		ctx,
 		workerIdUUID,
 		request,
 	)
@@ -118,7 +118,7 @@ func (w *workersClientImpl) Pause(workerId string, ctx ...context.Context) (*res
 }
 
 // Unpause unpauses a worker.
-func (w *workersClientImpl) Unpause(workerId string, ctx ...context.Context) (*rest.Worker, error) {
+func (w *workersClientImpl) Unpause(ctx context.Context, workerId string) (*rest.Worker, error) {
 	workerIdUUID, err := uuid.Parse(workerId)
 	if err != nil {
 		return nil, err
@@ -131,7 +131,7 @@ func (w *workersClientImpl) Unpause(workerId string, ctx ...context.Context) (*r
 	}
 
 	resp, err := w.api.WorkerUpdateWithResponse(
-		getContext(ctx...),
+		ctx,
 		workerIdUUID,
 		request,
 	)

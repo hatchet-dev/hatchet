@@ -14,25 +14,25 @@ import (
 // in the Hatchet platform.
 type WorkflowsClient interface {
 	// Get retrieves a workflow by its name.
-	Get(workflowName string, ctx ...context.Context) (*rest.Workflow, error)
+	Get(ctx context.Context, workflowName string) (*rest.Workflow, error)
 
 	// GetId retrieves a workflow by its name.
-	GetId(workflowName string, ctx ...context.Context) (uuid.UUID, error)
+	GetId(ctx context.Context, workflowName string) (uuid.UUID, error)
 
 	// List retrieves all workflows for the tenant with optional filtering parameters.
-	List(opts *rest.WorkflowListParams, ctx ...context.Context) (*rest.WorkflowList, error)
+	List(ctx context.Context, opts *rest.WorkflowListParams) (*rest.WorkflowList, error)
 
 	// Delete removes a workflow by its name.
-	Delete(workflowName string, ctx ...context.Context) (*rest.WorkflowDeleteResponse, error)
+	Delete(ctx context.Context, workflowName string) (*rest.WorkflowDeleteResponse, error)
 
 	// // IsPaused checks if a workflow is paused.
-	// IsPaused(workflowName string, ctx ...context.Context) (bool, error)
+	// IsPaused(ctx context.Context, workflowName string) (bool, error)
 
 	// // Pause pauses a workflow and prevents runs from being scheduled.
-	// Pause(workflowName string, ctx ...context.Context) (*rest.Workflow, error)
+	// Pause(ctx context.Context, workflowName string) (*rest.Workflow, error)
 
 	// // Unpause unpauses a workflow and allows runs to be scheduled.
-	// Unpause(workflowName string, ctx ...context.Context) (*rest.Workflow, error)
+	// Unpause(ctx context.Context, workflowName string) (*rest.Workflow, error)
 }
 
 // workflowsClientImpl implements the WorkflowsClient interface.
@@ -60,7 +60,7 @@ func NewWorkflowsClient(
 }
 
 // Get retrieves a workflow by its ID or name.
-func (w *workflowsClientImpl) Get(workflowName string, ctx ...context.Context) (*rest.Workflow, error) {
+func (w *workflowsClientImpl) Get(ctx context.Context, workflowName string) (*rest.Workflow, error) {
 	// Try to get the workflow from cache first
 	cacheKey := workflowName
 	cachedWorkflow, found := w.cache.Get(cacheKey)
@@ -70,7 +70,7 @@ func (w *workflowsClientImpl) Get(workflowName string, ctx ...context.Context) (
 
 	// FIXME: this is a hack to get the workflow by name
 	resp, err := w.api.WorkflowListWithResponse(
-		getContext(ctx...),
+		ctx,
 		w.tenantId,
 		&rest.WorkflowListParams{
 			Name: &workflowName,
@@ -94,8 +94,8 @@ func (w *workflowsClientImpl) Get(workflowName string, ctx ...context.Context) (
 }
 
 // GetId retrieves a workflow by its name.
-func (w *workflowsClientImpl) GetId(workflowName string, ctx ...context.Context) (uuid.UUID, error) {
-	workflow, err := w.Get(workflowName, ctx...)
+func (w *workflowsClientImpl) GetId(ctx context.Context, workflowName string) (uuid.UUID, error) {
+	workflow, err := w.Get(ctx, workflowName)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -104,9 +104,9 @@ func (w *workflowsClientImpl) GetId(workflowName string, ctx ...context.Context)
 }
 
 // List retrieves all workflows for the tenant with optional filtering parameters.
-func (w *workflowsClientImpl) List(opts *rest.WorkflowListParams, ctx ...context.Context) (*rest.WorkflowList, error) {
+func (w *workflowsClientImpl) List(ctx context.Context, opts *rest.WorkflowListParams) (*rest.WorkflowList, error) {
 	resp, err := w.api.WorkflowListWithResponse(
-		getContext(ctx...),
+		ctx,
 		w.tenantId,
 		opts,
 	)
@@ -118,15 +118,15 @@ func (w *workflowsClientImpl) List(opts *rest.WorkflowListParams, ctx ...context
 }
 
 // Delete removes a workflow by its ID or name.
-func (w *workflowsClientImpl) Delete(workflowName string, ctx ...context.Context) (*rest.WorkflowDeleteResponse, error) {
+func (w *workflowsClientImpl) Delete(ctx context.Context, workflowName string) (*rest.WorkflowDeleteResponse, error) {
 	// FIXME: this is a hack to get the workflow by name
-	workflowId, err := w.GetId(workflowName, ctx...)
+	workflowId, err := w.GetId(ctx, workflowName)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := w.api.WorkflowDeleteWithResponse(
-		getContext(ctx...),
+		ctx,
 		workflowId,
 	)
 
@@ -141,8 +141,8 @@ func (w *workflowsClientImpl) Delete(workflowName string, ctx ...context.Context
 }
 
 // // IsPaused checks if a workflow is paused.
-// func (w *workflowsClientImpl) IsPaused(workflowName string, ctx ...context.Context) (bool, error) {
-// 	workflow, err := w.Get(workflowName, ctx...)
+// func (w *workflowsClientImpl) IsPaused(ctx context.Context, workflowName string) (bool, error) {
+// 	workflow, err := w.Get(ctx, workflowName)
 // 	if err != nil {
 // 		return false, err
 // 	}
@@ -155,9 +155,9 @@ func (w *workflowsClientImpl) Delete(workflowName string, ctx ...context.Context
 // }
 
 // // Pause pauses a workflow.
-// func (w *workflowsClientImpl) Pause(workflowName string, ctx ...context.Context) (*rest.Workflow, error) {
+// func (w *workflowsClientImpl) Pause(ctx context.Context, workflowName string) (*rest.Workflow, error) {
 // 	// FIXME: this is a hack to get the workflow by name
-// 	workflow, err := w.Get(workflowName, ctx...)
+// 	workflow, err := w.Get(ctx, workflowName)
 // 	if err != nil {
 // 		return nil, err
 // 	}
@@ -171,7 +171,7 @@ func (w *workflowsClientImpl) Delete(workflowName string, ctx ...context.Context
 // 	}
 
 // 	resp, err := w.api.WorkflowUpdateWithResponse(
-// 		getContext(ctx...),
+// 		ctx,
 // 		id,
 // 		request,
 // 	)
@@ -188,9 +188,9 @@ func (w *workflowsClientImpl) Delete(workflowName string, ctx ...context.Context
 // }
 
 // // Unpause unpauses a workflow.
-// func (w *workflowsClientImpl) Unpause(workflowName string, ctx ...context.Context) (*rest.Workflow, error) {
+// func (w *workflowsClientImpl) Unpause(ctx context.Context, workflowName string) (*rest.Workflow, error) {
 // 	// FIXME: this is a hack to get the workflow by name
-// 	workflow, err := w.Get(workflowName, ctx...)
+// 	workflow, err := w.Get(ctx, workflowName)
 // 	if err != nil {
 // 		return nil, err
 // 	}
@@ -204,7 +204,7 @@ func (w *workflowsClientImpl) Delete(workflowName string, ctx ...context.Context
 // 	}
 
 // 	resp, err := w.api.WorkflowUpdateWithResponse(
-// 		getContext(ctx...),
+// 		ctx,
 // 		id,
 // 		request,
 // 	)

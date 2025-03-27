@@ -11,13 +11,13 @@ import (
 // in the Hatchet platform.
 type MetricsClient interface {
 	// GetWorkflowMetrics retrieves metrics for a specific workflow.
-	GetWorkflowMetrics(workflowId string, opts *rest.WorkflowGetMetricsParams, ctx ...context.Context) (*rest.WorkflowMetrics, error)
+	GetWorkflowMetrics(ctx context.Context, workflowId string, opts *rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
 
 	// GetQueueMetrics retrieves tenant-wide queue metrics.
-	GetQueueMetrics(opts *rest.TenantGetQueueMetricsParams, ctx ...context.Context) (*rest.TenantGetQueueMetricsResponse, error)
+	GetQueueMetrics(ctx context.Context, opts *rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error)
 
 	// GetTaskQueueMetrics retrieves tenant-wide step run queue metrics.
-	GetTaskQueueMetrics(ctx ...context.Context) (*rest.TenantGetStepRunQueueMetricsResponse, error)
+	GetTaskQueueMetrics(ctx context.Context) (*rest.TenantGetStepRunQueueMetricsResponse, error)
 }
 
 // metricsClientImpl implements the MetricsClient interface.
@@ -43,16 +43,16 @@ func NewMetricsClient(
 }
 
 // GetWorkflowMetrics retrieves metrics for a specific workflow.
-func (m *metricsClientImpl) GetWorkflowMetrics(workflowName string, opts *rest.WorkflowGetMetricsParams, ctx ...context.Context) (*rest.WorkflowMetrics, error) {
+func (m *metricsClientImpl) GetWorkflowMetrics(ctx context.Context, workflowName string, opts *rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
 
-	workflowId, err := (*m.workflows).GetId(workflowName, ctx...)
+	workflowId, err := (*m.workflows).GetId(ctx, workflowName)
 
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := m.api.WorkflowGetMetricsWithResponse(
-		getContext(ctx...),
+		ctx,
 		workflowId,
 		opts,
 	)
@@ -65,19 +65,18 @@ func (m *metricsClientImpl) GetWorkflowMetrics(workflowName string, opts *rest.W
 }
 
 // GetQueueMetrics retrieves tenant-wide queue metrics.
-func (m *metricsClientImpl) GetQueueMetrics(opts *rest.TenantGetQueueMetricsParams, ctx ...context.Context) (*rest.TenantGetQueueMetricsResponse, error) {
+func (m *metricsClientImpl) GetQueueMetrics(ctx context.Context, opts *rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error) {
 	return m.api.TenantGetQueueMetricsWithResponse(
-		getContext(ctx...),
+		ctx,
 		m.tenantId,
 		opts,
 	)
-
 }
 
 // GetTaskQueueMetrics retrieves tenant-wide step run queue metrics.
-func (m *metricsClientImpl) GetTaskQueueMetrics(ctx ...context.Context) (*rest.TenantGetStepRunQueueMetricsResponse, error) {
+func (m *metricsClientImpl) GetTaskQueueMetrics(ctx context.Context) (*rest.TenantGetStepRunQueueMetricsResponse, error) {
 	return m.api.TenantGetStepRunQueueMetricsWithResponse(
-		getContext(ctx...),
+		ctx,
 		m.tenantId,
 	)
 }

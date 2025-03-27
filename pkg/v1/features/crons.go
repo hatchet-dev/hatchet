@@ -12,16 +12,16 @@ import (
 // in the Hatchet platform.
 type CronsClient interface {
 	// Create creates a new cron workflow trigger.
-	Create(workflowName string, cron CreateCronTrigger, ctx ...context.Context) (*rest.CronWorkflows, error)
+	Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error)
 
 	// Delete removes a cron workflow trigger.
-	Delete(cronId string, ctx ...context.Context) error
+	Delete(ctx context.Context, cronId string) error
 
 	// List retrieves a collection of cron workflow triggers based on the provided parameters.
-	List(opts rest.CronWorkflowListParams, ctx ...context.Context) (*rest.CronWorkflowsList, error)
+	List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error)
 
 	// Get retrieves a specific cron workflow trigger by its ID.
-	Get(cronId string, ctx ...context.Context) (*rest.CronWorkflows, error)
+	Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error)
 }
 
 // CreateCronTrigger contains the configuration for creating a cron trigger.
@@ -66,7 +66,7 @@ func ValidateCronExpression(expression string) bool {
 }
 
 // Create creates a new cron workflow trigger.
-func (c *cronsClientImpl) Create(workflowName string, cron CreateCronTrigger, ctx ...context.Context) (*rest.CronWorkflows, error) {
+func (c *cronsClientImpl) Create(ctx context.Context, workflowName string, cron CreateCronTrigger) (*rest.CronWorkflows, error) {
 	// Validate cron expression
 	if !ValidateCronExpression(cron.Expression) {
 		return nil, &InvalidCronExpressionError{Expression: cron.Expression}
@@ -91,7 +91,7 @@ func (c *cronsClientImpl) Create(workflowName string, cron CreateCronTrigger, ct
 	}
 
 	resp, err := c.api.CronWorkflowTriggerCreateWithResponse(
-		getContext(ctx...),
+		ctx,
 		c.tenantId,
 		workflowName,
 		request,
@@ -104,14 +104,14 @@ func (c *cronsClientImpl) Create(workflowName string, cron CreateCronTrigger, ct
 }
 
 // Delete removes a cron workflow trigger.
-func (c *cronsClientImpl) Delete(cronId string, ctx ...context.Context) error {
+func (c *cronsClientImpl) Delete(ctx context.Context, cronId string) error {
 	cronIdUUID, err := uuid.Parse(cronId)
 	if err != nil {
 		return err
 	}
 
 	_, err = c.api.WorkflowCronDeleteWithResponse(
-		getContext(ctx...),
+		ctx,
 		c.tenantId,
 		cronIdUUID,
 	)
@@ -119,9 +119,9 @@ func (c *cronsClientImpl) Delete(cronId string, ctx ...context.Context) error {
 }
 
 // List retrieves a collection of cron workflow triggers based on the provided parameters.
-func (c *cronsClientImpl) List(opts rest.CronWorkflowListParams, ctx ...context.Context) (*rest.CronWorkflowsList, error) {
+func (c *cronsClientImpl) List(ctx context.Context, opts rest.CronWorkflowListParams) (*rest.CronWorkflowsList, error) {
 	resp, err := c.api.CronWorkflowListWithResponse(
-		getContext(ctx...),
+		ctx,
 		c.tenantId,
 		&opts,
 	)
@@ -133,14 +133,14 @@ func (c *cronsClientImpl) List(opts rest.CronWorkflowListParams, ctx ...context.
 }
 
 // Get retrieves a specific cron workflow trigger by its ID.
-func (c *cronsClientImpl) Get(cronId string, ctx ...context.Context) (*rest.CronWorkflows, error) {
+func (c *cronsClientImpl) Get(ctx context.Context, cronId string) (*rest.CronWorkflows, error) {
 	cronIdUUID, err := uuid.Parse(cronId)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := c.api.WorkflowCronGetWithResponse(
-		getContext(ctx...),
+		ctx,
 		c.tenantId,
 		cronIdUUID,
 	)

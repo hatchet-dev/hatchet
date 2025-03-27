@@ -4,6 +4,7 @@
 package workflow
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -73,38 +74,38 @@ type WorkflowDeclaration[I, O any] interface {
 	OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I]
 
 	// Run executes the workflow with the provided input.
-	Run(input I, opts ...RunOpts) (*O, error)
+	Run(ctx context.Context, input I, opts ...RunOpts) (*O, error)
 
 	// RunChild executes a child workflow with the provided input.
 	RunAsChild(ctx worker.HatchetContext, input I, opts ...RunAsChildOpts) (*O, error)
 
 	// RunNoWait executes the workflow with the provided input without waiting for it to complete.
 	// Instead it returns a run ID that can be used to check the status of the workflow.
-	RunNoWait(input I, opts ...RunOpts) (*v0Client.Workflow, error)
+	RunNoWait(ctx context.Context, input I, opts ...RunOpts) (*v0Client.Workflow, error)
 
 	// Cron schedules the workflow to run on a regular basis using a cron expression.
-	Cron(name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error)
+	Cron(ctx context.Context, name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error)
 
 	// Schedule schedules the workflow to run at a specific time.
-	Schedule(triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error)
+	Schedule(ctx context.Context, triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error)
 
 	// Get retrieves the current state of the workflow.
-	Get() (*rest.Workflow, error)
+	Get(ctx context.Context) (*rest.Workflow, error)
 
 	// // IsPaused checks if the workflow is currently paused.
-	// IsPaused() (bool, error)
+	// IsPaused(ctx context.Context) (bool, error)
 
 	// // Pause pauses the assignment of new workflow runs.
-	// Pause() error
+	// Pause(ctx context.Context) error
 
 	// // Unpause resumes the assignment of workflow runs.
-	// Unpause() error
+	// Unpause(ctx context.Context) error
 
 	// Metrics retrieves metrics for this workflow.
-	Metrics(opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
+	Metrics(ctx context.Context, opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error)
 
 	// QueueMetrics retrieves queue metrics for this workflow.
-	QueueMetrics(opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error)
+	QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error)
 }
 
 // Define a TaskDeclaration with specific output type
@@ -466,7 +467,7 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 
 // RunNoWait executes the workflow with the provided input without waiting for it to complete.
 // Instead it returns a run ID that can be used to check the status of the workflow.
-func (w *workflowDeclarationImpl[I, O]) RunNoWait(input I, opts ...RunOpts) (*v0Client.Workflow, error) {
+func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...RunOpts) (*v0Client.Workflow, error) {
 
 	// TODO namespace
 
@@ -524,14 +525,14 @@ func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, in
 
 	runOpts.childOpts = childOpts
 
-	return w.Run(input, runOpts)
+	return w.Run(ctx, input, runOpts)
 }
 
 // Run executes the workflow with the provided input.
 // It triggers a workflow run via the Hatchet client and waits for the result.
 // Returns the workflow output and any error encountered during execution.
-func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error) {
-	run, err := w.RunNoWait(input, opts...)
+func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...RunOpts) (*O, error) {
+	run, err := w.RunNoWait(ctx, input, opts...)
 
 	if err != nil {
 		return nil, err
@@ -608,7 +609,7 @@ func getStructFields(t reflect.Type) map[string]reflect.Type {
 }
 
 // Cron schedules the workflow to run on a regular basis using a cron expression.
-func (w *workflowDeclarationImpl[I, O]) Cron(name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error) {
+func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error) {
 	// Process additional metadata from options
 	var additionalMetadata map[string]interface{}
 	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
@@ -624,7 +625,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(name string, cronExpr string, input
 		return nil, err
 	}
 
-	cronWorkflow, err := w.crons.Create(w.Name, features.CreateCronTrigger{
+	cronWorkflow, err := w.crons.Create(ctx, w.Name, features.CreateCronTrigger{
 		Name:               name,
 		Expression:         cronExpr,
 		Input:              inputMap,
@@ -639,7 +640,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(name string, cronExpr string, input
 }
 
 // Schedule schedules the workflow to run at a specific time.
-func (w *workflowDeclarationImpl[I, O]) Schedule(triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error) {
+func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error) {
 	// Process additional metadata from options
 	var additionalMetadata map[string]interface{}
 	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
@@ -655,7 +656,7 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(triggerAt time.Time, input I, o
 		return nil, err
 	}
 
-	scheduledWorkflow, err := w.schedules.Create(w.Name, features.CreateScheduledRunTrigger{
+	scheduledWorkflow, err := w.schedules.Create(ctx, w.Name, features.CreateScheduledRunTrigger{
 		TriggerAt:          triggerAt,
 		Input:              inputMap,
 		AdditionalMetadata: additionalMetadata,
@@ -817,8 +818,8 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 }
 
 // Get retrieves the current state of the workflow.
-func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
-	workflow, err := w.workflows.Get(w.Name)
+func (w *workflowDeclarationImpl[I, O]) Get(ctx context.Context) (*rest.Workflow, error) {
+	workflow, err := w.workflows.Get(ctx, w.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -827,8 +828,8 @@ func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
 }
 
 // // IsPaused checks if the workflow is currently paused.
-// func (w *workflowDeclarationImpl[I, O]) IsPaused() (bool, error) {
-// 	paused, err := (*w.workflows).IsPaused(w.Name)
+// func (w *workflowDeclarationImpl[I, O]) IsPaused(ctx context.Context) (bool, error) {
+// 	paused, err := w.workflows.IsPaused(ctx, w.Name)
 // 	if err != nil {
 // 		return false, err
 // 	}
@@ -837,8 +838,8 @@ func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
 // }
 
 // // Pause pauses the assignment of new workflow runs.
-// func (w *workflowDeclarationImpl[I, O]) Pause() error {
-// 	_, err := (*w.workflows).Pause(w.Name)
+// func (w *workflowDeclarationImpl[I, O]) Pause(ctx context.Context) error {
+// 	_, err := w.workflows.Pause(ctx, w.Name)
 // 	if err != nil {
 // 		return err
 // 	}
@@ -847,8 +848,8 @@ func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
 // }
 
 // // Unpause resumes the assignment of workflow runs.
-// func (w *workflowDeclarationImpl[I, O]) Unpause() error {
-// 	_, err := (*w.workflows).Unpause(w.Name)
+// func (w *workflowDeclarationImpl[I, O]) Unpause(ctx context.Context) error {
+// 	_, err := w.workflows.Unpause(ctx, w.Name)
 // 	if err != nil {
 // 		return err
 // 	}
@@ -857,13 +858,13 @@ func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
 // }
 
 // Metrics retrieves metrics for this workflow.
-func (w *workflowDeclarationImpl[I, O]) Metrics(opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
+func (w *workflowDeclarationImpl[I, O]) Metrics(ctx context.Context, opts ...rest.WorkflowGetMetricsParams) (*rest.WorkflowMetrics, error) {
 	var options rest.WorkflowGetMetricsParams
 	if len(opts) > 0 {
 		options = opts[0]
 	}
 
-	metrics, err := w.metrics.GetWorkflowMetrics(w.Name, &options)
+	metrics, err := w.metrics.GetWorkflowMetrics(ctx, w.Name, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -872,7 +873,7 @@ func (w *workflowDeclarationImpl[I, O]) Metrics(opts ...rest.WorkflowGetMetricsP
 }
 
 // QueueMetrics retrieves queue metrics for this workflow.
-func (w *workflowDeclarationImpl[I, O]) QueueMetrics(opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error) {
+func (w *workflowDeclarationImpl[I, O]) QueueMetrics(ctx context.Context, opts ...rest.TenantGetQueueMetricsParams) (*rest.TenantGetQueueMetricsResponse, error) {
 	var options rest.TenantGetQueueMetricsParams
 	if len(opts) > 0 {
 		options = opts[0]
@@ -895,7 +896,7 @@ func (w *workflowDeclarationImpl[I, O]) QueueMetrics(opts ...rest.TenantGetQueue
 		}
 	}
 
-	metrics, err := w.metrics.GetQueueMetrics(&options)
+	metrics, err := w.metrics.GetQueueMetrics(ctx, &options)
 	if err != nil {
 		return nil, err
 	}

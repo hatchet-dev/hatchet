@@ -457,6 +457,44 @@ export class WorkflowDeclaration<
   }
 
   /**
+   * Adds an onFailure task to the workflow.
+   * The return type will be either the property on K that corresponds to the task name,
+   * or if there is no matching property, the inferred return type of the function.
+   * @template Name The literal string name of the task.
+   * @template L The inferred return type of the task function.
+   * @param options The task configuration options.
+   * @returns The task options that were added.
+   */
+  onFailure<Name extends string, L>(
+    options:
+      | (Omit<CreateOnFailureTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+          name: Name;
+          fn: (
+            input: T,
+            ctx: Context<T>
+          ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+        })
+      | TaskWorkflowDeclaration<any, any>
+  ): CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>> {
+    let typedOptions: CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+
+    if (options instanceof TaskWorkflowDeclaration) {
+      typedOptions = options.taskDef;
+    } else {
+      typedOptions = options as CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+    }
+
+    if (this.definition.onFailure) {
+      this.client?._v0.logger.warn(
+        `onFailure task ${typedOptions.name} will override existing onFailure task ${this.definition.onFailure.name}`
+      );
+    }
+
+    this.definition.onFailure = typedOptions;
+    return typedOptions;
+  }
+
+  /**
    * Adds a durable task to the workflow.
    * The return type will be either the property on K that corresponds to the task name,
    * or if there is no matching property, the inferred return type of the function.

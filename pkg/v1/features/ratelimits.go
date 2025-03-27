@@ -26,7 +26,7 @@ type RateLimitsClient interface {
 	Upsert(opts CreateRatelimitOpts) error
 
 	// list retrieves rate limits based on the provided parameters (optional).
-	List(opts *rest.RateLimitListParams, ctx ...context.Context) (*rest.RateLimitListResponse, error)
+	List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitListResponse, error)
 }
 
 // rlClientImpl implements the rateLimitsClient interface.
@@ -51,14 +51,6 @@ func NewRateLimitsClient(
 	}
 }
 
-// getContext returns the first context from the provided contexts or context.Background() if none provided
-func getContext(ctx ...context.Context) context.Context {
-	if len(ctx) > 0 {
-		return ctx[0]
-	}
-	return context.Background()
-}
-
 // upsert creates or updates a rate limit with the provided options.
 func (c *rlClientImpl) Upsert(opts CreateRatelimitOpts) error {
 	return (*c.admin).PutRateLimit(opts.Key, &types.RateLimitOpts{
@@ -68,9 +60,9 @@ func (c *rlClientImpl) Upsert(opts CreateRatelimitOpts) error {
 }
 
 // list retrieves rate limits based on the provided parameters (optional).
-func (c *rlClientImpl) List(opts *rest.RateLimitListParams, ctx ...context.Context) (*rest.RateLimitListResponse, error) {
+func (c *rlClientImpl) List(ctx context.Context, opts *rest.RateLimitListParams) (*rest.RateLimitListResponse, error) {
 	return c.api.RateLimitListWithResponse(
-		getContext(ctx...),
+		ctx,
 		c.tenantId,
 		opts,
 	)

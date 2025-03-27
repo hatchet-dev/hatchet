@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -59,11 +61,18 @@ func main() {
 		panic(err)
 	}
 
-	err = worker.StartBlocking()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	err = worker.StartBlocking(ctx)
 
 	if err != nil {
 		panic(err)
 	}
+
+	go func() {
+		time.Sleep(10 * time.Second)
+		cancel()
+	}()
 }
 
 // Helper function to get available workflows as a formatted string
