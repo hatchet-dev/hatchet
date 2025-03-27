@@ -5,80 +5,17 @@ import (
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
-
-// TaskDefaults defines default configuration values for tasks within a workflow.
-type TaskDefaults struct {
-	// (optional) ExecutionTimeout specifies the maximum duration a task can run after starting before being terminated
-	ExecutionTimeout time.Duration
-
-	// (optional) ScheduleTimeout specifies the maximum time a task can wait in the queue to be scheduled
-	ScheduleTimeout time.Duration
-
-	// (optional) Retries defines the number of times to retry a failed task
-	Retries int32
-
-	// (optional) RetryBackoffFactor is the multiplier for increasing backoff between retries
-	RetryBackoffFactor float32
-
-	// (optional) RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
-	RetryMaxBackoffSeconds int32
-}
-
-// NamedTask defines an interface for task types that have a name
-type NamedTask interface {
-	// GetName returns the name of the task
-	GetName() string
-}
-
-// CreateOpts is the options for creating a task.
-type CreateOpts[I any] struct {
-	// (required) The name of the task
-	Name string
-
-	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
-	ExecutionTimeout time.Duration
-
-	// (optional) ScheduleTimeout specifies the maximum time a task can wait to be scheduled
-	ScheduleTimeout time.Duration
-
-	// (optional) Retries defines the number of times to retry a failed task
-	Retries int32
-
-	// (optional) RetryBackoffFactor is the multiplier for increasing backoff between retries
-	RetryBackoffFactor float32
-
-	// (optional) RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
-	RetryMaxBackoffSeconds int32
-
-	// (optional) RateLimits define constraints on how frequently the task can be executed
-	RateLimits []*types.RateLimit
-
-	// (optional) WorkerLabels specify requirements for workers that can execute this task
-	WorkerLabels map[string]*types.DesiredWorkerLabel
-
-	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
-	Concurrency []*types.Concurrency
-
-	// (optional) Conditions specifies when this task should be executed
-	Conditions *types.TaskConditions
-
-	// (optional) Parents defines the tasks that must complete before this task can start
-	// Accept either NamedTask pointers (for backward compatibility) or NamedTaskInterface
-	Parents []NamedTask
-
-	// (optional) Fn is the function to execute when the task runs
-	// must be a function that takes an input and a worker.HatchetContext and returns an output and an error
-	Fn interface{}
-}
 
 type NamedTaskImpl struct {
 	Name string
 }
 
 type TaskBase interface {
-	Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts
+	Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts
 }
 
 type TaskShared struct {
@@ -123,8 +60,14 @@ type TaskDeclaration[I any] struct {
 	// The tasks that must successfully complete before this task can start
 	Parents []string
 
-	// Conditions specifies when this task should be executed
-	Conditions *types.TaskConditions
+	// WaitFor represents a set of conditions which must be satisfied before the task can run.
+	WaitFor condition.Condition
+
+	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
+	SkipIf condition.Condition
+
+	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
+	CancelIf condition.Condition
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
@@ -148,8 +91,14 @@ type DurableTaskDeclaration[I any] struct {
 	// and group key expression to evaluate when determining if a task can run
 	Concurrency []*types.Concurrency
 
-	// Conditions specifies when this task should be executed
-	Conditions *types.TaskConditions
+	// WaitFor represents a set of conditions which must be satisfied before the task can run.
+	WaitFor condition.Condition
+
+	// SkipIf represents a set of conditions which, if satisfied, will cause the task to be skipped.
+	SkipIf condition.Condition
+
+	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
+	CancelIf condition.Condition
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a DurableHatchetContext and returns an output and an error
@@ -166,7 +115,7 @@ type OnFailureTaskDeclaration[I any] struct {
 	Fn interface{}
 }
 
-func makeContractTaskOpts(t *TaskShared, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	taskOpts := &contracts.CreateTaskOpts{
 		RateLimits:  make([]*contracts.CreateTaskRateLimit, len(t.RateLimits)),
 		Concurrency: make([]*contracts.Concurrency, len(t.Concurrency)),
@@ -239,16 +188,51 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *TaskDefaults) *contracts.
 }
 
 // Dump converts the task declaration into a protobuf request.
-func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
+
+	sleepConditions := make([]*contracts.SleepMatchCondition, 0)
+	userEventConditions := make([]*contracts.UserEventMatchCondition, 0)
+	parentOverrideConditions := make([]*contracts.ParentOverrideMatchCondition, 0)
+
+	if t.WaitFor != nil {
+		cs := t.WaitFor.ToPB(contracts.Action_QUEUE)
+
+		sleepConditions = append(sleepConditions, cs.SleepConditions...)
+		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+	}
+
+	if t.SkipIf != nil {
+		cs := t.SkipIf.ToPB(contracts.Action_SKIP)
+
+		sleepConditions = append(sleepConditions, cs.SleepConditions...)
+		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+	}
+
+	if t.CancelIf != nil {
+		cs := t.CancelIf.ToPB(contracts.Action_CANCEL)
+
+		sleepConditions = append(sleepConditions, cs.SleepConditions...)
+		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
+		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
+	}
+
+	base.Conditions = &contracts.TaskConditions{
+		SleepConditions:          sleepConditions,
+		UserEventConditions:      userEventConditions,
+		ParentOverrideConditions: parentOverrideConditions,
+	}
+
 	return base
 }
 
-func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
@@ -258,7 +242,7 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *Task
 }
 
 // Dump converts the on failure task declaration into a protobuf request.
-func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *TaskDefaults) *contracts.CreateTaskOpts {
+func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 
 	base.ReadableId = "on-failure"

@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
@@ -29,36 +30,6 @@ type WrappedTaskFn func(ctx worker.HatchetContext) (interface{}, error)
 // DurableWrappedTaskFn represents a durable task function that can be executed by the Hatchet worker.
 // It takes a DurableHatchetContext and returns an interface{} result and an error.
 type DurableWrappedTaskFn func(ctx worker.DurableHatchetContext) (interface{}, error)
-
-// CreateOpts contains configuration options for creating a new workflow.
-type CreateOpts[I any] struct {
-	// (required) The friendly name of the workflow
-	Name string
-
-	// (optional) The version of the workflow
-	Version string
-
-	// (optional) The human-readable description of the workflow
-	Description string
-
-	// (optional) The event names that trigger the workflow
-	OnEvents []string
-
-	// (optional) The cron expressions for scheduled workflow runs
-	OnCron []string
-
-	// (optional) Concurrency settings to control parallel execution
-	Concurrency *types.Concurrency
-
-	// (optional) Task to execute when workflow fails
-	OnFailureTask *task.OnFailureTaskDeclaration[I]
-
-	// (optional) Strategy for sticky execution of workflow runs
-	StickyStrategy *types.StickyStrategy
-
-	// (optional) Default settings for all tasks within this workflow
-	TaskDefaults *task.TaskDefaults
-}
 
 // NamedFunction represents a function with its associated action ID
 type NamedFunction struct {
@@ -87,16 +58,19 @@ type RunAsChildOpts struct {
 
 // WorkflowDeclaration represents a workflow with input type I and output type O.
 // It provides methods to define tasks, specify dependencies, and execute the workflow.
-type WorkflowDeclaration[I any, O any] interface {
+type WorkflowDeclaration[I, O any] interface {
 	WorkflowBase
 
 	// Task registers a task that will be executed as part of the workflow
-	Task(opts task.CreateOpts[I]) *task.TaskDeclaration[I]
+	Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I]
 
 	// DurableTask registers a durable task that will be executed as part of the workflow.
 	// Durable tasks can be paused and resumed across workflow runs, making them suitable
 	// for long-running operations or tasks that require human intervention.
-	DurableTask(opts task.CreateOpts[I]) *task.DurableTaskDeclaration[I]
+	DurableTask(opts create.WorkflowTask[I, O], fn func(ctx worker.DurableHatchetContext, input I) (interface{}, error)) *task.DurableTaskDeclaration[I]
+
+	// OnFailureTask registers a task that will be executed if the workflow fails.
+	OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I]
 
 	// Run executes the workflow with the provided input.
 	Run(input I, opts ...RunOpts) (*O, error)
@@ -136,17 +110,19 @@ type WorkflowDeclaration[I any, O any] interface {
 // Define a TaskDeclaration with specific output type
 type TaskWithSpecificOutput[I any, T any] struct {
 	Name string
-	Fn   func(input I, ctx worker.HatchetContext) (*T, error)
+	Fn   func(ctx worker.HatchetContext, input I) (*T, error)
 }
 
 // workflowDeclarationImpl is the concrete implementation of WorkflowDeclaration.
 // It contains all the data and logic needed to define and execute a workflow.
 type workflowDeclarationImpl[I any, O any] struct {
-	v0        *v0Client.Client
-	crons     *features.CronsClient
-	schedules *features.SchedulesClient
-	metrics   *features.MetricsClient
-	workflows *features.WorkflowsClient
+	v0        v0Client.Client
+	crons     features.CronsClient
+	schedules features.SchedulesClient
+	metrics   features.MetricsClient
+	workflows features.WorkflowsClient
+
+	outputKey *string
 
 	Name           string
 	Version        *string
@@ -157,7 +133,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 	OnFailureTask  *task.OnFailureTaskDeclaration[I]
 	StickyStrategy *types.StickyStrategy
 
-	TaskDefaults *task.TaskDefaults
+	TaskDefaults *create.TaskDefaults
 
 	tasks        []*task.TaskDeclaration[I]
 	durableTasks []*task.DurableTaskDeclaration[I]
@@ -172,10 +148,10 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
 // The workflow will have input type I and output type O.
-func NewWorkflowDeclaration[I any, O any](opts CreateOpts[I], v0 *v0Client.Client) WorkflowDeclaration[I, O] {
+func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 v0Client.Client) WorkflowDeclaration[I, O] {
 
-	api := (*v0).API()
-	tenantId := (*v0).TenantId()
+	api := v0.API()
+	tenantId := v0.TenantId()
 
 	crons := features.NewCronsClient(api, &tenantId)
 	schedules := features.NewSchedulesClient(api, &tenantId)
@@ -183,18 +159,19 @@ func NewWorkflowDeclaration[I any, O any](opts CreateOpts[I], v0 *v0Client.Clien
 	workflows := features.NewWorkflowsClient(api, &tenantId)
 
 	wf := &workflowDeclarationImpl[I, O]{
-		v0:               v0,
-		crons:            &crons,
-		schedules:        &schedules,
-		metrics:          &metrics,
-		workflows:        &workflows,
-		Name:             opts.Name,
-		OnEvents:         opts.OnEvents,
-		OnCron:           opts.OnCron,
-		Concurrency:      opts.Concurrency,
-		OnFailureTask:    opts.OnFailureTask,
+		v0:          v0,
+		crons:       crons,
+		schedules:   schedules,
+		metrics:     metrics,
+		workflows:   workflows,
+		Name:        opts.Name,
+		OnEvents:    opts.OnEvents,
+		OnCron:      opts.OnCron,
+		Concurrency: opts.Concurrency,
+		// OnFailureTask:    opts.OnFailureTask, // TODO: add this back in
 		StickyStrategy:   opts.StickyStrategy,
 		TaskDefaults:     opts.TaskDefaults,
+		outputKey:        opts.OutputKey,
 		tasks:            []*task.TaskDeclaration[I]{},
 		taskFuncs:        make(map[string]interface{}),
 		durableTasks:     []*task.DurableTaskDeclaration[I]{},
@@ -214,10 +191,9 @@ func NewWorkflowDeclaration[I any, O any](opts CreateOpts[I], v0 *v0Client.Clien
 }
 
 // Task registers a standard (non-durable) task with the workflow
-func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.TaskDeclaration[I] {
+func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I] {
 	name := opts.Name
 
-	fn := opts.Fn
 	// Use reflection to validate the function type
 	fnType := reflect.TypeOf(fn)
 	if fnType.Kind() != reflect.Func ||
@@ -254,7 +230,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.Task
 	}
 
 	// Create a generic task function that wraps the specific one
-	genericFn := func(input I, ctx worker.HatchetContext) (*any, error) {
+	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
 		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
@@ -300,11 +276,12 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.Task
 	}
 
 	taskDecl := &task.TaskDeclaration[I]{
-		Name:       opts.Name,
-		Fn:         genericFn,
-		Parents:    parentNames,
-		Conditions: opts.Conditions,
-
+		Name:     opts.Name,
+		Fn:       genericFn,
+		Parents:  parentNames,
+		WaitFor:  opts.WaitFor,
+		SkipIf:   opts.SkipIf,
+		CancelIf: opts.CancelIf,
 		TaskShared: task.TaskShared{
 			ExecutionTimeout:       executionTimeout,
 			ScheduleTimeout:        scheduleTimeout,
@@ -324,10 +301,9 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts task.CreateOpts[I]) *task.Task
 }
 
 // DurableTask registers a durable task with the workflow
-func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *task.DurableTaskDeclaration[I] {
+func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, O], fn func(ctx worker.DurableHatchetContext, input I) (interface{}, error)) *task.DurableTaskDeclaration[I] {
 	name := opts.Name
 
-	fn := opts.Fn
 	// Use reflection to validate the function type
 	fnType := reflect.TypeOf(fn)
 	if fnType.Kind() != reflect.Func ||
@@ -349,7 +325,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *ta
 	}
 
 	// Create a generic task function that wraps the specific one
-	genericFn := func(input I, ctx worker.DurableHatchetContext) (*any, error) {
+	genericFn := func(ctx worker.DurableHatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
 		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
@@ -395,11 +371,12 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *ta
 	}
 
 	taskDecl := &task.DurableTaskDeclaration[I]{
-		Name:       opts.Name,
-		Fn:         genericFn,
-		Parents:    parentNames,
-		Conditions: opts.Conditions,
-
+		Name:     opts.Name,
+		Fn:       genericFn,
+		Parents:  parentNames,
+		WaitFor:  opts.WaitFor,
+		SkipIf:   opts.SkipIf,
+		CancelIf: opts.CancelIf,
 		TaskShared: task.TaskShared{
 			ExecutionTimeout:       executionTimeout,
 			ScheduleTimeout:        scheduleTimeout,
@@ -414,6 +391,77 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts task.CreateOpts[I]) *ta
 
 	w.durableTasks = append(w.durableTasks, taskDecl)
 	w.durableTaskFuncs[name] = fn
+
+	return taskDecl
+}
+
+// OnFailureTask registers a task that will be executed if the workflow fails.
+func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I] {
+
+	// Use reflection to validate the function type
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func ||
+		fnType.NumIn() != 2 ||
+		fnType.NumOut() != 2 ||
+		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		panic("Invalid function type for on failure task: must be func(I, worker.HatchetContext) (*T, error)")
+	}
+
+	// Create a generic task function that wraps the specific one
+	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
+		// Use reflection to call the specific function
+		fnValue := reflect.ValueOf(fn)
+		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+		results := fnValue.Call(inputs)
+
+		// Handle errors
+		if !results[1].IsNil() {
+			return nil, results[1].Interface().(error)
+		}
+
+		// Return the output as any
+		output := results[0].Interface()
+		return &output, nil
+	}
+
+	// Initialize pointers only for non-zero values
+	var retryBackoffFactor *float32
+	var retryMaxBackoffSeconds *int32
+	var executionTimeout *time.Duration
+	var scheduleTimeout *time.Duration
+	var retries *int32
+
+	if opts.RetryBackoffFactor != 0 {
+		retryBackoffFactor = &opts.RetryBackoffFactor
+	}
+	if opts.RetryMaxBackoffSeconds != 0 {
+		retryMaxBackoffSeconds = &opts.RetryMaxBackoffSeconds
+	}
+	if opts.ExecutionTimeout != 0 {
+		executionTimeout = &opts.ExecutionTimeout
+	}
+	if opts.ScheduleTimeout != 0 {
+		scheduleTimeout = &opts.ScheduleTimeout
+	}
+	if opts.Retries != 0 {
+		retries = &opts.Retries
+	}
+
+	taskDecl := &task.OnFailureTaskDeclaration[I]{
+		Fn: genericFn,
+		TaskShared: task.TaskShared{
+			ExecutionTimeout:       executionTimeout,
+			ScheduleTimeout:        scheduleTimeout,
+			Retries:                retries,
+			RetryBackoffFactor:     retryBackoffFactor,
+			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
+			RateLimits:             opts.RateLimits,
+			WorkerLabels:           opts.WorkerLabels,
+			Concurrency:            opts.Concurrency,
+		},
+	}
+
+	w.OnFailureTask = taskDecl
 
 	return taskDecl
 }
@@ -433,7 +481,7 @@ func (w *workflowDeclarationImpl[I, O]) RunNoWait(input I, opts ...RunOpts) (*v0
 		}
 	}
 
-	run, err := (*w.v0).Admin().RunWorkflow(w.Name, input, runOpts...)
+	run, err := w.v0.Admin().RunWorkflow(w.Name, input, runOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -500,33 +548,43 @@ func (w *workflowDeclarationImpl[I, O]) Run(input I, opts ...RunOpts) (*O, error
 	// Create a new output object
 	var output O
 
-	// Iterate through each task with a registered output setter
-	for taskName, setter := range w.outputSetters {
-		// Extract the specific task output using StepOutput
-		var taskOutput interface{}
-
-		// Use reflection to create the correct type for the task output
-		for fieldName, fieldType := range getStructFields(reflect.TypeOf(output)) {
-			if strings.EqualFold(fieldName, taskName) {
-				taskOutput = reflect.New(fieldType).Interface()
-				break
-			}
-		}
-
-		if taskOutput == nil {
-			continue // Skip if we couldn't find a matching field
-		}
-
-		// Extract task output using the StepOutput method
-		err := workflowResult.StepOutput(taskName, &taskOutput)
+	if w.outputKey != nil {
+		// Extract task output using the StepOutput method for the specific output key
+		err := workflowResult.StepOutput(*w.outputKey, &output)
 		if err != nil {
-			// Log the error but continue with other tasks
-			fmt.Printf("Error extracting output for task %s: %v\n", taskName, err)
-			continue
+			// Log the error
+			fmt.Printf("Error extracting output for task %s: %v\n", *w.outputKey, err)
+			return nil, err
 		}
+	} else {
+		// Iterate through each task with a registered output setter
+		for taskName, setter := range w.outputSetters {
+			// Extract the specific task output using StepOutput
+			var taskOutput interface{}
 
-		// Set the output value using the registered setter
-		setter(&output, taskOutput)
+			// Use reflection to create the correct type for the task output
+			for fieldName, fieldType := range getStructFields(reflect.TypeOf(output)) {
+				if strings.EqualFold(fieldName, taskName) {
+					taskOutput = reflect.New(fieldType).Interface()
+					break
+				}
+			}
+
+			if taskOutput == nil {
+				continue // Skip if we couldn't find a matching field
+			}
+
+			// Extract task output using the StepOutput method
+			err := workflowResult.StepOutput(taskName, &taskOutput)
+			if err != nil {
+				// Log the error but continue with other tasks
+				fmt.Printf("Error extracting output for task %s: %v\n", taskName, err)
+				continue
+			}
+
+			// Set the output value using the registered setter
+			setter(&output, taskOutput)
+		}
 	}
 
 	return &output, nil
@@ -568,7 +626,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(name string, cronExpr string, input
 		return nil, err
 	}
 
-	cronWorkflow, err := (*w.crons).Create(w.Name, features.CreateCronTrigger{
+	cronWorkflow, err := w.crons.Create(w.Name, features.CreateCronTrigger{
 		Name:               name,
 		Expression:         cronExpr,
 		Input:              inputMap,
@@ -599,7 +657,7 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(triggerAt time.Time, input I, o
 		return nil, err
 	}
 
-	scheduledWorkflow, err := (*w.schedules).Create(w.Name, features.CreateScheduledRunTrigger{
+	scheduledWorkflow, err := w.schedules.Create(w.Name, features.CreateScheduledRunTrigger{
 		TriggerAt:          triggerAt,
 		Input:              inputMap,
 		AdditionalMetadata: additionalMetadata,
@@ -683,7 +741,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 				// Call the original function using reflection
 				fnValue := reflect.ValueOf(originalFn)
-				inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+				inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
 				results := fnValue.Call(inputs)
 
 				// Handle errors
@@ -762,7 +820,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 // Get retrieves the current state of the workflow.
 func (w *workflowDeclarationImpl[I, O]) Get() (*rest.Workflow, error) {
-	workflow, err := (*w.workflows).Get(w.Name)
+	workflow, err := w.workflows.Get(w.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -807,7 +865,7 @@ func (w *workflowDeclarationImpl[I, O]) Metrics(opts ...rest.WorkflowGetMetricsP
 		options = opts[0]
 	}
 
-	metrics, err := (*w.metrics).GetWorkflowMetrics(w.Name, &options)
+	metrics, err := w.metrics.GetWorkflowMetrics(w.Name, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -839,7 +897,7 @@ func (w *workflowDeclarationImpl[I, O]) QueueMetrics(opts ...rest.TenantGetQueue
 		}
 	}
 
-	metrics, err := (*w.metrics).GetQueueMetrics(&options)
+	metrics, err := w.metrics.GetQueueMetrics(&options)
 	if err != nil {
 		return nil, err
 	}

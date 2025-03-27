@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -42,9 +43,16 @@ type WorkflowRunsListener struct {
 	handlers sync.Map
 }
 
-func (r *subscribeClientImpl) newWorkflowRunsListener(
+func (r *subscribeClientImpl) getWorkflowRunsListener(
 	ctx context.Context,
 ) (*WorkflowRunsListener, error) {
+	r.workflowRunListenerMu.Lock()
+	defer r.workflowRunListenerMu.Unlock()
+
+	if r.workflowRunListener != nil {
+		return r.workflowRunListener, nil
+	}
+
 	constructor := func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
 		return r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx), grpc_retry.Disable())
 	}
@@ -59,6 +67,32 @@ func (r *subscribeClientImpl) newWorkflowRunsListener(
 	if err != nil {
 		return nil, err
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	r.workflowRunListener = w
+
+	go func() {
+		defer func() {
+			err := w.Close()
+
+			if err != nil {
+				r.l.Error().Err(err).Msg("failed to close workflow run events listener")
+			}
+
+			r.workflowRunListenerMu.Lock()
+			r.workflowRunListener = nil
+			r.workflowRunListenerMu.Unlock()
+		}()
+
+		err := w.Listen(ctx)
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
+		}
+	}()
 
 	return w, nil
 }
@@ -232,6 +266,8 @@ type SubscribeClient interface {
 	StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error
 
 	SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error)
+
+	ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error)
 }
 
 type ClientEventListener interface {
@@ -241,19 +277,28 @@ type ClientEventListener interface {
 type subscribeClientImpl struct {
 	client dispatchercontracts.DispatcherClient
 
+	clientv1 sharedcontracts.V1DispatcherClient
+
 	l *zerolog.Logger
 
 	v validator.Validator
 
 	ctx *contextLoader
+
+	workflowRunListenerMu sync.Mutex
+	workflowRunListener   *WorkflowRunsListener
+
+	durableEventsListenerMu sync.Mutex
+	durableEventsListener   *DurableEventsListener
 }
 
 func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient {
 	return &subscribeClientImpl{
-		client: dispatchercontracts.NewDispatcherClient(conn),
-		l:      opts.l,
-		v:      opts.v,
-		ctx:    opts.ctxLoader,
+		client:   dispatchercontracts.NewDispatcherClient(conn),
+		clientv1: sharedcontracts.NewV1DispatcherClient(conn),
+		l:        opts.l,
+		v:        opts.v,
+		ctx:      opts.ctxLoader,
 	}
 }
 
@@ -353,27 +398,9 @@ func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, ke
 }
 
 func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error) {
-	l, err := r.newWorkflowRunsListener(ctx)
+	return r.getWorkflowRunsListener(context.Background())
+}
 
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		defer func() {
-			err := l.Close()
-
-			if err != nil {
-				r.l.Error().Err(err).Msg("failed to close workflow run events listener")
-			}
-		}()
-
-		err := l.Listen(ctx)
-
-		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
-		}
-	}()
-
-	return l, nil
+func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
+	return r.getDurableEventsListener(context.Background())
 }

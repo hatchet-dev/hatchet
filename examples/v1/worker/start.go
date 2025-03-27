@@ -5,6 +5,7 @@ import (
 	"os"
 
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
@@ -32,11 +33,12 @@ func main() {
 
 	// Define workflows map
 	workflowMap := map[string][]workflow.WorkflowBase{
-		"dag":        {v1_workflows.DagWorkflow(&hatchet)},
-		"on-failure": {v1_workflows.OnFailure(&hatchet)},
-		"simple":     {v1_workflows.Simple(&hatchet)},
-		"sleep":      {v1_workflows.DurableSleep(&hatchet)},
-		"child":      {v1_workflows.Parent(&hatchet), v1_workflows.Child(&hatchet)},
+		"dag": {v1_workflows.DagWorkflow(hatchet)},
+		// "on-failure":    {v1_workflows.OnFailure(&hatchet)},
+		"simple":        {v1_workflows.Simple(hatchet)},
+		"sleep":         {v1_workflows.DurableSleep(hatchet)},
+		"durable-event": {v1_workflows.DurableEvent(hatchet)},
+		"child":         {v1_workflows.Parent(hatchet), v1_workflows.Child(hatchet)},
 	}
 
 	// Lookup workflow from map
@@ -48,7 +50,7 @@ func main() {
 	}
 
 	worker, err := hatchet.Worker(
-		worker.CreateOpts{
+		create.WorkerOpts{
 			Name: fmt.Sprintf("%s-worker", workflowName),
 		},
 		worker.WithWorkflows(workflow...),

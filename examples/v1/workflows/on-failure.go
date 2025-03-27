@@ -3,8 +3,9 @@ package v1_workflows
 import (
 	"errors"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -21,30 +22,32 @@ type OnFailureSuccessResult struct {
 	AlwaysFails AlwaysFailsOutput
 }
 
-func OnFailure(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, OnFailureSuccessResult] {
+func OnFailure(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[any, OnFailureSuccessResult] {
 
-	simple := v1.WorkflowFactory[any, OnFailureSuccessResult](
-		workflow.CreateOpts[any]{
+	simple := factory.NewWorkflow[any, OnFailureSuccessResult](
+		create.WorkflowCreateOpts[any]{
 			Name: "on-failure",
-			OnFailureTask: &task.OnFailureTaskDeclaration[any]{
-				Fn: func(_ any, ctx worker.HatchetContext) (*OnFailureOutput, error) {
-					return &OnFailureOutput{
-						FailureRan: true,
-					}, nil
-				},
-			},
 		},
 		hatchet,
 	)
 
 	simple.Task(
-		task.CreateOpts[any]{
+		create.WorkflowTask[any, OnFailureSuccessResult]{
 			Name: "AlwaysFails",
-			Fn: func(_ any, ctx worker.HatchetContext) (*AlwaysFailsOutput, error) {
-				return &AlwaysFailsOutput{
-					TransformedMessage: "always fails",
-				}, errors.New("always fails")
-			},
+		},
+		func(ctx worker.HatchetContext, _ any) (interface{}, error) {
+			return &AlwaysFailsOutput{
+				TransformedMessage: "always fails",
+			}, errors.New("always fails")
+		},
+	)
+
+	simple.OnFailure(
+		create.WorkflowOnFailureTask[any, OnFailureSuccessResult]{},
+		func(ctx worker.HatchetContext, _ any) (interface{}, error) {
+			return &OnFailureOutput{
+				FailureRan: true,
+			}, nil
 		},
 	)
 

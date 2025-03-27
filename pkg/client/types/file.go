@@ -26,10 +26,6 @@ type Concurrency struct {
 	LimitStrategy *WorkflowConcurrencyLimitStrategy `yaml:"limitStrategy,omitempty"`
 }
 
-type TaskConditions struct {
-	// TODO
-}
-
 type Workflow struct {
 	Name string `yaml:"name,omitempty"`
 

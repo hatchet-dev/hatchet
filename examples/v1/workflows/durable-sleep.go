@@ -4,8 +4,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -14,39 +15,28 @@ type DurableSleepInput struct {
 	Message string
 }
 
-type SleepOutput struct {
+type DurableSleepOutput struct {
 	TransformedMessage string
 }
 
-type DurableSleepOutput struct {
-	Sleep SleepOutput
-}
-
-func DurableSleep(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[DurableSleepInput, DurableSleepOutput] {
-
-	simple := v1.WorkflowFactory[DurableSleepInput, DurableSleepOutput](
-		workflow.CreateOpts[DurableSleepInput]{
+func DurableSleep(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DurableSleepInput, DurableSleepOutput] {
+	// ctx as first param of NewTask
+	simple := factory.NewDurableTask(
+		create.StandaloneTask{
 			Name: "durable-sleep",
 		},
-		hatchet,
-	)
+		func(ctx worker.DurableHatchetContext, input DurableSleepInput) (*DurableSleepOutput, error) {
+			_, err := ctx.SleepFor(10 * time.Second)
 
-	simple.DurableTask(
-		task.CreateOpts[DurableSleepInput]{
-			Name: "Sleep",
-			Fn: func(input DurableSleepInput, ctx worker.DurableHatchetContext) (*SleepOutput, error) {
+			if err != nil {
+				return nil, err
+			}
 
-				_, err := ctx.SleepFor(time.Minute)
-
-				if err != nil {
-					return nil, err
-				}
-
-				return &SleepOutput{
-					TransformedMessage: strings.ToLower(input.Message),
-				}, nil
-			},
+			return &DurableSleepOutput{
+				TransformedMessage: strings.ToLower(input.Message),
+			}, nil
 		},
+		hatchet,
 	)
 
 	return simple
