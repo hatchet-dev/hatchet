@@ -158,6 +158,17 @@ func main() {
 			fmt.Println("WithBackoff workflow completed unexpectedly")
 			return nil
 		},
+		"on-cron": func() error {
+			cronTask := v1_workflows.OnCron(hatchet)
+			result, err := cronTask.Run(ctx, v1_workflows.OnCronInput{
+				Message: "Hello, Cron!",
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Println("Cron task result:", result.Job.TransformedMessage)
+			return nil
+		},
 	}
 
 	// Lookup workflow runner from map

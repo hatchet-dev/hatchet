@@ -44,6 +44,7 @@ func main() {
 		"timeout":      {v1_workflows.Timeout(hatchet)},
 		"sticky":       {v1_workflows.Sticky(hatchet), v1_workflows.StickyDag(hatchet), v1_workflows.Child(hatchet)},
 		"retries":      {v1_workflows.Retries(hatchet), v1_workflows.RetriesWithCount(hatchet), v1_workflows.WithBackoff(hatchet)},
+		"on-cron":      {v1_workflows.OnCron(hatchet)},
 	}
 
 	// Add an "all" option that registers all workflows
