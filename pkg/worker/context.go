@@ -10,8 +10,10 @@ import (
 
 	"github.com/rs/zerolog"
 
+	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
 type HatchetWorkerContext interface {
@@ -549,6 +551,91 @@ func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
 	return wc.worker.registered_workflows[workflowName]
 }
 
+type SingleWaitResult struct {
+	*WaitResult
+
+	key string
+}
+
+func newSingleWaitResult(key string, wr *WaitResult) *SingleWaitResult {
+	return &SingleWaitResult{
+		WaitResult: wr,
+		key:        key,
+	}
+}
+
+func (w *SingleWaitResult) Unmarshal(in interface{}) error {
+	return w.WaitResult.Unmarshal(w.key, in)
+}
+
+type WaitResult struct {
+	allResults map[string]map[string][]map[string]interface{}
+}
+
+func newWaitResult(dataBytes []byte) (*WaitResult, error) {
+	var allResults map[string]map[string][]map[string]interface{}
+
+	err := json.Unmarshal(dataBytes, &allResults)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal wait result: %w", err)
+	}
+
+	return &WaitResult{
+		allResults: allResults,
+	}, nil
+}
+
+type ErrMarshalKeyNotFound struct {
+	Key string
+}
+
+func (e ErrMarshalKeyNotFound) Error() string {
+	return fmt.Sprintf("key %s not found", e.Key)
+}
+
+func (w *WaitResult) Keys() []string {
+	keys := make([]string, 0, len(w.allResults))
+
+	for _, v := range w.allResults {
+		for k2 := range v {
+			keys = append(keys, k2)
+		}
+	}
+
+	return keys
+}
+
+func (w *WaitResult) Unmarshal(key string, in interface{}) error {
+	eNotFound := ErrMarshalKeyNotFound{
+		Key: key,
+	}
+
+	if w.allResults == nil {
+		return eNotFound
+	}
+
+	for _, v := range w.allResults {
+		if _, exists := v[key]; exists && len(v[key]) > 0 {
+			data, err := json.Marshal(v[key][0])
+
+			if err != nil {
+				return fmt.Errorf("failed to marshal data: %w", err)
+			}
+
+			err = json.Unmarshal(data, in)
+
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal data: %w", err)
+			}
+
+			return nil
+		}
+	}
+
+	return nil
+}
+
 // DurableHatchetContext extends HatchetContext with methods for durable tasks.
 type DurableHatchetContext interface {
 	HatchetContext
@@ -557,42 +644,123 @@ type DurableHatchetContext interface {
 	// Duration is "global" meaning it will wait in real time regardless of transient failures
 	// like worker restarts.
 	// Example: "10s" for 10 seconds, "1m" for 1 minute, etc.
-	SleepFor(duration time.Duration) (interface{}, error)
+	SleepFor(duration time.Duration) (*SingleWaitResult, error)
+
+	// TODO: docs
+	WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
 
 	// WaitFor pauses execution until the specified conditions are met.
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
 	// like worker restarts.
-	WaitFor(conditions map[string]interface{}) (interface{}, error)
+	WaitFor(conditions condition.Condition) (*WaitResult, error)
 }
 
 // durableHatchetContext implements the DurableHatchetContext interface.
 type durableHatchetContext struct {
 	*hatchetContext
-	waitKeyCounter int
+
+	waitKeyCounterMu sync.Mutex
+	waitKeyCounter   int
+
+	durableEventListener *client.DurableEventsListener
+	durableListenerMu    sync.Mutex
 }
 
 // SleepFor implements the DurableHatchetContext.SleepFor method.
-func (d *durableHatchetContext) SleepFor(duration time.Duration) (interface{}, error) {
+func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitResult, error) {
 	// Implement SleepFor functionality
 	// Call appropriate client methods to register a durable event
-	return d.WaitFor(map[string]interface{}{
-		"sleepFor": duration,
-	})
+	c := condition.SleepCondition(duration)
+
+	wr, err := d.WaitFor(c)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return newSingleWaitResult(c.Key(), wr), nil
+}
+
+// WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
+func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
+	// Implement WaitForEvent functionality
+	// Call appropriate client methods to register a durable event
+	wr, err := d.WaitFor(condition.UserEventCondition(eventKey, expression))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return newSingleWaitResult(eventKey, wr), nil
 }
 
 // WaitFor implements the DurableHatchetContext.WaitFor method.
-func (d *durableHatchetContext) WaitFor(conditions map[string]interface{}) (interface{}, error) {
+func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitResult, error) {
 	// Increment wait key to ensure unique keys for multiple wait operations
+	d.waitKeyCounterMu.Lock()
 	d.waitKeyCounter++
-	// key := fmt.Sprintf("waitFor-%d", d.waitKeyCounter)
+	count := d.waitKeyCounter
+	d.waitKeyCounterMu.Unlock()
 
-	// Convert conditions to appropriate format and register with the durable event system
-	// This is a simplified implementation - in a real system, you'd need to convert
-	// the conditions to the format expected by your durable event subsystem
+	// TODO: MOVE SAVE OR LOAD DURABLE EVENT LISTENER TO THE CLIENT
+	durableListener, err := d.saveOrLoadDurableEventListener()
 
-	// Call client methods to register and wait for the event
-	// For now, we'll return a placeholder implementation
-	return nil, fmt.Errorf("WaitFor not fully implemented yet")
+	if err != nil {
+		return nil, err
+	}
+
+	// compose the durable event to listen for
+	c := conditions.ToPB(v1.Action_CREATE)
+	signalKey := fmt.Sprintf("signal-%d", count)
+
+	_, err = d.client().Dispatcher().RegisterDurableEvent(d, &v1.RegisterDurableEventRequest{
+		TaskId:    d.StepRunId(),
+		SignalKey: signalKey,
+		Conditions: &v1.DurableEventListenerConditions{
+			SleepConditions:     c.SleepConditions,
+			UserEventConditions: c.UserEventConditions,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to register durable event: %w", err)
+	}
+
+	resCh := make(chan []byte)
+
+	err = durableListener.AddSignal(d.StepRunId(), signalKey, func(e client.DurableEvent) error {
+		resCh <- e.Data
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to add signal: %w", err)
+	}
+
+	data := <-resCh
+
+	return newWaitResult(data)
+}
+
+func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
+	h.durableListenerMu.Lock()
+	defer h.durableListenerMu.Unlock()
+
+	if h.durableEventListener != nil {
+		return h.durableEventListener, nil
+	}
+
+	// TODO: USE THE WORKER CONTEXT
+	l, err := h.client().Subscribe().ListenForDurableEvents(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	h.durableEventListener = l
+
+	return l, nil
 }
 
 // NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.
