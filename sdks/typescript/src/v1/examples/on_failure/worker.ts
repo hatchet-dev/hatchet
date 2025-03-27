@@ -1,9 +1,9 @@
 import { hatchet } from '../hatchet-client';
-import { alwaysFail } from './workflow';
+import { failureWorkflow } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('always-fail-worker', {
-    workflows: [alwaysFail],
+    workflows: [failureWorkflow],
   });
 
   await worker.start();

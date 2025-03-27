@@ -18,6 +18,8 @@ import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
   CreateWorkflowOpts,
+  RunOpts,
+  BaseWorkflowDeclaration,
   CreateTaskWorkflow,
   WorkflowDeclaration,
   TaskWorkflowDeclaration,
@@ -205,6 +207,68 @@ export class HatchetClient implements IHatchetClient {
    */
   durableTask(options: any): TaskWorkflowDeclaration<any, any> {
     return CreateDurableTaskWorkflow(options, this);
+  }
+
+  /**
+   * Triggers a workflow run without waiting for completion.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param workflow - The workflow to run, either as a Workflow instance or workflow name
+   * @param input - The input data for the workflow
+   * @param options - Configuration options for the workflow run
+   * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
+   */
+  xxx<T extends JsonObject = any, K extends JsonObject = any>(
+    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
+    input: T,
+    options: RunOpts
+  ): WorkflowRunRef<K> {
+    let name: string;
+    if (typeof workflow === 'string') {
+      name = workflow;
+    } else if ('id' in workflow) {
+      name = workflow.id;
+    } else {
+      throw new Error('unable to identify workflow');
+    }
+
+    return this._v0.admin.runWorkflow<T, K>(name, input, options);
+  }
+
+  /**
+   * @alias run
+   * Triggers a workflow run and waits for the result.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param workflow - The workflow to run, either as a Workflow instance or workflow name
+   * @param input - The input data for the workflow
+   * @param options - Configuration options for the workflow run
+   * @returns A promise that resolves with the workflow result
+   */
+  async runAndWait<T extends JsonObject = any, K extends JsonObject = any>(
+    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
+    input: T,
+    options: RunOpts = {}
+  ): Promise<K> {
+    return this.run<T, K>(workflow, input, options);
+  }
+
+  /**
+   * Triggers a workflow run and waits for the result.
+   * @template T - The input type for the workflow
+   * @template K - The return type of the workflow
+   * @param workflow - The workflow to run, either as a Workflow instance or workflow name
+   * @param input - The input data for the workflow
+   * @param options - Configuration options for the workflow run
+   * @returns A promise that resolves with the workflow result
+   */
+  async run<T extends JsonObject = any, K extends JsonObject = any>(
+    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
+    input: T,
+    options: RunOpts = {}
+  ): Promise<K> {
+    const run = this.xxx<T, K>(workflow, input, options);
+    return run.output as Promise<K>;
   }
 
   /**

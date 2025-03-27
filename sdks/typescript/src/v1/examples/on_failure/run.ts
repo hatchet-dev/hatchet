@@ -1,9 +1,9 @@
 /* eslint-disable no-console */
-import { alwaysFail } from './workflow';
+import { failureWorkflow } from './workflow';
 
 async function main() {
   try {
-    const res = await alwaysFail.run({});
+    const res = await failureWorkflow.run({});
     console.log(res);
   } catch (e) {
     console.log('error', e);
