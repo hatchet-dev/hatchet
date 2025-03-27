@@ -55,10 +55,10 @@ export function ManagedWorkersTable() {
   const emptyState = (
     <Card className="w-full text-justify">
       <CardHeader>
-        <CardTitle>No Managed Workers</CardTitle>
+        <CardTitle>No Managed Services</CardTitle>
         <CardDescription>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            There are no managed workers created in this tenant.
+            There are no managed services created in this tenant.
           </p>
         </CardDescription>
       </CardHeader>
