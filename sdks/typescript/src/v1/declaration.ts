@@ -467,7 +467,6 @@ export class WorkflowDeclaration<
   onFailure<Name extends string, L>(
     options:
       | (Omit<CreateOnFailureTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
-          name: Name;
           fn: (
             input: T,
             ctx: Context<T>
@@ -502,7 +501,6 @@ export class WorkflowDeclaration<
   onSuccess<Name extends string, L>(
     options:
       | (Omit<CreateOnSuccessTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
-          name: Name;
           fn: (
             input: T,
             ctx: Context<T>

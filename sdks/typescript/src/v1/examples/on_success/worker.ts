@@ -1,9 +1,9 @@
 import { hatchet } from '../hatchet-client';
-import { onSuccessDag, onSuccess } from './workflow';
+import { onSuccessDag } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('always-succeed-worker', {
-    workflows: [onSuccessDag, onSuccess],
+    workflows: [onSuccessDag],
   });
 
   await worker.start();

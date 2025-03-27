@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/uuid"
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/joho/godotenv"
+	"github.com/oapi-codegen/runtime/types"
 )
 
 func main() {
@@ -68,6 +71,89 @@ func main() {
 				return err
 			}
 			fmt.Println("Sleep workflow completed")
+			return nil
+		},
+		"cancellation": func() error {
+			cancellation := v1_workflows.Cancellation(hatchet)
+			run, err := cancellation.RunNoWait(ctx, v1_workflows.CancellationInput{})
+
+			if err != nil {
+				return err
+			}
+
+			_, err = hatchet.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
+				ExternalIds: &[]types.UUID{uuid.MustParse(run.WorkflowRunId())},
+			})
+
+			if err != nil {
+				return nil // We expect an error here
+			}
+
+			_, err = run.Result()
+
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("Cancellation workflow completed unexpectedly")
+			return nil
+		},
+		"timeout": func() error {
+			timeout := v1_workflows.Timeout(hatchet)
+			_, err := timeout.Run(ctx, v1_workflows.TimeoutInput{})
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("Timeout workflow completed unexpectedly")
+			return nil
+		},
+		"sticky": func() error {
+			sticky := v1_workflows.Sticky(hatchet)
+			result, err := sticky.Run(ctx, v1_workflows.StickyInput{})
+			if err != nil {
+				return err
+			}
+			fmt.Println("Value from child workflow:", result.Result)
+			return nil
+		},
+		"sticky-dag": func() error {
+			stickyDag := v1_workflows.StickyDag(hatchet)
+			result, err := stickyDag.Run(ctx, v1_workflows.StickyInput{})
+			if err != nil {
+				return err
+			}
+			fmt.Println("Value from task 1:", result.StickyTask1.Result)
+			fmt.Println("Value from task 2:", result.StickyTask2.Result)
+			return nil
+		},
+		"retries": func() error {
+			retries := v1_workflows.Retries(hatchet)
+			_, err := retries.Run(ctx, v1_workflows.RetriesInput{})
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("Retries workflow completed unexpectedly")
+			return nil
+		},
+		"retries-count": func() error {
+			retriesCount := v1_workflows.RetriesWithCount(hatchet)
+			result, err := retriesCount.Run(ctx, v1_workflows.RetriesWithCountInput{})
+			if err != nil {
+				return err
+			}
+			fmt.Println("Result message:", result.Message)
+			return nil
+		},
+		"with-backoff": func() error {
+			withBackoff := v1_workflows.WithBackoff(hatchet)
+			_, err := withBackoff.Run(ctx, v1_workflows.BackoffInput{})
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("WithBackoff workflow completed unexpectedly")
 			return nil
 		},
 	}

@@ -195,7 +195,7 @@ export type CreateStandaloneDurableTaskOpts<T, K> = CreateBaseTaskOpts<T, K, Dur
  * @template T The input type for the task function.
  * @template K The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateOnSuccessTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
+export type CreateOnSuccessTaskOpts<T, K> = Omit<CreateBaseTaskOpts<T, K, TaskFn<T, K>>, 'name'>;
 
 /**
  * Options for configuring the onFailure task that is invoked when a task fails.
