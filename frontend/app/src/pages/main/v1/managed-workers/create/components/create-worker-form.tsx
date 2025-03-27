@@ -526,13 +526,13 @@ export default function CreateWorkerForm({
   return (
     <>
       <div className="text-sm text-muted-foreground">
-        Define the compute resources for your workers.
+        Define the compute resources for your services.
       </div>
       <Steps className="mt-6">
         <Step title="Build configuration">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Configure the Github repository the worker should deploy from.
+              Configure the Github repository the service should deploy from.
             </div>
 
             <div className="max-w-3xl grid gap-4">
@@ -704,7 +704,7 @@ export default function CreateWorkerForm({
         <Step title="Runtime configuration">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Configure the runtime settings for this worker.
+              Configure the runtime settings for this service.
             </div>
             <Label>Environment Variables</Label>
             <EnvGroupArray
@@ -1173,7 +1173,7 @@ export default function CreateWorkerForm({
         <Step title="Name">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Give your worker a name.
+              Give your service a name.
             </div>
             <Label htmlFor="name">Name</Label>
             <Controller
@@ -1181,7 +1181,11 @@ export default function CreateWorkerForm({
               name="name"
               render={({ field }) => {
                 return (
-                  <Input {...field} id="name" placeholder="my-awesome-worker" />
+                  <Input
+                    {...field}
+                    id="name"
+                    placeholder="my-awesome-service"
+                  />
                 );
               }}
             />
@@ -1193,7 +1197,7 @@ export default function CreateWorkerForm({
         <Step title="Review">
           <div className="grid gap-4">
             <div className="text-sm text-muted-foreground">
-              Review the settings for this worker.
+              Review the settings for this service.
             </div>
             {/* Show invalid configurations and upgrade messages at review stage */}
             {(!isComputeAllowed ||
@@ -1246,7 +1250,7 @@ export default function CreateWorkerForm({
               className="w-fit px-8"
             >
               {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}
-              Create worker
+              Create service
             </Button>
           </div>
         </Step>

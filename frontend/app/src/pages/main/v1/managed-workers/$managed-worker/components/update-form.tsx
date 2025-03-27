@@ -365,8 +365,8 @@ export default function UpdateWorkerForm({
   return (
     <>
       <div className="text-sm text-muted-foreground">
-        Change the configuration of your worker. This will trigger a
-        redeployment.
+        Change the configuration of your service. This will trigger a
+        redeployment of all workers.
       </div>
       <div className="mt-6 flex flex-col gap-4">
         <div>
@@ -377,7 +377,11 @@ export default function UpdateWorkerForm({
               name="name"
               render={({ field }) => {
                 return (
-                  <Input {...field} id="name" placeholder="my-awesome-worker" />
+                  <Input
+                    {...field}
+                    id="name"
+                    placeholder="my-awesome-service"
+                  />
                 );
               }}
             />
@@ -555,7 +559,7 @@ export default function UpdateWorkerForm({
             </AccordionTrigger>
             <AccordionContent className="grid gap-4">
               <div className="text-sm text-muted-foreground">
-                Configure the runtime settings for this worker.
+                Configure the runtime settings for this service.
               </div>
               <Label>Environment Variables</Label>
               <EnvGroupArray
