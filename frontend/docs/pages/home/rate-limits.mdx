@@ -123,30 +123,34 @@ Define the static rate limits that can be consumed by any step run across all wo
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```python
 RATE_LIMIT_KEY = "test-limit"
 
 hatchet.rate_limits.put(RATE_LIMIT_KEY, 10, RateLimitDuration.MINUTE)
+```
 
-````
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 await hatchet.ratelimits.upsert({
-  key: 'test-limit',
+  key: "test-limit",
   limit: 1,
   duration: RateLimitDuration.MINUTE,
 });
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
     Max:      3,
     Duration: "minute",
 })
 ```
+
   </Tabs.Tab>
 </UniversalTabs>
 
