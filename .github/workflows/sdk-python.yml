@@ -2,8 +2,11 @@ name: python
 on:
   pull_request:
     paths:
-      - 'sdks/python/**'
       - '.github/**'
+      - 'api/**'
+      - 'api-contracts/**'
+      - 'internal/**'
+      - 'sdks/python/**'
   push:
     branches:
       - main
