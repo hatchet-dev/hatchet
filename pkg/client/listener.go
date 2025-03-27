@@ -404,29 +404,3 @@ func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) 
 func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
 	return r.getDurableEventsListener(context.Background())
 }
-
-func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
-	l, err := r.newDurableEventsListener(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		defer func() {
-			err := l.Close()
-
-			if err != nil {
-				r.l.Error().Err(err).Msg("failed to close durable events listener")
-			}
-		}()
-
-		err := l.Listen(ctx)
-
-		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for durable events")
-		}
-	}()
-
-	return l, nil
-}
