@@ -12,6 +12,7 @@ from hatchet_sdk import (
 hatchet = Hatchet(debug=True)
 
 
+# ❓ Workflow
 class WorkflowInput(BaseModel):
     group: str
 
@@ -25,6 +26,7 @@ concurrency_limit_rr_workflow = hatchet.workflow(
     ),
     input_validator=WorkflowInput,
 )
+# ‼️
 
 
 @concurrency_limit_rr_workflow.task()

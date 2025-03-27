@@ -2,6 +2,12 @@ import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
+export const FanoutPy = {
+  path: "examples/fanout/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([FanoutPy]);
+
 # Procedural Child Workflow Spawning
 
 Hatchet supports the dynamic creation of child workflows during a parent workflow's execution. This powerful feature enables:
@@ -18,49 +24,15 @@ To implement child workflow spawning, you first need to create both parent and c
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
 <Tabs.Tab title="Python">
 
-```python
-from hatchet_sdk import Context, Hatchet
-from pydantic import BaseModel
+First, we'll declare a couple of workflows for the parent and child:
 
-hatchet = Hatchet(debug=True)
+<GithubSnippet src={FanoutPy} target="FanoutParent" />
 
-# Child workflow definition
-class ChildInput(BaseModel):
-    n: int
+We also created a task on the parent workflow that spawns the child workflows. Now, we'll add a couple of tasks to the child workflow:
 
-class ValueOutput(BaseModel):
-    value: int
+<GithubSnippet src={FanoutPy} target="FanoutChild" />
 
-child = hatchet.workflow(name="child")
-
-@child.task()
-def value_task(input: ChildInput, ctx: Context) -> ValueOutput:
-    return ValueOutput(value=input.n)
-
-# Parent workflow definition
-class ParentInput(BaseModel):
-    n: int
-
-class SumOutput(BaseModel):
-    result: int
-
-parent = hatchet.workflow(name="parent")
-
-@parent.task()
-def sum_task(input: ParentInput, ctx: Context) -> SumOutput:
-    sum_value = 0
-
-    # Run multiple child workflows concurrently
-    child_results = await child.aio_run_many([
-		child.create_run_workflow_config(input=ChildInput(n=i))
-		for i in range(input.n)
-	])
-
-    # Sum the results
-	sum_value = sum(child.get("result") for child in child_results.values())
-
-    return SumOutput(result=sum_value)
-```
+And that's it! The fanout parent will run and spawn the child, and then will collect the results from its tasks.
 
 </Tabs.Tab>
 <Tabs.Tab title="Typescript">
@@ -309,7 +281,7 @@ import asyncio
 
 async def run_child_workflows(n: int) -> list[dict[str, Any]]:
 	return await child.aio_run_many([
-		create_run_workflow_config(
+		child.create_run_workflow_config(
 			options=TriggerWorkflowOptions(
 				input=ChildInput(n=i),
 			)
@@ -380,7 +352,7 @@ When working with child workflows, it's important to properly handle errors. Her
 
 ```python
 try:
-    child_result = child.run_as_child(ctx, ChildInput(n=i))
+    child_result = child.run(ChildInput(a="foobar"))
 except Exception as e:
     # Handle error from child workflow
     print(f"Child workflow failed: {e}")

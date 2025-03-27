@@ -17,6 +17,7 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
+// ❓ Workflow
 export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: {
@@ -25,6 +26,7 @@ export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
     expression: 'input.GroupKey',
   },
 });
+// !!
 
 simpleConcurrency.task({
   name: 'to-lower',
