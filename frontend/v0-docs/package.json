@@ -1,0 +1,52 @@
+{
+  "name": "nextra-docs-template",
+  "version": "0.0.1",
+  "description": "Nextra docs template",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint:check": "npm run prettier:check",
+    "lint:fix": "npm run prettier:fix",
+    "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
+    "prettier:fix": "prettier \"pages/**/*.{tsx,mdx}\" --write"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shuding/nextra-docs-template.git"
+  },
+  "author": "Shu Ding <g@shud.in>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/shuding/nextra-docs-template/issues"
+  },
+  "homepage": "https://github.com/shuding/nextra-docs-template#readme",
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.1.0",
+    "autoprefixer": "^10.4.17",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.459.0",
+    "next": "^14.1.0",
+    "nextra": "^2.13.2",
+    "nextra-theme-docs": "^2.13.4",
+    "postcss": "^8.4.33",
+    "posthog-js": "^1.111.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-lottie-player": "^2.0.0",
+    "react-tweet": "^3.2.0",
+    "shiki": "^1.22.2",
+    "tailwind-merge": "^2.5.4",
+    "tailwindcss": "^3.4.1",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "18.11.10",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "prettier": "^3.2.5",
+    "typescript": "^4.9.3"
+  }
+}

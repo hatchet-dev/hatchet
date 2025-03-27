@@ -1,0 +1,159 @@
+# API
+
+The SDK exposes a `rest` client for interacting with the Hatchet REST API. This allows you to read, create, update, and delete workflows.
+
+The admin client can be accessed via:
+
+```py
+hatchet = Hatchet(debug=True)
+
+list : WorkflowList = hatchet.client.rest().workflow_list()
+```
+
+## Methods
+
+- [put_workflow](api.mdx#put_workflow)
+- [workflow_list](api.mdx#workflow_list)
+- [workflow_get](api.mdx#workflow_get)
+- [workflow_version_get](api.mdx#workflow_version_get)
+- [workflow_run_list](api.mdx#workflow_run_list)
+- [workflow_run_get](api.mdx#workflow_run_get)
+- [workflow_run_create](api.mdx#workflow_run_create)
+
+### put_workflow
+
+▸ **put_workflow**(`name: str, workflow: CreateWorkflowVersionOpts | WorkflowMeta, overrides: CreateWorkflowVersionOpts | None = None`): `list`
+
+Creates or updates a workflow. This can use an existing workflow class to extend from and overwrite. For example:
+
+```py
+@hatchet.workflow()
+class BaseWorkflow:
+    @hatchet.step()
+    def step1(self, context: Context):
+        return {
+            "result": "success!"
+        }
+
+    @hatchet.step(parents=["step1"],timeout='4s')
+    def step2(self, context):
+        return {
+            "result2": "success!"
+        }
+
+hatchet.client.admin.put_workflow(
+    "workflow-copy",
+    BaseWorkflow(),
+    overrides=CreateWorkflowVersionOpts(
+        cron_triggers=["*/15 * * * *"],
+        cron_input=json.dumps({"test": "test"}),
+    ),
+)
+```
+
+### workflow_list
+
+▸ **workflow_list**(): `list`
+
+List all workflows for the tenant.
+
+#### Returns
+
+[WorkflowList](./_api/_types/WorkflowList.md)
+
+A list of workflows.
+
+### workflow_get
+
+▸ **workflow_get**(`workflow_id: str`): `dict`
+
+Get a workflow by its ID.
+
+#### Parameters
+
+| Name          | Type  | Description      |
+| :------------ | :---- | :--------------- |
+| `workflow_id` | `str` | The workflow ID. |
+
+#### Returns
+
+[Workflow](./_api/_types/Workflow.md)
+
+The workflow details.
+
+### workflow_version_get
+
+▸ **workflow_version_get**(`workflow_id: str`, `version: str | None = None`): `dict`
+
+Get a specific version of a workflow.
+
+#### Parameters
+
+| Name          | Type  | Description      |                                                                         |
+| :------------ | :---- | :--------------- | ----------------------------------------------------------------------- |
+| `workflow_id` | `str` | The workflow ID. |                                                                         |
+| `version`     | `str  | None`            | The version of the workflow. If `None`, the latest version is returned. |
+
+#### Returns
+
+[WorkflowVersion](./_api/_types/WorkflowVersion.md)
+
+The workflow version details.
+
+### workflow_run_list
+
+▸ **workflow_run_list**(`workflow_id: str | None = None`, `offset: int | None = None`, `limit: int | None = None`, `event_id: str | None = None`): `list`
+
+List workflow runs, optionally filtered by parameters.
+
+#### Parameters
+
+| Name          | Type | Description |                               |
+| :------------ | :--- | :---------- | ----------------------------- |
+| `workflow_id` | `str | None`       | The workflow ID to filter by. |
+| `offset`      | `int | None`       | Pagination offset.            |
+| `limit`       | `int | None`       | Pagination limit.             |
+| `event_id`    | `str | None`       | Event ID to filter by.        |
+
+#### Returns
+
+[WorkflowRunList](./_api/_types/WorkflowRunList.md)
+
+A list of workflow runs.
+
+### workflow_run_get
+
+▸ **workflow_run_get**(`workflow_run_id: str`): `dict`
+
+Get a specific workflow run.
+
+#### Parameters
+
+| Name              | Type  | Description                        |
+| :---------------- | :---- | :--------------------------------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to get. |
+
+#### Returns
+
+[WorkflowRun](./_api/_types/WorkflowRun.md)
+
+The workflow run details.
+
+### workflow_run_create
+
+▸ **workflow_run_create**(`workflow_id: str`, `input: Dict[str, Any]`): `dict`
+
+Create and trigger a workflow run with specified input.
+
+#### Parameters
+
+| Name          | Type             | Description                     |
+| :------------ | :--------------- | :------------------------------ |
+| `workflow_id` | `str`            | The ID of the workflow to run.  |
+| `input`       | `Dict[str, Any]` | The input for the workflow run. |
+
+#### Returns
+
+[WorkflowRun](./_api/_types/WorkflowRun.md)
+
+The details of the created workflow run.
