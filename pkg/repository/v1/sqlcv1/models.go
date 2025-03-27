@@ -2469,6 +2469,7 @@ type V1DagsOlap struct {
 	Input                []byte               `json:"input"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+	TotalTasks           int32                `json:"total_tasks"`
 }
 
 type V1DurableSleep struct {

@@ -1169,6 +1169,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId string,
 			Input:                dag.Input,
 			AdditionalMetadata:   dag.AdditionalMetadata,
 			ParentTaskExternalID: parentTaskExternalID,
+			TotalTasks:           int32(dag.TotalTasks), // nolint: gosec
 		})
 	}
 
