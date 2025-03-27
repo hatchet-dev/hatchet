@@ -23,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { cloudApi } from '@/lib/api/api';
+import api from '@/lib/api';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -217,7 +218,7 @@ func main() {
 
       triggerRuns();
     }
-  }, [successStepOpen, workflowId]);
+  }, [allRunsTriggered, successStepOpen, triggerWorkflow, workflowId]);
 
   // Monitor events to determine deployment status
   useEffect(() => {
@@ -236,11 +237,8 @@ func main() {
         const latestEvent = sortedEvents[0];
         setDeploymentStatus(latestEvent.message);
 
-        // Check if deployment is complete
-        if (
-          latestEvent.status === ManagedWorkerEventStatus.SUCCEEDED &&
-          latestEvent.message.includes('Deployment complete')
-        ) {
+        // Check if deployment is complete - make success detection more robust
+        if (latestEvent.status === ManagedWorkerEventStatus.SUCCEEDED) {
           setDeploying(false);
           setDeployed(true);
           setDeployStepOpen(false);
@@ -299,18 +297,41 @@ func main() {
   const handleGenerateToken = () => {
     setIsGeneratingToken(true);
 
-    // For both simulation and real mode, we'll use a timeout
-    // In a real implementation, you would call the API to generate a token
-    setTimeout(() => {
-      // Generate a realistic-looking token
-      const tokenPrefix = isSimulation ? 'hx_sim_' : 'hx_';
-      const randomPart =
-        Math.random().toString(36).substring(2, 15) +
-        Math.random().toString(36).substring(2, 15);
+    if (isSimulation) {
+      // Only simulate token generation in simulation mode
+      setTimeout(() => {
+        const tokenPrefix = 'hx_sim_';
+        const randomPart =
+          Math.random().toString(36).substring(2, 15) +
+          Math.random().toString(36).substring(2, 15);
 
-      setApiToken(`${tokenPrefix}${randomPart}`);
-      setIsGeneratingToken(false);
-    }, 1500);
+        setApiToken(`${tokenPrefix}${randomPart}`);
+        setIsGeneratingToken(false);
+      }, 1500);
+    } else {
+      // Use the real API to generate a token in real mode
+      if (!tenant) {
+        setIsGeneratingToken(false);
+        return;
+      }
+
+      // Call the real API to generate a token
+      api
+        .apiTokenCreate(tenant.metadata.id, { name: 'demo-template-token' })
+        .then((response: any) => {
+          if (response.data && response.data.token) {
+            setApiToken(response.data.token);
+          } else {
+            console.error('Failed to get token from response');
+          }
+        })
+        .catch((error: any) => {
+          console.error('Failed to generate token:', error);
+        })
+        .finally(() => {
+          setIsGeneratingToken(false);
+        });
+    }
   };
 
   // Code examples for triggering a workflow via API
@@ -733,8 +754,18 @@ func main() {
                               Deployment in progress...
                             </h4>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {deploymentStatus}
+                          <p className="text-sm text-muted-foreground flex justify-between items-center">
+                            <span>{deploymentStatus}</span>
+                            {deployedWorkerId && (
+                              <a
+                                href={`/v1/managed-workers/${deployedWorkerId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline ml-2"
+                              >
+                                View Logs
+                              </a>
+                            )}
                           </p>
                         </div>
                       )}
