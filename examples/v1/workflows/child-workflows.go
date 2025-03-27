@@ -30,7 +30,7 @@ func Child(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ChildInput, Va
 	child := factory.NewTask(
 		create.StandaloneTask{
 			Name: "child",
-		}, func(input ChildInput, ctx worker.HatchetContext) (*ValueOutput, error) {
+		}, func(ctx worker.HatchetContext, input ChildInput) (*ValueOutput, error) {
 			return &ValueOutput{
 				Value: input.N,
 			}, nil
@@ -47,7 +47,7 @@ func Parent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, 
 	parent := factory.NewTask(
 		create.StandaloneTask{
 			Name: "parent",
-		}, func(input ParentInput, ctx worker.HatchetContext) (*SumOutput, error) {
+		}, func(ctx worker.HatchetContext, input ParentInput) (*SumOutput, error) {
 
 			sum := 0
 

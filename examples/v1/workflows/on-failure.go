@@ -35,7 +35,7 @@ func OnFailure(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[any, OnFai
 		create.WorkflowTask[any, OnFailureSuccessResult]{
 			Name: "AlwaysFails",
 		},
-		func(_ any, ctx worker.HatchetContext) (interface{}, error) {
+		func(ctx worker.HatchetContext, _ any) (interface{}, error) {
 			return &AlwaysFailsOutput{
 				TransformedMessage: "always fails",
 			}, errors.New("always fails")
@@ -44,7 +44,7 @@ func OnFailure(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[any, OnFai
 
 	simple.OnFailure(
 		create.WorkflowOnFailureTask[any, OnFailureSuccessResult]{},
-		func(_ any, ctx worker.HatchetContext) (interface{}, error) {
+		func(ctx worker.HatchetContext, _ any) (interface{}, error) {
 			return &OnFailureOutput{
 				FailureRan: true,
 			}, nil

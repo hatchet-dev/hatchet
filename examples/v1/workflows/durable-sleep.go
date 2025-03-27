@@ -25,7 +25,7 @@ func DurableSleep(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Durable
 		create.StandaloneTask{
 			Name: "durable-sleep",
 		},
-		func(input DurableSleepInput, ctx worker.DurableHatchetContext) (*DurableSleepOutput, error) {
+		func(ctx worker.DurableHatchetContext, input DurableSleepInput) (*DurableSleepOutput, error) {
 			_, err := ctx.SleepFor(10 * time.Second)
 
 			if err != nil {

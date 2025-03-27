@@ -24,7 +24,7 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 	simple := factory.NewTask(
 		create.StandaloneTask{
 			Name: "simple-task",
-		}, func(input SimpleInput, ctx worker.HatchetContext) (*SimpleResult, error) {
+		}, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
 			// Transform the input message to lowercase
 			return &SimpleResult{
 				TransformedMessage: strings.ToLower(input.Message),

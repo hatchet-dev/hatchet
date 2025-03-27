@@ -62,15 +62,15 @@ type WorkflowDeclaration[I, O any] interface {
 	WorkflowBase
 
 	// Task registers a task that will be executed as part of the workflow
-	Task(opts create.WorkflowTask[I, O], fn func(input I, ctx worker.HatchetContext) (interface{}, error)) *task.TaskDeclaration[I]
+	Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I]
 
 	// DurableTask registers a durable task that will be executed as part of the workflow.
 	// Durable tasks can be paused and resumed across workflow runs, making them suitable
 	// for long-running operations or tasks that require human intervention.
-	DurableTask(opts create.WorkflowTask[I, O], fn func(input I, ctx worker.DurableHatchetContext) (interface{}, error)) *task.DurableTaskDeclaration[I]
+	DurableTask(opts create.WorkflowTask[I, O], fn func(ctx worker.DurableHatchetContext, input I) (interface{}, error)) *task.DurableTaskDeclaration[I]
 
 	// OnFailureTask registers a task that will be executed if the workflow fails.
-	OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(input I, ctx worker.HatchetContext) (interface{}, error)) *task.OnFailureTaskDeclaration[I]
+	OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I]
 
 	// Run executes the workflow with the provided input.
 	Run(input I, opts ...RunOpts) (*O, error)
@@ -110,7 +110,7 @@ type WorkflowDeclaration[I, O any] interface {
 // Define a TaskDeclaration with specific output type
 type TaskWithSpecificOutput[I any, T any] struct {
 	Name string
-	Fn   func(input I, ctx worker.HatchetContext) (*T, error)
+	Fn   func(ctx worker.HatchetContext, input I) (*T, error)
 }
 
 // workflowDeclarationImpl is the concrete implementation of WorkflowDeclaration.
@@ -191,7 +191,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 }
 
 // Task registers a standard (non-durable) task with the workflow
-func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn func(input I, ctx worker.HatchetContext) (interface{}, error)) *task.TaskDeclaration[I] {
+func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I] {
 	name := opts.Name
 
 	// Use reflection to validate the function type
@@ -230,7 +230,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 	}
 
 	// Create a generic task function that wraps the specific one
-	genericFn := func(input I, ctx worker.HatchetContext) (*any, error) {
+	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
 		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
@@ -300,7 +300,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 }
 
 // DurableTask registers a durable task with the workflow
-func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, O], fn func(input I, ctx worker.DurableHatchetContext) (interface{}, error)) *task.DurableTaskDeclaration[I] {
+func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, O], fn func(ctx worker.DurableHatchetContext, input I) (interface{}, error)) *task.DurableTaskDeclaration[I] {
 	name := opts.Name
 
 	// Use reflection to validate the function type
@@ -324,7 +324,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 	}
 
 	// Create a generic task function that wraps the specific one
-	genericFn := func(input I, ctx worker.DurableHatchetContext) (*any, error) {
+	genericFn := func(ctx worker.DurableHatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
 		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
@@ -394,7 +394,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 }
 
 // OnFailureTask registers a task that will be executed if the workflow fails.
-func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(input I, ctx worker.HatchetContext) (interface{}, error)) *task.OnFailureTaskDeclaration[I] {
+func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I] {
 
 	// Use reflection to validate the function type
 	fnType := reflect.TypeOf(fn)
@@ -406,7 +406,7 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 	}
 
 	// Create a generic task function that wraps the specific one
-	genericFn := func(input I, ctx worker.HatchetContext) (*any, error) {
+	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
 		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
@@ -739,7 +739,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 				// Call the original function using reflection
 				fnValue := reflect.ValueOf(originalFn)
-				inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+				inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
 				results := fnValue.Call(inputs)
 
 				// Handle errors

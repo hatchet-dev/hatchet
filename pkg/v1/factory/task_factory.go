@@ -29,7 +29,7 @@ import (
 //	        }, nil
 //	    },
 //	}, &client)
-func NewTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx worker.HatchetContext) (*O, error), client v1.HatchetClient) workflow.WorkflowDeclaration[I, O] {
+func NewTask[I, O any](opts create.StandaloneTask, fn func(ctx worker.HatchetContext, input I) (*O, error), client v1.HatchetClient) workflow.WorkflowDeclaration[I, O] {
 	var v0 v0Client.Client
 	if client != nil {
 		v0 = client.V0()
@@ -61,8 +61,8 @@ func NewTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx worker.H
 		Concurrency:            opts.Concurrency,
 	}
 
-	fixedFn := func(input I, ctx worker.HatchetContext) (interface{}, error) {
-		return fn(input, ctx)
+	fixedFn := func(ctx worker.HatchetContext, input I) (interface{}, error) {
+		return fn(ctx, input)
 	}
 
 	// Register the task within the workflow

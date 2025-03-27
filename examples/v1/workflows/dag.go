@@ -37,7 +37,7 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 	step1 := simple.Task(
 		taskOpts{
 			Name: "Step1",
-		}, func(input DagInput, ctx worker.HatchetContext) (interface{}, error) {
+		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
 			return &SimpleOutput{
 				Step: 1,
 			}, nil
@@ -50,7 +50,7 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 			Parents: []create.NamedTask{
 				step1,
 			},
-		}, func(input DagInput, ctx worker.HatchetContext) (interface{}, error) {
+		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
 
 			var step1Output SimpleOutput
 			err := ctx.ParentOutput(step1, &step1Output)

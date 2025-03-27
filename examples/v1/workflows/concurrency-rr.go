@@ -33,7 +33,7 @@ func ConcurrencyRoundRobin(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 					LimitStrategy: &strategy,
 				},
 			},
-		}, func(input ConcurrencyInput, ctx worker.HatchetContext) (*TransformedOutput, error) {
+		}, func(ctx worker.HatchetContext, input ConcurrencyInput) (*TransformedOutput, error) {
 			// Random sleep between 200ms and 1000ms
 			time.Sleep(time.Duration(200+rand.Intn(800)) * time.Millisecond)
 

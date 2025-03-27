@@ -29,7 +29,7 @@ func Lower(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, Lo
 		create.StandaloneTask{
 			Name:     "lower",
 			OnEvents: []string{SimpleEvent},
-		}, func(input EventInput, ctx worker.HatchetContext) (*LowerTaskOutput, error) {
+		}, func(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
 			// Transform the input message to lowercase
 			return &LowerTaskOutput{
 				TransformedMessage: strings.ToLower(input.Message),
@@ -45,7 +45,7 @@ func Upper(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, Up
 			Name:     "upper",
 			OnEvents: []string{SimpleEvent},
 		},
-		func(input EventInput, ctx worker.HatchetContext) (*UpperTaskOutput, error) {
+		func(ctx worker.HatchetContext, input EventInput) (*UpperTaskOutput, error) {
 			return &UpperTaskOutput{
 				TransformedMessage: strings.ToUpper(input.Message),
 			}, nil

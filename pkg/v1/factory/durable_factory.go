@@ -29,7 +29,7 @@ import (
 //	        }, nil
 //	    },
 //	}, &client)
-func NewDurableTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx worker.DurableHatchetContext) (*O, error), client v1.HatchetClient) workflow.WorkflowDeclaration[I, O] {
+func NewDurableTask[I, O any](opts create.StandaloneTask, fn func(ctx worker.DurableHatchetContext, input I) (*O, error), client v1.HatchetClient) workflow.WorkflowDeclaration[I, O] {
 	var v0 v0Client.Client
 	if client != nil {
 		v0 = client.V0()
@@ -61,8 +61,8 @@ func NewDurableTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx w
 		Concurrency:            opts.Concurrency,
 	}
 
-	fixedFn := func(input I, ctx worker.DurableHatchetContext) (interface{}, error) {
-		return fn(input, ctx)
+	fixedFn := func(ctx worker.DurableHatchetContext, input I) (interface{}, error) {
+		return fn(ctx, input)
 	}
 
 	// Register the task within the workflow
