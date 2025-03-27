@@ -32,11 +32,12 @@ func main() {
 
 	// Define workflows map
 	workflowMap := map[string][]workflow.WorkflowBase{
-		"dag":        {v1_workflows.DagWorkflow(&hatchet)},
-		"on-failure": {v1_workflows.OnFailure(&hatchet)},
-		"simple":     {v1_workflows.Simple(&hatchet)},
-		"sleep":      {v1_workflows.DurableSleep(&hatchet)},
-		"child":      {v1_workflows.Parent(&hatchet), v1_workflows.Child(&hatchet)},
+		"dag":           {v1_workflows.DagWorkflow(&hatchet)},
+		"on-failure":    {v1_workflows.OnFailure(&hatchet)},
+		"simple":        {v1_workflows.Simple(&hatchet)},
+		"sleep":         {v1_workflows.DurableSleep(&hatchet)},
+		"durable-event": {v1_workflows.DurableEvent(hatchet)},
+		"child":         {v1_workflows.Parent(&hatchet), v1_workflows.Child(&hatchet)},
 	}
 
 	// Lookup workflow from map
