@@ -13,19 +13,19 @@ import (
 // in the Hatchet platform.
 type RunsClient interface {
 	// Get retrieves a workflow run by its ID.
-	Get(runId string, ctx ...context.Context) (*rest.V1WorkflowRunGetResponse, error)
+	Get(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error)
 
 	// GetDetails retrieves detailed information about a workflow run by its ID.
-	GetDetails(runId string, ctx ...context.Context) (*rest.WorkflowRunGetShapeResponse, error)
+	GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunGetShapeResponse, error)
 
 	// List retrieves a collection of workflow runs based on the provided parameters.
-	List(opts rest.V1WorkflowRunListParams, ctx ...context.Context) (*rest.V1WorkflowRunListResponse, error)
+	List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error)
 
 	// Replay requests a task to be replayed within a workflow run.
-	Replay(opts rest.V1ReplayTaskRequest, ctx ...context.Context) (*rest.V1TaskReplayResponse, error)
+	Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1TaskReplayResponse, error)
 
 	// Cancel requests cancellation of a specific task within a workflow run.
-	Cancel(opts rest.V1CancelTaskRequest, ctx ...context.Context) (*rest.V1TaskCancelResponse, error)
+	Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1TaskCancelResponse, error)
 }
 
 // runsClientImpl implements the RunsClient interface.
@@ -48,40 +48,40 @@ func NewRunsClient(
 }
 
 // Get retrieves a workflow run by its ID.
-func (r *runsClientImpl) Get(runId string, ctx ...context.Context) (*rest.V1WorkflowRunGetResponse, error) {
+func (r *runsClientImpl) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
 	return r.api.V1WorkflowRunGetWithResponse(
-		getContext(ctx...),
+		ctx,
 		uuid.MustParse(runId),
 	)
 }
 
 // GetDetails retrieves detailed information about a workflow run by its ID.
-func (r *runsClientImpl) GetDetails(runId string, ctx ...context.Context) (*rest.WorkflowRunGetShapeResponse, error) {
+func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.WorkflowRunGetShapeResponse, error) {
 	return r.api.WorkflowRunGetShapeWithResponse(
-		getContext(ctx...),
+		ctx,
 		r.tenantId,
 		uuid.MustParse(runId),
 	)
 }
 
 // List retrieves a collection of workflow runs based on the provided parameters.
-func (r *runsClientImpl) List(opts rest.V1WorkflowRunListParams, ctx ...context.Context) (*rest.V1WorkflowRunListResponse, error) {
+func (r *runsClientImpl) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1WorkflowRunListResponse, error) {
 	return r.api.V1WorkflowRunListWithResponse(
-		getContext(ctx...),
+		ctx,
 		r.tenantId,
 		&opts,
 	)
 }
 
 // Replay requests a task to be replayed within a workflow run.
-func (r *runsClientImpl) Replay(opts rest.V1ReplayTaskRequest, ctx ...context.Context) (*rest.V1TaskReplayResponse, error) {
+func (r *runsClientImpl) Replay(ctx context.Context, opts rest.V1ReplayTaskRequest) (*rest.V1TaskReplayResponse, error) {
 	json, err := json.Marshal(opts)
 	if err != nil {
 		return nil, err
 	}
 
 	return r.api.V1TaskReplayWithBodyWithResponse(
-		getContext(ctx...),
+		ctx,
 		r.tenantId,
 		"application/json",
 		bytes.NewReader(json),
@@ -89,17 +89,16 @@ func (r *runsClientImpl) Replay(opts rest.V1ReplayTaskRequest, ctx ...context.Co
 }
 
 // Cancel requests cancellation of a specific task within a workflow run.
-func (r *runsClientImpl) Cancel(opts rest.V1CancelTaskRequest, ctx ...context.Context) (*rest.V1TaskCancelResponse, error) {
+func (r *runsClientImpl) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) (*rest.V1TaskCancelResponse, error) {
 	json, err := json.Marshal(opts)
 	if err != nil {
 		return nil, err
 	}
 
 	return r.api.V1TaskCancelWithBodyWithResponse(
-		getContext(ctx...),
+		ctx,
 		r.tenantId,
 		"application/json",
 		bytes.NewReader(json),
 	)
-
 }

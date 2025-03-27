@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -33,13 +35,24 @@ func main() {
 
 	// Define workflows map
 	workflowMap := map[string][]workflow.WorkflowBase{
-		"dag": {v1_workflows.DagWorkflow(hatchet)},
-		// "on-failure":    {v1_workflows.OnFailure(&hatchet)},
-		"simple":        {v1_workflows.Simple(hatchet)},
-		"sleep":         {v1_workflows.DurableSleep(hatchet)},
-		"durable-event": {v1_workflows.DurableEvent(hatchet)},
-		"child":         {v1_workflows.Parent(hatchet), v1_workflows.Child(hatchet)},
+		"dag":          {v1_workflows.DagWorkflow(hatchet)},
+		"on-failure":   {v1_workflows.OnFailure(hatchet)},
+		"simple":       {v1_workflows.Simple(hatchet)},
+		"sleep":        {v1_workflows.DurableSleep(hatchet)},
+		"child":        {v1_workflows.Parent(hatchet), v1_workflows.Child(hatchet)},
+		"cancellation": {v1_workflows.Cancellation(hatchet)},
+		"timeout":      {v1_workflows.Timeout(hatchet)},
+		"sticky":       {v1_workflows.Sticky(hatchet), v1_workflows.StickyDag(hatchet), v1_workflows.Child(hatchet)},
+		"retries":      {v1_workflows.Retries(hatchet), v1_workflows.RetriesWithCount(hatchet), v1_workflows.WithBackoff(hatchet)},
+		"on-cron":      {v1_workflows.OnCron(hatchet)},
 	}
+
+	// Add an "all" option that registers all workflows
+	allWorkflows := []workflow.WorkflowBase{}
+	for _, wfs := range workflowMap {
+		allWorkflows = append(allWorkflows, wfs...)
+	}
+	workflowMap["all"] = allWorkflows
 
 	// Lookup workflow from map
 	workflow, ok := workflowMap[workflowName]
@@ -60,11 +73,18 @@ func main() {
 		panic(err)
 	}
 
-	err = worker.StartBlocking()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	err = worker.StartBlocking(ctx)
 
 	if err != nil {
 		panic(err)
 	}
+
+	go func() {
+		time.Sleep(10 * time.Second)
+		cancel()
+	}()
 }
 
 // Helper function to get available workflows as a formatted string

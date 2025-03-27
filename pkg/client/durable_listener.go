@@ -57,7 +57,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		l:           r.l,
 	}
 
-	err := w.retryListen(context.Background())
+	err := w.retryListen(ctx)
 
 	if err != nil {
 		return nil, err

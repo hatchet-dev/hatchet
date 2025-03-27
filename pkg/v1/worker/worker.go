@@ -25,28 +25,28 @@ type Worker interface {
 	Start() (func() error, error)
 
 	// StartBlocking begins worker execution and blocks until the process is interrupted.
-	StartBlocking() error
+	StartBlocking(ctx ...context.Context) error
 
 	// RegisterWorkflows registers one or more workflows with the worker.
 	RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 
 	// IsPaused checks if all worker instances are paused
-	IsPaused(ctx ...context.Context) (bool, error)
+	IsPaused(ctx context.Context) (bool, error)
 
 	// Pause pauses all worker instances
-	Pause(ctx ...context.Context) error
+	Pause(ctx context.Context) error
 
 	// Unpause resumes all paused worker instances
-	Unpause(ctx ...context.Context) error
+	Unpause(ctx context.Context) error
 }
 
 // WorkerImpl is the concrete implementation of the Worker interface.
 type WorkerImpl struct {
 	// v0 is the client used to communicate with the hatchet API.
-	v0 *v0Client.Client
+	v0 v0Client.Client
 
 	// v1 workers client
-	workers *features.WorkersClient
+	workers features.WorkersClient
 
 	// nonDurableWorker is the underlying non-durable worker implementation. (default)
 	nonDurableWorker *worker.Worker
@@ -83,7 +83,7 @@ func WithWorkflows(workflows ...workflow.WorkflowBase) func(*WorkerImpl) {
 // NewWorker creates and configures a new Worker with the provided client and options.
 // additional functional options can be provided to further customize the worker configuration.
 // returns the created Worker interface and any error encountered during creation.
-func NewWorker(workersClient *features.WorkersClient, v0 *v0Client.Client, opts create.WorkerOpts, optFns ...func(*WorkerImpl)) (Worker, error) {
+func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts create.WorkerOpts, optFns ...func(*WorkerImpl)) (Worker, error) {
 	w := &WorkerImpl{
 		v0:       v0,
 		workers:  workersClient,
@@ -142,7 +142,7 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 		// Create non-durable worker on demand if needed and not already created
 		if hasNonDurableTasks && w.nonDurableWorker == nil {
 			nonDurableWorker, err := worker.NewWorker(
-				worker.WithClient(*w.v0),
+				worker.WithClient(w.v0),
 				worker.WithName(w.name),
 				worker.WithMaxRuns(w.slots),
 				worker.WithLogLevel(w.logLevel),
@@ -163,7 +163,7 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 			}
 
 			durableWorker, err := worker.NewWorker(
-				worker.WithClient(*w.v0),
+				worker.WithClient(w.v0),
 				worker.WithName(w.name+"-durable"),
 				worker.WithMaxRuns(w.durableSlots),
 				worker.WithLogger(logger),
@@ -285,7 +285,12 @@ func (w *WorkerImpl) Start() (func() error, error) {
 // StartBlocking begins worker execution and blocks until the process is interrupted.
 // this method handles graceful shutdown via interrupt signals.
 // returns any error encountered during startup or shutdown.
-func (w *WorkerImpl) StartBlocking() error {
+func (w *WorkerImpl) StartBlocking(ctx ...context.Context) error {
+
+	if len(ctx) == 0 {
+		ctx = []context.Context{context.Background()}
+	}
+
 	cleanup, err := w.Start()
 	if err != nil {
 		return err
@@ -296,6 +301,7 @@ func (w *WorkerImpl) StartBlocking() error {
 
 	for {
 		select {
+		case <-ctx[0].Done():
 		case <-interruptCtx.Done():
 			err := cleanup()
 			if err != nil {
@@ -309,7 +315,7 @@ func (w *WorkerImpl) StartBlocking() error {
 }
 
 // IsPaused checks if all worker instances are paused
-func (w *WorkerImpl) IsPaused(ctx ...context.Context) (bool, error) {
+func (w *WorkerImpl) IsPaused(ctx context.Context) (bool, error) {
 	// Create slice of worker IDs to check
 	var workerIDs []string
 
@@ -330,7 +336,7 @@ func (w *WorkerImpl) IsPaused(ctx ...context.Context) (bool, error) {
 
 	// Check pause status for all workers
 	for _, id := range workerIDs {
-		isPaused, err := (*w.workers).IsPaused(id, ctx...)
+		isPaused, err := w.workers.IsPaused(ctx, id)
 		if err != nil {
 			return false, err
 		}
@@ -346,10 +352,10 @@ func (w *WorkerImpl) IsPaused(ctx ...context.Context) (bool, error) {
 }
 
 // Pause pauses all worker instances
-func (w *WorkerImpl) Pause(ctx ...context.Context) error {
+func (w *WorkerImpl) Pause(ctx context.Context) error {
 	// Pause main worker if it exists
 	if w.nonDurableWorker != nil {
-		_, err := (*w.workers).Pause(*w.nonDurableWorker.ID(), ctx...)
+		_, err := w.workers.Pause(ctx, *w.nonDurableWorker.ID())
 		if err != nil {
 			return err
 		}
@@ -357,7 +363,7 @@ func (w *WorkerImpl) Pause(ctx ...context.Context) error {
 
 	// Pause durable worker if it exists
 	if w.durableWorker != nil {
-		_, err := (*w.workers).Pause(*w.durableWorker.ID(), ctx...)
+		_, err := w.workers.Pause(ctx, *w.durableWorker.ID())
 		if err != nil {
 			return err
 		}
@@ -367,10 +373,10 @@ func (w *WorkerImpl) Pause(ctx ...context.Context) error {
 }
 
 // Unpause resumes all paused worker instances
-func (w *WorkerImpl) Unpause(ctx ...context.Context) error {
+func (w *WorkerImpl) Unpause(ctx context.Context) error {
 	// Unpause main worker if it exists
 	if w.nonDurableWorker != nil {
-		_, err := (*w.workers).Unpause(*w.nonDurableWorker.ID(), ctx...)
+		_, err := w.workers.Unpause(ctx, *w.nonDurableWorker.ID())
 		if err != nil {
 			return err
 		}
@@ -378,7 +384,7 @@ func (w *WorkerImpl) Unpause(ctx ...context.Context) error {
 
 	// Unpause durable worker if it exists
 	if w.durableWorker != nil {
-		_, err := (*w.workers).Unpause(*w.durableWorker.ID(), ctx...)
+		_, err := w.workers.Unpause(ctx, *w.durableWorker.ID())
 		if err != nil {
 			return err
 		}

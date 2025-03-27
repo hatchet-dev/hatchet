@@ -1,7 +1,7 @@
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { V1TaskStatus, V1TaskFilter } from '@hatchet/clients/rest/generated/data-contracts';
-import { HatchetClient } from '../client';
 import { WorkflowsClient } from './workflows';
+import { HatchetClient } from '../client';
 
 export type RunFilter = {
   since: Date;
@@ -34,8 +34,6 @@ export class RunsClient {
     this.tenantId = client.tenantId;
     this.workflows = client.workflows;
   }
-
-  // TODO expose streaming methods?
 
   async get<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();

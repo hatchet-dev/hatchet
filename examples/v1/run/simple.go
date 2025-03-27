@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
+	"github.com/google/uuid"
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/joho/godotenv"
+	"github.com/oapi-codegen/runtime/types"
 )
 
 func main() {
@@ -33,11 +35,13 @@ func main() {
 		workflowName = "simple"
 	}
 
+	ctx := context.Background()
+
 	// Define workflow runners map
 	runnerMap := map[string]func() error{
 		"simple": func() error {
 			simple := v1_workflows.Simple(hatchet)
-			result, err := simple.Run(v1_workflows.SimpleInput{
+			result, err := simple.Run(ctx, v1_workflows.SimpleInput{
 				Message: "Hello, World!",
 			})
 			if err != nil {
@@ -48,7 +52,7 @@ func main() {
 		},
 		"dag": func() error {
 			dag := v1_workflows.DagWorkflow(hatchet)
-			result, err := dag.Run(v1_workflows.DagInput{
+			result, err := dag.Run(ctx, v1_workflows.DagInput{
 				Message: "Hello, DAG!",
 			})
 			if err != nil {
@@ -60,7 +64,7 @@ func main() {
 		},
 		"sleep": func() error {
 			sleep := v1_workflows.DurableSleep(hatchet)
-			_, err := sleep.Run(v1_workflows.DurableSleepInput{
+			_, err := sleep.Run(ctx, v1_workflows.DurableSleepInput{
 				Message: "Hello, Sleep!",
 			})
 			if err != nil {
@@ -71,7 +75,7 @@ func main() {
 		},
 		"durable-event": func() error {
 			durableEventWorkflow := v1_workflows.DurableEvent(hatchet)
-			workflow, err := durableEventWorkflow.RunNoWait(v1_workflows.DurableEventInput{
+			run, err := durableEventWorkflow.RunNoWait(ctx, v1_workflows.DurableEventInput{
 				Message: "Hello, World!",
 			})
 
@@ -79,18 +83,90 @@ func main() {
 				return err
 			}
 
-			time.Sleep(10 * time.Second)
-
-			hatchet.V0().Event().Push(context.Background(), "user:update", v1_workflows.EventData{
-				Message: "User updated!",
+			_, err = hatchet.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
+				ExternalIds: &[]types.UUID{uuid.MustParse(run.WorkflowRunId())},
 			})
 
-			_, err = workflow.Result()
+			if err != nil {
+				return nil // We expect an error here
+			}
 
+			_, err = run.Result()
+
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("Cancellation workflow completed unexpectedly")
+			return nil
+		},
+		"timeout": func() error {
+			timeout := v1_workflows.Timeout(hatchet)
+			_, err := timeout.Run(ctx, v1_workflows.TimeoutInput{})
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("Timeout workflow completed unexpectedly")
+			return nil
+		},
+		"sticky": func() error {
+			sticky := v1_workflows.Sticky(hatchet)
+			result, err := sticky.Run(ctx, v1_workflows.StickyInput{})
 			if err != nil {
 				return err
 			}
-			fmt.Println("Durable event workflow completed")
+			fmt.Println("Value from child workflow:", result.Result)
+			return nil
+		},
+		"sticky-dag": func() error {
+			stickyDag := v1_workflows.StickyDag(hatchet)
+			result, err := stickyDag.Run(ctx, v1_workflows.StickyInput{})
+			if err != nil {
+				return err
+			}
+			fmt.Println("Value from task 1:", result.StickyTask1.Result)
+			fmt.Println("Value from task 2:", result.StickyTask2.Result)
+			return nil
+		},
+		"retries": func() error {
+			retries := v1_workflows.Retries(hatchet)
+			_, err := retries.Run(ctx, v1_workflows.RetriesInput{})
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("Retries workflow completed unexpectedly")
+			return nil
+		},
+		"retries-count": func() error {
+			retriesCount := v1_workflows.RetriesWithCount(hatchet)
+			result, err := retriesCount.Run(ctx, v1_workflows.RetriesWithCountInput{})
+			if err != nil {
+				return err
+			}
+			fmt.Println("Result message:", result.Message)
+			return nil
+		},
+		"with-backoff": func() error {
+			withBackoff := v1_workflows.WithBackoff(hatchet)
+			_, err := withBackoff.Run(ctx, v1_workflows.BackoffInput{})
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("WithBackoff workflow completed unexpectedly")
+			return nil
+		},
+		"on-cron": func() error {
+			cronTask := v1_workflows.OnCron(hatchet)
+			result, err := cronTask.Run(ctx, v1_workflows.OnCronInput{
+				Message: "Hello, Cron!",
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Println("Cron task result:", result.Job.TransformedMessage)
 			return nil
 		},
 	}

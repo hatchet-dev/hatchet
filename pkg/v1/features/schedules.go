@@ -12,16 +12,16 @@ import (
 // in the Hatchet platform.
 type SchedulesClient interface {
 	// Create creates a new scheduled workflow run.
-	Create(workflowName string, trigger CreateScheduledRunTrigger, ctx ...context.Context) (*rest.ScheduledWorkflows, error)
+	Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error)
 
 	// Delete removes a scheduled workflow run.
-	Delete(scheduledRunId string, ctx ...context.Context) error
+	Delete(ctx context.Context, scheduledRunId string) error
 
 	// List retrieves a collection of scheduled workflow runs based on the provided parameters.
-	List(opts rest.WorkflowScheduledListParams, ctx ...context.Context) (*rest.ScheduledWorkflowsList, error)
+	List(ctx context.Context, opts rest.WorkflowScheduledListParams) (*rest.ScheduledWorkflowsList, error)
 
 	// Get retrieves a specific scheduled workflow run by its ID.
-	Get(scheduledRunId string, ctx ...context.Context) (*rest.ScheduledWorkflows, error)
+	Get(ctx context.Context, scheduledRunId string) (*rest.ScheduledWorkflows, error)
 }
 
 // CreateScheduledRunTrigger contains the configuration for creating a scheduled run trigger.
@@ -56,7 +56,7 @@ func NewSchedulesClient(
 }
 
 // Create creates a new scheduled workflow run.
-func (s *schedulesClientImpl) Create(workflowName string, trigger CreateScheduledRunTrigger, ctx ...context.Context) (*rest.ScheduledWorkflows, error) {
+func (s *schedulesClientImpl) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
 
 	request := rest.ScheduleWorkflowRunRequest{
 		Input:              trigger.Input,
@@ -65,7 +65,7 @@ func (s *schedulesClientImpl) Create(workflowName string, trigger CreateSchedule
 	}
 
 	resp, err := s.api.ScheduledWorkflowRunCreateWithResponse(
-		getContext(ctx...),
+		ctx,
 		s.tenantId,
 		workflowName,
 		request,
@@ -78,14 +78,14 @@ func (s *schedulesClientImpl) Create(workflowName string, trigger CreateSchedule
 }
 
 // Delete removes a scheduled workflow run.
-func (s *schedulesClientImpl) Delete(scheduledRunId string, ctx ...context.Context) error {
+func (s *schedulesClientImpl) Delete(ctx context.Context, scheduledRunId string) error {
 	scheduledRunIdUUID, err := uuid.Parse(scheduledRunId)
 	if err != nil {
 		return err
 	}
 
 	_, err = s.api.WorkflowScheduledDeleteWithResponse(
-		getContext(ctx...),
+		ctx,
 		s.tenantId,
 		scheduledRunIdUUID,
 	)
@@ -93,9 +93,9 @@ func (s *schedulesClientImpl) Delete(scheduledRunId string, ctx ...context.Conte
 }
 
 // List retrieves a collection of scheduled workflow runs based on the provided parameters.
-func (s *schedulesClientImpl) List(opts rest.WorkflowScheduledListParams, ctx ...context.Context) (*rest.ScheduledWorkflowsList, error) {
+func (s *schedulesClientImpl) List(ctx context.Context, opts rest.WorkflowScheduledListParams) (*rest.ScheduledWorkflowsList, error) {
 	resp, err := s.api.WorkflowScheduledListWithResponse(
-		getContext(ctx...),
+		ctx,
 		s.tenantId,
 		&opts,
 	)
@@ -107,14 +107,14 @@ func (s *schedulesClientImpl) List(opts rest.WorkflowScheduledListParams, ctx ..
 }
 
 // Get retrieves a specific scheduled workflow run by its ID.
-func (s *schedulesClientImpl) Get(scheduledRunId string, ctx ...context.Context) (*rest.ScheduledWorkflows, error) {
+func (s *schedulesClientImpl) Get(ctx context.Context, scheduledRunId string) (*rest.ScheduledWorkflows, error) {
 	scheduledRunIdUUID, err := uuid.Parse(scheduledRunId)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := s.api.WorkflowScheduledGetWithResponse(
-		getContext(ctx...),
+		ctx,
 		s.tenantId,
 		scheduledRunIdUUID,
 	)
