@@ -8,7 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-// NewTask creates a standalone task that is implemented as a simple workflow with a single task.
+// NewDurableTask creates a durable task that is implemented as a simple workflow with a single task.
 // It provides proper type inference for the input and output types.
 //
 // Example:
@@ -23,13 +23,13 @@ import (
 //
 //	simpleTask := v1.NewTask(v1.TaskCreateOpts[SimpleInput, SimpleOutput]{
 //	    Name: "simple-task",
-//	    Fn: func(input SimpleInput, ctx worker.HatchetContext) (*SimpleOutput, error) {
+//	    Fn: func(input SimpleInput, ctx worker.DurableHatchetContext) (*SimpleOutput, error) {
 //	        return &SimpleOutput{
 //	            TransformedMessage: strings.ToLower(input.Message),
 //	        }, nil
 //	    },
 //	}, &client)
-func NewTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx worker.HatchetContext) (*O, error), client v1.HatchetClient) workflow.WorkflowDeclaration[I, O] {
+func NewDurableTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx worker.DurableHatchetContext) (*O, error), client v1.HatchetClient) workflow.WorkflowDeclaration[I, O] {
 	var v0 v0Client.Client
 	if client != nil {
 		v0 = client.V0()
@@ -63,12 +63,12 @@ func NewTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx worker.H
 		Concurrency:            opts.Concurrency,
 	}
 
-	fixedFn := func(input I, ctx worker.HatchetContext) (interface{}, error) {
+	fixedFn := func(input I, ctx worker.DurableHatchetContext) (interface{}, error) {
 		return fn(input, ctx)
 	}
 
 	// Register the task within the workflow
-	workflowDecl.Task(taskOpts, fixedFn)
+	workflowDecl.DurableTask(taskOpts, fixedFn)
 
 	return workflowDecl
 }
