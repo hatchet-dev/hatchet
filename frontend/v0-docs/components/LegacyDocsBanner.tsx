@@ -16,4 +16,4 @@ export const LegacyDocsBanner: React.FC = () => {
       </div>
     </div>
   );
-}; 
+};
