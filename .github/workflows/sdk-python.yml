@@ -9,7 +9,6 @@ on:
       - main
     paths:
       - 'sdks/python/**'
-      - '.github/**'
 
 defaults:
   run:
