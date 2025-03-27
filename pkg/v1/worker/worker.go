@@ -43,10 +43,10 @@ type Worker interface {
 // WorkerImpl is the concrete implementation of the Worker interface.
 type WorkerImpl struct {
 	// v0 is the client used to communicate with the hatchet API.
-	v0 *v0Client.Client
+	v0 v0Client.Client
 
 	// v1 workers client
-	workers *features.WorkersClient
+	workers features.WorkersClient
 
 	// nonDurableWorker is the underlying non-durable worker implementation. (default)
 	nonDurableWorker *worker.Worker
@@ -83,7 +83,7 @@ func WithWorkflows(workflows ...workflow.WorkflowBase) func(*WorkerImpl) {
 // NewWorker creates and configures a new Worker with the provided client and options.
 // additional functional options can be provided to further customize the worker configuration.
 // returns the created Worker interface and any error encountered during creation.
-func NewWorker(workersClient *features.WorkersClient, v0 *v0Client.Client, opts create.WorkerOpts, optFns ...func(*WorkerImpl)) (Worker, error) {
+func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts create.WorkerOpts, optFns ...func(*WorkerImpl)) (Worker, error) {
 	w := &WorkerImpl{
 		v0:       v0,
 		workers:  workersClient,
@@ -142,7 +142,7 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 		// Create non-durable worker on demand if needed and not already created
 		if hasNonDurableTasks && w.nonDurableWorker == nil {
 			nonDurableWorker, err := worker.NewWorker(
-				worker.WithClient(*w.v0),
+				worker.WithClient(w.v0),
 				worker.WithName(w.name),
 				worker.WithMaxRuns(w.slots),
 				worker.WithLogLevel(w.logLevel),
@@ -163,7 +163,7 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 			}
 
 			durableWorker, err := worker.NewWorker(
-				worker.WithClient(*w.v0),
+				worker.WithClient(w.v0),
 				worker.WithName(w.name+"-durable"),
 				worker.WithMaxRuns(w.durableSlots),
 				worker.WithLogger(logger),
@@ -330,7 +330,7 @@ func (w *WorkerImpl) IsPaused(ctx ...context.Context) (bool, error) {
 
 	// Check pause status for all workers
 	for _, id := range workerIDs {
-		isPaused, err := (*w.workers).IsPaused(id, ctx...)
+		isPaused, err := w.workers.IsPaused(id, ctx...)
 		if err != nil {
 			return false, err
 		}
@@ -349,7 +349,7 @@ func (w *WorkerImpl) IsPaused(ctx ...context.Context) (bool, error) {
 func (w *WorkerImpl) Pause(ctx ...context.Context) error {
 	// Pause main worker if it exists
 	if w.nonDurableWorker != nil {
-		_, err := (*w.workers).Pause(*w.nonDurableWorker.ID(), ctx...)
+		_, err := w.workers.Pause(*w.nonDurableWorker.ID(), ctx...)
 		if err != nil {
 			return err
 		}
@@ -357,7 +357,7 @@ func (w *WorkerImpl) Pause(ctx ...context.Context) error {
 
 	// Pause durable worker if it exists
 	if w.durableWorker != nil {
-		_, err := (*w.workers).Pause(*w.durableWorker.ID(), ctx...)
+		_, err := w.workers.Pause(*w.durableWorker.ID(), ctx...)
 		if err != nil {
 			return err
 		}
@@ -370,7 +370,7 @@ func (w *WorkerImpl) Pause(ctx ...context.Context) error {
 func (w *WorkerImpl) Unpause(ctx ...context.Context) error {
 	// Unpause main worker if it exists
 	if w.nonDurableWorker != nil {
-		_, err := (*w.workers).Unpause(*w.nonDurableWorker.ID(), ctx...)
+		_, err := w.workers.Unpause(*w.nonDurableWorker.ID(), ctx...)
 		if err != nil {
 			return err
 		}
@@ -378,7 +378,7 @@ func (w *WorkerImpl) Unpause(ctx ...context.Context) error {
 
 	// Unpause durable worker if it exists
 	if w.durableWorker != nil {
-		_, err := (*w.workers).Unpause(*w.durableWorker.ID(), ctx...)
+		_, err := w.workers.Unpause(*w.durableWorker.ID(), ctx...)
 		if err != nil {
 			return err
 		}
