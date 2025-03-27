@@ -336,85 +336,65 @@ func main() {
 
   // Code examples for triggering a workflow via API
   const triggerCodeExamples = {
-    typescript: `// Trigger a workflow run using the Hatchet API
-import axios from 'axios';
+    typescript: `import HatchetClient from '@hatchet-dev/typescript-sdk';
 
-async function triggerWorkflow() {
-  const response = await axios.post(
-    'https://api.hatchet.run/api/v1/tenants/${tenant?.metadata.id}/workflows/${workflowId}/events',
-    { 
-      data: { 
-        message: "Hello from API trigger!" 
-      }
-    },
-    {
-      headers: {
-        'Authorization': 'Bearer ${apiToken || '[YOUR_API_TOKEN]'}',
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-  
-  console.log('Workflow triggered:', response.data);
+async function main() {
+  const hatchet = HatchetClient.init();
+  const result = await hatchet.run('first-workflow', {});
+  console.log(result);
 }
 
-triggerWorkflow();`,
-    python: `# Trigger a workflow run using the Hatchet API
-import requests
+if (require.main === module) {
+  main().catch(console.error).finally(() => process.exit(0));
+}
+`,
+    python: `from hatchet_sdk import Hatchet
 
-def trigger_workflow():
-    url = "https://api.hatchet.run/api/v1/tenants/${tenant?.metadata.id}/workflows/${workflowId}/events"
-    
-    headers = {
-        "Authorization": "Bearer ${apiToken || '[YOUR_API_TOKEN]'}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "data": {
-            "message": "Hello from API trigger!"
-        }
-    }
-    
-    response = requests.post(url, json=payload, headers=headers)
-    print("Workflow triggered:", response.json())
-
-trigger_workflow()`,
-    go: `// Trigger a workflow run using the Hatchet API
-package main
+hatchet = Hatchet()
+result = hatchet.run_workflow(name="first-workflow")
+print(result)
+`,
+    go: `package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
+
+	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	url := "https://api.hatchet.run/api/v1/tenants/${tenant?.metadata.id}/workflows/${workflowId}/events"
-	
-	payload := map[string]interface{}{
-		"data": map[string]interface{}{
-			"message": "Hello from API trigger!",
-		},
-	}
-	
-	payloadBytes, _ := json.Marshal(payload)
-	
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
-	req.Header.Set("Authorization", "Bearer ${apiToken || '[YOUR_API_TOKEN]'}")
-	req.Header.Set("Content-Type", "application/json")
-	
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	err := godotenv.Load()
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		panic(err)
 	}
-	defer resp.Body.Close()
-	
-	fmt.Println("Workflow triggered successfully!")
-}`,
+
+	hatchet, err := v1.NewHatchetClient()
+
+	if err != nil {
+		panic(err)
+	}
+
+	simple := v1.WorkflowFactory[any, any](
+		workflow.CreateOpts[any]{
+			Name: "first-workflow",
+		},
+		&hatchet,
+	)
+
+	result, err := simple.Run(v1_workflows.SimpleInput{
+		Message: "Hello, World!",
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(result)
+}
+`,
   };
 
   return (
