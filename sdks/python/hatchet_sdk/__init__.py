@@ -6,7 +6,6 @@ from hatchet_sdk.clients.admin import (
 from hatchet_sdk.clients.durable_event_listener import RegisterDurableEventRequest
 from hatchet_sdk.clients.events import PushEventOptions
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 # import models into sdk package
 from hatchet_sdk.clients.rest.models.api_error import APIError
@@ -99,6 +98,7 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
     UserTenantMembershipsList,
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_deployment_config import (
