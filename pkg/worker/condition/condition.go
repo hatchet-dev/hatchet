@@ -116,15 +116,21 @@ type parentCondition struct {
 	parentReadableId string
 }
 
+// NamedTask defines an interface for task types that have a name
+type NamedTask interface {
+	// GetName returns the name of the task
+	GetName() string
+}
+
 // ParentCondition creates a new condition that is satisfied based on the output of the parent task
 // in a DAG.
-func ParentCondition(parent string, expression string) *parentCondition {
+func ParentCondition(parent NamedTask, expression string) *parentCondition {
 	return &parentCondition{
 		baseCondition: baseCondition{
-			readableDataKey: parent,
+			readableDataKey: parent.GetName(),
 			expression:      expression,
 		},
-		parentReadableId: parent,
+		parentReadableId: parent.GetName(),
 	}
 }
 

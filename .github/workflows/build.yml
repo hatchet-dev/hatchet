@@ -1,6 +1,9 @@
 name: build
 on:
   pull_request:
+    paths-ignore:
+      - 'sdks/**'
+      - 'frontend/docs/**'
 
 jobs:
   check_path:

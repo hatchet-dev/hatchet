@@ -25,6 +25,14 @@ func (c *testHatchetContext) StepOutput(step string, target interface{}) error {
 	return nil
 }
 
+func (c *testHatchetContext) TriggerDataKeys() []string {
+	return nil
+}
+
+func (c *testHatchetContext) TriggerData(key string, target interface{}) error {
+	return nil
+}
+
 func (c *testHatchetContext) ParentOutput(task create.NamedTask, target interface{}) error {
 	return nil
 }

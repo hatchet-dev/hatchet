@@ -43,9 +43,16 @@ type WorkflowRunsListener struct {
 	handlers sync.Map
 }
 
-func (r *subscribeClientImpl) newWorkflowRunsListener(
+func (r *subscribeClientImpl) getWorkflowRunsListener(
 	ctx context.Context,
 ) (*WorkflowRunsListener, error) {
+	r.workflowRunListenerMu.Lock()
+	defer r.workflowRunListenerMu.Unlock()
+
+	if r.workflowRunListener != nil {
+		return r.workflowRunListener, nil
+	}
+
 	constructor := func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
 		return r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx), grpc_retry.Disable())
 	}
@@ -60,6 +67,32 @@ func (r *subscribeClientImpl) newWorkflowRunsListener(
 	if err != nil {
 		return nil, err
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	r.workflowRunListener = w
+
+	go func() {
+		defer func() {
+			err := w.Close()
+
+			if err != nil {
+				r.l.Error().Err(err).Msg("failed to close workflow run events listener")
+			}
+
+			r.workflowRunListenerMu.Lock()
+			r.workflowRunListener = nil
+			r.workflowRunListenerMu.Unlock()
+		}()
+
+		err := w.Listen(ctx)
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
+		}
+	}()
 
 	return w, nil
 }
@@ -251,6 +284,12 @@ type subscribeClientImpl struct {
 	v validator.Validator
 
 	ctx *contextLoader
+
+	workflowRunListenerMu sync.Mutex
+	workflowRunListener   *WorkflowRunsListener
+
+	durableEventsListenerMu sync.Mutex
+	durableEventsListener   *DurableEventsListener
 }
 
 func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient {
@@ -359,29 +398,11 @@ func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, ke
 }
 
 func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error) {
-	l, err := r.newWorkflowRunsListener(ctx)
+	return r.getWorkflowRunsListener(context.Background())
+}
 
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		defer func() {
-			err := l.Close()
-
-			if err != nil {
-				r.l.Error().Err(err).Msg("failed to close workflow run events listener")
-			}
-		}()
-
-		err := l.Listen(ctx)
-
-		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
-		}
-	}()
-
-	return l, nil
+func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
+	return r.getDurableEventsListener(context.Background())
 }
 
 func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {

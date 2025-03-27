@@ -277,11 +277,12 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 	}
 
 	taskDecl := &task.TaskDeclaration[I]{
-		Name:       opts.Name,
-		Fn:         genericFn,
-		Parents:    parentNames,
-		Conditions: opts.Conditions,
-
+		Name:     opts.Name,
+		Fn:       genericFn,
+		Parents:  parentNames,
+		WaitFor:  opts.WaitFor,
+		SkipIf:   opts.SkipIf,
+		CancelIf: opts.CancelIf,
 		TaskShared: task.TaskShared{
 			ExecutionTimeout:       executionTimeout,
 			ScheduleTimeout:        scheduleTimeout,
@@ -371,11 +372,12 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 	}
 
 	taskDecl := &task.DurableTaskDeclaration[I]{
-		Name:       opts.Name,
-		Fn:         genericFn,
-		Parents:    parentNames,
-		Conditions: opts.Conditions,
-
+		Name:     opts.Name,
+		Fn:       genericFn,
+		Parents:  parentNames,
+		WaitFor:  opts.WaitFor,
+		SkipIf:   opts.SkipIf,
+		CancelIf: opts.CancelIf,
 		TaskShared: task.TaskShared{
 			ExecutionTimeout:       executionTimeout,
 			ScheduleTimeout:        scheduleTimeout,

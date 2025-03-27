@@ -2,12 +2,14 @@ package v1_workflows
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
+	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
 type DagInput struct {
@@ -50,6 +52,7 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 			Parents: []create.NamedTask{
 				step1,
 			},
+			WaitFor: condition.SleepCondition(time.Second * 5),
 		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
 
 			var step1Output SimpleOutput

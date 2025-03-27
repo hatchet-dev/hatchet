@@ -2,14 +2,16 @@ name: typescript
 on:
   pull_request:
     paths:
-      - 'sdks/typescript/**'
       - '.github/**'
+      - 'api/**'
+      - 'api-contracts/**'
+      - 'internal/**'
+      - 'sdks/typescript/**'
   push:
     branches:
       - main
     paths:
       - 'sdks/typescript/**'
-      - '.github/**'
 
 defaults:
   run:

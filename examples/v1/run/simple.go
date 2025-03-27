@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -35,13 +34,11 @@ func main() {
 		workflowName = "simple"
 	}
 
-	ctx := context.Background()
-
 	// Define workflow runners map
 	runnerMap := map[string]func() error{
 		"simple": func() error {
 			simple := v1_workflows.Simple(hatchet)
-			result, err := simple.Run(ctx, v1_workflows.SimpleInput{
+			result, err := simple.Run(v1_workflows.SimpleInput{
 				Message: "Hello, World!",
 			})
 			if err != nil {
@@ -52,7 +49,7 @@ func main() {
 		},
 		"dag": func() error {
 			dag := v1_workflows.DagWorkflow(hatchet)
-			result, err := dag.Run(ctx, v1_workflows.DagInput{
+			result, err := dag.Run(v1_workflows.DagInput{
 				Message: "Hello, DAG!",
 			})
 			if err != nil {
@@ -64,7 +61,7 @@ func main() {
 		},
 		"sleep": func() error {
 			sleep := v1_workflows.DurableSleep(hatchet)
-			_, err := sleep.Run(ctx, v1_workflows.DurableSleepInput{
+			_, err := sleep.Run(v1_workflows.DurableSleepInput{
 				Message: "Hello, Sleep!",
 			})
 			if err != nil {
@@ -73,9 +70,11 @@ func main() {
 			fmt.Println("Sleep workflow completed")
 			return nil
 		},
-		"cancellation": func() error {
-			cancellation := v1_workflows.Cancellation(hatchet)
-			run, err := cancellation.RunNoWait(ctx, v1_workflows.CancellationInput{})
+		"durable-event": func() error {
+			durableEventWorkflow := v1_workflows.DurableEvent(hatchet)
+			workflow, err := durableEventWorkflow.RunNoWait(v1_workflows.DurableEventInput{
+				Message: "Hello, World!",
+			})
 
 			if err != nil {
 				return err

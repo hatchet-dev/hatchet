@@ -43,6 +43,10 @@ type HatchetContext interface {
 
 	StepOutput(step string, target interface{}) error
 
+	TriggerDataKeys() []string
+
+	TriggerData(key string, target interface{}) error
+
 	StepRunErrors() map[string]string
 
 	TriggeredByEvent() bool
@@ -100,12 +104,13 @@ type JobRunLookupData struct {
 }
 
 type StepRunData struct {
-	Input              map[string]interface{} `json:"input"`
-	TriggeredBy        TriggeredBy            `json:"triggered_by"`
-	Parents            map[string]StepData    `json:"parents"`
-	AdditionalMetadata map[string]string      `json:"additional_metadata"`
-	UserData           map[string]interface{} `json:"user_data"`
-	StepRunErrors      map[string]string      `json:"step_run_errors,omitempty"`
+	Input              map[string]interface{}            `json:"input"`
+	TriggeredBy        TriggeredBy                       `json:"triggered_by"`
+	Parents            map[string]StepData               `json:"parents"`
+	Triggers           map[string]map[string]interface{} `json:"triggers,omitempty"`
+	AdditionalMetadata map[string]string                 `json:"additional_metadata"`
+	UserData           map[string]interface{}            `json:"user_data"`
+	StepRunErrors      map[string]string                 `json:"step_run_errors,omitempty"`
 }
 
 type StepData map[string]interface{}
@@ -194,6 +199,24 @@ func (h *hatchetContext) StepOutput(step string, target interface{}) error {
 	}
 
 	return fmt.Errorf("step %s not found in action payload", step)
+}
+
+func (h *hatchetContext) TriggerDataKeys() []string {
+	keys := make([]string, 0, len(h.stepData.Triggers))
+
+	for k := range h.stepData.Triggers {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func (h *hatchetContext) TriggerData(key string, target interface{}) error {
+	if val, ok := h.stepData.Triggers[key]; ok {
+		return toTarget(val, target)
+	}
+
+	return fmt.Errorf("trigger %s not found in action payload", key)
 }
 
 func (h *hatchetContext) ParentOutput(parent create.NamedTask, output interface{}) error {
@@ -305,22 +328,7 @@ type SpawnWorkflowOpts struct {
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
-	h.listenerMu.Lock()
-	defer h.listenerMu.Unlock()
-
-	if h.listener != nil {
-		return h.listener, nil
-	}
-
-	listener, err := h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
-	}
-
-	h.listener = listener
-
-	return listener, nil
+	return h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
 }
 
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
@@ -744,23 +752,7 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 }
 
 func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
-	h.durableListenerMu.Lock()
-	defer h.durableListenerMu.Unlock()
-
-	if h.durableEventListener != nil {
-		return h.durableEventListener, nil
-	}
-
-	// TODO: USE THE WORKER CONTEXT
-	l, err := h.client().Subscribe().ListenForDurableEvents(context.Background())
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
-	}
-
-	h.durableEventListener = l
-
-	return l, nil
+	return h.client().Subscribe().ListenForDurableEvents(context.Background())
 }
 
 // NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.

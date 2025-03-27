@@ -1,6 +1,8 @@
 name: "frontend / docs"
 on:
   pull_request:
+    paths:
+      - 'frontend/docs/**'
 
 jobs:
   check_path:
