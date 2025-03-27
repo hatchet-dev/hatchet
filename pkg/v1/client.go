@@ -2,6 +2,7 @@ package v1
 
 import (
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
@@ -14,9 +15,6 @@ type HatchetClient interface {
 	// V0 returns the underlying V0 client for backward compatibility.
 	V0() v0Client.Client
 
-	// Workflow creates a new workflow declaration with the provided options.
-	Workflow(opts workflow.CreateOpts[any]) workflow.WorkflowDeclaration[any, any]
-
 	// Worker creates and configures a new worker with the provided options and optional configuration functions.
 	// @example
 	// ```go
@@ -26,7 +24,7 @@ type HatchetClient interface {
 	//   v1.WithWorkflows(simple)
 	// )
 	// ```
-	Worker(opts worker.CreateOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error)
+	Worker(opts create.WorkerOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error)
 
 	// Feature clients
 
@@ -91,30 +89,18 @@ func (c *v1HatchetClientImpl) V0() v0Client.Client {
 }
 
 // Workflow creates a new workflow declaration with the provided options.
-func (c *v1HatchetClientImpl) Workflow(opts workflow.CreateOpts[any]) workflow.WorkflowDeclaration[any, any] {
+func (c *v1HatchetClientImpl) Workflow(opts create.WorkflowCreateOpts[any]) workflow.WorkflowDeclaration[any, any] {
 	var v0 v0Client.Client
 	if c.v0 != nil {
 		v0 = *c.v0
 	}
 
-	return workflow.NewWorkflowDeclaration[any, any](opts, &v0)
+	return workflow.NewWorkflowDeclaration[any, any](opts, v0)
 }
 
 // Worker creates and configures a new worker with the provided options and optional configuration functions.
-func (c *v1HatchetClientImpl) Worker(opts worker.CreateOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error) {
+func (c *v1HatchetClientImpl) Worker(opts create.WorkerOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error) {
 	return worker.NewWorker(c.workers, c.v0, opts, optFns...)
-}
-
-// WorkflowFactory creates a new workflow declaration with the specified input and output types before a client is initialized.
-// This function is used to create strongly typed workflow declarations with the given client.
-// NOTE: This is placed on the client due to circular dependency concerns.
-func WorkflowFactory[I any, O any](opts workflow.CreateOpts[I], client *HatchetClient) workflow.WorkflowDeclaration[I, O] {
-	var v0 v0Client.Client
-	if client != nil {
-		v0 = (*client).V0()
-	}
-
-	return workflow.NewWorkflowDeclaration[I, O](opts, &v0)
 }
 
 func (c *v1HatchetClientImpl) RateLimits() *features.RateLimitsClient {
