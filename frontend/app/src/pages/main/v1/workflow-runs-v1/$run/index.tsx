@@ -3,7 +3,7 @@ import {
   WorkflowRunShapeForWorkflowRunDetails,
   WorkflowRunStatus,
 } from '@/lib/api';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import {
   Tabs,
@@ -74,6 +74,7 @@ const GraphView = ({
 
 export default function ExpandedWorkflowRun() {
   const params = useParams();
+  const navigate = useNavigate();
 
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -83,7 +84,19 @@ export default function ExpandedWorkflowRun() {
     setIsSidebarOpen(true);
   }, []);
 
-  const { workflowRun, shape, isLoading, isError } = useWorkflowDetails();
+  const { workflowRun, shape, isLoading, isError, errStatusCode } =
+    useWorkflowDetails();
+
+  if (isError && errStatusCode == 404 && params.run) {
+    // see if this is actually a task run and redirect
+    return (
+      <div className="flex-grow h-full w-full">
+        <div className="mx-auto pt-2 px-4 sm:px-6 lg:px-8">
+          <TaskRunDetail taskRunId={params.run} />
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || isError || !workflowRun) {
     return null;

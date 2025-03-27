@@ -1,8 +1,10 @@
 package populator
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
@@ -77,6 +79,10 @@ func (p *Populator) populate(c echo.Context, r *middleware.RouteInfo) error {
 	err := p.traverseNode(c, rootResource)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.NoContent(404)
+		}
+
 		return err
 	}
 
