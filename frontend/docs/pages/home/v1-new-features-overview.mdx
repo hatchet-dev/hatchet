@@ -1,0 +1,27 @@
+import { Callout } from "nextra/components";
+
+## 🪓 Hatchet `v1` is here!
+
+The V1 release includes a number of new features, many of which have been common requests from the community. We're excited to share these!
+
+At a high level, Hatchet v1 supports the following new features:
+
+- [Complex/conditional workflow logic](./v1-dags.mdx), like skipping or branching workflows
+- [Durable execution features](./v1-durable-execution.mdx): workflow signaling and durable sleep
+- A documented, stable REST API for interacting with workflows
+- [Each SDK received a new `v1.0.x`](./v1-sdk-improvements.mdx) release with the following improvements:
+  - Python received improved support for Pydantic validation, dynamic workflow composition, simpler workflow and task declaration, and significantly improved type support.
+  - Typescript received a new factory method for building workflows, and improved typing and validation support
+  - Go received improvements for registering workflows and defining tasks.
+- [Improved bulk cancellations and replays](./v1-bulk-operations.mdx)
+
+## Migration guides
+
+We have migration guides published to help you migrate existing code over to V1:
+
+- v1 Self-Hosted Migration Guide (coming soon)
+- [v1 Python SDK migration guide](./migration-guide-python.mdx)
+- v1 Go SDK migration guide (coming soon)
+- [v1 Typescript SDK migration guide](./migration-guide-typescript.mdx)
+
+These links will become active when each migration guide is available.
