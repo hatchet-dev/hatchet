@@ -4,21 +4,21 @@ import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { TenantContextType } from '@/lib/outlet';
 import { Link, useOutletContext } from 'react-router-dom';
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-columns';
-import { Loading } from '@/components/ui/loading.tsx';
-import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/ui/card';
+} from '@/components/v1/ui/card';
 import { ArrowPathIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import GithubButton from '../$managed-worker/components/github-button';
 
@@ -80,11 +80,6 @@ export function ManagedWorkersTable() {
       0,
     );
 
-    const buildConfig = data.buildConfig;
-    if (!buildConfig) {
-      return null; // TODO
-    }
-
     return (
       <div
         key={data.metadata?.id}
@@ -100,7 +95,12 @@ export function ManagedWorkersTable() {
           <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
             Created <RelativeDate date={data.metadata?.createdAt} />
           </p>
-          <GithubButton buildConfig={buildConfig} prefix="Deploys from" />
+          {data.buildConfig && (
+            <GithubButton
+              buildConfig={data.buildConfig}
+              prefix="Deploys from"
+            />
+          )}
           <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
             {totReplicas} {totReplicas == 1 ? 'instance' : 'instances'} with{' '}
             {totCpus} CPUs and {totMemory} MB memory
@@ -108,7 +108,7 @@ export function ManagedWorkersTable() {
         </div>
         <div className="px-4 py-4 sm:px-6">
           <div className="text-sm text-background-secondary">
-            <Link to={`/managed-workers/${data.metadata?.id}`}>
+            <Link to={`/v1/managed-workers/${data.metadata?.id}`}>
               <Button>View Compute Instance</Button>
             </Link>
           </div>
