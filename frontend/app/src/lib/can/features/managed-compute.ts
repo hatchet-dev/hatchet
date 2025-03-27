@@ -64,7 +64,7 @@ export const managedCompute: PermissionSet = {
     }
 
     if (currentWorkerPoolCount >= maxWorkerPools) {
-      return [false, RejectReason.PLAN_RESTRICTION];
+      return [false, RejectReason.UPGRADE_REQUIRED];
     }
 
     return [true, undefined];
@@ -95,7 +95,7 @@ export const managedCompute: PermissionSet = {
     }
 
     if (replicaCount > maxReplicas) {
-      return [false, RejectReason.PLAN_RESTRICTION];
+      return [false, RejectReason.UPGRADE_REQUIRED];
     }
 
     return [true, undefined];
@@ -118,7 +118,7 @@ export const managedCompute: PermissionSet = {
     switch (plan) {
       case 'free':
       case 'starter':
-        return [false, RejectReason.PLAN_RESTRICTION];
+        return [false, RejectReason.UPGRADE_REQUIRED];
       case 'growth':
         // For growth plan, we might want to limit GPU types or quantities
         // This can be extended with specific GPU restrictions if needed
@@ -153,22 +153,22 @@ export const managedCompute: PermissionSet = {
       case 'free':
         // Free plan restrictions
         if (cpuKind !== 'shared') {
-          return [false, RejectReason.PLAN_RESTRICTION];
+          return [false, RejectReason.UPGRADE_REQUIRED];
         }
         if (cpus !== 1) {
-          return [false, RejectReason.PLAN_RESTRICTION];
+          return [false, RejectReason.UPGRADE_REQUIRED];
         }
         if (memoryMb > 1024) {
-          return [false, RejectReason.PLAN_RESTRICTION];
+          return [false, RejectReason.UPGRADE_REQUIRED];
         }
         break;
       case 'starter':
         // Starter plan restrictions
         if (cpus > 4) {
-          return [false, RejectReason.PLAN_RESTRICTION];
+          return [false, RejectReason.UPGRADE_REQUIRED];
         }
         if (memoryMb > 4096) {
-          return [false, RejectReason.PLAN_RESTRICTION];
+          return [false, RejectReason.UPGRADE_REQUIRED];
         }
         break;
       case 'growth':
