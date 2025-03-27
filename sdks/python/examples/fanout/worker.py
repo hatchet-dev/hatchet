@@ -29,7 +29,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
 
     result = await child_wf.aio_run_many(
         [
-            child_wf.create_run_workflow_config(
+            child_wf.create_bulk_run_item(
                 input=ChildInput(a=str(i)),
                 options=TriggerWorkflowOptions(
                     additional_metadata={"hello": "earth"}, key=f"child{i}"
@@ -61,10 +61,9 @@ def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     a = process_output["status"]
 
     return {"status2": a + "2"}
-
-
 # ‼️
 
+child_wf.create_bulk_run_item()
 
 def main() -> None:
     worker = hatchet.worker("fanout-worker", slots=40, workflows=[parent_wf, child_wf])

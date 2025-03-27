@@ -26,7 +26,7 @@ bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildIn
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
     # 👀 Create each workflow run to spawn
     child_workflow_runs = [
-        bulk_child_wf.create_run_workflow_config(
+        bulk_child_wf.create_bulk_run_item(
             input=ChildInput(a=str(i)),
             key=f"child{i}",
             options=TriggerWorkflowOptions(additional_metadata={"hello": "earth"}),

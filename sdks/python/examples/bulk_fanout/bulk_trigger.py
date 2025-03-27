@@ -10,7 +10,7 @@ hatchet = Hatchet()
 async def main() -> None:
     results = bulk_parent_wf.run_many(
         workflows=[
-            bulk_parent_wf.create_run_workflow_config(
+            bulk_parent_wf.create_bulk_run_item(
                 input=ParentInput(n=i),
                 options=TriggerWorkflowOptions(
                     additional_metadata={
