@@ -59,7 +59,7 @@ export function MonthlyUsageCard({
           <div
             className={`text-xl font-bold ${showingCredits ? 'text-green-500' : 'text-foreground'}`}
           >
-            {showingCredits ? '+ ' : '- '}${formattedAmount}
+            {showingCredits && '+ '}${formattedAmount}
           </div>
           <div className="ml-2 text-sm text-muted-foreground">
             {showingCredits ? 'credits remaining' : 'used this month'}
