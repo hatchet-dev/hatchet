@@ -3,13 +3,21 @@
 import logging
 import time
 
+from pydantic import BaseModel
+
 from examples.logger.client import hatchet
 from hatchet_sdk import Context, EmptyModel
 
 logger = logging.getLogger(__name__)
 
+
+class LoggingOutput(BaseModel):
+    root_logger: dict[str, str]
+
+
 logging_workflow = hatchet.workflow(
     name="LoggingWorkflow",
+    output_validator=LoggingOutput,
 )
 
 

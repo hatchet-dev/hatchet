@@ -322,11 +322,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_run_workflow(
         self,
-        wrapped: Callable[[str, Any, TriggerWorkflowOptions | None], WorkflowRunRef],
+        wrapped: Callable[
+            [str, Any, TriggerWorkflowOptions | None], WorkflowRunRef[Any]
+        ],
         instance: AdminClient,
         args: tuple[str, Any, TriggerWorkflowOptions | None],
         kwargs: dict[str, str | Any | TriggerWorkflowOptions | None],
-    ) -> WorkflowRunRef:
+    ) -> WorkflowRunRef[Any]:
         with self._tracer.start_as_current_span(
             "hatchet.run_workflow",
         ):
@@ -337,12 +339,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self,
         wrapped: Callable[
             [str, Any, TriggerWorkflowOptions | None],
-            Coroutine[None, None, WorkflowRunRef],
+            Coroutine[None, None, WorkflowRunRef[Any]],
         ],
         instance: AdminClient,
         args: tuple[str, Any, TriggerWorkflowOptions | None],
         kwargs: dict[str, str | Any | TriggerWorkflowOptions | None],
-    ) -> WorkflowRunRef:
+    ) -> WorkflowRunRef[Any]:
         with self._tracer.start_as_current_span(
             "hatchet.run_workflow",
         ):
@@ -353,12 +355,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self,
         wrapped: Callable[
             [list[WorkflowRunTriggerConfig]],
-            list[WorkflowRunRef],
+            list[WorkflowRunRef[Any]],
         ],
         instance: AdminClient,
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
-    ) -> list[WorkflowRunRef]:
+    ) -> list[WorkflowRunRef[Any]]:
         with self._tracer.start_as_current_span(
             "hatchet.run_workflows",
         ):
@@ -369,12 +371,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self,
         wrapped: Callable[
             [list[WorkflowRunTriggerConfig]],
-            Coroutine[None, None, list[WorkflowRunRef]],
+            Coroutine[None, None, list[WorkflowRunRef[Any]]],
         ],
         instance: AdminClient,
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
-    ) -> list[WorkflowRunRef]:
+    ) -> list[WorkflowRunRef[Any]]:
         with self._tracer.start_as_current_span(
             "hatchet.run_workflows",
         ):

@@ -15,9 +15,16 @@ class RandomSum(BaseModel):
     sum: int
 
 
+class Output(BaseModel):
+    step1: StepOutput
+    step2: StepOutput
+    step3: RandomSum
+    step4: None
+
+
 hatchet = Hatchet(debug=True)
 
-dag_workflow = hatchet.workflow(name="DAGWorkflow")
+dag_workflow = hatchet.workflow(name="DAGWorkflow", output_validator=Output)
 
 
 @dag_workflow.task(execution_timeout=timedelta(seconds=5))
@@ -39,7 +46,7 @@ def step3(input: EmptyModel, ctx: Context) -> RandomSum:
 
 
 @dag_workflow.task(parents=[step1, step3])
-def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def step4(input: EmptyModel, ctx: Context) -> None:
     print(
         "executed step4",
         time.strftime("%H:%M:%S", time.localtime()),
@@ -47,9 +54,6 @@ def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
         ctx.task_output(step1),
         ctx.task_output(step3),
     )
-    return {
-        "step4": "step4",
-    }
 
 
 def main() -> None:

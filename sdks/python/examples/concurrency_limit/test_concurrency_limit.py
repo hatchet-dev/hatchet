@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 from examples.concurrency_limit.worker import WorkflowInput, concurrency_limit_workflow
@@ -10,7 +12,7 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 @pytest.mark.skip(reason="The timing for this test is not reliable")
 async def test_run(hatchet: Hatchet) -> None:
     num_runs = 6
-    runs: list[WorkflowRunRef] = []
+    runs: list[WorkflowRunRef[Any]] = []
 
     # Start all runs
     for i in range(1, num_runs + 1):

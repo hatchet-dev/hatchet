@@ -33,6 +33,7 @@ from hatchet_sdk.runnables.types import (
     R,
     StepType,
     TWorkflowInput,
+    TWorkflowOutput,
     WorkflowConfig,
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
@@ -69,7 +70,7 @@ class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
     options: TriggerWorkflowOptions
 
 
-class BaseWorkflow(Generic[TWorkflowInput]):
+class BaseWorkflow(Generic[TWorkflowInput, TWorkflowOutput]):
     def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
         self.config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
@@ -286,7 +287,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
 
-class Workflow(BaseWorkflow[TWorkflowInput]):
+class Workflow(BaseWorkflow[TWorkflowInput, TWorkflowOutput]):
     """
     A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow, such as
     running / spawning children and scheduling future runs.
@@ -296,22 +297,24 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
+    ) -> WorkflowRunRef[TWorkflowOutput]:
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
     def run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> dict[str, Any]:
+    ) -> TWorkflowOutput:
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
         return ref.result()
@@ -320,22 +323,24 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> WorkflowRunRef:
+    ) -> WorkflowRunRef[TWorkflowOutput]:
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
     async def aio_run(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> dict[str, Any]:
+    ) -> TWorkflowOutput:
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
         return await ref.aio_result()
@@ -343,9 +348,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[dict[str, Any]]:
+    ) -> list[TWorkflowOutput]:
         refs = self.client._client.admin.run_workflows(
             workflows=workflows,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
         return [ref.result() for ref in refs]
@@ -353,9 +359,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_run_many(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[dict[str, Any]]:
+    ) -> list[TWorkflowOutput]:
         refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
         return await asyncio.gather(*[ref.aio_result() for ref in refs])
@@ -363,17 +370,19 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def run_many_no_wait(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[WorkflowRunRef]:
+    ) -> list[WorkflowRunRef[TWorkflowOutput]]:
         return self.client._client.admin.run_workflows(
             workflows=workflows,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
     async def aio_run_many_no_wait(
         self,
         workflows: list[WorkflowRunTriggerConfig],
-    ) -> list[WorkflowRunRef]:
+    ) -> list[WorkflowRunRef[TWorkflowOutput]]:
         return await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
+            output_validator=cast(TWorkflowOutput, self.config.output_validator),
         )
 
     def schedule(
@@ -735,7 +744,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return inner
 
-    def add_task(self, task: "Standalone[TWorkflowInput, Any]") -> None:
+    def add_task(
+        self, task: "Standalone[TWorkflowInput, TWorkflowOutput, Any]"
+    ) -> None:
         """
         Add a task to a workflow. Intended to be used with a previously existing task (a Standalone),
         such as one created with `@hatchet.task()`, which has been converted to a `Task` object using `to_task`.

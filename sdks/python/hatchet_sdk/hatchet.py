@@ -29,6 +29,7 @@ from hatchet_sdk.runnables.types import (
     StickyStrategy,
     TaskDefaults,
     TWorkflowInput,
+    TWorkflowOutput,
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
@@ -133,7 +134,7 @@ class Hatchet:
         name: str,
         slots: int = 100,
         labels: dict[str, str | int] = {},
-        workflows: list[BaseWorkflow[Any]] = [],
+        workflows: list[BaseWorkflow[Any, Any]] = [],
     ) -> Worker:
         """
         Create a Hatchet worker on which to run workflows.
@@ -177,6 +178,7 @@ class Hatchet:
         name: str,
         description: str | None = None,
         input_validator: None = None,
+        output_validator: None = None,
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
@@ -184,7 +186,24 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-    ) -> Workflow[EmptyModel]: ...
+    ) -> Workflow[EmptyModel, EmptyModel]: ...
+
+    @overload
+    def workflow(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: None = None,
+        output_validator: Type[TWorkflowOutput],
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        task_defaults: TaskDefaults = TaskDefaults(),
+    ) -> Workflow[EmptyModel, TWorkflowOutput]: ...
 
     @overload
     def workflow(
@@ -193,6 +212,7 @@ class Hatchet:
         name: str,
         description: str | None = None,
         input_validator: Type[TWorkflowInput],
+        output_validator: None = None,
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
@@ -200,7 +220,24 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-    ) -> Workflow[TWorkflowInput]: ...
+    ) -> Workflow[TWorkflowInput, EmptyModel]: ...
+
+    @overload
+    def workflow(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        input_validator: Type[TWorkflowInput],
+        output_validator: Type[TWorkflowOutput],
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        task_defaults: TaskDefaults = TaskDefaults(),
+    ) -> Workflow[TWorkflowInput, TWorkflowOutput]: ...
 
     def workflow(
         self,
@@ -208,6 +245,7 @@ class Hatchet:
         name: str,
         description: str | None = None,
         input_validator: Type[TWorkflowInput] | None = None,
+        output_validator: Type[TWorkflowOutput] | None = None,
         on_events: list[str] = [],
         on_crons: list[str] = [],
         version: str | None = None,
@@ -215,7 +253,12 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-    ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
+    ) -> (
+        Workflow[EmptyModel, EmptyModel]
+        | Workflow[TWorkflowInput, TWorkflowOutput]
+        | Workflow[EmptyModel, TWorkflowOutput]
+        | Workflow[TWorkflowInput, EmptyModel]
+    ):
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
 
@@ -253,7 +296,7 @@ class Hatchet:
         :rtype: Workflow
         """
 
-        return Workflow[TWorkflowInput](
+        return Workflow[TWorkflowInput, TWorkflowOutput](
             WorkflowConfig(
                 name=name,
                 version=version,
@@ -264,6 +307,8 @@ class Hatchet:
                 concurrency=concurrency,
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
+                output_validator=output_validator
+                or cast(Type[TWorkflowOutput], EmptyModel),
                 task_defaults=task_defaults,
             ),
             self,
@@ -289,7 +334,9 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]: ...
+    ) -> Callable[
+        [Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, EmptyModel, R]
+    ]: ...
 
     @overload
     def task(
@@ -312,7 +359,8 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+        [Callable[[TWorkflowInput, Context], R]],
+        Standalone[TWorkflowInput, EmptyModel, R],
     ]: ...
 
     def task(
@@ -335,9 +383,13 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> (
-        Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]
+        Callable[
+            [Callable[[EmptyModel, Context], R]],
+            Standalone[EmptyModel, EmptyModel, R],
+        ]
         | Callable[
-            [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+            [Callable[[TWorkflowInput, Context], R]],
+            Standalone[TWorkflowInput, EmptyModel, R],
         ]
     ):
         """
@@ -395,7 +447,7 @@ class Hatchet:
         :rtype: Callable[[Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]]
         """
 
-        workflow = Workflow[TWorkflowInput](
+        workflow = Workflow[TWorkflowInput, EmptyModel](
             WorkflowConfig(
                 name=name,
                 version=version,
@@ -425,10 +477,10 @@ class Hatchet:
 
         def inner(
             func: Callable[[TWorkflowInput, Context], R]
-        ) -> Standalone[TWorkflowInput, R]:
+        ) -> Standalone[TWorkflowInput, EmptyModel, R]:
             created_task = task_wrapper(func)
 
-            return Standalone[TWorkflowInput, R](
+            return Standalone[TWorkflowInput, EmptyModel, R](
                 workflow=workflow,
                 task=created_task,
             )
@@ -456,7 +508,8 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
-        [Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]
+        [Callable[[EmptyModel, DurableContext], R]],
+        Standalone[EmptyModel, EmptyModel, R],
     ]: ...
 
     @overload
@@ -480,7 +533,8 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, DurableContext], R]], Standalone[TWorkflowInput, R]
+        [Callable[[TWorkflowInput, DurableContext], R]],
+        Standalone[TWorkflowInput, EmptyModel, R],
     ]: ...
 
     def durable_task(
@@ -503,10 +557,13 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> (
-        Callable[[Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]]
+        Callable[
+            [Callable[[EmptyModel, DurableContext], R]],
+            Standalone[EmptyModel, EmptyModel, R],
+        ]
         | Callable[
             [Callable[[TWorkflowInput, DurableContext], R]],
-            Standalone[TWorkflowInput, R],
+            Standalone[TWorkflowInput, EmptyModel, R],
         ]
     ):
         """
@@ -564,7 +621,7 @@ class Hatchet:
         :rtype: Callable[[Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]]
         """
 
-        workflow = Workflow[TWorkflowInput](
+        workflow = Workflow[TWorkflowInput, EmptyModel](
             WorkflowConfig(
                 name=name,
                 version=version,
@@ -594,10 +651,10 @@ class Hatchet:
 
         def inner(
             func: Callable[[TWorkflowInput, DurableContext], R]
-        ) -> Standalone[TWorkflowInput, R]:
+        ) -> Standalone[TWorkflowInput, EmptyModel, R]:
             created_task = task_wrapper(func)
 
-            return Standalone[TWorkflowInput, R](
+            return Standalone[TWorkflowInput, EmptyModel, R](
                 workflow=workflow,
                 task=created_task,
             )

@@ -15,7 +15,7 @@ async def test_list_runs(hatchet: Hatchet) -> None:
         only_tasks=True,
     )
 
-    for v in dag_result.values():
+    for v in dag_result.model_dump().values():
         assert v in [r.output for r in runs.rows]
 
 

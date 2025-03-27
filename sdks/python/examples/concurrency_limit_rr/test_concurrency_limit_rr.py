@@ -1,4 +1,5 @@
 import time
+from typing import Any
 
 import pytest
 
@@ -12,7 +13,7 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run(hatchet: Hatchet) -> None:
     num_groups = 2
-    runs: list[WorkflowRunRef] = []
+    runs: list[WorkflowRunRef[Any]] = []
 
     # Start all runs
     for i in range(1, num_groups + 1):

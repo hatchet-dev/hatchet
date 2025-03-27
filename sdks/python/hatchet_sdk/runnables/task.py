@@ -55,7 +55,7 @@ class Task(Generic[TWorkflowInput, R]):
         ],
         is_durable: bool,
         type: StepType,
-        workflow: "Workflow[TWorkflowInput]",
+        workflow: "Workflow[TWorkflowInput, Any]",
         name: str,
         execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
         schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,

@@ -69,7 +69,7 @@ class Worker:
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
-        workflows: list[BaseWorkflow[Any]] = [],
+        workflows: list[BaseWorkflow[Any, Any]] = [],
     ) -> None:
         self.config = config
         self.name = self.config.namespace + name
@@ -127,7 +127,7 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-    def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
+    def register_workflow(self, workflow: BaseWorkflow[Any, Any]) -> None:
         namespace = self.client.config.namespace
 
         opts = workflow._get_create_opts(namespace)
@@ -159,7 +159,7 @@ class Worker:
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
 
-    def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
+    def register_workflows(self, workflows: list[BaseWorkflow[Any, Any]]) -> None:
         for workflow in workflows:
             self.register_workflow(workflow)
 

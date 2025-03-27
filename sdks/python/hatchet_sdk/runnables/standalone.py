@@ -2,6 +2,8 @@ import asyncio
 from datetime import datetime
 from typing import Any, Generic, cast, get_type_hints
 
+from pydantic import BaseModel
+
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -10,18 +12,22 @@ from hatchet_sdk.clients.admin import (
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
+from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput, TWorkflowOutput
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.aio_utils import get_active_event_loop
 from hatchet_sdk.utils.typing import JSONSerializableMapping, is_basemodel_subclass
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
-class TaskRunRef(Generic[TWorkflowInput, R]):
+class StandaloneOutput(BaseModel):
+    task_result: Any
+
+
+class TaskRunRef(Generic[TWorkflowInput, TWorkflowOutput, R]):
     def __init__(
         self,
-        standalone: "Standalone[TWorkflowInput, R]",
-        workflow_run_ref: WorkflowRunRef,
+        standalone: "Standalone[TWorkflowInput, TWorkflowOutput, R]",
+        workflow_run_ref: WorkflowRunRef[TWorkflowOutput],
     ):
         self._s = standalone
         self._wrr = workflow_run_ref
@@ -48,9 +54,14 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self._s._extract_result(result)
 
 
-class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
+class Standalone(
+    BaseWorkflow[TWorkflowInput, TWorkflowOutput],
+    Generic[TWorkflowInput, TWorkflowOutput, R],
+):
     def __init__(
-        self, workflow: Workflow[TWorkflowInput], task: Task[TWorkflowInput, R]
+        self,
+        workflow: Workflow[TWorkflowInput, TWorkflowOutput],
+        task: Task[TWorkflowInput, R],
     ) -> None:
         super().__init__(config=workflow.config, client=workflow.client)
 
@@ -69,8 +80,9 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
         self.config = self._workflow.config
 
-    def _extract_result(self, result: dict[str, Any]) -> R:
-        output = result.get(self._task.name)
+    def _extract_result(self, result: BaseModel | dict[str, Any]) -> R:
+        _result = result.model_dump() if isinstance(result, BaseModel) else result
+        output = _result.get(self._task.name)
 
         if not self._output_validator:
             return cast(R, output)
@@ -96,19 +108,19 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> TaskRunRef[TWorkflowInput, R]:
+    ) -> TaskRunRef[TWorkflowInput, TWorkflowOutput, R]:
         ref = self._workflow.run_no_wait(input, options)
 
-        return TaskRunRef[TWorkflowInput, R](self, ref)
+        return TaskRunRef[TWorkflowInput, TWorkflowOutput, R](self, ref)
 
     async def aio_run_no_wait(
         self,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
-    ) -> TaskRunRef[TWorkflowInput, R]:
+    ) -> TaskRunRef[TWorkflowInput, TWorkflowOutput, R]:
         ref = await self._workflow.aio_run_no_wait(input, options)
 
-        return TaskRunRef[TWorkflowInput, R](self, ref)
+        return TaskRunRef[TWorkflowInput, TWorkflowOutput, R](self, ref)
 
     def run_many(self, workflows: list[WorkflowRunTriggerConfig]) -> list[R]:
         return [
@@ -124,17 +136,21 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def run_many_no_wait(
         self, workflows: list[WorkflowRunTriggerConfig]
-    ) -> list[TaskRunRef[TWorkflowInput, R]]:
+    ) -> list[TaskRunRef[TWorkflowInput, TWorkflowOutput, R]]:
         refs = self._workflow.run_many_no_wait(workflows)
 
-        return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+        return [
+            TaskRunRef[TWorkflowInput, TWorkflowOutput, R](self, ref) for ref in refs
+        ]
 
     async def aio_run_many_no_wait(
         self, workflows: list[WorkflowRunTriggerConfig]
-    ) -> list[TaskRunRef[TWorkflowInput, R]]:
+    ) -> list[TaskRunRef[TWorkflowInput, TWorkflowOutput, R]]:
         refs = await self._workflow.aio_run_many_no_wait(workflows)
 
-        return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
+        return [
+            TaskRunRef[TWorkflowInput, TWorkflowOutput, R](self, ref) for ref in refs
+        ]
 
     def schedule(
         self,

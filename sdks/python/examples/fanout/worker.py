@@ -1,5 +1,4 @@
 from datetime import timedelta
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -11,20 +10,40 @@ hatchet = Hatchet(debug=True)
 # ❓ FanoutParent
 
 
-class ParentInput(BaseModel):
-    n: int = 100
-
-
 class ChildInput(BaseModel):
     a: str
 
 
-parent_wf = hatchet.workflow(name="FanoutParent", input_validator=ParentInput)
-child_wf = hatchet.workflow(name="FanoutChild", input_validator=ChildInput)
+class ChildTaskOutput(BaseModel):
+    status: str
+
+
+class ChildOutput(BaseModel):
+    process: ChildTaskOutput
+
+
+class ParentInput(BaseModel):
+    n: int = 5
+
+
+class ParentTaskOutput(BaseModel):
+    children: list[ChildOutput]
+
+
+class ParentOutput(BaseModel):
+    spawn: ParentTaskOutput
+
+
+parent_wf = hatchet.workflow(
+    name="FanoutParent", input_validator=ParentInput, output_validator=ParentOutput
+)
+child_wf = hatchet.workflow(
+    name="FanoutChild", input_validator=ChildInput, output_validator=ChildOutput
+)
 
 
 @parent_wf.task(execution_timeout=timedelta(minutes=5))
-async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
+async def spawn(input: ParentInput, ctx: Context) -> ParentTaskOutput:
     print("spawning child")
 
     result = await child_wf.aio_run_many(
@@ -41,7 +60,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
 
     print(f"results {result}")
 
-    return {"results": result}
+    return ParentTaskOutput(children=result)
 
 
 # ‼️
@@ -50,17 +69,17 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
 
 
 @child_wf.task()
-def process(input: ChildInput, ctx: Context) -> dict[str, str]:
+def process(input: ChildInput, ctx: Context) -> ChildTaskOutput:
     print(f"child process {input.a}")
-    return {"status": input.a}
+    return ChildTaskOutput(status="success " + input.a)
 
 
 @child_wf.task(parents=[process])
-def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
+def process2(input: ChildInput, ctx: Context) -> ChildTaskOutput:
     process_output = ctx.task_output(process)
-    a = process_output["status"]
+    a = process_output.status
 
-    return {"status2": a + "2"}
+    return ChildTaskOutput(status="success " + a)
 
 
 # ‼️

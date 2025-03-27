@@ -9,4 +9,4 @@ from hatchet_sdk import Hatchet
 async def test_run(hatchet: Hatchet) -> None:
     result = await bulk_parent_wf.aio_run(input=ParentInput(n=12))
 
-    assert len(result["spawn"]["results"]) == 12
+    assert len(result.model_dump()["spawn"]["results"]) == 12

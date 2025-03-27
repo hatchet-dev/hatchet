@@ -54,6 +54,7 @@ class ConcurrencyExpression(BaseModel):
 
 
 TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)
+TWorkflowOutput = TypeVar("TWorkflowOutput", bound=BaseModel)
 
 
 class TaskDefaults(BaseModel):
@@ -73,6 +74,7 @@ class WorkflowConfig(BaseModel):
     sticky: StickyStrategy | None = None
     concurrency: ConcurrencyExpression | None = None
     input_validator: Type[BaseModel] = EmptyModel
+    output_validator: Type[BaseModel] = EmptyModel
 
     task_defaults: TaskDefaults = TaskDefaults()
 

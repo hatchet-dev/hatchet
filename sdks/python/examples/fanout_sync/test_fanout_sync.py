@@ -7,4 +7,4 @@ def test_run(hatchet: Hatchet) -> None:
 
     result = sync_fanout_parent.run(ParentInput(n=N))
 
-    assert len(result["spawn"]["results"]) == N
+    assert len(result.children) == N
