@@ -69,6 +69,9 @@ type WorkflowDeclaration[I, O any] interface {
 	// for long-running operations or tasks that require human intervention.
 	DurableTask(opts create.WorkflowTask[I, O], fn func(input I, ctx worker.DurableHatchetContext) (interface{}, error)) *task.DurableTaskDeclaration[I]
 
+	// OnFailureTask registers a task that will be executed if the workflow fails.
+	OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(input I, ctx worker.HatchetContext) (interface{}, error)) *task.OnFailureTaskDeclaration[I]
+
 	// Run executes the workflow with the provided input.
 	Run(input I, opts ...RunOpts) (*O, error)
 
@@ -386,6 +389,77 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 
 	w.durableTasks = append(w.durableTasks, taskDecl)
 	w.durableTaskFuncs[name] = fn
+
+	return taskDecl
+}
+
+// OnFailureTask registers a task that will be executed if the workflow fails.
+func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(input I, ctx worker.HatchetContext) (interface{}, error)) *task.OnFailureTaskDeclaration[I] {
+
+	// Use reflection to validate the function type
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func ||
+		fnType.NumIn() != 2 ||
+		fnType.NumOut() != 2 ||
+		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		panic("Invalid function type for on failure task: must be func(I, worker.HatchetContext) (*T, error)")
+	}
+
+	// Create a generic task function that wraps the specific one
+	genericFn := func(input I, ctx worker.HatchetContext) (*any, error) {
+		// Use reflection to call the specific function
+		fnValue := reflect.ValueOf(fn)
+		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+		results := fnValue.Call(inputs)
+
+		// Handle errors
+		if !results[1].IsNil() {
+			return nil, results[1].Interface().(error)
+		}
+
+		// Return the output as any
+		output := results[0].Interface()
+		return &output, nil
+	}
+
+	// Initialize pointers only for non-zero values
+	var retryBackoffFactor *float32
+	var retryMaxBackoffSeconds *int32
+	var executionTimeout *time.Duration
+	var scheduleTimeout *time.Duration
+	var retries *int32
+
+	if opts.RetryBackoffFactor != 0 {
+		retryBackoffFactor = &opts.RetryBackoffFactor
+	}
+	if opts.RetryMaxBackoffSeconds != 0 {
+		retryMaxBackoffSeconds = &opts.RetryMaxBackoffSeconds
+	}
+	if opts.ExecutionTimeout != 0 {
+		executionTimeout = &opts.ExecutionTimeout
+	}
+	if opts.ScheduleTimeout != 0 {
+		scheduleTimeout = &opts.ScheduleTimeout
+	}
+	if opts.Retries != 0 {
+		retries = &opts.Retries
+	}
+
+	taskDecl := &task.OnFailureTaskDeclaration[I]{
+		Fn: genericFn,
+		TaskShared: task.TaskShared{
+			ExecutionTimeout:       executionTimeout,
+			ScheduleTimeout:        scheduleTimeout,
+			Retries:                retries,
+			RetryBackoffFactor:     retryBackoffFactor,
+			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
+			RateLimits:             opts.RateLimits,
+			WorkerLabels:           opts.WorkerLabels,
+			Concurrency:            opts.Concurrency,
+		},
+	}
+
+	w.OnFailureTask = taskDecl
 
 	return taskDecl
 }

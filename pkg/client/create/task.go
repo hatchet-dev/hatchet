@@ -56,6 +56,38 @@ type WorkflowTask[I, O any] struct {
 	Parents []NamedTask
 }
 
+type WorkflowOnFailureTask[I, O any] struct {
+	// (optional) The version of the workflow
+	Version string
+
+	// (optional) The human-readable description of the workflow
+	Description string
+
+	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
+	ExecutionTimeout time.Duration
+
+	// (optional) ScheduleTimeout specifies the maximum time a task can wait to be scheduled
+	ScheduleTimeout time.Duration
+
+	// (optional) Retries defines the number of times to retry a failed task
+	Retries int32
+
+	// (optional) RetryBackoffFactor is the multiplier for increasing backoff between retries
+	RetryBackoffFactor float32
+
+	// (optional) RetryMaxBackoffSeconds is the maximum backoff duration in seconds between retries
+	RetryMaxBackoffSeconds int32
+
+	// (optional) RateLimits define constraints on how frequently the task can be executed
+	RateLimits []*types.RateLimit
+
+	// (optional) WorkerLabels specify requirements for workers that can execute this task
+	WorkerLabels map[string]*types.DesiredWorkerLabel
+
+	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
+	Concurrency []*types.Concurrency
+}
+
 // TaskCreateOpts defines options for creating a standalone task.
 // This combines both workflow and task properties in a single type.
 type StandaloneTask struct {
