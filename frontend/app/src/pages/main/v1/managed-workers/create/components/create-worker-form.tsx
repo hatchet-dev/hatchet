@@ -302,7 +302,7 @@ export default function CreateWorkerForm({
   isLoading,
   fieldErrors,
 }: CreateWorkerFormProps) {
-  const { can, billing } = useTenant();
+  const { can } = useTenant();
 
   const {
     watch,
@@ -353,7 +353,7 @@ export default function CreateWorkerForm({
   }, [can]);
 
   // Check if the currently selected compute type is available on the user's plan
-  const [isComputeAllowed, computeRejectReason] = useMemo(() => {
+  const [isComputeAllowed] = useMemo(() => {
     const selectedMachine = machineTypes.find((m) => m.title === machineType);
     if (!selectedMachine || !can) {
       return [true, undefined];

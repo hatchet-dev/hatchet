@@ -2,31 +2,13 @@ import { Separator } from '@/components/ui/separator';
 import { Link } from 'react-router-dom';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { Button } from '@/components/ui/button';
-import { useTenant } from '@/lib/atoms';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api/queries';
 
 export default function ManagedWorkers() {
-  const { tenant } = useTenant();
   const meta = useCloudApiMeta();
 
   const requireBillingForManagedCompute =
     meta?.data.requireBillingForManagedCompute;
-
-  const billingState = useQuery({
-    ...queries.cloud.billing(tenant!.metadata.id),
-    enabled: requireBillingForManagedCompute && !!meta?.data.canBill,
-  });
-
-  const tenantBillingEnabled = meta?.data.canBill;
-
-  const hasPaymentMethods =
-    (billingState.data?.paymentMethods?.length || 0) > 0;
-
-  const billingRequired =
-    !requireBillingForManagedCompute ||
-    (tenantBillingEnabled && hasPaymentMethods);
 
   if (requireBillingForManagedCompute) {
     return <div>no billing enabled.</div>;

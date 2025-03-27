@@ -109,14 +109,14 @@ export default function UpdateWorkerForm({
     defaultValues: {
       name: managedWorker.name,
       buildConfig: {
-        githubInstallationId: managedWorker.buildConfig.githubInstallationId,
+        githubInstallationId: managedWorker.buildConfig?.githubInstallationId,
         githubRepositoryBranch:
-          managedWorker.buildConfig.githubRepositoryBranch,
+          managedWorker.buildConfig?.githubRepositoryBranch,
         githubRepositoryName:
-          managedWorker.buildConfig.githubRepository.repo_name,
+          managedWorker.buildConfig?.githubRepository?.repo_name,
         githubRepositoryOwner:
-          managedWorker.buildConfig.githubRepository.repo_owner,
-        steps: managedWorker.buildConfig.steps?.map((step) => ({
+          managedWorker.buildConfig?.githubRepository?.repo_owner,
+        steps: managedWorker.buildConfig?.steps?.map((step) => ({
           buildDir: step.buildDir,
           dockerfilePath: step.dockerfilePath,
         })) || [
@@ -275,7 +275,7 @@ export default function UpdateWorkerForm({
     ) {
       setValue(
         'buildConfig.githubInstallationId',
-        managedWorker.buildConfig.githubInstallationId ||
+        managedWorker.buildConfig?.githubInstallationId ||
           listInstallationsQuery.data.rows[0].metadata.id,
       );
     }

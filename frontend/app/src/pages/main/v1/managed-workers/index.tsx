@@ -30,7 +30,7 @@ export default function ManagedWorkers() {
 
   // Check if the user can create more worker pools
   const workerPoolCount = listManagedWorkersQuery.data?.rows?.length || 0;
-  const [canCreateMoreWorkerPools, createWorkerPoolsRejectReason] = can(
+  const [canCreateMoreWorkerPools] = can(
     managedCompute.canCreateWorkerPool(workerPoolCount),
   );
 
@@ -41,7 +41,7 @@ export default function ManagedWorkers() {
     }
   }, [billing, billing?.hasPaymentMethods]);
 
-  const [canCreateManagedWorker, rejectReason] = can(managedCompute.create());
+  const [, rejectReason] = can(managedCompute.create());
 
   const { handleApiError } = useApiError({});
 

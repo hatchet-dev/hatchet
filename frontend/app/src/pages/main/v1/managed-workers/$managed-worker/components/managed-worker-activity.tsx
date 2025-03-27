@@ -224,7 +224,7 @@ function renderCardFooter(
       );
     }
 
-    if (data.commit_sha) {
+    if (data.commit_sha && managedWorker.buildConfig) {
       buttons.push(
         <GithubButton
           buildConfig={managedWorker.buildConfig}

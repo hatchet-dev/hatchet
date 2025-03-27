@@ -26,7 +26,7 @@ export default function CreateWorker() {
     setFieldErrors: setFieldErrors,
   });
   // Check if billing is required
-  const [canCreateManagedWorker, rejectReason] = can(managedCompute.create());
+  const [, rejectReason] = can(managedCompute.create());
   const isBillingRequired = rejectReason === RejectReason.BILLING_REQUIRED;
 
   const manageClicked = async () => {

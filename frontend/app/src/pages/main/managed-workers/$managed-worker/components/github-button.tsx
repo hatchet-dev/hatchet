@@ -7,7 +7,7 @@ export default function GithubButton({
   commitSha,
   prefix,
 }: {
-  buildConfig: ManagedWorkerBuildConfig;
+  buildConfig?: ManagedWorkerBuildConfig;
   commitSha?: string;
   prefix?: string;
 }) {

@@ -9,7 +9,7 @@ import {
   CheckCircleIcon,
   CodeBracketIcon,
   ArrowPathIcon,
-  BoltIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { cloudApi } from '@/lib/api/api';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function DemoTemplate() {
   const { tenant } = useTenant();
@@ -34,8 +35,10 @@ export default function DemoTemplate() {
   const [deploymentStatus, setDeploymentStatus] = useState<string>('');
   const [isSimulation, setIsSimulation] = useState(false);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
-  const [triggering, setTriggering] = useState(false);
-  const [triggerSuccess, setTriggerSuccess] = useState(false);
+  const [, setTriggering] = useState(false);
+  const [, setTriggerSuccess] = useState(false);
+  const [runsTriggered, setRunsTriggered] = useState(0);
+  const [allRunsTriggered, setAllRunsTriggered] = useState(false);
 
   // Step states
   const [overviewOpen, setOverviewOpen] = useState(true);
@@ -174,7 +177,11 @@ func main() {
       setTimeout(() => {
         setTriggering(false);
         setTriggerSuccess(true);
-      }, 2000);
+        setRunsTriggered((prev) => prev + 1);
+        if (runsTriggered + 1 >= 3) {
+          setAllRunsTriggered(true);
+        }
+      }, 1000);
       return;
     }
 
@@ -184,12 +191,33 @@ func main() {
       setTimeout(() => {
         setTriggering(false);
         setTriggerSuccess(true);
-      }, 2000);
+        setRunsTriggered((prev) => prev + 1);
+        if (runsTriggered + 1 >= 3) {
+          setAllRunsTriggered(true);
+        }
+      }, 1000);
     } catch (error) {
       console.error('Failed to trigger workflow:', error);
       setTriggering(false);
     }
   };
+
+  // Automatically trigger workflow runs when success step is opened
+  useEffect(() => {
+    if (successStepOpen && workflowId && !allRunsTriggered) {
+      const triggerRuns = async () => {
+        for (let i = 0; i < 3; i++) {
+          if (i > 0) {
+            // Add a small delay between triggers
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+          await triggerWorkflow();
+        }
+      };
+
+      triggerRuns();
+    }
+  }, [successStepOpen, workflowId]);
 
   // Monitor events to determine deployment status
   useEffect(() => {
@@ -261,6 +289,113 @@ func main() {
     setSelectedTemplate(value);
   };
 
+  // API token generation
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [apiToken, setApiToken] = useState<string | null>(null);
+  const [tokenRevealed, setTokenRevealed] = useState(true);
+  const [selectedCodeTab, setSelectedCodeTab] = useState('typescript');
+
+  // Handle API token generation
+  const handleGenerateToken = () => {
+    setIsGeneratingToken(true);
+
+    // For both simulation and real mode, we'll use a timeout
+    // In a real implementation, you would call the API to generate a token
+    setTimeout(() => {
+      // Generate a realistic-looking token
+      const tokenPrefix = isSimulation ? 'hx_sim_' : 'hx_';
+      const randomPart =
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+
+      setApiToken(`${tokenPrefix}${randomPart}`);
+      setIsGeneratingToken(false);
+    }, 1500);
+  };
+
+  // Code examples for triggering a workflow via API
+  const triggerCodeExamples = {
+    typescript: `// Trigger a workflow run using the Hatchet API
+import axios from 'axios';
+
+async function triggerWorkflow() {
+  const response = await axios.post(
+    'https://api.hatchet.run/api/v1/tenants/${tenant?.metadata.id}/workflows/${workflowId}/events',
+    { 
+      data: { 
+        message: "Hello from API trigger!" 
+      }
+    },
+    {
+      headers: {
+        'Authorization': 'Bearer ${apiToken || '[YOUR_API_TOKEN]'}',
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  console.log('Workflow triggered:', response.data);
+}
+
+triggerWorkflow();`,
+    python: `# Trigger a workflow run using the Hatchet API
+import requests
+
+def trigger_workflow():
+    url = "https://api.hatchet.run/api/v1/tenants/${tenant?.metadata.id}/workflows/${workflowId}/events"
+    
+    headers = {
+        "Authorization": "Bearer ${apiToken || '[YOUR_API_TOKEN]'}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "data": {
+            "message": "Hello from API trigger!"
+        }
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    print("Workflow triggered:", response.json())
+
+trigger_workflow()`,
+    go: `// Trigger a workflow run using the Hatchet API
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+func main() {
+	url := "https://api.hatchet.run/api/v1/tenants/${tenant?.metadata.id}/workflows/${workflowId}/events"
+	
+	payload := map[string]interface{}{
+		"data": map[string]interface{}{
+			"message": "Hello from API trigger!",
+		},
+	}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
+	req.Header.Set("Authorization", "Bearer ${apiToken || '[YOUR_API_TOKEN]'}")
+	req.Header.Set("Content-Type", "application/json")
+	
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer resp.Body.Close()
+	
+	fmt.Println("Workflow triggered successfully!")
+}`,
+  };
+
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -296,7 +431,7 @@ func main() {
                       <span className="text-primary mr-2 flex items-center">
                         •
                       </span>
-                      <span>1 managed compute worker (limited resources)</span>
+                      <span>1 managed service (limited resources)</span>
                     </li>
                     <li className="flex items-start">
                       <span className="text-primary mr-2 flex items-center">
@@ -538,7 +673,7 @@ func main() {
                         {selectedTemplate
                           .replace('QUICKSTART_', '')
                           .toLowerCase()}{' '}
-                        demo template. This will create a managed worker and
+                        demo template. This will create a managed service and
                         workflow that you can use to explore the features.
                       </p>
 
@@ -550,7 +685,7 @@ func main() {
                               •
                             </span>
                             <span>
-                              A worker will be provisioned with the necessary
+                              A service will be provisioned with the necessary
                               resources
                             </span>
                           </li>
@@ -653,22 +788,23 @@ func main() {
               setOpen={setSuccessStepOpen}
               disabled={!deployed}
             >
-              <div className="grid gap-4">
+              <div className="grid gap-6">
+                {/* Success header */}
                 <div className="border rounded-lg bg-card p-6 shadow-sm">
-                  <div className="flex items-center justify-center flex-col text-center py-6">
+                  <div className="flex items-center justify-center flex-col text-center py-4">
                     <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center mb-4">
                       <CheckCircleIcon className="h-8 w-8 text-green-500" />
                     </div>
                     <h3 className="text-xl font-medium mb-2">
                       Demo Template Deployed!
                     </h3>
-                    <p className="text-muted-foreground mb-6 max-w-md">
+                    <p className="text-muted-foreground mb-4 max-w-md">
                       Your{' '}
                       {selectedTemplate
                         .replace('QUICKSTART_', '')
                         .toLowerCase()}{' '}
                       demo template has been successfully deployed. You can now
-                      explore the managed compute features.
+                      explore the managed service features.
                       {isSimulation && (
                         <span className="block mt-2 text-amber-500 font-medium">
                           Note: This was a simulated deployment. No actual
@@ -676,102 +812,176 @@ func main() {
                         </span>
                       )}
                     </p>
+                  </div>
+                </div>
 
-                    <div className="bg-muted/30 p-4 rounded-lg mb-6 text-left w-full max-w-md">
-                      <h4 className="font-medium mb-2">What's next?</h4>
-                      <ul className="space-y-2">
-                        <li className="flex items-start">
-                          <span className="text-primary mr-2 flex items-center">
-                            •
-                          </span>
-                          <span>
-                            View your deployed worker to see logs and metrics
-                          </span>
-                        </li>
-                        <li className="flex items-start">
-                          <span className="text-primary mr-2 flex items-center">
-                            •
-                          </span>
-                          <span>
-                            Trigger the demo workflow to see it in action
-                          </span>
-                        </li>
-                        <li className="flex items-start">
-                          <span className="text-primary mr-2 flex items-center">
-                            •
-                          </span>
-                          <span>Monitor workflow runs in the dashboard</span>
-                        </li>
-                      </ul>
+                {/* Trigger Run Programmatically section */}
+                <div className="border rounded-lg bg-card p-6 shadow-sm">
+                  <div className="flex items-start mb-4">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                      <KeyIcon className="h-4 w-4 text-primary" />
                     </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium mb-1">
+                        Trigger a Remote Run Programmatically
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Run the following code locally to execute a task on the
+                        deployed service.
+                      </p>
 
-                    {workflowId && (
-                      <div className="border rounded-lg p-4 mb-6 w-full max-w-md">
-                        <div className="flex items-start space-x-3 mb-4">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <BoltIcon className="h-4 w-4 text-primary" />
+                      {!apiToken ? (
+                        <Button
+                          onClick={handleGenerateToken}
+                          disabled={isGeneratingToken}
+                          className="w-full mb-2"
+                        >
+                          {isGeneratingToken ? (
+                            <>
+                              <ArrowPathIcon className="h-4 w-4 mr-2 animate-spin" />
+                              Generating Token...
+                            </>
+                          ) : (
+                            'Generate API Token'
+                          )}
+                        </Button>
+                      ) : (
+                        <>
+                          <div className="bg-green-500/10 text-green-600 p-3 rounded mb-4 text-sm">
+                            API token successfully generated!
                           </div>
-                          <div className="flex-1">
-                            <h4 className="font-medium mb-1">
-                              Trigger Demo Workflow
-                            </h4>
-                            <p className="text-sm text-muted-foreground mb-3">
-                              Run the demo workflow to see it in action.
-                            </p>
 
-                            {!triggerSuccess ? (
-                              <Button
-                                onClick={triggerWorkflow}
-                                disabled={triggering}
-                                className="w-full"
-                              >
-                                {triggering
-                                  ? 'Triggering...'
-                                  : 'Trigger Workflow Run'}
-                              </Button>
-                            ) : (
-                              <div className="flex flex-col space-y-2">
-                                <div className="bg-green-500/10 text-green-600 p-2 rounded text-sm">
-                                  Workflow triggered successfully!
-                                </div>
-                                <Link to="/v1/workflow-runs">
-                                  <Button variant="outline" className="w-full">
-                                    View Workflow Runs
-                                  </Button>
-                                </Link>
-                              </div>
-                            )}
+                          <p className="text-sm text-muted-foreground mb-2">
+                            This is the only time we will show you this auth
+                            token. Make sure to copy it now.
+                          </p>
+
+                          <CodeHighlighter
+                            language="plaintext"
+                            code={`export HATCHET_CLIENT_TOKEN="${apiToken}"`}
+                            copy
+                            className="mb-3"
+                          />
+
+                          <div className="flex space-x-2 mb-4">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center"
+                              onClick={() => setTokenRevealed(!tokenRevealed)}
+                            >
+                              {tokenRevealed ? 'Hide Token' : 'Reveal Token'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleGenerateToken}
+                              disabled={isGeneratingToken}
+                            >
+                              Generate New Token
+                            </Button>
                           </div>
-                        </div>
+                        </>
+                      )}
+                      <div className="border-t pt-4 mt-2">
+                        <h5 className="font-medium mb-2">Example Code</h5>
+                        <Tabs
+                          value={selectedCodeTab}
+                          onValueChange={setSelectedCodeTab}
+                          className="w-full"
+                        >
+                          <TabsList className="mb-2">
+                            <TabsTrigger value="typescript">
+                              TypeScript
+                            </TabsTrigger>
+                            <TabsTrigger value="python">Python</TabsTrigger>
+                            <TabsTrigger value="go">Go</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="typescript" className="mt-0">
+                            <CodeHighlighter
+                              code={triggerCodeExamples.typescript}
+                              language="typescript"
+                              copy
+                            />
+                          </TabsContent>
+                          <TabsContent value="python" className="mt-0">
+                            <CodeHighlighter
+                              code={triggerCodeExamples.python}
+                              language="python"
+                              copy
+                            />
+                          </TabsContent>
+                          <TabsContent value="go" className="mt-0">
+                            <CodeHighlighter
+                              code={triggerCodeExamples.go}
+                              language="go"
+                              copy
+                            />
+                          </TabsContent>
+                        </Tabs>
                       </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-md">
-                      {deployedWorkerId && !isSimulation && (
-                        <Link to={`/v1/managed-workers/${deployedWorkerId}`}>
-                          <Button variant="default" className="w-full">
-                            View Your Service
-                          </Button>
-                        </Link>
-                      )}
-                      <Link to="/v1/workflows">
-                        <Button variant="outline" className="w-full">
-                          View Demo Workflows
-                        </Button>
-                      </Link>
-                      <Link to="/v1/workflow-runs">
-                        <Button variant="outline" className="w-full">
-                          View Demo Workflow Runs
-                        </Button>
-                      </Link>
-                      {isSimulation && (
-                        <Link to="/v1/managed-workers">
-                          <Button variant="default" className="w-full">
-                            Back to Managed Workers
-                          </Button>
-                        </Link>
-                      )}
                     </div>
+                  </div>
+                </div>
+
+                {/* What's next section */}
+                <div className="border rounded-lg bg-card p-6 shadow-sm">
+                  <h4 className="font-medium mb-3">What's next?</h4>
+                  <ul className="space-y-3 mb-4">
+                    <li className="flex items-start">
+                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                        •
+                      </span>
+                      <span>
+                        View your deployed service to see logs and metrics
+                      </span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                        •
+                      </span>
+                      <span>
+                        Three demo workflow runs have been triggered for you
+                      </span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                        •
+                      </span>
+                      <span>
+                        Use the API to trigger additional workflow runs
+                      </span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-primary mr-2 flex items-center mt-0.5">
+                        •
+                      </span>
+                      <span>Monitor workflow runs in the dashboard</span>
+                    </li>
+                  </ul>
+
+                  {/* Main action button */}
+                  {deployedWorkerId && (
+                    <Link to={`/v1/managed-workers/${deployedWorkerId}`}>
+                      <Button variant="default" className="w-full mb-4">
+                        View Your Service
+                      </Button>
+                    </Link>
+                  )}
+
+                  {/* Secondary action buttons */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Link to="/v1/workflow-runs">
+                      <Button variant="outline" className="w-full">
+                        View Workflow Runs
+                      </Button>
+                    </Link>
+                    <Link to="/v1/workflows">
+                      <Button variant="outline" className="w-full">
+                        View Workflows
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               </div>
