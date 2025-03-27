@@ -3,7 +3,7 @@ import {
   WorkflowRunShapeForWorkflowRunDetails,
   WorkflowRunStatus,
 } from '@/lib/api';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import {
   Tabs,
@@ -74,7 +74,6 @@ const GraphView = ({
 
 export default function ExpandedWorkflowRun() {
   const params = useParams();
-  const navigate = useNavigate();
 
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
