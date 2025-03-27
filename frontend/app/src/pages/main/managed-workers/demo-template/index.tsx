@@ -23,7 +23,6 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 
@@ -34,7 +33,7 @@ export default function DemoTemplate() {
   const [deployedWorkerId, setDeployedWorkerId] = useState<string | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
   const [deploymentStatus, setDeploymentStatus] = useState<string>('');
-  const [isSimulation, setIsSimulation] = useState(false);
+  const [isSimulation] = useState(false);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [, setTriggering] = useState(false);
   const [, setTriggerSuccess] = useState(false);
@@ -648,22 +647,6 @@ func main() {
                             </span>
                           </li>
                         </ul>
-                      </div>
-
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Checkbox
-                          id="simulation"
-                          checked={isSimulation}
-                          onCheckedChange={(checked) => {
-                            setIsSimulation(checked === true);
-                          }}
-                        />
-                        <Label
-                          htmlFor="simulation"
-                          className="text-sm font-medium"
-                        >
-                          Use simulation mode (doesn't create actual resources)
-                        </Label>
                       </div>
 
                       {deploying && (
