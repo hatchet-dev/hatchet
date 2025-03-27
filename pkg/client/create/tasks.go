@@ -44,9 +44,6 @@ type WorkflowCreateOpts[I any] struct {
 	// (optional) Concurrency settings to control parallel execution
 	Concurrency *types.Concurrency
 
-	// (optional) Task to execute when workflow fails
-	// OnFailureTask *OnFailureTaskDeclaration[I]
-
 	// (optional) Strategy for sticky execution of workflow runs
 	StickyStrategy *types.StickyStrategy
 

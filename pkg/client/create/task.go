@@ -125,10 +125,6 @@ type StandaloneTask struct {
 	// (optional) Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
-	// // TODO important: change to ctx HatchetContext
-	// // (required) The function to execute when the task runs
-	// Fn func(input I) (*O, error)
-
 	// (optional) The event names that trigger the workflow
 	OnEvents []string
 

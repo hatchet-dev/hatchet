@@ -43,8 +43,6 @@ func NewTask[I, O any](opts create.StandaloneTask, fn func(input I, ctx worker.H
 		OnEvents:    opts.OnEvents,
 		OnCron:      opts.OnCron,
 		OutputKey:   &opts.Name,
-		// OnFailureTask:  opts.OnFailureTask,
-		// StickyStrategy: opts.StickyStrategy,
 	}
 
 	// Create the workflow
