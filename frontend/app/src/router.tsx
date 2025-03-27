@@ -236,6 +236,17 @@ export const routes: RouteObject[] = [
                   ),
               },
               {
+                path: '/managed-workers/demo-template',
+                lazy: async () =>
+                  import(
+                    './pages/main/managed-workers/demo-template/index.tsx'
+                  ).then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/managed-workers/create',
                 lazy: async () =>
                   import('./pages/main/managed-workers/create/index.tsx').then(
@@ -508,17 +519,6 @@ export const routes: RouteObject[] = [
                       };
                     },
                   ),
-              },
-              {
-                path: '/managed-workers/demo-template',
-                lazy: async () =>
-                  import(
-                    './pages/main/managed-workers/demo-template/index.tsx'
-                  ).then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
               },
               {
                 path: '/v1/managed-workers/demo-template',
