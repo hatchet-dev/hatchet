@@ -1,0 +1,61 @@
+# Pushing Events
+
+## Pushing Single Events
+
+Events can be pushed via the client's `Event().Push` method:
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+  panic(err)
+}
+
+c.Event().Push(
+  context.Background(),
+  "test-called",
+  &events.TestEvent{
+    Name: "testing",
+  },
+)
+```
+
+Events are marshalled/unmarshalled using the `encoding/json` package, so any event type must be JSON serializable.
+
+## Pushing Multiple Events
+
+Multiple events can be pushed at once using the client's `Event().BulkPush` method:
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+  panic(err)
+}
+
+events := []client.EventWithMetadata{
+  {
+    Event: &events.TestEvent{
+      Name: "testing",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world1"},
+    Key: "event1",
+  },
+  {
+    Event: &events.TestEvent{
+      Name: "testing2",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world2"},
+    Key: "event2",
+  },
+}
+
+c.Event().BulkPush(
+  context.Background(),
+  events,
+)
+```

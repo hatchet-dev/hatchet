@@ -1,0 +1,64 @@
+# Manual Retries
+
+In addition to [automatic step-level retries](./simple.mdx), Hatchet provides a manual retry mechanism that allows you to handle failed workflow instances flexibly from the Hatchet dashboard.
+
+Navigate to the specific workflow in the Hatchet dashboard and click on the failed run. From there, you can inspect the details of the run, including the input data and the failure reason for each step.
+
+To retry a failed step, simply click on the step in the run details view and then click the "Replay Event" button. This will create a new instance of the workflow, starting from the failed step, and using the same input data as the original run.
+
+Manual retries give you full control over when and how to reprocess failed instances. For example, you may choose to wait until an external service is back online before retrying instances that depend on that service, or you may need to deploy a bug fix to your workflow code before retrying instances that were affected by the bug.
+
+## Modifying Inputs and Options
+
+In some cases, you may need to modify the input data or configuration options for a failed step before retrying it. Hatchet provides an interface that allows you to do just that directly from the dashboard.
+
+### Inputs
+
+After navigating to a step run, you can modify the input data for the step before retrying it. This allows you to fix any invalid or missing data that may have caused the step to fail, or to test different input variations without needing to modify your workflow code.
+
+{/* TODO screenshot */}
+
+### Playground Variables
+
+Hatchet additionally, exposes a context method (`context.playground`) within your step code to allow you to override variable data on retries. This allows you to fix any invalid or missing data that may have caused the step to fail, or to adjust configuration options to handle edge cases or special circumstances.
+
+To modify the input data for a step, simply edit the JSON representation of the input in the step details view before clicking the "Replay Event" button. You can also use the `context.playground` method in your step code to expose specific configuration options or variables that can be overridden from the dashboard.
+
+This feature provides a powerful way to handle complex retry scenarios and to test different input variations without needing to modify your workflow code or redeploy your application. For example, it is common for LLM applications to experiment with prompts or model configuration using this feature.
+
+```typescript
+import { Step, Context } from "@hatchet-dev/typescript-sdk";
+
+interface MyStepInput {
+  message: string;
+  // other input fields...
+}
+
+interface MyStepOutput {
+  result: string;
+  // other output fields...
+}
+
+const myStep: Step<MyStepInput, MyStepOutput> = async (
+  context: Context<MyStepInput>,
+) => {
+  const { message } = context.workflowInput();
+
+  const defaultPrompt = "Please provide your feedback:";
+
+  // Expose the prompt variable through context.playground
+  const prompt = context.playground("prompt", defaultPrompt);
+
+  // Use the prompt variable in your step logic
+  const userFeedback = await getUserFeedback(message, prompt);
+
+  // Process the user feedback and return the result
+  const result = processUserFeedback(userFeedback);
+
+  return { result };
+};
+
+export default myStep;
+```
+
+{/* TODO playground screenshot */}
