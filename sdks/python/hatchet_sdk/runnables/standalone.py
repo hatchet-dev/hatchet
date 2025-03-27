@@ -2,8 +2,6 @@ import asyncio
 from datetime import datetime
 from typing import Any, Generic, cast, get_type_hints
 
-from google.protobuf import timestamp_pb2
-
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
@@ -12,7 +10,7 @@ from hatchet_sdk.clients.admin import (
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TWorkflowInput
+from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.aio_utils import get_active_event_loop
 from hatchet_sdk.utils.typing import JSONSerializableMapping, is_basemodel_subclass
@@ -81,14 +79,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def run(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> R:
         return self._extract_result(self._workflow.run(input, options))
 
     async def aio_run(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> R:
         result = await self._workflow.aio_run(input, options)
@@ -96,7 +94,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         ref = self._workflow.run_no_wait(input, options)
@@ -105,7 +103,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     async def aio_run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
         ref = await self._workflow.aio_run_no_wait(input, options)
@@ -140,24 +138,24 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def schedule(
         self,
-        schedules: list[datetime],
+        run_at: datetime,
         input: TWorkflowInput | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self._workflow.schedule(
-            schedules=schedules,
+            run_at=run_at,
             input=input,
             options=options,
         )
 
     async def aio_schedule(
         self,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        run_at: datetime,
         input: TWorkflowInput,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self._workflow.aio_schedule(
-            schedules=schedules,
+            run_at=run_at,
             input=input,
             options=options,
         )

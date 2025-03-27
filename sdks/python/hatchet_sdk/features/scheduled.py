@@ -1,12 +1,13 @@
 import datetime
-from typing import List, Optional, Union
+from typing import Optional
 
-from pydantic import BaseModel, Field
-
-from hatchet_sdk.client import Client
-from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
-    CronWorkflowsOrderByField,
+from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
+    ScheduleWorkflowRunRequest,
 )
+from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
 from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
 from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
     ScheduledWorkflowsList,
@@ -17,43 +18,49 @@ from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
+from hatchet_sdk.clients.v1.api_client import (
+    BaseRestClient,
+    maybe_additional_metadata_to_kv,
+)
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
-class CreateScheduledTriggerConfig(BaseModel):
-    """
-    Schema for creating a scheduled workflow run.
+class ScheduledClient(BaseRestClient):
+    def _wra(self, client: ApiClient) -> WorkflowRunApi:
+        return WorkflowRunApi(client)
 
-    Attributes:
-        input (JSONSerializableMapping): The input data for the scheduled workflow.
-        additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run (e.g. ["key1:value1", "key2:value2"]).
-        trigger_at (Optional[datetime.datetime]): The datetime when the run should be triggered.
-    """
+    def _wa(self, client: ApiClient) -> WorkflowApi:
+        return WorkflowApi(client)
 
-    input: JSONSerializableMapping = Field(default_factory=dict)
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    trigger_at: datetime.datetime
-
-
-class ScheduledClient:
-    """
-    Client for managing scheduled workflows synchronously.
-
-    Attributes:
-        _client (Client): The underlying client used to interact with the REST API.
-        aio (ScheduledClientAsync): Asynchronous counterpart of ScheduledClient.
-    """
-
-    _client: Client
-
-    def __init__(self, _client: Client) -> None:
+    async def aio_create(
+        self,
+        workflow_name: str,
+        trigger_at: datetime.datetime,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
+    ) -> ScheduledWorkflows:
         """
-        Initializes the ScheduledClient with a given Client instance.
+        Creates a new scheduled workflow run asynchronously.
 
         Args:
-            _client (Client): The client instance to be used for REST interactions.
+            workflow_name (str): The name of the scheduled workflow.
+            trigger_at (datetime.datetime): The datetime when the run should be triggered.
+            input (JSONSerializableMapping): The input data for the scheduled workflow.
+            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run.
+
+        Returns:
+            ScheduledWorkflows: The created scheduled workflow instance.
         """
-        self._client = _client
+        async with self.client() as client:
+            return await self._wra(client).scheduled_workflow_run_create(
+                tenant=self.client_config.tenant_id,
+                workflow=workflow_name,
+                schedule_workflow_run_request=ScheduleWorkflowRunRequest(
+                    triggerAt=trigger_at,
+                    input=dict(input),
+                    additionalMetadata=dict(additional_metadata),
+                ),
+            )
 
     def create(
         self,
@@ -75,37 +82,39 @@ class ScheduledClient:
             ScheduledWorkflows: The created scheduled workflow instance.
         """
 
-        validated_input = CreateScheduledTriggerConfig(
-            trigger_at=trigger_at, input=input, additional_metadata=additional_metadata
-        )
-
-        return self._client.rest.schedule_create(
+        return self._run_async_from_sync(
+            self.aio_create,
             workflow_name,
-            validated_input.trigger_at,
-            validated_input.input,
-            validated_input.additional_metadata,
+            trigger_at,
+            input,
+            additional_metadata,
         )
 
-    def delete(self, scheduled: Union[str, ScheduledWorkflows]) -> None:
+    async def aio_delete(self, scheduled_id: str) -> None:
         """
         Deletes a scheduled workflow run.
 
         Args:
-            scheduled (Union[str, ScheduledWorkflows]): The scheduled workflow trigger ID or ScheduledWorkflows instance to delete.
+            scheduled_id (str): The scheduled workflow trigger ID to delete.
         """
-        self._client.rest.schedule_delete(
-            scheduled.metadata.id
-            if isinstance(scheduled, ScheduledWorkflows)
-            else scheduled
-        )
+        async with self.client() as client:
+            await self._wa(client).workflow_scheduled_delete(
+                tenant=self.client_config.tenant_id,
+                scheduled_workflow_run=scheduled_id,
+            )
 
-    def list(
+    def delete(self, scheduled_id: str) -> None:
+        self._run_async_from_sync(self.aio_delete, scheduled_id)
+
+    async def aio_list(
         self,
         offset: int | None = None,
         limit: int | None = None,
         workflow_id: str | None = None,
-        additional_metadata: Optional[List[str]] = None,
-        order_by_field: Optional[CronWorkflowsOrderByField] = None,
+        parent_workflow_run_id: str | None = None,
+        statuses: list[ScheduledRunStatus] | None = None,
+        additional_metadata: Optional[JSONSerializableMapping] = None,
+        order_by_field: Optional[ScheduledWorkflowsOrderByField] = None,
         order_by_direction: Optional[WorkflowRunOrderByDirection] = None,
     ) -> ScheduledWorkflowsList:
         """
@@ -115,120 +124,94 @@ class ScheduledClient:
             offset (int | None): The starting point for the list.
             limit (int | None): The maximum number of items to return.
             workflow_id (str | None): Filter by specific workflow ID.
-            additional_metadata (Optional[List[str]]): Filter by additional metadata keys (e.g. ["key1:value1", "key2:value2"]).
-            order_by_field (Optional[CronWorkflowsOrderByField]): Field to order the results by.
+            parent_workflow_run_id (str | None): Filter by parent workflow run ID.
+            statuses (list[ScheduledRunStatus] | None): Filter by status.
+            additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
+            order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
             order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
 
         Returns:
             List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
         """
-        return self._client.rest.schedule_list(
-            offset=offset,
-            limit=limit,
-            workflow_id=workflow_id,
-            additional_metadata=additional_metadata,
-            order_by_field=order_by_field,
-            order_by_direction=order_by_direction,
-        )
+        async with self.client() as client:
+            return await self._wa(client).workflow_scheduled_list(
+                tenant=self.client_config.tenant_id,
+                offset=offset,
+                limit=limit,
+                order_by_field=order_by_field,
+                order_by_direction=order_by_direction,
+                workflow_id=workflow_id,
+                additional_metadata=maybe_additional_metadata_to_kv(
+                    additional_metadata
+                ),
+                parent_workflow_run_id=parent_workflow_run_id,
+                statuses=statuses,
+            )
 
-    def get(self, scheduled: Union[str, ScheduledWorkflows]) -> ScheduledWorkflows:
-        """
-        Retrieves a specific scheduled workflow by scheduled run trigger ID.
-
-        Args:
-            scheduled (Union[str, ScheduledWorkflows]): The scheduled workflow trigger ID or ScheduledWorkflows instance to retrieve.
-
-        Returns:
-            ScheduledWorkflows: The requested scheduled workflow instance.
-        """
-        return self._client.rest.schedule_get(
-            scheduled.metadata.id
-            if isinstance(scheduled, ScheduledWorkflows)
-            else scheduled
-        )
-
-    async def aio_create(
-        self,
-        workflow_name: str,
-        trigger_at: datetime.datetime,
-        input: JSONSerializableMapping,
-        additional_metadata: JSONSerializableMapping,
-    ) -> ScheduledWorkflows:
-        """
-        Creates a new scheduled workflow run asynchronously.
-
-        Args:
-            workflow_name (str): The name of the scheduled workflow.
-            trigger_at (datetime.datetime): The datetime when the run should be triggered.
-            input (JSONSerializableMapping): The input data for the scheduled workflow.
-            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run.
-
-        Returns:
-            ScheduledWorkflows: The created scheduled workflow instance.
-        """
-        return await self._client.rest.aio_create_schedule(
-            workflow_name, trigger_at, input, additional_metadata
-        )
-
-    async def aio_delete(self, scheduled: Union[str, ScheduledWorkflows]) -> None:
-        """
-        Deletes a scheduled workflow asynchronously.
-
-        Args:
-            scheduled (Union[str, ScheduledWorkflows]): The scheduled workflow trigger ID or ScheduledWorkflows instance to delete.
-        """
-        await self._client.rest.aio_delete_schedule(
-            scheduled.metadata.id
-            if isinstance(scheduled, ScheduledWorkflows)
-            else scheduled
-        )
-
-    async def aio_list(
+    def list(
         self,
         offset: int | None = None,
         limit: int | None = None,
         workflow_id: str | None = None,
-        additional_metadata: Optional[List[str]] = None,
+        parent_workflow_run_id: str | None = None,
+        statuses: list[ScheduledRunStatus] | None = None,
+        additional_metadata: Optional[JSONSerializableMapping] = None,
         order_by_field: Optional[ScheduledWorkflowsOrderByField] = None,
         order_by_direction: Optional[WorkflowRunOrderByDirection] = None,
     ) -> ScheduledWorkflowsList:
         """
-        Retrieves a list of scheduled workflows based on provided filters asynchronously.
+        Retrieves a list of scheduled workflows based on provided filters.
 
         Args:
             offset (int | None): The starting point for the list.
             limit (int | None): The maximum number of items to return.
             workflow_id (str | None): Filter by specific workflow ID.
-            additional_metadata (Optional[List[str]]): Filter by additional metadata keys (e.g. ["key1:value1", "key2:value2"]).
-            order_by_field (Optional[CronWorkflowsOrderByField]): Field to order the results by.
+            parent_workflow_run_id (str | None): Filter by parent workflow run ID.
+            statuses (list[ScheduledRunStatus] | None): Filter by status.
+            additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
+            order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
             order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
 
         Returns:
-            ScheduledWorkflowsList: A list of scheduled workflows matching the criteria.
+            List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
         """
-        return await self._client.rest.aio_list_schedule(
+        return self._run_async_from_sync(
+            self.aio_list,
             offset=offset,
             limit=limit,
             workflow_id=workflow_id,
             additional_metadata=additional_metadata,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
+            parent_workflow_run_id=parent_workflow_run_id,
+            statuses=statuses,
         )
 
-    async def aio_get(
-        self, scheduled: Union[str, ScheduledWorkflows]
-    ) -> ScheduledWorkflows:
+    async def aio_get(self, scheduled_id: str) -> ScheduledWorkflows:
         """
-        Retrieves a specific scheduled workflow by scheduled run trigger ID asynchronously.
+        Retrieves a specific scheduled workflow by scheduled run trigger ID.
 
         Args:
-            scheduled (Union[str, ScheduledWorkflows]): The scheduled workflow trigger ID or ScheduledWorkflows instance to retrieve.
+            scheduled (str): The scheduled workflow trigger ID to retrieve.
 
         Returns:
             ScheduledWorkflows: The requested scheduled workflow instance.
         """
-        return await self._client.rest.aio_get_schedule(
-            scheduled.metadata.id
-            if isinstance(scheduled, ScheduledWorkflows)
-            else scheduled
-        )
+
+        async with self.client() as client:
+            return await self._wa(client).workflow_scheduled_get(
+                tenant=self.client_config.tenant_id,
+                scheduled_workflow_run=scheduled_id,
+            )
+
+    def get(self, scheduled_id: str) -> ScheduledWorkflows:
+        """
+        Retrieves a specific scheduled workflow by scheduled run trigger ID.
+
+        Args:
+            scheduled (str): The scheduled workflow trigger ID to retrieve.
+
+        Returns:
+            ScheduledWorkflows: The requested scheduled workflow instance.
+        """
+        return self._run_async_from_sync(self.aio_get, scheduled_id)

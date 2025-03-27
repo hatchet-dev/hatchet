@@ -33,14 +33,12 @@ You bring your own trace provider and plug it into the `HatchetInstrumentor`, ca
 
 ### Providing a `traceparent`
 
-In some cases, you might also want to provide a `traceparent` so any spans created in Hatchet are children of a parent that was created elsewhere in your application. You can do that by providing a `traceparent` key in the `additional_metadata` field of the following methods:
+In some cases, you might also want to provide a `traceparent` so any spans created in Hatchet are children of a parent that was created elsewhere in your application. You can do that by providing a `traceparent` key in the `additional_metadata` field of corresponding options field the following methods:
 
-- `hatchet.event.push`
-- `hatchet.event.bulk_push`
-- `hatchet.admin.run_workflow`
-- `hatchet.admin.run_workflows`
-- `hatchet.admin.run_workflow_async`
-- `hatchet.admin.run_workflows_async`
+- `hatchet.event.push` via the `PushEventOptions`
+- `hatchet.event.bulk_push` via the `BulkPushEventOptions`
+- `Workflow.run` via the `TriggerWorkflowOptions` (and similarly for all other flavors of `run`, like `aio_run`, `run_nowait`, etc.)
+- `Workflow.run_many` via the `TriggerWorkflowOptions` (and similarly for all other flavors of `run_many`, like `aio_run_many`, etc.)
 
 For example:
 
@@ -48,11 +46,12 @@ For example:
 hatchet.event.push(
     "user:create",
     {'userId': '1234'},
-    options={
-    "additional_metadata": {
-        "traceparent":"00-f1aff5c5ea45185eff2a06fd5c0ed6c5-6f4116aff54d54d1-01" ## example traceparent
-    }
-})
+    options=PushEventOptions(
+      additional_metadata={
+          "traceparent":"00-f1aff5c5ea45185eff2a06fd5c0ed6c5-6f4116aff54d54d1-01" ## example traceparent
+      }
+    )
+)
 ```
 
 The `HatchetInstrumentor` also has some methods for generating traceparents that might be helpful:

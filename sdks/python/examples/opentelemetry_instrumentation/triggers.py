@@ -103,12 +103,12 @@ def run_workflows() -> None:
     with tracer.start_as_current_span("run_workflows"):
         otel_workflow.run_many(
             [
-                otel_workflow.create_run_workflow_config(
+                otel_workflow.create_bulk_run_item(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )
                 ),
-                otel_workflow.create_run_workflow_config(
+                otel_workflow.create_bulk_run_item(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )
@@ -122,12 +122,12 @@ async def async_run_workflows() -> None:
     with tracer.start_as_current_span("async_run_workflows"):
         await otel_workflow.aio_run_many(
             [
-                otel_workflow.create_run_workflow_config(
+                otel_workflow.create_bulk_run_item(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )
                 ),
-                otel_workflow.create_run_workflow_config(
+                otel_workflow.create_bulk_run_item(
                     options=TriggerWorkflowOptions(
                         additional_metadata=create_additional_metadata()
                     )

@@ -29,6 +29,7 @@ from hatchet_sdk.runnables.types import (
     DEFAULT_EXECUTION_TIMEOUT,
     DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
+    EmptyModel,
     R,
     StepType,
     TWorkflowInput,
@@ -271,7 +272,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def is_durable(self) -> bool:
         return any(task.is_durable for task in self.tasks)
 
-    def create_run_workflow_config(
+    def create_bulk_run_item(
         self,
         input: TWorkflowInput | None = None,
         key: str | None = None,
@@ -293,10 +294,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
-        return self.client.admin.run_workflow(
+        return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -304,10 +305,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def run(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
-        ref = self.client.admin.run_workflow(
+        ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -317,10 +318,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_run_no_wait(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
-        return await self.client.admin.aio_run_workflow(
+        return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -328,10 +329,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
-        ref = await self.client.admin.aio_run_workflow(
+        ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=input.model_dump() if input else {},
             options=options,
@@ -343,7 +344,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[dict[str, Any]]:
-        refs = self.client.admin.run_workflows(
+        refs = self.client._client.admin.run_workflows(
             workflows=workflows,
         )
 
@@ -353,7 +354,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[dict[str, Any]]:
-        refs = await self.client.admin.aio_run_workflows(
+        refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
@@ -363,7 +364,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        return self.client.admin.run_workflows(
+        return self.client._client.admin.run_workflows(
             workflows=workflows,
         )
 
@@ -371,32 +372,32 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        return await self.client.admin.aio_run_workflows(
+        return await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
 
     def schedule(
         self,
-        schedules: list[datetime],
+        run_at: datetime,
         input: TWorkflowInput | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
-        return self.client.admin.schedule_workflow(
+        return self.client._client.admin.schedule_workflow(
             name=self.config.name,
-            schedules=cast(list[datetime | timestamp_pb2.Timestamp], schedules),
+            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
             input=input.model_dump() if input else {},
             options=options,
         )
 
     async def aio_schedule(
         self,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        run_at: datetime,
         input: TWorkflowInput,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
-        return await self.client.admin.aio_schedule_workflow(
+        return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
-            schedules=schedules,
+            schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
             input=input.model_dump(),
             options=options,
         )
@@ -661,6 +662,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 concurrency=concurrency,
             )
 
+            if self._on_failure_task:
+                raise ValueError("Only one on-failure task is allowed")
+
             self._on_failure_task = task
 
             return task
@@ -721,6 +725,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 concurrency=concurrency,
                 parents=[],
             )
+
+            if self._on_failure_task:
+                raise ValueError("Only one on-failure task is allowed")
 
             self._on_success_task = task
 

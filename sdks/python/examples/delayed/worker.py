@@ -27,7 +27,7 @@ def schedule(input: PrinterInput, ctx: Context) -> None:
     future_time = now + timedelta(seconds=15)
     print(f"scheduling for \t {future_time.strftime('%H:%M:%S')}")
 
-    print_printer_wf.schedule([future_time], input=input)
+    print_printer_wf.schedule(future_time, input=input)
 
 
 @print_schedule_wf.task()

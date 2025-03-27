@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.0.0"
+version = "1.0.1"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -53,7 +53,6 @@ ruff = "^0.9.7"
 types-requests = "^2.32.0.20241016"
 
 [tool.poetry.group.test.dependencies]
-pytest-timeout = "^2.3.1"
 pytest-env = "^1.1.5"
 
 [tool.poetry.extras]

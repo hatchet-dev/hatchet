@@ -32,9 +32,9 @@ cron_triggers = hatchet.cron.list()
 # !!
 
 # ❓ Get
-cron_trigger = hatchet.cron.get(cron_trigger=cron_trigger.metadata.id)
+cron_trigger = hatchet.cron.get(cron_id=cron_trigger.metadata.id)
 # !!
 
 # ❓ Delete
-hatchet.cron.delete(cron_trigger=cron_trigger.metadata.id)
+hatchet.cron.delete(cron_id=cron_trigger.metadata.id)
 # !!

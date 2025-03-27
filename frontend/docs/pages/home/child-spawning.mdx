@@ -281,7 +281,7 @@ import asyncio
 
 async def run_child_workflows(n: int) -> list[dict[str, Any]]:
 	return await child.aio_run_many([
-		child.create_run_workflow_config(
+		child.create_bulk_run_item(
 			options=TriggerWorkflowOptions(
 				input=ChildInput(n=i),
 			)

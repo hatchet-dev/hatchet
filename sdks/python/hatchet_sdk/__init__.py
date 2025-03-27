@@ -98,6 +98,7 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
     UserTenantMembershipsList,
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_deployment_config import (
@@ -135,6 +136,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     RateLimitDuration,
     WorkerLabelComparator,
 )
+from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
@@ -264,4 +266,7 @@ __all__ = [
     "DurableContext",
     "RegisterDurableEventRequest",
     "TaskDefaults",
+    "BulkCancelReplayOpts",
+    "RunFilter",
+    "V1TaskStatus",
 ]

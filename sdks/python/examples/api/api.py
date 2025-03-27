@@ -4,7 +4,7 @@ hatchet = Hatchet(debug=True)
 
 
 def main() -> None:
-    workflow_list = hatchet.rest.workflow_list()
+    workflow_list = hatchet.workflows.list()
     rows = workflow_list.rows or []
 
     for workflow in rows:
