@@ -7,7 +7,6 @@ import { ArrowLeftIcon } from '@radix-ui/react-icons';
 import {
   PlayIcon,
   CheckCircleIcon,
-  CodeBracketIcon,
   ArrowPathIcon,
   KeyIcon,
 } from '@heroicons/react/24/outline';
