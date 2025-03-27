@@ -344,7 +344,6 @@ export default function CreateWorkerForm({
   });
 
   const [envVars, setEnvVars] = useState<KeyValueType[]>([]);
-  const [isIac, setIsIac] = useState(false);
   const [scalingType, setScalingType] = useState<ScalingType>('Static');
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
