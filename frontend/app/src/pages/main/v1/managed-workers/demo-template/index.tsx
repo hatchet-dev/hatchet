@@ -26,6 +26,7 @@ import { cloudApi } from '@/lib/api/api';
 import api from '@/lib/api';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { GitHubLogoIcon } from '@radix-ui/react-icons';
 
 export default function DemoTemplate() {
   const { tenant } = useTenant();
@@ -51,50 +52,6 @@ export default function DemoTemplate() {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateOptions>(
     TemplateOptions.QUICKSTART_TYPESCRIPT,
   );
-
-  // Template code examples
-  const codeExamples = {
-    [TemplateOptions.QUICKSTART_TYPESCRIPT]: `// TypeScript worker example
-import { Hatchet } from '@hatchet/client';
-
-const client = new Hatchet();
-
-client.worker('demo-worker', async (event) => {
-  console.log('Received event:', event);
-  // Process data, call APIs, etc.
-  return { status: 'success' };
-});`,
-    [TemplateOptions.QUICKSTART_PYTHON]: `# Python worker example
-from hatchet_sdk import Hatchet
-
-client = Hatchet()
-
-@client.worker("demo-worker")
-def process_event(event):
-    print("Received event:", event)
-    # Process data, call APIs, etc.
-    return {"status": "success"}`,
-    [TemplateOptions.QUICKSTART_GO]: `// Go worker example
-package main
-
-import (
-	"context"
-	"fmt"
-	"github.com/hatchet-dev/hatchet-go/pkg/worker"
-)
-
-func main() {
-	client := worker.New()
-	
-	client.RegisterWorker("demo-worker", func(ctx context.Context, event map[string]interface{}) (map[string]interface{}, error) {
-		fmt.Println("Received event:", event)
-		// Process data, call APIs, etc.
-		return map[string]interface{}{"status": "success"}, nil
-	})
-	
-	client.Start()
-}`,
-  };
 
   // Create demo template mutation
   const { mutate: createComputeDemoTemplate, isPending } = useMutation({
@@ -492,23 +449,17 @@ func main() {
                         {selectedTemplate ===
                           TemplateOptions.QUICKSTART_TYPESCRIPT && (
                           <div className="mt-4 border-t pt-4">
-                            <div className="flex items-start">
-                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                                <CodeBracketIcon className="h-4 w-4 text-primary" />
-                              </div>
-                              <div className="flex-1">
-                                <CodeHighlighter
-                                  code={
-                                    codeExamples[
-                                      TemplateOptions.QUICKSTART_TYPESCRIPT
-                                    ]
-                                  }
-                                  language="typescript"
-                                  copy
-                                />
-                              </div>
-                            </div>
-                            <div className="flex justify-end mt-4">
+                            <div className="flex items-center justify-between">
+                              <a
+                                href="https://github.com/hatchet-dev/managed-compute-examples/tree/main/typescript"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-sm font-medium text-primary hover:underline"
+                              >
+                                <GitHubLogoIcon className="h-4 w-4 mr-2" />
+                                View TypeScript source on GitHub
+                                <span className="ml-1">↗</span>
+                              </a>
                               <Button
                                 onClick={handleConfirmInfo}
                                 size="sm"
@@ -556,23 +507,17 @@ func main() {
                         {selectedTemplate ===
                           TemplateOptions.QUICKSTART_PYTHON && (
                           <div className="mt-4 border-t pt-4">
-                            <div className="flex items-start">
-                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                                <CodeBracketIcon className="h-4 w-4 text-primary" />
-                              </div>
-                              <div className="flex-1">
-                                <CodeHighlighter
-                                  code={
-                                    codeExamples[
-                                      TemplateOptions.QUICKSTART_PYTHON
-                                    ]
-                                  }
-                                  language="python"
-                                  copy
-                                />
-                              </div>
-                            </div>
-                            <div className="flex justify-end mt-4">
+                            <div className="flex items-center justify-between">
+                              <a
+                                href="https://github.com/hatchet-dev/managed-compute-examples/tree/main/python"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-sm font-medium text-primary hover:underline"
+                              >
+                                <GitHubLogoIcon className="h-4 w-4 mr-2" />
+                                View Python source on GitHub
+                                <span className="ml-1">↗</span>
+                              </a>
                               <Button
                                 onClick={handleConfirmInfo}
                                 size="sm"
@@ -617,21 +562,17 @@ func main() {
 
                         {selectedTemplate === TemplateOptions.QUICKSTART_GO && (
                           <div className="mt-4 border-t pt-4">
-                            <div className="flex items-start">
-                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                                <CodeBracketIcon className="h-4 w-4 text-primary" />
-                              </div>
-                              <div className="flex-1">
-                                <CodeHighlighter
-                                  code={
-                                    codeExamples[TemplateOptions.QUICKSTART_GO]
-                                  }
-                                  language="go"
-                                  copy
-                                />
-                              </div>
-                            </div>
-                            <div className="flex justify-end mt-4">
+                            <div className="flex items-center justify-between">
+                              <a
+                                href="https://github.com/hatchet-dev/managed-compute-examples/tree/main/go"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-sm font-medium text-primary hover:underline"
+                              >
+                                <GitHubLogoIcon className="h-4 w-4 mr-2" />
+                                View Go source on GitHub
+                                <span className="ml-1">↗</span>
+                              </a>
                               <Button
                                 onClick={handleConfirmInfo}
                                 size="sm"
