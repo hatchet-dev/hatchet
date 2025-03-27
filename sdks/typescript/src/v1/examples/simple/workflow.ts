@@ -14,6 +14,7 @@ export const simple = hatchet.task({
     };
   },
 });
+
 // !!
 
 // see ./worker.ts and ./run.ts for how to run the workflow

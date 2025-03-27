@@ -417,27 +417,27 @@ export default function CreateWorkerForm({
     }
   }, [listInstallationsQuery, setValue, installation]);
 
-  if (
-    listInstallationsQuery.isSuccess &&
-    listInstallationsQuery.data.rows.length === 0
-  ) {
-    return (
-      <Alert>
-        <ExclamationTriangleIcon className="h-4 w-4" />
-        <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
-        <AlertDescription>
-          You don't have any Github accounts linked. Please{' '}
-          <a
-            href="/api/v1/cloud/users/github-app/start"
-            className="text-indigo-400"
-          >
-            link a Github account
-          </a>{' '}
-          first.
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  // if (
+  //   listInstallationsQuery.isSuccess &&
+  //   listInstallationsQuery.data.rows.length === 0
+  // ) {
+  //   return (
+  //     <Alert>
+  //       <ExclamationTriangleIcon className="h-4 w-4" />
+  //       <AlertTitle className="font-semibold">Link a Github account</AlertTitle>
+  //       <AlertDescription>
+  //         You don't have any Github accounts linked. Please{' '}
+  //         <a
+  //           href="/api/v1/cloud/users/github-app/start"
+  //           className="text-indigo-400"
+  //         >
+  //           link a Github account
+  //         </a>{' '}
+  //         first.
+  //       </AlertDescription>
+  //     </Alert>
+  //   );
+  // }
 
   return (
     <>
