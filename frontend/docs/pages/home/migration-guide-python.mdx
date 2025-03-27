@@ -25,7 +25,6 @@ The API has changed significantly in the V1 SDK. Even in this simple example, th
 1. Tasks can now be declared with `hatchet.task`, meaning you no longer _have_ to create a workflow explicitly to define a task. This should feel similar to how e.g. Celery handles task definition. Note that we recommend declaring a workflow in many cases, but the simplest possible way to get set up is to use `hatchet.task`.
 2. Tasks have a new signature. They now take two arguments: `input` and `context`. The `input` is either of type `input_validator` (a Pydantic model you provide to the workflow), or is an `EmptyModel`, which is a helper Pydantic model Hatchet provides and uses as a default. The `context` is once again the Hatchet `Context` object.
 3. Workflows can now be registered on a worker by using the `workflows` keyword argument to the `worker` method, although the old `register_workflows` method is still available.
-4. The Hatchet client's REST API wrappers have been significantly reworked. For instance, if you'd like to use the REST API to list out workflow runs, you can use `await hatchet.workfows.aio_list()`
 
 #### Pydantic
 
@@ -60,13 +59,13 @@ Typing improvements:
 
 Naming changes:
 
-1. We no longer have nested `aio` clients for async methods. Instead, async methods throughout the entire SDK are preferred by `aio_`, similar to [Langchain's use of the `a` prefix](https://python.langchain.com/docs/concepts/streaming/#stream-and-astream) to indicate async. For example, to run a workflow, you may now either use `workflow.run()` or `workflow.aio_run()`.
-2. All functions on Hatchet clients are now _verbs_. For instance `hatchet.admin.workflow_run_get` is now `hatchet.admin.get_workflow_run`.
+1. We no longer have nested `aio` clients for async methods. Instead, async methods throughout the entire SDK are prefixed by `aio_`, similar to [Langchain's use of the `a` prefix](https://python.langchain.com/docs/concepts/streaming/#stream-and-astream) to indicate async. For example, to run a workflow, you may now either use `workflow.run()` or `workflow.aio_run()`.
+2. All functions on Hatchet clients are now _verbs_. For instance the way to list workflow runs is via `hatchet.workflows.list`.
 3. `max_runs` on the worker has been renamed to `slots`.
 
 Removals:
 
-1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](../sdks/python-sdk/asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
+1. `sync_to_async` has been removed. We recommend reading [our asyncio documentation](./asyncio.mdx) for our recommendations on handling blocking work in otherwise async tasks.
 
 Other miscellaneous changes:
 

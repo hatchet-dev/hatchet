@@ -55,7 +55,7 @@ def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     return {"status": "success " + input.a}
 
 
-@child_wf.task()
+@child_wf.task(parents=[process])
 def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     print("child process2")
     return {"status2": "success"}
