@@ -63,10 +63,6 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	r.durableEventsListener = w
 
 	go func() {
