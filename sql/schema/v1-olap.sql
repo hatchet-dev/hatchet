@@ -183,6 +183,7 @@ CREATE TABLE v1_dags_olap (
     input JSONB NOT NULL,
     additional_metadata JSONB,
     parent_task_external_id UUID,
+    total_tasks INT NOT NULL DEFAULT 1,
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
 

@@ -22,6 +22,7 @@ type CreateDAGsOLAPParams struct {
 	Input                []byte             `json:"input"`
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
+	TotalTasks           int32              `json:"total_tasks"`
 }
 
 const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
@@ -1285,7 +1286,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id
+    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id, d.total_tasks
 FROM
     v1_dags_olap d
 JOIN
@@ -1307,6 +1308,7 @@ func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid p
 		&i.Input,
 		&i.AdditionalMetadata,
 		&i.ParentTaskExternalID,
+		&i.TotalTasks,
 	)
 	return &i, err
 }
@@ -1570,7 +1572,8 @@ WITH locked_events AS (
         d.id,
         d.inserted_at,
         d.readable_status,
-        d.tenant_id
+        d.tenant_id,
+        d.total_tasks
     FROM
         v1_dags_olap d
     JOIN
@@ -1583,6 +1586,7 @@ WITH locked_events AS (
     SELECT
         d.id,
         d.inserted_at,
+        d.total_tasks,
         COUNT(t.id) AS task_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
         COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
@@ -1598,7 +1602,7 @@ WITH locked_events AS (
         v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
     GROUP BY
-        d.id, d.inserted_at
+        d.id, d.inserted_at, d.total_tasks
 ), updated_dags AS (
     UPDATE
         v1_dags_olap d
@@ -1606,6 +1610,8 @@ WITH locked_events AS (
         readable_status = CASE
             -- If we only have queued events, we should keep the status as is
             WHEN dtc.queued_count = dtc.task_count THEN d.readable_status
+            -- If the task count is not equal to the total tasks, we should set the status to running
+            WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
             -- If we have any running or queued tasks, we should set the status to running
             WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
             WHEN dtc.failed_count > 0 THEN 'FAILED'

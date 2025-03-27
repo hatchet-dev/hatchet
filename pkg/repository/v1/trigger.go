@@ -870,6 +870,8 @@ type DAGWithData struct {
 	AdditionalMetadata []byte
 
 	ParentTaskExternalID *pgtype.UUID
+
+	TotalTasks int
 }
 
 func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
@@ -958,6 +960,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 			Input:                input,
 			AdditionalMetadata:   additionalMeta,
 			ParentTaskExternalID: &parentTaskExternalID,
+			TotalTasks:           len(opt.TaskIds),
 		})
 	}
 
