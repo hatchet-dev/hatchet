@@ -1,6 +1,8 @@
 # ❓ Simple
 
-from ....python.hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, EmptyModel, Hatchet
+
+hatchet = Hatchet(debug=True)
 
 
 @hatchet.task(name="SimpleWorkflow")

@@ -16,6 +16,7 @@ hatchet = Hatchet(debug=True)
 class WorkflowInput(BaseModel):
     group: str
 
+
 concurrency_limit_rr_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflowRR",
     concurrency=ConcurrencyExpression(

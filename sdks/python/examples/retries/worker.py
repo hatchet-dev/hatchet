@@ -10,7 +10,10 @@ backoff_workflow = hatchet.workflow(name="BackoffWorkflow")
 @simple_workflow.task(retries=3)
 def always_fail(input: EmptyModel, ctx: Context) -> dict[str, str]:
     raise Exception("simple task failed")
+
+
 # ‼️
+
 
 # ❓ Retries with Count
 @simple_workflow.task(retries=3)
@@ -19,6 +22,8 @@ def fail_twice(input: EmptyModel, ctx: Context) -> dict[str, str]:
         raise Exception("simple task failed")
 
     return {"status": "success"}
+
+
 # ‼️
 
 
@@ -36,6 +41,8 @@ def backoff_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
         raise Exception("backoff task failed")
 
     return {"status": "success"}
+
+
 # ‼️
 
 
