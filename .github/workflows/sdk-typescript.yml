@@ -48,6 +48,9 @@ jobs:
       - name: Lint
         run: pnpm lint:check
 
+      - name: Type check
+        run: npx tsc
+
   test-unit:
     runs-on: ubuntu-latest
     steps:
