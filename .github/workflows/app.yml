@@ -1,26 +1,12 @@
 name: "frontend / app"
 on:
   pull_request:
+    paths:
+      - "frontend/app/**"
 
 jobs:
-  check_path:
-    runs-on: ubuntu-latest
-    outputs:
-      sdk_only: ${{ steps.filter.outputs.sdk_only }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check if only SDK files changed
-        id: check-paths
-        uses: ./.github/actions/check-paths
-        with:
-          include_patterns: |
-            ^sdks/
-          result_name: sdk_only
-
   lint:
-    needs: check_path
     runs-on: ubuntu-latest
-    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -42,9 +28,7 @@ jobs:
         run: npm run lint:check
 
   build:
-    needs: check_path
     runs-on: ubuntu-latest
-    if: ${{ needs.check_path.outputs.sdk_only != 'true' }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
