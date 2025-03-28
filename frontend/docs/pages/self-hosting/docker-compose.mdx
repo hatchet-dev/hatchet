@@ -72,6 +72,7 @@ services:
       retries: 5
   migration:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
+    command: /hatchet/hatchet-migrate
     environment:
       DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
     depends_on:

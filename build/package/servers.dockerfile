@@ -65,6 +65,7 @@ FROM alpine AS deployment
 
 # can be set to "api", "engine", "admin" or "lite"
 ARG SERVER_TARGET=engine
+ENV SERVER_TARGET=${SERVER_TARGET}
 
 WORKDIR /hatchet
 
@@ -79,4 +80,5 @@ COPY /hack/db/atlas-apply.sh ./atlas-apply.sh
 RUN chmod +x ./atlas-apply.sh
 
 EXPOSE 8080
-CMD /hatchet/hatchet-${SERVER_TARGET}
+
+CMD ["/bin/sh", "-c", "/hatchet/hatchet-${SERVER_TARGET}"]
