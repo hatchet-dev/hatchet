@@ -113,6 +113,15 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	msgs := msgqueuev1.JSONConvert[tasktypesv1.TaskAssignedBulkTaskPayload](msg.Payloads)
 	outerEg := errgroup.Group{}
 
+	toRetry := []*sqlcv1.V1Task{}
+	toRetryMu := sync.Mutex{}
+
+	requeue := func(task *sqlcv1.V1Task) {
+		toRetryMu.Lock()
+		toRetry = append(toRetry, task)
+		toRetryMu.Unlock()
+	}
+
 	for _, innerMsg := range msgs {
 		// load the step runs from the database
 		taskIds := make([]int64, 0)
@@ -124,13 +133,23 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
 
 		if err != nil {
-			return fmt.Errorf("could not bulk list step run data: %w", err)
+			for _, task := range bulkDatas {
+				requeue(task)
+			}
+
+			d.l.Error().Err(err).Msgf("could not bulk list step run data:")
+			continue
 		}
 
 		parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, msg.TenantID, bulkDatas)
 
 		if err != nil {
-			return fmt.Errorf("could not list parent data for %d tasks: %w", len(bulkDatas), err)
+			for _, task := range bulkDatas {
+				requeue(task)
+			}
+
+			d.l.Error().Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
+			continue
 		}
 
 		for _, task := range bulkDatas {
@@ -190,24 +209,15 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 				innerEg := errgroup.Group{}
 
-				toRetry := []*sqlcv1.V1Task{}
-				toRetryMu := sync.Mutex{}
-
 				for _, stepRunId := range stepRunIds {
 					stepRunId := stepRunId
 
 					innerEg.Go(func() error {
 						task := taskIdToData[stepRunId]
 
-						requeue := func() {
-							toRetryMu.Lock()
-							toRetry = append(toRetry, task)
-							toRetryMu.Unlock()
-						}
-
 						// if we've reached the context deadline, this should be requeued
 						if ctx.Err() != nil {
-							requeue()
+							requeue(task)
 							return nil
 						}
 
@@ -230,63 +240,63 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							return nil
 						}
 
-						requeue()
+						requeue(task)
 
 						return multiErr
 					})
 				}
 
-				innerErr := innerEg.Wait()
-
-				if len(toRetry) > 0 {
-					retryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-
-					retryGroup := errgroup.Group{}
-
-					for _, _task := range toRetry {
-						tenantId := msg.TenantID
-						task := _task
-
-						retryGroup.Go(func() error {
-							msg, err := tasktypesv1.FailedTaskMessage(
-								tenantId,
-								task.ID,
-								task.InsertedAt,
-								sqlchelpers.UUIDToStr(task.ExternalID),
-								sqlchelpers.UUIDToStr(task.WorkflowRunID),
-								task.RetryCount,
-								false,
-								"Could not send task to worker",
-							)
-
-							if err != nil {
-								return fmt.Errorf("could not create failed task message: %w", err)
-							}
-
-							queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
-
-							err = d.mqv1.SendMessage(retryCtx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
-
-							if err != nil {
-								return fmt.Errorf("could not send failed task message: %w", err)
-							}
-
-							return nil
-						})
-					}
-
-					if err := retryGroup.Wait(); err != nil {
-						innerErr = multierror.Append(innerErr, fmt.Errorf("could not retry failed tasks: %w", err))
-					}
-				}
-
-				return innerErr
+				return innerEg.Wait()
 			})
 		}
 	}
 
-	return outerEg.Wait()
+	outerErr := outerEg.Wait()
+
+	if len(toRetry) > 0 {
+		retryCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		retryGroup := errgroup.Group{}
+
+		for _, _task := range toRetry {
+			tenantId := msg.TenantID
+			task := _task
+
+			retryGroup.Go(func() error {
+				msg, err := tasktypesv1.FailedTaskMessage(
+					tenantId,
+					task.ID,
+					task.InsertedAt,
+					sqlchelpers.UUIDToStr(task.ExternalID),
+					sqlchelpers.UUIDToStr(task.WorkflowRunID),
+					task.RetryCount,
+					false,
+					"Could not send task to worker",
+				)
+
+				if err != nil {
+					return fmt.Errorf("could not create failed task message: %w", err)
+				}
+
+				queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
+
+				err = d.mqv1.SendMessage(retryCtx, msgqueuev1.TASK_PROCESSING_QUEUE, msg)
+
+				if err != nil {
+					return fmt.Errorf("could not send failed task message: %w", err)
+				}
+
+				return nil
+			})
+		}
+
+		if err := retryGroup.Wait(); err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not retry failed tasks: %w", err))
+		}
+	}
+
+	return outerErr
 }
 
 func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev1.Message) error {
