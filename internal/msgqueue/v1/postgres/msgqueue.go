@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/cache"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -25,6 +26,8 @@ type PostgresMessageQueue struct {
 
 	upsertedQueues   map[string]bool
 	upsertedQueuesMu sync.RWMutex
+
+	ttlCache *cache.TTLCache[string, bool]
 
 	configFs []MessageQueueImplOpt
 }
@@ -57,7 +60,7 @@ func WithQos(qos int) MessageQueueImplOpt {
 	}
 }
 
-func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImplOpt) *PostgresMessageQueue {
+func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImplOpt) (func() error, *PostgresMessageQueue) {
 	opts := defaultMessageQueueImplOpts()
 
 	for _, f := range fs {
@@ -66,12 +69,15 @@ func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImp
 
 	opts.l.Info().Msg("Creating new Postgres message queue")
 
+	c := cache.NewTTL[string, bool]()
+
 	p := &PostgresMessageQueue{
 		repo:           repo,
 		l:              opts.l,
 		qos:            opts.qos,
 		upsertedQueues: make(map[string]bool),
 		configFs:       fs,
+		ttlCache:       c,
 	}
 
 	err := p.upsertQueue(context.Background(), msgqueue.TASK_PROCESSING_QUEUE)
@@ -86,17 +92,14 @@ func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImp
 		p.l.Fatal().Msgf("error upserting queue %s", msgqueue.OLAP_QUEUE.Name())
 	}
 
-	return p
-}
-
-func (p *PostgresMessageQueue) cleanup() error {
-	return nil
+	return func() error {
+		c.Stop()
+		return nil
+	}, p
 }
 
 func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue) {
-	pCp := NewPostgresMQ(p.repo, p.configFs...)
-
-	return pCp.cleanup, pCp
+	return NewPostgresMQ(p.repo, p.configFs...)
 }
 
 func (p *PostgresMessageQueue) SetQOS(prefetchCount int) {
@@ -315,17 +318,9 @@ func (p *PostgresMessageQueue) IsReady() bool {
 }
 
 func (p *PostgresMessageQueue) upsertQueue(ctx context.Context, queue msgqueue.Queue) error {
-	// place a lock on the upserted queues
-	p.upsertedQueuesMu.RLock()
-
-	// check if the queue has been upserted
-	if _, exists := p.upsertedQueues[queue.Name()]; exists {
-		p.upsertedQueuesMu.RUnlock()
+	if valid, exists := p.ttlCache.Get(queue.Name()); valid && exists {
 		return nil
 	}
-
-	// otherwise, lock for writing
-	p.upsertedQueuesMu.RUnlock()
 
 	exclusive := queue.Exclusive()
 
@@ -351,12 +346,7 @@ func (p *PostgresMessageQueue) upsertQueue(ctx context.Context, queue msgqueue.Q
 		return err
 	}
 
-	// place a lock on the upserted queues
-	p.upsertedQueuesMu.Lock()
-	defer p.upsertedQueuesMu.Unlock()
-
-	// add the queue to the upserted queues
-	p.upsertedQueues[queue.Name()] = true
+	p.ttlCache.Set(queue.Name(), true, time.Second*15)
 
 	return nil
 }
