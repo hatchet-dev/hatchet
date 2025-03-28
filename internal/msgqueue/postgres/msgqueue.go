@@ -73,6 +73,7 @@ func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImp
 			repo:     repo,
 			l:        opts.l,
 			qos:      opts.qos,
+			ttlCache: c,
 			configFs: fs,
 		}
 }
