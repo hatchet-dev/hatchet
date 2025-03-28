@@ -60,7 +60,8 @@
   "timeouts": "Timeouts",
   "on-failure-tasks": "On Failure Tasks",
   "retry-policies": "Retry Policies",
-  "manual-replays": "Manual Replays",
+  "bulk-retries-and-cancellations": "Bulk Retries and Cancellations",
+
   "--assignment": {
     "title": "Advanced Assignment",
     "type": "separator"
