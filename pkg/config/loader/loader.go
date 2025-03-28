@@ -311,19 +311,28 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	if cf.MessageQueue.Enabled {
 		switch strings.ToLower(cf.MessageQueue.Kind) {
 		case "postgres":
-			l.Warn().Msg("Using a Postgres-backed message queue. This feature is still in beta.")
+			var cleanupv0 func() error
+			var cleanupv1 func() error
 
-			mq = postgres.NewPostgresMQ(
+			cleanupv0, mq = postgres.NewPostgresMQ(
 				dc.EngineRepository.MessageQueue(),
 				postgres.WithLogger(&l),
 				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
 
-			mqv1 = pgmqv1.NewPostgresMQ(
+			cleanupv1, mqv1 = pgmqv1.NewPostgresMQ(
 				dc.EngineRepository.MessageQueue(),
 				pgmqv1.WithLogger(&l),
 				pgmqv1.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
+
+			cleanup1 = func() error {
+				if err := cleanupv0(); err != nil {
+					return err
+				}
+
+				return cleanupv1()
+			}
 		case "rabbitmq":
 			var cleanupv0 func() error
 			var cleanupv1 func() error
