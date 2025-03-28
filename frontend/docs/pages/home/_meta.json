@@ -19,7 +19,7 @@
   "your-first-task": "Tasks",
   "workers": "Workers",
   "running-your-task": "Running Tasks",
-  "orchestration": "Workflow Orchestration",
+  "orchestration": "Task Orchestration",
   "environments": "Environments",
   "--running-workflows": {
     "title": "Ways of Running Tasks",

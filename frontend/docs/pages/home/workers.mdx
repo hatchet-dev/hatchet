@@ -6,27 +6,23 @@ export const SimpleTs = {
   path: "src/v1/examples/simple/worker.ts",
 };
 
-export const getStaticProps = ({}) => getSnippets([SimpleTs]);
+export const SimpleGo = {
+  path: "examples/v1/workflows/simple.go",
+};
+
+export const getStaticProps = ({}) => getSnippets([SimpleTs, SimpleGo]);
 
 # Workers
 
-Workers are the backbone of Hatchet, responsible for executing the individual tasks defined within your workflows. They operate autonomously across different nodes in your infrastructure, allowing for distributed and scalable task execution. Understanding how to deploy and manage workers effectively is crucial to fully leverage the power of Hatchet.
+Workers are the backbone of Hatchet, responsible for executing the individual tasks. They operate across different nodes in your infrastructure, allowing for distributed and scalable task execution.
 
 ## How Workers Operate
 
 In Hatchet, workers are long-running processes that wait for instructions from the Hatchet engine to execute specific steps. They communicate with the Hatchet engine to receive tasks, execute them, and report back the results.
 
-The key characteristics of workers in Hatchet are:
-
-1. **Distributed Execution**: Workers can be deployed across multiple systems or even different cloud environments, enabling distributed task execution.
-
-2. **Language Agnosticism**: Workers can be implemented in various programming languages, as long as they can communicate with the Hatchet engine and execute the required tasks.
-
-3. **Scalability**: By adding more workers, you can scale your system horizontally to handle increased loads and distribute tasks across a wider set of resources.
-
 ## Declaring a Worker
 
-Now that we have a [workflow declared](./basic-workflows.mdx) we can create a worker that can execute the workflow's tasks.
+Now that we have a [task declared](./your-first-task.mdx) we can create a worker that can execute the task.
 
 Declare a worker by calling the `worker` method on the Hatchet client. The `worker` method takes a name and an optional configuration object.
 
@@ -79,16 +75,16 @@ Declare a worker by calling the `worker` method on the Hatchet client. The `work
 
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-    ```go
-  	w, err := worker.NewWorker(
-      worker.WithClient(
-        c,
-      ),
-    )
+    <GithubSnippet src={SimpleGo} target="Declaring a Worker" />
 
-    cleanup, err := w.Start()
+    Then start the worker by running the script you just added to your `package.json`:
+    ```bash
+    go run worker.go
     ```
 
+    <Callout type="info">
+      Note there are both `worker.Start` and `worker.StartBlocking` methods. The `StartBlocking` method will block the main thread until the worker is stopped, while the `Start` method will return immediately and you'll need to call `worker.Stop` to stop the worker.
+    </Callout>
   </Tabs.Tab>
 </UniversalTabs>
 

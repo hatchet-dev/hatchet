@@ -1,14 +1,13 @@
 /* eslint-disable no-console */
-// ❓ Running a Task with Results
 import { simple } from './workflow';
-// ...
+
 async function main() {
-  // 👀 Run the workflow with results
+  // ❓ Running a Task
   const res = await simple.run({
     Message: 'HeLlO WoRlD',
   });
 
-  // 👀 Access the results of the workflow
+  // 👀 Access the results of the Task
   console.log(res.TransformedMessage);
   // !!
 }

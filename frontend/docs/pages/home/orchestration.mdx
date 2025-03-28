@@ -13,23 +13,19 @@ export const getStaticProps = ({}) => getSnippets([SimpleTs, SimplePy]);
 
 # What is Orchestration?
 
-Orchestration can be very overloaded in the software development world. In Hatchet, we define orchestration as the both process of coordinating the execution of tasks on "compute" and the coordination of the compute resources themselves.
+Orchestration can be very overloaded in the software development world. In Hatchet, we define orchestration as the assignment of tasks to compute resources in a particular order.
 
-## Orchestrating Tasks
+## Defining the Workflow
 
 In Hatchet there are two primary ways to orchestrate tasks:
 
 1. [Declarative Workflow Design (DAGs)](./dags.mdx) -- which is a way to declaratively define the sequence and dependencies of tasks in a workflow when you know the dependencies ahead of time.
 2. [Procedural Child Spawning](./child-spawning.mdx) -- which is a way to orchestrate tasks in a workflow when you don't know the dependencies ahead of time or when the dependencies are dynamic.
 
-## Orchestrating Tasks With Flow Controls
+## Flow Controls
 
-In addition to coordinating the execution of tasks, Hatchet also provides a set of flow control primitives that allow you to orchestrate tasks in a workflow.
+In addition to coordinating the execution of tasks, Hatchet also provides a set of flow control primitives that allow you to orchestrate tasks in a workflow. This allows you to run only what your service can handle at any given time.
 
 1. [Worker Slots](./workers.mdx#understanding-slots) -- which is a way to control the number of tasks that can be executed concurrently on a given compute process.
 2. [Concurrency Control](./concurrency-keys.mdx) -- which is a global way to control the concurrent execution of tasks based on a specific key.
 3. [Rate Limiting](./rate-limits.mdx) -- which is a global way to control the rate of task execution based on time period.
-
-## Orchestrating Compute
-
-In addition to coordinating the execution of tasks, Hatchet also coordinates the compute resources themselves. Autoscaling compute resources to match the workload is a core feature of Hatchet managed compute and we're working on plugins for other compute orchestrators.
