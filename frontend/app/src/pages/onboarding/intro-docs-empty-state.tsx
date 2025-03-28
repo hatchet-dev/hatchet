@@ -22,7 +22,7 @@ const DocExternalLink: React.FC<DocExternalLinkProps> = ({
       href={createDocsExternalLink(link)}
       className={className}
     >
-      <span className="text-blue-600">{description}</span>
+      <span className="text-indigo-500">{description}</span>
     </a>
   );
 };
@@ -41,18 +41,16 @@ export const IntroDocsEmptyState: React.FC<IntroDocsEmptyStateProps> = ({
   title,
 }) => {
   return (
-    <div className="w-full h-full border border-gray rounded-md p-4 flex flex-col justify-between gap-y-12">
-      <div className="flex flex-col gap-y-4 text-foreground">
-        {title && <p className="text-lg font-bold">{title}</p>}
-        <p>
-          {linkPreambleText}{' '}
-          <DocExternalLink
-            link={link}
-            description={linkText}
-            className="inline"
-          />
-        </p>
-      </div>
+    <div className="w-full h-full flex flex-col gap-y-4 text-foreground py-8">
+      {title && <p className="text-lg font-bold">{title}</p>}
+      <p className="text-sm">
+        {linkPreambleText}{' '}
+        <DocExternalLink
+          link={link}
+          description={linkText}
+          className="inline"
+        />
+      </p>
     </div>
   );
 };
