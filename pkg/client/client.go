@@ -199,16 +199,6 @@ func InitWorkflows() ClientOpt {
 	}
 }
 
-// WithWorkflows sets the workflow files to use for the worker. If this is not passed in, the workflows files will be loaded
-// from the .hatchet folder in the current directory.
-func WithWorkflows(files []*types.Workflow) ClientOpt {
-	return func(opts *ClientOpts) {
-		opts.filesLoader = func() []*types.Workflow {
-			return files
-		}
-	}
-}
-
 type sharedClientOpts struct {
 	tenantId   string
 	namespace  string

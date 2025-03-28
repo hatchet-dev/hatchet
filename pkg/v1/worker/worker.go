@@ -9,7 +9,6 @@ import (
 	"time"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
@@ -38,6 +37,34 @@ type Worker interface {
 
 	// Unpause resumes all paused worker instances
 	Unpause(ctx context.Context) error
+}
+
+// WorkerLabels represents a map of labels that can be assigned to a worker
+// for filtering and identification purposes.
+type WorkerLabels map[string]interface{}
+
+// CreateOpts defines the options for creating a new worker.
+type WorkerOpts struct {
+	// (required) the friendly name of the worker
+	Name string
+
+	// (optional) a list of workflows to register on the worker. If not provided, the worker will not run any workflows.
+	Workflows []workflow.WorkflowBase
+
+	// (optional) maximum number of concurrent runs on this worker, defaults to 100
+	Slots int
+
+	// (optional) labels to set on the worker
+	Labels WorkerLabels
+
+	// (optional) logger to use for the worker
+	Logger *zerolog.Logger
+
+	// (optional) log level
+	LogLevel string
+
+	// (optional) maximum number of concurrent runs for durable tasks, defaults to 1000
+	DurableSlots int
 }
 
 // WorkerImpl is the concrete implementation of the Worker interface.
@@ -70,30 +97,20 @@ type WorkerImpl struct {
 	logLevel string
 
 	// labels are the labels assigned to this worker
-	labels create.WorkerLabels
-}
-
-// WithWorkflows is a functional option that configures a worker with the specified workflows.
-func WithWorkflows(workflows ...workflow.WorkflowBase) func(*WorkerImpl) {
-	return func(w *WorkerImpl) {
-		w.workflows = workflows
-	}
+	labels WorkerLabels
 }
 
 // NewWorker creates and configures a new Worker with the provided client and options.
 // additional functional options can be provided to further customize the worker configuration.
 // returns the created Worker interface and any error encountered during creation.
-func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts create.WorkerOpts, optFns ...func(*WorkerImpl)) (Worker, error) {
+func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts WorkerOpts) (Worker, error) {
 	w := &WorkerImpl{
-		v0:       v0,
-		workers:  workersClient,
-		name:     opts.Name,
-		logLevel: opts.LogLevel,
-		labels:   opts.Labels,
-	}
-
-	for _, optFn := range optFns {
-		optFn(w)
+		v0:        v0,
+		workers:   workersClient,
+		name:      opts.Name,
+		logLevel:  opts.LogLevel,
+		labels:    opts.Labels,
+		workflows: opts.Workflows,
 	}
 
 	if opts.Slots == 0 {
