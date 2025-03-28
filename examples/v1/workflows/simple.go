@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
+	v1worker "github.com/hatchet-dev/hatchet/pkg/v1/worker"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -53,7 +54,7 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 	// Example of registering a task on a worker
 	_ = func() error {
 		// ❓ Declaring a Worker
-		w, err := hatchet.Worker(worker.WorkerOpts{
+		w, err := hatchet.Worker(v1worker.WorkerOpts{
 			Name: "simple-worker",
 			Workflows: []workflow.WorkflowBase{
 				simple,
