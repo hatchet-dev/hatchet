@@ -208,12 +208,18 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 			readableId = workflowRun.Workflow.Name
 		}
 
+		finishedAt := time.Now().UTC()
+
+		if workflowRun.WorkflowRun.FinishedAt.Valid && !workflowRun.WorkflowRun.FinishedAt.Time.IsZero() {
+			finishedAt = workflowRun.WorkflowRun.FinishedAt.Time
+		}
+
 		res = append(res, alerttypes.WorkflowRunFailedItem{
 			Link:                  fmt.Sprintf("%s/workflow-runs/%s?tenant=%s", t.serverURL, workflowRunId, tenantId),
 			WorkflowName:          workflowRun.Workflow.Name,
 			WorkflowRunReadableId: readableId,
-			RelativeDate:          timediff.TimeDiff(workflowRun.WorkflowRun.FinishedAt.Time),
-			AbsoluteDate:          workflowRun.WorkflowRun.FinishedAt.Time.Format("2006-01-02 15:04:05"),
+			RelativeDate:          timediff.TimeDiff(finishedAt),
+			AbsoluteDate:          finishedAt.Format("2006-01-02 15:04:05"),
 		})
 	}
 
