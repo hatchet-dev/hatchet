@@ -69,7 +69,6 @@
   "sticky-assignment": "Sticky Assignment",
   "worker-affinity": "Worker Affinity",
   "manual-slot-release": "Manual Slot Release",
-
   "--observability": {
     "title": "Observability",
     "type": "separator"
