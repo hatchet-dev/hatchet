@@ -42,7 +42,7 @@ const getUIUrl = ({ user, repo, branch, path }: RepoProps) => {
   if (isDev) {
     return getLocalUrl(ext, { path });
   }
-  return `https://github.com/${user || defaultUser}/${repo || defaultRepo}/blob/${branch || defaultBranch}/${path}`;
+  return `https://github.com/${user || defaultUser}/${repo || defaultRepo}/blob/${branch || defaultBranch}/${localPaths[ext]}/${path}`;
 };
 
 export type Src = {
