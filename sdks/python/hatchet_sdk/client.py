@@ -54,12 +54,3 @@ class Client:
         self.scheduled = ScheduledClient(self.config)
         self.workers = WorkersClient(self.config)
         self.workflows = WorkflowsClient(self.config)
-
-
-hatchet = Client()
-
-hatchet.runs.list(
-    filters={
-        "additionalMetadata": ["user:123"],
-    }
-)
