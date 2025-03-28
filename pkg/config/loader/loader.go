@@ -104,7 +104,14 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, err
 	}
 
-	scf, err := LoadServerConfigFile(configFileBytes...)
+	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
+	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	scf, err := LoadServerConfigFile(serverConfigFileBytes...)
 
 	if err != nil {
 		return nil, err
