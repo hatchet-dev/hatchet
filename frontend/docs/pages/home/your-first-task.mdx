@@ -14,8 +14,12 @@ export const SimplePy = {
   path: "examples/simple/worker.py",
 };
 
+export const SimpleGo = {
+  path: "examples/v1/workflows/simple.go",
+};
+
 export const getStaticProps = ({}) =>
-  getSnippets([SimpleTs, SimpleRunTs, SimplePy]);
+  getSnippets([SimpleTs, SimpleRunTs, SimplePy, SimpleGo]);
 
 # Declaring Your First Task
 
@@ -53,28 +57,19 @@ def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
 <GithubSnippet src={SimpleTs} target="Declaring a Task" />
 </Tabs.Tab>
 <Tabs.Tab title="Go">
-
-```go
-  w.RegisterWorkflow(
-      &worker.WorkflowJob{
-          Name:        "simple-workflow",
-          Description: "Simple one-task workflow.",
-          On:          worker.Event("user:created"),
-          Steps: []*worker.WorkflowStep{
-              worker.Fn(func(ctx worker.HatchetContext) error {
-                  return nil
-              }),
-          },
-      },
-  )
-```
-
+<GithubSnippet src={SimpleGo} target="Declaring a Task" />
 </Tabs.Tab>
 </UniversalTabs>
 
 ## Running a Task
 
 With your task defined, you can import it wherever you need to use it and invoke it with the `run` method.
+
+<Callout type="warning">
+  NOTE: You must first [register the task on a worker](./workers.mdx) before you
+  can run it. Calling `your_task.run` will enqueue a task to be executed by a
+  worker but it will wait indefinitely for the task to be executed.
+</Callout>
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -88,9 +83,7 @@ simple.run(SimpleInput(message="HeLlO WoRlD"))
 <GithubSnippet src={SimpleRunTs} target="Running a Task" />
 </Tabs.Tab>
 <Tabs.Tab title="Go">
-
-Example coming soon!
-
+<GithubSnippet src={SimpleGo} target="Running a Task" />
 </Tabs.Tab>
 </UniversalTabs>
 

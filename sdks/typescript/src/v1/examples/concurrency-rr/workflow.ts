@@ -17,11 +17,11 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-// ❓ Workflow
+// ❓ Concurrency Strategy With Key
 export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: {
-    maxRuns: 100,
+    maxRuns: 1,
     limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     expression: 'input.GroupKey',
   },

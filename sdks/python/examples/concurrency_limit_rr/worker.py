@@ -12,7 +12,7 @@ from hatchet_sdk import (
 hatchet = Hatchet(debug=True)
 
 
-# ❓ Workflow
+# ❓ Concurrency Strategy With Key
 class WorkflowInput(BaseModel):
     group: str
 

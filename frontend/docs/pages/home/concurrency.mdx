@@ -1,0 +1,123 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const TS = {
+  path: "src/v1/examples/concurrency-rr/workflow.ts",
+};
+
+export const PY = {
+  path: "examples/concurrency_limit_rr/worker.py",
+};
+
+export const GO = {
+  path: "examples/v1/workflows/concurrency-rr.go",
+};
+
+export const getStaticProps = ({}) => getSnippets([TS, PY, GO]);
+
+## Concurrency Control in Hatchet Workflows
+
+Hatchet provides powerful concurrency control features to help you manage the execution of your workflows. This is particularly useful when you have workflows that may be triggered frequently or have long-running steps, and you want to limit the number of concurrent executions to prevent overloading your system, ensure fairness, or avoid race conditions.
+
+<Callout type="info">
+  Concurrency strategies can be added to both `Tasks` and `Workflows`.
+</Callout>
+
+### Why use concurrency control?
+
+There are several reasons why you might want to use concurrency control in your Hatchet workflows:
+
+1. **Fairness**: When you have multiple clients or users triggering workflows, concurrency control can help ensure fair access to resources. By limiting the number of concurrent runs per client or user, you can prevent a single client from monopolizing the system and ensure that all clients get a fair share of the available resources.
+
+2. **Resource management**: If your workflow steps are resource-intensive (e.g., they make external API calls or perform heavy computations), running too many instances concurrently can overload your system. By limiting concurrency, you can ensure your system remains stable and responsive.
+
+3. **Avoiding race conditions**: If your workflow steps modify shared resources, running multiple instances concurrently can lead to race conditions and inconsistent data. Concurrency control helps you avoid these issues by ensuring only a limited number of instances run at a time.
+
+4. **Compliance with external service limits**: If your workflow steps interact with external services that have rate limits, concurrency control can help you stay within those limits and avoid being throttled or blocked.
+
+5. **Spike Protection**: When you have workflows that are triggered by external events, such as webhooks or user actions, you may experience spikes in traffic that can overwhelm your system. Concurrency control can help you manage these spikes by limiting the number of concurrent runs and queuing new runs until resources become available.
+
+### Available Strategies:
+
+- [`GROUP_ROUND_ROBIN`](./overview.mdx#group-round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
+- [`CANCEL_IN_PROGRESS`](./overview.mdx#cancel-in-progress): Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
+- [`CANCEL_NEWEST`](./overview.mdx#cancel-newest): Cancel the newest workflow instance for the same concurrency key to free up slots for the new instance.
+
+> We're always open to adding more strategies to fit your needs. Join our [discord](https://discord.gg/ZMeUafwH89) to let us know.
+
+### Setting concurrency on workers
+
+In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+  <Tabs.Tab>
+    <GithubSnippet src={PY} target="Concurrency Strategy With Key" />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <GithubSnippet src={TS} target="Concurrency Strategy With Key" />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <GithubSnippet src={GO} target="Concurrency Strategy With Key" />
+  </Tabs.Tab>
+</UniversalTabs>
+
+This example will only let 1 run in each group run at a given time to fairly distribute the load across the workers.
+
+## Group Round Robin
+
+### How it works
+
+When a new workflow instance is triggered, the `GROUP_ROUND_ROBIN` strategy will:
+
+1. Determine the group that the instance belongs to based on the `key` function defined in the workflow's concurrency configuration.
+2. Check if there are any available slots for the instance's group based on the `maxRuns` limit of available workers.
+3. If a slot is available, the new workflow instance starts executing immediately.
+4. If no slots are available, the new workflow instance is added to a queue for its group.
+5. When a running workflow instance completes and a slot becomes available for a group, the next queued instance for that group (in round-robin order) is dequeued and starts executing.
+
+This strategy ensures that workflow instances are processed fairly across different groups, preventing any one group from monopolizing the available resources. It also helps to reduce latency for instances within each group, as they are processed in a round-robin fashion rather than strictly in the order they were triggered.
+
+### When to use `GROUP_ROUND_ROBIN`
+
+The `GROUP_ROUND_ROBIN` strategy is particularly useful in scenarios where:
+
+- You have multiple clients or users triggering workflow instances, and you want to ensure fair resource allocation among them.
+- You want to process instances within each group in a round-robin fashion to minimize latency and ensure that no single instance within a group is starved for resources.
+- You have long-running workflow instances and want to avoid one group's instances monopolizing the available slots.
+
+Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all use cases, especially those that require strict ordering or prioritization of the most recent events.
+
+## CANCEL_IN_PROGRESS
+
+### How it works
+
+When a new workflow instance is triggered, the `CANCEL_IN_PROGRESS` strategy will:
+
+1. Determine the group that the instance belongs to based on the `key` function defined in the workflow's concurrency configuration.
+2. Check if there are any available slots for the instance's group based on the `maxRuns` limit of available workers.
+3. If a slot is available, the new workflow instance starts executing immediately.
+4. If there are no available slots, currently running workflow instances for the same concurrency key are cancelled to free up slots for the new instance.
+5. The new workflow instance starts executing immediately.
+
+### When to use `CANCEL_IN_PROGRESS`
+
+The `CANCEL_IN_PROGRESS` strategy is particularly useful in scenarios where:
+
+- You have long-running workflow instances that may become stale or irrelevant if newer instances are triggered.
+- You want to prioritize processing the most recent data or events, even if it means canceling older workflow instances.
+- You have resource-intensive workflows where it's more efficient to cancel an in-progress instance and start a new one than to wait for the old instance to complete.
+- Your user UI allows for multiple inputs, but only the most recent is relevant (i.e. chat messages, form submissions, etc.).
+
+## CANCEL_NEWEST
+
+### How it works
+
+The `CANCEL_NEWEST` strategy is similar to `CANCEL_IN_PROGRESS`, but it cancels the newly enqueued run instead of the oldest.
+
+### When to use `CANCEL_NEWEST`
+
+The `CANCEL_NEWEST` strategy is particularly useful in scenarios where:
+
+- You want to allow in progress runs to complete before starting new work.
+- You have long-running workflow instances and want to avoid one group's instances monopolizing the available slots.

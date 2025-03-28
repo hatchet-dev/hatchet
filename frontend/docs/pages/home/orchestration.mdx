@@ -18,4 +18,10 @@ Not only can you run a single task in Hatchet, but you can also orchestrate mult
 1. [Declarative Workflow Design (DAGs)](./dags.mdx) -- which is a way to declaratively define the sequence and dependencies of tasks in a workflow when you know the dependencies ahead of time.
 2. [Procedural Child Spawning](./child-spawning.mdx) -- which is a way to orchestrate tasks in a workflow when you don't know the dependencies ahead of time or when the dependencies are dynamic.
 
-To read about waiting on additional conditions in a workflow, see the [Conditional Workflows](./conditional-workflows.mdx) guide.
+## Flow Controls
+
+In addition to coordinating the execution of tasks, Hatchet also provides a set of flow control primitives that allow you to orchestrate tasks in a workflow. This allows you to run only what your service can handle at any given time.
+
+1. [Worker Slots](./workers.mdx#understanding-slots) -- which is a way to control the number of tasks that can be executed concurrently on a given compute process.
+2. [Concurrency Control](./concurrency-keys.mdx) -- which is a global way to control the concurrent execution of tasks based on a specific key.
+3. [Rate Limiting](./rate-limits.mdx) -- which is a global way to control the rate of task execution based on time period.

@@ -38,7 +38,6 @@
     "title": "Running from External Services",
     "display": "hidden"
   },
-
   "--advanced-workflows": {
     "title": "Workflows",
     "type": "separator"
@@ -60,10 +59,9 @@
   },
   "timeouts": "Timeouts",
   "on-failure-tasks": "On Failure Tasks",
+  "retry-policies": "Retry Policies",
   "bulk-retries-and-cancellations": "Bulk Retries and Cancellations",
-  "retries": {
-    "title": "Retries"
-  },
+
   "--assignment": {
     "title": "Advanced Assignment",
     "type": "separator"
@@ -71,14 +69,12 @@
   "sticky-assignment": "Sticky Assignment",
   "worker-affinity": "Worker Affinity",
   "manual-slot-release": "Manual Slot Release",
-
   "--observability": {
     "title": "Observability",
     "type": "separator"
   },
   "logging": "Logging",
   "opentelemetry": "OpenTelemetry",
-
   "--deploying-workers": {
     "title": "Deploying Workers",
     "type": "separator"
@@ -89,13 +85,8 @@
     "title": "Flow Control",
     "type": "separator"
   },
-  "concurrency": {
-    "title": "Concurrency"
-  },
-  "rate-limits": {
-    "title": "Rate Limits"
-  },
-
+  "concurrency": "Concurrency",
+  "rate-limits": "Rate Limits",
   "--cancellation": {
     "title": "Cancellation",
     "type": "separator",

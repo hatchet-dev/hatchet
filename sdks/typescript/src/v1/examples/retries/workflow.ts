@@ -11,7 +11,7 @@ export const retries = hatchet.task({
 });
 // !!
 
-// ❓ Step Retries with Count
+// ❓ Retries with Count
 export const retriesWithCount = hatchet.task({
   name: 'retriesWithCount',
   retries: 3,
@@ -32,13 +32,16 @@ export const retriesWithCount = hatchet.task({
 });
 // !!
 
-// ❓ Step Retries with Backoff
+// ❓ Retries with Backoff
 export const withBackoff = hatchet.task({
   name: 'withBackoff',
-  retries: 3,
+  retries: 10,
   backoff: {
-    factor: 2,
+    // 👀 Maximum number of seconds to wait between retries
     maxSeconds: 10,
+    // 👀 Factor to increase the wait time between retries.
+    // This sequence will be 2s, 4s, 8s, 10s, 10s, 10s... due to the maxSeconds limit
+    factor: 2,
   },
   fn: async () => {
     throw new Error('intentional failure');
