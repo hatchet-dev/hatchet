@@ -37,7 +37,7 @@ export const inferredTypeDurable = hatchet.durableTask({
   },
 });
 
-export const crazyWorkflow = hatchet.workflow({
+export const crazyWorkflow = hatchet.workflow<any, any>({
   name: 'crazy-workflow',
 });
 
