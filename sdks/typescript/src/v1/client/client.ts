@@ -121,7 +121,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A new Workflow instance
    * @note It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
    */
-  workflow<T extends JsonObject | unknown, K extends JsonObject | unknown>(
+  workflow<T extends JsonObject | unknown = unknown, K extends JsonObject | unknown = unknown>(
     options: CreateWorkflowOpts
   ): WorkflowDeclaration<T, K> {
     return CreateWorkflow<T, K>(options, this);
