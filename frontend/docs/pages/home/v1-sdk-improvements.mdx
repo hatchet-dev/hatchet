@@ -59,10 +59,154 @@ There are a handful of other new features that will make interfacing with the SD
 
 1. Concurrency keys using the `input` to a workflow are now checked for validity at runtime. If the workflow's `input_validator` does not contain a field that's used in a key, Hatchet will reject the workflow when it's created. For example, if the key is `input.user_id`, the `input_validator` Pydantic model _must_ contain a `user_id` field.
 2. There is now an `on_success_task` on the `Workflow` object, which works just like an on-failure task, but it runs after all upstream tasks in the workflow have _succeeded_.
+3. We've exposed feature clients on the Hatchet client to make it easier to interact  with and control your environment.
+
+For example, you can write scripts to find all runs that match certain criteria, and replay or cancel them.
+
+```python
+hatchet = Hatchet()
+
+workflows = hatchet.workflows.list()
+
+assert workflows.rows
+
+workflow = workflows.rows[0]
+
+workflow_runs = hatchet.runs.list(workflow_ids=[workflow.metadata.id])
+
+workflow_run_ids = [workflow_run.metadata.id for workflow_run in workflow_runs.rows]
+
+bulk_cancel_by_ids = BulkCancelReplayOpts(ids=workflow_run_ids)
+
+hatchet.runs.bulk_cancel(bulk_cancel_by_ids)
+
+bulk_cancel_by_filters = BulkCancelReplayOpts(
+    filters=RunFilter(
+        since=datetime.today() - timedelta(days=1),
+        until=datetime.now(),
+        statuses=[V1TaskStatus.RUNNING],
+        workflow_ids=[workflow.metadata.id],
+        additional_metadata={"key": "value"},
+    )
+)
+
+hatchet.runs.bulk_cancel(bulk_cancel_by_filters)
+```
+
+The `hatchet` client also has clients for `workflows` (declarations), `schedules`, `crons`, `metrics` (i.e. queue depth), `events`, and `workers`.
+
 
   </Tabs.Tab>
   <Tabs.Tab title="Typescript">
-{/* TODO V1 Docs */}
+
+### Highlights
+
+The Typescript SDK has a number of notable highlights to showcase for V1. Many of them have been highlighted elsewhere, such as [in the migration guide](./migration-guide-typescript.mdx), an in various examples. Here, we'll list out each of them, along with their motivations and benefits.
+
+First and foremost: Many of the changes in the V1 Typescript SDK are motivated by improved support for type checking and inference across large codebases and in production use-cases. With that in mind, here are the main highlights:
+
+1. We've moved away from a pure object-based pattern to a factory pattern for creating your workflows and tasks. This allows for much more flexibility and type safety.
+
+The simplest way to declare a workflow is with `hatchet.task`.
+
+```ts
+export const simple = hatchet.task({
+  name: 'simple',
+  fn: (input: SimpleInput) => {
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+```
+
+This returns an object that you can use to run the task with fully inferred types!
+
+```ts
+const input = { Message: "Hello, World!" };
+// run now
+const result = await simple.run(input);
+const runReference = await simple.runNoWait(input);
+
+// or in the future
+const runAt = new Date(new Date().setHours(12, 0, 0, 0) + 24 * 60 * 60 * 1000);
+const scheduled = await simple.schedule(runAt, input);
+const cron = await simple.cron('simple-daily', '0 0 * * *', input);
+```
+
+2. DAGs got a similar and can be run the same way. DAGs are now a collection of tasks that are composed by calling `.task` on the `Workflow` object.
+
+You can declare your types for DAGs. Output types are checked if there is a corresponding task name as a key in the output type.
+
+```ts
+type DagInput = {
+  Message: string;
+};
+
+type DagOutput = {
+  reverse: {
+    Original: string;
+    Transformed: string;
+  };
+};
+
+export const dag = hatchet.workflow<DagInput, DagOutput>({
+  name: 'simple',
+});
+
+// Next, we declare the tasks bound to the workflow
+const toLower = dag.task({
+  name: 'to-lower',
+  fn: (input) => {
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+
+// Next, we declare the tasks bound to the workflow
+dag.task({
+  name: 'reverse',
+  parents: [toLower],
+  fn: async (input, ctx) => {
+    const lower = await ctx.parentOutput(toLower);
+    return {
+      Original: input.Message,
+      Transformed: lower.TransformedMessage.split('').reverse().join(''),
+    };
+  },
+});
+```
+
+3. Logical organization of SDK features to make it easier to understand and use.
+
+We've exposed feature clients on the Hatchet client to make it easier to interact with and control your environment.
+
+For example, you can write scripts to find all runs that match certain criteria, and replay or cancel them.
+
+```ts
+const hatchet = HatchetClient.init();
+const { runs } = hatchet;
+
+const allFailedRuns = await runs.list({
+statuses: [WorkflowRunStatus.FAILED],
+});
+
+// replay by ids
+await runs.replay({ ids: allFailedRuns.rows?.map((r) => r.metadata.id) });
+
+// or you can run bulk operations with filters directly
+await runs.cancel({
+filters: {
+    since: new Date('2025-03-27'),
+    additionalMetadata: { user: '123' },
+},
+});
+```
+
+The `hatchet` client also has clients for `workflows` (declarations), `schedules`, `crons`, `metrics` (i.e. queue depth), `events`, and `workers`.
+
+
   </Tabs.Tab>
   <Tabs.Tab title="Go">
 
@@ -135,6 +279,53 @@ simple.Task(
 ```
 
 3. Configuring workflows and tasks is much easier, with all configuration options flattened into a single struct.
+
+4. We've exposed feature clients on the Hatchet client to make it easier to interact with and control your environment.
+
+For example, you can write scripts to find all runs that match certain criteria, and replay or cancel them.
+
+```go
+hatchet, err := v1.NewHatchetClient()
+
+if err != nil {
+    panic(err)
+}
+
+ctx := context.Background()
+runs, err := hatchet.Runs().List(ctx, rest.V1WorkflowRunListParams{
+    Statuses: &[]rest.V1TaskStatus{rest.V1TaskStatusFAILED},
+})
+
+if err != nil {
+    panic(err)
+}
+
+replayIds := []types.UUID{}
+for _, run := range runs.JSON200.Rows {
+    replayIds = append(replayIds, uuid.MustParse(run.Metadata.Id))
+}
+
+// Replay the runs
+hatchet.Runs().Replay(ctx, rest.V1ReplayTaskRequest{
+    ExternalIds: &replayIds,
+})
+
+// Or run bulk operations with filters directly
+hatchet.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
+    Filter: &rest.V1TaskFilter{
+        Since:              time.Now().Add(-time.Hour * 24),
+        AdditionalMetadata: &[]string{"user:123"},
+    },
+})
+```
+
+The `hatchet` client also has clients for `workflows` (declarations), `schedules`, `crons`, `metrics` (i.e. queue depth), `events`, and `workers`.
+
+
+
+
+
+
 
   </Tabs.Tab>
 </UniversalTabs>
