@@ -19,7 +19,6 @@
   "your-first-task": "Tasks",
   "workers": "Workers",
   "running-your-task": "Running Tasks",
-  "orchestration": "Workflow Orchestration",
   "environments": "Environments",
   "--running-workflows": {
     "title": "Ways of Running Tasks",
@@ -44,23 +43,24 @@
     "title": "Workflows",
     "type": "separator"
   },
+  "orchestration": "Task Orchestration",
   "dags": {
     "title": "Directed Acyclic Graphs (DAGs)"
   },
+  "conditional-workflows": "Conditional Workflows",
   "child-spawning": {
     "title": "Child Spawning"
   },
   "additional-metadata": {
     "title": "Additional Metadata"
   },
-
   "--error-handling": {
     "title": "Error Handling",
     "type": "separator"
   },
   "timeouts": "Timeouts",
   "on-failure-tasks": "On Failure Tasks",
-
+  "bulk-retries-and-cancellations": "Bulk Retries and Cancellations",
   "retries": {
     "title": "Retries"
   },
@@ -85,7 +85,6 @@
   },
   "docker": "Running with Docker",
   "worker-healthchecks": "Worker Health Checks",
-
   "--flow-control": {
     "title": "Flow Control",
     "type": "separator"
@@ -110,23 +109,16 @@
     "title": "Bulk Cancellation",
     "display": "hidden"
   },
-  "--v1-new-features": {
-    "title": "V1 New Features",
-    "type": "separator"
-  },
-  "v1-new-features-overview": "Overview",
-  "v1-complex-workflows": "Complex Workflows",
   "v1-durable-execution": {
     "title": "Durable Execution",
     "display": "hidden"
   },
-  "v1-bulk-operations": "Bulk Cancel and Replay",
-  "v1-sdk-improvements": {
-    "title": "SDK Improvements"
-  },
   "--v1-migration-guides": {
     "title": "V1 Migration Guides",
     "type": "separator"
+  },
+  "v1-sdk-improvements": {
+    "title": "SDK Improvements"
   },
   "migration-guide-engine": "Engine Migration Guide",
   "migration-guide-python": "Python Migration Guide",
