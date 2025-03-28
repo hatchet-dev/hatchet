@@ -101,8 +101,7 @@
     "display": "hidden"
   },
   "v1-durable-execution": {
-    "title": "Durable Execution",
-    "display": "hidden"
+    "title": "Durable Execution"
   },
   "--v1-migration-guides": {
     "title": "V1 Migration Guides",
