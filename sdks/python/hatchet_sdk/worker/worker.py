@@ -103,7 +103,7 @@ class Worker:
         self.durable_action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
         self.durable_event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
 
-        self.loop: asyncio.AbstractEventLoop
+        self.loop: asyncio.AbstractEventLoop | None
 
         self.client = Client(config=self.config, debug=self.debug)
 
@@ -226,6 +226,9 @@ class Worker:
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
         self.owned_loop = self._setup_loop(options.loop)
 
+        if not self.loop:
+            raise RuntimeError("event loop not set, cannot start worker")
+
         asyncio.run_coroutine_threadsafe(self._aio_start(), self.loop)
 
         # start the loop and wait until its closed
@@ -265,27 +268,31 @@ class Worker:
             )
             self.durable_action_runner = self._run_action_runner(is_durable=True)
 
-        self.action_listener_health_check = self.loop.create_task(
-            self._check_listener_health()
-        )
+        if self.loop:
+            self.action_listener_health_check = self.loop.create_task(
+                self._check_listener_health()
+            )
 
-        await self.action_listener_health_check
+            await self.action_listener_health_check
 
     def _run_action_runner(self, is_durable: bool) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
-        return WorkerActionRunLoopManager(
-            self.name + ("_durable" if is_durable else ""),
-            self.durable_action_registry if is_durable else self.action_registry,
-            self.validator_registry,
-            1_000 if is_durable else self.slots,
-            self.config,
-            self.durable_action_queue if is_durable else self.action_queue,
-            self.durable_event_queue if is_durable else self.event_queue,
-            self.loop,
-            self.handle_kill,
-            self.client.debug,
-            self.labels,
-        )
+        if self.loop:
+            return WorkerActionRunLoopManager(
+                self.name + ("_durable" if is_durable else ""),
+                self.durable_action_registry if is_durable else self.action_registry,
+                self.validator_registry,
+                1_000 if is_durable else self.slots,
+                self.config,
+                self.durable_action_queue if is_durable else self.action_queue,
+                self.durable_event_queue if is_durable else self.event_queue,
+                self.loop,
+                self.handle_kill,
+                self.client.debug,
+                self.labels,
+            )
+
+        raise RuntimeError("event loop not set, cannot start action runner")
 
     def _start_action_listener(
         self, is_durable: bool
@@ -332,7 +339,7 @@ class Worker:
                 ):
                     logger.debug("child action listener process killed...")
                     self._status = WorkerStatus.UNHEALTHY
-                    if not self.killing:
+                    if self.loop:
                         self.loop.create_task(self.exit_gracefully())
                     break
                 else:
@@ -349,11 +356,13 @@ class Worker:
     def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
-        self.loop.create_task(self.exit_gracefully())
+        if self.loop:
+            self.loop.create_task(self.exit_gracefully())
 
     def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
         logger.info("received SIGQUIT...")
-        self.loop.create_task(self._exit_forcefully())
+        if self.loop:
+            self.loop.create_task(self._exit_forcefully())
 
     async def _close(self) -> None:
         logger.info(f"closing worker '{self.name}'...")

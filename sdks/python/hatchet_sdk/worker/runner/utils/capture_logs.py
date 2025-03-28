@@ -63,9 +63,6 @@ def capture_logs(
 ) -> Callable[P, Awaitable[T]]:
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-        if not logger:
-            raise Exception("No logger configured on client")
-
         log_stream = StringIO()
         custom_handler = CustomLogHandler(event_client, log_stream)
         custom_handler.setLevel(logging.INFO)

@@ -132,8 +132,8 @@ class PooledWorkflowRunListener:
                                 )
 
                                 t.cancel()
-                                if self.listener:
-                                    self.listener.cancel()
+                                self.listener.cancel()
+
                                 await asyncio.sleep(
                                     DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL
                                 )
@@ -203,6 +203,8 @@ class PooledWorkflowRunListener:
         del self.events[subscription_id]
 
     async def subscribe(self, workflow_run_id: str) -> WorkflowRunEvent:
+        subscription_id: int | None = None
+
         try:
             # create a new subscription id, place a mutex on the counter
             await self.subscription_counter_lock.acquire()
@@ -234,7 +236,8 @@ class PooledWorkflowRunListener:
         except asyncio.CancelledError:
             raise
         finally:
-            self.cleanup_subscription(subscription_id)
+            if subscription_id:
+                self.cleanup_subscription(subscription_id)
 
     async def result(self, workflow_run_id: str) -> dict[str, Any]:
         from hatchet_sdk.clients.admin import DedupeViolationErr
