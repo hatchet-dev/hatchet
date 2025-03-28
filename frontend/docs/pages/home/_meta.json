@@ -60,10 +60,9 @@
   },
   "timeouts": "Timeouts",
   "on-failure-tasks": "On Failure Tasks",
-
-  "retries": {
-    "title": "Retries"
-  },
+  "retry-policies": "Retry Policies",
+  "manual-replays": "Manual Replays",
+  
   "--assignment": {
     "title": "Advanced Assignment",
     "type": "separator"

@@ -6,27 +6,29 @@ simple_workflow = hatchet.workflow(name="SimpleRetryWorkflow")
 backoff_workflow = hatchet.workflow(name="BackoffWorkflow")
 
 
-# ❓ Simple
-# 👀 Simple retry configuration
+# ❓ Simple Step Retries
 @simple_workflow.task(retries=3)
-def simple_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    if ctx.retry_count < 3:
+def always_fail(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    raise Exception("simple task failed")
+# ‼️
+
+# ❓ Retries with Count
+@simple_workflow.task(retries=3)
+def fail_twice(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    if ctx.retry_count < 2:
         raise Exception("simple task failed")
 
     return {"status": "success"}
-
-
 # ‼️
 
 
-# ❓ Backoff
-# 👀 Backoff configuration
+# ❓ Retries with Backoff
 @backoff_workflow.task(
     retries=10,
     # 👀 Maximum number of seconds to wait between retries
-    backoff_max_seconds=60,
+    backoff_max_seconds=10,
     # 👀 Factor to increase the wait time between retries.
-    # This sequence will be 2s, 4s, 8s, 16s, 32s, 60s... due to the maxSeconds limit
+    # This sequence will be 2s, 4s, 8s, 10s, 10s, 10s... due to the maxSeconds limit
     backoff_factor=2.0,
 )
 def backoff_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
@@ -34,8 +36,6 @@ def backoff_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
         raise Exception("backoff task failed")
 
     return {"status": "success"}
-
-
 # ‼️
 
 

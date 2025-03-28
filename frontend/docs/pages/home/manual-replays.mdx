@@ -14,3 +14,11 @@ As of [Hatchet V1](../announcement.mdx), you can also retry tasks in bulk from t
 
 1. Select any number of rows in the table of task and workflow runs in the dashboard to replay, and then hit the `Replay` button to replay them. You'll be asked for confirmation.
 2. If you hit replay _without_ selecting rows, you'll see a modal showing you filters you can apply to decide which runs to replay. This allows you to replay tasks based on status, workflow name, additional metadata, and so on.
+
+## A Note on Dead Letter Queues
+
+A dead letter queue (DLQ) is a messaging concept used to handle messages that cannot be processed successfully. In the context of workflow management, a DLQ can be used to store failed workflow instances that require manual intervention or further analysis.
+
+While Hatchet does not have a built-in dead letter queue feature, the persistence of failed workflow instances in the dashboard serves a similar purpose. By keeping a record of failed instances, Hatchet allows you to track and manage failures, perform root cause analysis, and take appropriate actions, such as modifying input data or updating your workflow code before manually retrying the failed instances.
+
+It's important to note that the term "dead letter queue" is more commonly associated with messaging systems like Apache Kafka or Amazon SQS, where unprocessed messages are automatically moved to a separate queue for manual handling. In Hatchet, the failed instances are not automatically moved to a separate queue but are instead persisted in the dashboard for manual management.
