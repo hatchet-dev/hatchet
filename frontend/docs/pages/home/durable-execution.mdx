@@ -11,16 +11,29 @@ export const getStaticProps = ({}) => getSnippets([DurablePy]);
 
 Hatchet V1 supports a new set of durable execution features that build off of [conditional workflows](./conditional-workflows.mdx). In the V1 SDKs, you can now call `context.wait_for` to durably wait for either an event or a sleep condition to complete before continuing your task.
 
-<Callout type="info" emoji="🪓">
-  If you register any durable tasks, the Hatchet SDK will run a second "durable" worker when starting your main worker for running the durable tasks. This durable worker will show up as a second worker in the Hatchet Dashboard.
+## Use Cases
 
-**If you register _any_ durable tasks on a workflow, _all_ of the tasks in that workflow will be run by the durable worker.**
+Hatchet's durable execution toolkit is useful if you want to pause a task mid-way through and durably wait for something to happen before continuing. This is especially useful in cases such as:
 
+1. Situations where we want to wait for an undetermined (possibly long) amount of time for something to complete before continuing. Running a durable task will not take up a slot on the main worker, so is a strong candidate for e.g. fanout workflows that spawn a large number of children and then wait for their results.
+2. Situations where we're waiting a potentially long time for an event, such as human-in-the-loop workflows where we might not get human feedback for hours or days.
+
+## How Hatchet Runs Durable Workflows
+
+When you register a durable task, Hatchet marks the entire workflow as durable. Then, when you start your worker, Hatchet will start a second worker in the background for running durable tasks.
+
+If you don't register any durable workflows, the durable worker will not be started. Similarly, if you start a worker with _only_ durable workflows, the "main" worker will not start, and _only_ the durable worker will run. The durable worker will show up as a second worker in the Hatchet Dashboard.
+
+<Callout type="warning" emoji="🚨">
+  **If you register _any_ durable tasks on a workflow, _all_ of the tasks in
+  that workflow will be run by the durable worker.**
 </Callout>
+
+Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context,` which extends the `Context` by providing some additional tools for working with durable execution features.
 
 ## Example Workflow
 
-Let's start by declaring a workflow that will run durably, on the "durable worker".
+Now that we know a bit about how Hatchet handles durable execution, let's build a workflow. We'll start by declaring a workflow that will run durably, on the "durable worker".
 
 <GithubSnippet src={DurablePy} target="Create a durable workflow" />
 
@@ -33,7 +46,10 @@ We've added two tasks to our workflow. The first is a normal, "ephemeral" task, 
 Second, we've added a durable task, which we've created by using the `durable_task` method of the `Workflow`, as opposed to the `task` method.
 
 <Callout type="info" emoji="💡">
-Note that the `durable_task` we've defined takes a `DurableContext`, as opposed to a regular `Context`, as its second argument. The `DurableContext` is a subclass of the regular `Context` that adds some additional methods for working with durable tasks.
+  Note that the `durable_task` we've defined takes a `DurableContext`, as
+  opposed to a regular `Context`, as its second argument. The `DurableContext`
+  is a subclass of the regular `Context` that adds some additional methods for
+  working with durable tasks.
 </Callout>
 
 The durable task first waits for a sleep condition. Once the sleep has completed, it continues processing until it hits the second `wait_for`. At this point, it needs to wait for an event condition. Once it receives the event, the task prints `Event received` and completes.
