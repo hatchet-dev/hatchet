@@ -7,7 +7,6 @@ import (
 	"time"
 
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
-	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
@@ -63,10 +62,10 @@ func main() {
 	}
 
 	worker, err := hatchet.Worker(
-		create.WorkerOpts{
-			Name: fmt.Sprintf("%s-worker", workflowName),
+		worker.WorkerOpts{
+			Name:      fmt.Sprintf("%s-worker", workflowName),
+			Workflows: workflow,
 		},
-		worker.WithWorkflows(workflow...),
 	)
 
 	if err != nil {

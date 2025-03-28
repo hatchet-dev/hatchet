@@ -25,7 +25,7 @@ type HatchetClient interface {
 	//   v1.WithWorkflows(simple)
 	// )
 	// ```
-	Worker(opts create.WorkerOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error)
+	Worker(opts worker.WorkerOpts) (worker.Worker, error)
 
 	// Feature clients
 
@@ -99,8 +99,8 @@ func (c *v1HatchetClientImpl) Events() client.EventClient {
 }
 
 // Worker creates and configures a new worker with the provided options and optional configuration functions.
-func (c *v1HatchetClientImpl) Worker(opts create.WorkerOpts, optFns ...func(*worker.WorkerImpl)) (worker.Worker, error) {
-	return worker.NewWorker(c.workers, c.v0, opts, optFns...)
+func (c *v1HatchetClientImpl) Worker(opts worker.WorkerOpts) (worker.Worker, error) {
+	return worker.NewWorker(c.workers, c.v0, opts)
 }
 
 func (c *v1HatchetClientImpl) RateLimits() features.RateLimitsClient {
