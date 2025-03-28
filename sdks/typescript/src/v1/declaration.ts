@@ -80,8 +80,8 @@ export type CreateBaseWorkflowOpts = {
 };
 
 export type CreateTaskWorkflowOpts<
-  T extends JsonObject = any,
-  K extends JsonObject = any,
+  T extends JsonObject | unknown = unknown,
+  K extends JsonObject | unknown = unknown,
 > = CreateBaseWorkflowOpts & CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
 
 /**
@@ -184,7 +184,10 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
  * @template T The input type for the workflow.
  * @template K The return type of the workflow.
  */
-export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject> {
+export class BaseWorkflowDeclaration<
+  T extends JsonObject | unknown,
+  K extends JsonObject | unknown,
+> {
   /**
    * The Hatchet client instance used to execute the workflow.
    */
@@ -285,7 +288,7 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
 
     const scheduled = this.client._v0.schedule.create(this.definition.name, {
       triggerAt: enqueueAt,
-      input,
+      input: input as JsonObject,
       additionalMetadata: options?.additionalMetadata,
     });
 
@@ -327,7 +330,7 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
 
     const cronDef = this.client._v0.cron.create(this.definition.name, {
       expression,
-      input,
+      input: input as JsonObject,
       additionalMetadata: options?.additionalMetadata,
       name,
     });
@@ -421,8 +424,8 @@ export class BaseWorkflowDeclaration<T extends JsonObject, K extends JsonObject>
 }
 
 export class WorkflowDeclaration<
-  T extends JsonObject,
-  K extends JsonObject,
+  T extends JsonObject | unknown = unknown,
+  K extends JsonObject | unknown = unknown,
 > extends BaseWorkflowDeclaration<T, K> {
   /**
    * Adds a task to the workflow.
@@ -552,8 +555,8 @@ export class WorkflowDeclaration<
 }
 
 export class TaskWorkflowDeclaration<
-  T extends JsonObject,
-  K extends JsonObject,
+  T extends JsonObject | unknown = unknown,
+  K extends JsonObject | unknown = unknown,
 > extends BaseWorkflowDeclaration<T, K> {
   private _standalone_task_name: string;
 
@@ -570,7 +573,7 @@ export class TaskWorkflowDeclaration<
   async run(input: T, options?: RunOpts): Promise<K>;
   async run(input: T[], options?: RunOpts): Promise<K[]>;
   async run(input: T | T[], options?: RunOpts): Promise<K | K[]> {
-    const res = await super.run(input as T, options);
+    const res = (await super.run(input as T, options)) as JsonObject;
 
     if (Array.isArray(res)) {
       return res.map((r) => r[this._standalone_task_name]);
@@ -594,8 +597,8 @@ export class TaskWorkflowDeclaration<
 export function CreateTaskWorkflow<
   // Extract input and return types from the function, but ensure they extend JsonObject
   Fn extends (input: I, ctx?: any) => O | Promise<O>,
-  I extends JsonObject = Parameters<Fn>[0],
-  O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
+  I extends JsonObject | unknown = Parameters<Fn>[0],
+  O extends JsonObject | unknown = ReturnType<Fn> extends Promise<infer P>
     ? P extends JsonObject
       ? P
       : never
@@ -619,10 +622,10 @@ export function CreateTaskWorkflow<
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */
-export function CreateWorkflow<T extends JsonObject = any, K extends JsonObject = any>(
-  options: CreateWorkflowOpts,
-  client?: IHatchetClient
-): WorkflowDeclaration<T, K> {
+export function CreateWorkflow<
+  T extends JsonObject | unknown = unknown,
+  K extends JsonObject | unknown = unknown,
+>(options: CreateWorkflowOpts, client?: IHatchetClient): WorkflowDeclaration<T, K> {
   return new WorkflowDeclaration<T, K>(options, client);
 }
 
