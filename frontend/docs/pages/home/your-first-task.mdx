@@ -45,7 +45,7 @@ hatchet = Hatchet(debug=True)
 class SimpleInput(BaseModel):
     message: str
 
-hatchet.task(name="SimpleWorkflow")
+@hatchet.task(name="SimpleWorkflow")
 def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
     return {
       "transformed_message": input.message.lower(),
