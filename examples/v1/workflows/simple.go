@@ -53,11 +53,11 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 	// Example of registering a task on a worker
 	_ = func() error {
 		// ❓ Declaring a Worker
-		w, err := hatchet.Worker(create.WorkerOpts{
+		w, err := hatchet.Worker(worker.WorkerOpts{
 			Name: "simple-worker",
-			// Workflows: []workflow.WorkflowBase{
-			// 	simple,
-			// },
+			Workflows: []workflow.WorkflowBase{
+				simple,
+			},
 		})
 		if err != nil {
 			return err
