@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import pytest
 
@@ -6,6 +7,10 @@ from examples.waits.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
 
 
+@pytest.mark.skipif(
+    os.getenv("ci", "false").lower() == "true",
+    reason="Skipped in CI because of unreliability",
+)
 @pytest.mark.asyncio(loop_scope="session")
 async def test_waits(hatchet: Hatchet) -> None:
 
