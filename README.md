@@ -68,19 +68,11 @@ Hatchet is available as a cloud version or self-hosted. See the following docs t
 - [Hatchet Cloud Quickstart](https://docs.hatchet.run/home/hatchet-cloud-quickstart)
 - [Hatchet Self-Hosted](https://docs.hatchet.run/self-hosting)
 
-Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the language-specific guides here:
+Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the [quickstart guide](https://docs.hatchet.run/home/setup).
 
-- [Python SDK Docs](https://docs.hatchet.run/sdks/python-sdk) | [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
-- [Typescript SDK Docs](https://docs.hatchet.run/sdks/typescript-sdk) | [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
-- [Go SDK Docs](https://docs.hatchet.run/sdks/go-sdk) | [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
+### SDKs
 
-### SDK repositories
-
-If you encounter any issues while using the SDKs, please submit an issue in the respective repository:
-
-- [Python SDK](https://github.com/hatchet-dev/hatchet-python)
-- [Typescript SDK](https://github.com/hatchet-dev/hatchet-typescript)
-- [Go SDK](https://github.com/hatchet-dev/hatchet)
+If you encounter any issues while using the SDKs, please [submit an issue](https://github.com/hatchet-dev/hatchet/issues):
 
 ## How does this compare to alternatives (Celery, BullMQ)?
 
