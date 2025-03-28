@@ -12,10 +12,9 @@ from hatchet_sdk import (
 hatchet = Hatchet(debug=True)
 
 
-# ❓ Workflow
+# ❓ Concurrency Strategy With Key
 class WorkflowInput(BaseModel):
     group: str
-
 
 concurrency_limit_rr_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflowRR",

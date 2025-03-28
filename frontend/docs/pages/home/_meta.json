@@ -90,12 +90,8 @@
     "title": "Flow Control",
     "type": "separator"
   },
-  "concurrency": {
-    "title": "Concurrency"
-  },
-  "rate-limits": {
-    "title": "Rate Limits"
-  },
+  "concurrency": "Concurrency",
+  "rate-limits": "Rate Limits",
 
   "--cancellation": {
     "title": "Cancellation",

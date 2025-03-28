@@ -23,13 +23,15 @@ type TransformedOutput struct {
 
 func ConcurrencyRoundRobin(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ConcurrencyInput, TransformedOutput] {
 	strategy := types.GroupRoundRobin
+
+	// ❓ Concurrency Strategy With Key
 	concurrency := factory.NewTask(
 		create.StandaloneTask{
 			Name: "simple-concurrency",
 			Concurrency: []*types.Concurrency{
 				{
 					Expression:    "input.GroupKey",
-					MaxRuns:       &[]int32{100}[0],
+					MaxRuns:       &[]int32{1}[0],
 					LimitStrategy: &strategy,
 				},
 			},
@@ -43,6 +45,7 @@ func ConcurrencyRoundRobin(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 		},
 		hatchet,
 	)
+	// !!
 
 	return concurrency
 }
