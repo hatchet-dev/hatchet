@@ -10,7 +10,7 @@ from hatchet_sdk import Hatchet
 async def test_durable(hatchet: Hatchet) -> None:
     ref = durable_workflow.run_no_wait()
 
-    await asyncio.sleep(SLEEP_TIME + 4)
+    await asyncio.sleep(SLEEP_TIME + 10)
 
     hatchet.event.push(EVENT_KEY, {})
 

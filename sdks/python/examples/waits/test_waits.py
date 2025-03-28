@@ -11,7 +11,7 @@ async def test_waits(hatchet: Hatchet) -> None:
 
     ref = task_condition_workflow.run_no_wait()
 
-    await asyncio.sleep(5)
+    await asyncio.sleep(15)
 
     hatchet.event.push("skip_on_event:skip", {})
     hatchet.event.push("wait_for_event:start", {})
