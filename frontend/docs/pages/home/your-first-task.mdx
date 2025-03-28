@@ -38,10 +38,18 @@ The returned object is an instance of the `StandaloneTaskWorkflow` class, which 
 
 ```python
 from hatchet_sdk import Context, EmptyModel, Hatchet
+from pydantic import BaseModel
 
 hatchet = Hatchet(debug=True)
 
-simple = hatchet.workflow(name="SimpleWorkflow")
+class SimpleInput(BaseModel):
+    message: str
+
+hatchet.task(name="SimpleWorkflow")
+def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
+    return {
+      "transformed_message": input.message.lower(),
+    }
 ```
 
 </Tabs.Tab>
@@ -66,13 +74,7 @@ With your task defined, you can import it wherever you need to use it and invoke
   <Tabs.Tab title="Python">
 
 ```python
-from hatchet_sdk import Context, EmptyModel, Hatchet
-
-hatchet = Hatchet(debug=True)
-
-@hatchet.task(name="SimpleWorkflow")
-def step1(input: EmptyModel, ctx: Context) -> None:
-    print("executed step1")
+simple.run(SimpleInput(message="HeLlO WoRlD"))
 ```
 
 </Tabs.Tab>
