@@ -14,9 +14,7 @@ export const GO = {
   path: "examples/v1/workflows/concurrency-rr.go",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([TS, PY, GO]);
-
+export const getStaticProps = ({}) => getSnippets([TS, PY, GO]);
 
 ## Concurrency Control in Hatchet Workflows
 
@@ -42,9 +40,9 @@ There are several reasons why you might want to use concurrency control in your 
 
 ### Available Strategies:
 
--   [`GROUP_ROUND_ROBIN`](./overview.mdx#group-round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
--  [`CANCEL_IN_PROGRESS`](./overview.mdx#cancel-in-progress): Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
--   [`CANCEL_NEWEST`](./overview.mdx#cancel-newest): Cancel the newest workflow instance for the same concurrency key to free up slots for the new instance.
+- [`GROUP_ROUND_ROBIN`](./overview.mdx#group-round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
+- [`CANCEL_IN_PROGRESS`](./overview.mdx#cancel-in-progress): Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
+- [`CANCEL_NEWEST`](./overview.mdx#cancel-newest): Cancel the newest workflow instance for the same concurrency key to free up slots for the new instance.
 
 > We're always open to adding more strategies to fit your needs. Join our [discord](https://discord.gg/ZMeUafwH89) to let us know.
 
@@ -52,15 +50,15 @@ There are several reasons why you might want to use concurrency control in your 
 
 In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-<GithubSnippet src={PY} target="Concurrency Strategy With Key" />
+    <GithubSnippet src={PY} target="Concurrency Strategy With Key" />
   </Tabs.Tab>
   <Tabs.Tab>
-<GithubSnippet src={TS} target="Concurrency Strategy With Key" />
+    <GithubSnippet src={TS} target="Concurrency Strategy With Key" />
   </Tabs.Tab>
   <Tabs.Tab>
-<GithubSnippet src={GO} target="Concurrency Strategy With Key" />
+    <GithubSnippet src={GO} target="Concurrency Strategy With Key" />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -90,7 +88,6 @@ The `GROUP_ROUND_ROBIN` strategy is particularly useful in scenarios where:
 
 Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all use cases, especially those that require strict ordering or prioritization of the most recent events.
 
-
 ## CANCEL_IN_PROGRESS
 
 ### How it works
@@ -112,7 +109,6 @@ The `CANCEL_IN_PROGRESS` strategy is particularly useful in scenarios where:
 - You have resource-intensive workflows where it's more efficient to cancel an in-progress instance and start a new one than to wait for the old instance to complete.
 - Your user UI allows for multiple inputs, but only the most recent is relevant (i.e. chat messages, form submissions, etc.).
 
-
 ## CANCEL_NEWEST
 
 ### How it works
@@ -125,4 +121,3 @@ The `CANCEL_NEWEST` strategy is particularly useful in scenarios where:
 
 - You want to allow in progress runs to complete before starting new work.
 - You have long-running workflow instances and want to avoid one group's instances monopolizing the available slots.
-

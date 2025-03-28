@@ -13,17 +13,16 @@ export const GO = {
   path: "examples/v1/workflows/retries.go",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([TS, Py, GO]);
-
+export const getStaticProps = ({}) => getSnippets([TS, Py, GO]);
 
 # Additional Metadata
 
 Hatchet allows you to attach arbitrary key-value string pairs to events and workflow runs, which can be used for filtering, searching, or any other lookup purposes. This additional metadata is not part of the event payload or workflow input data but provides supplementary information for better organization and discoverability.
 
 <Callout type="info">
-  Additional metadata can be added to `Runs`, `Scheduled Runs`, `Cron Runs`, and `Events`.
-  The data is propagated from parents to children or from events to runs.
+  Additional metadata can be added to `Runs`, `Scheduled Runs`, `Cron Runs`, and
+  `Events`. The data is propagated from parents to children or from events to
+  runs.
 </Callout>
 
 You can attach additional metadata when pushing events or triggering workflow runs using the Hatchet client libraries:

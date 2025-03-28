@@ -13,15 +13,15 @@ export const GO = {
   path: "examples/v1/workflows/retries.go",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([TS, Py, GO]);
+export const getStaticProps = ({}) => getSnippets([TS, Py, GO]);
 
 # Simple Task Retries
 
 Hatchet provides a simple and effective way to handle failures in your workflow tasks using the task-level retry configuration. This feature allows you to specify the number of times a task should be retried if it fails, helping to improve the reliability and resilience of your workflows.
 
 <Callout type="info">
-  Task-level retries can be added to both `Standalone Tasks` and `Workflow Tasks`.
+  Task-level retries can be added to both `Standalone Tasks` and `Workflow
+  Tasks`.
 </Callout>
 
 ## How it works
@@ -39,15 +39,15 @@ This simple retry mechanism can help to mitigate transient failures, such as net
 
 To enable retries for a task in your workflow, simply add the `retries` property to the task object in your workflow definition:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-  <GithubSnippet src={Py} target="Simple Step Retries" />
+    <GithubSnippet src={Py} target="Simple Step Retries" />
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={TS} target="Simple Step Retries" />
+    <GithubSnippet src={TS} target="Simple Step Retries" />
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={GO} target="Simple Step Retries" />
+    <GithubSnippet src={GO} target="Simple Step Retries" />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -61,15 +61,15 @@ Additionally, if a task interacts with external services or databases, you shoul
 
 If you need to access the current retry count within a task, you can use the `retryCount` method available in the task context:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-  <GithubSnippet src={Py} target="Retries with Count" />
+    <GithubSnippet src={Py} target="Retries with Count" />
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={TS} target="Retries with Count" />
+    <GithubSnippet src={TS} target="Retries with Count" />
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={GO} target="Retries with Count" />
+    <GithubSnippet src={GO} target="Retries with Count" />
   </Tabs.Tab>
 </UniversalTabs>
 

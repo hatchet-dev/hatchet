@@ -66,8 +66,9 @@ def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
 With your task defined, you can import it wherever you need to use it and invoke it with the `run` method.
 
 <Callout type="warning">
-  NOTE: You must first [register the task on a worker](./workers.mdx) before you can run it.
-  Calling `your_task.run` will enqueue a task to be executed by a worker but it will wait indefinitely for the task to be executed.
+  NOTE: You must first [register the task on a worker](./workers.mdx) before you
+  can run it. Calling `your_task.run` will enqueue a task to be executed by a
+  worker but it will wait indefinitely for the task to be executed.
 </Callout>
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
