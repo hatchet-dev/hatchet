@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/joho/godotenv"
-	"golang.org/x/exp/rand"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
@@ -85,7 +85,7 @@ func main() {
 
 	// Generate a random number between 1 and 100
 	streamKey := "streamKey"
-	streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
+	streamValue := fmt.Sprintf("stream-event-%d", rand.IntN(100)+1)
 
 	_, err = c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
 		Index: 0,
