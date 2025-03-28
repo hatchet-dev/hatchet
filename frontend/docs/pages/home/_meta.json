@@ -62,7 +62,6 @@
   "on-failure-tasks": "On Failure Tasks",
   "retry-policies": "Retry Policies",
   "manual-replays": "Manual Replays",
-  
   "--assignment": {
     "title": "Advanced Assignment",
     "type": "separator"
