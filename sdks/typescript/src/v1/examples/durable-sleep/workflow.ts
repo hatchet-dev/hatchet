@@ -14,7 +14,7 @@ durableSleep.durableTask({
     const sleepRes = await ctx.sleepFor('5s');
     console.log('done sleeping for 5s', sleepRes);
 
-    // wait for an event or a sleep
+    // wait for either an event or a sleep
     const res = await ctx.waitFor(
       Or(
         {
