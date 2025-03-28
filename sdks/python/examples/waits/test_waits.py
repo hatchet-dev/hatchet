@@ -8,7 +8,7 @@ from hatchet_sdk import Hatchet
 
 
 @pytest.mark.skipif(
-    os.getenv("ci", "false").lower() == "true",
+    os.getenv("CI", "false").lower() == "true",
     reason="Skipped in CI because of unreliability",
 )
 @pytest.mark.asyncio(loop_scope="session")
