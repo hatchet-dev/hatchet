@@ -121,7 +121,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A new Workflow instance
    * @note It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
    */
-  workflow<T extends JsonObject = any, K extends JsonObject = any>(
+  workflow<T extends JsonObject | unknown, K extends JsonObject | unknown>(
     options: CreateWorkflowOpts
   ): WorkflowDeclaration<T, K> {
     return CreateWorkflow<T, K>(options, this);
@@ -135,7 +135,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options Task configuration options
    * @returns A TaskWorkflowDeclaration instance
    */
-  task<T extends JsonObject, K extends JsonObject>(
+  task<T extends JsonObject | unknown, K extends JsonObject | unknown>(
     options: CreateTaskWorkflowOpts<T, K>
   ): TaskWorkflowDeclaration<T, K>;
 
@@ -147,8 +147,8 @@ export class HatchetClient implements IHatchetClient {
    */
   task<
     Fn extends (input: I, ctx?: any) => O | Promise<O>,
-    I extends JsonObject = Parameters<Fn>[0],
-    O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
+    I extends JsonObject | unknown = Parameters<Fn>[0],
+    O extends JsonObject | unknown = ReturnType<Fn> extends Promise<infer P>
       ? P extends JsonObject
         ? P
         : never
