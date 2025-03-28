@@ -65,6 +65,76 @@ There are a handful of other new features that will make interfacing with the SD
 {/* TODO V1 Docs */}
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-{/* TODO V1 Docs */}
+
+### Highlights
+
+The Go SDK has a number of notable highlights to showcase for V1. Many of them have been highlighted elsewhere, such as [in the migration guide](./migration-guide-go.mdx), an in various examples. Here, we'll list out each of them, along with their motivations and benefits.
+
+1. Workflows and tasks are now instantiated via a factory pattern which makes it easier to define and run workflows. For example:
+
+```go
+type SimpleInput struct {
+    Message string
+}
+
+type SimpleResult struct {
+    TransformedMessage string
+}
+
+simple := factory.NewTask(
+    create.StandaloneTask{
+        Name: "simple-task",
+    }, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
+        return &SimpleResult{
+            TransformedMessage: strings.ToLower(input.Message),
+        }, nil
+    },
+    hatchet, // a Hatchet client instance
+)
+
+// somewhere else in your code
+result, err := simple.Run(ctx, SimpleInput{
+    Message: "Hello, World!",
+})
+
+// result is fully typed!
+```
+
+2. Instead of passing parent references via `[]string`, you can simply pass task references directly to other tasks in a workflow, reducing the fragility of your code. For example:
+
+```go
+simple := factory.NewWorkflow[DagInput, DagResult](
+    create.WorkflowCreateOpts[DagInput]{
+        Name: "simple-dag",
+    },
+    hatchet,
+)
+
+step1 := simple.Task(
+    create.WorkflowTask[DagInput, DagResult]{
+        Name: "Step1",
+    }, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
+        // ...
+    },
+)
+
+simple.Task(
+    create.WorkflowTask[DagInput, DagResult]{
+        Name: "Step2",
+        Parents: []create.NamedTask{
+            step1,
+        },
+    }, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
+        // getting parent input also uses the task reference, for example:
+        var step1Output SimpleOutput
+        ctx.ParentOutput(step1, &step1Output)
+
+        // ...
+    },
+)
+```
+
+3. Configuring workflows and tasks is much easier, with all configuration options flattened into a single struct.
+
   </Tabs.Tab>
 </UniversalTabs>
