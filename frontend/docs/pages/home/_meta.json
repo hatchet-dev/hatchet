@@ -38,7 +38,6 @@
     "title": "Running from External Services",
     "display": "hidden"
   },
-
   "--advanced-workflows": {
     "title": "Workflows",
     "type": "separator"
@@ -75,7 +74,6 @@
   },
   "logging": "Logging",
   "opentelemetry": "OpenTelemetry",
-
   "--deploying-workers": {
     "title": "Deploying Workers",
     "type": "separator"
@@ -88,7 +86,6 @@
   },
   "concurrency": "Concurrency",
   "rate-limits": "Rate Limits",
-
   "--cancellation": {
     "title": "Cancellation",
     "type": "separator",
