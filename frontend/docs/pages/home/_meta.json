@@ -47,6 +47,9 @@
     "title": "Directed Acyclic Graphs (DAGs)"
   },
   "conditional-workflows": "Conditional Workflows",
+  "durable-execution": {
+    "title": "Durable Execution"
+  },
   "child-spawning": {
     "title": "Child Spawning"
   },
@@ -99,9 +102,6 @@
   "bulk-cancellation": {
     "title": "Bulk Cancellation",
     "display": "hidden"
-  },
-  "v1-durable-execution": {
-    "title": "Durable Execution"
   },
   "--v1-migration-guides": {
     "title": "V1 Migration Guides",
