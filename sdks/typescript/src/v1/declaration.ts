@@ -601,10 +601,10 @@ export function CreateTaskWorkflow<
   O extends JsonObject | unknown = ReturnType<Fn> extends Promise<infer P>
     ? P extends JsonObject
       ? P
-      : never
+      : unknown
     : ReturnType<Fn> extends JsonObject
       ? ReturnType<Fn>
-      : never,
+      : void,
 >(
   options: {
     fn: Fn;

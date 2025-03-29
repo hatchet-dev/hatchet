@@ -1,6 +1,8 @@
 {
   "include": ["src/**/*.ts"],
   "exclude": ["./dist"],
+  // "**/*.test-d.ts"
+
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig to read more about this file */
 

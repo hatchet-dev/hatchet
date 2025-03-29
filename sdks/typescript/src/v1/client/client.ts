@@ -33,6 +33,10 @@ import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
 import { CreateStandaloneDurableTaskOpts } from '../task';
 
+export type InputType = JsonObject
+export type UnknownInputType = {}
+export type OutputType = JsonObject | void
+
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
  * It provides methods for creating and executing workflows, as well as managing workers.
@@ -135,7 +139,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options Task configuration options
    * @returns A TaskWorkflowDeclaration instance
    */
-  task<T extends JsonObject | unknown, K extends JsonObject | unknown>(
+  task<T extends JsonObject = UnknownInputType, K extends JsonObject | void = void>(
     options: CreateTaskWorkflowOpts<T, K>
   ): TaskWorkflowDeclaration<T, K>;
 
@@ -147,9 +151,9 @@ export class HatchetClient implements IHatchetClient {
    */
   task<
     Fn extends (input: I, ctx?: any) => O | Promise<O>,
-    I extends JsonObject | unknown = Parameters<Fn>[0],
-    O extends JsonObject | unknown = ReturnType<Fn> extends Promise<infer P>
-      ? P extends JsonObject
+    I extends InputType = Parameters<Fn>[0] | UnknownInputType,
+    O extends OutputType = ReturnType<Fn> extends Promise<infer P>
+      ? P extends OutputType
         ? P
         : never
       : ReturnType<Fn> extends JsonObject
