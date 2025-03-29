@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.0.1"
+version = "1.0.2"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -107,6 +107,12 @@ exclude = [
     "hatchet_sdk/v0/*",
 ]
 strict = true
+enable_error_code = [
+    "possibly-undefined",
+    "truthy-bool",
+    "redundant-expr",
+    "truthy-iterable",
+]
 
 [tool.ruff]
 exclude = [

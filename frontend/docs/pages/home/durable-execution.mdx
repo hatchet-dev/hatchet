@@ -1,0 +1,51 @@
+import { GithubSnippet, getSnippets } from "@/components/code";
+import { Callout } from "nextra/components";
+
+export const DurablePy = {
+  path: "examples/durable/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([DurablePy]);
+
+## Introduction
+
+**Durable execution** refers to the ability of a function to easily recover from failures or interruptions. In Hatchet, we refer to a function with this ability as a **durable task**. Durable tasks are essentially tasks that store intermediate results in a durable event log - in other words, they're a fancy cache.
+
+This is especially useful in cases such as:
+
+1. Tasks which need to always run to completion, even if the underlying machine crashes or the task is interrupted.
+2. Situations where a task needs to wait for an very long amount of time for something to complete before continuing. Running a durable task will not take up a slot on the main worker, so is a strong candidate for e.g. fanout workflows that spawn a large number of children and then wait for their results.
+3. Waiting for a potentially long time for an event, such as human-in-the-loop workflows where we might not get human feedback for hours or days.
+
+## How Hatchet Runs Durable Workflows
+
+When you register a durable task, Hatchet marks the entire workflow as durable. Then, when you start your worker, Hatchet will start a second worker in the background for running durable tasks.
+
+If you don't register any durable workflows, the durable worker will not be started. Similarly, if you start a worker with _only_ durable workflows, the "main" worker will not start, and _only_ the durable worker will run. The durable worker will show up as a second worker in the Hatchet Dashboard.
+
+Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context,` which extends the `Context` by providing some additional tools for working with durable execution features.
+
+## Example Workflow
+
+Now that we know a bit about how Hatchet handles durable execution, let's build a workflow. We'll start by declaring a workflow that will run durably, on the "durable worker".
+
+<GithubSnippet src={DurablePy} target="Create a durable workflow" />
+
+Here, we've declared a Hatchet workflow just like any other. Now, we can add some tasks to it:
+
+<GithubSnippet src={DurablePy} target="Add durable task" />
+
+We've added two tasks to our workflow. The first is a normal, "ephemeral" task, which does not leverage any of Hatchet's durable features.
+
+Second, we've added a durable task, which we've created by using the `durable_task` method of the `Workflow`, as opposed to the `task` method.
+
+<Callout type="info" emoji="💡">
+  Note that the `durable_task` we've defined takes a `DurableContext`, as
+  opposed to a regular `Context`, as its second argument. The `DurableContext`
+  is a subclass of the regular `Context` that adds some additional methods for
+  working with durable tasks.
+</Callout>
+
+The durable task first waits for a sleep condition. Once the sleep has completed, it continues processing until it hits the second `wait_for`. At this point, it needs to wait for an event condition. Once it receives the event, the task prints `Event received` and completes.
+
+If this task is interrupted at any time, it will continue from where it left off. But more importantly, if an event comes into the system while the task is waiting, the task will immediately process the event. And if the task is interrupted while in a sleeping state, it will respect the original sleep duration on restart -- that is, if the task calls `ctx.aio_sleep_for` for 24 hours and is interrupted after 23 hours, it will only sleep for 1 more hour on restart.

@@ -277,9 +277,7 @@ class ActionListener:
                         )
 
                         t.cancel()
-
-                        if listener:
-                            listener.cancel()
+                        listener.cancel()
 
                         break
 
@@ -421,7 +419,7 @@ class ActionListener:
         except Exception as e:
             logger.error(f"failed to unregister: {e}")
 
-        if self.interrupt:
+        if self.interrupt:  # type: ignore[truthy-bool]
             self.interrupt.set()
 
     def unregister(self) -> WorkerUnsubscribeRequest:

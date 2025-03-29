@@ -159,8 +159,8 @@ class DurableEventListener:
                                 )
 
                                 t.cancel()
-                                if self.listener:
-                                    self.listener.cancel()
+                                self.listener.cancel()
+
                                 await asyncio.sleep(
                                     DEFAULT_DURABLE_EVENT_LISTENER_RETRY_INTERVAL
                                 )
@@ -237,6 +237,8 @@ class DurableEventListener:
         del self.events[subscription_id]
 
     async def subscribe(self, task_id: str, signal_key: str) -> DurableEvent:
+        subscription_id: int | None = None
+
         try:
             # create a new subscription id, place a mutex on the counter
             async with self.subscription_counter_lock:
@@ -275,7 +277,8 @@ class DurableEventListener:
         except asyncio.CancelledError:
             raise
         finally:
-            self.cleanup_subscription(subscription_id)
+            if subscription_id:
+                self.cleanup_subscription(subscription_id)
 
     async def _retry_subscribe(
         self,

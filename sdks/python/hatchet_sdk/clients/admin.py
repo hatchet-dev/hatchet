@@ -316,6 +316,7 @@ class AdminClient:
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise DedupeViolationErr(e.details())
+            raise e
 
         return WorkflowRunRef(
             workflow_run_id=resp.workflow_run_id,

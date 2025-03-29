@@ -86,8 +86,7 @@ class EventClient:
         namespaced_event_key = namespace + event_key
 
         try:
-            meta = options.additional_metadata
-            meta_bytes = None if meta is None else json.dumps(meta)
+            meta_bytes = json.dumps(options.additional_metadata)
         except Exception as e:
             raise ValueError(f"Error encoding meta: {e}")
 

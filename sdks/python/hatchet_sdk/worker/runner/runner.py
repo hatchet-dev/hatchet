@@ -123,6 +123,7 @@ class Runner:
 
             errored = False
             cancelled = task.cancelled()
+            output = None
 
             # Get the output from the future
             try:
@@ -167,6 +168,7 @@ class Runner:
 
             errored = False
             cancelled = task.cancelled()
+            output = None
 
             # Get the output from the future
             try:
@@ -204,12 +206,9 @@ class Runner:
     def thread_action_func(
         self, ctx: Context, task: Task[TWorkflowInput, R], action: Action
     ) -> R:
-        if action.step_run_id is not None and action.step_run_id != "":
+        if action.step_run_id:
             self.threads[action.step_run_id] = current_thread()
-        elif (
-            action.get_group_key_run_id is not None
-            and action.get_group_key_run_id != ""
-        ):
+        elif action.get_group_key_run_id:
             self.threads[action.get_group_key_run_id] = current_thread()
 
         return task.call(ctx)

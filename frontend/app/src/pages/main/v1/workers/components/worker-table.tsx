@@ -59,7 +59,7 @@ export function WorkersTable() {
 
   const emptyState = (
     <IntroDocsEmptyState
-      link="/home/basics/workers"
+      link="/home/workers"
       title="No Workers Found"
       linkPreambleText="To learn more about how workers function in Hatchet,"
       linkText="check out our documentation."
