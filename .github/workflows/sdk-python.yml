@@ -11,7 +11,7 @@ on:
     branches:
       - main
     paths:
-      - 'sdks/python/pyproject.toml'
+      - 'sdks/python/**'
 
 defaults:
   run:
@@ -171,6 +171,14 @@ jobs:
 
       - name: Run publish.sh script
         run: |
+          CURRENT_PYPI_VERSION=$(pip index versions hatchet-sdk | awk 'NR==1 {gsub(/[()]/,"",$2); print $2}')
+          NEW_VERSION=$(cat pyproject.toml| grep "^version =" | cut -d '"' -f 2)
+
+          if [ "$CURRENT_PYPI_VERSION" == "$NEW_VERSION" ]; then
+            echo "Version has not changed. Skipping publish."
+            exit 0
+          fi
+
           sh publish.sh
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}

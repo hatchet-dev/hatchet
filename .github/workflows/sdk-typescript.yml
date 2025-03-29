@@ -11,7 +11,7 @@ on:
     branches:
       - main
     paths:
-      - 'sdks/typescript/package.json'
+      - 'sdks/typescript/**'
 
 defaults:
   run:
@@ -200,6 +200,12 @@ jobs:
       - name: Build and Publish SDK
         run: |
           VERSION=$(jq '.version' package.json)
+          CURRENT_NPM_VERSION=$(pnpm view @hatchet-dev/typescript-sdk version)
+
+          if [[ "$VERSION" == "$CURRENT_NPM_VERSION" ]]; then
+            echo "Version has not changed. Skipping publish."
+            exit 0
+          fi
 
           ## If the version contains `alpha`, it's an alpha version
           ## and we should tag it as such.=
