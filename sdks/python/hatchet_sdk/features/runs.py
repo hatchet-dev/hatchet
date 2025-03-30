@@ -19,7 +19,6 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.utils.aio_utils import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -94,7 +93,7 @@ class RunsClient(BaseRestClient):
             return await self._wra(client).v1_workflow_run_get(str(workflow_run_id))
 
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
-        return run_async_from_sync(self.aio_get, workflow_run_id)
+        return self._run_async_from_sync(self.aio_get, workflow_run_id)
 
     async def aio_list(
         self,
@@ -139,7 +138,7 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
     ) -> V1TaskSummaryList:
-        return run_async_from_sync(
+        return self._run_async_from_sync(
             self.aio_list,
             since=since,
             only_tasks=only_tasks,
@@ -175,7 +174,7 @@ class RunsClient(BaseRestClient):
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping = {},
     ) -> V1WorkflowRunDetails:
-        return run_async_from_sync(
+        return self._run_async_from_sync(
             self.aio_create, workflow_name, input, additional_metadata
         )
 
@@ -183,7 +182,7 @@ class RunsClient(BaseRestClient):
         await self.aio_bulk_replay(opts=BulkCancelReplayOpts(ids=[run_id]))
 
     def replay(self, run_id: str) -> None:
-        return run_async_from_sync(self.aio_replay, run_id)
+        return self._run_async_from_sync(self.aio_replay, run_id)
 
     async def aio_bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
         async with self.client() as client:
@@ -193,13 +192,13 @@ class RunsClient(BaseRestClient):
             )
 
     def bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
-        return run_async_from_sync(self.aio_bulk_replay, opts)
+        return self._run_async_from_sync(self.aio_bulk_replay, opts)
 
     async def aio_cancel(self, run_id: str) -> None:
         await self.aio_bulk_cancel(opts=BulkCancelReplayOpts(ids=[run_id]))
 
     def cancel(self, run_id: str) -> None:
-        return run_async_from_sync(self.aio_cancel, run_id)
+        return self._run_async_from_sync(self.aio_cancel, run_id)
 
     async def aio_bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
         async with self.client() as client:
@@ -209,7 +208,7 @@ class RunsClient(BaseRestClient):
             )
 
     def bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
-        return run_async_from_sync(self.aio_bulk_cancel, opts)
+        return self._run_async_from_sync(self.aio_bulk_cancel, opts)
 
     async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
         details = await self.aio_get(run_id)

@@ -22,7 +22,6 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.utils.aio_utils import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -83,7 +82,7 @@ class ScheduledClient(BaseRestClient):
             ScheduledWorkflows: The created scheduled workflow instance.
         """
 
-        return run_async_from_sync(
+        return self._run_async_from_sync(
             self.aio_create,
             workflow_name,
             trigger_at,
@@ -105,7 +104,7 @@ class ScheduledClient(BaseRestClient):
             )
 
     def delete(self, scheduled_id: str) -> None:
-        run_async_from_sync(self.aio_delete, scheduled_id)
+        self._run_async_from_sync(self.aio_delete, scheduled_id)
 
     async def aio_list(
         self,
@@ -176,7 +175,7 @@ class ScheduledClient(BaseRestClient):
         Returns:
             List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
         """
-        return run_async_from_sync(
+        return self._run_async_from_sync(
             self.aio_list,
             offset=offset,
             limit=limit,
@@ -215,4 +214,4 @@ class ScheduledClient(BaseRestClient):
         Returns:
             ScheduledWorkflows: The requested scheduled workflow instance.
         """
-        return run_async_from_sync(self.aio_get, scheduled_id)
+        return self._run_async_from_sync(self.aio_get, scheduled_id)

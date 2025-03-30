@@ -4,7 +4,6 @@ from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRe
 from hatchet_sdk.clients.rest.models.worker import Worker
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
-from hatchet_sdk.utils.aio_utils import run_async_from_sync
 
 
 class WorkersClient(BaseRestClient):
@@ -16,7 +15,7 @@ class WorkersClient(BaseRestClient):
             return await self._wa(client).worker_get(worker_id)
 
     def get(self, worker_id: str) -> Worker:
-        return run_async_from_sync(self.aio_get, worker_id)
+        return self._run_async_from_sync(self.aio_get, worker_id)
 
     async def aio_list(
         self,
@@ -29,7 +28,7 @@ class WorkersClient(BaseRestClient):
     def list(
         self,
     ) -> WorkerList:
-        return run_async_from_sync(self.aio_list)
+        return self._run_async_from_sync(self.aio_list)
 
     async def aio_update(self, worker_id: str, opts: UpdateWorkerRequest) -> Worker:
         async with self.client() as client:
@@ -39,4 +38,4 @@ class WorkersClient(BaseRestClient):
             )
 
     def update(self, worker_id: str, opts: UpdateWorkerRequest) -> Worker:
-        return run_async_from_sync(self.aio_update, worker_id, opts)
+        return self._run_async_from_sync(self.aio_update, worker_id, opts)
