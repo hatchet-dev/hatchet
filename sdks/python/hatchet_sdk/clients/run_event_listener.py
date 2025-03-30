@@ -220,9 +220,6 @@ class RunEventListenerClient:
         return self.stream(workflow_run_id)
 
     def stream(self, workflow_run_id: str) -> RunEventListener:
-        if not isinstance(workflow_run_id, str) and hasattr(workflow_run_id, "__str__"):
-            workflow_run_id = str(workflow_run_id)
-
         if not self.client:
             aio_conn = new_conn(self.config, True)
             self.client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
