@@ -75,7 +75,7 @@ def worker() -> Generator[subprocess.Popen[bytes], None, None]:
             )
         )
     except Exception as e:
-        print(e)
+        pass
 
     command = ["poetry", "run", "python", "examples/worker.py"]
 
