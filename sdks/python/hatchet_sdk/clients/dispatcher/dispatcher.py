@@ -80,10 +80,7 @@ class DispatcherClient:
         self, action: Action, event_type: StepActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
         try:
-            start = time.time()
-            result = await self._try_send_step_action_event(action, event_type, payload)
-            print("send_step_action_event took", time.time() - start, "seconds")
-            return result
+            return await self._try_send_step_action_event(action, event_type, payload)
         except Exception as e:
             # for step action events, send a failure event when we cannot send the completed event
             if (
