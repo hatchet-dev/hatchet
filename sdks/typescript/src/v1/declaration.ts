@@ -445,27 +445,40 @@ export class WorkflowDeclaration<
    * The return type will be either the property on O that corresponds to the task name,
    * or if there is no matching property, the inferred return type of the function.
    * @template Name The literal string name of the task.
-   * @template L The inferred return type of the task function.
+   * @template Fn The type of the task function.
    * @param options The task configuration options.
    * @returns The task options that were added.
    */
-  task<Name extends string, L extends OutputType>(
+  task<
+    Name extends string,
+    Fn extends Name extends keyof O
+      ? (
+          input: I,
+          ctx: Context<I>
+        ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
+      : (input: I, ctx: Context<I>) => void,
+    FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
+    TO extends OutputType = Name extends keyof O
+      ? O[Name] extends OutputType
+        ? O[Name]
+        : never
+      : FnReturn extends OutputType
+        ? FnReturn
+        : never,
+  >(
     options:
-      | (Omit<CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
+      | (Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
           name: Name;
-          fn: (
-            input: I,
-            ctx: Context<I>
-          ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
+          fn: Fn;
         })
-      | TaskWorkflowDeclaration<any, any>
-  ): CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>> {
-    let typedOptions: CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
+      | TaskWorkflowDeclaration<I, TO>
+  ): CreateWorkflowTaskOpts<I, TO> {
+    let typedOptions: CreateWorkflowTaskOpts<I, TO>;
 
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
+      typedOptions = options as CreateWorkflowTaskOpts<I, TO>;
     }
 
     this.definition._tasks.push(typedOptions);
@@ -545,23 +558,33 @@ export class WorkflowDeclaration<
    * The return type will be either the property on O that corresponds to the task name,
    * or if there is no matching property, the inferred return type of the function.
    * @template Name The literal string name of the task.
-   * @template L The inferred return type of the task function.
+   * @template Fn The type of the task function.
    * @param options The task configuration options.
    * @returns The task options that were added.
    */
-  durableTask<Name extends string, L extends OutputType>(
-    options: Omit<CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
+  durableTask<
+    Name extends string,
+    Fn extends Name extends keyof O
+      ? (
+          input: I,
+          ctx: DurableContext<I>
+        ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
+      : (input: I, ctx: DurableContext<I>) => void,
+    FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
+    TO extends OutputType = Name extends keyof O
+      ? O[Name] extends OutputType
+        ? O[Name]
+        : never
+      : FnReturn extends OutputType
+        ? FnReturn
+        : never,
+  >(
+    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
       name: Name;
-      fn: (
-        input: I,
-        ctx: DurableContext<I>
-      ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
+      fn: Fn;
     }
-  ): CreateWorkflowDurableTaskOpts<I, TaskOutputType<O, Name, L>> {
-    const typedOptions = options as unknown as CreateWorkflowDurableTaskOpts<
-      I,
-      TaskOutputType<O, Name, L>
-    >;
+  ): CreateWorkflowDurableTaskOpts<I, TO> {
+    const typedOptions = options as unknown as CreateWorkflowDurableTaskOpts<I, TO>;
     this.definition._durableTasks.push(typedOptions);
     return typedOptions;
   }

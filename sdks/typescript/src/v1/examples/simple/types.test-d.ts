@@ -43,6 +43,17 @@ test('task should propagate generics', () => {
   expectType<TaskWorkflowDeclaration<In, Out>>(task);
 });
 
+test('task should infer output', () => {
+  const task = hatchet.task({
+    name: '',
+    fn: () => {
+      return { out: 'string' };
+    },
+  });
+
+  expectType<TaskWorkflowDeclaration<UnknownInputType, { out: string }>>(task);
+});
+
 test('task should propagate generics', () => {
   type In = { in: string };
   type Out = { out: string };
@@ -110,7 +121,7 @@ test('task should not allow non json object inputs', () => {
 
 test('workflow should propagate generics', () => {
   type In = { in: string };
-  type Out = { out: string };
+  type Out = { out: { result: string } };
 
   const workflow = hatchet.workflow<In, Out>({
     name: '',
@@ -128,7 +139,7 @@ test('workflow should propagate generics', () => {
 
 test('task infer from input and return type', () => {
   type In = { in: string };
-  type Out = { out: string };
+  type Out = { out: { result: string } };
 
   const workflow = hatchet.workflow<In, Out>({
     name: '',
@@ -148,7 +159,7 @@ test('task infer from input and return type', () => {
 
 test('task should infer unknown, {} for an empty object', () => {
   type In = { in: string };
-  type Out = { out: string };
+  type Out = { out: { result: string } };
 
   const workflow = hatchet.workflow<In, Out>({
     name: '',
@@ -194,7 +205,7 @@ test('durableTask should propagate generics', () => {
 // Test onSuccess handler type inference
 test('workflow onSuccess should inherit workflow input type', () => {
   type In = { in: string };
-  type Out = { out: string };
+  type Out = { out: { result: string } };
 
   const workflow = hatchet.workflow<In, Out>({
     name: '',
@@ -213,7 +224,7 @@ test('workflow onSuccess should inherit workflow input type', () => {
 // Test onFailure handler type inference
 test('workflow onFailure should inherit workflow input type', () => {
   type In = { in: string };
-  type Out = { out: string };
+  type Out = { out: { result: string } };
 
   const workflow = hatchet.workflow<In, Out>({
     name: '',
@@ -248,7 +259,7 @@ test('TaskOutputType should extract the correct type', () => {
 // Test array inputs to run methods
 test('workflow run should handle array inputs', () => {
   type In = { id: number };
-  type Out = { result: string };
+  type Out = { result: { result: string } };
 
   const workflow = hatchet.workflow<In, Out>({ name: '' });
 
@@ -269,7 +280,7 @@ test('workflow run should handle array inputs', () => {
 test('workflow task should be able to access results of parent tasks', () => {
   type In = { input: string };
 
-  const workflow = hatchet.workflow<In, void>({
+  const workflow = hatchet.workflow<In>({
     name: '',
   });
 
@@ -279,6 +290,33 @@ test('workflow task should be able to access results of parent tasks', () => {
   });
 
   const task2 = workflow.task({
+    name: 'task2',
+    parents: [task1],
+    fn: (input, ctx) => {
+      // This is where we would access task1's result
+      // Through ctx.results.task1
+      return { result2: 'based on task1' };
+    },
+  });
+
+  expectType<CreateWorkflowTaskOpts<In, { result1: string }>>(task1);
+  expectType<CreateWorkflowTaskOpts<In, { result2: string }>>(task2);
+});
+
+// Test task result access in chained tasks
+test('workflow durableTask should be able to access results of parent tasks', () => {
+  type In = { input: string };
+
+  const workflow = hatchet.workflow<In>({
+    name: '',
+  });
+
+  const task1 = workflow.durableTask({
+    name: 'task1',
+    fn: () => ({ result1: 'data' }),
+  });
+
+  const task2 = workflow.durableTask({
     name: 'task2',
     parents: [task1],
     fn: (input, ctx) => {
