@@ -119,7 +119,7 @@ export class ContextWorker {
 
 export class Context<T, K = {}> {
   data: ContextData<T, K>;
-  input: T;
+  rawInput: T;
   // @deprecated use ctx.abortController instead
   controller = new AbortController();
   action: Action;
@@ -143,9 +143,9 @@ export class Context<T, K = {}> {
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
-        this.input = data;
+        this.rawInput = data;
       } else {
-        this.input = data.input;
+        this.rawInput = data.input;
       }
 
       this.overridesData = data.overrides || {};
@@ -199,7 +199,7 @@ export class Context<T, K = {}> {
    * Returns errors from any task runs in the workflow.
    * @returns A record mapping task names to error messages.
    * @throws A warning if no errors are found (this method should be used in on-failure tasks).
-   * @deprecated use ctx.errors instead
+   * @deprecated use ctx.errors() instead
    */
   stepRunErrors(): Record<string, string> {
     return this.errors();
@@ -241,9 +241,10 @@ export class Context<T, K = {}> {
   /**
    * Gets the input data for the current workflow.
    * @returns The input data for the workflow.
+   * @deprecated use task input parameter instead
    */
   workflowInput(): T {
-    return this.input;
+    return this.rawInput;
   }
 
   /**
@@ -285,6 +286,14 @@ export class Context<T, K = {}> {
    */
   workflowRunId(): string {
     return this.action.workflowRunId;
+  }
+
+  /**
+   * Gets the ID of the current workflow run.
+   * @returns The workflow run ID.
+   */
+  taskRunId(): string {
+    return this.action.stepRunId;
   }
 
   /**
