@@ -6,6 +6,7 @@
 import { Context } from '@hatchet/step';
 import {
   CreateTaskWorkflowOpts,
+  CreateWorkflowOpts,
   HatchetClient,
   TaskOutputType,
   TaskWorkflowDeclaration,
