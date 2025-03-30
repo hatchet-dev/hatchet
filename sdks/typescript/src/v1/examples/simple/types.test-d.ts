@@ -341,7 +341,7 @@ test('complex nested object types should be preserved', () => {
           notifications: boolean;
         };
       };
-      metadata: Record<string, string>;
+      metadata: Record<string, undefined>;
     };
     items: Array<{
       id: number;

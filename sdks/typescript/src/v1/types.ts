@@ -1,5 +1,5 @@
 // Define proper JSON value types
-export type JsonPrimitive = string | number | boolean | null;
+export type JsonPrimitive = string | number | boolean | null | undefined;
 export type JsonArray = JsonValue[];
 export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 export type JsonObject = { [Key in string]: JsonValue } & {
