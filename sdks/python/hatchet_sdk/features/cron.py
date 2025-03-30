@@ -18,6 +18,7 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
+from hatchet_sdk.utils.aio_utils import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -121,7 +122,7 @@ class CronClient(BaseRestClient):
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
     ) -> CronWorkflows:
-        return self._run_async_from_sync(
+        return run_async_from_sync(
             self.aio_create,
             workflow_name,
             cron_name,
@@ -143,7 +144,7 @@ class CronClient(BaseRestClient):
             )
 
     def delete(self, cron_id: str) -> None:
-        return self._run_async_from_sync(self.aio_delete, cron_id)
+        return run_async_from_sync(self.aio_delete, cron_id)
 
     async def aio_list(
         self,
@@ -204,7 +205,7 @@ class CronClient(BaseRestClient):
         Returns:
             CronWorkflowsList: A list of cron workflows.
         """
-        return self._run_async_from_sync(
+        return run_async_from_sync(
             self.aio_list,
             offset=offset,
             limit=limit,
@@ -239,4 +240,4 @@ class CronClient(BaseRestClient):
         Returns:
             CronWorkflows: The requested cron workflow instance.
         """
-        return self._run_async_from_sync(self.aio_get, cron_id)
+        return run_async_from_sync(self.aio_get, cron_id)
