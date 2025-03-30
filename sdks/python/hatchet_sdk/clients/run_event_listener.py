@@ -1,5 +1,4 @@
 import asyncio
-import json
 from enum import Enum
 from typing import Any, AsyncGenerator, Callable, Generator, cast
 
@@ -129,7 +128,9 @@ class RunEventListener:
                                 f"Unknown event type: {workflow_event.eventType}"
                             )
 
-                        yield StepRunEvent(type=eventType, payload=workflow_event.eventPayload)
+                        yield StepRunEvent(
+                            type=eventType, payload=workflow_event.eventPayload
+                        )
                     elif workflow_event.resourceType == RESOURCE_TYPE_WORKFLOW_RUN:
                         if workflow_event.eventType in step_run_event_type_mapping:
                             workflowRunEventType = step_run_event_type_mapping[
@@ -140,7 +141,10 @@ class RunEventListener:
                                 f"Unknown event type: {workflow_event.eventType}"
                             )
 
-                        yield StepRunEvent(type=workflowRunEventType, payload=workflow_event.eventPayload)
+                        yield StepRunEvent(
+                            type=workflowRunEventType,
+                            payload=workflow_event.eventPayload,
+                        )
 
                     if workflow_event.hangup:
                         listener = None

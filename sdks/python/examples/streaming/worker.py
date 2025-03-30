@@ -1,12 +1,13 @@
-from hatchet_sdk import Context, EmptyModel, Hatchet, ClientConfig
 import asyncio
-import logging
+
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
 # ❓ Streaming
 
 streaming_workflow = hatchet.workflow(name="StreamingWorkflow")
+
 
 @streaming_workflow.task()
 async def step1(input: EmptyModel, ctx: Context) -> None:
