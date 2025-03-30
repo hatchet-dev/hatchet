@@ -152,7 +152,7 @@ class ActionListener:
         self.config = config
         self.worker_id = worker_id
 
-        self.aio_client = DispatcherStub(new_conn(self.config, True))  # type: ignore[no-untyped-call]
+        self.aio_client = DispatcherStub(new_conn(self.config, True))
         self.token = self.config.token
 
         self.retries = 0
@@ -380,7 +380,7 @@ class ActionListener:
                 f"action listener connection interrupted, retrying... ({self.retries}/{DEFAULT_ACTION_LISTENER_RETRY_COUNT})"
             )
 
-        self.aio_client = DispatcherStub(new_conn(self.config, True))  # type: ignore[no-untyped-call]
+        self.aio_client = DispatcherStub(new_conn(self.config, True))
 
         if self.listen_strategy == "v2":
             # we should await for the listener to be established before

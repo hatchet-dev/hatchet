@@ -12,6 +12,7 @@ from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
     BulkPushEventRequest,
     Event,
+    Events,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
@@ -47,7 +48,7 @@ class BulkPushEventWithMetadata(BaseModel):
 class EventClient:
     def __init__(self, config: ClientConfig):
         conn = new_conn(config, False)
-        self.client = EventsServiceStub(conn)  # type: ignore[no-untyped-call]
+        self.client = EventsServiceStub(conn)
 
         self.token = config.token
         self.namespace = config.namespace
@@ -141,11 +142,11 @@ class EventClient:
             ]
         )
 
-        response = self.client.BulkPush(bulk_request, metadata=get_metadata(self.token))
-
-        return cast(
-            list[Event],
-            response.events,
+        return list(
+            cast(
+                Events,
+                self.client.BulkPush(bulk_request, metadata=get_metadata(self.token)),
+            ).events
         )
 
     def log(self, message: str, step_run_id: str) -> None:

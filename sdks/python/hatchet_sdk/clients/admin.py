@@ -62,8 +62,8 @@ class AdminClient:
     def __init__(self, config: ClientConfig):
         conn = new_conn(config, False)
         self.config = config
-        self.client = AdminServiceStub(conn)  # type: ignore[no-untyped-call]
-        self.v0_client = WorkflowServiceStub(conn)  # type: ignore[no-untyped-call]
+        self.client = AdminServiceStub(conn)
+        self.v0_client = WorkflowServiceStub(conn)
         self.token = config.token
         self.namespace = config.namespace
 

@@ -193,7 +193,7 @@ class RunEventListener:
     async def retry_subscribe(self) -> AsyncGenerator[WorkflowEvent, None]:
         retries = 0
         aio_conn = new_conn(self.config, True)
-        client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+        client = DispatcherStub(aio_conn)
 
         while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             try:

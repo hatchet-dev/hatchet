@@ -94,7 +94,7 @@ class PooledWorkflowRunListener:
 
     async def _init_producer(self) -> None:
         conn = new_conn(self.config, True)
-        client = DispatcherStub(conn)  # type: ignore[no-untyped-call]
+        client = DispatcherStub(conn)
 
         try:
             if not self.listener:
@@ -271,7 +271,7 @@ class PooledWorkflowRunListener:
                         SubscribeToWorkflowRunsRequest, WorkflowRunEvent
                     ],
                     client.SubscribeToWorkflowRuns(
-                        self._request(),
+                        self._request(),  # type: ignore[arg-type]
                         metadata=get_metadata(self.token),
                     ),
                 )

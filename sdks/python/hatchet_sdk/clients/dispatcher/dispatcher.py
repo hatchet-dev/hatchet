@@ -1,3 +1,4 @@
+import time
 from typing import cast
 
 import grpc.aio
@@ -36,16 +37,21 @@ DEFAULT_REGISTER_TIMEOUT = 30
 class DispatcherClient:
     def __init__(self, config: ClientConfig):
         conn = new_conn(config, False)
-        self.client = DispatcherStub(conn)  # type: ignore[no-untyped-call]
+        self.client = DispatcherStub(conn)
 
         self.token = config.token
         self.config = config
 
+        ## IMPORTANT: This needs to be created lazily so we don't require
+        ## an event loop to instantiate the client.
+        self.aio_client: DispatcherStub | None = None
+
     async def get_action_listener(
         self, req: GetActionListenerRequest
     ) -> ActionListener:
-        aio_conn = new_conn(self.config, True)
-        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
 
         # Override labels with the preset labels
         preset_labels = self.config.worker_preset_labels
@@ -55,7 +61,7 @@ class DispatcherClient:
 
         response = cast(
             WorkerRegisterResponse,
-            await aio_client.Register(
+            await self.aio_client.Register(
                 WorkerRegisterRequest(
                     workerName=req.worker_name,
                     actions=req.actions,
@@ -74,7 +80,10 @@ class DispatcherClient:
         self, action: Action, event_type: StepActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
         try:
-            return await self._try_send_step_action_event(action, event_type, payload)
+            start = time.time()
+            result = await self._try_send_step_action_event(action, event_type, payload)
+            print("send_step_action_event took", time.time() - start, "seconds")
+            return result
         except Exception as e:
             # for step action events, send a failure event when we cannot send the completed event
             if (
@@ -93,8 +102,9 @@ class DispatcherClient:
     async def _try_send_step_action_event(
         self, action: Action, event_type: StepActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
-        aio_conn = new_conn(self.config, True)
-        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
 
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
@@ -114,7 +124,7 @@ class DispatcherClient:
 
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
-            await aio_client.SendStepActionEvent(
+            await self.aio_client.SendStepActionEvent(
                 event,
                 metadata=get_metadata(self.token),
             ),
@@ -123,8 +133,9 @@ class DispatcherClient:
     async def send_group_key_action_event(
         self, action: Action, event_type: GroupKeyActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse]:
-        aio_conn = new_conn(self.config, True)
-        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
 
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
@@ -141,7 +152,7 @@ class DispatcherClient:
 
         return cast(
             grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse],
-            await aio_client.SendGroupKeyActionEvent(
+            await self.aio_client.SendGroupKeyActionEvent(
                 event,
                 metadata=get_metadata(self.token),
             ),
@@ -195,8 +206,9 @@ class DispatcherClient:
         worker_id: str | None,
         labels: dict[str, str | int],
     ) -> None:
-        aio_conn = new_conn(self.config, True)
-        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
 
         worker_labels = {}
 
@@ -206,7 +218,7 @@ class DispatcherClient:
             else:
                 worker_labels[key] = WorkerLabels(strValue=str(value))
 
-        await aio_client.UpsertWorkerLabels(
+        await self.aio_client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(workerId=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),

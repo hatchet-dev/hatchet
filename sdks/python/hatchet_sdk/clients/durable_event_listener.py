@@ -122,7 +122,7 @@ class DurableEventListener:
 
     async def _init_producer(self) -> None:
         conn = new_conn(self.config, True)
-        client = V1DispatcherStub(conn)  # type: ignore[no-untyped-call]
+        client = V1DispatcherStub(conn)
 
         try:
             if not self.listener:
@@ -295,7 +295,7 @@ class DurableEventListener:
                         ListenForDurableEventRequest, DurableEvent
                     ],
                     client.ListenForDurableEvent(
-                        self._request(),
+                        self._request(),  # type: ignore[arg-type]
                         metadata=get_metadata(self.token),
                     ),
                 )
@@ -312,7 +312,7 @@ class DurableEventListener:
         self, request: RegisterDurableEventRequest
     ) -> Literal[True]:
         conn = new_conn(self.config, True)
-        client = V1DispatcherStub(conn)  # type: ignore[no-untyped-call]
+        client = V1DispatcherStub(conn)
 
         client.RegisterDurableEvent(
             request.to_proto(),
