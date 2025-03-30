@@ -326,8 +326,8 @@ test('workflow durableTask should be able to access results of parent tasks', ()
     },
   });
 
-  expectType<CreateWorkflowTaskOpts<In, { result1: string }>>(task1);
-  expectType<CreateWorkflowTaskOpts<In, { result2: string }>>(task2);
+  expectType<CreateWorkflowDurableTaskOpts<In, { result1: string }>>(task1);
+  expectType<CreateWorkflowDurableTaskOpts<In, { result2: string }>>(task2);
 });
 
 // Test complex nested object type preservation
