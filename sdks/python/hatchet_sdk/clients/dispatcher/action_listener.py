@@ -232,14 +232,8 @@ class ActionListener:
         if self.heartbeat_task is not None:
             return
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError as e:
-            if str(e).startswith("There is no current event loop in thread"):
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            else:
-                raise e
+        loop = asyncio.get_event_loop()
+
         self.heartbeat_task = loop.create_task(self.heartbeat())
 
     def __aiter__(self) -> AsyncGenerator[Action | None, None]:
