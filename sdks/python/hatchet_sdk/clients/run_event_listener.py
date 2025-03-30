@@ -78,6 +78,10 @@ class RunEventListener:
         self.workflow_run_id = workflow_run_id
         self.additional_meta_kv = additional_meta_kv
 
+        ## IMPORTANT: This needs to be created lazily so we don't require
+        ## an event loop to instantiate the client.
+        self.client: DispatcherStub | None = None
+
     def abort(self) -> None:
         self.stop_signal = True
 
@@ -192,8 +196,10 @@ class RunEventListener:
 
     async def retry_subscribe(self) -> AsyncGenerator[WorkflowEvent, None]:
         retries = 0
-        aio_conn = new_conn(self.config, True)
-        client = DispatcherStub(aio_conn)
+
+        if self.client is None:
+            aio_conn = new_conn(self.config, True)
+            self.client = DispatcherStub(aio_conn)
 
         while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             try:
@@ -203,7 +209,7 @@ class RunEventListener:
                 if self.workflow_run_id is not None:
                     return cast(
                         AsyncGenerator[WorkflowEvent, None],
-                        client.SubscribeToWorkflowEvents(
+                        self.client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
                                 workflowRunId=self.workflow_run_id,
                             ),
@@ -213,7 +219,7 @@ class RunEventListener:
                 elif self.additional_meta_kv is not None:
                     return cast(
                         AsyncGenerator[WorkflowEvent, None],
-                        client.SubscribeToWorkflowEvents(
+                        self.client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
                                 additionalMetaKey=self.additional_meta_kv[0],
                                 additionalMetaValue=self.additional_meta_kv[1],

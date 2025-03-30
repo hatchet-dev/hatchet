@@ -83,6 +83,10 @@ class PooledWorkflowRunListener:
 
         self.interrupter: asyncio.Task[None] | None = None
 
+        ## IMPORTANT: This needs to be created lazily so we don't require
+        ## an event loop to instantiate the client.
+        self.client: DispatcherStub | None = None
+
     async def _interrupter(self) -> None:
         """
         _interrupter runs in a separate thread and interrupts the listener according to a configurable duration.
@@ -93,14 +97,11 @@ class PooledWorkflowRunListener:
             self.interrupt.set()
 
     async def _init_producer(self) -> None:
-        conn = new_conn(self.config, True)
-        client = DispatcherStub(conn)
-
         try:
             if not self.listener:
                 while True:
                     try:
-                        self.listener = await self._retry_subscribe(client)
+                        self.listener = await self._retry_subscribe()
 
                         logger.debug("Workflow run listener connected.")
 
@@ -253,9 +254,12 @@ class PooledWorkflowRunListener:
         }
 
     async def _retry_subscribe(
-        self, client: DispatcherStub
+        self,
     ) -> grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]:
         retries = 0
+        if self.client is None:
+            conn = new_conn(self.config, True)
+            self.client = DispatcherStub(conn)
 
         while retries < DEFAULT_WORKFLOW_LISTENER_RETRY_COUNT:
             try:
@@ -270,7 +274,7 @@ class PooledWorkflowRunListener:
                     grpc.aio.UnaryStreamCall[
                         SubscribeToWorkflowRunsRequest, WorkflowRunEvent
                     ],
-                    client.SubscribeToWorkflowRuns(
+                    self.client.SubscribeToWorkflowRuns(
                         self._request(),  # type: ignore[arg-type]
                         metadata=get_metadata(self.token),
                     ),
