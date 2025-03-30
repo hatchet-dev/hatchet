@@ -17,6 +17,7 @@ import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
 import { Duration } from './v1/client/duration';
+import { JsonObject, JsonValue, OutputType } from './v1/types';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -59,16 +60,6 @@ export const CreateStepSchema = z.object({
     })
     .optional(),
 });
-
-export type JsonObject = { [Key in string]: JsonValue } & {
-  [Key in string]?: JsonValue | undefined;
-};
-
-export type JsonArray = JsonValue[] | readonly JsonValue[];
-
-export type JsonPrimitive = string | number | boolean | null;
-
-export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
 export type NextStep = { [key: string]: JsonValue };
 
@@ -178,7 +169,7 @@ export class Context<T, K = {}> {
    * @throws An error if the task output is not found.
    *
    */
-  async parentOutput<L = NextStep>(task: CreateWorkflowTaskOpts<any, L> | string) {
+  async parentOutput<L extends OutputType>(task: CreateWorkflowTaskOpts<any, L> | string) {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
     if (typeof task === 'string') {
       return this.stepOutput<L>(task);

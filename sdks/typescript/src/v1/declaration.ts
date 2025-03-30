@@ -2,7 +2,7 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context, DurableContext, JsonObject } from '@hatchet/step';
+import { Context, DurableContext } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
@@ -17,6 +17,7 @@ import {
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
+import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -36,10 +37,22 @@ export type RunOpts = {
 };
 
 /**
+ * Helper type to safely extract output types from task results
+ */
+export type TaskOutput<O, Key extends string, Fallback> =
+  O extends Record<Key, infer Value> ? (Value extends OutputType ? Value : Fallback) : Fallback;
+
+/**
  * Extracts a property from an object type based on task name, or falls back to inferred type
  */
-export type TaskOutputType<K, TaskName extends string, InferredType> = TaskName extends keyof K
-  ? K[TaskName]
+export type TaskOutputType<
+  O,
+  TaskName extends string,
+  InferredType extends OutputType,
+> = TaskName extends keyof O
+  ? O[TaskName] extends OutputType
+    ? O[TaskName]
+    : InferredType
   : InferredType;
 
 export type CreateBaseWorkflowOpts = {
@@ -80,9 +93,9 @@ export type CreateBaseWorkflowOpts = {
 };
 
 export type CreateTaskWorkflowOpts<
-  T extends JsonObject | unknown = unknown,
-  K extends JsonObject | unknown = unknown,
-> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, TaskFn<I, O>>;
 
 /**
  * Options for creating a new workflow.
@@ -181,12 +194,12 @@ export type WorkflowDefinition = CreateWorkflowOpts & {
 
 /**
  * Represents a workflow that can be executed by Hatchet.
- * @template T The input type for the workflow.
- * @template K The return type of the workflow.
+ * @template I The input type for the workflow.
+ * @template O The return type of the workflow.
  */
 export class BaseWorkflowDeclaration<
-  T extends JsonObject | unknown,
-  K extends JsonObject | unknown,
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
 > {
   /**
    * The Hatchet client instance used to execute the workflow.
@@ -220,7 +233,7 @@ export class BaseWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: T, options?: RunOpts): WorkflowRunRef<K> {
+  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
@@ -231,15 +244,15 @@ export class BaseWorkflowDeclaration<
   /**
    * @alias run
    * Triggers a workflow run and waits for the result.
-   * @template T - The input type for the workflow
-   * @template K - The return type of the workflow
+   * @template I - The input type for the workflow
+   * @template O - The return type of the workflow
    * @param input - The input data for the workflow
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
-  async runAndWait(input: T, options?: RunOpts): Promise<K>;
-  async runAndWait(input: T[], options?: RunOpts): Promise<K[]>;
-  async runAndWait(input: T | T[], options?: RunOpts): Promise<K | K[]> {
+  async runAndWait(input: I, options?: RunOpts): Promise<O>;
+  async runAndWait(input: I[], options?: RunOpts): Promise<O[]>;
+  async runAndWait(input: I | I[], options?: RunOpts): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
@@ -257,9 +270,9 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the workflow result.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async run(input: T, options?: RunOpts): Promise<K>;
-  async run(input: T[], options?: RunOpts): Promise<K[]>;
-  async run(input: T | T[], options?: RunOpts): Promise<K | K[]> {
+  async run(input: I, options?: RunOpts): Promise<O>;
+  async run(input: I[], options?: RunOpts): Promise<O[]>;
+  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
@@ -270,7 +283,7 @@ export class BaseWorkflowDeclaration<
     }
 
     const res = this.client._v0.admin.runWorkflow(this.definition.name, input, options);
-    return res.result() as Promise<K>;
+    return res.result() as Promise<O>;
   }
 
   /**
@@ -281,7 +294,7 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the scheduled workflow details.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async schedule(enqueueAt: Date, input: T, options?: RunOpts): Promise<ScheduledWorkflows> {
+  async schedule(enqueueAt: Date, input: I, options?: RunOpts): Promise<ScheduledWorkflows> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
@@ -303,7 +316,7 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the scheduled workflow details.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async delay(duration: number, input: T, options?: RunOpts): Promise<ScheduledWorkflows> {
+  async delay(duration: number, input: I, options?: RunOpts): Promise<ScheduledWorkflows> {
     const now = Date.now();
     const triggerAt = new Date(now + duration * 1000);
     return this.schedule(triggerAt, input, options);
@@ -321,7 +334,7 @@ export class BaseWorkflowDeclaration<
   async cron(
     name: string,
     expression: string,
-    input: T,
+    input: I,
     options?: RunOpts
   ): Promise<CronWorkflows> {
     if (!this.client) {
@@ -424,35 +437,35 @@ export class BaseWorkflowDeclaration<
 }
 
 export class WorkflowDeclaration<
-  T extends JsonObject | unknown = unknown,
-  K extends JsonObject | unknown = unknown,
-> extends BaseWorkflowDeclaration<T, K> {
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> extends BaseWorkflowDeclaration<I, O> {
   /**
    * Adds a task to the workflow.
-   * The return type will be either the property on K that corresponds to the task name,
+   * The return type will be either the property on O that corresponds to the task name,
    * or if there is no matching property, the inferred return type of the function.
    * @template Name The literal string name of the task.
    * @template L The inferred return type of the task function.
    * @param options The task configuration options.
    * @returns The task options that were added.
    */
-  task<Name extends string, L>(
+  task<Name extends string, L extends OutputType>(
     options:
-      | (Omit<CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+      | (Omit<CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
           name: Name;
           fn: (
-            input: T,
-            ctx: Context<T>
-          ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+            input: I,
+            ctx: Context<I>
+          ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
         })
       | TaskWorkflowDeclaration<any, any>
-  ): CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>> {
-    let typedOptions: CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+  ): CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>> {
+    let typedOptions: CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
 
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
     }
 
     this.definition._tasks.push(typedOptions);
@@ -467,22 +480,22 @@ export class WorkflowDeclaration<
    * @param options The task configuration options.
    * @returns The task options that were added.
    */
-  onFailure<Name extends string, L>(
+  onFailure<Name extends string, L extends OutputType>(
     options:
-      | (Omit<CreateOnFailureTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+      | (Omit<CreateOnFailureTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
           fn: (
-            input: T,
-            ctx: Context<T>
-          ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+            input: I,
+            ctx: Context<I>
+          ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
         })
       | TaskWorkflowDeclaration<any, any>
-  ): CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>> {
-    let typedOptions: CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+  ): CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>> {
+    let typedOptions: CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
 
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
     }
 
     if (this.definition.onFailure) {
@@ -501,22 +514,22 @@ export class WorkflowDeclaration<
    * @param options The task configuration options.
    * @returns The task options that were added.
    */
-  onSuccess<Name extends string, L>(
+  onSuccess<Name extends string, L extends OutputType>(
     options:
-      | (Omit<CreateOnSuccessTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+      | (Omit<CreateOnSuccessTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
           fn: (
-            input: T,
-            ctx: Context<T>
-          ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+            input: I,
+            ctx: Context<I>
+          ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
         })
       | TaskWorkflowDeclaration<any, any>
-  ): CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>> {
-    let typedOptions: CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+  ): CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>> {
+    let typedOptions: CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
 
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>;
+      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
     }
 
     if (this.definition.onSuccess) {
@@ -529,25 +542,25 @@ export class WorkflowDeclaration<
 
   /**
    * Adds a durable task to the workflow.
-   * The return type will be either the property on K that corresponds to the task name,
+   * The return type will be either the property on O that corresponds to the task name,
    * or if there is no matching property, the inferred return type of the function.
    * @template Name The literal string name of the task.
    * @template L The inferred return type of the task function.
    * @param options The task configuration options.
    * @returns The task options that were added.
    */
-  durableTask<Name extends string, L>(
-    options: Omit<CreateWorkflowTaskOpts<T, TaskOutputType<K, Name, L>>, 'fn'> & {
+  durableTask<Name extends string, L extends OutputType>(
+    options: Omit<CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
       name: Name;
       fn: (
-        input: T,
-        ctx: DurableContext<T>
-      ) => TaskOutputType<K, Name, L> | Promise<TaskOutputType<K, Name, L>>;
+        input: I,
+        ctx: DurableContext<I>
+      ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
     }
-  ): CreateWorkflowDurableTaskOpts<T, TaskOutputType<K, Name, L>> {
+  ): CreateWorkflowDurableTaskOpts<I, TaskOutputType<O, Name, L>> {
     const typedOptions = options as unknown as CreateWorkflowDurableTaskOpts<
-      T,
-      TaskOutputType<K, Name, L>
+      I,
+      TaskOutputType<O, Name, L>
     >;
     this.definition._durableTasks.push(typedOptions);
     return typedOptions;
@@ -555,12 +568,12 @@ export class WorkflowDeclaration<
 }
 
 export class TaskWorkflowDeclaration<
-  T extends JsonObject | unknown = unknown,
-  K extends JsonObject | unknown = unknown,
-> extends BaseWorkflowDeclaration<T, K> {
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> extends BaseWorkflowDeclaration<I, O> {
   private _standalone_task_name: string;
 
-  constructor(options: CreateTaskWorkflowOpts<T, K>, client?: IHatchetClient) {
+  constructor(options: CreateTaskWorkflowOpts<I, O>, client?: IHatchetClient) {
     super({ ...options }, client);
 
     this._standalone_task_name = options.name;
@@ -570,16 +583,16 @@ export class TaskWorkflowDeclaration<
     });
   }
 
-  async run(input: T, options?: RunOpts): Promise<K>;
-  async run(input: T[], options?: RunOpts): Promise<K[]>;
-  async run(input: T | T[], options?: RunOpts): Promise<K | K[]> {
-    const res = (await super.run(input as T, options)) as JsonObject;
+  async run(input: I, options?: RunOpts): Promise<O>;
+  async run(input: I[], options?: RunOpts): Promise<O[]>;
+  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
+    const res = (await super.run(input as I, options)) as JsonObject;
 
     if (Array.isArray(res)) {
       return res.map((r) => r[this._standalone_task_name]);
     }
 
-    return res[this._standalone_task_name] as K;
+    return res[this._standalone_task_name] as O;
   }
 
   get taskDef() {
@@ -595,14 +608,13 @@ export class TaskWorkflowDeclaration<
  * @returns A new TaskWorkflowDeclaration with inferred types.
  */
 export function CreateTaskWorkflow<
-  // Extract input and return types from the function, but ensure they extend JsonObject
   Fn extends (input: I, ctx?: any) => O | Promise<O>,
-  I extends JsonObject | unknown = Parameters<Fn>[0],
-  O extends JsonObject | unknown = ReturnType<Fn> extends Promise<infer P>
-    ? P extends JsonObject
+  I extends InputType = Parameters<Fn>[0],
+  O extends OutputType = ReturnType<Fn> extends Promise<infer P>
+    ? P extends OutputType
       ? P
-      : unknown
-    : ReturnType<Fn> extends JsonObject
+      : void
+    : ReturnType<Fn> extends OutputType
       ? ReturnType<Fn>
       : void,
 >(
@@ -616,17 +628,17 @@ export function CreateTaskWorkflow<
 
 /**
  * Creates a new workflow instance.
- * @template T The input type for the workflow.
- * @template K The return type of the workflow.
+ * @template I The input type for the workflow.
+ * @template O The return type of the workflow.
  * @param options The options for creating the workflow.
  * @param client Optional Hatchet client instance.
  * @returns A new Workflow instance.
  */
-export function CreateWorkflow<
-  T extends JsonObject | unknown = unknown,
-  K extends JsonObject | unknown = unknown,
->(options: CreateWorkflowOpts, client?: IHatchetClient): WorkflowDeclaration<T, K> {
-  return new WorkflowDeclaration<T, K>(options, client);
+export function CreateWorkflow<I extends InputType = UnknownInputType, O extends OutputType = void>(
+  options: CreateWorkflowOpts,
+  client?: IHatchetClient
+): WorkflowDeclaration<I, O> {
+  return new WorkflowDeclaration<I, O>(options, client);
 }
 
 /**

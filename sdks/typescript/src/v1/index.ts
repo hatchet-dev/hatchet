@@ -4,3 +4,4 @@ export * from './client/worker';
 export * from './declaration';
 export * from './conditions';
 export * from './client/duration';
+export * from './types';

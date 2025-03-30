@@ -1,7 +1,9 @@
 {
   "include": ["src/**/*.ts"],
-  "exclude": ["./dist"],
-  // "**/*.test-d.ts"
+  "exclude": [
+    "./dist",
+    "**/*.test-d.ts" // NOTE: disable this if modifying types.test-d.ts
+  ],
 
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig to read more about this file */
