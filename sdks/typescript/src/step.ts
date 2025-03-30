@@ -119,7 +119,8 @@ export class ContextWorker {
 
 export class Context<T, K = {}> {
   data: ContextData<T, K>;
-  rawInput: T;
+  // @deprecated use input prop instead
+  input: T;
   // @deprecated use ctx.abortController instead
   controller = new AbortController();
   action: Action;
@@ -143,9 +144,9 @@ export class Context<T, K = {}> {
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
-        this.rawInput = data;
+        this.input = data;
       } else {
-        this.rawInput = data.input;
+        this.input = data.input;
       }
 
       this.overridesData = data.overrides || {};
@@ -244,7 +245,7 @@ export class Context<T, K = {}> {
    * @deprecated use task input parameter instead
    */
   workflowInput(): T {
-    return this.rawInput;
+    return this.input;
   }
 
   /**
