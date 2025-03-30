@@ -8,8 +8,6 @@ from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
-from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
@@ -67,10 +65,7 @@ class AdminClient:
         self.client = AdminServiceStub(conn)  # type: ignore[no-untyped-call]
         self.v0_client = WorkflowServiceStub(conn)  # type: ignore[no-untyped-call]
         self.token = config.token
-        self.listener_client = RunEventListenerClient(config=config)
         self.namespace = config.namespace
-
-        self.pooled_workflow_listener: PooledWorkflowRunListener | None = None
 
     class TriggerWorkflowRequest(BaseModel):
         model_config = ConfigDict(extra="ignore")
@@ -307,9 +302,6 @@ class AdminClient:
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
 
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
@@ -325,8 +317,7 @@ class AdminClient:
 
         return WorkflowRunRef(
             workflow_run_id=resp.workflow_run_id,
-            workflow_listener=self.pooled_workflow_listener,
-            workflow_run_event_listener=self.listener_client,
+            config=self.config,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -343,9 +334,6 @@ class AdminClient:
         async with spawn_index_lock:
             request = self._create_workflow_run_request(workflow_name, input, options)
 
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
@@ -362,8 +350,7 @@ class AdminClient:
 
         return WorkflowRunRef(
             workflow_run_id=resp.workflow_run_id,
-            workflow_listener=self.pooled_workflow_listener,
-            workflow_run_event_listener=self.listener_client,
+            config=self.config,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -372,9 +359,6 @@ class AdminClient:
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
             workflows=[
                 self._create_workflow_run_request(
@@ -395,8 +379,7 @@ class AdminClient:
         return [
             WorkflowRunRef(
                 workflow_run_id=workflow_run_id,
-                workflow_listener=self.pooled_workflow_listener,
-                workflow_run_event_listener=self.listener_client,
+                config=self.config,
             )
             for workflow_run_id in resp.workflow_run_ids
         ]
@@ -409,9 +392,6 @@ class AdminClient:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
         ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
         ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         async with spawn_index_lock:
             bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
                 workflows=[
@@ -433,18 +413,13 @@ class AdminClient:
         return [
             WorkflowRunRef(
                 workflow_run_id=workflow_run_id,
-                workflow_listener=self.pooled_workflow_listener,
-                workflow_run_event_listener=self.listener_client,
+                config=self.config,
             )
             for workflow_run_id in resp.workflow_run_ids
         ]
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
-        if not self.pooled_workflow_listener:
-            self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
-
         return WorkflowRunRef(
             workflow_run_id=workflow_run_id,
-            workflow_listener=self.pooled_workflow_listener,
-            workflow_run_event_listener=self.listener_client,
+            config=self.config,
         )
