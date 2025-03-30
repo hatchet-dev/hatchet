@@ -34,20 +34,18 @@ DEFAULT_REGISTER_TIMEOUT = 30
 
 
 class DispatcherClient:
-    config: ClientConfig
-
     def __init__(self, config: ClientConfig):
         conn = new_conn(config, False)
         self.client = DispatcherStub(conn)  # type: ignore[no-untyped-call]
 
-        aio_conn = new_conn(config, True)
-        self.aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
         self.token = config.token
         self.config = config
 
     async def get_action_listener(
         self, req: GetActionListenerRequest
     ) -> ActionListener:
+        aio_conn = new_conn(self.config, True)
+        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
 
         # Override labels with the preset labels
         preset_labels = self.config.worker_preset_labels
@@ -57,7 +55,7 @@ class DispatcherClient:
 
         response = cast(
             WorkerRegisterResponse,
-            await self.aio_client.Register(
+            await aio_client.Register(
                 WorkerRegisterRequest(
                     workerName=req.worker_name,
                     actions=req.actions,
@@ -95,6 +93,9 @@ class DispatcherClient:
     async def _try_send_step_action_event(
         self, action: Action, event_type: StepActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
+        aio_conn = new_conn(self.config, True)
+        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
 
@@ -113,7 +114,7 @@ class DispatcherClient:
 
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
-            await self.aio_client.SendStepActionEvent(
+            await aio_client.SendStepActionEvent(
                 event,
                 metadata=get_metadata(self.token),
             ),
@@ -122,6 +123,9 @@ class DispatcherClient:
     async def send_group_key_action_event(
         self, action: Action, event_type: GroupKeyActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse]:
+        aio_conn = new_conn(self.config, True)
+        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
 
@@ -137,7 +141,7 @@ class DispatcherClient:
 
         return cast(
             grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse],
-            await self.aio_client.SendGroupKeyActionEvent(
+            await aio_client.SendGroupKeyActionEvent(
                 event,
                 metadata=get_metadata(self.token),
             ),
@@ -191,6 +195,9 @@ class DispatcherClient:
         worker_id: str | None,
         labels: dict[str, str | int],
     ) -> None:
+        aio_conn = new_conn(self.config, True)
+        aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
+
         worker_labels = {}
 
         for key, value in labels.items():
@@ -199,7 +206,7 @@ class DispatcherClient:
             else:
                 worker_labels[key] = WorkerLabels(strValue=str(value))
 
-        await self.aio_client.UpsertWorkerLabels(
+        await aio_client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(workerId=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
