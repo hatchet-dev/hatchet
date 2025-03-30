@@ -11,7 +11,7 @@ from hatchet_sdk import Hatchet
     os.getenv("CI", "false").lower() == "true",
     reason="Skipped in CI because of unreliability",
 )
-@pytest.mark.asyncio(loop_scope="function")
+@pytest.mark.asyncio()
 async def test_waits(hatchet: Hatchet) -> None:
 
     ref = task_condition_workflow.run_no_wait()
