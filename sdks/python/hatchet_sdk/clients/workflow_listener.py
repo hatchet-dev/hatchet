@@ -54,14 +54,6 @@ class _Subscription:
 
 class PooledWorkflowRunListener:
     def __init__(self, config: ClientConfig):
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        conn = new_conn(config, True)
-        self.client = DispatcherStub(conn)  # type: ignore[no-untyped-call]
         self.token = config.token
         self.config = config
 
@@ -101,11 +93,14 @@ class PooledWorkflowRunListener:
             self.interrupt.set()
 
     async def _init_producer(self) -> None:
+        conn = new_conn(self.config, True)
+        client = DispatcherStub(conn)  # type: ignore[no-untyped-call]
+
         try:
             if not self.listener:
                 while True:
                     try:
-                        self.listener = await self._retry_subscribe()
+                        self.listener = await self._retry_subscribe(client)
 
                         logger.debug("Workflow run listener connected.")
 
@@ -239,7 +234,7 @@ class PooledWorkflowRunListener:
             if subscription_id:
                 self.cleanup_subscription(subscription_id)
 
-    async def result(self, workflow_run_id: str) -> dict[str, Any]:
+    async def aio_result(self, workflow_run_id: str) -> dict[str, Any]:
         from hatchet_sdk.clients.admin import DedupeViolationErr
 
         event = await self.subscribe(workflow_run_id)
@@ -258,7 +253,7 @@ class PooledWorkflowRunListener:
         }
 
     async def _retry_subscribe(
-        self,
+        self, client: DispatcherStub
     ) -> grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]:
         retries = 0
 
@@ -275,7 +270,7 @@ class PooledWorkflowRunListener:
                     grpc.aio.UnaryStreamCall[
                         SubscribeToWorkflowRunsRequest, WorkflowRunEvent
                     ],
-                    self.client.SubscribeToWorkflowRuns(
+                    client.SubscribeToWorkflowRuns(
                         self._request(),
                         metadata=get_metadata(self.token),
                     ),

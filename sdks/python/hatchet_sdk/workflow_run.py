@@ -6,7 +6,7 @@ from hatchet_sdk.clients.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.utils.aio_utils import get_active_event_loop
+from hatchet_sdk.utils.aio_utils import get_active_event_loop, run_async_from_sync
 
 
 class WorkflowRunRef:
@@ -27,19 +27,7 @@ class WorkflowRunRef:
         return self.workflow_run_event_listener.stream(self.workflow_run_id)
 
     async def aio_result(self) -> dict[str, Any]:
-        return await self.workflow_listener.result(self.workflow_run_id)
+        return await self.workflow_listener.aio_result(self.workflow_run_id)
 
     def result(self) -> dict[str, Any]:
-        coro = self.workflow_listener.result(self.workflow_run_id)
-
-        loop = get_active_event_loop()
-
-        if loop is None:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                return loop.run_until_complete(coro)
-            finally:
-                asyncio.set_event_loop(None)
-        else:
-            return loop.run_until_complete(coro)
+        return run_async_from_sync(self.aio_result)
