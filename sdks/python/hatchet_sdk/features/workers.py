@@ -4,7 +4,7 @@ from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRe
 from hatchet_sdk.clients.rest.models.worker import Worker
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
-from hatchet_sdk.utils.aio_utils import run_async_from_sync
+from hatchet_sdk.utils.aio import run_async_from_sync
 
 
 class WorkersClient(BaseRestClient):

@@ -2,7 +2,7 @@ from hatchet_sdk.clients.rest.api.log_api import LogApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
-from hatchet_sdk.utils.aio_utils import run_async_from_sync
+from hatchet_sdk.utils.aio import run_async_from_sync
 
 
 class LogsClient(BaseRestClient):

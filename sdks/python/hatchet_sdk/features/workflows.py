@@ -5,7 +5,7 @@ from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
-from hatchet_sdk.utils.aio_utils import run_async_from_sync
+from hatchet_sdk.utils.aio import run_async_from_sync
 
 
 class WorkflowsClient(BaseRestClient):

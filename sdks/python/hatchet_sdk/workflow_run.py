@@ -6,7 +6,7 @@ from hatchet_sdk.clients.run_event_listener import (
 )
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.utils.aio_utils import run_async_from_sync
+from hatchet_sdk.utils.aio import run_async_from_sync
 
 
 class WorkflowRunRef:
