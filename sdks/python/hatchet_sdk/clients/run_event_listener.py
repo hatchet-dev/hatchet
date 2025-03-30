@@ -1,6 +1,8 @@
 import asyncio
 from enum import Enum
-from typing import Any, AsyncGenerator, Callable, Generator, cast
+from queue import Empty, Queue
+from threading import Thread
+from typing import Any, AsyncGenerator, Callable, Generator, Literal, TypeVar, cast
 
 import grpc
 from pydantic import BaseModel
@@ -55,6 +57,8 @@ workflow_run_event_type_mapping = {
     ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT,
 }
 
+T = TypeVar("T")
+
 
 class StepRunEvent(BaseModel):
     type: StepRunEventType
@@ -83,27 +87,46 @@ class RunEventListener:
     async def __anext__(self) -> StepRunEvent:
         return await self._generator().__anext__()
 
-    def __iter__(self) -> Generator[StepRunEvent, None, None]:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError as e:
-            if str(e).startswith("There is no current event loop in thread"):
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            else:
-                raise e
+    def async_to_sync_thread(
+        self, async_iter: AsyncGenerator[T, None]
+    ) -> Generator[T, None, None]:
+        q = Queue[T | Literal["DONE"]]()
+        done_sentinel: Literal["DONE"] = "DONE"
 
-        async_iter = self.__aiter__()
+        def runner() -> None:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            async def consume() -> None:
+                try:
+                    async for item in async_iter:
+                        q.put(item)
+                finally:
+                    q.put(done_sentinel)
+
+            try:
+                loop.run_until_complete(consume())
+            finally:
+                loop.stop()
+                loop.close()
+
+        thread = Thread(target=runner)
+        thread.start()
 
         while True:
             try:
-                future = asyncio.ensure_future(async_iter.__anext__())
-                yield loop.run_until_complete(future)
-            except StopAsyncIteration:
-                break
-            except Exception as e:
-                print(f"Error in synchronous iterator: {e}")
-                break
+                item = q.get(timeout=1)
+                if item == "DONE":
+                    break
+                yield item
+            except Empty:
+                continue
+
+        thread.join()
+
+    def __iter__(self) -> Generator[StepRunEvent, None, None]:
+        for item in self.async_to_sync_thread(self.__aiter__()):
+            yield item
 
     async def _generator(self) -> AsyncGenerator[StepRunEvent, None]:
         while True:
