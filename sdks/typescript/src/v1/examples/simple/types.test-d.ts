@@ -6,7 +6,6 @@
 import { Context } from '@hatchet/step';
 import {
   CreateTaskWorkflowOpts,
-  CreateWorkflowOpts,
   HatchetClient,
   TaskOutputType,
   TaskWorkflowDeclaration,
@@ -21,8 +20,6 @@ import {
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expectError, expectType } from 'jest-tsd';
 import { UnknownInputType } from '@hatchet/v1/types';
-// TODO
-// return void
 
 const hatchet = HatchetClient.init({ token: '' });
 
