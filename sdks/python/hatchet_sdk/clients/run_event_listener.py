@@ -64,14 +64,12 @@ class StepRunEvent(BaseModel):
 class RunEventListener:
     def __init__(
         self,
-        client: DispatcherStub,
-        token: str,
+        config: ClientConfig,
         workflow_run_id: str | None = None,
         additional_meta_kv: tuple[str, str] | None = None,
     ):
-        self.client = client
+        self.config = config
         self.stop_signal = False
-        self.token = token
 
         self.workflow_run_id = workflow_run_id
         self.additional_meta_kv = additional_meta_kv
@@ -171,6 +169,8 @@ class RunEventListener:
 
     async def retry_subscribe(self) -> AsyncGenerator[WorkflowEvent, None]:
         retries = 0
+        aio_conn = new_conn(self.config, True)
+        client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
 
         while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             try:
@@ -180,22 +180,22 @@ class RunEventListener:
                 if self.workflow_run_id is not None:
                     return cast(
                         AsyncGenerator[WorkflowEvent, None],
-                        self.client.SubscribeToWorkflowEvents(
+                        client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
                                 workflowRunId=self.workflow_run_id,
                             ),
-                            metadata=get_metadata(self.token),
+                            metadata=get_metadata(self.config.token),
                         ),
                     )
                 elif self.additional_meta_kv is not None:
                     return cast(
                         AsyncGenerator[WorkflowEvent, None],
-                        self.client.SubscribeToWorkflowEvents(
+                        client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
                                 additionalMetaKey=self.additional_meta_kv[0],
                                 additionalMetaValue=self.additional_meta_kv[1],
                             ),
-                            metadata=get_metadata(self.token),
+                            metadata=get_metadata(self.config.token),
                         ),
                     )
                 else:
@@ -212,30 +212,16 @@ class RunEventListener:
 
 class RunEventListenerClient:
     def __init__(self, config: ClientConfig):
-        self.token = config.token
         self.config = config
-        self.client: DispatcherStub | None = None
 
     def stream_by_run_id(self, workflow_run_id: str) -> RunEventListener:
         return self.stream(workflow_run_id)
 
     def stream(self, workflow_run_id: str) -> RunEventListener:
-        if not self.client:
-            aio_conn = new_conn(self.config, True)
-            self.client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
-
-        return RunEventListener(
-            client=self.client, token=self.token, workflow_run_id=workflow_run_id
-        )
+        return RunEventListener(config=self.config, workflow_run_id=workflow_run_id)
 
     def stream_by_additional_metadata(self, key: str, value: str) -> RunEventListener:
-        if not self.client:
-            aio_conn = new_conn(self.config, True)
-            self.client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
-
-        return RunEventListener(
-            client=self.client, token=self.token, additional_meta_kv=(key, value)
-        )
+        return RunEventListener(config=self.config, additional_meta_kv=(key, value))
 
     async def on(
         self, workflow_run_id: str, handler: Callable[[StepRunEvent], Any] | None = None
