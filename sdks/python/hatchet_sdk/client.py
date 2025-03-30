@@ -1,7 +1,3 @@
-import asyncio
-
-import grpc
-
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient, new_event
@@ -29,13 +25,7 @@ class Client:
         workflow_listener: PooledWorkflowRunListener | None | None = None,
         debug: bool = False,
     ):
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        conn: grpc.Channel = new_conn(config, False)
+        conn = new_conn(config, False)
 
         self.config = config
         self.admin = admin_client or AdminClient(config)

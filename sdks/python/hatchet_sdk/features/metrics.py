@@ -11,6 +11,7 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
+from hatchet_sdk.utils.aio_utils import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -38,7 +39,7 @@ class MetricsClient(BaseRestClient):
         status: WorkflowRunStatus | None = None,
         group_key: str | None = None,
     ) -> WorkflowMetrics:
-        return self._run_async_from_sync(
+        return run_async_from_sync(
             self.aio_get_workflow_metrics, workflow_id, status, group_key
         )
 
@@ -61,7 +62,7 @@ class MetricsClient(BaseRestClient):
         workflow_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> TenantQueueMetrics:
-        return self._run_async_from_sync(
+        return run_async_from_sync(
             self.aio_get_queue_metrics, workflow_ids, additional_metadata
         )
 
@@ -72,4 +73,4 @@ class MetricsClient(BaseRestClient):
             )
 
     def get_task_metrics(self) -> TenantStepRunQueueMetrics:
-        return self._run_async_from_sync(self.aio_get_task_metrics)
+        return run_async_from_sync(self.aio_get_task_metrics)
