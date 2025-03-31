@@ -6,7 +6,7 @@ import { Button } from "./button";
 import { CookieIcon } from "@radix-ui/react-icons";
 import posthog from "posthog-js";
 
-import { loadReoScript } from "reodotdev";
+import { loadReoScript } from "@/lib/reoWrapper";
 
 
 export function cookieConsentGiven() {
