@@ -273,6 +273,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 					task.RetryCount,
 					false,
 					"Could not send task to worker",
+					false,
 				)
 
 				if err != nil {

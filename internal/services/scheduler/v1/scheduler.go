@@ -576,6 +576,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",
+			false,
 		)
 
 		if err != nil {

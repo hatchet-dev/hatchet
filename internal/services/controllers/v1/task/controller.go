@@ -376,6 +376,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 			},
 			IsAppError:   msg.IsAppError,
 			ErrorMessage: msg.ErrorMsg,
+			IsNonRetryable: msg.IsNonRetryable,
 		})
 
 		if msg.ErrorMsg != "" {

@@ -77,12 +77,13 @@ func (q *Queries) DeleteMatchingSignalEvents(ctx context.Context, db DBTX, arg D
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at
+        task_id, task_inserted_at, is_non_retryable
     FROM
         (
             SELECT
                 unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::boolean[]) AS is_non_retryable
         ) AS subquery
 ), locked_tasks AS (
     SELECT
@@ -98,7 +99,7 @@ WITH input AS (
         v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
     WHERE
         (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-        AND t.tenant_id = $3::uuid
+        AND t.tenant_id = $4::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -119,10 +120,12 @@ SET
     retry_count = retry_count + 1,
     app_retry_count = app_retry_count + 1
 FROM
-    tasks_to_steps
+    tasks_to_steps tts
+JOIN
+    input i ON (v1_task.id, v1_task.inserted_at)
 WHERE
-    (v1_task.id, v1_task.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-    AND tasks_to_steps."retries" > v1_task.app_retry_count
+    tasks_to_steps."retries" > v1_task.app_retry_count
+    AND i.is_non_retryable = FALSE
 RETURNING
     v1_task.id,
     v1_task.inserted_at,
@@ -135,6 +138,7 @@ RETURNING
 type FailTaskAppFailureParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Isnonretryables []bool               `json:"isnonretryables"`
 	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
 
@@ -149,7 +153,12 @@ type FailTaskAppFailureRow struct {
 
 // Fails a task due to an application-level error
 func (q *Queries) FailTaskAppFailure(ctx context.Context, db DBTX, arg FailTaskAppFailureParams) ([]*FailTaskAppFailureRow, error) {
-	rows, err := db.Query(ctx, failTaskAppFailure, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, failTaskAppFailure,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Isnonretryables,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}

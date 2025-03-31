@@ -58,6 +58,9 @@ type CreateTaskOpts struct {
 	// (optional) the parent task inserted at
 	ParentTaskInsertedAt *time.Time
 
+	// (optional) The priority of a task, between 1 and 3
+	Priority *int32
+
 	// (optional) the child index for the task
 	ChildIndex *int64
 
@@ -133,6 +136,9 @@ type FailTaskOpts struct {
 
 	// (optional) the error message for the task
 	ErrorMessage string
+
+	// (optional) A boolean flag to indicate whether the error is non-retryable, meaning it should _not_ be retried. Defaults to false.
+	IsNonRetryable bool
 }
 
 type TaskIdEventKeyTuple struct {
@@ -599,6 +605,8 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
 	appFailureTaskIds := make([]int64, 0)
 	appFailureTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+	appFailureIsNonRetryableStatuses := make([]bool, 0)
+
 	internalFailureTaskIds := make([]int64, 0)
 	internalFailureInsertedAts := make([]pgtype.Timestamptz, 0)
 
@@ -608,6 +616,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		if failureOpt.IsAppError {
 			appFailureTaskIds = append(appFailureTaskIds, failureOpt.Id)
 			appFailureTaskInsertedAts = append(appFailureTaskInsertedAts, failureOpt.InsertedAt)
+			appFailureIsNonRetryableStatuses = append(appFailureIsNonRetryableStatuses, failureOpt.IsNonRetryable)
 		} else {
 			internalFailureTaskIds = append(internalFailureTaskIds, failureOpt.Id)
 			internalFailureInsertedAts = append(internalFailureInsertedAts, failureOpt.InsertedAt)
@@ -624,6 +633,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:         appFailureTaskIds,
 			Taskinsertedats: appFailureTaskInsertedAts,
+			Isnonretryables: appFailureIsNonRetryableStatuses,
 		})
 
 		if err != nil {
@@ -1003,8 +1013,9 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
 			},
-			IsAppError:   true,
-			ErrorMessage: fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+			IsAppError:     true,
+			ErrorMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+			IsNonRetryable: false,
 		})
 	}
 
@@ -1060,7 +1071,8 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
 			},
-			IsAppError: false,
+			IsAppError:     false,
+			IsNonRetryable: false,
 		})
 	}
 
@@ -1452,7 +1464,15 @@ func (r *sharedRepository) insertTasks(
 		// we're assuming a v1 task.
 		inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		retryCounts[i] = 0
-		priorities[i] = 1
+
+		priority := int32(1)
+
+		if task.Priority != nil {
+			priority = *task.Priority
+		}
+
+		priorities[i] = priority
+
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 
 		if stepConfig.WorkflowVersionSticky.Valid {
@@ -1549,6 +1569,8 @@ func (r *sharedRepository) insertTasks(
 						}
 					}
 
+					// Make sure to fail the task with a user-friendly error if we can't parse the CEL for priority
+					// Can set fail task error which will insert with an initial state of failed
 					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
 						cel.WithInput(task.Input.Input),
 						cel.WithAdditionalMetadata(additionalMeta),
