@@ -278,12 +278,14 @@ SET
     retry_count = retry_count + 1,
     app_retry_count = app_retry_count + 1
 FROM
-    tasks_to_steps tts
-JOIN
-    input i ON (v1_task.id, v1_task.inserted_at)
+    tasks_to_steps
 WHERE
-    tasks_to_steps."retries" > v1_task.app_retry_count
-    AND i.is_non_retryable = FALSE
+    (v1_task.id, v1_task.inserted_at) IN (
+        SELECT task_id, task_inserted_at
+        FROM input
+        WHERE is_non_retryable = FALSE
+    )
+    AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
     v1_task.id,
     v1_task.inserted_at,
