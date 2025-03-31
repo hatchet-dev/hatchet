@@ -60,7 +60,7 @@ class WorkerActionRunLoopManager:
 
     async def aio_start(self, retry_count: int = 1) -> None:
         await capture_logs(
-            self.client.logInterceptor,
+            self.client.log_interceptor,
             self.client.event,
             self._async_start,
         )(retry_count=retry_count)

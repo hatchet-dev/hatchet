@@ -33,7 +33,7 @@ if _version_not_supported:
 class V1DispatcherStub(object):
     """Missing associated documentation comment in .proto file."""
 
-    def __init__(self, channel):
+    def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
         """Constructor.
 
         Args:

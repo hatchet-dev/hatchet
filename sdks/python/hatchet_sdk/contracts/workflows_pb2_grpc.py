@@ -34,7 +34,7 @@ class WorkflowServiceStub(object):
     """WorkflowService represents a set of RPCs for managing workflows.
     """
 
-    def __init__(self, channel):
+    def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
         """Constructor.
 
         Args:

@@ -24,7 +24,7 @@ class RateLimitsClient(BaseRestClient):
         )
 
         conn = new_conn(self.client_config, False)
-        client = WorkflowServiceStub(conn)  # type: ignore[no-untyped-call]
+        client = WorkflowServiceStub(conn)
 
         client.PutRateLimit(
             v0_workflow_protos.PutRateLimitRequest(

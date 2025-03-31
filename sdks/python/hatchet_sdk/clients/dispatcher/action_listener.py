@@ -152,7 +152,7 @@ class ActionListener:
         self.config = config
         self.worker_id = worker_id
 
-        self.aio_client = DispatcherStub(new_conn(self.config, True))  # type: ignore[no-untyped-call]
+        self.aio_client = DispatcherStub(new_conn(self.config, True))
         self.token = self.config.token
 
         self.retries = 0
@@ -232,14 +232,8 @@ class ActionListener:
         if self.heartbeat_task is not None:
             return
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError as e:
-            if str(e).startswith("There is no current event loop in thread"):
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            else:
-                raise e
+        loop = asyncio.get_event_loop()
+
         self.heartbeat_task = loop.create_task(self.heartbeat())
 
     def __aiter__(self) -> AsyncGenerator[Action | None, None]:
@@ -386,7 +380,7 @@ class ActionListener:
                 f"action listener connection interrupted, retrying... ({self.retries}/{DEFAULT_ACTION_LISTENER_RETRY_COUNT})"
             )
 
-        self.aio_client = DispatcherStub(new_conn(self.config, True))  # type: ignore[no-untyped-call]
+        self.aio_client = DispatcherStub(new_conn(self.config, True))
 
         if self.listen_strategy == "v2":
             # we should await for the listener to be established before

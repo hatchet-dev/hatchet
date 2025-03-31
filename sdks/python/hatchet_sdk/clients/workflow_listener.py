@@ -54,14 +54,6 @@ class _Subscription:
 
 class PooledWorkflowRunListener:
     def __init__(self, config: ClientConfig):
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        conn = new_conn(config, True)
-        self.client = DispatcherStub(conn)  # type: ignore[no-untyped-call]
         self.token = config.token
         self.config = config
 
@@ -90,6 +82,10 @@ class PooledWorkflowRunListener:
         self.events: dict[int, _Subscription] = {}
 
         self.interrupter: asyncio.Task[None] | None = None
+
+        ## IMPORTANT: This needs to be created lazily so we don't require
+        ## an event loop to instantiate the client.
+        self.client: DispatcherStub | None = None
 
     async def _interrupter(self) -> None:
         """
@@ -239,7 +235,7 @@ class PooledWorkflowRunListener:
             if subscription_id:
                 self.cleanup_subscription(subscription_id)
 
-    async def result(self, workflow_run_id: str) -> dict[str, Any]:
+    async def aio_result(self, workflow_run_id: str) -> dict[str, Any]:
         from hatchet_sdk.clients.admin import DedupeViolationErr
 
         event = await self.subscribe(workflow_run_id)
@@ -261,6 +257,9 @@ class PooledWorkflowRunListener:
         self,
     ) -> grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]:
         retries = 0
+        if self.client is None:
+            conn = new_conn(self.config, True)
+            self.client = DispatcherStub(conn)
 
         while retries < DEFAULT_WORKFLOW_LISTENER_RETRY_COUNT:
             try:
@@ -276,7 +275,7 @@ class PooledWorkflowRunListener:
                         SubscribeToWorkflowRunsRequest, WorkflowRunEvent
                     ],
                     self.client.SubscribeToWorkflowRuns(
-                        self._request(),
+                        self._request(),  # type: ignore[arg-type]
                         metadata=get_metadata(self.token),
                     ),
                 )
