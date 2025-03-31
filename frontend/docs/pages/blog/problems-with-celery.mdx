@@ -1,4 +1,4 @@
-import Lottie, { LottieProps } from "react-lottie-player";
+import DynamicLottie from "../../components/DynamicLottie";
 import * as prefetch from "./_celery_prefetch.json";
 import { Callout } from "nextra/components";
 
@@ -13,7 +13,7 @@ import { Callout } from "nextra/components";
 
 _**Disclosure:** I'm a co-founder of [Hatchet](https://hatchet.run), a multi-language task queue with Python support. We're [open-source](https://github.com/hatchet-dev/hatchet) (with a cloud version) and we aim to be a drop-in replacement for Celery that supports a modern Python stack._
 
-Most people who build web apps in Python have encountered [Celery](https://github.com/celery/celery). It's described as a “distributed task queue” — which basically means that it helps users divide background tasks between a set of processes, called workers.
+Most people who build web apps in Python have encountered [Celery](https://github.com/celery/celery). It's described as a "distributed task queue" — which basically means that it helps users divide background tasks between a set of processes, called workers.
 
 And it's widely deployed for good reason: it integrates easily into nearly every Python framework, supports a wide range of brokers and backends, and has a number of customization options and higher-order concepts like chains and chords which make it a compelling tool.
 
@@ -55,7 +55,7 @@ Contrary to the docs, it seems that you can't set this at the queue level for mu
 Another small nit: the rate limiting is implemented as a delay in picking up new tasks, _evenly distributed across the timeframe_. So if there's a considerably low limit, say 10/hour, tasks can run at most once every 6 minutes. From the docs:
 
 > Tasks will be evenly distributed over the specified time frame.
-> Example: “100/m” (hundred tasks a minute). This will enforce a minimum delay of 600ms between starting two tasks on the same worker instance.
+> Example: "100/m" (hundred tasks a minute). This will enforce a minimum delay of 600ms between starting two tasks on the same worker instance.
 
 This most likely isn't how rate limiting is implemented on your third-party provider. The most common behavior is that the rate limit corresponds to the _total number of requests allowed within the timeframe -_ so it won't matter whether it's 10 requests at the start of the hour, or 10 requests spaced evenly throughout the hour, and with an even distribution you may be unintentionally bottlenecking your workers.
 
@@ -105,13 +105,13 @@ Note that clock synchronization is only important in Celery when using ETA/count
 
 ### **Losing Tasks by Default**
 
-The default behavior of Celery is to prefetch tasks from the broker with “early acknowledgement” turned on, which means that it acknowledges the task as soon as it starts executing the task. This means that if the worker crashes halfway through a task execution (for example, you redeploy the worker without graceful shutdown), the task won't be retried on a different worker — from the broker's perspective the task is completed. The Celery docs say the following on the matter:
+The default behavior of Celery is to prefetch tasks from the broker with "early acknowledgement" turned on, which means that it acknowledges the task as soon as it starts executing the task. This means that if the worker crashes halfway through a task execution (for example, you redeploy the worker without graceful shutdown), the task won't be retried on a different worker — from the broker's perspective the task is completed. The Celery docs say the following on the matter:
 
 > **So for ease of programming we have less reliability**; It's a good default, users who require it and know what they are doing can still enable acks_late (and in the future hopefully use manual acknowledgment).
 
-Sure, there's no tradeoff-free approach to this problem, as there's no such thing as exactly-once delivery when dealing with a network that isn't 100% reliable. But “reliability vs ease of programming” is a false equivalency for a few reasons:
+Sure, there's no tradeoff-free approach to this problem, as there's no such thing as exactly-once delivery when dealing with a network that isn't 100% reliable. But "reliability vs ease of programming" is a false equivalency for a few reasons:
 
-1. The decision to set this default, along with the decision to not surface an error when a worker restarts and reconnects, makes programming _more_ difficult. Debugging behaviors involving the absence of a task is much more difficult than debugging failures involving multiple task executions - the absence of a task execution (or a task in a perpetual “Started” state according to `celery.events`) lives outside the purview of the application, and won't be captured by typical logs or failure events instrumented by the application developer.
+1. The decision to set this default, along with the decision to not surface an error when a worker restarts and reconnects, makes programming _more_ difficult. Debugging behaviors involving the absence of a task is much more difficult than debugging failures involving multiple task executions - the absence of a task execution (or a task in a perpetual "Started" state according to `celery.events`) lives outside the purview of the application, and won't be captured by typical logs or failure events instrumented by the application developer.
 2. It's far more common for a task queue to implement at-least-once execution with idempotency (known as effectively once) than at-most-once execution. If we wanted at-most-once execution, the simplest approach would be a pub/sub system without message persistence.
 
 We usually recommend to set **`acks_late` to `True`.**
@@ -126,7 +126,7 @@ The reason for many of these complaints comes down to the prefetch multiplier:
 
 The default value is 4, which means that each worker can pull in up to 4 times the number of worker processes available. Let's take a look at what this looks like when we have a single long-running task with a bunch of shorter-running tasks:
 
-<Lottie
+<DynamicLottie
   play
   loop
   animationData={prefetch}
@@ -175,7 +175,7 @@ And this doesn't even include basic alerting, which would involve setting up tri
 At this point, we're putting in some legwork — building and maintaining our own dashboards and alerts — for what is a set of very basic features (aggregate views and good filtering across persisted tasks).
 
 <Callout type="info" emoji="🪓">
-  If you've read this far, perhaps you'd be interested in how we're solving some of these problems with Hatchet. The reason we can avoid certain classes of problems is that we have a central component (our “engine”) along with a Postgres database for result persistence, which makes it much easier to implement global rate limits, worker management (no `n^2` networking issues), and lets us persist ETA tasks instead of having to pull them off the queue immediately.
+  If you've read this far, perhaps you'd be interested in how we're solving some of these problems with Hatchet. The reason we can avoid certain classes of problems is that we have a central component (our "engine") along with a Postgres database for result persistence, which makes it much easier to implement global rate limits, worker management (no `n^2` networking issues), and lets us persist ETA tasks instead of having to pull them off the queue immediately.
 
 Observability with dashboards and alerting is also a first-class citizen of Hatchet. We currently support Slack and email-based alerts on failure, and we have a feature-rich UI which lets you debug and filter your tasks:
 

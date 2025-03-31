@@ -1,4 +1,4 @@
-import Lottie, { LottieProps } from "react-lottie-player";
+import DynamicLottie from "../../components/DynamicLottie";
 import * as fairness from "./_fairness.json";
 import * as alice from "./_alice.json";
 import * as multi from "./_multi.json";
@@ -26,7 +26,7 @@ That is, until Bob decides to upload his entire hard drive — probably also on 
 
 At this point (or ideally before this point), you introduce…the task queue. This allows you to queue each file processing task and only dispatch the amount of tasks each worker can handle at a time.
 
-<Lottie
+<DynamicLottie
   play
   loop
   animationData={fairness}
@@ -36,7 +36,7 @@ At this point (or ideally before this point), you introduce…the task queue. Th
 
 But while this solves the problem of the worker crashing, it introduces a new problem, because you've intentionally bottlenecked the system. Which means that when Bob uploads his second hard drive, a new issue emerges - Alice's 1-page file upload gets stuck at the back of the queue:
 
-<Lottie
+<DynamicLottie
   play
   loop
   animationData={alice}
@@ -134,7 +134,7 @@ The `ORDER BY id` statement gives us a default ordering by the auto-incremented 
 
 We'd now like to guarantee fair execution time to Bob and Alice. A simple way to support this is a round-robin strategy: pop 1 task from Alice, 1 task from Bob, and…Bob's your uncle? To achieve this, we can imagine separate queues for each group of users -- in this case, "purple," "orange" and "green":
 
-<Lottie
+<DynamicLottie
   play
   loop
   animationData={multi}
