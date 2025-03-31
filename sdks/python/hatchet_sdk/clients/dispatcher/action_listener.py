@@ -298,7 +298,9 @@ class ActionListener:
                             )
                         )
                     except (ValueError, json.JSONDecodeError) as e:
-                        raise ValueError(f"Error decoding payload: {e}")
+                        logger.error(f"Error decoding payload: {e}")
+
+                        action_payload = ActionPayload()
 
                     action = Action(
                         tenant_id=assigned_action.tenantId,
