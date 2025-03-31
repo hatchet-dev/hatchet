@@ -165,18 +165,17 @@ export class Context<T, K = {}> {
 
   /**
    * Retrieves the output of a parent task.
-   * @param task - The name of the task or a CreateTaskOpts object.
+   * @param parentTask - The a CreateTaskOpts or string of the parent task name.
    * @returns The output of the specified parent task.
    * @throws An error if the task output is not found.
-   *
    */
-  async parentOutput<L extends OutputType>(task: CreateWorkflowTaskOpts<any, L> | string) {
+  async parentOutput<L extends OutputType>(parentTask: CreateWorkflowTaskOpts<any, L> | string) {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
-    if (typeof task === 'string') {
-      return this.stepOutput<L>(task);
+    if (typeof parentTask === 'string') {
+      return this.stepOutput<L>(parentTask);
     }
 
-    return this.stepOutput<L>(task.name) as L;
+    return this.stepOutput<L>(parentTask.name) as L;
   }
 
   /**
@@ -188,10 +187,10 @@ export class Context<T, K = {}> {
    */
   stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
-      throw new HatchetError('output not found');
+      throw new HatchetError('Parent task outputs not found');
     }
     if (!this.data.parents[step]) {
-      throw new HatchetError(`output for '${step}' not found`);
+      throw new HatchetError(`Output for parent task '${step}' not found`);
     }
     return this.data.parents[step];
   }
@@ -290,8 +289,8 @@ export class Context<T, K = {}> {
   }
 
   /**
-   * Gets the ID of the current workflow run.
-   * @returns The workflow run ID.
+   * Gets the ID of the current task run.
+   * @returns The task run ID.
    */
   taskRunId(): string {
     return this.action.stepRunId;
@@ -484,17 +483,17 @@ export class Context<T, K = {}> {
    *
    * @param workflow - The workflow to run (name, Workflow instance, or WorkflowV1 instance).
    * @param input - The input data for the workflow.
-   * @param options - Additional options for spawning the workflow. If a string is provided, it is used as the key.
+   * @param optionsOrKey - Either a string key or an options object containing key, sticky, and additionalMetadata.
    * @returns The result of the workflow.
    */
   async runChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
-    options?:
+    optionsOrKey?:
       | string
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): Promise<P> {
-    const run = await this.spawnWorkflow(workflow, input, options);
+    const run = await this.spawnWorkflow(workflow, input, optionsOrKey);
     return run.output;
   }
 
@@ -503,17 +502,17 @@ export class Context<T, K = {}> {
    *
    * @param workflow - The workflow to enqueue (name, Workflow instance, or WorkflowV1 instance).
    * @param input - The input data for the workflow.
-   * @param options - Additional options for spawning the workflow.
+   * @param optionsOrKey - Either a string key or an options object containing key, sticky, and additionalMetadata.
    * @returns A reference to the spawned workflow run.
    */
   runNoWaitChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
-    options?:
+    optionsOrKey?:
       | string
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): WorkflowRunRef<P> {
-    return this.spawnWorkflow(workflow, input, options);
+    return this.spawnWorkflow(workflow, input, optionsOrKey);
   }
 
   /**
