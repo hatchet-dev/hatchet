@@ -63,7 +63,7 @@
     "@visx/tooltip": "^3.3.0",
     "@visx/vendor": "^3.5.0",
     "ansi-to-html": "^0.7.2",
-    "axios": "^1.6.2",
+    "axios": "^1.8.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cmdk": "^0.2.0",
