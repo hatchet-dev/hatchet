@@ -10,7 +10,7 @@ function MyApp({ Component, pageProps }: AppProps) {
     <LanguageProvider>
       <PostHogProvider client={posthog}>
         <main>
-        <CookieConsent />
+          <CookieConsent />
           <Component {...pageProps} />
         </main>
       </PostHogProvider>
