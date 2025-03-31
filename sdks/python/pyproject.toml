@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.0.2"
+version = "1.0.3"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -155,3 +155,4 @@ v2_simple = "examples.v2.simple.worker:main"
 otel = "examples.opentelemetry_instrumentation.worker:main"
 waits = "examples.waits.worker:main"
 durable = "examples.durable.worker:main"
+streaming = "examples.streaming.worker:main"

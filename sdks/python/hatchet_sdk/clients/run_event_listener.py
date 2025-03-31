@@ -1,5 +1,4 @@
 import asyncio
-import json
 from enum import Enum
 from typing import Any, AsyncGenerator, Callable, Generator, cast
 
@@ -128,18 +127,10 @@ class RunEventListener:
                             raise Exception(
                                 f"Unknown event type: {workflow_event.eventType}"
                             )
-                        payload = None
 
-                        try:
-                            if workflow_event.eventPayload:
-                                payload = json.loads(workflow_event.eventPayload)
-                        except Exception:
-                            payload = workflow_event.eventPayload
-                            pass
-
-                        assert isinstance(payload, str)
-
-                        yield StepRunEvent(type=eventType, payload=payload)
+                        yield StepRunEvent(
+                            type=eventType, payload=workflow_event.eventPayload
+                        )
                     elif workflow_event.resourceType == RESOURCE_TYPE_WORKFLOW_RUN:
                         if workflow_event.eventType in step_run_event_type_mapping:
                             workflowRunEventType = step_run_event_type_mapping[
@@ -150,17 +141,10 @@ class RunEventListener:
                                 f"Unknown event type: {workflow_event.eventType}"
                             )
 
-                        payload = None
-
-                        try:
-                            if workflow_event.eventPayload:
-                                payload = json.loads(workflow_event.eventPayload)
-                        except Exception:
-                            pass
-
-                        assert isinstance(payload, str)
-
-                        yield StepRunEvent(type=workflowRunEventType, payload=payload)
+                        yield StepRunEvent(
+                            type=workflowRunEventType,
+                            payload=workflow_event.eventPayload,
+                        )
 
                     if workflow_event.hangup:
                         listener = None
@@ -236,9 +220,6 @@ class RunEventListenerClient:
         return self.stream(workflow_run_id)
 
     def stream(self, workflow_run_id: str) -> RunEventListener:
-        if not isinstance(workflow_run_id, str) and hasattr(workflow_run_id, "__str__"):
-            workflow_run_id = str(workflow_run_id)
-
         if not self.client:
             aio_conn = new_conn(self.config, True)
             self.client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
