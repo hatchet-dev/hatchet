@@ -1,9 +1,7 @@
-{
+export default {
   "home": {
     "title": "User Guide",
-    "type": "page",
-    "index": "Introduction",
-    "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart"
+    "type": "page"
   },
   "compute": {
     "title": "Managed Compute",
@@ -70,4 +68,4 @@
     "type": "page",
     "href": "https://v0-docs.hatchet.run"
   }
-}
+} 

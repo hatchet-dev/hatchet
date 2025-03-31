@@ -1,16 +1,10 @@
-{
+export default {
   "--intro": {
     "title": "Introduction",
     "type": "separator"
   },
   "index": "Introduction",
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
-  "home": {
-    "title": "User Guide",
-    "type": "page",
-    "index": "Introduction",
-    "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart"
-  },
   "--quickstart": {
     "title": "Quickstart",
     "type": "separator"
@@ -99,10 +93,6 @@
     "title": "Cancellation",
     "display": "hidden"
   },
-  "bulk-cancellation": {
-    "title": "Bulk Cancellation",
-    "display": "hidden"
-  },
   "--v1-migration-guides": {
     "title": "V1 Migration Guides",
     "type": "separator"
@@ -125,4 +115,4 @@
     "type": "page",
     "href": "/blog"
   }
-}
+} 

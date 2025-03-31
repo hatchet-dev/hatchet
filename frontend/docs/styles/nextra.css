@@ -1,0 +1,51 @@
+/* Import Nextra base styles */
+@import 'nextra/styles/variables.css';
+@import 'nextra/styles/code-block.css';
+@import 'nextra-theme-docs/style.css';
+
+/* Custom styling for Nextra components */
+:root {
+  --nextra-primary-hue: 210;
+  --nextra-primary-saturation: 60%;
+  --nextra-navbar-height: 4rem;
+  --nextra-menu-height: 3.75rem;
+  --nextra-banner-height: 2.5rem;
+}
+
+/* Dark mode colors */
+.dark {
+  --nextra-primary-brightness: 1.5;
+  --nextra-sidebar-width: 20rem;
+  --nextra-fluid-width: 80%;
+}
+
+/* Custom styling for Nextra banner */
+.nextra-banner {
+  background-color: rgba(var(--nextra-primary-hue), 100%, 50%, 0.1);
+}
+
+/* Custom styling for Nextra container */
+.nextra-container {
+  max-width: 90rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Custom styling for Nextra sidebar */
+.nextra-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.nextra-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.nextra-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nextra-sidebar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+} 

@@ -30,8 +30,8 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.459.0",
     "next": "^14.2.25",
-    "nextra": "^2.13.2",
-    "nextra-theme-docs": "^2.13.4",
+    "nextra": "^3.0.0-alpha.22",
+    "nextra-theme-docs": "^3.0.0-alpha.22",
     "postcss": "^8.4.33",
     "posthog-js": "^1.111.2",
     "react": "^18.2.0",
@@ -50,5 +50,6 @@
     "@types/react-dom": "^18.2.0",
     "prettier": "^3.2.5",
     "typescript": "^4.9.3"
-  }
+  },
+  "type": "module"
 }

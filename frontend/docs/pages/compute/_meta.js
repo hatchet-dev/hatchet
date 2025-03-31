@@ -1,4 +1,4 @@
-{
+export default {
   "-- Managed Compute": {
     "type": "separator",
     "title": "Managed Compute"
@@ -23,4 +23,4 @@
     "title": "Golang ↗",
     "href": "/sdks/go-sdk"
   }
-}
+} 

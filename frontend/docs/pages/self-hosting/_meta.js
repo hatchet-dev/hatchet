@@ -1,4 +1,4 @@
-{
+export default {
   "index": "Introduction",
   "-- Docker": {
     "type": "separator",
@@ -24,4 +24,4 @@
   "benchmarking": "Benchmarking",
   "data-retention": "Data Retention",
   "improving-performance": "Improving Performance"
-}
+} 

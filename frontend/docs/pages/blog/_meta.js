@@ -1,4 +1,4 @@
-{
+export default {
   "postgres-events-table": {
     "title": "Use Postgres for your events table"
   },
@@ -11,4 +11,4 @@
   "multi-tenant-queues": {
     "title": "An unfair advantage: multi-tenant queues in Postgres"
   }
-}
+} 
