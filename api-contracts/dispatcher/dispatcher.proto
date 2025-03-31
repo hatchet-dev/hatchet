@@ -250,6 +250,9 @@ message StepActionEvent {
 
     // the retry count
     optional int32 retryCount = 10;
+
+    // a flag indicating if the task should _not_ be retried
+    optional bool shouldNotRetry = 11;
 }
 
 message ActionEventResponse {
