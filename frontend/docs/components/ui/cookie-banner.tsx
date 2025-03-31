@@ -15,7 +15,7 @@ export function cookieConsentGiven() {
     }
     return localStorage.getItem('cookie_consent');
 }
-  
+
 
 export default function CookieConsent({ variant = "default", demo = false, onAcceptCallback = () => { }, onDeclineCallback = () => { } }) {
     const [isOpen, setIsOpen] = useState(false);
