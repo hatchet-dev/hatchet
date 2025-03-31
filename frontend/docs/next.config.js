@@ -7,7 +7,7 @@ const withNextra = require('nextra')({
 const nextConfig = {
   ...withNextra(),
   transpilePackages: ["react-tweet"],
-  swcMinify: false,
+  // swcMinify: false,
   async redirects() {
     return [
       {
