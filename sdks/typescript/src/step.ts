@@ -402,7 +402,15 @@ export class Context<T, K = {}> {
     }>
   ): Promise<P[]> {
     const runs = await this.bulkRunNoWaitChildren(children);
-    const res = runs.map((run) => run.output);
+
+    const res = runs.map((run, index) => {
+      const wf = children[index].workflow;
+      if (wf instanceof TaskWorkflowDeclaration) {
+        // eslint-disable-next-line no-underscore-dangle
+        return (run.output as any)[wf._standalone_task_name] as P;
+      }
+      return run.output;
+    });
     return Promise.all(res);
   }
 
