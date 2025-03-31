@@ -1,4 +1,4 @@
-{
+export default {
   "Python SDK": {
     "type": "separator",
     "title": "Python SDK"

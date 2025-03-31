@@ -1,4 +1,4 @@
-{
+export default {
   "-- Managed Compute": {
     "type": "separator",
     "title": "Managed Compute"

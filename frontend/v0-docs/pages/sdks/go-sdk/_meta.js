@@ -1,4 +1,4 @@
-{
+export default {
   "Go SDK": {
     "type": "separator",
     "title": "Go SDK"

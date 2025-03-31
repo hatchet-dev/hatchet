@@ -1,12 +1,23 @@
-const withNextra = require('nextra')({
+// Using ESM for Nextra v4
+import nextra from 'nextra'
+
+// Configure Nextra for MDX and docs
+const withNextra = nextra({
   theme: 'nextra-theme-docs',
   themeConfig: './theme.config.tsx',
+  defaultShowCopyCode: true,
+  readingTime: true,
+  staticImage: true,
+  latex: false,
 })
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  ...withNextra(),
   transpilePackages: ["react-tweet"],
+  swcMinify: false,
+  images: {
+    unoptimized: true,
+  },
   async redirects() {
     return [
       {
@@ -23,4 +34,4 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+export default withNextra(nextConfig)

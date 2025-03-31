@@ -1,4 +1,4 @@
-{
+export default {
     "prompt-engineering": {
         "title": "February 22nd - Prompt Engineering Platform",
         "display": "hidden"

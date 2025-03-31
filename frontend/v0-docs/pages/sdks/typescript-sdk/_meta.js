@@ -1,4 +1,4 @@
-{
+export default {
   "Typescript SDK": {
     "type": "separator",
     "title": "Typescript SDK"

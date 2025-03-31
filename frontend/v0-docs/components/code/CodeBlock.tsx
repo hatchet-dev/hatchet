@@ -7,7 +7,6 @@ import {
   CheckIcon,
   CopyIcon,
   FoldVertical,
-  MoveRight,
   MoveUpRight,
   UnfoldVertical,
 } from "lucide-react";

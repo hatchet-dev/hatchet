@@ -1,4 +1,4 @@
-{
+export default {
   "concurrency": "Concurrency Strategies",
   "durable-execution": "Durable Execution",
   "retries": "Retries",

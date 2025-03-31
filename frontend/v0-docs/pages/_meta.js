@@ -1,4 +1,4 @@
-{
+export default {
   "home": {
     "title": "User Guide",
     "type": "page"

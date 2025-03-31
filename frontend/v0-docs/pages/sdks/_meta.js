@@ -1,4 +1,5 @@
-{
+export default {
+    "index": "Introduction",
     "python-sdk": {
         "type": "page",
         "display": "hidden",

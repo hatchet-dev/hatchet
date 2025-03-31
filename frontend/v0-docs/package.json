@@ -23,20 +23,22 @@
   },
   "homepage": "https://github.com/shuding/nextra-docs-template#readme",
   "dependencies": {
+    "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-slot": "^1.1.0",
     "autoprefixer": "^10.4.17",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.459.0",
     "next": "^14.2.25",
-    "nextra": "^2.13.2",
-    "nextra-theme-docs": "^2.13.4",
+    "nextra": "^3.0.0-alpha.22",
+    "nextra-theme-docs": "^3.0.0-alpha.22",
     "postcss": "^8.4.33",
     "posthog-js": "^1.111.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-lottie-player": "^2.0.0",
     "react-tweet": "^3.2.0",
+    "reodotdev": "^1.0.0",
     "shiki": "^1.22.2",
     "tailwind-merge": "^2.5.4",
     "tailwindcss": "^3.4.1",
@@ -48,5 +50,10 @@
     "@types/react-dom": "^18.2.0",
     "prettier": "^3.2.5",
     "typescript": "^4.9.3"
-  }
+  },
+  "resolutions": {
+    "nanoid": "^3.3.8",
+    "katex": "^0.16.21"
+  },
+  "type": "module"
 }

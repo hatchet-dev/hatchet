@@ -33,9 +33,6 @@
 }
 
 @layer base {
-  * {
-    @apply border;
-  }
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
@@ -179,11 +176,39 @@ html.dark main {
 html.dark body {
   background-color: var(--background) !important;
 }
-html.dark div.nx-sticky.nx-bottom-0 {
-  background-color: var(--background) !important;
+
+/* Fix for Nextra 3 theme-switcher and sidebar footer */
+html.dark .nx-fixed,
+html.dark ._fixed,
+html.dark .dark\:nx-bg-dark,
+html.dark .dark\:_bg-dark,
+html.dark .nx-bg-white,
+html.dark ._bg-white {
+  background-color: #020817 !important;
 }
+
+/* Fix for system preferences button in theme switcher */
+html.dark .nx-text-gray-800,
+html.dark ._text-gray-800 {
+  color: #f8fafc !important;
+}
+
+/* Fix for theme switcher borders */
+html.dark .nx-border-gray-200,
+html.dark ._border-gray-200,
+html.dark .nx-border,
+html.dark ._border {
+  border-color: #1e293b !important;
+}
+
+/* Bottom nav container */
+html.dark div.nx-sticky.nx-bottom-0,
+html.dark div._sticky._bottom-0 {
+  background-color: #020817 !important;
+}
+
 html.dark div.nextra-nav-container {
-  background-color: var(--background) !important;
+  background-color: #020817 !important;
 }
 
 .nextra-nav-container-blur {
@@ -194,7 +219,8 @@ nav {
   background-color: var(--background) !important;
 }
 
-.dark .nx-sticky {
+.dark .nx-sticky,
+.dark ._sticky {
   box-shadow: none !important;
 }
 

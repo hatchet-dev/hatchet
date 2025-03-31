@@ -1,4 +1,4 @@
-{
+export default {
   "project-setup": "Project Setup",
   "building-the-workflow": "Building the Workflow",
   "api-server-setup": "API Server Setup",

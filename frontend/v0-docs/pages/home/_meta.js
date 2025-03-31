@@ -1,4 +1,4 @@
-{
+export default {
   "index": "Introduction",
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   "--guide": {
@@ -16,4 +16,4 @@
     "title": "About Hatchet ↗",
     "href": "https://hatchet.run"
   }
-}
+} 
