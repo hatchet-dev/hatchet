@@ -36,6 +36,7 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
     child_index: int | None = None
     child_key: str | None = None
     namespace: str | None = None
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
@@ -153,7 +154,11 @@ class AdminClient:
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
             input=json.dumps(input),
-            **options.model_dump(),
+            parent_id=options.parent_id,
+            parent_step_run_id=options.parent_step_run_id,
+            child_index=options.child_index,
+            child_key=options.child_key,
+            additional_metadata=json.dumps(options.additional_metadata),
         )
 
     @tenacity_retry
