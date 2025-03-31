@@ -3,15 +3,16 @@ import datetime
 import json
 from typing import List, cast
 
-import grpc
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
     BulkPushEventRequest,
     Event,
+    Events,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
@@ -19,13 +20,6 @@ from hatchet_sdk.contracts.events_pb2 import (
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-
-
-def new_event(conn: grpc.Channel, config: ClientConfig) -> "EventClient":
-    return EventClient(
-        client=EventsServiceStub(conn),  # type: ignore[no-untyped-call]
-        config=config,
-    )
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:
@@ -52,8 +46,10 @@ class BulkPushEventWithMetadata(BaseModel):
 
 
 class EventClient:
-    def __init__(self, client: EventsServiceStub, config: ClientConfig):
-        self.client = client
+    def __init__(self, config: ClientConfig):
+        conn = new_conn(config, False)
+        self.client = EventsServiceStub(conn)
+
         self.token = config.token
         self.namespace = config.namespace
 
@@ -146,11 +142,11 @@ class EventClient:
             ]
         )
 
-        response = self.client.BulkPush(bulk_request, metadata=get_metadata(self.token))
-
-        return cast(
-            list[Event],
-            response.events,
+        return list(
+            cast(
+                Events,
+                self.client.BulkPush(bulk_request, metadata=get_metadata(self.token)),
+            ).events
         )
 
     def log(self, message: str, step_run_id: str) -> None:

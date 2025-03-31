@@ -2,6 +2,12 @@ import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
+export const DagGo = {
+  path: "examples/v1/workflows/dag.go",
+};
+
+export const getStaticProps = ({}) => getSnippets([DagGo]);
+
 # Declarative Workflow Design (DAGs)
 
 Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, where each task is a node in the graph, and the dependencies between tasks are the edges. This structure ensures that workflows are organized, predictable, and free from circular dependencies. By defining the sequence and dependencies of tasks upfront, you can easily understand the actual runtime state as compared to the expected state when debugging or troubleshooting.
@@ -53,23 +59,7 @@ export const simple = hatchet.workflow<DagInput, DagOutput>({
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-```go
-import (
-    v1 "github.com/hatchet-dev/hatchet/pkg/v1"
-    "github.com/hatchet-dev/hatchet/pkg/v1/workflow"
-)
-
-func SimpleWorkflow(hatchet *v1.HatchetClient) workflow.WorkflowDeclaration[any, Result] {
-    simple := v1.WorkflowFactory[any, Result](
-        workflow.CreateOpts[any]{
-            Name: "simple-workflow",
-        },
-        hatchet,
-    )
-    // Add tasks next
-    return simple
-}
-```
+<GithubSnippet src={DagGo} target="Declaring a Workflow" />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -121,18 +111,7 @@ asynchronous.
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-```go
-step1 := simple.Task(
-    task.CreateOpts[any]{
-        Name: "Step1",
-        Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
-            return &SimpleOutput{
-                Step: 1,
-            }, nil
-        },
-    },
-)
-```
+<GithubSnippet src={DagGo} target="Defining a Task" />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -186,40 +165,7 @@ dag.task({
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-```go
-step1 := simple.Task(
-    task.CreateOpts[any]{
-        Name: "Step1",
-        Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
-            return &SimpleOutput{
-                Step: 1,
-            }, nil
-        },
-    },
-)
-
-simple.Task(
-    task.CreateOpts[any]{
-        Name: "Step2",
-        Parents: []task.NamedTask{
-            step1,
-        },
-        Fn: func(_ any, ctx worker.HatchetContext) (*SimpleOutput, error) {
-            var step1Output SimpleOutput
-            err := ctx.ParentOutput(step1, &step1Output)
-            if err != nil {
-                return nil, err
-            }
-
-            fmt.Println(step1Output.Step)
-
-            return &SimpleOutput{
-                Step: 2,
-            }, nil
-        },
-    },
-)
-```
+<GithubSnippet src={DagGo} target="Adding a Task with a parent" />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -245,7 +191,7 @@ const parentOutput = await ctx.parentOutput(parentTaskName);
 ```go
 // Inside a task with parent dependencies
 var parentOutput ParentOutputType
-err := ctx.ParentOutput(parentTaskName, &parentOutput)
+err := ctx.ParentOutput(parentTask, &parentOutput)
 if err != nil {
     return nil, err
 }

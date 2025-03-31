@@ -5,6 +5,7 @@ from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
+from hatchet_sdk.utils.aio import run_async_from_sync
 
 
 class WorkflowsClient(BaseRestClient):
@@ -19,7 +20,7 @@ class WorkflowsClient(BaseRestClient):
             return await self._wa(client).workflow_get(workflow_id)
 
     def get(self, workflow_id: str) -> Workflow:
-        return self._run_async_from_sync(self.aio_get, workflow_id)
+        return run_async_from_sync(self.aio_get, workflow_id)
 
     async def aio_list(
         self,
@@ -41,7 +42,7 @@ class WorkflowsClient(BaseRestClient):
         limit: int | None = None,
         offset: int | None = None,
     ) -> WorkflowList:
-        return self._run_async_from_sync(self.aio_list, workflow_name, limit, offset)
+        return run_async_from_sync(self.aio_list, workflow_name, limit, offset)
 
     async def aio_get_version(
         self, workflow_id: str, version: str | None = None
@@ -52,4 +53,4 @@ class WorkflowsClient(BaseRestClient):
     def get_version(
         self, workflow_id: str, version: str | None = None
     ) -> WorkflowVersion:
-        return self._run_async_from_sync(self.aio_get_version, workflow_id, version)
+        return run_async_from_sync(self.aio_get_version, workflow_id, version)

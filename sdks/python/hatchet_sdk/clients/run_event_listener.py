@@ -1,7 +1,8 @@
 import asyncio
-import json
 from enum import Enum
-from typing import Any, AsyncGenerator, Callable, Generator, cast
+from queue import Empty, Queue
+from threading import Thread
+from typing import Any, AsyncGenerator, Callable, Generator, Literal, TypeVar, cast
 
 import grpc
 from pydantic import BaseModel
@@ -56,6 +57,8 @@ workflow_run_event_type_mapping = {
     ResourceEventType.RESOURCE_EVENT_TYPE_TIMED_OUT: WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_TIMED_OUT,
 }
 
+T = TypeVar("T")
+
 
 class StepRunEvent(BaseModel):
     type: StepRunEventType
@@ -65,17 +68,19 @@ class StepRunEvent(BaseModel):
 class RunEventListener:
     def __init__(
         self,
-        client: DispatcherStub,
-        token: str,
+        config: ClientConfig,
         workflow_run_id: str | None = None,
         additional_meta_kv: tuple[str, str] | None = None,
     ):
-        self.client = client
+        self.config = config
         self.stop_signal = False
-        self.token = token
 
         self.workflow_run_id = workflow_run_id
         self.additional_meta_kv = additional_meta_kv
+
+        ## IMPORTANT: This needs to be created lazily so we don't require
+        ## an event loop to instantiate the client.
+        self.client: DispatcherStub | None = None
 
     def abort(self) -> None:
         self.stop_signal = True
@@ -86,27 +91,46 @@ class RunEventListener:
     async def __anext__(self) -> StepRunEvent:
         return await self._generator().__anext__()
 
-    def __iter__(self) -> Generator[StepRunEvent, None, None]:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError as e:
-            if str(e).startswith("There is no current event loop in thread"):
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            else:
-                raise e
+    def async_to_sync_thread(
+        self, async_iter: AsyncGenerator[T, None]
+    ) -> Generator[T, None, None]:
+        q = Queue[T | Literal["DONE"]]()
+        done_sentinel: Literal["DONE"] = "DONE"
 
-        async_iter = self.__aiter__()
+        def runner() -> None:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            async def consume() -> None:
+                try:
+                    async for item in async_iter:
+                        q.put(item)
+                finally:
+                    q.put(done_sentinel)
+
+            try:
+                loop.run_until_complete(consume())
+            finally:
+                loop.stop()
+                loop.close()
+
+        thread = Thread(target=runner)
+        thread.start()
 
         while True:
             try:
-                future = asyncio.ensure_future(async_iter.__anext__())
-                yield loop.run_until_complete(future)
-            except StopAsyncIteration:
-                break
-            except Exception as e:
-                print(f"Error in synchronous iterator: {e}")
-                break
+                item = q.get(timeout=1)
+                if item == "DONE":
+                    break
+                yield item
+            except Empty:
+                continue
+
+        thread.join()
+
+    def __iter__(self) -> Generator[StepRunEvent, None, None]:
+        for item in self.async_to_sync_thread(self.__aiter__()):
+            yield item
 
     async def _generator(self) -> AsyncGenerator[StepRunEvent, None]:
         while True:
@@ -128,18 +152,10 @@ class RunEventListener:
                             raise Exception(
                                 f"Unknown event type: {workflow_event.eventType}"
                             )
-                        payload = None
 
-                        try:
-                            if workflow_event.eventPayload:
-                                payload = json.loads(workflow_event.eventPayload)
-                        except Exception:
-                            payload = workflow_event.eventPayload
-                            pass
-
-                        assert isinstance(payload, str)
-
-                        yield StepRunEvent(type=eventType, payload=payload)
+                        yield StepRunEvent(
+                            type=eventType, payload=workflow_event.eventPayload
+                        )
                     elif workflow_event.resourceType == RESOURCE_TYPE_WORKFLOW_RUN:
                         if workflow_event.eventType in step_run_event_type_mapping:
                             workflowRunEventType = step_run_event_type_mapping[
@@ -150,17 +166,10 @@ class RunEventListener:
                                 f"Unknown event type: {workflow_event.eventType}"
                             )
 
-                        payload = None
-
-                        try:
-                            if workflow_event.eventPayload:
-                                payload = json.loads(workflow_event.eventPayload)
-                        except Exception:
-                            pass
-
-                        assert isinstance(payload, str)
-
-                        yield StepRunEvent(type=workflowRunEventType, payload=payload)
+                        yield StepRunEvent(
+                            type=workflowRunEventType,
+                            payload=workflow_event.eventPayload,
+                        )
 
                     if workflow_event.hangup:
                         listener = None
@@ -188,6 +197,10 @@ class RunEventListener:
     async def retry_subscribe(self) -> AsyncGenerator[WorkflowEvent, None]:
         retries = 0
 
+        if self.client is None:
+            aio_conn = new_conn(self.config, True)
+            self.client = DispatcherStub(aio_conn)
+
         while retries < DEFAULT_ACTION_LISTENER_RETRY_COUNT:
             try:
                 if retries > 0:
@@ -200,7 +213,7 @@ class RunEventListener:
                             SubscribeToWorkflowEventsRequest(
                                 workflowRunId=self.workflow_run_id,
                             ),
-                            metadata=get_metadata(self.token),
+                            metadata=get_metadata(self.config.token),
                         ),
                     )
                 elif self.additional_meta_kv is not None:
@@ -211,7 +224,7 @@ class RunEventListener:
                                 additionalMetaKey=self.additional_meta_kv[0],
                                 additionalMetaValue=self.additional_meta_kv[1],
                             ),
-                            metadata=get_metadata(self.token),
+                            metadata=get_metadata(self.config.token),
                         ),
                     )
                 else:
@@ -228,33 +241,16 @@ class RunEventListener:
 
 class RunEventListenerClient:
     def __init__(self, config: ClientConfig):
-        self.token = config.token
         self.config = config
-        self.client: DispatcherStub | None = None
 
     def stream_by_run_id(self, workflow_run_id: str) -> RunEventListener:
         return self.stream(workflow_run_id)
 
     def stream(self, workflow_run_id: str) -> RunEventListener:
-        if not isinstance(workflow_run_id, str) and hasattr(workflow_run_id, "__str__"):
-            workflow_run_id = str(workflow_run_id)
-
-        if not self.client:
-            aio_conn = new_conn(self.config, True)
-            self.client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
-
-        return RunEventListener(
-            client=self.client, token=self.token, workflow_run_id=workflow_run_id
-        )
+        return RunEventListener(config=self.config, workflow_run_id=workflow_run_id)
 
     def stream_by_additional_metadata(self, key: str, value: str) -> RunEventListener:
-        if not self.client:
-            aio_conn = new_conn(self.config, True)
-            self.client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
-
-        return RunEventListener(
-            client=self.client, token=self.token, additional_meta_kv=(key, value)
-        )
+        return RunEventListener(config=self.config, additional_meta_kv=(key, value))
 
     async def on(
         self, workflow_run_id: str, handler: Callable[[StepRunEvent], Any] | None = None

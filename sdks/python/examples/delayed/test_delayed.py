@@ -7,6 +7,6 @@
 # worker = fixture_bg_worker(["poetry", "run", "manual_trigger"])
 
 # # requires scope module or higher for shared event loop
-# @pytest.mark.asyncio(loop_scope="session")
+# @pytest.mark.asyncio()
 # async def test_run(hatchet: Hatchet):
 #     # TODO

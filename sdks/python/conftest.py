@@ -74,8 +74,8 @@ def worker() -> Generator[subprocess.Popen[bytes], None, None]:
                 update_tenant_request=UpdateTenantRequest(version=TenantVersion.V1),
             )
         )
-    except Exception as e:
-        print(e)
+    except Exception:
+        pass
 
     command = ["poetry", "run", "python", "examples/worker.py"]
 

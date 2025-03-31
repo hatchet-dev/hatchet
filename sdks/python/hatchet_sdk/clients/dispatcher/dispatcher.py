@@ -34,20 +34,23 @@ DEFAULT_REGISTER_TIMEOUT = 30
 
 
 class DispatcherClient:
-    config: ClientConfig
-
     def __init__(self, config: ClientConfig):
         conn = new_conn(config, False)
-        self.client = DispatcherStub(conn)  # type: ignore[no-untyped-call]
+        self.client = DispatcherStub(conn)
 
-        aio_conn = new_conn(config, True)
-        self.aio_client = DispatcherStub(aio_conn)  # type: ignore[no-untyped-call]
         self.token = config.token
         self.config = config
+
+        ## IMPORTANT: This needs to be created lazily so we don't require
+        ## an event loop to instantiate the client.
+        self.aio_client: DispatcherStub | None = None
 
     async def get_action_listener(
         self, req: GetActionListenerRequest
     ) -> ActionListener:
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
 
         # Override labels with the preset labels
         preset_labels = self.config.worker_preset_labels
@@ -95,6 +98,10 @@ class DispatcherClient:
     async def _try_send_step_action_event(
         self, action: Action, event_type: StepActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
+
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
 
@@ -122,6 +129,10 @@ class DispatcherClient:
     async def send_group_key_action_event(
         self, action: Action, event_type: GroupKeyActionEventType, payload: str
     ) -> grpc.aio.UnaryUnaryCall[GroupKeyActionEvent, ActionEventResponse]:
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
+
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
 
@@ -191,6 +202,10 @@ class DispatcherClient:
         worker_id: str | None,
         labels: dict[str, str | int],
     ) -> None:
+        if not self.aio_client:
+            aio_conn = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(aio_conn)
+
         worker_labels = {}
 
         for key, value in labels.items():

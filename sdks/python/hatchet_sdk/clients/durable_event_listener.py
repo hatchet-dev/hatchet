@@ -84,14 +84,6 @@ class RegisterDurableEventRequest(BaseModel):
 
 class DurableEventListener:
     def __init__(self, config: ClientConfig):
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        conn = new_conn(config, True)
-        self.client = V1DispatcherStub(conn)  # type: ignore[no-untyped-call]
         self.token = config.token
         self.config = config
 
@@ -129,11 +121,14 @@ class DurableEventListener:
             self.interrupt.set()
 
     async def _init_producer(self) -> None:
+        conn = new_conn(self.config, True)
+        client = V1DispatcherStub(conn)
+
         try:
             if not self.listener:
                 while True:
                     try:
-                        self.listener = await self._retry_subscribe()
+                        self.listener = await self._retry_subscribe(client)
 
                         logger.debug("Workflow run listener connected.")
 
@@ -282,6 +277,7 @@ class DurableEventListener:
 
     async def _retry_subscribe(
         self,
+        client: V1DispatcherStub,
     ) -> grpc.aio.UnaryStreamCall[ListenForDurableEventRequest, DurableEvent]:
         retries = 0
 
@@ -298,8 +294,8 @@ class DurableEventListener:
                     grpc.aio.UnaryStreamCall[
                         ListenForDurableEventRequest, DurableEvent
                     ],
-                    self.client.ListenForDurableEvent(
-                        self._request(),
+                    client.ListenForDurableEvent(
+                        self._request(),  # type: ignore[arg-type]
                         metadata=get_metadata(self.token),
                     ),
                 )
@@ -315,7 +311,10 @@ class DurableEventListener:
     def register_durable_event(
         self, request: RegisterDurableEventRequest
     ) -> Literal[True]:
-        self.client.RegisterDurableEvent(
+        conn = new_conn(self.config, True)
+        client = V1DispatcherStub(conn)
+
+        client.RegisterDurableEvent(
             request.to_proto(),
             timeout=5,
             metadata=get_metadata(self.token),

@@ -113,6 +113,14 @@ class Context:
 
         return parent_step_data
 
+    def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+        if task.is_async_function:
+            return self.task_output(task)
+
+        raise ValueError(
+            f"Task '{task.name}' is not an async function. Use `task_output` instead."
+        )
+
     @property
     def was_triggered_by_event(self) -> bool:
         return self.data.triggered_by == "event"
@@ -157,6 +165,7 @@ class Context:
 
         def handle_result(future: Future[tuple[bool, Exception | None]]) -> None:
             success, exception = future.result()
+
             if not success and exception:
                 if raise_on_error:
                     raise exception

@@ -6,7 +6,7 @@ from examples.dag.worker import dag_workflow
 from hatchet_sdk import Hatchet
 
 
-@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.asyncio()
 async def test_list_runs(hatchet: Hatchet) -> None:
     dag_result = await dag_workflow.aio_run()
 
@@ -19,7 +19,7 @@ async def test_list_runs(hatchet: Hatchet) -> None:
         assert v in [r.output for r in runs.rows]
 
 
-@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.asyncio()
 async def test_get_run(hatchet: Hatchet) -> None:
     dag_ref = await dag_workflow.aio_run_no_wait()
 
@@ -33,7 +33,7 @@ async def test_get_run(hatchet: Hatchet) -> None:
     assert {t.name for t in dag_workflow.tasks} == {t.task_name for t in run.shape}
 
 
-@pytest.mark.asyncio(loop_scope="session")
+@pytest.mark.asyncio()
 async def test_list_workflows(hatchet: Hatchet) -> None:
     workflows = await hatchet.workflows.aio_list(
         workflow_name=dag_workflow.config.name, limit=1, offset=0
