@@ -594,7 +594,7 @@ export class TaskWorkflowDeclaration<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > extends BaseWorkflowDeclaration<I, O> {
-  private _standalone_task_name: string;
+  _standalone_task_name: string;
 
   constructor(options: CreateTaskWorkflowOpts<I, O>, client?: IHatchetClient) {
     super({ ...options }, client);

@@ -12,7 +12,7 @@ import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
 import { CreateWorkflowTaskOpts } from './v1/task';
-import { BaseWorkflowDeclaration as WorkflowV1 } from './v1/declaration';
+import { TaskWorkflowDeclaration, BaseWorkflowDeclaration as WorkflowV1 } from './v1/declaration';
 import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
@@ -402,7 +402,15 @@ export class Context<T, K = {}> {
     }>
   ): Promise<P[]> {
     const runs = await this.bulkRunNoWaitChildren(children);
-    const res = runs.map((run) => run.output);
+
+    const res = runs.map((run, index) => {
+      const wf = children[index].workflow;
+      if (wf instanceof TaskWorkflowDeclaration) {
+        // eslint-disable-next-line no-underscore-dangle
+        return (run.output as any)[wf._standalone_task_name] as P;
+      }
+      return run.output;
+    });
     return Promise.all(res);
   }
 
@@ -487,13 +495,22 @@ export class Context<T, K = {}> {
    * @returns The result of the workflow.
    */
   async runChild<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P>,
+    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
     optionsOrKey?:
       | string
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): Promise<P> {
     const run = await this.spawnWorkflow(workflow, input, optionsOrKey);
+
+    if (workflow instanceof TaskWorkflowDeclaration) {
+      // eslint-disable-next-line no-underscore-dangle
+      if (workflow._standalone_task_name) {
+        // eslint-disable-next-line no-underscore-dangle
+        return (run.output as any)[workflow._standalone_task_name] as P;
+      }
+    }
+
     return run.output;
   }
 
@@ -525,7 +542,7 @@ export class Context<T, K = {}> {
    * @deprecated Use runChild or runNoWaitChild instead.
    */
   spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P>,
+    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
     options?:
       | string
