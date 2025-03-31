@@ -10,8 +10,13 @@ import { DispatcherClient as PbDispatcherClient } from '@hatchet/protoc/dispatch
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { Status, createClientFactory } from 'nice-grpc';
 import { DispatcherClient } from '../dispatcher-client';
+import { HeartbeatMessage, STOP_HEARTBEAT } from './heartbeat-controller';
 
 const HEARTBEAT_INTERVAL = 4000;
+
+const postMessage = (message: HeartbeatMessage) => {
+  parentPort?.postMessage(message);
+};
 
 class HeartbeatWorker {
   heartbeatInterval: any;
@@ -23,8 +28,9 @@ class HeartbeatWorker {
   constructor(config: ClientConfig, workerId: string) {
     this.workerId = workerId;
 
-    this.logger = new HatchetLogger(`Heartbeat`, config.log_level);
+    this.logger = new HatchetLogger(`HeartbeatThread`, config.log_level);
 
+    this.logger.debug('Heartbeat thread starting...');
     const credentials = ConfigLoader.createCredentials(config.tls_config);
     const clientFactory = createClientFactory().use(addTokenMiddleware(config.token));
 
@@ -35,6 +41,10 @@ class HeartbeatWorker {
     );
 
     this.client = dispatcher.client;
+    postMessage({
+      type: 'debug',
+      message: 'Heartbeat thread started.',
+    });
   }
 
   async start() {
@@ -45,6 +55,11 @@ class HeartbeatWorker {
     const beat = async () => {
       try {
         this.logger.debug('Heartbeat sending...');
+        postMessage({
+          type: 'debug',
+          message: 'Heartbeat sending...',
+        });
+
         await this.client.heartbeat({
           workerId: this.workerId,
           heartbeatAt: new Date(),
@@ -54,22 +69,39 @@ class HeartbeatWorker {
         const actualInterval = now - this.timeLastHeartbeat;
 
         if (actualInterval > HEARTBEAT_INTERVAL * 1.2) {
-          this.logger.warn(
-            `Heartbeat interval delay (${actualInterval}ms >> ${HEARTBEAT_INTERVAL}ms)`
-          );
+          const message = `Heartbeat interval delay (${actualInterval}ms >> ${HEARTBEAT_INTERVAL}ms)`;
+          this.logger.warn(message);
+          postMessage({
+            type: 'warn',
+            message,
+          });
         }
 
         this.logger.debug(`Heartbeat sent ${actualInterval}ms ago`);
+        postMessage({
+          type: 'debug',
+          message: `Heartbeat sent ${actualInterval}ms ago`,
+        });
         this.timeLastHeartbeat = now;
       } catch (e: any) {
         if (e.code === Status.UNIMPLEMENTED) {
           // break out of interval
-          this.logger.error('Heartbeat not implemented, closing heartbeat');
+          const message = 'Heartbeat not implemented, closing heartbeat';
+          this.logger.debug(message);
+          postMessage({
+            type: 'error',
+            message,
+          });
           this.stop();
           return;
         }
 
-        this.logger.error(`Failed to send heartbeat: ${e.message}`);
+        const message = `Failed to send heartbeat: ${e.message}`;
+        this.logger.debug(message);
+        postMessage({
+          type: 'error',
+          message,
+        });
       }
     };
 
@@ -89,6 +121,6 @@ class HeartbeatWorker {
 const heartbeat = new HeartbeatWorker(workerData.config, workerData.workerId);
 heartbeat.start();
 
-parentPort?.on('stop', () => {
+parentPort?.on(STOP_HEARTBEAT, () => {
   heartbeat.stop();
 });

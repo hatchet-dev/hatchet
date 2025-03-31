@@ -6,6 +6,12 @@ import { runThreaded } from '@hatchet/util/thread-helper';
 import { ClientConfig } from '../../hatchet-client';
 import { DispatcherClient } from '../dispatcher-client';
 
+export interface HeartbeatMessage {
+  type: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+}
+
+export const STOP_HEARTBEAT = 'stop';
 export class Heartbeat {
   config: ClientConfig;
   client: PbDispatcherClient;
@@ -32,11 +38,15 @@ export class Heartbeat {
           workerId: this.workerId,
         },
       });
+
+      this.heartbeatWorker.on('message', (message: HeartbeatMessage) => {
+        this.logger[message.type](message.message);
+      });
     }
   }
 
   async stop() {
-    this.heartbeatWorker?.postMessage('stop');
+    this.heartbeatWorker?.postMessage(STOP_HEARTBEAT);
     this.heartbeatWorker?.terminate();
     this.heartbeatWorker = undefined;
   }
