@@ -2,6 +2,7 @@ import { ConcurrencyLimitStrategy } from '@hatchet/protoc/v1/workflows';
 import { Context, CreateStep, DurableContext } from '@hatchet/step';
 import { Conditions } from './conditions';
 import { Duration } from './client/duration';
+import { InputType, OutputType, UnknownInputType } from './types';
 
 /**
  * Options for configuring the concurrency for a task.
@@ -32,16 +33,28 @@ export type TaskConcurrency = {
   limitStrategy?: ConcurrencyLimitStrategy;
 };
 
-export type TaskFn<T, K> = (input: T, ctx: Context<T>) => K | Promise<K>;
-export type DurableTaskFn<T, K> = (input: T, ctx: DurableContext<T>) => K | Promise<K>;
+export type TaskFn<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C = Context<I>,
+> = (input: I, ctx: C) => O | Promise<O>;
+
+export type DurableTaskFn<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> = TaskFn<I, O, DurableContext<I>>;
 
 /**
  * Options for creating a hatchet task which is an atomic unit of work in a workflow.
- * @template T The input type for the task function.
- * @template K The return type of the task function (can be inferred from the return value of fn).
+ * @template I The input type for the task function.
+ * @template O The return type of the task function (can be inferred from the return value of fn).
  */
-//= TaskFn<T, K>
-export type CreateBaseTaskOpts<T, K, C> = {
+//= TaskFn<I, O>
+export type CreateBaseTaskOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C = TaskFn<I, O>,
+> = {
   /**
    * The name of the task.
    */
@@ -58,7 +71,7 @@ export type CreateBaseTaskOpts<T, K, C> = {
   /**
    * @deprecated use executionTimeout instead
    */
-  timeout?: CreateStep<T, K>['timeout'];
+  timeout?: CreateStep<I, O>['timeout'];
 
   /**
    * (optional) execution timeout duration for the task after it starts running
@@ -81,19 +94,19 @@ export type CreateBaseTaskOpts<T, K, C> = {
    *
    * default: 0
    */
-  retries?: CreateStep<T, K>['retries'];
+  retries?: CreateStep<I, O>['retries'];
 
   /**
    * (optional) backoff strategy configuration for retries.
    * - factor: Base of the exponential backoff (base ^ retry count)
    * - maxSeconds: Maximum backoff duration in seconds
    */
-  backoff?: CreateStep<T, K>['backoff'];
+  backoff?: CreateStep<I, O>['backoff'];
 
   /**
    * (optional) rate limits for the task.
    */
-  rateLimits?: CreateStep<T, K>['rate_limits'];
+  rateLimits?: CreateStep<I, O>['rate_limits'];
 
   /**
    * (optional) worker labels for task routing and scheduling.
@@ -103,7 +116,7 @@ export type CreateBaseTaskOpts<T, K, C> = {
    * - weight: Priority weight for worker selection
    * - comparator: Custom comparison logic for label matching
    */
-  desiredWorkerLabels?: CreateStep<T, K>['worker_labels'];
+  desiredWorkerLabels?: CreateStep<I, O>['worker_labels'];
 
   /**
    * (optional) the concurrency options for the task
@@ -111,12 +124,16 @@ export type CreateBaseTaskOpts<T, K, C> = {
   concurrency?: TaskConcurrency | TaskConcurrency[];
 };
 
-export type CreateWorkflowTaskOpts<T, K, C = TaskFn<T, K>> = CreateBaseTaskOpts<T, K, C> & {
+export type CreateWorkflowTaskOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C extends TaskFn<I, O> | DurableTaskFn<I, O> = TaskFn<I, O>,
+> = CreateBaseTaskOpts<I, O, C> & {
   /**
    * Parent tasks that must complete before this task runs.
    * Used to define the directed acyclic graph (DAG) of the workflow.
    */
-  parents?: CreateWorkflowTaskOpts<T, any, any>[];
+  parents?: CreateWorkflowTaskOpts<I, any, any>[];
 
   /**
    * (optional) the conditions to match before the task is queued
@@ -174,32 +191,52 @@ export type CreateWorkflowTaskOpts<T, K, C = TaskFn<T, K>> = CreateBaseTaskOpts<
   skipIf?: Conditions | Conditions[];
 };
 
-export type CreateStandaloneTaskOpts<T, K> = CreateBaseTaskOpts<T, K, TaskFn<T, K>>;
+export type CreateStandaloneTaskOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C extends TaskFn<I, O> = TaskFn<I, O>,
+> = CreateBaseTaskOpts<I, O, C>;
 
 /**
  * Options for creating a hatchet durable task which is an atomic unit of work in a workflow.
- * @template T The input type for the task function.
- * @template K The return type of the task function (can be inferred from the return value of fn).
+ * @template I The input type for the task function.
+ * @template O The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateWorkflowDurableTaskOpts<T, K> = CreateWorkflowTaskOpts<T, K, DurableTaskFn<T, K>>;
+export type CreateWorkflowDurableTaskOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
+> = CreateWorkflowTaskOpts<I, O, C>;
 
 /**
  * Options for creating a hatchet task which is an atomic unit of work in a workflow.
- * @template T The input type for the task function.
- * @template K The return type of the task function (can be inferred from the return value of fn).
+ * @template I The input type for the task function.
+ * @template O The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateStandaloneDurableTaskOpts<T, K> = CreateBaseTaskOpts<T, K, DurableTaskFn<T, K>>;
+export type CreateStandaloneDurableTaskOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
+> = CreateBaseTaskOpts<I, O, C>;
 
 /**
  * Options for configuring the onSuccess task that is invoked when a task succeeds.
- * @template T The input type for the task function.
- * @template K The return type of the task function (can be inferred from the return value of fn).
+ * @template I The input type for the task function.
+ * @template O The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateOnSuccessTaskOpts<T, K> = Omit<CreateBaseTaskOpts<T, K, TaskFn<T, K>>, 'name'>;
+export type CreateOnSuccessTaskOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C extends TaskFn<I, O> = TaskFn<I, O>,
+> = Omit<CreateBaseTaskOpts<I, O, C>, 'name'>;
 
 /**
  * Options for configuring the onFailure task that is invoked when a task fails.
- * @template T The input type for the task function.
- * @template K The return type of the task function (can be inferred from the return value of fn).
+ * @template I The input type for the task function.
+ * @template O The return type of the task function (can be inferred from the return value of fn).
  */
-export type CreateOnFailureTaskOpts<T, K> = Omit<CreateBaseTaskOpts<T, K, TaskFn<T, K>>, 'name'>;
+export type CreateOnFailureTaskOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+  C extends TaskFn<I, O> = TaskFn<I, O>,
+> = Omit<CreateBaseTaskOpts<I, O, C>, 'name'>;

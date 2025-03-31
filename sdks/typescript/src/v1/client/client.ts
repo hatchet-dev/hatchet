@@ -9,7 +9,7 @@ import {
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { JsonObject, DurableContext } from '@hatchet/step';
+import { DurableContext } from '@hatchet/step';
 import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
@@ -32,6 +32,7 @@ import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
 import { CreateStandaloneDurableTaskOpts } from '../task';
+import { InputType, OutputType, UnknownInputType, WorkflowOutputType } from '../types';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -115,29 +116,29 @@ export class HatchetClient implements IHatchetClient {
 
   /**
    * Creates a new workflow definition.
-   * @template T - The input type for the workflow
-   * @template K - The return type of the workflow
+   * @template I - The input type for the workflow
+   * @template O - The return type of the workflow
    * @param options - Configuration options for creating the workflow
    * @returns A new Workflow instance
    * @note It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
    */
-  workflow<T extends JsonObject | unknown = unknown, K extends JsonObject | unknown = unknown>(
+  workflow<I extends InputType = UnknownInputType, O extends WorkflowOutputType = {}>(
     options: CreateWorkflowOpts
-  ): WorkflowDeclaration<T, K> {
-    return CreateWorkflow<T, K>(options, this);
+  ): WorkflowDeclaration<I, O> {
+    return CreateWorkflow<I, O>(options, this);
   }
 
   /**
    * Creates a new task workflow.
    * Types can be explicitly specified as generics or inferred from the function signature.
-   * @template T The input type for the task
-   * @template K The output type of the task
+   * @template I The input type for the task
+   * @template O The output type of the task
    * @param options Task configuration options
    * @returns A TaskWorkflowDeclaration instance
    */
-  task<T extends JsonObject | unknown, K extends JsonObject | unknown>(
-    options: CreateTaskWorkflowOpts<T, K>
-  ): TaskWorkflowDeclaration<T, K>;
+  task<I extends InputType = UnknownInputType, O extends OutputType = void>(
+    options: CreateTaskWorkflowOpts<I, O>
+  ): TaskWorkflowDeclaration<I, O>;
 
   /**
    * Creates a new task workflow with types inferred from the function parameter.
@@ -147,14 +148,14 @@ export class HatchetClient implements IHatchetClient {
    */
   task<
     Fn extends (input: I, ctx?: any) => O | Promise<O>,
-    I extends JsonObject | unknown = Parameters<Fn>[0],
-    O extends JsonObject | unknown = ReturnType<Fn> extends Promise<infer P>
-      ? P extends JsonObject
+    I extends InputType = Parameters<Fn>[0] | UnknownInputType,
+    O extends OutputType = ReturnType<Fn> extends Promise<infer P>
+      ? P extends OutputType
         ? P
-        : never
-      : ReturnType<Fn> extends JsonObject
+        : void
+      : ReturnType<Fn> extends OutputType
         ? ReturnType<Fn>
-        : never,
+        : void,
   >(
     options: {
       fn: Fn;
@@ -171,14 +172,14 @@ export class HatchetClient implements IHatchetClient {
   /**
    * Creates a new durable task workflow.
    * Types can be explicitly specified as generics or inferred from the function signature.
-   * @template T The input type for the durable task
-   * @template K The output type of the durable task
+   * @template I The input type for the durable task
+   * @template O The output type of the durable task
    * @param options Durable task configuration options
    * @returns A TaskWorkflowDeclaration instance for a durable task
    */
-  durableTask<T extends JsonObject, K extends JsonObject>(
-    options: CreateStandaloneDurableTaskOpts<T, K>
-  ): TaskWorkflowDeclaration<T, K>;
+  durableTask<I extends InputType, O extends OutputType>(
+    options: CreateStandaloneDurableTaskOpts<I, O>
+  ): TaskWorkflowDeclaration<I, O>;
 
   /**
    * Creates a new durable task workflow with types inferred from the function parameter.
@@ -188,14 +189,14 @@ export class HatchetClient implements IHatchetClient {
    */
   durableTask<
     Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
-    I extends JsonObject = Parameters<Fn>[0],
-    O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
-      ? P extends JsonObject
+    I extends InputType = Parameters<Fn>[0],
+    O extends OutputType = ReturnType<Fn> extends Promise<infer P>
+      ? P extends OutputType
         ? P
-        : never
-      : ReturnType<Fn> extends JsonObject
+        : void
+      : ReturnType<Fn> extends OutputType
         ? ReturnType<Fn>
-        : never,
+        : void,
   >(
     options: {
       fn: Fn;
@@ -211,18 +212,18 @@ export class HatchetClient implements IHatchetClient {
 
   /**
    * Triggers a workflow run without waiting for completion.
-   * @template T - The input type for the workflow
-   * @template K - The return type of the workflow
+   * @template I - The input type for the workflow
+   * @template O - The return type of the workflow
    * @param workflow - The workflow to run, either as a Workflow instance or workflow name
    * @param input - The input data for the workflow
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  runNoWait<T extends JsonObject = any, K extends JsonObject = any>(
-    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
-    input: T,
+  runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
+    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    input: I,
     options: RunOpts
-  ): WorkflowRunRef<K> {
+  ): WorkflowRunRef<O> {
     let name: string;
     if (typeof workflow === 'string') {
       name = workflow;
@@ -232,43 +233,43 @@ export class HatchetClient implements IHatchetClient {
       throw new Error('unable to identify workflow');
     }
 
-    return this._v0.admin.runWorkflow<T, K>(name, input, options);
+    return this._v0.admin.runWorkflow<I, O>(name, input, options);
   }
 
   /**
    * @alias run
    * Triggers a workflow run and waits for the result.
-   * @template T - The input type for the workflow
-   * @template K - The return type of the workflow
+   * @template I - The input type for the workflow
+   * @template O - The return type of the workflow
    * @param workflow - The workflow to run, either as a Workflow instance or workflow name
    * @param input - The input data for the workflow
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
-  async runAndWait<T extends JsonObject = any, K extends JsonObject = any>(
-    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
-    input: T,
+  async runAndWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
+    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    input: I,
     options: RunOpts = {}
-  ): Promise<K> {
-    return this.run<T, K>(workflow, input, options);
+  ): Promise<O> {
+    return this.run<I, O>(workflow, input, options);
   }
 
   /**
    * Triggers a workflow run and waits for the result.
-   * @template T - The input type for the workflow
-   * @template K - The return type of the workflow
+   * @template I - The input type for the workflow
+   * @template O - The return type of the workflow
    * @param workflow - The workflow to run, either as a Workflow instance or workflow name
    * @param input - The input data for the workflow
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
-  async run<T extends JsonObject = any, K extends JsonObject = any>(
-    workflow: BaseWorkflowDeclaration<T, K> | string | V0Workflow,
-    input: T,
+  async run<I extends InputType = UnknownInputType, O extends OutputType = void>(
+    workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
+    input: I,
     options: RunOpts = {}
-  ): Promise<K> {
-    const run = this.runNoWait<T, K>(workflow, input, options);
-    return run.output as Promise<K>;
+  ): Promise<O> {
+    const run = this.runNoWait<I, O>(workflow, input, options);
+    return run.output as Promise<O>;
   }
 
   /**

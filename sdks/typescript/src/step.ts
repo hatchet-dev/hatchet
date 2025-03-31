@@ -17,6 +17,7 @@ import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
 import { Duration } from './v1/client/duration';
+import { JsonObject, JsonValue, OutputType } from './v1/types';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -59,16 +60,6 @@ export const CreateStepSchema = z.object({
     })
     .optional(),
 });
-
-export type JsonObject = { [Key in string]: JsonValue } & {
-  [Key in string]?: JsonValue | undefined;
-};
-
-export type JsonArray = JsonValue[] | readonly JsonValue[];
-
-export type JsonPrimitive = string | number | boolean | null;
-
-export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
 
 export type NextStep = { [key: string]: JsonValue };
 
@@ -128,6 +119,7 @@ export class ContextWorker {
 
 export class Context<T, K = {}> {
   data: ContextData<T, K>;
+  // @deprecated use input prop instead
   input: T;
   // @deprecated use ctx.abortController instead
   controller = new AbortController();
@@ -173,18 +165,17 @@ export class Context<T, K = {}> {
 
   /**
    * Retrieves the output of a parent task.
-   * @param task - The name of the task or a CreateTaskOpts object.
+   * @param parentTask - The a CreateTaskOpts or string of the parent task name.
    * @returns The output of the specified parent task.
    * @throws An error if the task output is not found.
-   *
    */
-  async parentOutput<L = NextStep>(task: CreateWorkflowTaskOpts<any, L> | string) {
+  async parentOutput<L extends OutputType>(parentTask: CreateWorkflowTaskOpts<any, L> | string) {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
-    if (typeof task === 'string') {
-      return this.stepOutput<L>(task);
+    if (typeof parentTask === 'string') {
+      return this.stepOutput<L>(parentTask);
     }
 
-    return this.stepOutput<L>(task.name) as L;
+    return this.stepOutput<L>(parentTask.name) as L;
   }
 
   /**
@@ -196,10 +187,10 @@ export class Context<T, K = {}> {
    */
   stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
-      throw new HatchetError('output not found');
+      throw new HatchetError('Parent task outputs not found');
     }
     if (!this.data.parents[step]) {
-      throw new HatchetError(`output for '${step}' not found`);
+      throw new HatchetError(`Output for parent task '${step}' not found`);
     }
     return this.data.parents[step];
   }
@@ -208,7 +199,7 @@ export class Context<T, K = {}> {
    * Returns errors from any task runs in the workflow.
    * @returns A record mapping task names to error messages.
    * @throws A warning if no errors are found (this method should be used in on-failure tasks).
-   * @deprecated use ctx.errors instead
+   * @deprecated use ctx.errors() instead
    */
   stepRunErrors(): Record<string, string> {
     return this.errors();
@@ -250,6 +241,7 @@ export class Context<T, K = {}> {
   /**
    * Gets the input data for the current workflow.
    * @returns The input data for the workflow.
+   * @deprecated use task input parameter instead
    */
   workflowInput(): T {
     return this.input;
@@ -294,6 +286,14 @@ export class Context<T, K = {}> {
    */
   workflowRunId(): string {
     return this.action.workflowRunId;
+  }
+
+  /**
+   * Gets the ID of the current task run.
+   * @returns The task run ID.
+   */
+  taskRunId(): string {
+    return this.action.stepRunId;
   }
 
   /**
@@ -483,17 +483,17 @@ export class Context<T, K = {}> {
    *
    * @param workflow - The workflow to run (name, Workflow instance, or WorkflowV1 instance).
    * @param input - The input data for the workflow.
-   * @param options - Additional options for spawning the workflow. If a string is provided, it is used as the key.
+   * @param optionsOrKey - Either a string key or an options object containing key, sticky, and additionalMetadata.
    * @returns The result of the workflow.
    */
   async runChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
-    options?:
+    optionsOrKey?:
       | string
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): Promise<P> {
-    const run = await this.spawnWorkflow(workflow, input, options);
+    const run = await this.spawnWorkflow(workflow, input, optionsOrKey);
     return run.output;
   }
 
@@ -502,17 +502,17 @@ export class Context<T, K = {}> {
    *
    * @param workflow - The workflow to enqueue (name, Workflow instance, or WorkflowV1 instance).
    * @param input - The input data for the workflow.
-   * @param options - Additional options for spawning the workflow.
+   * @param optionsOrKey - Either a string key or an options object containing key, sticky, and additionalMetadata.
    * @returns A reference to the spawned workflow run.
    */
   runNoWaitChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
-    options?:
+    optionsOrKey?:
       | string
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): WorkflowRunRef<P> {
-    return this.spawnWorkflow(workflow, input, options);
+    return this.spawnWorkflow(workflow, input, optionsOrKey);
   }
 
   /**
