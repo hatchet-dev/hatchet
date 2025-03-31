@@ -24,6 +24,7 @@ import UpdateWorkerForm from './components/update-form';
 import { cloudApi } from '@/lib/api/api';
 import { useApiError } from '@/lib/hooks';
 import GithubButton from './components/github-button';
+import { useTenant } from '@/lib/atoms';
 
 export default function ExpandedWorkflow() {
   const navigate = useNavigate();
@@ -31,6 +32,9 @@ export default function ExpandedWorkflow() {
 
   const params = useParams();
   invariant(params['managed-worker']);
+
+  const tenant = useTenant();
+  invariant(tenant.tenantId);
 
   const managedWorkerQuery = useQuery({
     ...queries.cloud.getManagedWorker(params['managed-worker']),
@@ -155,6 +159,7 @@ export default function ExpandedWorkflow() {
             <Separator className="my-4" />
             <UpdateWorkerForm
               managedWorker={managedWorker}
+              tenantId={tenant.tenantId}
               onSubmit={updateManagedWorkerMutation.mutate}
               isLoading={updateManagedWorkerMutation.isPending}
               fieldErrors={fieldErrors}

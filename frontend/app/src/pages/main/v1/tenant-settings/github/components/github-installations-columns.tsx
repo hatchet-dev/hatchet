@@ -4,8 +4,11 @@ import { Button } from '@/components/v1/ui/button';
 import { GearIcon } from '@radix-ui/react-icons';
 import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { CheckCircleIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 
-export const columns = (): ColumnDef<GithubAppInstallation>[] => {
+export const columns = (
+  linkToTenant: (installationId: string) => void,
+): ColumnDef<GithubAppInstallation>[] => {
   return [
     {
       accessorKey: 'repository',
@@ -27,9 +30,41 @@ export const columns = (): ColumnDef<GithubAppInstallation>[] => {
       enableHiding: false,
     },
     {
+      accessorKey: 'link',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Link to tenant?" />
+      ),
+      cell: ({ row }) => {
+        if (row.original.is_linked_to_tenant) {
+          return (
+            <Button
+              variant="ghost"
+              disabled
+              className="flex flex-row gap-2 px-2"
+            >
+              <CheckCircleIcon className="h-4 w-4" />
+              Linked
+            </Button>
+          );
+        }
+        return (
+          <Button
+            variant="outline"
+            className="flex flex-row gap-2 px-2"
+            onClick={() => linkToTenant(row.original.metadata.id)}
+          >
+            <PlusCircleIcon className="h-4 w-4" />
+            Link to tenant
+          </Button>
+        );
+      },
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
       accessorKey: 'settings',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Settings" />
+        <DataTableColumnHeader column={column} title="Github Settings" />
       ),
       cell: ({ row }) => {
         return (

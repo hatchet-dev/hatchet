@@ -293,12 +293,14 @@ const createManagedWorkerSchema = z.object({
 
 interface CreateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof createManagedWorkerSchema>) => void;
+  tenantId: string;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
 }
 
 export default function CreateWorkerForm({
   onSubmit,
+  tenantId,
   isLoading,
   fieldErrors,
 }: CreateWorkerFormProps) {
@@ -380,15 +382,15 @@ export default function CreateWorkerForm({
   const autoscalingMaxReplicas = watch('runtimeConfig.autoscaling.maxReplicas');
 
   const listInstallationsQuery = useQuery({
-    ...queries.github.listInstallations,
+    ...queries.github.listInstallations(tenantId),
   });
 
   const listReposQuery = useQuery({
-    ...queries.github.listRepos(installation),
+    ...queries.github.listRepos(tenantId, installation),
   });
 
   const listBranchesQuery = useQuery({
-    ...queries.github.listBranches(installation, repoOwner, repoName),
+    ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
   });
 
   // Check if the current replica count exceeds the plan limit

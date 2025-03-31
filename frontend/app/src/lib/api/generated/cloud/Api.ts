@@ -125,10 +125,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/github-app/installations
    * @secure
    */
-  githubAppListInstallations = (params: RequestParams = {}) =>
+  githubAppListInstallations = (
+    query?: {
+      /**
+       * The tenant id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant?: string;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<ListGithubAppInstallationsResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -142,12 +154,54 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/github-app/installations/{gh-installation}/repos
    * @secure
    */
-  githubAppListRepos = (ghInstallation: string, params: RequestParams = {}) =>
+  githubAppListRepos = (
+    ghInstallation: string,
+    query: {
+      /**
+       * The tenant id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant: string;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<ListGithubReposResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/repos`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Link Github App installation to a tenant
+   *
+   * @tags Github
+   * @name GithubAppUpdateInstallation
+   * @summary Link Github App installation to a tenant
+   * @request GET:/api/v1/cloud/github-app/installations/{gh-installation}/link
+   * @secure
+   */
+  githubAppUpdateInstallation = (
+    ghInstallation: string,
+    query: {
+      /**
+       * The tenant id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/cloud/github-app/installations/${ghInstallation}/link`,
+      method: "GET",
+      query: query,
+      secure: true,
       ...params,
     });
   /**
@@ -163,11 +217,21 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     ghInstallation: string,
     ghRepoOwner: string,
     ghRepoName: string,
+    query: {
+      /**
+       * The tenant id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant: string;
+    },
     params: RequestParams = {},
   ) =>
     this.request<ListGithubBranchesResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/repos/${ghRepoOwner}/${ghRepoName}/branches`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
