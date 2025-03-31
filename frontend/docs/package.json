@@ -51,5 +51,9 @@
     "prettier": "^3.2.5",
     "typescript": "^4.9.3"
   },
+  "resolutions": {
+    "nanoid": "^3.3.8",
+    "katex": "^0.16.21"
+  },
   "type": "module"
 }
