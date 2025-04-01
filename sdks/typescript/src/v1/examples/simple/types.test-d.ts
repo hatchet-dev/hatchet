@@ -19,7 +19,7 @@ import {
 } from '@hatchet/v1/task';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expectError, expectType } from 'jest-tsd';
-import { UnknownInputType } from '@hatchet/v1/types';
+import { InputType, UnknownInputType, WorkflowInputType, WorkflowOutputType } from '@hatchet/v1/types';
 
 const hatchet = HatchetClient.init({ token: '' });
 
@@ -135,6 +135,30 @@ test('workflow should propagate generics', () => {
   });
 
   expectType<CreateWorkflowTaskOpts<In, void>>(task);
+});
+
+test('should accept extended interface', () => {
+  interface In extends InputType {
+    in: string;
+  }
+  interface Out extends WorkflowOutputType {
+    out: { result: string };
+  }
+
+  const workflow = hatchet.workflow<In, Out>({
+    name: '',
+  });
+
+  expectType<WorkflowDeclaration<In, Out>>(workflow);
+
+  const task = hatchet.task<In, Out>({
+    name: '',
+    fn: () => {
+      return { out: { result: 'string' } };
+    },
+  });
+
+  expectType<CreateWorkflowTaskOpts<In, Out>>(task);
 });
 
 test('task infer from input and return type', () => {
