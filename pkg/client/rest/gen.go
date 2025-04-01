@@ -172,9 +172,7 @@ const (
 	CRON        TenantResource = "CRON"
 	EVENT       TenantResource = "EVENT"
 	SCHEDULE    TenantResource = "SCHEDULE"
-	TASKRUN     TenantResource = "TASK_RUN"
 	WORKER      TenantResource = "WORKER"
-	WORKERSLOT  TenantResource = "WORKER_SLOT"
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 

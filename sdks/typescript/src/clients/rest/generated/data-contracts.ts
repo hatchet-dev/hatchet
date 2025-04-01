@@ -1,5 +1,6 @@
 /* eslint-disable */
 /* tslint:disable */
+// @ts-nocheck
 /*
  * ---------------------------------------------------------------
  * ## THIS FILE WAS GENERATED VIA SWAGGER-TYPESCRIPT-API        ##
@@ -242,8 +243,10 @@ export enum TenantMemberRole {
 
 export enum TenantResource {
   WORKER = 'WORKER',
+  WORKER_SLOT = 'WORKER_SLOT',
   EVENT = 'EVENT',
   WORKFLOW_RUN = 'WORKFLOW_RUN',
+  TASK_RUN = 'TASK_RUN',
   CRON = 'CRON',
   SCHEDULE = 'SCHEDULE',
 }
