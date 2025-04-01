@@ -14,7 +14,7 @@ export async function loadReoScript(options: ReoScriptOptions): Promise<any> {
     try {
       // This will be imported only on the client side
       const reodotdevModule = await import('reodotdev');
-      
+
       // Access the loadReoScript function if it exists
       if (reodotdevModule && typeof reodotdevModule.loadReoScript === 'function') {
         return reodotdevModule.loadReoScript(options);
@@ -26,9 +26,9 @@ export async function loadReoScript(options: ReoScriptOptions): Promise<any> {
       throw error;
     }
   }
-  
+
   // Return a dummy promise on server side
   return Promise.resolve({
     init: () => console.log('Reo initialization skipped on server')
   });
-} 
+}
