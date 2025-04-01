@@ -414,7 +414,7 @@ export const queries = createQueryKeyStore({
         ).data,
     }),
     listRepos: (tenant: string, installation?: string) => ({
-      queryKey: ['github-app:list:repos', installation],
+      queryKey: ['github-app:list:repos', tenant, installation],
       queryFn: async () => {
         invariant(installation, 'Installation must be set');
         const res = (
