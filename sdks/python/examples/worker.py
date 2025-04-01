@@ -1,6 +1,6 @@
 from examples.affinity_workers.worker import affinity_worker_workflow
 from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
-from examples.cancellation.worker import wf
+from examples.cancellation.worker import cancellation_workflow
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.dag.worker import dag_workflow
@@ -40,7 +40,7 @@ def main() -> None:
             timeout_wf,
             refresh_timeout_wf,
             task_condition_workflow,
-            wf,
+            cancellation_workflow,
             sync_fanout_parent,
             sync_fanout_child,
             non_retryable_workflow,

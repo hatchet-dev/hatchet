@@ -4,7 +4,6 @@ from hatchet_sdk.clients.events import BulkPushEventOptions, BulkPushEventWithMe
 from hatchet_sdk.hatchet import Hatchet
 
 
-# requires scope module or higher for shared event loop
 @pytest.mark.asyncio()
 async def test_event_push(hatchet: Hatchet) -> None:
     e = hatchet.event.push("user:create", {"test": "test"})
