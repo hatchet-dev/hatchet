@@ -3,10 +3,8 @@ import pytest
 from examples.non_retryable.worker import (
     non_retryable_workflow,
     should_not_retry,
-    should_not_retry_no_match,
-    should_retry_no_match,
+    should_not_retry_successful_task,
     should_retry_wrong_exception_type,
-    should_retry_wrong_match,
 )
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
@@ -28,11 +26,9 @@ async def test_no_retry(hatchet: Hatchet) -> None:
     task_to_id = {
         task: find_id(runs, task.name)
         for task in [
-            should_retry_wrong_match,
-            should_retry_no_match,
+            should_not_retry_successful_task,
             should_retry_wrong_exception_type,
             should_not_retry,
-            should_not_retry_no_match,
         ]
     }
 
@@ -40,18 +36,16 @@ async def test_no_retry(hatchet: Hatchet) -> None:
         e for e in runs.task_events if e.event_type == V1TaskEventType.RETRYING
     ]
 
-    """Only three tasks should be retried."""
-    assert len(retrying_events) == 3
+    """Only one task should be retried."""
+    assert len(retrying_events) == 1
 
     """The task id of the retrying events should match the tasks that are retried"""
     assert {e.task_id for e in retrying_events} == {
-        task_to_id[should_retry_wrong_match],
-        task_to_id[should_retry_no_match],
         task_to_id[should_retry_wrong_exception_type],
     }
 
-    """Six failed events should emit, one each for the initial runs and three for the three retries."""
+    """Three failed events should emit, one each for the two failing initial runs and one for the retry."""
     assert (
         len([e for e in runs.task_events if e.event_type == V1TaskEventType.FAILED])
-        == 8
+        == 3
     )

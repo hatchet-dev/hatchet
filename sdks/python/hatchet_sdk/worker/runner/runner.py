@@ -3,7 +3,6 @@ import contextvars
 import ctypes
 import functools
 import json
-import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
@@ -39,7 +38,7 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
-from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.task import NonRetryableException, Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
 from hatchet_sdk.utils.typing import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
@@ -135,16 +134,7 @@ class Runner:
             except Exception as e:
                 errored = True
 
-                should_not_retry = False
-
-                for exc in action_task.skip_retry_on_exceptions:
-                    if isinstance(e, exc.exception):
-                        ## If the `match` is provided but is not present in the exception message, we want to retry
-                        if (
-                            exc.match and bool(re.search(exc.match, str(e)))
-                        ) or not exc.match:
-                            should_not_retry = True
-                            break
+                should_not_retry = isinstance(e, NonRetryableException)
 
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
