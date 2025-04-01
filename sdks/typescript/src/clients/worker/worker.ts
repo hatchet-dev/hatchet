@@ -459,6 +459,7 @@ export class V0Worker {
           const event = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
+            false,
             result || null
           );
           await this.client.dispatcher.sendStepActionEvent(event);
@@ -471,6 +472,7 @@ export class V0Worker {
           const failureEvent = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_FAILED,
+            false,
             actionEventError.message
           );
 
