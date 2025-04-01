@@ -272,6 +272,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def is_durable(self) -> bool:
         return any(task.is_durable for task in self.tasks)
 
+    @property
+    def name(self) -> str:
+        return self.config.name
+
     def create_bulk_run_item(
         self,
         input: TWorkflowInput | None = None,
