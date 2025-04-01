@@ -6,6 +6,7 @@ on:
       - 'api/**'
       - 'api-contracts/**'
       - 'internal/**'
+      - 'pkg/**'
       - 'sdks/typescript/**'
   push:
     branches:
