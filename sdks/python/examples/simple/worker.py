@@ -1,12 +1,15 @@
 # ❓ Simple
 
-from hatchet_sdk import Context, Hatchet
 from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet(debug=True)
 
+
 class SimpleInput(BaseModel):
     message: str
+
 
 @hatchet.task(name="SimpleWorkflow")
 def step1(input: SimpleInput, ctx: Context) -> None:

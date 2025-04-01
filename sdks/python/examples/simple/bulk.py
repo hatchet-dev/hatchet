@@ -1,20 +1,23 @@
 import asyncio
+
 # ❓ Running a Task
 from examples.simple.worker import SimpleInput, step1
 
 step1.run(SimpleInput(message="Hello, World!"))
 # !!
 
+
 async def main():
     # ❓ Bulk Run a Task
     greetings = ["Hello, World!", "Hello, Moon!", "Hello, Mars!"]
-    
+
     results = await step1.aio_run_many(
         [
             # run each greeting as a task in parallel
             step1.create_bulk_run_item(
                 input=SimpleInput(message=greeting),
-            ) for greeting in greetings
+            )
+            for greeting in greetings
         ]
     )
 

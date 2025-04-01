@@ -1,9 +1,11 @@
 import asyncio
+
 # ❓ Running a Task
 from examples.simple.worker import SimpleInput, step1
 
 step1.run(SimpleInput(message="Hello, World!"))
 # !!
+
 
 async def main():
     # ❓ Running a Task AIO

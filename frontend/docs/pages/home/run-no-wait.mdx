@@ -6,7 +6,7 @@ export const SimpleTs = {
   path: "src/v1/examples/simple/enqueue.ts",
 };
 
-export const SimpleGo = { 
+export const SimpleGo = {
   path: "examples/v1/run/simple.go",
 };
 
@@ -53,6 +53,7 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
     You can use your `Workflow` object to run a workflow and "forget" it by calling the `RunNoWait` method. This method enqueue a workflow run and return a `WorkflowRunRef`, a reference to that run, without waiting for the result.
 
     <GithubSnippet src={SimpleGo} target="Running a Task Without Waiting" />
+
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -84,6 +85,7 @@ result = await ref.aio_result()
     You can use your `Workflow` object to run a workflow and "forget" it by calling the `RunNoWait` method. This method enqueue a workflow run and return a `WorkflowRunRef`, a reference to that run, without waiting for the result.
 
     <GithubSnippet src={SimpleGo} target="Subscribing to results" />
+
   </Tabs.Tab>
 </UniversalTabs>
 

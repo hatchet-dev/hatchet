@@ -12,6 +12,7 @@ hatchet = Hatchet(debug=True)
 # ❓ Running a Task from within a Task
 parent_wf = hatchet.task(name="parent_task")
 
+
 @parent_wf.task(execution_timeout=timedelta(minutes=5))
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
 
@@ -21,4 +22,6 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     )
 
     return {"results": result}
+
+
 # ‼️
