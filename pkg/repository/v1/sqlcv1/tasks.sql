@@ -466,13 +466,17 @@ SELECT
     e.data
 FROM
     v1_task_event e
-JOIN
-    input i ON i.task_id = e.task_id AND i.task_inserted_at = e.task_inserted_at AND i.event_key = e.event_key
 WHERE
-    e.tenant_id = @tenantId::uuid
+    (e.task_id, e.task_inserted_at, e.event_key) IN (
+        SELECT
+            task_id, task_inserted_at, event_key
+        FROM
+            input
+    )
+    AND e.tenant_id = @tenantId::uuid
     AND e.event_type = 'SIGNAL_CREATED'
 ORDER BY
-    e.id
+    e.task_id, e.task_inserted_at, e.id
 FOR UPDATE;
 
 -- name: ListMatchingSignalEvents :many
@@ -510,7 +514,7 @@ WITH input AS (
         ) AS subquery
 ), matching_events AS (
     SELECT
-        e.id
+        e.task_id, e.task_inserted_at, e.id
     FROM
         v1_task_event e
     JOIN
@@ -525,7 +529,7 @@ WITH input AS (
 DELETE FROM
     v1_task_event
 WHERE
-    id IN (SELECT id FROM matching_events);
+    (task_id, task_inserted_at, id) IN (SELECT task_id, task_inserted_at, id FROM matching_events);
 
 -- name: ListTasksForReplay :many
 -- Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
