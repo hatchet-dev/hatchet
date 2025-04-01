@@ -19,4 +19,7 @@ export default defineConfig({
   build: {
     sourcemap: true,
   },
+  server: {
+    allowedHosts: ['app.dev.hatchet-tools.com'],
+  },
 });

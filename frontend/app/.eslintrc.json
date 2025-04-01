@@ -16,7 +16,7 @@
   "ignorePatterns": ["dist"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": "./tsconfig.json"
+    "project": ["./tsconfig.json", "./tsconfig.node.json"]
   },
   "plugins": ["react-refresh", "import", "unused-imports", "prettier"],
   "rules": {
