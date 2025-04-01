@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -8,7 +8,8 @@
     "!**/*.test.js",
     "!**/*.test.d.ts",
     "!**/*.e2e.js",
-    "!**/*.e2e.d.ts"
+    "!**/*.e2e.d.ts",
+    "README.md"
   ],
   "repository": {
     "type": "git",
@@ -61,7 +62,7 @@
     "worker:logger": "npm run exec -- ./src/examples/logger.ts",
     "worker:byo-logger": "npm run exec -- ./src/examples/byo-logger.ts",
     "api": "npm run exec -- ./src/examples/api.ts",
-    "prepublish": "cp package.json dist/package.json;",
+    "prepublish": "cp package.json dist/package.json; cp README.md dist/",
     "publish:ci": "rm -rf ./dist && npm run dump-version && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks",
     "publish:ci:alpha": "rm -rf ./dist && npm run dump-version && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks --tag alpha",
     "generate-docs": "typedoc"
