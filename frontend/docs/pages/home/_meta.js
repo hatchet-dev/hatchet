@@ -20,7 +20,7 @@ export default {
   },
   "running-workflows": "Introduction",
   "run-with-results": "Run and Wait Trigger",
-  "enqueue-runs": "Run Without Wait Trigger",
+  "run-no-wait": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
   "cron-runs": "Cron Trigger",
   "run-on-event": "Event Trigger",

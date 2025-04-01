@@ -98,12 +98,16 @@ func simple() {
 	// or check on the status of the task
 	runId := runRef.RunId()
 	fmt.Println(runId)
+	// !!
 
+	// ❓ Subscribing to results
 	// finally, we can wait for the task to complete and get the result
 	finalResult, err := runRef.Result()
-	// !!
+
 	if err != nil {
 		panic(err)
 	}
+
 	fmt.Println(finalResult)
+	// !!
 }
