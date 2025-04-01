@@ -1,5 +1,14 @@
 import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const CancelPy = {
+  path: "examples/cancellation/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([CancelPy]);
+
+
 
 # Cancellation in Hatchet Workflows
 
@@ -28,8 +37,17 @@ For synchronous tasks, cancellation is more involved (and riskier) because of ho
 
 While your task is running, you can manage cancellation by:
 
-1. Checking for cancellation using the `Context.exit_flag`, which indicates whether a task has been cancelled. You can check this flag at any point in your task to determine whether or not to exit.
-2. Using `Context.cancel` to cancel the task. This method will set the `exit_flag` to `True` and will notify the engine that it should cancel the task.
+1. Checking for cancellation using the `Context.exit_flag`, which indicates whether a task has been cancelled. You can check this flag at any point in your task to determine whether or not to exit. For example:
+
+<GithubSnippet src={CancelPy} target="Checking exit flag" />
+
+
+2. Using `Context.cancel` or `Context.aio_cancel` to cancel the task. This method will set the `exit_flag` to `True` and will notify the engine that it should cancel the task. For example:
+
+<GithubSnippet src={CancelPy} target="Self-cancelling task" />
+
+
+
 
 </Tabs.Tab>
 
