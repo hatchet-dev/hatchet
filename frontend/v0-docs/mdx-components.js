@@ -14,4 +14,4 @@ export function useMDXComponents(components) {
     FileTree,
     // You can add your custom components here
   }
-} 
+}

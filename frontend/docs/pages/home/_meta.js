@@ -115,4 +115,4 @@ export default {
     "type": "page",
     "href": "/blog"
   }
-} 
+}

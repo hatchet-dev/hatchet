@@ -16,4 +16,4 @@ export default {
     "title": "About Hatchet ↗",
     "href": "https://hatchet.run"
   }
-} 
+}

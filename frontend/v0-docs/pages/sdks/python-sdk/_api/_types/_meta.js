@@ -22,4 +22,4 @@ export default {
   "WorkflowVersion": "WorkflowVersion",
   "WorkflowVersionDefinition": "WorkflowVersionDefinition",
   "WorkflowVersionMeta": "WorkflowVersionMeta"
-} 
+}

@@ -118,7 +118,7 @@ export default function CookieConsent({ variant = "default", demo = false, onAcc
             </div>
         );
     }
-    
+
     // Small banner variant
     return (
         <div className={cn("fixed z-[200] bottom-0 left-0 right-0 sm:left-4 sm:bottom-4 w-full sm:max-w-md duration-700", !isOpen ? "transition-[opacity,transform] translate-y-8 opacity-0" : "transition-[opacity,transform] translate-y-0 opacity-100", hide && "hidden")}>

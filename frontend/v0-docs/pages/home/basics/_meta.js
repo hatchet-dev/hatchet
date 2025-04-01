@@ -5,4 +5,4 @@ export default {
   "workers": "Understanding Workers",
   "dashboard": "Dashboard",
   "environments": "Managing Environments"
-} 
+}

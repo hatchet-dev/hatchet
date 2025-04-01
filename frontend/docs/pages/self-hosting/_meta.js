@@ -24,4 +24,4 @@ export default {
   "benchmarking": "Benchmarking",
   "data-retention": "Data Retention",
   "improving-performance": "Improving Performance"
-} 
+}

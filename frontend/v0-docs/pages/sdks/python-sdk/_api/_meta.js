@@ -4,4 +4,4 @@ export default {
     "title": "Types",
     "type": "folder"
   }
-} 
+}

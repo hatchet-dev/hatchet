@@ -68,4 +68,4 @@ export default {
     "type": "page",
     "href": "https://v0-docs.hatchet.run"
   }
-} 
+}
