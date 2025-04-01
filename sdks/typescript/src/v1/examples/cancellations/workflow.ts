@@ -1,8 +1,8 @@
-// ❓ Declaring a Task
 import sleep from '@hatchet/util/sleep';
 import { hatchet } from '../hatchet-client';
+import axios from 'axios';
 
-// (optional) Define the input type for the workflow
+// ❓ Declaring a Task
 export const cancellation = hatchet.task({
   name: 'cancellation',
   fn: async (_, { cancelled }) => {
@@ -15,6 +15,30 @@ export const cancellation = hatchet.task({
     return {
       Completed: true,
     };
+  },
+});
+// !!
+
+
+// ❓ Abort Signal
+export const abortSignal = hatchet.task({
+  name: 'abort-signal',
+  fn: async (_, { controller }) => {
+    try {
+      const response = await axios.get("https://api.example.com/data", {
+        signal: controller.signal,
+      });
+      // Handle the response
+      // ...
+    } catch (error) {
+      if (axios.isCancel(error)) {
+        // Request was canceled
+        console.log("Request canceled");
+      } else {
+        // Handle other errors
+        // ...
+      }
+    }
   },
 });
 // !!

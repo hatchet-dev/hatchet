@@ -5,8 +5,11 @@ import { GithubSnippet, getSnippets } from "@/components/code";
 export const CancelPy = {
   path: "examples/cancellation/worker.py",
 };
+export const CancelTs = {
+  path: "src/v1/examples/cancellations/workflow.ts",
+};
 
-export const getStaticProps = ({}) => getSnippets([CancelPy]);
+export const getStaticProps = ({}) => getSnippets([CancelPy, CancelTs]);
 
 
 
@@ -46,44 +49,18 @@ While your task is running, you can manage cancellation by:
 
 <GithubSnippet src={CancelPy} target="Self-cancelling task" />
 
-
-
-
 </Tabs.Tab>
 
 <Tabs.Tab>
 
 Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each task in a workflow has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the task and any asynchronous operations it may be performing.
 
-Inside a task, you can check for cancellation by accessing the `signal` property of the `context.controller`. The `signal` property is an instance of `AbortSignal`, which provides a way to register event listeners and check the cancellation status.
+Inside a task, you can check for cancellation by accessing the `cancelled` property of the `Context`, which is a boolean value indicating whether the task has been cancelled or not. For example:
 
-Here's an example of how to check for cancellation in a task:
+<GithubSnippet src={CancelTs} target="Declaring a Task" />
 
-```typescript
-const myStep: Step = async (context: Context) => {
-  const { signal } = context.controller;
 
-  if (signal.aborted) {
-    // The task has been canceled
-    // Perform any necessary cleanup or termination logic
-    return;
-  }
-
-  // Rest of the task logic
-  // ...
-
-  // You can also register an event listener for cancellation
-  signal.addEventListener("abort", () => {
-    // Cancellation signal received
-    // Perform any necessary cleanup or termination logic
-  });
-
-  // Perform asynchronous operations
-  // ...
-};
-```
-
-In this example, the task first checks the `aborted` property of the `signal` to determine if the task has been canceled. If `aborted` is `true`, the task can perform any necessary cleanup or termination logic and return early.
+In this example, the task checks the `cancelled` flag and aborts.
 
 Additionally, you can register an event listener for the `'abort'` event on the `signal`. This listener will be called when the cancellation signal is received, allowing you to handle the cancellation asynchronously.
 
@@ -93,31 +70,9 @@ One common use case for cancellation is aborting network requests that are no lo
 
 Here's an example of how to pass the `AbortSignal` to an `axios` request:
 
-```typescript
-import axios from "axios";
+<GithubSnippet src={CancelTs} target="Abort Signal" />
 
-const myStep: Step = async (context: Context) => {
-  const { signal } = context.controller;
-
-  try {
-    const response = await axios.get("https://api.example.com/data", {
-      signal,
-    });
-    // Handle the response
-    // ...
-  } catch (error) {
-    if (axios.isCancel(error)) {
-      // Request was canceled
-      console.log("Request canceled");
-    } else {
-      // Handle other errors
-      // ...
-    }
-  }
-};
-```
-
-In this example, the `signal` property from the `context.controller` is passed as an option to the `axios.get` request. If the task is canceled while the request is still pending, the request will be automatically aborted, and an error will be thrown. You can catch the error and check if it was due to cancellation using the `axios.isCancel` method.
+In this example, the `signal` property from the `Context.controller` is passed as an option to the `axios.get` request. If the task is canceled while the request is still pending, the request will be automatically aborted, and an error will be thrown. You can catch the error and check if it was due to cancellation using the `axios.isCancel` method.
 
 </Tabs.Tab>
 <Tabs.Tab>
@@ -125,6 +80,8 @@ In this example, the `signal` property from the `context.controller` is passed a
 Hatchet uses the standard `context.WithCancel` way of creating a context and passes that to a task. Each task can check for cancellation signals using the `Done()` method that context package provides.
 
 Here's an example of how to check for cancellation in a task:
+
+{/* TODO V1 Docs */}
 
 ```go
 w.RegisterWorkflow(
