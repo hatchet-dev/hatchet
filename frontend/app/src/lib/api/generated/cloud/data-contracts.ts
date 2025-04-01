@@ -121,6 +121,7 @@ export interface GithubAppInstallation {
   installation_settings_url: string;
   account_name: string;
   account_avatar_url: string;
+  is_linked_to_tenant: boolean;
 }
 
 export interface ListGithubAppInstallationsResponse {

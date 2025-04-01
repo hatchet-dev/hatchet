@@ -404,25 +404,41 @@ export const queries = createQueryKeyStore({
     }),
   },
   github: {
-    listInstallations: {
+    listInstallations: (tenant: string) => ({
       queryKey: ['github-app:list:installations'],
-      queryFn: async () => (await cloudApi.githubAppListInstallations()).data,
-    },
-    listRepos: (installation?: string) => ({
-      queryKey: ['github-app:list:repos', installation],
+      queryFn: async () =>
+        (
+          await cloudApi.githubAppListInstallations({
+            tenant,
+          })
+        ).data,
+    }),
+    listRepos: (tenant: string, installation?: string) => ({
+      queryKey: ['github-app:list:repos', tenant, installation],
       queryFn: async () => {
         invariant(installation, 'Installation must be set');
-        const res = (await cloudApi.githubAppListRepos(installation)).data;
+        const res = (
+          await cloudApi.githubAppListRepos(installation, {
+            tenant,
+          })
+        ).data;
         return res;
       },
       enabled: !!installation,
     }),
     listBranches: (
+      tenant: string,
       installation?: string,
       repoOwner?: string,
       repoName?: string,
     ) => ({
-      queryKey: ['github-app:list:branches', installation, repoOwner, repoName],
+      queryKey: [
+        'github-app:list:branches',
+        tenant,
+        installation,
+        repoOwner,
+        repoName,
+      ],
       queryFn: async () => {
         invariant(installation, 'Installation must be set');
         invariant(repoOwner, 'Repo owner must be set');
@@ -432,6 +448,9 @@ export const queries = createQueryKeyStore({
             installation,
             repoOwner,
             repoName,
+            {
+              tenant,
+            },
           )
         ).data;
         return res;

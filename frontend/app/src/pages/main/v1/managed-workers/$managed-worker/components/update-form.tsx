@@ -52,6 +52,7 @@ import { useTenant } from '@/lib/atoms';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
+  tenantId: string;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   managedWorker: ManagedWorker;
@@ -104,6 +105,7 @@ const updateManagedWorkerSchema = z.object({
 
 export default function UpdateWorkerForm({
   onSubmit,
+  tenantId,
   isLoading,
   fieldErrors,
   managedWorker,
@@ -199,15 +201,15 @@ export default function UpdateWorkerForm({
   const branch = watch('buildConfig.githubRepositoryBranch');
 
   const listInstallationsQuery = useQuery({
-    ...queries.github.listInstallations,
+    ...queries.github.listInstallations(tenantId),
   });
 
   const listReposQuery = useQuery({
-    ...queries.github.listRepos(installation),
+    ...queries.github.listRepos(tenantId, installation),
   });
 
   const listBranchesQuery = useQuery({
-    ...queries.github.listBranches(installation, repoOwner, repoName),
+    ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
   });
 
   const [envVars, setEnvVars] = useState<KeyValueType[]>(
