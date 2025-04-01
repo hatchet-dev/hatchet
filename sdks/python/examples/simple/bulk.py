@@ -7,7 +7,7 @@ step1.run(SimpleInput(message="Hello, World!"))
 # !!
 
 
-async def main():
+async def main() -> None:
     # ❓ Bulk Run a Task
     greetings = ["Hello, World!", "Hello, Moon!", "Hello, Mars!"]
 
@@ -33,6 +33,6 @@ async def main():
     results = await asyncio.gather(result1, result2)
 
     #  print the results of the two tasks
-    print(results[0].TransformedMessage)
-    print(results[1].TransformedMessage)
+    print(results[0].transformed_message)
+    print(results[1].transformed_message)
     # !!

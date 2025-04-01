@@ -1,10 +1,10 @@
 from datetime import timedelta
 from typing import Any
 
-from sdks.python.examples.simple.worker import SimpleInput, step1
-from sdks.python.hatchet_sdk.context.context import Context
-from sdks.python.hatchet_sdk.hatchet import Hatchet
-from sdks.python.hatchet_sdk.runnables.types import EmptyModel
+from examples.simple.worker import SimpleInput, step1
+from hatchet_sdk.context.context import Context
+from hatchet_sdk.hatchet import Hatchet
+from hatchet_sdk.runnables.types import EmptyModel
 
 hatchet = Hatchet(debug=True)
 
