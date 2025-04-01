@@ -47,11 +47,6 @@ export const DesiredWorkerLabelSchema = z
   ])
   .optional();
 
-const NonRetryableExceptionSchema = z.object({
-  exc: z.instanceof(Error),
-  match: z.string().optional(),
-});
-
 export const CreateStepSchema = z.object({
   name: z.string(),
   parents: z.array(z.string()).optional(),
@@ -65,7 +60,6 @@ export const CreateStepSchema = z.object({
       maxSeconds: z.number().optional(),
     })
     .optional(),
-  skipRetryOnExceptions: z.array(NonRetryableExceptionSchema).optional(),
 });
 
 export type NextStep = { [key: string]: JsonValue };

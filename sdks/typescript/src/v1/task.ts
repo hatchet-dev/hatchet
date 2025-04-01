@@ -33,10 +33,14 @@ export type TaskConcurrency = {
   limitStrategy?: ConcurrencyLimitStrategy;
 };
 
-export type NonRetryableException<T extends Error = Error> = {
-  exc: T;
-  match?: string;
-};
+export class NonRetryableError extends Error {
+  constructor(message?: string) {
+    super(message);
+    this.name = 'NonRetryableError';
+
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
 
 export type TaskFn<
   I extends InputType = UnknownInputType,
@@ -127,8 +131,6 @@ export type CreateBaseTaskOpts<
    * (optional) the concurrency options for the task
    */
   concurrency?: TaskConcurrency | TaskConcurrency[];
-
-  skipRetryOnExceptions?: NonRetryableException[];
 };
 
 export type CreateWorkflowTaskOpts<

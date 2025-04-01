@@ -29,19 +29,13 @@ import {
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
   CreateWorkflowTaskOpts,
-  NonRetryableException,
+  NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { Context, CreateStep, DurableContext, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
-export type ExtraOptionRegistry = Record<
-  Action['actionId'],
-  {
-    skipRetryOnExceptions: NonRetryableException[];
-  }
->;
 
 export interface WorkerOpts {
   name: string;
@@ -58,7 +52,6 @@ export class V0Worker {
   handle_kill: boolean;
 
   action_registry: ActionRegistry;
-  extraOptionRegistry: ExtraOptionRegistry = {};
   workflow_registry: Array<WorkflowDefinition | Workflow> = [];
   listener: ActionListener | undefined;
   futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
@@ -83,7 +76,6 @@ export class V0Worker {
     this.client = client;
     this.name = this.client.config.namespace + options.name;
     this.action_registry = {};
-    this.extraOptionRegistry = {};
     this.maxRuns = options.maxRuns;
 
     this.labels = options.labels || {};
@@ -102,20 +94,6 @@ export class V0Worker {
       acc[`${workflow.id}:${step.name.toLowerCase()}`] = step.run;
       return acc;
     }, {});
-
-    const extraOpts = workflow.steps.reduce<ExtraOptionRegistry>((acc, step) => {
-      acc[`${workflow.id}:${step.name.toLowerCase()}`] = {
-        skipRetryOnExceptions: step.skipRetryOnExceptions || [],
-      };
-
-      return acc;
-    }, {});
-
-    if (workflow.onFailure) {
-      extraOpts[`${workflow.id}-on-failure:${workflow.onFailure.name}`] = {
-        skipRetryOnExceptions: workflow.onFailure.skipRetryOnExceptions || [],
-      };
-    }
 
     const onFailureAction = workflow.onFailure
       ? {
@@ -462,7 +440,6 @@ export class V0Worker {
       this.contexts[action.stepRunId] = context;
 
       const step = this.action_registry[actionId];
-      const extraOpts = this.extraOptionRegistry[actionId];
 
       if (!step) {
         this.logger.error(`Registered actions: '${Object.keys(this.action_registry).join(', ')}'`);
@@ -522,21 +499,7 @@ export class V0Worker {
           this.logger.error(error.stack);
         }
 
-        let shouldNotRetry = false;
-
-        if (extraOpts?.skipRetryOnExceptions) {
-          for (const exc of extraOpts.skipRetryOnExceptions) {
-            if (error instanceof exc.exc.constructor) {
-              if (
-                (exc.match && new RegExp(exc.match).test((error as Error).message)) ||
-                !exc.match
-              ) {
-                shouldNotRetry = true;
-                break;
-              }
-            }
-          }
-        }
+        const shouldNotRetry = error instanceof NonRetryableError;
 
         try {
           // Send the action event to the dispatcher
