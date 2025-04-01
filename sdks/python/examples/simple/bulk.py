@@ -1,4 +1,5 @@
 import asyncio
+from typing import List
 
 # ❓ Running a Task
 from examples.simple.worker import SimpleInput, step1
@@ -30,7 +31,7 @@ async def main() -> None:
     result2 = step1.aio_run(SimpleInput(message="Hello, Moon!"))
 
     #  gather the results of the two tasks
-    results = await asyncio.gather(result1, result2)
+    results = list(await asyncio.gather(result1, result2))
 
     #  print the results of the two tasks
     print(results[0].transformed_message)
