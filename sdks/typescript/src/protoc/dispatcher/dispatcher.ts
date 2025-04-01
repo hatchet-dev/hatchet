@@ -473,6 +473,8 @@ export interface StepActionEvent {
   eventPayload: string;
   /** the retry count */
   retryCount?: number | undefined;
+  /** a flag indicating if the task should _not_ be retried */
+  shouldNotRetry?: boolean | undefined;
 }
 
 export interface ActionEventResponse {
@@ -2152,6 +2154,7 @@ function createBaseStepActionEvent(): StepActionEvent {
     eventType: 0,
     eventPayload: '',
     retryCount: undefined,
+    shouldNotRetry: undefined,
   };
 }
 
@@ -2186,6 +2189,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     }
     if (message.retryCount !== undefined) {
       writer.uint32(80).int32(message.retryCount);
+    }
+    if (message.shouldNotRetry !== undefined) {
+      writer.uint32(88).bool(message.shouldNotRetry);
     }
     return writer;
   },
@@ -2277,6 +2283,14 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
           message.retryCount = reader.int32();
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.shouldNotRetry = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2300,6 +2314,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
       eventType: isSet(object.eventType) ? stepActionEventTypeFromJSON(object.eventType) : 0,
       eventPayload: isSet(object.eventPayload) ? globalThis.String(object.eventPayload) : '',
       retryCount: isSet(object.retryCount) ? globalThis.Number(object.retryCount) : undefined,
+      shouldNotRetry: isSet(object.shouldNotRetry)
+        ? globalThis.Boolean(object.shouldNotRetry)
+        : undefined,
     };
   },
 
@@ -2335,6 +2352,9 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     if (message.retryCount !== undefined) {
       obj.retryCount = Math.round(message.retryCount);
     }
+    if (message.shouldNotRetry !== undefined) {
+      obj.shouldNotRetry = message.shouldNotRetry;
+    }
     return obj;
   },
 
@@ -2353,6 +2373,7 @@ export const StepActionEvent: MessageFns<StepActionEvent> = {
     message.eventType = object.eventType ?? 0;
     message.eventPayload = object.eventPayload ?? '';
     message.retryCount = object.retryCount ?? undefined;
+    message.shouldNotRetry = object.shouldNotRetry ?? undefined;
     return message;
   },
 };
