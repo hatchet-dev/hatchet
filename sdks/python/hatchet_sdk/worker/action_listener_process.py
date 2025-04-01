@@ -38,6 +38,7 @@ class ActionEvent:
     action: Action
     type: Any  # TODO type
     payload: str
+    should_not_retry: bool
 
 
 STOP_LOOP_TYPE = Literal["STOP_LOOP"]
@@ -190,7 +191,10 @@ class WorkerActionListenerProcess:
 
                     asyncio.create_task(
                         self.dispatcher_client.send_step_action_event(
-                            event.action, event.type, event.payload
+                            event.action,
+                            event.type,
+                            event.payload,
+                            event.should_not_retry,
                         )
                     )
                 case ActionType.CANCEL_STEP_RUN:
@@ -235,6 +239,7 @@ class WorkerActionListenerProcess:
                                 action=action,
                                 type=STEP_EVENT_TYPE_STARTED,  # TODO ack type
                                 payload="",
+                                should_not_retry=False,
                             )
                         )
                         logger.info(
@@ -255,6 +260,7 @@ class WorkerActionListenerProcess:
                                 action=action,
                                 type=GROUP_KEY_EVENT_TYPE_STARTED,  # TODO ack type
                                 payload="",
+                                should_not_retry=False,
                             )
                         )
                         logger.info(

@@ -4,10 +4,13 @@ from typing import (
     Awaitable,
     Callable,
     Generic,
+    Type,
     TypeVar,
     Union,
     cast,
 )
+
+from pydantic import BaseModel
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
@@ -44,6 +47,11 @@ def fall_back_to_default(value: T, default: T, fallback_value: T) -> T:
     return fallback_value
 
 
+class NonRetryableException(BaseModel):
+    exception: Type[Exception]
+    match: str | None = None
+
+
 class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,
@@ -69,6 +77,7 @@ class Task(Generic[TWorkflowInput, R]):
         wait_for: list[Condition | OrGroup] = [],
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
+        skip_retry_on_exceptions: list[NonRetryableException] = [],
     ) -> None:
         self.is_durable = is_durable
 
@@ -96,6 +105,8 @@ class Task(Generic[TWorkflowInput, R]):
         self.wait_for = self._flatten_conditions(wait_for)
         self.skip_if = self._flatten_conditions(skip_if)
         self.cancel_if = self._flatten_conditions(cancel_if)
+
+        self.skip_retry_on_exceptions = skip_retry_on_exceptions
 
     def _flatten_conditions(
         self, conditions: list[Condition | OrGroup]

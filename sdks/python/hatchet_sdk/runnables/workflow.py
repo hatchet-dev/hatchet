@@ -24,7 +24,7 @@ from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.runnables.task import NonRetryableException, Task
 from hatchet_sdk.runnables.types import (
     DEFAULT_EXECUTION_TIMEOUT,
     DEFAULT_SCHEDULE_TIMEOUT,
@@ -459,6 +459,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] = [],
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
+        skip_retry_on_exceptions: list[NonRetryableException] = [],
     ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
         """
         A decorator to transform a function into a Hatchet task that run as part of a workflow.
@@ -486,6 +487,21 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
         :type backoff_max_seconds: int | None
+
+        :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
+        :type concurrency: list[ConcurrencyExpression]
+
+        :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
+        :type wait_for: list[Condition | OrGroup]
+
+        :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
+        :type skip_if: list[Condition | OrGroup]
+
+        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
+        :type cancel_if: list[Condition | OrGroup]
+
+        :param skip_retry_on_exceptions: A list of exceptions that will cause the task to be skipped instead of retried. Defaults to an empty list (no exceptions).
+        :type skip_retry_on_exceptions: list[NonRetryableException]
 
         :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
@@ -515,6 +531,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                skip_retry_on_exceptions=skip_retry_on_exceptions,
             )
 
             self._default_tasks.append(task)
@@ -538,6 +555,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] = [],
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
+        skip_retry_on_exceptions: list[NonRetryableException] = [],
     ) -> Callable[
         [Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]
     ]:
@@ -572,7 +590,22 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
         :type backoff_max_seconds: int | None
 
-        :returns: A decorator which creates a `Task` object.
+        :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
+        :type concurrency: list[ConcurrencyExpression]
+
+        :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
+        :type wait_for: list[Condition | OrGroup]
+
+        :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
+        :type skip_if: list[Condition | OrGroup]
+
+        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
+        :type cancel_if: list[Condition | OrGroup]
+
+        :param skip_retry_on_exceptions: A list of exceptions that will cause the task to be skipped instead of retried. Defaults to an empty list (no exceptions).
+        :type skip_retry_on_exceptions: list[NonRetryableException]
+
+                :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
         """
 
@@ -600,6 +633,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                skip_retry_on_exceptions=skip_retry_on_exceptions,
             )
 
             self._durable_tasks.append(task)

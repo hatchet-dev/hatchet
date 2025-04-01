@@ -3,6 +3,7 @@ import contextvars
 import ctypes
 import functools
 import json
+import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
@@ -117,7 +118,9 @@ class Runner:
                 log = f"unknown action type: {action.action_type}"
                 logger.error(log)
 
-    def step_run_callback(self, action: Action) -> Callable[[asyncio.Task[Any]], None]:
+    def step_run_callback(
+        self, action: Action, action_task: "Task[TWorkflowInput, R]"
+    ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.step_run_id)
 
@@ -132,12 +135,22 @@ class Runner:
             except Exception as e:
                 errored = True
 
+                should_not_retry = False
+
+                for exc in action_task.skip_retry_on_exceptions:
+                    if isinstance(e, exc.exception):
+                        ## If the `match` is provided but is not present in the exception message, we want to retry
+                        if exc.match and re.search(exc.match, str(e)) or not exc.match:
+                            should_not_retry = True
+                            break
+
                 # This except is coming from the application itself, so we want to send that to the Hatchet instance
                 self.event_queue.put(
                     ActionEvent(
                         action=action,
                         type=STEP_EVENT_TYPE_FAILED,
                         payload=str(pretty_format_exception(f"{e}", e)),
+                        should_not_retry=should_not_retry,
                     )
                 )
 
@@ -151,6 +164,7 @@ class Runner:
                         action=action,
                         type=STEP_EVENT_TYPE_COMPLETED,
                         payload=self.serialize_output(output),
+                        should_not_retry=False,
                     )
                 )
 
@@ -181,6 +195,7 @@ class Runner:
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_FAILED,
                         payload=str(pretty_format_exception(f"{e}", e)),
+                        should_not_retry=False,
                     )
                 )
 
@@ -194,6 +209,7 @@ class Runner:
                         action=action,
                         type=GROUP_KEY_EVENT_TYPE_COMPLETED,
                         payload=self.serialize_output(output),
+                        should_not_retry=False,
                     )
                 )
 
@@ -302,7 +318,12 @@ class Runner:
 
             self.contexts[action.step_run_id] = context
             self.event_queue.put(
-                ActionEvent(action=action, type=STEP_EVENT_TYPE_STARTED, payload="")
+                ActionEvent(
+                    action=action,
+                    type=STEP_EVENT_TYPE_STARTED,
+                    payload="",
+                    should_not_retry=False,
+                )
             )
 
             loop = asyncio.get_event_loop()
@@ -312,7 +333,7 @@ class Runner:
                 )
             )
 
-            task.add_done_callback(self.step_run_callback(action))
+            task.add_done_callback(self.step_run_callback(action, action_func))
             self.tasks[action.step_run_id] = task
 
             try:
@@ -341,7 +362,10 @@ class Runner:
             # send an event that the group key run has started
             self.event_queue.put(
                 ActionEvent(
-                    action=action, type=GROUP_KEY_EVENT_TYPE_STARTED, payload=""
+                    action=action,
+                    type=GROUP_KEY_EVENT_TYPE_STARTED,
+                    payload="",
+                    should_not_retry=False,
                 )
             )
 
