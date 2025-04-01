@@ -233,12 +233,18 @@ export class BaseWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
+  runNoWait(input: I, options?: RunOpts, _standaloneTaskName?: string): WorkflowRunRef<O> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return this.client._v0.admin.runWorkflow(this.name, input, options);
+    const res = this.client._v0.admin.runWorkflow<I, O>(this.name, input, options);
+
+    if (_standaloneTaskName) {
+      res._standalone_task_name = _standaloneTaskName;
+    }
+
+    return res;
   }
 
   /**
@@ -250,18 +256,22 @@ export class BaseWorkflowDeclaration<
    * @param options - Configuration options for the workflow run
    * @returns A promise that resolves with the workflow result
    */
-  async runAndWait(input: I, options?: RunOpts): Promise<O>;
-  async runAndWait(input: I[], options?: RunOpts): Promise<O[]>;
-  async runAndWait(input: I | I[], options?: RunOpts): Promise<O | O[]> {
+  async runAndWait(input: I, options?: RunOpts, _standaloneTaskName?: string): Promise<O>;
+  async runAndWait(input: I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O[]>;
+  async runAndWait(
+    input: I | I[],
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
     if (Array.isArray(input)) {
-      return Promise.all(input.map((i) => this.runAndWait(i, options)));
+      return Promise.all(input.map((i) => this.runAndWait(i, options, _standaloneTaskName)));
     }
 
-    return this.run(input, options);
+    return this.run(input, options, _standaloneTaskName);
   }
   /**
    * Executes the workflow with the given input and awaits the results.
@@ -270,19 +280,24 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the workflow result.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async run(input: I, options?: RunOpts): Promise<O>;
-  async run(input: I[], options?: RunOpts): Promise<O[]>;
-  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
+  async run(input: I, options?: RunOpts, _standaloneTaskName?: string): Promise<O>;
+  async run(input: I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O[]>;
+  async run(input: I | I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
     if (Array.isArray(input)) {
       // FIXME use bulk endpoint?
-      return Promise.all(input.map((i) => this.run(i, options)));
+      return Promise.all(input.map((i) => this.run(i, options, _standaloneTaskName)));
     }
 
-    const res = this.client._v0.admin.runWorkflow(this.definition.name, input, options);
+    const res = this.client._v0.admin.runWorkflow<I, O>(this.definition.name, input, options);
+
+    if (_standaloneTaskName) {
+      res._standalone_task_name = _standaloneTaskName;
+    }
+
     return res.result() as Promise<O>;
   }
 
@@ -609,13 +624,22 @@ export class TaskWorkflowDeclaration<
   async run(input: I, options?: RunOpts): Promise<O>;
   async run(input: I[], options?: RunOpts): Promise<O[]>;
   async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
-    const res = (await super.run(input as I, options)) as JsonObject;
+    return (await super.run(input as I, options, this._standalone_task_name)) as O | O[];
+  }
 
-    if (Array.isArray(res)) {
-      return res.map((r) => r[this._standalone_task_name]);
+  /**
+   * Triggers a workflow run without waiting for completion.
+   * @param input The input data for the workflow.
+   * @param options Optional configuration for this workflow run.
+   * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
+   * @throws Error if the workflow is not bound to a Hatchet client.
+   */
+  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
     }
 
-    return res[this._standalone_task_name] as O;
+    return super.runNoWait(input, options, this._standalone_task_name);
   }
 
   get taskDef() {
