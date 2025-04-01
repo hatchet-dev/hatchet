@@ -79,7 +79,7 @@ if (require.main === module) {
 
 For detailed documentation, examples, and best practices, visit:
 - [Hatchet Documentation](https://docs.hatchet.run)
-- [Examples](https://docs.hatchet.run/examples)
+- [Examples](https://github.com/hatchet-dev/hatchet/tree/main/sdks/typescript/src/v1/examples)
 
 ## Development
 

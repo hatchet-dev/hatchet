@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
 For detailed documentation, examples, and best practices, visit:
 - [Hatchet Documentation](https://docs.hatchet.run)
-- [Examples](https://docs.hatchet.run/examples)
+- [Examples](https://github.com/hatchet-dev/hatchet/tree/main/sdks/python/examples)
 
 ## Contributing
 
