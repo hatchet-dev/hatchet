@@ -11,8 +11,6 @@ export const CancelTs = {
 
 export const getStaticProps = ({}) => getSnippets([CancelPy, CancelTs]);
 
-
-
 # Cancellation in Hatchet Workflows
 
 Hatchet provides a mechanism for canceling workflow executions gracefully, allowing you to stop running workflows and their associated tasks when needed. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency.mdx#cancel_in_progress), which cancels currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
@@ -44,7 +42,6 @@ While your task is running, you can manage cancellation by:
 
 <GithubSnippet src={CancelPy} target="Checking exit flag" />
 
-
 2. Using `Context.cancel` or `Context.aio_cancel` to cancel the task. This method will set the `exit_flag` to `True` and will notify the engine that it should cancel the task. For example:
 
 <GithubSnippet src={CancelPy} target="Self-cancelling task" />
@@ -58,7 +55,6 @@ Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from No
 Inside a task, you can check for cancellation by accessing the `cancelled` property of the `Context`, which is a boolean value indicating whether the task has been cancelled or not. For example:
 
 <GithubSnippet src={CancelTs} target="Declaring a Task" />
-
 
 In this example, the task checks the `cancelled` flag and aborts.
 
