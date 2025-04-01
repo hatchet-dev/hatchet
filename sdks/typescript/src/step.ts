@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 /* eslint-disable max-classes-per-file */
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
@@ -371,7 +372,7 @@ export class Context<T, K = {}> {
    * @param children - An array of  objects containing the workflow name, input data, and options for each workflow.
    * @returns A list of workflow run references to the enqueued runs.
    */
-  bulkRunNoWaitChildren<Q extends JsonObject = any, P extends JsonObject = any>(
+  async bulkRunNoWaitChildren<Q extends JsonObject = any, P extends JsonObject = any>(
     children: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
@@ -402,16 +403,7 @@ export class Context<T, K = {}> {
     }>
   ): Promise<P[]> {
     const runs = await this.bulkRunNoWaitChildren(children);
-
-    const res = runs.map(async (run, index) => {
-      const wf = children[index].workflow;
-      if (wf instanceof TaskWorkflowDeclaration) {
-        // eslint-disable-next-line no-underscore-dangle
-        return ((await run.output) as any)[wf._standalone_task_name] as P;
-      }
-      return run.output;
-    });
-    return Promise.all(res);
+    return Promise.all(runs.map((run) => run.output));
   }
 
   /**
@@ -421,7 +413,7 @@ export class Context<T, K = {}> {
    * @returns A list of references to the spawned workflow runs.
    * @deprecated Use bulkRunNoWaitChildren or bulkRunChildren instead.
    */
-  spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
+  async spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
     workflows: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
@@ -478,7 +470,17 @@ export class Context<T, K = {}> {
     });
 
     try {
-      const resp = this.client.admin.runWorkflows<Q, P>(workflowRuns);
+      const resp = await this.client.admin.runWorkflows<Q, P>(workflowRuns);
+
+      const res: WorkflowRunRef<P>[] = [];
+      resp.forEach((ref, index) => {
+        const wf = workflows[index].workflow;
+        if (wf instanceof TaskWorkflowDeclaration) {
+          // eslint-disable-next-line no-param-reassign
+          ref._standalone_task_name = wf._standalone_task_name;
+        }
+        res.push(ref);
+      });
 
       return resp;
     } catch (e: any) {
@@ -502,14 +504,6 @@ export class Context<T, K = {}> {
       | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
   ): Promise<P> {
     const run = await this.spawnWorkflow(workflow, input, optionsOrKey);
-    if (workflow instanceof TaskWorkflowDeclaration) {
-      // eslint-disable-next-line no-underscore-dangle
-      if (workflow._standalone_task_name) {
-        // eslint-disable-next-line no-underscore-dangle
-        return ((await run.output) as any)[workflow._standalone_task_name] as P;
-      }
-    }
-
     return run.output;
   }
 
@@ -591,6 +585,10 @@ export class Context<T, K = {}> {
       });
 
       this.spawnIndex += 1;
+
+      if (workflow instanceof TaskWorkflowDeclaration) {
+        resp._standalone_task_name = workflow._standalone_task_name;
+      }
 
       return resp;
     } catch (e: any) {

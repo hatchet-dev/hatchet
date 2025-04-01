@@ -1,3 +1,4 @@
+/* eslint-disable no-underscore-dangle */
 /* eslint-disable max-classes-per-file */
 import {
   RunListenerClient,
@@ -51,6 +52,8 @@ export default class WorkflowRunRef<T> {
   parentWorkflowRunId?: string;
   private client: RunListenerClient;
   private runs: RunsClient | undefined;
+  _standalone_task_name?: string;
+
   constructor(
     workflowRunId:
       | string
@@ -134,7 +137,12 @@ export default class WorkflowRunRef<T> {
                 }
               });
 
-              resolve(outputs as T);
+              if (!this._standalone_task_name) {
+                resolve(outputs as T);
+                return;
+              }
+
+              resolve(outputs[this._standalone_task_name] as T);
               return;
             }
 
@@ -146,7 +154,12 @@ export default class WorkflowRunRef<T> {
               {} as T
             );
 
-            resolve(result);
+            if (!this._standalone_task_name) {
+              resolve(result);
+              return;
+            }
+
+            resolve((result as any)[this._standalone_task_name] as T);
             return;
           }
         }
