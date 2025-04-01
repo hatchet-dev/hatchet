@@ -61,6 +61,8 @@
     "worker:multi-workflow": "npm run exec -- ./src/examples/multi-workflow.ts",
     "worker:logger": "npm run exec -- ./src/examples/logger.ts",
     "worker:byo-logger": "npm run exec -- ./src/examples/byo-logger.ts",
+    "worker:no-retry": "npm run exec -- ./src/v1/examples/non_retryable/worker.ts",
+    "worker:no-retry:trigger": "npm run exec -- ./src/v1/examples/non_retryable/run.ts",
     "api": "npm run exec -- ./src/examples/api.ts",
     "prepublish": "cp package.json dist/package.json; cp README.md dist/",
     "publish:ci": "rm -rf ./dist && npm run dump-version && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks",

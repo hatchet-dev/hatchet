@@ -7,12 +7,12 @@ non_retryable_workflow = hatchet.workflow(name="NonRetryableWorkflow")
 
 @non_retryable_workflow.task(retries=1)
 def should_not_retry(input: EmptyModel, ctx: Context) -> None:
-    raise NonRetryableException("This error should not retry")
+    raise NonRetryableException("This task should not retry")
 
 
 @non_retryable_workflow.task(retries=1)
 def should_retry_wrong_exception_type(input: EmptyModel, ctx: Context) -> None:
-    raise TypeError("This error should retry because it's not a NonRetryableException")
+    raise TypeError("This task should retry because it's not a NonRetryableException")
 
 
 @non_retryable_workflow.task(retries=1)
