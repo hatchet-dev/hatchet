@@ -26,6 +26,11 @@ For synchronous tasks, cancellation is more involved (and riskier) because of ho
   cancellable is to make them asynchronous.
 </Callout>
 
+While your task is running, you can manage cancellation by:
+
+1. Checking for cancellation using the `Context.exit_flag`, which indicates whether a task has been cancelled. You can check this flag at any point in your task to determine whether or not to exit.
+2. Using `Context.cancel` to cancel the task. This method will set the `exit_flag` to `True` and will notify the engine that it should cancel the task.
+
 </Tabs.Tab>
 
 <Tabs.Tab>
