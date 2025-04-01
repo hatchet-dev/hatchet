@@ -158,7 +158,7 @@ test('should accept extended interface', () => {
     },
   });
 
-  expectType<CreateWorkflowTaskOpts<In, Out>>(task);
+  expectType<TaskWorkflowDeclaration<In, Out>>(task);
 });
 
 test('task infer from input and return type', () => {
