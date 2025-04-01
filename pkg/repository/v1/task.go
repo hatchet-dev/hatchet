@@ -58,9 +58,6 @@ type CreateTaskOpts struct {
 	// (optional) the parent task inserted at
 	ParentTaskInsertedAt *time.Time
 
-	// (optional) The priority of a task, between 1 and 3
-	Priority *int32
-
 	// (optional) the child index for the task
 	ChildIndex *int64
 
@@ -1464,14 +1461,7 @@ func (r *sharedRepository) insertTasks(
 		// we're assuming a v1 task.
 		inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		retryCounts[i] = 0
-
-		priority := int32(1)
-
-		if task.Priority != nil {
-			priority = *task.Priority
-		}
-
-		priorities[i] = priority
+		priorities[i] = 1
 
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 
@@ -1569,8 +1559,6 @@ func (r *sharedRepository) insertTasks(
 						}
 					}
 
-					// Make sure to fail the task with a user-friendly error if we can't parse the CEL for priority
-					// Can set fail task error which will insert with an initial state of failed
 					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
 						cel.WithInput(task.Input.Input),
 						cel.WithAdditionalMetadata(additionalMeta),
