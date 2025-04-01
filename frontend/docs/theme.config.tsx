@@ -17,11 +17,11 @@ const config = {
   },
   primaryHue: {
     dark: 210,
-    light: 210
+    light: 210,
   },
   primarySaturation: {
     dark: 60,
-    light: 60
+    light: 60,
   },
   logoLink: "https://github.com/hatchet-dev/hatchet",
   project: {
@@ -37,9 +37,7 @@ const config = {
     useLink: (...args: unknown[]) =>
       `https://github.com/hatchet-dev/hatchet/issues/new`,
   },
-  footer: {
-    content: null,
-  },
+  footer: false,
   sidebar: {
     defaultMenuCollapseLevel: 2,
     toggleButton: true,
@@ -51,16 +49,15 @@ const config = {
   darkMode: true,
   nextThemes: {
     defaultTheme: "dark",
-    forcedTheme: "dark"
   },
   themeSwitch: {
     useOptions() {
       return {
         dark: "Dark",
-        light: "Light"
-      }
-    }
-  }
+        light: "Light",
+      };
+    },
+  },
 };
 
 export default config;
