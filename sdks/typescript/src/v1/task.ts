@@ -33,6 +33,11 @@ export type TaskConcurrency = {
   limitStrategy?: ConcurrencyLimitStrategy;
 };
 
+export type NonRetryableException<T extends Error = Error> = {
+  exc: T;
+  match?: string;
+};
+
 export type TaskFn<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
@@ -122,6 +127,8 @@ export type CreateBaseTaskOpts<
    * (optional) the concurrency options for the task
    */
   concurrency?: TaskConcurrency | TaskConcurrency[];
+
+  skipRetryOnExceptions?: NonRetryableException[];
 };
 
 export type CreateWorkflowTaskOpts<
