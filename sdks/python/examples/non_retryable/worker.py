@@ -5,10 +5,11 @@ hatchet = Hatchet(debug=True)
 non_retryable_workflow = hatchet.workflow(name="NonRetryableWorkflow")
 
 
+# ❓ Non-retryable task
 @non_retryable_workflow.task(retries=1)
 def should_not_retry(input: EmptyModel, ctx: Context) -> None:
     raise NonRetryableException("This task should not retry")
-
+# !!
 
 @non_retryable_workflow.task(retries=1)
 def should_retry_wrong_exception_type(input: EmptyModel, ctx: Context) -> None:

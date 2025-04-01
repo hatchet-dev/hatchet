@@ -1,12 +1,11 @@
 import { NonRetryableError } from '@hatchet/v1/task';
 import { hatchet } from '../hatchet-client';
 
-// ❓ Declare a workflow
 export const nonRetryableWorkflow = hatchet.workflow({
   name: 'no-retry-workflow',
 });
 
-// Create a task that should not retry
+// ❓ Non-retrying task
 const shouldNotRetry = nonRetryableWorkflow.task({
   name: 'should-not-retry',
   fn: () => {
@@ -14,6 +13,7 @@ const shouldNotRetry = nonRetryableWorkflow.task({
   },
   retries: 1,
 });
+// !!
 
 // Create a task that should retry
 const shouldRetryWrongErrorType = nonRetryableWorkflow.task({
@@ -28,5 +28,3 @@ const shouldNotRetrySuccessfulTask = nonRetryableWorkflow.task({
   name: 'should-not-retry-successful-task',
   fn: () => {},
 });
-
-// !!
