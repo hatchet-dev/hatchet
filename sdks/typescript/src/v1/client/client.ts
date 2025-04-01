@@ -32,7 +32,7 @@ import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
 import { CreateStandaloneDurableTaskOpts } from '../task';
-import { InputType, OutputType, UnknownInputType, WorkflowOutputType } from '../types';
+import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -122,7 +122,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A new Workflow instance
    * @note It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow
    */
-  workflow<I extends InputType = UnknownInputType, O extends WorkflowOutputType = {}>(
+  workflow<I extends InputType = UnknownInputType, O extends StrictWorkflowOutputType = {}>(
     options: CreateWorkflowOpts
   ): WorkflowDeclaration<I, O> {
     return CreateWorkflow<I, O>(options, this);

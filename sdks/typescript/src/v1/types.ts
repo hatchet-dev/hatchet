@@ -8,14 +8,20 @@ export type JsonObject = { [Key in string]: JsonValue } & {
 
 // Input and output types
 export type InputType = JsonObject;
+export interface WorkflowInputType extends InputType {}
+
 export type UnknownInputType = {};
 export type OutputType = JsonObject | void;
+
+export interface WorkflowOutputType {
+  [key: string]: JsonObject;
+}
 
 // Helper type to check if a type is a valid workflow output structure
 type IsValidWorkflowOutput<T> = T extends Record<string, JsonObject> ? true : false;
 
 // Improved WorkflowOutputType with helpful error message
-export type WorkflowOutputType<T = any> =
+export type StrictWorkflowOutputType<T = any> =
   IsValidWorkflowOutput<T> extends true
     ? T
     : (Record<string, JsonObject> | void) & {
