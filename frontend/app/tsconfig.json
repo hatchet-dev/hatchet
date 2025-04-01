@@ -21,7 +21,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": [
-    "vite.config.ts",
     "postcss.config.js",
     "src/**/*.tsx",
     "src/**/*.ts"

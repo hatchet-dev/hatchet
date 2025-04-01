@@ -1,5 +1,5 @@
 import React from "react";
-import { useData } from "nextra/data";
+import { useData } from "nextra/hooks";
 import { CodeBlock } from "./CodeBlock";
 import { RepoProps, Src } from "./codeData";
 
