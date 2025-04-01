@@ -3,15 +3,15 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
 export const SimpleTs = {
-  path: "src/v1/examples/simple/run.ts",
+  path: "src/v1/examples/simple/bulk.ts",
 };
 
 export const SimplePy = {
-  path: "examples/simple/trigger.py",
+  path: "examples/simple/bulk.py",
 };
 
 export const SimpleGo = {
-  path: "examples/v1/run/simple.go",
+  path: "examples/v1/run/bulk.go",
 };
 
 export const FanoutPy = {
@@ -24,79 +24,59 @@ export const ParentTaskGo = {
 
 export const getStaticProps = ({}) => getSnippets([SimpleTs, SimplePy, SimpleGo, FanoutPy, ParentTaskGo]);
 
-# Running with Results
+# Bulk Run Many Tasks
 
-> This example assumes we have a [task](./your-first-task.mdx) registered on a running [worker](./workers.mdx).
-
-One method for running a task in Hatchet is to run it and wait for its result. Some example use cases for this type of task trigger include:
-
-1. Fanout patterns, where a parent fans out work to a number of children, and wants to receive the results of those child tasks and make some decision based on them. For example, if each child run fips a coin, and the parent wants to count up how many heads there were and do something with that information.
-2. Waiting for long-running API calls to complete, such as if calling an LLM. For instance, if you had a part of your product that writes a poem for a user, your backend might run a `write_poem` task, which in turn calls an LLM, and then your backend would wait for that task to complete and return its result (the poem).
+Often you may want to run a task multiple times with different inputs. There is significant overhead (i.e. network roundtrips) to write the task, so if you're running multiple tasks 100s or 1000s of tasks, it's best to use the bulk run methods.
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
 
-You can use your `Task` object to run a task and wait for it to complete by calling the `run` method. This method will block until the task completes and return the result.
-
-    <GithubSnippet src={SimplePy} target="Running a Task" />
-
-You can also `await` the result of `aio_run`:
-
-    <GithubSnippet src={SimplePy} target="Running a Task AIO" />
-
-    Since the `aio_run` method returns a coroutine, you can spawn multiple tasks in parallel and await using `asyncio.gather`.
-    <GithubSnippet src={SimplePy} target="Running Multiple Tasks" />
-
-
-Note that the type of `input` here is a Pydantic model that matches the input schema of your workflow.
-
-  </Tabs.Tab>
-  <Tabs.Tab title="Typescript">
-  You can use your `Task` object to run a task and wait for it to complete by calling the `run` method. This method will return a promise that resolves when the task completes and returns the result.
-    <GithubSnippet src={SimpleTs} target="Running a Task" />
-
-    Since the `run` method returns a promise, you can spawn multiple tasks in parallel and await using `Promise.all`.
-    <GithubSnippet src={SimpleTs} target="Running Multiple Tasks" />
-  </Tabs.Tab>
-  <Tabs.Tab title="Go">
-    You can use your `Task` object to run a task and wait for it to complete by calling the `Run` method. This method will block until the task completes and return the result.
-    <GithubSnippet src={SimpleGo} target="Running a Task" />
-
-    You can also run multiple tasks in parallel by calling `Run` multiple times in goroutines and using a `sync.WaitGroup` to wait for them to complete.
-    <GithubSnippet src={SimpleGo} target="Running Multiple Tasks" />
-    
-  </Tabs.Tab>
-</UniversalTabs>
-
+You can use the `aio_run_many` method to bulk run a task. This will return a list of results.
+    <GithubSnippet src={SimplePy} target="Bulk Run a Task" />
 
 <Callout type="info">
-  While you can run multiple tasks in parallel using the `Run` method, this is not recommended for large numbers of tasks. Instead, we recommend using [batch methods](./batching.mdx) large parallel task execution.
+  `step1.create_bulk_run_item` is helper to create the inputs for each task.
 </Callout>
 
-## Spawning Tasks from within a Task
+  There are additional bulk methods available on the `Task` object.
 
-You can also spawn tasks from within a task. This is useful for composing tasks together to create more complex workflows, fanning out batched tasks, or creating conditional workflows.
+  - `aio_run_many`
+  - `aio_run_many_no_wait`
 
-<UniversalTabs items={["Python", "Typescript", "Go"]}>
-<Tabs.Tab title="Python">
+  And blocking variants:
+  - `run_many`
+  - `run_many_no_wait`
 
-You can run a task from within a task by calling the `aio_run` method on the task object from within a task function. This will associate the runs in the dashboard for easier debugging.
+  As with the run methods, you can call bulk methods from within a task and the runs will be associated with the parent task in the dashboard.
 
-<GithubSnippet src={FanoutPy} target="Running a Task from within a Task" />
-
-And that's it! The parent task will run and spawn the child task, and then will collect the results from its tasks.
-
-</Tabs.Tab>
+  </Tabs.Tab>
   <Tabs.Tab title="Typescript">
+ 
+ You can use the `run` method directly to bulk run tasks by passing an array of inputs. This will return a list of results.
+    <GithubSnippet src={SimpleTs} target="Bulk Run a Task" />
 
-  You can run a task from within a task by calling the `runChild` method on the `ctx` parameter of the task function. This will associate the runs in the dashboard for easier debugging.
+  There are additional bulk methods available on the `Task` object.
 
-    <GithubSnippet src={SimpleTs} target="Spawning Tasks from within a Task" />
+  - `run`
+  - `runNoWait`
+
+  As with the run methods, you can call bulk methods on the task fn context parameter within a task and the runs will be associated with the parent task in the dashboard.
+
+    <GithubSnippet src={SimpleTs} target="Bulk Run Tasks from within a Task" />
+
+  Available bulk methods on the `Context` object are:
+    - `bulkRunChildren`
+    - `bulkRunChildrenNoWait`
+    
   </Tabs.Tab>
   <Tabs.Tab title="Go">
 
-  You can run a task from within a task by calling the `Run` method on the task object from within a task function. This will associate the runs in the dashboard for easier debugging.
+ You can use the `RunBulkNoWait` method directly on the `Task` object to bulk run tasks by passing an array of inputs. This will return a list of run IDs.
 
-    <GithubSnippet src={ParentTaskGo} target="Spawning Tasks from within a Task" />
+    <GithubSnippet src={SimpleGo} target="Bulk Run Tasks" />
+
+Additional bulk methods are coming soon for the Go SDK. Join our [Discord](https://hatchet.run/discord) to stay up to date.
+
   </Tabs.Tab>
 </UniversalTabs>
+

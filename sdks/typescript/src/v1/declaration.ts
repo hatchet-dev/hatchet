@@ -288,8 +288,29 @@ export class BaseWorkflowDeclaration<
     }
 
     if (Array.isArray(input)) {
-      // FIXME use bulk endpoint?
-      return Promise.all(input.map((i) => this.run(i, options, _standaloneTaskName)));
+      let resp: WorkflowRunRef<O>[] = [];
+      for (let i = 0; i < input.length; i += 500) {
+        const batch = input.slice(i, i + 500);
+        const batchResp = await this.client._v0.admin.runWorkflows<I, O>(
+          batch.map((inp) => ({
+            workflowName: this.definition.name,
+            input: inp,
+            options,
+          }))
+        );
+        resp = resp.concat(batchResp);
+      }
+
+      const res: Promise<O>[] = [];
+      resp.forEach((ref, index) => {
+        const wf = input[index].workflow;
+        if (wf instanceof TaskWorkflowDeclaration) {
+          // eslint-disable-next-line no-param-reassign
+          ref._standalone_task_name = wf._standalone_task_name;
+        }
+        res.push(ref.result());
+      });
+      return Promise.all(res);
     }
 
     const res = this.client._v0.admin.runWorkflow<I, O>(this.definition.name, input, options);
