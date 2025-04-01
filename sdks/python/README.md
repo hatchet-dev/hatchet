@@ -29,31 +29,22 @@ poetry add hatchet-sdk
 Here's a simple example of how to use the Hatchet Python SDK:
 
 ```python
-from hatchet_sdk import Hatchet, WorkflowContext
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
-# Initialize the Hatchet client
-client = Hatchet(
-    api_key="your-api-key",  # For Hatchet Cloud
-    # For self-hosted:
-    # url="your-hatchet-instance-url",
-    # api_key="your-api-key"
-)
+hatchet = Hatchet(debug=True)
 
-# Define your workflow
-@client.workflow("example-workflow")
-def example_workflow(ctx: WorkflowContext, input_data: dict):
-    # Your workflow logic here
-    result = ctx.step(
-        "process-data",
-        lambda: process_data(input_data)
-    )
-    return result
 
-# Start your workflow
-workflow_run = client.start_workflow(
-    "example-workflow",
-    input_data={"key": "value"}
-)
+@hatchet.task(name="SimpleWorkflow")
+def step1(input: EmptyModel, ctx: Context) -> None:
+    print("executed step1")
+
+
+def main() -> None:
+    worker = hatchet.worker("test-worker", slots=1, workflows=[step1])
+    worker.start()
+
+if __name__ == "__main__":
+    main()
 ```
 
 ## Features
@@ -68,7 +59,6 @@ workflow_run = client.start_workflow(
 
 For detailed documentation, examples, and best practices, visit:
 - [Hatchet Documentation](https://docs.hatchet.run)
-- [Python SDK Reference](https://docs.hatchet.run/sdks/python)
 - [Examples](https://docs.hatchet.run/examples)
 
 ## Contributing

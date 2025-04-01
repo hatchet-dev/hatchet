@@ -35,29 +35,35 @@ pnpm add @hatchet-dev/typescript-sdk
 Here's a simple example of how to use the Hatchet TypeScript SDK:
 
 ```typescript
-import { Hatchet } from '@hatchet-dev/typescript-sdk';
+import { HatchetClient } from '@hatchet-dev/typescript-sdk';
 
-// Initialize the Hatchet client
-const client = new Hatchet({
-  apiKey: 'your-api-key', // For Hatchet Cloud
-  // For self-hosted:
-  // url: 'your-hatchet-instance-url',
-  // apiKey: 'your-api-key'
+export const hatchet = HatchetClient.init();
+
+export type SimpleInput = {
+  Message: string;
+};
+
+export const simple = hatchet.task({
+  name: 'simple',
+  fn: (input: SimpleInput) => {
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
 });
 
-// Define your workflow
-const workflow = client.workflow('example-workflow', async (ctx, input: { key: string }) => {
-  // Your workflow logic here
-  const result = await ctx.step('process-data', async () => {
-    return processData(input);
+async function main() {
+  const worker = await hatchet.worker('simple-worker', {
+    workflows: [simple],
+    slots: 100,
   });
-  return result;
-});
 
-// Start your workflow
-const workflowRun = await client.startWorkflow('example-workflow', {
-  input: { key: 'value' }
-});
+  await worker.start();
+}
+
+if (require.main === module) {
+  main();
+}
 ```
 
 ## Features
@@ -73,7 +79,6 @@ const workflowRun = await client.startWorkflow('example-workflow', {
 
 For detailed documentation, examples, and best practices, visit:
 - [Hatchet Documentation](https://docs.hatchet.run)
-- [TypeScript SDK Reference](https://docs.hatchet.run/sdks/typescript)
 - [Examples](https://docs.hatchet.run/examples)
 
 ## Development
