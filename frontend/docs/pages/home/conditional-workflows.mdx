@@ -1,4 +1,5 @@
 import { GithubSnippet, getSnippets } from "@/components/code";
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 
 export const WaitsPy = {
   path: "examples/waits/worker.py",
@@ -8,13 +9,32 @@ export const getStaticProps = ({}) => getSnippets([WaitsPy]);
 
 ## Introduction
 
-Hatchet V1 introduces the ability to add conditions to tasks in your workflows that determine whether or not a task should be run, based on a number of conditions. There are three types of `Condition`s in Hatchet V1:
+Hatchet V1 introduces the ability to add conditions to tasks in your workflows that determine whether or not a task should be run, based on a number of conditions. Conditions unlock a number of new ways to solve problems with Hatchet, such as:
+
+1. A workflow that reads a feature flag, and then decides how to progress based on its value. In this case, you'd have two tasks that use parent conditions, where one task runs if the flag value is e.g. `True`, while the other runs if it's `False`.
+2. Any type of human-in-the-loop workflow, where you want to wait for a human to e.g. approve something before continuing the run.
+
+## Types of Conditions
+
+There are three types of `Condition`s in Hatchet V1:
 
 1. Sleep conditions, which sleep for a specified duration before continuing
 2. Event conditions, which wait for an event (and optionally a CEL expression evaluated on the payload of that event) before deciding how to continue
 3. Parent conditions, which wait for a parent task to complete and then decide how to progress based on its output.
 
-These conditions can also be combined using an `Or` operator into groups of conditions where at least one must be satisfied in order for the group to evaluate to `True`.
+## Or Groups
+
+Conditions can also be combined using an `Or` operator into groups of conditions (called "or groups") where at least one must be satisfied in order for the group to evaluate to `True`. An "or group" behaves like a boolean `OR` operator, where the group evaluates to `True` if at least one of its conditions is `True`.
+
+Or groups are an extremely powerful feature because they let you express arbitrarily complex sets of conditions in [conjunctive normal form](https://en.wikipedia.org/wiki/Conjunctive_normal_form) (CNF) for determining when your tasks should run and when they should not. As a simple example, consider the following conditions:
+
+* **Condition A**: Checking if the output of a parent task is greater than 50
+* **Condition B**: Sleeping for 30 seconds
+* **Condition C**: Receiving the `payment:processed` event
+
+You might want to progress in your workflow if A _or_ B and C. In this case, we can express this set of conditions in CNF as `A or B` AND `A or C` where both `A or B` and `A or C` are or groups.
+
+## Usage
 
 Conditions can be used at task _declaration_ time in three ways:
 
@@ -22,12 +42,22 @@ Conditions can be used at task _declaration_ time in three ways:
 2. They can be used in a `skip_if` fashion, where a task will be skipped if the conditions evaluate to `True`.
 3. They can be used in a `cancel_if` fashion, where a task will be cancelled if the conditions evaluate to `True`.
 
-## Use Cases
+### `wait_for`
 
-There are a number of use cases that these features unlock. Some examples might be:
+Declaring a task with conditions to `wait_for` will cause the task to wait before starting for until its conditions evaluate to `True`. For instance, if you use `wait_for` with a 60 second sleep, the workflow will wait for 60 seconds before triggering the task. Similar, if the task is waiting for an event, it will wait until the event is fired before continuing.
 
-1. A workflow that reads a feature flag, and then decides how to progress based on its value. In this case, you'd have two tasks that use parent conditions, where one task runs if the flag value is e.g. `True`, while the other runs if it's `False`.
-2. Any type of human-in-the-loop workflow, where you want to wait for a human to e.g. approve something before continuing the run.
+### `skip_if`
+
+Declaring a task with conditions to `skip_if` will cause the task to be skipped if the conditions evaluate to `True`. For instance, if you use a parent condition to check if the output of a parent task is equal to some value, the task will be skipped if that condition evaluates to `True`.
+
+### `cancel_if`
+
+
+Declaring a task with conditions to `cancel_if` will cause the task to be cancelled if the conditions evaluate to `True`. For instance, if you use a parent condition to check if the output of a parent task is equal to some value, the task will be cancelled if that condition evaluates to `True`.
+
+<Callout type="warning">
+  A task cancelled by a `cancel_if` operator will behave the same as any other cancellation in Hatchet, meaning that downstream tasks will be cancelled as well.
+</Callout>
 
 ## Example Workflow
 
