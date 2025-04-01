@@ -29,14 +29,12 @@ export const abortSignal = hatchet.task({
         signal: controller.signal,
       });
       // Handle the response
-      // ...
     } catch (error) {
       if (axios.isCancel(error)) {
         // Request was canceled
         console.log("Request canceled");
       } else {
         // Handle other errors
-        // ...
       }
     }
   },
