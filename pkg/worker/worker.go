@@ -761,6 +761,11 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 
 	failureEvent.EventPayload = err.Error()
 
+	if IsNonRetryableError(err) {
+		shouldNotRetry := true
+		failureEvent.ShouldNotRetry = &shouldNotRetry
+	}
+
 	innerCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

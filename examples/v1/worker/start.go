@@ -34,16 +34,17 @@ func main() {
 
 	// Define workflows map
 	workflowMap := map[string][]workflow.WorkflowBase{
-		"dag":          {v1_workflows.DagWorkflow(hatchet)},
-		"on-failure":   {v1_workflows.OnFailure(hatchet)},
-		"simple":       {v1_workflows.Simple(hatchet)},
-		"sleep":        {v1_workflows.DurableSleep(hatchet)},
-		"child":        {v1_workflows.Parent(hatchet), v1_workflows.Child(hatchet)},
-		"cancellation": {v1_workflows.Cancellation(hatchet)},
-		"timeout":      {v1_workflows.Timeout(hatchet)},
-		"sticky":       {v1_workflows.Sticky(hatchet), v1_workflows.StickyDag(hatchet), v1_workflows.Child(hatchet)},
-		"retries":      {v1_workflows.Retries(hatchet), v1_workflows.RetriesWithCount(hatchet), v1_workflows.WithBackoff(hatchet)},
-		"on-cron":      {v1_workflows.OnCron(hatchet)},
+		"dag":           {v1_workflows.DagWorkflow(hatchet)},
+		"on-failure":    {v1_workflows.OnFailure(hatchet)},
+		"simple":        {v1_workflows.Simple(hatchet)},
+		"sleep":         {v1_workflows.DurableSleep(hatchet)},
+		"child":         {v1_workflows.Parent(hatchet), v1_workflows.Child(hatchet)},
+		"cancellation":  {v1_workflows.Cancellation(hatchet)},
+		"timeout":       {v1_workflows.Timeout(hatchet)},
+		"sticky":        {v1_workflows.Sticky(hatchet), v1_workflows.StickyDag(hatchet), v1_workflows.Child(hatchet)},
+		"retries":       {v1_workflows.Retries(hatchet), v1_workflows.RetriesWithCount(hatchet), v1_workflows.WithBackoff(hatchet)},
+		"on-cron":       {v1_workflows.OnCron(hatchet)},
+		"non-retryable": {v1_workflows.NonRetryableError(hatchet)},
 	}
 
 	// Add an "all" option that registers all workflows

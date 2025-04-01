@@ -158,6 +158,16 @@ func main() {
 			fmt.Println("WithBackoff workflow completed unexpectedly")
 			return nil
 		},
+		"non-retryable": func() error {
+			nonRetryable := v1_workflows.NonRetryableError(hatchet)
+			_, err := nonRetryable.Run(ctx, v1_workflows.NonRetryableInput{})
+			if err != nil {
+				fmt.Println("Received expected error:", err)
+				return nil // We expect an error here
+			}
+			fmt.Println("NonRetryable workflow completed unexpectedly")
+			return nil
+		},
 		"on-cron": func() error {
 			cronTask := v1_workflows.OnCron(hatchet)
 			result, err := cronTask.Run(ctx, v1_workflows.OnCronInput{

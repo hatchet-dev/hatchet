@@ -142,6 +142,9 @@ type ActionEvent struct {
 
 	// The event payload. This must be JSON-compatible as it gets marshalled to a JSON string.
 	EventPayload interface{}
+
+	// If this is an error, whether to retry on failure
+	ShouldNotRetry *bool
 }
 
 type ActionEventResponse struct {
@@ -543,6 +546,7 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		EventType:      actionEventType,
 		EventPayload:   string(payloadBytes),
 		RetryCount:     &in.RetryCount,
+		ShouldNotRetry: in.ShouldNotRetry,
 	})
 
 	if err != nil {
