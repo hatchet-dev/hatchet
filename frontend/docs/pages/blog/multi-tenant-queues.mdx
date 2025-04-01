@@ -540,6 +540,6 @@ This guarantees an additional level of fairness which makes it even harder for B
 
 We've covered deterministic round-robin queueing, but it turns out that many systems just need approximate fairness guarantees ("deterministic" in this case refers to the fact that tasks are processed in a deterministic order on subsequent reads - as opposed to using something like `ORDER BY RANDOM()`). But there are other approaches which provide approximate fairness, such as [shuffle sharding](https://aws.amazon.com/builders-library/workload-isolation-using-shuffle-sharding/), which we'll show how to implement in Postgres in a future post.
 
-If you have suggestions on making these queries more performant - or perhaps you spotted a bug - I'd love to hear from you in our [Discord](https://discord.gg/ZMeUafwH89).
+If you have suggestions on making these queries more performant - or perhaps you spotted a bug - I'd love to hear from you in our [Discord](https://hatchet.run/discord).
 
 _[Hatchet Cloud](https://cloud.onhatchet.run) is our managed Hatchet offering. Give it a spin and let us know what you think!_

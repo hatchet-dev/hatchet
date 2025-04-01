@@ -1,5 +1,4 @@
 from datetime import timedelta
-from typing import Any
 
 from examples.simple.worker import SimpleInput, step1
 from hatchet_sdk.context.context import Context
@@ -15,7 +14,6 @@ parent_wf = hatchet.task(name="parent_task")
 
 @parent_wf.task(execution_timeout=timedelta(minutes=5))
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
-
     # Simply run the task with the input we received
     result = await step1.aio_run(
         input=SimpleInput(message="Hello, World!"),
