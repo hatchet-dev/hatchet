@@ -28,9 +28,9 @@ Conditions can also be combined using an `Or` operator into groups of conditions
 
 Or groups are an extremely powerful feature because they let you express arbitrarily complex sets of conditions in [conjunctive normal form](https://en.wikipedia.org/wiki/Conjunctive_normal_form) (CNF) for determining when your tasks should run and when they should not. As a simple example, consider the following conditions:
 
-* **Condition A**: Checking if the output of a parent task is greater than 50
-* **Condition B**: Sleeping for 30 seconds
-* **Condition C**: Receiving the `payment:processed` event
+- **Condition A**: Checking if the output of a parent task is greater than 50
+- **Condition B**: Sleeping for 30 seconds
+- **Condition C**: Receiving the `payment:processed` event
 
 You might want to progress in your workflow if A _or_ B and C. In this case, we can express this set of conditions in CNF as `A or B` AND `A or C` where both `A or B` and `A or C` are or groups.
 
@@ -52,11 +52,12 @@ Declaring a task with conditions to `skip_if` will cause the task to be skipped 
 
 ### `cancel_if`
 
-
 Declaring a task with conditions to `cancel_if` will cause the task to be cancelled if the conditions evaluate to `True`. For instance, if you use a parent condition to check if the output of a parent task is equal to some value, the task will be cancelled if that condition evaluates to `True`.
 
 <Callout type="warning">
-  A task cancelled by a `cancel_if` operator will behave the same as any other cancellation in Hatchet, meaning that downstream tasks will be cancelled as well.
+  A task cancelled by a `cancel_if` operator will behave the same as any other
+  cancellation in Hatchet, meaning that downstream tasks will be cancelled as
+  well.
 </Callout>
 
 ## Example Workflow
