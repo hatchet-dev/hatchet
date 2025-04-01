@@ -2,8 +2,6 @@ module github.com/hatchet-dev/hatchet
 
 go 1.23.0
 
-toolchain go1.24.1
-
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/creasty/defaults v1.8.0

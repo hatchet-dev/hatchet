@@ -15,4 +15,4 @@ function DynamicLottie(props: DynamicLottieProps) {
 }
 
 // Using CommonJS export
-export default DynamicLottie; 
+export default DynamicLottie;
