@@ -19,7 +19,7 @@ import {
 } from '@hatchet/v1/task';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expectError, expectType } from 'jest-tsd';
-import { InputType, UnknownInputType, WorkflowInputType, WorkflowOutputType } from '@hatchet/v1/types';
+import { InputType, UnknownInputType, WorkflowOutputType } from '@hatchet/v1/types';
 
 const hatchet = HatchetClient.init({ token: '' });
 
