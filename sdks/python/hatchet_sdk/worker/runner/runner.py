@@ -140,7 +140,9 @@ class Runner:
                 for exc in action_task.skip_retry_on_exceptions:
                     if isinstance(e, exc.exception):
                         ## If the `match` is provided but is not present in the exception message, we want to retry
-                        if exc.match and re.search(exc.match, str(e)) or not exc.match:
+                        if (
+                            exc.match and bool(re.search(exc.match, str(e)))
+                        ) or not exc.match:
                             should_not_retry = True
                             break
 
