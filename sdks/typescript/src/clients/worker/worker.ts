@@ -29,6 +29,7 @@ import {
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
   CreateWorkflowTaskOpts,
+  NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { Context, CreateStep, DurableContext, mapRateLimit, StepRunFunction } from '../../step';
@@ -458,6 +459,7 @@ export class V0Worker {
           const event = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
+            false,
             result || null
           );
           await this.client.dispatcher.sendStepActionEvent(event);
@@ -470,6 +472,7 @@ export class V0Worker {
           const failureEvent = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_FAILED,
+            false,
             actionEventError.message
           );
 
@@ -498,11 +501,14 @@ export class V0Worker {
           this.logger.error(error.stack);
         }
 
+        const shouldNotRetry = error instanceof NonRetryableError;
+
         try {
           // Send the action event to the dispatcher
           const event = this.getStepActionEvent(
             action,
             StepActionEventType.STEP_EVENT_TYPE_FAILED,
+            shouldNotRetry,
             {
               message: error?.message,
               stack: error?.stack,
@@ -533,7 +539,11 @@ export class V0Worker {
       this.futures[action.stepRunId] = future;
 
       // Send the action event to the dispatcher
-      const event = this.getStepActionEvent(action, StepActionEventType.STEP_EVENT_TYPE_STARTED);
+      const event = this.getStepActionEvent(
+        action,
+        StepActionEventType.STEP_EVENT_TYPE_STARTED,
+        false
+      );
       this.client.dispatcher.sendStepActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
       });
@@ -641,6 +651,7 @@ export class V0Worker {
   getStepActionEvent(
     action: Action,
     eventType: StepActionEventType,
+    shouldNotRetry: boolean,
     payload: any = ''
   ): StepActionEvent {
     return {
@@ -653,6 +664,7 @@ export class V0Worker {
       eventTimestamp: new Date(),
       eventType,
       eventPayload: JSON.stringify(payload),
+      shouldNotRetry,
     };
   }
 

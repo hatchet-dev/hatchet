@@ -332,6 +332,12 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	shouldNotRetry := false
+
+	if request.ShouldNotRetry != nil {
+		shouldNotRetry = *request.ShouldNotRetry
+	}
+
 	msg, err := tasktypes.FailedTaskMessage(
 		tenantId,
 		task.ID,
@@ -341,6 +347,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		retryCount,
 		true,
 		request.EventPayload,
+		shouldNotRetry,
 	)
 
 	if err != nil {

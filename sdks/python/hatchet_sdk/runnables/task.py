@@ -44,6 +44,10 @@ def fall_back_to_default(value: T, default: T, fallback_value: T) -> T:
     return fallback_value
 
 
+class NonRetryableException(Exception):
+    pass
+
+
 class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,

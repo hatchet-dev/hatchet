@@ -239,7 +239,7 @@ class GroupKeyActionEvent(_message.Message):
     def __init__(self, workerId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[GroupKeyActionEventType, str]] = ..., eventPayload: _Optional[str] = ...) -> None: ...
 
 class StepActionEvent(_message.Message):
-    __slots__ = ("workerId", "jobId", "jobRunId", "stepId", "stepRunId", "actionId", "eventTimestamp", "eventType", "eventPayload", "retryCount")
+    __slots__ = ("workerId", "jobId", "jobRunId", "stepId", "stepRunId", "actionId", "eventTimestamp", "eventType", "eventPayload", "retryCount", "shouldNotRetry")
     WORKERID_FIELD_NUMBER: _ClassVar[int]
     JOBID_FIELD_NUMBER: _ClassVar[int]
     JOBRUNID_FIELD_NUMBER: _ClassVar[int]
@@ -250,6 +250,7 @@ class StepActionEvent(_message.Message):
     EVENTTYPE_FIELD_NUMBER: _ClassVar[int]
     EVENTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
     RETRYCOUNT_FIELD_NUMBER: _ClassVar[int]
+    SHOULDNOTRETRY_FIELD_NUMBER: _ClassVar[int]
     workerId: str
     jobId: str
     jobRunId: str
@@ -260,7 +261,8 @@ class StepActionEvent(_message.Message):
     eventType: StepActionEventType
     eventPayload: str
     retryCount: int
-    def __init__(self, workerId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[StepActionEventType, str]] = ..., eventPayload: _Optional[str] = ..., retryCount: _Optional[int] = ...) -> None: ...
+    shouldNotRetry: bool
+    def __init__(self, workerId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., eventType: _Optional[_Union[StepActionEventType, str]] = ..., eventPayload: _Optional[str] = ..., retryCount: _Optional[int] = ..., shouldNotRetry: bool = ...) -> None: ...
 
 class ActionEventResponse(_message.Message):
     __slots__ = ("tenantId", "workerId")

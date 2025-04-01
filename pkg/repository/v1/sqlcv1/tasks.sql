@@ -240,7 +240,8 @@ WITH input AS (
         (
             SELECT
                 unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                unnest(@isNonRetryables::boolean[]) AS is_non_retryable
         ) AS subquery
 ), locked_tasks AS (
     SELECT
@@ -279,7 +280,11 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    (v1_task.id, v1_task.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
+    (v1_task.id, v1_task.inserted_at) IN (
+        SELECT task_id, task_inserted_at
+        FROM input
+        WHERE is_non_retryable = FALSE
+    )
     AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
     v1_task.id,

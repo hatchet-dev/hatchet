@@ -119,6 +119,7 @@ describe('Worker', () => {
         2,
         expect.anything(),
         StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
+        false,
         { data: 4 }
       );
       expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
@@ -151,6 +152,7 @@ describe('Worker', () => {
         2,
         expect.anything(),
         StepActionEventType.STEP_EVENT_TYPE_FAILED,
+        false,
         expect.anything()
       );
       expect(worker.futures[mockStart.stepRunId]).toBeUndefined();

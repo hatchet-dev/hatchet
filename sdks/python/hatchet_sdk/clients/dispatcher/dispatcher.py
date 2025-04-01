@@ -76,10 +76,16 @@ class DispatcherClient:
         return ActionListener(self.config, response.workerId)
 
     async def send_step_action_event(
-        self, action: Action, event_type: StepActionEventType, payload: str
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        payload: str,
+        should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
         try:
-            return await self._try_send_step_action_event(action, event_type, payload)
+            return await self._try_send_step_action_event(
+                action, event_type, payload, should_not_retry
+            )
         except Exception as e:
             # for step action events, send a failure event when we cannot send the completed event
             if (
@@ -90,13 +96,18 @@ class DispatcherClient:
                     action,
                     STEP_EVENT_TYPE_FAILED,
                     "Failed to send finished event: " + str(e),
+                    should_not_retry=True,
                 )
 
             return None
 
     @tenacity_retry
     async def _try_send_step_action_event(
-        self, action: Action, event_type: StepActionEventType, payload: str
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        payload: str,
+        should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
         if not self.aio_client:
             aio_conn = new_conn(self.config, True)
@@ -116,6 +127,7 @@ class DispatcherClient:
             eventType=event_type,
             eventPayload=payload,
             retryCount=action.retry_count,
+            shouldNotRetry=should_not_retry,
         )
 
         return cast(

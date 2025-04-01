@@ -272,6 +272,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def is_durable(self) -> bool:
         return any(task.is_durable for task in self.tasks)
 
+    @property
+    def name(self) -> str:
+        return self.config.name
+
     def create_bulk_run_item(
         self,
         input: TWorkflowInput | None = None,
@@ -487,6 +491,18 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
         :type backoff_max_seconds: int | None
 
+        :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
+        :type concurrency: list[ConcurrencyExpression]
+
+        :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
+        :type wait_for: list[Condition | OrGroup]
+
+        :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
+        :type skip_if: list[Condition | OrGroup]
+
+        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
+        :type cancel_if: list[Condition | OrGroup]
+
         :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
         """
@@ -571,6 +587,18 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
         :type backoff_max_seconds: int | None
+
+        :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
+        :type concurrency: list[ConcurrencyExpression]
+
+        :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
+        :type wait_for: list[Condition | OrGroup]
+
+        :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
+        :type skip_if: list[Condition | OrGroup]
+
+        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
+        :type cancel_if: list[Condition | OrGroup]
 
         :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]

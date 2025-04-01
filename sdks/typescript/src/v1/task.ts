@@ -33,6 +33,15 @@ export type TaskConcurrency = {
   limitStrategy?: ConcurrencyLimitStrategy;
 };
 
+export class NonRetryableError extends Error {
+  constructor(message?: string) {
+    super(message);
+    this.name = 'NonRetryableError';
+
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 export type TaskFn<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
