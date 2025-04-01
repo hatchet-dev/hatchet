@@ -86,6 +86,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("seed.adminName", "ADMIN_NAME")
 	_ = v.BindEnv("seed.defaultTenantName", "DEFAULT_TENANT_NAME")
 	_ = v.BindEnv("seed.defaultTenantSlug", "DEFAULT_TENANT_SLUG")
+	_ = v.BindEnv("seed.defaultTenantId", "DEFAULT_TENANT_ID")
 	_ = v.BindEnv("seed.isDevelopment", "SEED_DEVELOPMENT")
 
 	_ = v.BindEnv("logger.level", "DATABASE_LOGGER_LEVEL")
