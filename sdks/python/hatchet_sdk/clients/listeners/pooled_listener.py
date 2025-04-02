@@ -1,15 +1,13 @@
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from typing import Any, Callable, Generic, Literal, TypeVar, cast
+from typing import Callable, Generic, Literal, TypeVar, cast
 
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
 
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 
@@ -19,6 +17,7 @@ DEFAULT_LISTENER_INTERRUPT_INTERVAL = 1800  # 30 minutes
 
 R = TypeVar("R")
 T = TypeVar("T")
+L = TypeVar("L")
 
 SentinelValue = Literal["STOP"]
 SENTINEL_VALUE: SentinelValue = "STOP"
@@ -88,7 +87,7 @@ class Subscription(Generic[T]):
         await self.queue.put("STOP")
 
 
-class PooledListener(Generic[R, T], ABC):
+class PooledListener(Generic[R, T, L], ABC):
     def __init__(self, config: ClientConfig):
         self.token = config.token
         self.config = config
@@ -112,7 +111,7 @@ class PooledListener(Generic[R, T], ABC):
 
         ## IMPORTANT: This needs to be created lazily so we don't require
         ## an event loop to instantiate the client.
-        self.client: DispatcherStub | None = None
+        self.client: L | None = None
 
     async def _interrupter(self) -> None:
         """
@@ -257,10 +256,6 @@ class PooledListener(Generic[R, T], ABC):
                 self.cleanup_subscription(subscription_id)
 
     @abstractmethod
-    async def aio_result(self, id: str) -> dict[str, Any]:
-        pass
-
-    @abstractmethod
     async def create_subscription(
         self, request: AsyncIterator[R], metadata: tuple[tuple[str, str]]
     ) -> grpc.aio.UnaryStreamCall[R, T]:
@@ -270,10 +265,6 @@ class PooledListener(Generic[R, T], ABC):
         self,
     ) -> grpc.aio.UnaryStreamCall[R, T]:
         retries = 0
-        if self.client is None:
-            conn = new_conn(self.config, True)
-            self.client = DispatcherStub(conn)
-
         while retries < DEFAULT_LISTENER_RETRY_COUNT:
             try:
                 if retries > 0:
