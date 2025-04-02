@@ -52,6 +52,8 @@ func cron() {
 		AdditionalMetadata: &[]string{"user:daily-run"},
 	})
 	// !!
-
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(crons)
 }
