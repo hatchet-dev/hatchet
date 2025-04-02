@@ -182,7 +182,7 @@ func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 			if err != nil {
 				five = 0
 			} else {
-				five = skipOnEventOutput.RandomNumber
+				five = leftBranchOutput.RandomNumber
 			}
 
 			var rightBranchOutput StepOutput
