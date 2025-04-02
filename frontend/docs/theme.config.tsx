@@ -28,7 +28,7 @@ const config = {
     link: "https://github.com/hatchet-dev/hatchet",
   },
   chat: {
-    link: "https://discord.gg/ZMeUafwH89",
+    link: "https://hatchet.run/discord",
   },
   docsRepositoryBase:
     "https://github.com/hatchet-dev/hatchet/blob/main/frontend/docs",
