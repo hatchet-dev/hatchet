@@ -2,7 +2,7 @@ import { parent } from './workflow';
 
 async function main() {
   const res = await parent.run({
-    N: 10,
+    N: 20000,
   });
 
   // eslint-disable-next-line no-console

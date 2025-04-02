@@ -24,15 +24,25 @@ type ParentInput = {
 
 export const parent = hatchet.task({
   name: 'parent',
+  retries: 3,
   fn: async (input: ParentInput, ctx) => {
     const n = input.N;
-    const promises = [];
+    const requests = [];
 
     for (let i = 0; i < n; i++) {
-      promises.push(ctx.runChild(child, { N: i }));
+      requests.push({
+        workflow: child,
+        input: { N: i },
+      });
     }
 
-    const childRes = await Promise.all(promises);
+    const result = await ctx.bulkRunNoWaitChildren(requests);
+
+    if (ctx.retryCount() === 0) {
+      throw new Error('expected');
+    }
+
+    const childRes = await Promise.all(result.map((r) => r.output));
     const sum = childRes.reduce((acc, curr) => acc + curr.Value, 0);
 
     return {

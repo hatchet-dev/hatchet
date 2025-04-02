@@ -464,23 +464,38 @@ WITH input AS (
                 unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
                 unnest(@eventKeys::text[]) AS event_key
         ) AS subquery
+),
+distinct_events AS (
+    SELECT DISTINCT
+        task_id, task_inserted_at
+    FROM
+        input
+),
+events_to_lock AS (
+    SELECT
+        e.id,
+        e.event_key,
+        e.data,
+		e.task_id,
+		e.task_inserted_at
+    FROM
+        v1_task_event e
+    JOIN
+        distinct_events de 
+		ON e.task_id = de.task_id 
+		AND e.task_inserted_at = de.task_inserted_at
+    WHERE
+        e.tenant_id = @tenantId::uuid
+        AND e.event_type = 'SIGNAL_CREATED'
 )
 SELECT
-    e.id,
-    e.event_key,
-    e.data
+	e.id,
+	e.event_key,
+	e.data
 FROM
-    v1_task_event e
+	events_to_lock e
 WHERE
-    (e.tenant_id, e.task_id, e.task_inserted_at, e.event_type, e.event_key) IN (
-        SELECT
-            @tenantId::uuid, task_id, task_inserted_at, 'SIGNAL_CREATED'::v1_task_event_type, event_key
-        FROM
-            input
-    )
-ORDER BY
-    e.tenant_id, e.task_id, e.task_inserted_at, e.event_type, e.event_key
-FOR UPDATE;
+	e.event_key = ANY(SELECT event_key FROM input);
 
 -- name: ListMatchingSignalEvents :many
 WITH input AS (
