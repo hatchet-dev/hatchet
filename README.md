@@ -435,12 +435,12 @@ Hatchet has full support for scheduling features, including cron, one-time sched
   const tomorrow = new Date(Date.now() + 1000 * 60 * 60 * 24);
   // schedule a task to run tomorrow
   const scheduled = simple.schedule(tomorrow, {
-    Message: 'Hello, World!',
+    Message: "Hello, World!",
   });
 
   // schedule a task to run every day at midnight
-  const cron = simple.cron('every-day', '0 0 * * *', {
-    Message: 'Hello, World!',
+  const cron = simple.cron("every-day", "0 0 * * *", {
+    Message: "Hello, World!",
   });
   ```
 
@@ -467,7 +467,184 @@ Hatchet has full support for scheduling features, including cron, one-time sched
   </details>
 
 </details>
+<details><summary><strong>Task routing</strong></summary>
 
+####
+
+While the default Hatchet behavior is to implement a FIFO queue, it also supports additional scheduling mechanisms to route your tasks to the ideal worker.
+
+- **Sticky assignment** — allows spawned tasks to prefer or require execution on the same worker. [Read more ➶](https://docs.hatchet.run/home/sticky-assignment)
+
+- **Worker affinity** — ranks workers to discover which is best suited to handle a given task. [Read more ➶](https://docs.hatchet.run/home/worker-affinity)
+
+- <details>
+
+    <summary><code>Python</code></summary>
+
+  ```python
+  # create a workflow which prefers to run on the same worker, but can be
+  # scheduled on any worker if the original worker is busy
+  hatchet.workflow(
+    name="StickyWorkflow",
+    sticky=StickyStrategy.SOFT,
+  )
+
+  # create a workflow which must run on the same worker
+  hatchet.workflow(
+    name="StickyWorkflow",
+    sticky=StickyStrategy.HARD,
+  )
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Typescript</code></summary>
+
+  ```ts
+  // create a workflow which prefers to run on the same worker, but can be
+  // scheduled on any worker if the original worker is busy
+  hatchet.workflow({
+    name: "StickyWorkflow",
+    sticky: StickyStrategy.SOFT,
+  });
+
+  // create a workflow which must run on the same worker
+  hatchet.workflow({
+    name: "StickyWorkflow",
+    sticky: StickyStrategy.HARD,
+  });
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Go</code></summary>
+
+  ```go
+  // create a workflow which prefers to run on the same worker, but can be
+  // scheduled on any worker if the original worker is busy
+  factory.NewWorkflow[StickyInput, StickyOutput](
+    create.WorkflowCreateOpts[StickyInput]{
+      Name: "sticky-dag",
+      StickyStrategy: types.StickyStrategy_SOFT,
+    },
+    hatchet,
+  );
+
+  // create a workflow which must run on the same worker
+  factory.NewWorkflow[StickyInput, StickyOutput](
+    create.WorkflowCreateOpts[StickyInput]{
+      Name: "sticky-dag",
+      StickyStrategy: types.StickyStrategy_HARD,
+    },
+    hatchet,
+  );
+  ```
+
+  </details>
+
+</details>
+<details><summary><strong>Event triggers and listeners</strong></summary>
+
+####
+
+Hatchet supports event-based architectures where tasks and workflows can pause execution while waiting for a specific external event. It supports the following features:
+
+- **Event listening** — tasks can be paused until a specific event is triggered. [Read more ➶](https://docs.hatchet.run/home/durable-execution)
+- **Event triggering** — events can trigger new workflows or steps in a workflow. [Read more ➶](https://docs.hatchet.run/home/run-on-event)
+
+- <details>
+
+    <summary><code>Python</code></summary>
+
+  ```python
+  # Create a task which waits for an external user event or sleeps for 10 seconds
+  @dag_with_conditions.task(
+    parents=[first_task],
+    wait_for=[
+      or_(
+        SleepCondition(timedelta(seconds=10)),
+        UserEventCondition(event_key="user:event"),
+      )
+    ]
+  )
+  def second_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+      return {"completed": "true"}
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Typescript</code></summary>
+
+  ```ts
+  // Create a task which waits for an external user event or sleeps for 10 seconds
+  dagWithConditions.task({
+    name: "secondTask",
+    parents: [firstTask],
+    waitFor: Or({ eventKey: "user:event" }, { sleepFor: "10s" }),
+    fn: async (_, ctx) => {
+      return {
+        Completed: true,
+      };
+    },
+  });
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Go</code></summary>
+
+  ```go
+  // Create a task which waits for an external user event or sleeps for 10 seconds
+  simple.Task(
+    conditionOpts{
+      Name: "Step2",
+      Parents: []create.NamedTask{
+        step1,
+      },
+      WaitFor: condition.Conditions(
+        condition.UserEventCondition("user:event", "'true'"),
+        condition.SleepCondition(10 * time.Second),
+      ),
+    }, func(ctx worker.HatchetContext, input DagWithConditionsInput) (interface{}, error) {
+      // ...
+    },
+  );
+  ```
+
+  </details>
+
+</details>
+<details><summary><strong>Real-time Web UI</strong></summary>
+
+####
+
+Hatchet comes bundled with a number of features to help you monitor your tasks, workflows, and queues.
+
+**Real-time dashboards and metrics**
+
+Monitor your tasks, workflows, and queues with live updates to quickly detect issues. Alerting is built in so you can respond to problems as soon as they occur.
+
+TODO
+
+**Logging**
+
+Hatchet supports logging from your tasks, allowing you to easily correlate task failures with logs in your system. No more digging through your logging service to figure out why your tasks failed.
+
+TODO
+
+**Alerting**
+
+Hatchet supports Slack and email-based alerting for when your tasks fail. Alerts are real-time with adjustable alerting windows.
+
+</details>
 
 ### Quick Start
 
@@ -501,7 +678,8 @@ If you encounter any issues while using the SDKs, please [submit an issue](https
 
 ### Hatchet vs...
 
-#### Hatchet vs Temporal
+<details>
+<summary>Hatchet vs Temporal</summary>
 
 Hatchet is designed to be a general-purpose task orchestration platform -- it can be used as a queue, a DAG-based orchestrator, a durable execution engine, or all three. As a result, Hatchet covers a wider array of use-cases, like multiple queueing strategies, rate limiting, DAG features like conditional triggering, streaming features, and much more.
 
@@ -511,21 +689,32 @@ Temporal is narrowly focused on the durable execution pattern, but supports a wi
 
 **When to use Temporal:** when you'd like to use a non-Postgres result store, or your only workload is best suited for durable execution.
 
-#### Hatchet vs Task Queues (BullMQ, Celery)
+</details>
+
+<details>
+<summary>Hatchet vs Task Queues (BullMQ, Celery)</summary>
 
 Hatchet is a durable task queue, meaning it persists the history of all executions (up to a retention period), which allows for easy monitoring + debugging and powers a bunch of the durability features above. This isn’t the standard behavior of Celery and BullMQ (and you need to rely on third-party UI tools which are extremely limited in functionality, like Celery Flower).
 
-**When to use Hatchet:** when you'd like to results to be persisted and observable in a UI
+**When to use Hatchet:** when you'd like results to be persisted and observable in a UI
 
-**When to use task queue library like BullMQ/Celery:** when you'd like to use a single library (instead of a standalone service) to interact with your queue
+**When to use task queue library like BullMQ/Celery:** when you need very high throughput (>10k/s) without retention, or when you'd like to use a single library (instead of a standalone service) to interact with your queue
 
-#### Hatchet vs DAG-based platforms (Airflow, Prefect, Dagster)
+</details>
+
+<details>
+<summary>Hatchet vs DAG-based platforms (Airflow, Prefect, Dagster)</summary>
 
 These tools are usually built with data engineers in mind, and aren’t meant to run from a high-volume application. They’re usually lower latency and higher cost, with their primary selling point being integrations with common datastores and connectors.
 
-#### Hatchet vs AI Frameworks
+</details>
+
+<details>
+<summary>Hatchet vs AI Frameworks</summary>
 
 Most AI frameworks are built to run in-memory, with horizontal scaling and durability as an afterthought. While you can use an AI framework in conjunction with Hatchet, most of our users discard their AI framework and use Hatchet’s primitives to build their applications.
+
+</details>
 
 ### Issues
 
