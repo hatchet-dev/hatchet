@@ -24,7 +24,7 @@ export const getStaticProps = ({}) =>
 Hatchet V1 introduces the ability to add conditions to tasks in your workflows that determine whether or not a task should be run, based on a number of conditions. Conditions unlock a number of new ways to solve problems with Hatchet, such as:
 
 1. A workflow that reads a feature flag, and then decides how to progress based on its value. In this case, you'd have two tasks that use parent conditions, where one task runs if the flag value is e.g. `True`, while the other runs if it's `False`.
-2. Any type of human-in-the-loop workflow, where you want to wait for a human to e.g. approve something before continuing the run.
+2. Any type of human-in-the-loop workflow, where you want to wait for a human to e.g. approve something before continuing the dag.
 
 ## Types of Conditions
 
