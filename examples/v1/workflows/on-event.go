@@ -10,8 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-const SimpleEvent = "simple-event:create"
-
 type EventInput struct {
 	Message string
 }
@@ -24,10 +22,14 @@ type UpperTaskOutput struct {
 	TransformedMessage string
 }
 
+// ❓ Run workflow on event
+const SimpleEvent = "simple-event:create"
+
 func Lower(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, LowerTaskOutput] {
 	return factory.NewTask(
 		create.StandaloneTask{
-			Name:     "lower",
+			Name: "lower",
+			// 👀 Declare the event that will trigger the workflow
 			OnEvents: []string{SimpleEvent},
 		}, func(ctx worker.HatchetContext, input EventInput) (*LowerTaskOutput, error) {
 			// Transform the input message to lowercase
@@ -38,6 +40,8 @@ func Lower(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, Lo
 		hatchet,
 	)
 }
+
+// !!
 
 func Upper(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, UpperTaskOutput] {
 	return factory.NewTask(

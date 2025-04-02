@@ -33,6 +33,7 @@ import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
 import { CreateStandaloneDurableTaskOpts } from '../task';
 import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
+import { RatelimitsClient } from './features';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -334,6 +335,19 @@ export class HatchetClient implements IHatchetClient {
       this._metrics = new MetricsClient(this);
     }
     return this._metrics;
+  }
+
+  private _ratelimits: RatelimitsClient | undefined;
+
+  /**
+   * Get the rate limits client for creating and managing rate limits
+   * @returns A rate limits client instance
+   */
+  get ratelimits() {
+    if (!this._ratelimits) {
+      this._ratelimits = new RatelimitsClient(this);
+    }
+    return this._ratelimits;
   }
 
   private _runs: RunsClient | undefined;

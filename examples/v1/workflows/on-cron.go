@@ -22,12 +22,13 @@ type OnCronOutput struct {
 	Job JobResult `json:"job"`
 }
 
-// OnCron workflow that runs on a cron schedule
+// ❓ Workflow Definition Cron Trigger
 func OnCron(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[OnCronInput, OnCronOutput] {
 	// Create a standalone task that transforms a message
 	cronTask := factory.NewTask(
 		create.StandaloneTask{
-			Name:   "on-cron-task",
+			Name: "on-cron-task",
+			// 👀 add a cron expression
 			OnCron: []string{"0 0 * * *"}, // Run every day at midnight
 		},
 		func(ctx worker.HatchetContext, input OnCronInput) (*OnCronOutput, error) {
@@ -42,3 +43,5 @@ func OnCron(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[OnCronInput, 
 
 	return cronTask
 }
+
+// !!
