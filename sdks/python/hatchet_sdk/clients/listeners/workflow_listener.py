@@ -4,17 +4,13 @@ from typing import Any, AsyncIterator, cast
 import grpc
 import grpc.aio
 
-from hatchet_sdk.clients.pooled_listener import PooledListener
+from hatchet_sdk.clients.listeners.pooled_listener import PooledListener
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SubscribeToWorkflowRunsRequest,
     WorkflowRunEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-
-DEFAULT_WORKFLOW_LISTENER_RETRY_INTERVAL = 3  # seconds
-DEFAULT_WORKFLOW_LISTENER_RETRY_COUNT = 5
-DEFAULT_WORKFLOW_LISTENER_INTERRUPT_INTERVAL = 1800  # 30 minutes
 
 DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
 

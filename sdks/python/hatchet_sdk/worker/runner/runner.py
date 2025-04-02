@@ -16,9 +16,9 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
-from hatchet_sdk.clients.durable_event_listener import DurableEventListener
-from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
-from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext

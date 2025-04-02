@@ -3,8 +3,14 @@ from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
-from hatchet_sdk.clients.durable_event_listener import RegisterDurableEventRequest
 from hatchet_sdk.clients.events import PushEventOptions
+from hatchet_sdk.clients.listeners.durable_event_listener import (
+    RegisterDurableEventRequest,
+)
+from hatchet_sdk.clients.listeners.run_event_listener import (
+    StepRunEventType,
+    WorkflowRunEventType,
+)
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 
 # import models into sdk package
@@ -124,10 +130,6 @@ from hatchet_sdk.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
 )
 from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
-from hatchet_sdk.clients.run_event_listener import (
-    StepRunEventType,
-    WorkflowRunEventType,
-)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
