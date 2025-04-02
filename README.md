@@ -36,6 +36,8 @@ It includes the following features:
 
 <details><summary><strong>Queues</strong></summary>
 
+####
+
 Hatchet is a durable task queue, which means that we ingest your tasks and send them to your workers at a rate that your workers can handle. Hatchet will track the progress of your task and ensure that the work gets completed (or you get alerted), even if your application crashes.
 
 **This is particularly useful for:**
@@ -147,6 +149,8 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
 
 </details>
 <details><summary><strong>Task Orchestration</strong></summary>
+
+####
 
 Hatchet allows you to build complex workflows that can be composed of multiple tasks. For example, if you'd like to break a workload into smaller tasks, you can use Hatchet to create a fanout workflow that spawns multiple tasks in parallel.
 
@@ -266,6 +270,8 @@ Hatchet supports the following mechanisms for task orchestration:
 
 </details>
 <details><summary><strong>Flow Control</strong></summary>
+
+####
 
 Don't let busy users crash your application. With Hatchet, you can throttle execution on a per-user, per-tenant and per-queue basis, increasing system stability and limiting the impact of busy users on the rest of your system.
 
@@ -388,6 +394,80 @@ Hatchet supports the following flow control primitives:
   </details>
 
 </details>
+<details><summary><strong>Scheduling</strong></summary>
+
+####
+
+Hatchet has full support for scheduling features, including cron, one-time scheduling, and pausing execution for a time duration. This is particularly useful for:
+
+- **Cron schedules** – run data pipelines, batch processes, or notification systems on a cron schedule [Read more ➶](https://docs.hatchet.run/home/cron-runs)
+- **One-time tasks** – schedule a workflow for a specific time in the future [Read more ➶](https://docs.hatchet.run/home/scheduled-runs)
+- **Durable sleep** – pause execution of a task for a specific duration [Read more ➶](https://docs.hatchet.run/home/durable-execution)
+
+- <details>
+
+    <summary><code>Python</code></summary>
+
+  ```python
+  tomorrow = datetime.today() + timedelta(days=1)
+
+  # schedule a task to run tomorrow
+  scheduled = simple.schedule(
+    tomorrow,
+    SimpleInput(message="Hello, World!")
+  )
+
+  # schedule a task to run every day at midnight
+  cron = simple.cron(
+    "every-day",
+    "0 0 * * *",
+    SimpleInput(message="Hello, World!")
+  )
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Typescript</code></summary>
+
+  ```ts
+  const tomorrow = new Date(Date.now() + 1000 * 60 * 60 * 24);
+  // schedule a task to run tomorrow
+  const scheduled = simple.schedule(tomorrow, {
+    Message: 'Hello, World!',
+  });
+
+  // schedule a task to run every day at midnight
+  const cron = simple.cron('every-day', '0 0 * * *', {
+    Message: 'Hello, World!',
+  });
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Go</code></summary>
+
+  ```go
+  const tomorrow = time.Now().Add(24 * time.Hour);
+
+  // schedule a task to run tomorrow
+  simple.Schedule(ctx, tomorrow, ScheduleInput{
+    Message: "Hello, World!",
+  })
+
+  // schedule a task to run every day at midnight
+  simple.Cron(ctx, "every-day", "0 0 * * *", CronInput{
+    Message: "Hello, World!",
+  })
+  ```
+
+  </details>
+
+</details>
+
 
 ### Quick Start
 
