@@ -1361,17 +1361,20 @@ SELECT
     e.id,
     e.event_key,
     e.data
-FROM
-    v1_task_event e
-WHERE
-    (e.tenant_id, e.task_id, e.task_inserted_at, e.event_type, e.event_key) IN (
-        SELECT
-            $1::uuid, task_id, task_inserted_at, 'SIGNAL_CREATED'::v1_task_event_type, event_key
-        FROM
-            input
-    )
+FROM input i
+JOIN LATERAL (
+    SELECT id, event_key, data
+    FROM ONLY v1_task_event
+    WHERE 
+        tenant_id = $1::uuid AND
+        task_id = i.task_id AND
+        task_inserted_at = i.task_inserted_at AND
+        event_type = 'SIGNAL_CREATED'::v1_task_event_type AND
+        event_key = i.event_key
+    LIMIT 1
+) e ON true
 ORDER BY
-    e.tenant_id, e.task_id, e.task_inserted_at, e.event_type, e.event_key
+    i.task_id, i.task_inserted_at, i.event_key
 FOR UPDATE
 `
 

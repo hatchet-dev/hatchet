@@ -99,7 +99,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 		err := s.generateExternalIdsForChildWorkflows(ctx, tenantId, optsWithParents)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("error generating external ids for child workflows: %w", err)
 		}
 	}
 
@@ -110,7 +110,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("error preparing tx: %w", err)
 	}
 
 	defer rollback()
@@ -130,7 +130,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("error looking up external ids: %w", err)
 	}
 
 	externalIdToLookupRow := make(map[string]*sqlcv1.V1LookupTable)
@@ -154,17 +154,31 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		eventTaskInsertedAts = append(eventTaskInsertedAts, lookupRow.InsertedAt)
 		eventKeys = append(eventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
 	}
+	var allLockedEvents []*sqlcv1.LockSignalCreatedEventsRow
+	batchSize := 100000
 
-	lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-		Taskids:         eventTaskIds,
-		Taskinsertedats: eventTaskInsertedAts,
-		Eventkeys:       eventKeys,
-	})
+	// Process in batches of 100
+	for i := 0; i < len(eventTaskIds); i += batchSize {
+		end := i + batchSize
+		if end > len(eventTaskIds) {
+			end = len(eventTaskIds)
+		}
 
-	if err != nil {
-		return err
+		lockedEvents, err := s.queries.LockSignalCreatedEvents(ctx, tx, sqlcv1.LockSignalCreatedEventsParams{
+			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+			Taskids:         eventTaskIds[i:end],
+			Taskinsertedats: eventTaskInsertedAts[i:end],
+			Eventkeys:       eventKeys[i:end],
+		})
+
+		if err != nil {
+			return fmt.Errorf("error locking signal created events: %w", err)
+		}
+
+		allLockedEvents = append(allLockedEvents, lockedEvents...)
 	}
+
+	lockedEvents := allLockedEvents
 
 	// for each locked event, write the correct external id to the opt
 	for _, lockedEvent := range lockedEvents {
@@ -173,7 +187,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		c, err := newChildWorkflowSignalCreatedDataFromBytes(lockedEvent.Data)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("error parsing child workflow signal created data: %w", err)
 		}
 
 		opt.ExternalId = c.ChildExternalId
@@ -227,11 +241,11 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating task events: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {
-		return err
+		return fmt.Errorf("error committing tx: %w", err)
 	}
 
 	return nil
