@@ -25,11 +25,14 @@ class Client:
         debug: bool = False,
     ):
         self.config = config
-        self.admin = admin_client or AdminClient(config)
         self.dispatcher = dispatcher_client or DispatcherClient(config)
         self.event = event_client or EventClient(config)
         self.listener = RunEventListenerClient(config)
-        self.workflow_listener = workflow_listener
+        self.workflow_listener = workflow_listener or PooledWorkflowRunListener(config)
+        self.admin = admin_client or AdminClient(
+            config, self.workflow_listener, self.listener
+        )
+
         self.log_interceptor = config.logger
         self.debug = debug
 

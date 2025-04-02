@@ -16,6 +16,7 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
@@ -66,7 +67,7 @@ class Runner:
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
-        self.client = Client(config)
+
         self.slots = slots
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
@@ -85,9 +86,12 @@ class Runner:
         # We need to initialize a new admin and dispatcher client *after* we've started the event loop,
         # otherwise the grpc.aio methods will use a different event loop and we'll get a bunch of errors.
         self.dispatcher_client = DispatcherClient(self.config)
-        self.admin_client = AdminClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
-        self.client.workflow_listener = PooledWorkflowRunListener(self.config)
+        self.workflow_listener = PooledWorkflowRunListener(self.config)
+        self.admin_client = AdminClient(
+            self.config, self.workflow_listener, self.workflow_run_event_listener
+        )
+        self.event_client = EventClient(self.config)
         self.durable_event_listener = DurableEventListener(self.config)
 
         self.worker_context = WorkerContext(
@@ -291,7 +295,7 @@ class Runner:
             action=action,
             dispatcher_client=self.dispatcher_client,
             admin_client=self.admin_client,
-            event_client=self.client.event,
+            event_client=self.event_client,
             durable_event_listener=self.durable_event_listener,
             worker=self.worker_context,
             validator_registry=self.validator_registry,
@@ -430,7 +434,7 @@ class Runner:
             # check if thread is still running, if so, print a warning
             if run_id in self.threads:
                 thread = self.threads.get(run_id)
-                if thread and self.client.config.enable_force_kill_sync_threads:
+                if thread and self.config.enable_force_kill_sync_threads:
                     self.force_kill_thread(thread)
                     await asyncio.sleep(1)
 
