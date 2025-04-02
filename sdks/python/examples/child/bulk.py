@@ -30,9 +30,9 @@ async def main() -> None:
     result2 = child_task.aio_run(SimpleInput(message="Hello, Moon!"))
 
     #  gather the results of the two tasks
-    results = list(await asyncio.gather(result1, result2))
+    gather_results = await asyncio.gather(result1, result2)
 
     #  print the results of the two tasks
-    print(results[0]["transformed_message"])
-    print(results[1]["transformed_message"])
+    print(gather_results[0]["transformed_message"])
+    print(gather_results[1]["transformed_message"])
     # !!

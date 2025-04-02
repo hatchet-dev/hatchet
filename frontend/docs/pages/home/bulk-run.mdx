@@ -7,7 +7,7 @@ export const SimpleTs = {
 };
 
 export const SimplePy = {
-  path: "examples/simple/bulk.py",
+  path: "examples/child/bulk.py",
 };
 
 export const SimpleGo = {
@@ -27,7 +27,7 @@ export const getStaticProps = ({}) =>
 
 # Bulk Run Many Tasks
 
-Often you may want to run a task multiple times with different inputs. There is significant overhead (i.e. network roundtrips) to write the task, so if you're running multiple tasks 100s or 1000s of tasks, it's best to use the bulk run methods.
+Often you may want to run a task multiple times with different inputs. There is significant overhead (i.e. network roundtrips) to write the task, so if you're running multiple tasks, it's best to use the bulk run methods.
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -37,10 +37,11 @@ You can use the `aio_run_many` method to bulk run a task. This will return a lis
 <GithubSnippet src={SimplePy} target="Bulk Run a Task" />
 
 <Callout type="info">
-  `step1.create_bulk_run_item` is helper to create the inputs for each task.
+  `Workflow.create_bulk_run_item` is a typed helper to create the inputs for
+  each task.
 </Callout>
 
-There are additional bulk methods available on the `Task` object.
+There are additional bulk methods available on the `Workflow` object.
 
 - `aio_run_many`
 - `aio_run_many_no_wait`
