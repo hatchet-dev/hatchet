@@ -1366,7 +1366,7 @@ FROM
 WHERE
     (e.tenant_id, e.task_id, e.task_inserted_at, e.event_type, e.event_key) IN (
         SELECT
-            $1::uuid, task_id, task_inserted_at, event_key, 'SIGNAL_CREATED'
+            $1::uuid, task_id, task_inserted_at, 'SIGNAL_CREATED'::v1_task_event_type, event_key
         FROM
             input
     )
