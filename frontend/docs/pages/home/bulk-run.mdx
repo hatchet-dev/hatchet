@@ -15,7 +15,7 @@ export const SimpleGo = {
 };
 
 export const FanoutPy = {
-  path: "examples/fanout/simple-fanout.py",
+  path: "examples/child/simple-fanout.py",
 };
 
 export const ParentTaskGo = {
@@ -56,6 +56,7 @@ As with the run methods, you can call bulk methods from within a task and the ru
   <Tabs.Tab title="Typescript">
 
 You can use the `run` method directly to bulk run tasks by passing an array of inputs. This will return a list of results.
+
 <GithubSnippet src={SimpleTs} target="Bulk Run a Task" />
 
 There are additional bulk methods available on the `Task` object.
