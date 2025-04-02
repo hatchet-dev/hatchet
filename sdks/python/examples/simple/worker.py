@@ -1,25 +1,13 @@
 # ❓ Simple
 
-from pydantic import BaseModel
-
-from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.runnables.types import EmptyModel
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
 
-class SimpleInput(EmptyModel):
-    message: str
-
-
-class SimpleOutput(BaseModel):
-    transformed_message: str
-
-
 @hatchet.task(name="SimpleWorkflow")
-def step1(input: SimpleInput, ctx: Context) -> SimpleOutput:
-    print("executed step1: ", input.message)
-    return SimpleOutput(transformed_message=input.message.upper())
+def step1(input: EmptyModel, ctx: Context) -> None:
+    print("executed step1")
 
 
 def main() -> None:
