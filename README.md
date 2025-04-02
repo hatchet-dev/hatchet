@@ -34,7 +34,7 @@ Hatchet is a platform for running background tasks, built on top of Postgres. In
 
 It includes the following features:
 
-<details><summary><strong>Queues</strong></summary>
+<details><summary><strong>📥 Queues</strong></summary>
 
 ####
 
@@ -148,7 +148,7 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
   </details>
 
 </details>
-<details><summary><strong>Task Orchestration</strong></summary>
+<details><summary><strong>🎻 Task Orchestration</strong></summary>
 
 ####
 
@@ -269,7 +269,7 @@ Hatchet supports the following mechanisms for task orchestration:
   </details>
 
 </details>
-<details><summary><strong>Flow Control</strong></summary>
+<details><summary><strong>🚦 Flow Control</strong></summary>
 
 ####
 
@@ -394,7 +394,7 @@ Hatchet supports the following flow control primitives:
   </details>
 
 </details>
-<details><summary><strong>Scheduling</strong></summary>
+<details><summary><strong>📅 Scheduling</strong></summary>
 
 ####
 
@@ -467,7 +467,7 @@ Hatchet has full support for scheduling features, including cron, one-time sched
   </details>
 
 </details>
-<details><summary><strong>Task routing</strong></summary>
+<details><summary><strong>🚏 Task routing</strong></summary>
 
 ####
 
@@ -547,7 +547,7 @@ While the default Hatchet behavior is to implement a FIFO queue, it also support
   </details>
 
 </details>
-<details><summary><strong>Event triggers and listeners</strong></summary>
+<details><summary><strong>⚡️ Event triggers and listeners</strong></summary>
 
 ####
 
@@ -622,7 +622,7 @@ Hatchet supports event-based architectures where tasks and workflows can pause e
   </details>
 
 </details>
-<details><summary><strong>Real-time Web UI</strong></summary>
+<details><summary><strong>🖥️ Real-time Web UI</strong></summary>
 
 ####
 
@@ -663,14 +663,6 @@ The most up-to-date documentation can be found at https://docs.hatchet.run.
 - [Github Issues](https://github.com/hatchet-dev/hatchet/issues) - used for filing bug reports
 - [Github Discussions](https://github.com/hatchet-dev/hatchet/discussions) - used for starting in-depth technical discussions that are suited for asynchronous communication
 - [Email](mailto:contact@hatchet.run) - best for getting Hatchet Cloud support and for help with billing, data deletion, etc.
-
-### Example Use Cases
-
-- **AI Agents:** define your agentic workflows as code and leverage Hatchet to retry failures and parallelize agent actions.
-- **Fairness for Generative AI:** Don't let busy users overwhelm your system. Hatchet lets you distribute requests to your workers fairly with configurable policies.
-- **Batch Processing for Document Indexing:** Hatchet can handle large-scale batch processing of documents, images, and other data and resume mid-job on failure.
-- **Workflow Orchestration for Multi-Modal Systems:** Hatchet can handle orchestrating multi-modal inputs and outputs, with full DAG-style execution.
-- **Correctness for Event-Based Processing:** Respond to external events or internal events within your system and replay events automatically.
 
 ### SDKs
 
