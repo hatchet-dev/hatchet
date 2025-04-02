@@ -68,7 +68,7 @@ class DurableEventListener(
         )
 
     def parse_key(self, key: str) -> ParsedKey:
-        task_id, signal_key = key.split(":")
+        task_id, signal_key = key.split(":", maxsplit=1)
 
         return ParsedKey(
             task_id=task_id,
@@ -117,6 +117,7 @@ class DurableEventListener(
     @tenacity_retry
     async def result(self, task_id: str, signal_key: str) -> dict[str, Any]:
         key = self._generate_key(task_id, signal_key)
+
         event = await self.subscribe(key)
 
         return cast(dict[str, Any], json.loads(event.data.decode("utf-8")))
