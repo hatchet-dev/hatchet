@@ -58,7 +58,7 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
       message: str
 
   # 2. Define your task using hatchet.task
-  @hatchet.task(name="SimpleWorkflow")
+  @hatchet.task(name="SimpleWorkflow", input_validator=SimpleInput)
   def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
       return {
         "transformed_message": input.message.lower(),
@@ -177,7 +177,7 @@ Hatchet supports the following mechanisms for task orchestration:
   # 3. Attach the second task to the workflow, which executes after task_1
   @simple.task(parents=[task_1])
   def task_2(input: EmptyModel, ctx: Context) -> None:
-      first_result = ctx.get_parent_output(task_1)
+      first_result = ctx.task_output(task_1)
       print(first_result)
 
   # 4. Invoke workflows from your application
