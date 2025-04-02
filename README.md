@@ -36,94 +36,119 @@ It includes the following features:
 
 <details>
 
-<summary>Durable task queue</summary>
+<summary><h4>Queues</h4></summary>
 
-Hatchet is a durable task queue -- tasks are enqueued by calling an endpoint from the Hatchet SDKs and run on **workers** that you manage. Hatchet will track the progress of your task and ensure that the work gets completed (or you get alerted), even if your application crashes.
+Hatchet is a durable task queue, which means that we ingest your tasks and send them to your workers at a rate that your workers can handle. Hatchet will track the progress of your task and ensure that the work gets completed (or you get alerted), even if your application crashes.
 
-This is particularly useful for:
+**This is particularly useful for:**
 
 - Ensuring that you never drop a user request
 - Flattening large spikes in your application
 - Breaking large, complex logic into smaller, reusable tasks
 
+[Read more ➶](https://docs.hatchet.run/home/your-first-task)
+
+  <details>
+
+  <summary><code>Python</code></summary>
+
+####
+
+```python
+# 1. Define your task input
+class SimpleInput(BaseModel):
+    message: str
+
+# 2. Define your task using hatchet.task
+@hatchet.task(name="SimpleWorkflow")
+def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
+    return {
+      "transformed_message": input.message.lower(),
+    }
+
+# 3. Register your task on your worker
+worker = hatchet.worker("test-worker", workflows=[simple])
+worker.start()
+
+# 4. Invoke tasks from your application
+simple.run(SimpleInput(message="Hello World!"))
+```
+
+</details> <details> <summary><code>Typescript</code></summary>
+
+```ts
+// 1. Define your task input
+export type SimpleInput = {
+  Message: string;
+};
+
+// 2. Define your task using hatchet.task
+export const simple = hatchet.task({
+  name: "simple",
+  fn: (input: SimpleInput) => {
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+
+// 3. Register your task on your worker
+const worker = await hatchet.worker("simple-worker", {
+  workflows: [simple],
+});
+
+await worker.start();
+
+// 4. Invoke tasks from your application
+await simple.run({
+  Message: "Hello World!",
+});
+```
+
+</details> <details> <summary><code>Go</code></summary>
+
+```go
+// 1. Define your task input
+type SimpleInput struct {
+  Message string `json:"message"`
+}
+
+// 2. Define your task using factory.NewTask
+simple := factory.NewTask(
+  create.StandaloneTask{
+    Name: "simple-task",
+  }, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
+    return &SimpleResult{
+      TransformedMessage: strings.ToLower(input.Message),
+    }, nil
+  },
+  hatchet,
+)
+
+// 3. Register your task on your worker
+worker, err := hatchet.Worker(v1worker.WorkerOpts{
+  Name: "simple-worker",
+  Workflows: []workflow.WorkflowBase{
+    simple,
+  },
+})
+
+worker.StartBlocking()
+
+// 4. Invoke tasks from your application
+simple.Run(context.Background(), SimpleInput{Message: "Hello, World!"})
+```
+
 </details>
 
-<details>
-
-<summary>Flow control</summary>
-
-Hatchet allows you to throttle execution on a per-user, per-tenant and per-queue basis, increasing system stability and limiting the impact of busy users on the rest of your system.
-
-Hatchet supports the following flow control primitives:
-
-- Concurrency — you can set a concurrency limit based on a dynamic concurrency key (e.g., each user can only run 10 batch jobs at a given time).
-- Rate limiting — you can create both global and dynamic rate limits.
-
 </details>
 
-<details>
+### Quick Start
 
-<summary>Task orchestration</summary>
+Hatchet is available as a cloud version or self-hosted. See the following docs to get up and running quickly:
 
-Hatchet allows you to build complex workflows that can be composed of multiple tasks. For example, if you'd like to break a workload into smaller tasks, you can use Hatchet to create a fanout workflow that spawns multiple tasks in parallel.
-
-Hatchet supports the following mechanisms for task orchestration:
-
-- DAGs (directed acyclic graphs) — pre-define the shape of your work, automatically routing the outputs of a parent task to the input of a child task. Read more ➶
-- Durable tasks — these tasks are responsible for orchestrating other tasks. They store a full history of all spawned tasks, allowing you to cache intermediate results. Read more ➶
-
-</details>
-
-<details>
-
-<summary>Scheduling</summary>
-
-Hatchet has full support for cron, one-time scheduling, and pausing execution for a time duration. This is particularly useful for:
-
-- Handling batch processes on a cron schedule
-- Processing a task at a specific time
-- Waiting for a duration until resuming task execution
-
-</details>
-
-<details>
-
-<summary>Task Routing</summary>
-
-While the default Hatchet behavior is to implement a FIFO queue, it also supports additional scheduling mechanisms to route your tasks to the ideal worker:
-
-- Sticky assignment — allows spawned tasks to prefer execution on the same worker.
-- Worker affinity — ranks workers to discover which is best suited to handle a given task.
-
-</details>
-
-<details>
-
-<summary>Event Signaling</summary>
-
-Hatchet supports event-based architectures where tasks and workflows can pause execution while waiting for a specific external event. Events can be filtered using common expression language, enabling more reactive applications. They can also trigger new workflows and tasks.
-
-</details>
-
-<details>
-
-<summary>Web Dashboard</summary>
-
-Hatchet bundles a web dashboard for real-time querying of tasks and workflows:
-
-TODO
-
-</details>
-
-<details>
-
-<summary>Built-in Monitoring and Alerting</summary>
-
-Hatchet has built-in support for configuring alerts (using Slack or email) for task and workflow failures and logging from workflows:
-
-TODO
-
-</details>
+- [Hatchet Cloud Quickstart](https://docs.hatchet.run/home/hatchet-cloud-quickstart)
+- [Hatchet Self-Hosted](https://docs.hatchet.run/self-hosting)
 
 ### Documentation
 
@@ -143,15 +168,6 @@ The most up-to-date documentation can be found at https://docs.hatchet.run.
 - **Batch Processing for Document Indexing:** Hatchet can handle large-scale batch processing of documents, images, and other data and resume mid-job on failure.
 - **Workflow Orchestration for Multi-Modal Systems:** Hatchet can handle orchestrating multi-modal inputs and outputs, with full DAG-style execution.
 - **Correctness for Event-Based Processing:** Respond to external events or internal events within your system and replay events automatically.
-
-### Quick Start
-
-Hatchet is available as a cloud version or self-hosted. See the following docs to get up and running quickly:
-
-- [Hatchet Cloud Quickstart](https://docs.hatchet.run/home/hatchet-cloud-quickstart)
-- [Hatchet Self-Hosted](https://docs.hatchet.run/self-hosting)
-
-Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the [quickstart guide](https://docs.hatchet.run/home/setup).
 
 ### SDKs
 
