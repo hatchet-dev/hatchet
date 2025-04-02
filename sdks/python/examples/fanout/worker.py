@@ -9,8 +9,6 @@ hatchet = Hatchet(debug=True)
 
 
 # ❓ FanoutParent
-
-
 class ParentInput(BaseModel):
     n: int = 100
 
@@ -46,9 +44,8 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
 
 # ‼️
 
+
 # ❓ FanoutChild
-
-
 @child_wf.task()
 def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     print(f"child process {input.a}")

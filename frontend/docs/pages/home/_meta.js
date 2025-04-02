@@ -20,14 +20,21 @@ export default {
   },
   "running-tasks": "Introduction",
   "run-with-results": "Run and Wait Trigger",
-  "enqueue-runs": "Run Without Wait Trigger",
+  "run-no-wait": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
   "cron-runs": "Cron Trigger",
   "run-on-event": "Event Trigger",
+  "bulk-run": "Bulk Run Many",
   "streaming-results": {
     "title": "Streaming Results",
     "display": "hidden"
   },
+  "--flow-control": {
+    "title": "Flow Control",
+    "type": "separator"
+  },
+  "concurrency": "Concurrency",
+  "rate-limits": "Rate Limits",
   "running-from-external-services": {
     "title": "Running from External Services",
     "display": "hidden"
@@ -78,12 +85,6 @@ export default {
   },
   "docker": "Running with Docker",
   "worker-healthchecks": "Worker Health Checks",
-  "--flow-control": {
-    "title": "Flow Control",
-    "type": "separator"
-  },
-  "concurrency": "Concurrency",
-  "rate-limits": "Rate Limits",
   "--cancellation": {
     "title": "Cancellation",
     "type": "separator",

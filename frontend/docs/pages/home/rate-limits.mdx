@@ -10,17 +10,22 @@ export const RateLimitTs = {
   path: "src/v1/examples/rate_limit/workflow.ts",
 };
 
-export const getStaticProps = ({}) => getSnippets([RateLimitPy, RateLimitTs]);
+export const RateLimitGo = {
+  path: "examples/v1/workflows/ratelimit.go",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([RateLimitPy, RateLimitTs, RateLimitGo]);
 
 # Rate Limiting Step Runs in Hatchet
 
-Hatchet allows you to enforce rate limits on step runs in your workflows, enabling you to control the rate at which workflow runs consume resources, such as external API calls, database queries, or other services. By defining rate limits, you can prevent step runs from exceeding a certain number of requests per time window (e.g., per second, minute, or hour), ensuring efficient resource utilization and avoiding overloading external services.
+Hatchet allows you to enforce rate limits on task runs, enabling you to control the rate at which your service runs consume resources, such as external API calls, database queries, or other services. By defining rate limits, you can prevent task runs from exceeding a certain number of requests per time window (e.g., per second, minute, or hour), ensuring efficient resource utilization and avoiding overloading external services.
 
 The state of active rate limits can be viewed in the dashboard in the `Rate Limit` resource tab.
 
 ## Dynamic vs Static Rate Limits
 
-Hatchet offers two patterns for Rate Limiting step runs:
+Hatchet offers two patterns for Rate Limiting task runs:
 
 1. [Dynamic Rate Limits](#dynamic-rate-limits): Allows for complex rate limiting scenarios, such as per-user limits, by using `input` or `additional_metadata` keys to upsert a limit at runtime.
 2. [Static Rate Limits](#static-rate-limits): Allows for simple rate limiting for resources known prior to runtime (e.g., external APIs).
@@ -52,11 +57,7 @@ This pattern is especially useful for:
   <Tabs.Tab>
 > Note: `dynamic_key` must be a CEL expression. `units` and `limits` can be either an integer or a CEL expression.
 
-First, let's create a workflow:
-
-<GithubSnippet src={RateLimitPy} target="Workflow" />
-
-Next, let's add a task that utilizes a dynamic rate limit:
+We can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
 
 <GithubSnippet src={RateLimitPy} target="Dynamic" />
 
@@ -64,11 +65,7 @@ Next, let's add a task that utilizes a dynamic rate limit:
   <Tabs.Tab>
 > Note: `dynamicKey` must be a CEL expression. `units` and `limit` can be either an integer or a CEL expression.
 
-First, let's create a workflow:
-
-<GithubSnippet src={RateLimitTs} target="Workflow" />
-
-Next, let's add a task that utilizes a dynamic rate limit:
+We can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
 
 <GithubSnippet src={RateLimitTs} target="Dynamic" />
 
@@ -76,27 +73,7 @@ Next, let's add a task that utilizes a dynamic rate limit:
   <Tabs.Tab>
 > Note: Go requires both a key and KeyExpr be set and the LimitValueExpr must be a CEL.
 
-```go
-err = w.RegisterWorkflow(
-    &worker.WorkflowJob{
-        Name: "rate-limit-workflow",
-        Description: "This illustrates dynamic rate limiting.",
-        On: worker.NoTrigger(),
-        Steps: []*worker.WorkflowStep{
-            worker.Fn(StepOne).SetName("step-one").SetRateLimit(
-                worker.RateLimit{
-                    Key: "per-user-rate-limit",
-                    Units: 1,
-                    KeyExpr: "input.user_id",
-                    LimitValueExpr: '"10"',
-                    // import "github.com/hatchet-dev/hatchet/pkg/client/types"
-                    Duration: types.Minute,
-                },
-            ),
-        },
-    },
-)
-```
+<GithubSnippet src={RateLimitGo} target="Dynamic Rate Limit" />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -133,25 +110,16 @@ hatchet.rate_limits.put(RATE_LIMIT_KEY, 10, RateLimitDuration.MINUTE)
   </Tabs.Tab>
   <Tabs.Tab>
 
-```typescript
-await hatchet.ratelimits.upsert({
-  key: "test-limit",
-  limit: 1,
-  duration: RateLimitDuration.MINUTE,
-});
-```
+{" "}
+<GithubSnippet src={RateLimitTs} target="Upsert Rate Limit" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-```go
-err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
-    Max:      3,
-    Duration: "minute",
-})
-```
+    <GithubSnippet src={RateLimitGo} target="Upsert Rate Limit" />
 
   </Tabs.Tab>
+
 </UniversalTabs>
 
 ### Consuming Static Rate Limits
@@ -166,45 +134,11 @@ With your rate limit key defined, specify the units of consumption for a specifi
   </Tabs.Tab>
   <Tabs.Tab>
 
-```typescript
-const workflow: Workflow = {
-  // ... the rest of the workflow definition
-  steps: [
-    {
-      name: "step1",
-      rate_limits: [{ key: "example-limit", units: 1 }],
-      run: async (ctx) => {
-        console.log(
-          "starting step1 with the following input",
-          ctx.workflowInput(),
-        );
-        return { step1: "step1 results!" };
-      },
-    },
-  ],
-};
-```
+<GithubSnippet src={RateLimitTs} target="Static" />
 
   </Tabs.Tab>
   <Tabs.Tab>
-
-```go
-err = w.RegisterWorkflow(
-    &worker.WorkflowJob{
-        Name: "rate-limit-workflow",
-        Description: "This illustrates static rate limiting.",
-        On: worker.NoTrigger(),
-        Steps: []*worker.WorkflowStep{
-            worker.Fn(StepOne).SetName("step-one").SetRateLimit(
-                worker.RateLimit{
-                    Units: 1,
-                    Key:   "example-limit",
-                },
-            ),
-        },
-    },
-)
-```
+    <GithubSnippet src={RateLimitGo} target="Static Rate Limit" />
 
   </Tabs.Tab>
 </UniversalTabs>

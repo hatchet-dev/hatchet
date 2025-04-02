@@ -120,7 +120,8 @@ describe('Worker', () => {
         expect.anything(),
         StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
         false,
-        { data: 4 }
+        { data: 4 },
+        0
       );
       expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
@@ -153,7 +154,8 @@ describe('Worker', () => {
         expect.anything(),
         StepActionEventType.STEP_EVENT_TYPE_FAILED,
         false,
-        expect.anything()
+        expect.anything(),
+        0
       );
       expect(worker.futures[mockStart.stepRunId]).toBeUndefined();
       expect(sendActionEventSpy).toHaveBeenCalledTimes(2);
