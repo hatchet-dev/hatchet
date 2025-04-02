@@ -14,7 +14,8 @@ export const RateLimitGo = {
   path: "examples/v1/workflows/ratelimit.go",
 };
 
-export const getStaticProps = ({}) => getSnippets([RateLimitPy, RateLimitTs, RateLimitGo]);
+export const getStaticProps = ({}) =>
+  getSnippets([RateLimitPy, RateLimitTs, RateLimitGo]);
 
 # Rate Limiting Step Runs in Hatchet
 
@@ -109,13 +110,14 @@ hatchet.rate_limits.put(RATE_LIMIT_KEY, 10, RateLimitDuration.MINUTE)
   </Tabs.Tab>
   <Tabs.Tab>
 
- <GithubSnippet src={RateLimitTs} target="Upsert Rate Limit" />
+{" "}
+<GithubSnippet src={RateLimitTs} target="Upsert Rate Limit" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
     <GithubSnippet src={RateLimitGo} target="Upsert Rate Limit" />
-    
+
   </Tabs.Tab>
 
 </UniversalTabs>
