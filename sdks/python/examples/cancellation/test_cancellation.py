@@ -14,7 +14,16 @@ async def test_cancellation(hatchet: Hatchet) -> None:
     """Sleep for a long time since we only need cancellation to happen _eventually_"""
     await asyncio.sleep(10)
 
-    run = await hatchet.runs.aio_get(ref.workflow_run_id)
+    for i in range(30):
+        run = await hatchet.runs.aio_get(ref.workflow_run_id)
 
-    assert run.run.status == V1TaskStatus.CANCELLED
-    assert not run.run.output
+        if run.run.status == V1TaskStatus.RUNNING:
+            await asyncio.sleep(1)
+            continue
+
+        assert run.run.status == V1TaskStatus.CANCELLED
+        assert not run.run.output
+
+        break
+    else:
+        assert False, "Workflow run did not cancel in time"
