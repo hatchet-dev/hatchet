@@ -50,100 +50,102 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
 
 - <details>
 
-  <summary><code>Python</code></summary>
+    <summary><code>Python</code></summary>
 
-####
+    ```python
+    # 1. Define your task input
+    class SimpleInput(BaseModel):
+        message: str
 
-```python
-# 1. Define your task input
-class SimpleInput(BaseModel):
-    message: str
+    # 2. Define your task using hatchet.task
+    @hatchet.task(name="SimpleWorkflow")
+    def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
+        return {
+          "transformed_message": input.message.lower(),
+        }
 
-# 2. Define your task using hatchet.task
-@hatchet.task(name="SimpleWorkflow")
-def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
-    return {
-      "transformed_message": input.message.lower(),
+    # 3. Register your task on your worker
+    worker = hatchet.worker("test-worker", workflows=[simple])
+    worker.start()
+
+    # 4. Invoke tasks from your application
+    simple.run(SimpleInput(message="Hello World!"))
+    ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Typescript</code></summary>
+
+    ```ts
+    // 1. Define your task input
+    export type SimpleInput = {
+      Message: string;
+    };
+
+    // 2. Define your task using hatchet.task
+    export const simple = hatchet.task({
+      name: "simple",
+      fn: (input: SimpleInput) => {
+        return {
+          TransformedMessage: input.Message.toLowerCase(),
+        };
+      },
+    });
+
+    // 3. Register your task on your worker
+    const worker = await hatchet.worker("simple-worker", {
+      workflows: [simple],
+    });
+
+    await worker.start();
+
+    // 4. Invoke tasks from your application
+    await simple.run({
+      Message: "Hello World!",
+    });
+    ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Go</code></summary>
+
+    ```go
+    // 1. Define your task input
+    type SimpleInput struct {
+      Message string `json:"message"`
     }
 
-# 3. Register your task on your worker
-worker = hatchet.worker("test-worker", workflows=[simple])
-worker.start()
+    // 2. Define your task using factory.NewTask
+    simple := factory.NewTask(
+      create.StandaloneTask{
+        Name: "simple-task",
+      }, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
+        return &SimpleResult{
+          TransformedMessage: strings.ToLower(input.Message),
+        }, nil
+      },
+      hatchet,
+    )
 
-# 4. Invoke tasks from your application
-simple.run(SimpleInput(message="Hello World!"))
-```
+    // 3. Register your task on your worker
+    worker, err := hatchet.Worker(v1worker.WorkerOpts{
+      Name: "simple-worker",
+      Workflows: []workflow.WorkflowBase{
+        simple,
+      },
+    })
 
-</details>
+    worker.StartBlocking()
 
-- <details> <summary><code>Typescript</code></summary>
+    // 4. Invoke tasks from your application
+    simple.Run(context.Background(), SimpleInput{Message: "Hello, World!"})
+    ```
 
-```ts
-// 1. Define your task input
-export type SimpleInput = {
-  Message: string;
-};
-
-// 2. Define your task using hatchet.task
-export const simple = hatchet.task({
-  name: "simple",
-  fn: (input: SimpleInput) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
-});
-
-// 3. Register your task on your worker
-const worker = await hatchet.worker("simple-worker", {
-  workflows: [simple],
-});
-
-await worker.start();
-
-// 4. Invoke tasks from your application
-await simple.run({
-  Message: "Hello World!",
-});
-```
-
-</details>
-
-- <details> <summary><code>Go</code></summary>
-
-```go
-// 1. Define your task input
-type SimpleInput struct {
-  Message string `json:"message"`
-}
-
-// 2. Define your task using factory.NewTask
-simple := factory.NewTask(
-  create.StandaloneTask{
-    Name: "simple-task",
-  }, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
-    return &SimpleResult{
-      TransformedMessage: strings.ToLower(input.Message),
-    }, nil
-  },
-  hatchet,
-)
-
-// 3. Register your task on your worker
-worker, err := hatchet.Worker(v1worker.WorkerOpts{
-  Name: "simple-worker",
-  Workflows: []workflow.WorkflowBase{
-    simple,
-  },
-})
-
-worker.StartBlocking()
-
-// 4. Invoke tasks from your application
-simple.Run(context.Background(), SimpleInput{Message: "Hello, World!"})
-```
-
-</details>
+  </details>
 
 </details>
 
