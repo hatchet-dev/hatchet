@@ -19,7 +19,7 @@ export const getStaticProps = ({}) =>
 
 # Timeouts in Hatchet
 
-Timeouts are an important concept in Hatchet that allow you to control how long a workflow or task is allowed to run before it is considered to have failed. This is useful for ensuring that your workflows don't run indefinitely and consume unnecessary resources. Timeouts in Hatchet are treated as failures and the task will be [retried](./retries.mdx) if specified.
+Timeouts are an important concept in Hatchet that allow you to control how long a task is allowed to run before it is considered to have failed. This is useful for ensuring that your tasks don't run indefinitely and consume unnecessary resources. Timeouts in Hatchet are treated as failures and the task will be [retried](./retries.mdx) if specified.
 
 There are two types of timeouts in Hatchet:
 
@@ -104,11 +104,11 @@ The `refreshTimeout` function can be called multiple times within a step to furt
 
 Timeouts are useful in a variety of scenarios:
 
-- Ensuring workflows don't run indefinitely and consume unnecessary resources
-- Failing workflows early if a critical step takes too long
-- Keeping workflows responsive by ensuring individual steps complete in a timely manner
+- Ensuring tasks don't run indefinitely and consume unnecessary resources
+- Failing tasks early if a critical step takes too long
+- Keeping tasks responsive by ensuring individual steps complete in a timely manner
 - Preventing infinite loops or hung processes from blocking the entire system
 
-For example, if you have a workflow that makes an external API call, you may want to set a timeout to ensure the workflow fails quickly if the API is unresponsive, rather than waiting indefinitely.
+For example, if you have a task that makes an external API call, you may want to set a timeout to ensure the task fails quickly if the API is unresponsive, rather than waiting indefinitely.
 
-By carefully considering timeouts for your workflows and steps, you can build more resilient and responsive systems with Hatchet.
+By carefully considering timeouts for your tasks and steps, you can build more resilient and responsive systems with Hatchet.

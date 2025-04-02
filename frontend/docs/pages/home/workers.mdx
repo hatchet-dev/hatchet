@@ -99,7 +99,7 @@ And that's it! Once you run your script to start the worker, you'll see some log
 [DEBUG] 🪓 -- 2025-03-24 15:11:32,758 - action listener starting on PID: 26434
 [INFO]  🪓 -- 2025-03-24 15:11:32,760 - starting runner...
 [DEBUG] 🪓 -- 2025-03-24 15:11:32,761 - starting action listener health check...
-[DEBUG] 🪓 -- 2025-03-24 15:11:32,764 - 'test-worker' waiting for ['simpleworkflow:step1']
+[DEBUG] 🪓 -- 2025-03-24 15:11:32,764 - 'test-worker' waiting for ['simpletask:step1']
 [DEBUG] 🪓 -- 2025-03-24 15:11:33,413 - starting action listener: test-worker
 [DEBUG] 🪓 -- 2025-03-24 15:11:33,542 - acquired action listener: efc4aaf2-be4a-4964-a578-db6465f9297e
 [DEBUG] 🪓 -- 2025-03-24 15:11:33,542 - sending heartbeat
@@ -113,9 +113,7 @@ And that's it! Once you run your script to start the worker, you'll see some log
 
 ## Understanding Slots
 
-Slots are the number of concurrent _task_ runs that a worker can execute, are are configured using the `slots` option on the worker. For instance, if you set `slots=5` on your worker, then your worker will be able to run five tasks concurrently before new tasks start needing to wait in the queue before being picked up.
-
-As a simple example, if we have a worker with `slots` set to `1` and we have a single task declared that sleeps for 1 second, then if we submit more than one task per second, the tasks will begin to queue up, as the worker can only handle one task at a time. Increasing the number of `slots` on your worker will allow you to handle more concurrent work (and thus more throughput, in many cases), without needing to run more workers.
+Slots are the number of concurrent _task_ runs that a worker can execute, are are configured using the `slots` option on the worker. For instance, if you set `slots=5` on your worker, then your worker will be able to run five tasks concurrently before new tasks start needing to wait in the queue before being picked up. Increasing the number of `slots` on your worker, or the number of workers you run, will allow you to handle more concurrent work (and thus more throughput, in many cases).
 
 An important caveat is that slot-level concurrency is only helpful up to the point where the worker is not bottlenecked by another resource, such as CPU, memory, or network bandwidth. If your worker is bottlenecked by one of these resources, increasing the number of slots will not improve throughput.
 

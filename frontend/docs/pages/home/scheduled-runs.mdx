@@ -17,9 +17,9 @@ export const getStaticProps = ({}) =>
 
 # Scheduled Runs
 
-> This example assumes we have a [workflow](./basic-workflows.mdx) registered on a running [worker](./workers.mdx).
+> This example assumes we have a [task](./your-first-task.mdx) registered on a running [worker](./workers.mdx).
 
-Scheduled runs allow you to trigger a workflow at a specific time in the future. Some example use cases of scheduling runs might include:
+Scheduled runs allow you to trigger a task at a specific time in the future. Some example use cases of scheduling runs might include:
 
 - Sending a reminder email at a specific time after a user took an action.
 - Running a one-time maintenance task at a predetermined time as determined by your application. For instance, you might want to run a database vacuum during a maintenance window any time a task matches a certain criteria.
@@ -27,11 +27,11 @@ Scheduled runs allow you to trigger a workflow at a specific time in the future.
 
 Hatchet supports scheduled runs to run on a schedule defined in a few different ways:
 
-- [Programmatically](./scheduled-runs.mdx#programmatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a workflow.
+- [Programmatically](./scheduled-runs.mdx#programmatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a task.
 - [Hatchet Dashboard](./scheduled-runs.mdx#managing-scheduled-runs-in-the-hatchet-dashboard): Manually create scheduled runs from the Hatchet Dashboard.
 
 <Callout type="warning">
-  The scheduled time is when Hatchet **enqueues** the workflow, not when the run
+  The scheduled time is when Hatchet **enqueues** the task, not when the run
   starts. Scheduling constraints like concurrency limits, rate limits, and retry
   policies can affect run start times.
 </Callout>
@@ -40,9 +40,9 @@ Hatchet supports scheduled runs to run on a schedule defined in a few different 
 
 ### Create a Scheduled Run
 
-You can create dynamic scheduled runs programmatically via the API to run workflows at a specific time in the future.
+You can create dynamic scheduled runs programmatically via the API to run tasks at a specific time in the future.
 
-Here's an example of creating a scheduled run to trigger a workflow tomorrow at noon:
+Here's an example of creating a scheduled run to trigger a task tomorrow at noon:
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -90,7 +90,7 @@ You can delete a scheduled run by calling the `delete` method on the scheduled r
 
 ### Listing Scheduled Runs
 
-You can list all scheduled runs for a workflow by calling the `list` method on the scheduled run object.
+You can list all scheduled runs for a task by calling the `list` method on the scheduled run object.
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
 <Tabs.Tab title="Python">
@@ -106,7 +106,7 @@ You can list all scheduled runs for a workflow by calling the `list` method on t
 
 ## Managing Scheduled Runs in the Hatchet Dashboard
 
-In the Hatchet Dashboard, you can view and manage scheduled runs for your workflows.
+In the Hatchet Dashboard, you can view and manage scheduled runs for your tasks.
 
 Navigate to "Triggers" > "Scheduled Runs" in the left sidebar and click "Create Scheduled Run" at the top right.
 
@@ -120,9 +120,9 @@ When using scheduled runs, there are a few considerations to keep in mind:
 
 1. **Time Zone**: Scheduled runs are stored and returned in UTC. Make sure to consider the time zone when defining your scheduled time.
 
-2. **Execution Time**: The actual execution time of a scheduled run may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to enqueue the workflow as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
+2. **Execution Time**: The actual execution time of a scheduled run may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to enqueue the task as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
 
-3. **Missed Schedules**: If a scheduled workflow is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances.
+3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances.
 
-4. **Overlapping Schedules**: If a workflow is still running when a second scheduled run is scheduled to start, Hatchet will start a new instance of the workflow or respect [concurrency](../concurrency/overview.mdx) policy.
+4. **Overlapping Schedules**: If a task is still running when a second scheduled run is scheduled to start, Hatchet will start a new instance of the task or respect [concurrency](../concurrency/overview.mdx) policy.
 ```
