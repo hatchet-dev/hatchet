@@ -632,13 +632,13 @@ Hatchet comes bundled with a number of features to help you monitor your tasks, 
 
 Monitor your tasks, workflows, and queues with live updates to quickly detect issues. Alerting is built in so you can respond to problems as soon as they occur.
 
-TODO
+https://github.com/user-attachments/assets/b1797540-c9da-4057-b50f-4780f52a2cb9
 
 **Logging**
 
 Hatchet supports logging from your tasks, allowing you to easily correlate task failures with logs in your system. No more digging through your logging service to figure out why your tasks failed.
 
-TODO
+https://github.com/user-attachments/assets/427c15cd-8842-4b54-ab2e-3b1cabc01c7b
 
 **Alerting**
 
