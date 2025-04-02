@@ -1,27 +1,49 @@
 import asyncio
-from datetime import timedelta
+import time
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-wf = hatchet.workflow(name="CancelWorkflow")
+cancellation_workflow = hatchet.workflow(name="CancelWorkflow")
 
 
-@wf.task(execution_timeout=timedelta(seconds=10), retries=1)
-async def step1(input: EmptyModel, ctx: Context) -> None:
-    i = 0
-    while not ctx.exit_flag and i < 40:
-        print(f"Waiting for cancellation {i}")
-        await asyncio.sleep(1)
-        i += 1
+# ❓ Self-cancelling task
+@cancellation_workflow.task()
+async def self_cancel(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    await asyncio.sleep(2)
 
-    if ctx.exit_flag:
-        print("Cancelled")
+    ## Cancel the task
+    await ctx.aio_cancel()
+
+    await asyncio.sleep(10)
+
+    return {"error": "Task should have been cancelled"}
+
+
+# !!
+
+
+# ❓ Checking exit flag
+@cancellation_workflow.task()
+def check_flag(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    for i in range(3):
+        time.sleep(1)
+
+        # Note: Checking the status of the exit flag is mostly useful for cancelling
+        # sync tasks without needing to forcibly kill the thread they're running on.
+        if ctx.exit_flag:
+            print("Task has been cancelled")
+            raise ValueError("Task has been cancelled")
+
+    return {"error": "Task should have been cancelled"}
+
+
+# !!
 
 
 def main() -> None:
-    worker = hatchet.worker("cancellation-worker", slots=4, workflows=[wf])
+    worker = hatchet.worker("cancellation-worker", workflows=[cancellation_workflow])
     worker.start()
 
 

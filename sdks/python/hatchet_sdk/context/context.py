@@ -18,6 +18,7 @@ from hatchet_sdk.clients.durable_event_listener import (
 )
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
 from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
@@ -52,6 +53,7 @@ class Context:
         event_client: EventClient,
         durable_event_listener: DurableEventListener | None,
         worker: WorkerContext,
+        runs_client: RunsClient,
         validator_registry: dict[str, WorkflowValidator] = {},
     ):
         self.worker = worker
@@ -66,6 +68,7 @@ class Context:
         self.dispatcher_client = dispatcher_client
         self.admin_client = admin_client
         self.event_client = event_client
+        self.runs_client = runs_client
         self.durable_event_listener = durable_event_listener
 
         # FIXME: this limits the number of concurrent log requests to 1, which means we can do about
@@ -135,6 +138,12 @@ class Context:
 
     def cancel(self) -> None:
         logger.debug("cancelling step...")
+        self.runs_client.cancel(self.step_run_id)
+        self.exit_flag = True
+
+    async def aio_cancel(self) -> None:
+        logger.debug("cancelling step...")
+        await self.runs_client.aio_cancel(self.step_run_id)
         self.exit_flag = True
 
     # done returns true if the context has been cancelled
