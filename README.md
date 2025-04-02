@@ -50,25 +50,25 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
 
     <summary><code>Python</code></summary>
 
-    ```python
-    # 1. Define your task input
-    class SimpleInput(BaseModel):
-        message: str
+  ```python
+  # 1. Define your task input
+  class SimpleInput(BaseModel):
+      message: str
 
-    # 2. Define your task using hatchet.task
-    @hatchet.task(name="SimpleWorkflow")
-    def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
-        return {
-          "transformed_message": input.message.lower(),
-        }
+  # 2. Define your task using hatchet.task
+  @hatchet.task(name="SimpleWorkflow")
+  def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
+      return {
+        "transformed_message": input.message.lower(),
+      }
 
-    # 3. Register your task on your worker
-    worker = hatchet.worker("test-worker", workflows=[simple])
-    worker.start()
+  # 3. Register your task on your worker
+  worker = hatchet.worker("test-worker", workflows=[simple])
+  worker.start()
 
-    # 4. Invoke tasks from your application
-    simple.run(SimpleInput(message="Hello World!"))
-    ```
+  # 4. Invoke tasks from your application
+  simple.run(SimpleInput(message="Hello World!"))
+  ```
 
   </details>
 
@@ -76,34 +76,34 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
 
     <summary><code>Typescript</code></summary>
 
-    ```ts
-    // 1. Define your task input
-    export type SimpleInput = {
-      Message: string;
-    };
+  ```ts
+  // 1. Define your task input
+  export type SimpleInput = {
+    Message: string;
+  };
 
-    // 2. Define your task using hatchet.task
-    export const simple = hatchet.task({
-      name: "simple",
-      fn: (input: SimpleInput) => {
-        return {
-          TransformedMessage: input.Message.toLowerCase(),
-        };
-      },
-    });
+  // 2. Define your task using hatchet.task
+  export const simple = hatchet.task({
+    name: "simple",
+    fn: (input: SimpleInput) => {
+      return {
+        TransformedMessage: input.Message.toLowerCase(),
+      };
+    },
+  });
 
-    // 3. Register your task on your worker
-    const worker = await hatchet.worker("simple-worker", {
-      workflows: [simple],
-    });
+  // 3. Register your task on your worker
+  const worker = await hatchet.worker("simple-worker", {
+    workflows: [simple],
+  });
 
-    await worker.start();
+  await worker.start();
 
-    // 4. Invoke tasks from your application
-    await simple.run({
-      Message: "Hello World!",
-    });
-    ```
+  // 4. Invoke tasks from your application
+  await simple.run({
+    Message: "Hello World!",
+  });
+  ```
 
   </details>
 
@@ -111,37 +111,37 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
 
     <summary><code>Go</code></summary>
 
-    ```go
-    // 1. Define your task input
-    type SimpleInput struct {
-      Message string `json:"message"`
-    }
+  ```go
+  // 1. Define your task input
+  type SimpleInput struct {
+    Message string `json:"message"`
+  }
 
-    // 2. Define your task using factory.NewTask
-    simple := factory.NewTask(
-      create.StandaloneTask{
-        Name: "simple-task",
-      }, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
-        return &SimpleResult{
-          TransformedMessage: strings.ToLower(input.Message),
-        }, nil
-      },
-      hatchet,
-    )
+  // 2. Define your task using factory.NewTask
+  simple := factory.NewTask(
+    create.StandaloneTask{
+      Name: "simple-task",
+    }, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
+      return &SimpleResult{
+        TransformedMessage: strings.ToLower(input.Message),
+      }, nil
+    },
+    hatchet,
+  )
 
-    // 3. Register your task on your worker
-    worker, err := hatchet.Worker(v1worker.WorkerOpts{
-      Name: "simple-worker",
-      Workflows: []workflow.WorkflowBase{
-        simple,
-      },
-    })
+  // 3. Register your task on your worker
+  worker, err := hatchet.Worker(v1worker.WorkerOpts{
+    Name: "simple-worker",
+    Workflows: []workflow.WorkflowBase{
+      simple,
+    },
+  })
 
-    worker.StartBlocking()
+  worker.StartBlocking()
 
-    // 4. Invoke tasks from your application
-    simple.Run(context.Background(), SimpleInput{Message: "Hello, World!"})
-    ```
+  // 4. Invoke tasks from your application
+  simple.Run(context.Background(), SimpleInput{Message: "Hello, World!"})
+  ```
 
   </details>
 
@@ -160,25 +160,25 @@ Hatchet supports the following mechanisms for task orchestration:
 
     <summary><code>Python</code></summary>
 
-    ```python
-    # 1. Define a workflow (a workflow is a collection of tasks)
-    simple = hatchet.workflow(name="SimpleWorkflow")
+  ```python
+  # 1. Define a workflow (a workflow is a collection of tasks)
+  simple = hatchet.workflow(name="SimpleWorkflow")
 
-    # 2. Attach the first task to the workflow
-    @simple.task()
-    def task_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
-        print("executed task_1")
-        return {"result": "task_1"}
+  # 2. Attach the first task to the workflow
+  @simple.task()
+  def task_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+      print("executed task_1")
+      return {"result": "task_1"}
 
-    # 3. Attach the second task to the workflow, which executes after task_1
-    @simple.task(parents=[task_1])
-    def task_2(input: EmptyModel, ctx: Context) -> None:
-        first_result = ctx.get_parent_output(task_1)
-        print(first_result)
+  # 3. Attach the second task to the workflow, which executes after task_1
+  @simple.task(parents=[task_1])
+  def task_2(input: EmptyModel, ctx: Context) -> None:
+      first_result = ctx.get_parent_output(task_1)
+      print(first_result)
 
-    # 4. Invoke workflows from your application
-    result = simple.run(input_data)
-    ```
+  # 4. Invoke workflows from your application
+  result = simple.run(input_data)
+  ```
 
   </details>
 
@@ -186,35 +186,35 @@ Hatchet supports the following mechanisms for task orchestration:
 
     <summary><code>Typescript</code></summary>
 
-    ```ts
-    // 1. Define a workflow (a workflow is a collection of tasks)
-    const simple = hatchet.workflow<DagInput, DagOutput>({
-      name: "simple",
-    });
+  ```ts
+  // 1. Define a workflow (a workflow is a collection of tasks)
+  const simple = hatchet.workflow<DagInput, DagOutput>({
+    name: "simple",
+  });
 
-    // 2. Attach the first task to the workflow
-    const task1 = simple.task({
-      name: "task-1",
-      fn: (input) => {
-        return {
-          result: "task-1",
-        };
-      },
-    });
+  // 2. Attach the first task to the workflow
+  const task1 = simple.task({
+    name: "task-1",
+    fn: (input) => {
+      return {
+        result: "task-1",
+      };
+    },
+  });
 
-    // 3. Attach the second task to the workflow, which executes after task-1
-    const task2 = simple.task({
-      name: "task-2",
-      parents: [task1],
-      fn: (input, ctx) => {
-        const firstResult = ctx.getParentOutput(task1);
-        console.log(firstResult);
-      },
-    });
+  // 3. Attach the second task to the workflow, which executes after task-1
+  const task2 = simple.task({
+    name: "task-2",
+    parents: [task1],
+    fn: (input, ctx) => {
+      const firstResult = ctx.getParentOutput(task1);
+      console.log(firstResult);
+    },
+  });
 
-    // 4. Invoke workflows from your application
-    await simple.run({ Message: "Hello World" });
-    ```
+  // 4. Invoke workflows from your application
+  await simple.run({ Message: "Hello World" });
+  ```
 
   </details>
 
@@ -222,45 +222,168 @@ Hatchet supports the following mechanisms for task orchestration:
 
     <summary><code>Go</code></summary>
 
-    ```go
-    // 1. Define a workflow (a workflow is a collection of tasks)
-    simple := v1.WorkflowFactory[DagInput, DagOutput](
-        workflow.CreateOpts[DagInput]{
-            Name: "simple-workflow",
-        },
-        hatchet,
-    )
+  ```go
+  // 1. Define a workflow (a workflow is a collection of tasks)
+  simple := v1.WorkflowFactory[DagInput, DagOutput](
+      workflow.CreateOpts[DagInput]{
+          Name: "simple-workflow",
+      },
+      hatchet,
+  )
 
-    // 2. Attach the first task to the workflow
-    const task1 = simple.Task(
-        task.CreateOpts[DagInput]{
-            Name: "task-1",
-            Fn: func(ctx worker.HatchetContext, _ DagInput) (*SimpleOutput, error) {
-                return &SimpleOutput{
-                    Result: "task-1",
-                }, nil
-            },
-        },
-    );
+  // 2. Attach the first task to the workflow
+  const task1 = simple.Task(
+      task.CreateOpts[DagInput]{
+          Name: "task-1",
+          Fn: func(ctx worker.HatchetContext, _ DagInput) (*SimpleOutput, error) {
+              return &SimpleOutput{
+                  Result: "task-1",
+              }, nil
+          },
+      },
+  );
 
-    // 3. Attach the second task to the workflow, which executes after task-1
-    const task2 = simple.Task(
-        task.CreateOpts[DagInput]{
-            Name: "task-2",
-            Parents: []task.NamedTask{
-                step1,
-            },
-            Fn: func(ctx worker.HatchetContext, _ DagInput) (*SimpleOutput, error) {
-                return &SimpleOutput{
-                    Result: "task-2",
-                }, nil
-            },
-        },
-    );
+  // 3. Attach the second task to the workflow, which executes after task-1
+  const task2 = simple.Task(
+      task.CreateOpts[DagInput]{
+          Name: "task-2",
+          Parents: []task.NamedTask{
+              step1,
+          },
+          Fn: func(ctx worker.HatchetContext, _ DagInput) (*SimpleOutput, error) {
+              return &SimpleOutput{
+                  Result: "task-2",
+              }, nil
+          },
+      },
+  );
 
-    // 4. Invoke workflows from your application
-    simple.Run(ctx, DagInput{})
-    ```
+  // 4. Invoke workflows from your application
+  simple.Run(ctx, DagInput{})
+  ```
+
+  </details>
+
+</details>
+<details><summary><strong>Flow Control</strong></summary>
+
+Don't let busy users crash your application. With Hatchet, you can throttle execution on a per-user, per-tenant and per-queue basis, increasing system stability and limiting the impact of busy users on the rest of your system.
+
+Hatchet supports the following flow control primitives:
+
+- **Concurrency** — set a concurrency limit based on a dynamic concurrency key (e.g., each user can only run 10 batch jobs at a given time). [Read more ➶](https://docs.hatchet.run/home/concurrency)
+
+- **Rate limiting** — create both global and dynamic rate limits. [Read more ➶](https://docs.hatchet.run/home/rate-limits)
+
+- <details>
+
+    <summary><code>Python</code></summary>
+
+  ```python
+  # limit concurrency on a per-user basis
+  flow_control_workflow = hatchet.workflow(
+    name="FlowControlWorkflow",
+    concurrency=ConcurrencyExpression(
+      expression="input.user_id",
+      max_runs=5,
+      limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    ),
+    input_validator=FlowControlInput,
+  )
+
+  # rate limit a task per user to 10 tasks per minute, with each task consuming 1 unit
+  @flow_control_workflow.task(
+      rate_limits=[
+          RateLimit(
+              dynamic_key="input.user_id",
+              units=1,
+              limit=10,
+              duration=RateLimitDuration.MINUTE,
+          )
+      ]
+  )
+  def rate_limit_task(input: FlowControlInput, ctx: Context) -> None:
+      print("executed rate_limit_task")
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Typescript</code></summary>
+
+  ```ts
+  // limit concurrency on a per-user basis
+  flowControlWorkflow = hatchet.workflow<SimpleInput, SimpleOutput>({
+    name: "ConcurrencyLimitWorkflow",
+    concurrency: {
+      expression: "input.userId",
+      maxRuns: 5,
+      limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    },
+  });
+
+  // rate limit a task per user to 10 tasks per minute, with each task consuming 1 unit
+  flowControlWorkflow.task({
+    name: "rate-limit-task",
+    rateLimits: [
+      {
+        dynamicKey: "input.userId",
+        units: 1,
+        limit: 10,
+        duration: RateLimitDuration.MINUTE,
+      },
+    ],
+    fn: async (input) => {
+      return {
+        Completed: true,
+      };
+    },
+  });
+  ```
+
+  </details>
+
+- <details>
+
+    <summary><code>Go</code></summary>
+
+  ```go
+  // limit concurrency on a per-user basis
+  flowControlWorkflow := factory.NewWorkflow[DagInput, DagResult](
+    create.WorkflowCreateOpts[DagInput]{
+      Name: "simple-dag",
+      Concurrency: []*types.Concurrency{
+        {
+          Expression:    "input.userId",
+          MaxRuns:       1,
+          LimitStrategy: types.GroupRoundRobin,
+        },
+      },
+    },
+    hatchet,
+  )
+
+  // rate limit a task per user to 10 tasks per minute, with each task consuming 1 unit
+  flowControlWorkflow.Task(
+    create.WorkflowTask[FlowControlInput, FlowControlOutput]{
+      Name: "rate-limit-task",
+      RateLimits: []*types.RateLimit{
+        {
+          Key:            "user-rate-limit",
+          KeyExpr:        "input.userId",
+          Units:          1,
+          LimitValueExpr: 10,
+          Duration:       types.Minute,
+        },
+      },
+    }, func(ctx worker.HatchetContext, input FlowControlInput) (interface{}, error) {
+      return &SimpleOutput{
+        Step: 1,
+      }, nil
+    },
+  )
+  ```
 
   </details>
 
