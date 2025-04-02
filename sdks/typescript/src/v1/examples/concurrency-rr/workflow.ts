@@ -21,7 +21,7 @@ const sleep = (ms: number) =>
 export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: {
-    maxRuns: 1,
+    maxRuns: 2,
     limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     expression: 'input.GroupKey',
   },
