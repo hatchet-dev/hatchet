@@ -1,5 +1,4 @@
 import asyncio
-from typing import List
 
 # ❓ Running a Task
 from examples.simple.worker import SimpleInput, step1

@@ -15,6 +15,7 @@ class SimpleInput(EmptyModel):
 class SimpleOutput(BaseModel):
     transformed_message: str
 
+
 child_task = hatchet.workflow(name="SimpleWorkflow", input=SimpleInput)
 
 

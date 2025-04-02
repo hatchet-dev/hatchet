@@ -12,6 +12,8 @@ async def main() -> None:
     result = await step1.aio_run(SimpleInput(message="Hello, World!"))
     # !!
 
+    print(result)
+
     # ❓ Running Multiple Tasks
     result1 = step1.aio_run(SimpleInput(message="Hello, World!"))
     result2 = step1.aio_run(SimpleInput(message="Hello, Moon!"))
