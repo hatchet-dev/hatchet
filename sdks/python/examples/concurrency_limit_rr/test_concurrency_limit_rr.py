@@ -3,13 +3,12 @@ import time
 import pytest
 
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
-from hatchet_sdk import Hatchet
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
 @pytest.mark.skip(reason="The timing for this test is not reliable")
 @pytest.mark.asyncio()
-async def test_run(hatchet: Hatchet) -> None:
+async def test_run() -> None:
     num_groups = 2
     runs: list[WorkflowRunRef] = []
 
