@@ -148,7 +148,6 @@ It includes the following features:
     </details>
 
   </details>
-
 - <details>
 
   <summary><h4>Task Orchestration</h4></summary>
