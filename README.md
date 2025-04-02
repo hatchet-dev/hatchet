@@ -48,7 +48,7 @@ Hatchet is a durable task queue, which means that we ingest your tasks and send 
 
 [Read more ➶](https://docs.hatchet.run/home/your-first-task)
 
-  <details>
+- <details>
 
   <summary><code>Python</code></summary>
 
@@ -74,7 +74,9 @@ worker.start()
 simple.run(SimpleInput(message="Hello World!"))
 ```
 
-</details> <details> <summary><code>Typescript</code></summary>
+</details>
+
+- <details> <summary><code>Typescript</code></summary>
 
 ```ts
 // 1. Define your task input
@@ -105,7 +107,9 @@ await simple.run({
 });
 ```
 
-</details> <details> <summary><code>Go</code></summary>
+</details>
+
+- <details> <summary><code>Go</code></summary>
 
 ```go
 // 1. Define your task input
