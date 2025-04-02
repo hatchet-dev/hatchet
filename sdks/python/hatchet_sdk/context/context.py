@@ -1,11 +1,8 @@
-import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
-
-from pydantic import BaseModel
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
@@ -27,21 +24,6 @@ from hatchet_sdk.waits import SleepCondition, UserEventCondition
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.types import R, TWorkflowInput
-
-
-DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
-
-
-def get_caller_file_path() -> str:
-    caller_frame = inspect.stack()[2]
-
-    return caller_frame.filename
-
-
-class StepRunError(BaseModel):
-    step_id: str
-    step_run_action_name: str
-    error: str
 
 
 class Context:
