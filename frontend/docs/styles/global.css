@@ -2,8 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 222.2 84% 4.9%;
+/* ========================= */
+/* Root Variables & Theming  */
+/* ========================= */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+
+    /* Chart Colors */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
     --card: 222.2 84% 4.9%;
@@ -30,68 +73,28 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
-}
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    /* Dark Mode Chart Colors */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    height: 100vh;
+  }
 }
 
-body {
-  height: 100vh;
-}
-
+/* ========================= */
+/* Custom UI Components      */
+/* ========================= */
 .step-run-card {
   --transition: 0.25s;
   --spark: 3s;
@@ -105,13 +108,24 @@ body {
 }
 
 .step-run-card.active .step-run-backdrop {
-  background: 222.2 84% 4.9%;
+  background: var(--background);
 }
 
 .step-run-card.active {
   transform: scale(1.05);
 }
 
+.step-run-backdrop {
+  position: absolute;
+  inset: 1px;
+  background: var(--background);
+  border-radius: 10px;
+  transition: background var(--transition), opacity var(--transition);
+}
+
+/* ========================= */
+/* Animation Effects         */
+/* ========================= */
 .spark {
   position: absolute;
   inset: 0;
@@ -128,72 +142,43 @@ body {
   }
 }
 
-.spark:before {
-  content: "";
-  position: absolute;
-  width: 200%;
-  aspect-ratio: 1;
-  inset: 0 auto auto 50%;
-  z-index: -1;
-  translate: -50% -15%;
-  rotate: 0;
-  transform: rotate(-90deg);
-  opacity: 1;
-  background: conic-gradient(from 0deg, transparent 0 340deg, white 360deg);
-  transition: opacity var(--transition);
-  animation: rotate var(--spark) linear infinite both;
-}
-
-.step-run-backdrop {
-  position: absolute;
-  inset: 1px;
-  background: 222.2 84% 4.9%;
-  border-radius: 10px;
-  transition: background var(--transition) opacity var(--transition);
-}
-
 @keyframes rotate {
   to {
     transform: rotate(90deg);
   }
 }
 
-.text {
-  z-index: 1;
-  color: rgb(203 213 225);
+/* ========================= */
+/* Dark Mode Fixes (Nextra)  */
+/* ========================= */
+html {
+  background-color: hsl(var(--background));
 }
 
-/* Code block styles */
-html.dark .nextra-code-block pre {
-  background-color: #1e293b !important;
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
-/* Base dark mode styles */
-html.dark main {
-  background-color: #020817;
-}
-
-html.dark body {
-  background-color: var(--background) !important;
-}
-
-/* Fix for Nextra 3 theme-switcher and sidebar footer */
+html.dark main,
+html.dark body,
 html.dark .nx-fixed,
 html.dark ._fixed,
 html.dark .dark\:nx-bg-dark,
 html.dark .dark\:_bg-dark,
 html.dark .nx-bg-white,
-html.dark ._bg-white {
-  background-color: #020817 !important;
+html.dark ._bg-white,
+html.dark div.nx-sticky.nx-bottom-0,
+html.dark div._sticky._bottom-0,
+html.dark div.nextra-nav-container {
+  background-color: var(--background) !important;
 }
 
-/* Fix for system preferences button in theme switcher */
 html.dark .nx-text-gray-800,
 html.dark ._text-gray-800 {
   color: #f8fafc !important;
 }
 
-/* Fix for theme switcher borders */
 html.dark .nx-border-gray-200,
 html.dark ._border-gray-200,
 html.dark .nx-border,
@@ -201,14 +186,37 @@ html.dark ._border {
   border-color: #1e293b !important;
 }
 
-/* Bottom nav container */
-html.dark div.nx-sticky.nx-bottom-0,
-html.dark div._sticky._bottom-0 {
-  background-color: #020817 !important;
+/* ========================= */
+/* Code Block Styling        */
+/* ========================= */
+html.dark .nextra-code-block pre,
+.dark .shiki {
+  background-color: #1e293b !important;
 }
 
-html.dark div.nextra-nav-container {
-  background-color: #020817 !important;
+.shiki {
+  padding: 15px !important;
+  border-radius: 10px !important;
+  background-color: rgba(40, 99, 159, 0.05) !important;
+}
+
+pre.shiki {
+  overflow-x: auto;
+}
+
+/* ========================= */
+/* Miscellaneous Fixes       */
+/* ========================= */
+.nextra-steps h3::before {
+  line-height: 25px;
+}
+
+.dark .nextra-breadcrumb a,
+.dark .nextra-breadcrumb a:visited,
+.dark .nextra-breadcrumb a:hover,
+.dark .nextra-breadcrumb a:active {
+  background: none !important;
+  -webkit-text-fill-color: var(--ash-gray) !important;
 }
 
 .nextra-nav-container-blur {
@@ -222,45 +230,4 @@ nav {
 .dark .nx-sticky,
 .dark ._sticky {
   box-shadow: none !important;
-}
-
-/* Center numbers in steps */
-.nextra-steps h3::before {
-    line-height: 25px;
-}
-
-/* Breadcrumb link styles in dark mode */
-.dark .nextra-breadcrumb a,
-.dark .nextra-breadcrumb a:visited,
-.dark .nextra-breadcrumb a:hover,
-.dark .nextra-breadcrumb a:active {
-  background: none !important;
-  -webkit-text-fill-color: var(--ash-gray) !important;
-}
-
-:is(html[class~="dark"]) .nextra-nav-container-blur.nx-pointer-events-none {
-  background-color: var(--background) !important;
-}
-
-.shiki {
-  padding: 15px !important;
-  border-radius: 10px !important;
-  background-color: rgba(40, 99, 159, 0.05) !important;
-}
-
-pre.shiki {
-  overflow-x: auto;
-}
-
-.dark .shiki {
-  background-color: #1e293b !important;
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
 }

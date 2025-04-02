@@ -3,6 +3,9 @@ export default {
     "title": "User Guide",
     "type": "page"
   },
+  "_setup": {
+    "display": "hidden"
+  },
   "compute": {
     "title": "Managed Compute",
     "type": "page",
