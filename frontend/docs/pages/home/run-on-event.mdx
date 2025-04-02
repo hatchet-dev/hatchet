@@ -29,7 +29,7 @@ Run-on-event allows you to trigger one or more workflows when a specific event o
 1. Running a workflow when an ephemeral event is received, such as a webhook or a message from a queue.
 2. When you want to run multiple independent workflows in response to a single event. For instance, if you wanted to run a `send_welcome_email` workflow, and you also wanted to run a `grant_new_user_credits` workflow, and a `reward_referral` workflow, all triggered by the signup. In this case, you might declare all three of those workflows with an event trigger for `user:signup`, and then have them all kick off when that event happens.
 
-<Callout type="warning">
+<Callout type="info">
   Event triggers evaluate workflows to run at the time of the event. If an event
   is received before the workflow is registered, the workflow will not be run.
 </Callout>

@@ -23,7 +23,7 @@ const config = {
     dark: 60,
     light: 60,
   },
-  logoLink: "https://github.com/hatchet-dev/hatchet",
+  logoLink: "https://hatchet.run",
   project: {
     link: "https://github.com/hatchet-dev/hatchet",
   },
