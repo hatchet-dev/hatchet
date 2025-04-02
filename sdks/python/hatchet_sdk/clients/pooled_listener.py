@@ -215,6 +215,7 @@ class PooledListener(Generic[R, T], ABC):
                 continue
 
             yield request
+
             self.requests.task_done()
 
     def cleanup_subscription(self, subscription_id: int) -> None:
