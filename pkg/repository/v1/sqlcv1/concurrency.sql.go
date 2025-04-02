@@ -109,31 +109,12 @@ func (q *Queries) ConcurrencyAdvisoryLock(ctx context.Context, db DBTX, key int6
 }
 
 const listActiveConcurrencyStrategies = `-- name: ListActiveConcurrencyStrategies :many
-WITH earliest_workflow_versions AS (
-    -- We select the earliest workflow versions with an active concurrency queue. The reason
-    -- is that we'd like to drain previous concurrency queues gracefully, otherwise we risk
-    -- running more tasks than we should.
-    SELECT DISTINCT ON("workflowId")
-        "workflowId",
-        wv."id" AS "workflowVersionId"
-    FROM
-        v1_step_concurrency sc
-    JOIN
-        "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
-    WHERE
-        sc.tenant_id = $1::uuid AND
-        sc.is_active = TRUE
-    ORDER BY
-        "workflowId", wv."order" ASC
-)
 SELECT
     sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
 FROM
     v1_step_concurrency sc
 JOIN
     "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
-JOIN
-    earliest_workflow_versions ewv ON ewv."workflowVersionId" = wv."id"
 WHERE
     sc.tenant_id = $1::uuid AND
     sc.is_active = TRUE
