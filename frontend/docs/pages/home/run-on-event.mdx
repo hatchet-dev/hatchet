@@ -17,8 +17,16 @@ export const EventPyTrigger = {
   path: "examples/events/event.py",
 };
 
+export const EventGo = {
+  path: "examples/v1/workflows/on-event.go",
+};
+
+export const EventGoTrigger = {
+  path: "examples/v1/run/event.go",
+};
+
 export const getStaticProps = ({}) =>
-  getSnippets([SimpleTs, EventTs, EventPy, EventPyTrigger]);
+  getSnippets([SimpleTs, EventTs, EventPy, EventPyTrigger, EventGo, EventGoTrigger]);
 
 # Run on Event
 
@@ -46,23 +54,7 @@ To run a workflow on an event, you need to declare the event that will trigger t
     <GithubSnippet src={SimpleTs} target="Run workflow on event" />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-  ```go
-  w.RegisterWorkflow(
-      &worker.WorkflowJob{
-          Name: "post-user-create",
-          On: worker.Event("user:created"),
-          Description: "Cron workflow example.",
-          Steps: []*worker.WorkflowStep{
-              {
-                  Function: func(ctx context.Context) error {
-                      fmt.Println("triggered at:", time.Now())
-                      return nil
-                  },
-              },
-          },
-      },
-  )
-  ```
+    <GithubSnippet src={EventGo} target="Run workflow on event" />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -82,15 +74,6 @@ You can push an event to the event queue by calling the `push` method on the Hat
     <GithubSnippet src={EventTs} target="Pushing an Event" />
   </Tabs.Tab>
   <Tabs.Tab title="Go">
-  ```go
-  c.Event().Push(
-    context.Background(),
-    "test-called",
-    &events.TestEvent{
-      Name: "testing",
-    },
-  )
-  ```
-
+    <GithubSnippet src={EventGoTrigger} target="Pushing an Event" />
   </Tabs.Tab>
 </UniversalTabs>

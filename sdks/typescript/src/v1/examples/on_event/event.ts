@@ -1,8 +1,9 @@
 import { hatchet } from '../hatchet-client';
-import { Input, SIMPLE_EVENT } from './workflow';
+import { Input } from './workflow';
 
 async function main() {
-  const res = await hatchet.events.push<Input>(SIMPLE_EVENT, {
+  // ❓ Pushing an Event
+  const res = await hatchet.events.push<Input>('simple-event:create', {
     Message: 'hello',
   });
   // !!
