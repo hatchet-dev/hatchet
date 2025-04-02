@@ -1,10 +1,10 @@
 from typing import Any
 
-from hatchet_sdk.clients.run_event_listener import (
+from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     RunEventListenerClient,
 )
-from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.aio import run_async_from_sync
 

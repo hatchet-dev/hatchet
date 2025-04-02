@@ -12,11 +12,11 @@ from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-def
     Action,
     DispatcherClient,
 )
-from hatchet_sdk.clients.durable_event_listener import (
+from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     RegisterDurableEventRequest,
 )
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
