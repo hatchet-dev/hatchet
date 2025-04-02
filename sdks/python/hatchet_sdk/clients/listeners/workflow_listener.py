@@ -16,7 +16,7 @@ DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
 
 
 class PooledWorkflowRunListener(
-    PooledListener[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]
+    PooledListener[SubscribeToWorkflowRunsRequest, WorkflowRunEvent, DispatcherStub]
 ):
     def create_request_body(self, item: str) -> SubscribeToWorkflowRunsRequest:
         return SubscribeToWorkflowRunsRequest(
