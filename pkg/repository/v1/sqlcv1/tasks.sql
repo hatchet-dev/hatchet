@@ -472,16 +472,14 @@ SELECT
 FROM
     v1_task_event e
 WHERE
-    (e.task_id, e.task_inserted_at, e.event_key) IN (
+    (e.tenant_id, e.task_id, e.task_inserted_at, e.event_type, e.event_key) IN (
         SELECT
-            task_id, task_inserted_at, event_key
+            @tenantId::uuid, task_id, task_inserted_at, event_key, 'SIGNAL_CREATED'
         FROM
             input
     )
-    AND e.tenant_id = @tenantId::uuid
-    AND e.event_type = 'SIGNAL_CREATED'
 ORDER BY
-    e.task_id, e.task_inserted_at, e.id
+    e.tenant_id, e.task_id, e.task_inserted_at, e.event_type, e.event_key
 FOR UPDATE;
 
 -- name: ListMatchingSignalEvents :many
