@@ -1,4 +1,3 @@
-from datetime import timedelta
 from typing import Any
 
 from examples.child.worker import SimpleInput, child_task
@@ -10,7 +9,7 @@ hatchet = Hatchet(debug=True)
 
 
 # ❓ Running a Task from within a Task
-@hatchet.task(execution_timeout=timedelta(minutes=5))
+@hatchet.task(name="SpawnTask")
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     # Simply run the task with the input we received
     result = await child_task.aio_run(

@@ -2,8 +2,7 @@
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet
-from hatchet_sdk.runnables.types import EmptyModel
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
@@ -16,7 +15,7 @@ class SimpleOutput(BaseModel):
     transformed_message: str
 
 
-child_task = hatchet.workflow(name="SimpleWorkflow", input=SimpleInput)
+child_task = hatchet.workflow(name="SimpleWorkflow", input_validator=SimpleInput)
 
 
 @child_task.task(name="step1")
