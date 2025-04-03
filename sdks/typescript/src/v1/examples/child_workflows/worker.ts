@@ -4,7 +4,7 @@ import { parent, child } from './workflow';
 async function main() {
   const worker = await hatchet.worker('child-workflow-worker', {
     workflows: [parent, child],
-    slots: 5000,
+    slots: 100,
   });
 
   await worker.start();
