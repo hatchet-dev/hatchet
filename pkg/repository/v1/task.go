@@ -1526,7 +1526,7 @@ func (r *sharedRepository) insertTasks(
 		retryCounts[i] = 0
 
 		defaultPriority := stepConfig.DefaultPriority
-		priority := defaultPriority.Int32
+		priority := defaultPriority
 
 		if task.Priority != nil {
 			priority = *task.Priority
