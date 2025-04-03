@@ -32,39 +32,7 @@ pnpm add @hatchet-dev/typescript-sdk
 
 ## Quick Start
 
-Here's a simple example of how to use the Hatchet TypeScript SDK:
-
-```typescript
-import { HatchetClient } from '@hatchet-dev/typescript-sdk';
-
-export const hatchet = HatchetClient.init();
-
-export type SimpleInput = {
-  Message: string;
-};
-
-export const simple = hatchet.task({
-  name: 'simple',
-  fn: (input: SimpleInput) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
-});
-
-async function main() {
-  const worker = await hatchet.worker('simple-worker', {
-    workflows: [simple],
-    slots: 100,
-  });
-
-  await worker.start();
-}
-
-if (require.main === module) {
-  main();
-}
-```
+For examples of how to use the Hatchet TypeScript SDK, including worker setup and task execution, please see our [official documentation](https://docs.hatchet.run/home/setup).
 
 ## Features
 
