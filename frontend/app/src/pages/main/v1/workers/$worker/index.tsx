@@ -204,7 +204,7 @@ export default function ExpandedWorkflowRun() {
           </Button>
         </div>
         <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-          A slot represents one step run on a worker to limit load.{' '}
+          A slot represents one task run on a worker to limit load.{' '}
           <a href="https://docs.hatchet.run/home/workers" className="underline">
             Learn more.
           </a>
@@ -226,13 +226,18 @@ export default function ExpandedWorkflowRun() {
         />
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
-          Worker Actions
+          Registered Tasks
         </h3>
         <div className="flex-wrap flex flex-row gap-4">
           {worker.actions?.map((action) => {
+            const [name, method] = action.split(':');
+
+            const printable = name === method ? name : action;
+            // FIXME Link to the task
+
             return (
-              <Button variant="outline" key={action}>
-                {action}
+              <Button variant="outline" key={printable}>
+                {printable}
               </Button>
             );
           })}

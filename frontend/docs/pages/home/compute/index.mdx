@@ -2,10 +2,6 @@ import { Callout } from "nextra/components";
 
 # Hatchet Managed Compute
 
-<Callout type="warning">
-  This feature is currently in beta and may be subject to change.
-</Callout>
-
 ## Overview
 
 Hatchet Managed Compute provides the simplicity of serverless while delivering the performance and control of traditional infrastructure, making it ideal for long lived, or data intensive AI applications and background job processing. It enables dynamic scaling while eliminating common serverless limitations like cold starts and timeouts.
@@ -14,14 +10,14 @@ Hatchet Managed Compute provides the simplicity of serverless while delivering t
 
 - **Sub-100ms Instance Provisioning**: Pre-warms instances before resource demands
 - **Distributed Architecture**: Built on [Hatchet Queue](../home/) for reliable workload distribution
-- **Multi-Region Support**: Deploy across regions for fault tolerance and data locality
+- **[Multi-Region Support](./cpu.mdx#available-regions)**: Deploy across regions for fault tolerance and data locality
+- **[Auto-Scaling](./auto-scaling.mdx)**: Automatically scale your compute resources based on workload demand
 
 ### Available Compute Classes
 
-- Shared CPUs
-- Performance CPUs
-- GPU instances
-- Customizable worker pools
+- [Shared CPUs](./cpu.mdx#shared-cpu)
+- [Performance CPUs](./cpu.mdx#performance-cpu)
+- [GPU instances](./gpu.mdx)
 
 ### Smart Workload Management
 
@@ -29,13 +25,9 @@ Hatchet Managed Compute provides the simplicity of serverless while delivering t
 - **Burstable Capacity**: Scales dynamically based on queue depth
 - **Sticky Assignment**: Routes tasks to the same instance when possible using [sticky assignments](../home/features/worker-assignment/sticky-assignment.mdx)
 
-## Infrastructure as Code
-
-Hatchet Managed Compute is defined directly in your workflow code, making it extremely easy to manage your compute resources.
-
 ## Deployment
 
-- **GitOps Integration**: Automatic builds and deployments on commit
+- **[GitOps Integration](./git-ops.mdx)**: Automatic builds and deployments on commit
 - **Zero-Ops**: Managed infrastructure eliminates operational overhead
 - **Version Control**: Infrastructure changes tracked in code
 
@@ -46,7 +38,3 @@ Hatchet Managed Compute is defined directly in your workflow code, making it ext
 3. Cost-effective for sustained workloads
 4. Fine-grained control over compute resources
 5. Better suited for AI and data processing tasks
-
-## Getting Started
-
-Reach out to support@hatchet.dev to get access to managed compute.

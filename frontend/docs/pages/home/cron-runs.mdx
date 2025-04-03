@@ -48,11 +48,11 @@ export const getStaticProps = ({}) =>
 
 # Recurring Runs with Cron
 
-> This example assumes we have a [workflow](./basic-workflows.mdx) registered on a running [worker](./workers.mdx).
+> This example assumes we have a [task](./your-first-task.mdx) registered on a running [worker](./workers.mdx).
 
-A [Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler that allows you to define when a workflow should be executed automatically on a pre-determined schedule.
+A [Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler that allows you to define when a task should be executed automatically on a pre-determined schedule.
 
-Some example use cases for cron-style workflows might include:
+Some example use cases for cron-style tasks might include:
 
 1. Running a daily report at a specific time.
 2. Sending weekly digest emails to users about their activity from the past week.
@@ -60,13 +60,13 @@ Some example use cases for cron-style workflows might include:
 
 Hatchet supports cron triggers to run on a schedule defined in a few different ways:
 
-- [Workflow Definitions](./cron-runs.mdx#defining-a-cron-in-your-workflow-definition): Define a cron expression in your workflow definition to trigger the workflow on a predefined schedule.
-- [Dynamic Programmatically](./cron-runs.mdx#programmatically-creating-cron-triggers): Use the Hatchet SDKs to dynamically set the cron schedule of a workflow.
+- [Task Definitions](./cron-runs.mdx#defining-a-cron-in-your-task-definition): Define a cron expression in your task definition to trigger the task on a predefined schedule.
+- [Dynamic Programmatically](./cron-runs.mdx#programmatically-creating-cron-triggers): Use the Hatchet SDKs to dynamically set the cron schedule of a task.
 - [Hatchet Dashboard](./cron-runs.mdx#managing-cron-jobs-in-the-hatchet-dashboard): Manually create cron triggers from the Hatchet Dashboard.
 
-<Callout type="info">
-  The expression is when Hatchet **enqueues** the workflow, not when the run
-  starts. Scheduling constraints like concurrency limits, rate limits, and retry
+<Callout type="warning">
+  The expression is when Hatchet **enqueues** the task, not when the run starts.
+  Scheduling constraints like concurrency limits, rate limits, and retry
   policies can affect run start times.
 </Callout>
 
@@ -90,9 +90,9 @@ Each field can contain a specific value, an asterisk (`*`) to represent all poss
 - `0 9 * * 1`: Run every Monday at 9 AM
 - `0 0 1 * *`: Run on the first day of every month at midnight
 
-## Defining a Cron in Your Workflow Definition
+## Defining a Cron in Your Task Definition
 
-You can define a workflow with a cron schedule by configuring the cron expression as part of the workflow definition:
+You can define a task with a cron schedule by configuring the cron expression as part of the task definition:
 
 <UniversalTabs items={["Python-Sync", "Python-Async", "Typescript", "Go"]}>
   <Tabs.Tab title="Python-Sync">
@@ -118,19 +118,19 @@ You can define a workflow with a cron schedule by configuring the cron expressio
   </Tabs.Tab>
 </UniversalTabs>
 
-In the examples above, we set the `on cron` property of the workflow. The property specifies the cron expression that determines when the workflow should be triggered.
+In the examples above, we set the `on cron` property of the task. The property specifies the cron expression that determines when the task should be triggered.
 
 <Callout>
-  Note: When modifying a cron in your workflow definition, it will override any
-  cron schedule for previous crons defined in previous workflow definitions, but
-  crons created via the API or Dashboard will still be respected.
+  Note: When modifying a cron in your task definition, it will override any cron
+  schedule for previous crons defined in previous task definitions, but crons
+  created via the API or Dashboard will still be respected.
 </Callout>
 
 ## Programmatically Creating Cron Triggers
 
 ### Create a Cron Trigger
 
-You can create dynamic cron triggers programmatically via the API. This is useful if you want to create a cron trigger that is not known at the time of workflow definition,
+You can create dynamic cron triggers programmatically via the API. This is useful if you want to create a cron trigger that is not known at the time of task definition,
 
 Here's an example of creating a a cron to trigger a report for a specific customer every day at noon:
 
@@ -179,13 +179,13 @@ You can delete a cron trigger by passing the cron object or a cron trigger id to
 
 <Callout>
   Note: Deleting a cron trigger will not cancel any currently running instances
-  of the workflow. It will simply stop the cron trigger from triggering the
-  workflow again.
+  of the task. It will simply stop the cron trigger from triggering the task
+  again.
 </Callout>
 
 ### List Cron Triggers
 
-Retrieves a list of all workflow cron triggers matching the criteria.
+Retrieves a list of all task cron triggers matching the criteria.
 
 <UniversalTabs items={["Python-Sync", "Python-Async", "Typescript", "Go"]}>
   <Tabs.Tab title="Python-Sync">
@@ -204,7 +204,7 @@ Retrieves a list of all workflow cron triggers matching the criteria.
 
 ## Managing Cron Triggers in the Hatchet Dashboard
 
-In the Hatchet Dashboard, you can view and manage cron triggers for your workflows.
+In the Hatchet Dashboard, you can view and manage cron triggers for your tasks.
 
 Navigate to "Triggers" > "Cron Jobs" in the left sidebar and click "Create Cron Job" at the top right.
 
@@ -218,8 +218,8 @@ When using cron triggers, there are a few considerations to keep in mind:
 
 1. **Time Zone**: Cron schedules are UTC. Make sure to consider the time zone when defining your cron expressions.
 
-2. **Execution Time**: The actual execution time of a cron-triggered workflow may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to enqueue the workflow as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
+2. **Execution Time**: The actual execution time of a cron-triggered task may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to enqueue the task as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
 
-3. **Missed Schedules**: If a scheduled workflow is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances. It will wait for the next scheduled time to trigger the workflow.
+3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances. It will wait for the next scheduled time to trigger the task.
 
-4. **Overlapping Schedules**: If a workflow is still running when the next scheduled time arrives, Hatchet will start a new instance of the workflow or respect [concurrency](./concurrency.mdx) policy.
+4. **Overlapping Schedules**: If a task is still running when the next scheduled time arrives, Hatchet will start a new instance of the task or respect [concurrency](../concurrency/overview.mdx) policy.

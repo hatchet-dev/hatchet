@@ -25,13 +25,13 @@ export const getStaticProps = ({}) =>
 
 In Hatchet, the fundamental unit of invocable work is a [Task](#defining-a-task). Each task is an atomic function.
 
-As we continue to build with Hatchet, we'll add additional configuration options to compose tasks into workflows with [DAGs](./dags.mdx) or [procedural child spawning](./child-spawning.mdx).
+As we continue to build with Hatchet, we'll add additional configuration options to compose tasks into [DAG workflows](./dags.mdx) or [procedural child spawning](./child-spawning.mdx).
 
 ## Defining a Task
 
 Start by declaring a task with a name. The task object can declare additional task-level configuration options which we'll cover later.
 
-The returned object is an instance of the `StandaloneTaskWorkflow` class, which is the primary interface for interacting with the task (i.e. [running](./run-with-results.mdx), [enqueuing](./enqueue-runs.mdx), [scheduling](./scheduled-runs.mdx), etc).
+The returned object is an instance of the `Task` class, which is the primary interface for interacting with the task (i.e. [running](./run-with-results.mdx), [enqueuing](./enqueue-runs.mdx), [scheduling](./scheduled-runs.mdx), etc).
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -45,7 +45,7 @@ hatchet = Hatchet(debug=True)
 class SimpleInput(BaseModel):
     message: str
 
-@hatchet.task(name="SimpleWorkflow")
+@hatchet.task(name="SimpleTask", input_validator=SimpleInput)
 def simple(input: SimpleInput, ctx: Context) -> dict[str, str]:
     return {
       "transformed_message": input.message.lower(),

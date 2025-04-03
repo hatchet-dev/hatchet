@@ -334,7 +334,7 @@ export function ScheduledRunsTable({
         }}
       />
       <DataTable
-        emptyState={<>No workflow runs found with the given filters.</>}
+        emptyState={<>No runs found with the given filters.</>}
         error={workflowKeysError}
         isLoading={isLoading}
         columns={columns({

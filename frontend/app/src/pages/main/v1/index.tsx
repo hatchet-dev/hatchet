@@ -116,8 +116,8 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             <SidebarButtonPrimary
               key={1}
               onNavLinkClick={onNavLinkClick}
-              to="/v1/workflow-runs"
-              name="Workflow Runs"
+              to="/v1/runs"
+              name="Runs"
               icon={<PlayIcon className="mr-2 h-4 w-4" />}
             />
           </div>
@@ -157,8 +157,8 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/v1/workflows"
-                name="Workflows"
+                to="/v1/tasks"
+                name="Tasks & Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary

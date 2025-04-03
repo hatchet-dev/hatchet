@@ -49,7 +49,7 @@ export default function Webhooks() {
           </Button>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
-          Assign workflow runs to a HTTP endpoint.{' '}
+          Assign task runs to a HTTP endpoint.{' '}
           <a
             className="underline"
             target="_blank"
@@ -76,7 +76,7 @@ export default function Webhooks() {
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
-                            aria-label="Workflow Actions"
+                            aria-label="Registered Tasks"
                             size="icon"
                             variant="ghost"
                           >

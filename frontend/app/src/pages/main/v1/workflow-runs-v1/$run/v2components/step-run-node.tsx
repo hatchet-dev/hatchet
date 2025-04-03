@@ -80,7 +80,7 @@ export default memo(({ data }: { data: NodeData }) => {
       {data.childWorkflowsCount && data.taskRun ? (
         <Link
           to={{
-            pathname: '/v1/workflow-runs',
+            pathname: '/v1/runs',
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
               [queryParamNames.parentTaskExternalId]: data.taskRun.metadata.id,

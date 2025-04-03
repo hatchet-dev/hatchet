@@ -37,9 +37,7 @@ export const V1RunDetailHeader = () => {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink href="/v1/workflow-runs">
-              Workflow Runs
-            </BreadcrumbLink>
+            <BreadcrumbLink href="/v1/runs">Runs</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>

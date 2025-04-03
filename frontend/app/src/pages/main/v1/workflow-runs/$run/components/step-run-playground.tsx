@@ -406,7 +406,7 @@ export function StepRunPlayground({
         stepRun.childWorkflowRuns.length > 0 && (
           <div className="flex flex-col gap-4 mt-4">
             <div className="text-lg font-semibold tracking-tight mb-4">
-              Child Workflow Runs
+              Child Runs
             </div>
             <ChildWorkflowRuns
               refetchInterval={workflowRun.status === 'RUNNING' ? 1000 : 5000}

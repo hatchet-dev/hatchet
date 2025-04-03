@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 ## Hatchet Go V1 Migration Guide
 
-This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK. Note that the v1 engine will continue to support v0 workflows until September 30th, 2025.
+This guide will help you migrate from the V0 SDK to the V1 SDK. Note that the v1 engine will continue to support v0 tasks until September 30th, 2025.
 
 The v1 Go SDK can be found in `github.com/hatchet-dev/hatchet/pkg/v1`. You can instantiate a new Hatchet client via:
 
@@ -22,11 +22,11 @@ func main() {
 
 ## Declaring Tasks and Workflows
 
-In the new SDKs, tasks and workflows use Go generics to make typing easier. As a result, there are a number of improvements made to the context methods and the way tasks are defined.
+In the new SDKs, tasks use Go generics to make typing easier. As a result, there are a number of improvements made to the context methods and the way tasks are defined.
 
-### Single-Task Workflows
+### Single Function Tasks
 
-Single tasks are much easier to define than before using the `factory` package in the V1 SDK. Here's an example of how to define a simple workflow with the V1 SDK:
+Single function tasks are much easier to define than before using the `factory` package in the V1 SDK. Here's an example of how to define a simple task with the V1 SDK:
 
 ```go
 import "github.com/hatchet-dev/hatchet/pkg/v1/factory"
@@ -121,24 +121,24 @@ return simple
   workflow from `factory.NewWorkflow` will need to return a `interface{}` type.
 </Callout>
 
-### Workflow and Task Configuration
+### Task Configuration
 
-In the V1 SDK, workflows and tasks are configured using the `create` package. The `create` package provides a number of options for configuring tasks and workflows, such as setting the task name, setting the task's parent tasks, and setting the task's wait conditions:
+In the V1 SDK, tasks are configured using the `create` package. The `create` package provides a number of options for configuring tasks, such as setting the task name, setting the task's parent tasks, and setting the task's wait conditions:
 
 ```go
 // import the create package
 import "github.com/hatchet-dev/hatchet/pkg/client/create"
 
-// utilize the following structs to configure tasks and workflows
+// utilize the following structs to configure tasks
 
 type WorkflowTask[I, O any] struct {
-	// (required) The name of the task and workflow
+	// (required) The name of the task
 	Name string
 
-	// (optional) The version of the workflow
+	// (optional) The version of the task
 	Version string
 
-	// (optional) The human-readable description of the workflow
+	// (optional) The human-readable description of the task
 	Description string
 
 	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
@@ -179,10 +179,10 @@ type WorkflowTask[I, O any] struct {
 }
 
 type WorkflowOnFailureTask[I, O any] struct {
-	// (optional) The version of the workflow
+	// (optional) The version of the task
 	Version string
 
-	// (optional) The human-readable description of the workflow
+	// (optional) The human-readable description of the task
 	Description string
 
 	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated
@@ -211,16 +211,14 @@ type WorkflowOnFailureTask[I, O any] struct {
 }
 
 // TaskCreateOpts defines options for creating a standalone task.
-// This combines both workflow and task properties in a single type.
 type StandaloneTask struct {
-
-	// (required) The name of the task and workflow
+	// (required) The name of the task
 	Name string
 
-	// (optional) The version of the workflow
+	// (optional) The version of the task
 	Version string
 
-	// (optional) The human-readable description of the workflow
+	// (optional) The human-readable description of the task
 	Description string
 
 	// (optional) ExecutionTimeout specifies the maximum duration a task can run before being terminated

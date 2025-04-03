@@ -9,7 +9,7 @@ export default {
   "compute": {
     "title": "Managed Compute",
     "type": "page",
-    "href": "/compute",
+    "href": "/home/compute",
     "index": "Overview",
     "getting-started": "Getting Started",
     "cpu": "CPU Machine Types",

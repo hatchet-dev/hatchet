@@ -376,6 +376,14 @@ export class HatchetClient implements IHatchetClient {
     return this._workflows;
   }
 
+  /**
+   * Get the tasks client for creating and managing tasks
+   * @returns A tasks client instance
+   */
+  get tasks() {
+    return this.workflows;
+  }
+
   private _workers: WorkersClient | undefined;
 
   /**

@@ -51,11 +51,6 @@ export const simple = hatchet.workflow<DagInput, DagOutput>({
 });
 ```
 
-<Callout variant="info">
-  Declaring input and output types are optional, but recommended. When
-  declaring output types, the keys of the object will be the names of the
-  tasks in the workflow where the output will be returned.
-</Callout>
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
@@ -63,6 +58,12 @@ export const simple = hatchet.workflow<DagInput, DagOutput>({
 
 </Tabs.Tab>
 </UniversalTabs>
+
+<Callout variant="info">
+  The Workflow return object can be interacted with in the same way as a
+  [task](./your-first-task.mdx), however, it can only take a subset of options
+  which are applied at the task level.
+</Callout>
 
 ## Defining a Task
 

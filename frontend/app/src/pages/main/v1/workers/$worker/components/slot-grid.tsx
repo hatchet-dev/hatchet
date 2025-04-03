@@ -46,7 +46,7 @@ const WorkerSlotGrid: React.FC<WorkerSlotGridProps> = ({ slots = [] }) => {
               {slot.status ? (
                 <>
                   <div>
-                    <Link to={'/v1/workflow-runs/' + slot.workflowRunId}>
+                    <Link to={'/v1/runs/' + slot.workflowRunId}>
                       <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
                         {slot.actionId}:{slot.workflowRunId?.split('-')[0]}
                       </div>

@@ -40,7 +40,7 @@ func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 	for _, stepRunResult := range r.workflowRun.Results {
 		if stepRunResult.StepReadableId == key {
 			if stepRunResult.Error != nil {
-				return fmt.Errorf("step run failed: %s", *stepRunResult.Error)
+				return fmt.Errorf("%s", *stepRunResult.Error)
 			}
 
 			if stepRunResult.Output != nil {

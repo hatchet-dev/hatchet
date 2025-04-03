@@ -1,0 +1,118 @@
+import { Callout, Tabs } from "nextra/components";
+
+# Environment Variables
+
+Environment variables allow you to configure your worker's runtime behavior without modifying code. This guide explains how to manage environment variables for your Hatchet workers.
+
+## Overview
+
+Environment variables in Hatchet Compute:
+
+- Are securely stored and encrypted at rest
+- Can be modified without rebuilding your container
+- Support different values across environments
+- Are injected into your worker containers at runtime
+
+## Configuring Environment Variables
+
+You can configure environment variables through:
+
+1. The Hatchet UI during service creation/configuration
+2. Infrastructure as Code using the Hatchet CLI
+3. Service configuration files
+
+### Using the UI
+
+1. Navigate to your service's "Runtime configuration" section
+2. Find the "Environment Variables" panel
+3. Click "Add row" to create a new variable
+4. Enter the key and value:
+   - Key: The environment variable name (e.g., `DATABASE_URL`)
+   - Value: The environment variable value (e.g., `postgresql://<password>@<host>:<port>/<database>`)
+5. Click "Save" to apply the changes and trigger a redeployment of your service
+
+## Best Practices
+
+1. **Security**
+
+   - Never commit sensitive values to version control
+   - Use Hatchet's secrets management for sensitive data
+   - Rotate sensitive values regularly
+
+2. **Naming Conventions**
+
+   - Use descriptive, meaningful names
+   - Follow a consistent naming pattern
+   - Document non-obvious variables
+
+3. **Value Management**
+
+   - Use appropriate data types
+   - Validate values before deployment
+   - Keep values consistent across related services
+
+4. **Common Variables**
+   ```
+   # Examples of commonly used variables
+   NODE_ENV=production
+   LOG_LEVEL=info
+   API_TIMEOUT=30000
+   DATABASE_URL=postgresql://user:pass@host:5432/db
+   ```
+
+<Callout type="info">
+  `HATCHET_CLIENT_TOKEN` is automatically set for your service and should not be
+  set in your environment variables.
+</Callout>
+
+## Accessing Variables in Code
+
+Environment variables are mounted into your worker containers at runtime. You can access them in your code using standard methods for your language.
+
+<Tabs items={['Python', 'JavaScript', 'Go']}>
+  <Tabs.Tab>
+    ```python
+    import os
+
+    database_url = os.getenv('DATABASE_URL')
+    api_key = os.getenv('API_KEY')
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```javascript
+    const databaseUrl = process.env.DATABASE_URL;
+    const apiKey = process.env.API_KEY;
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```go
+    import "os"
+
+    databaseUrl := os.Getenv("DATABASE_URL")
+    apiKey := os.Getenv("API_KEY")
+    ```
+
+  </Tabs.Tab>
+</Tabs>
+
+## Troubleshooting
+
+1. **Variables Not Available**
+
+   - Verify the variable is correctly set in your configuration
+   - Check for typos in variable names
+   - Ensure the service has been redeployed after changes
+
+2. **Incorrect Values**
+
+   - Check for proper escaping of special characters
+   - Verify the value format is correct
+   - Look for conflicting definitions
+
+3. **Security Issues**
+   - Review access permissions to sensitive variables
+   - Ensure secrets are properly managed
+   - Check for accidental exposure in logs
+
+For additional help, join the [Hatchet Community](https://hatchet.run/discord) or reach out to us [here](https://hatchet.run/office-hours).

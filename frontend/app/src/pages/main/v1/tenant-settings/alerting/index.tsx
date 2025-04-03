@@ -38,7 +38,7 @@ export default function Alerting() {
           Alerting
         </h2>
         <p className="text-gray-700 dark:text-gray-300 my-4">
-          Manage alerts to get notified on workflow failure.
+          Manage alerts to get notified on task failure.
         </p>
         <Separator className="my-4" />
         <AlertingSettings />

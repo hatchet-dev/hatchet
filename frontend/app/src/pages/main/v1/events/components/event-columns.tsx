@@ -110,9 +110,9 @@ export const columns = ({
       },
     },
     {
-      accessorKey: 'Workflow Runs',
+      accessorKey: 'Runs',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Workflow Runs" />
+        <DataTableColumnHeader column={column} title="Runs" />
       ),
       cell: ({ row }) => {
         if (!row.original.workflowRunSummary) {

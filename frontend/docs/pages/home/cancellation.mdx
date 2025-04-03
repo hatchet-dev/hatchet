@@ -16,11 +16,11 @@ export const CancelGo = {
 export const getStaticProps = ({}) =>
   getSnippets([CancelPy, CancelTs, CancelGo]);
 
-# Cancellation in Hatchet Workflows
+# Cancellation in Hatchet Tasks
 
-Hatchet provides a mechanism for canceling workflow executions gracefully, allowing you to stop running workflows and their associated tasks when needed. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency.mdx#cancel_in_progress), which cancels currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
+Hatchet provides a mechanism for canceling task executions gracefully, allowing you to signal to running tasks that they should stop running. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency.mdx#cancel_in_progress), which cancels currently running task instances to free up slots for new instances when the concurrency limit is reached.
 
-When a workflow is canceled, Hatchet sends a cancellation signal to all the currently executing tasks. The tasks can then check for the cancellation signal and take appropriate action, such as cleaning up resources, aborting network requests, or gracefully terminating their execution.
+When a task is canceled, Hatchet sends a cancellation signal to the task. The task can then check for the cancellation signal and take appropriate action, such as cleaning up resources, aborting network requests, or gracefully terminating their execution.
 
 ## Cancellation Mechanisms
 
@@ -55,7 +55,7 @@ While your task is running, you can manage cancellation by:
 
 <Tabs.Tab>
 
-Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each task in a workflow has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the task and any asynchronous operations it may be performing.
+Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each task has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the task and any asynchronous operations it may be performing.
 
 Inside a task, you can check for cancellation by accessing the `cancelled` property of the `Context`, which is a boolean value indicating whether the task has been cancelled or not. For example:
 
@@ -89,7 +89,7 @@ Here's an example of how to check for cancellation in a task:
 
 ## Cancellation Best Practices
 
-When working with cancellation in Hatchet workflows, consider the following best practices:
+When working with cancellation in Hatchet tasks, consider the following best practices:
 
 1. **Graceful Termination**: When a task receives a cancellation signal, aim to terminate its execution gracefully. Clean up any resources, abort pending operations, and perform any necessary cleanup tasks before returning from the task function.
 
@@ -99,7 +99,7 @@ When working with cancellation in Hatchet workflows, consider the following best
 
 4. **Error Handling**: Handle cancellation errors appropriately. Distinguish between cancellation errors and other types of errors to provide meaningful error messages and take appropriate actions.
 
-5. **Cancellation Propagation**: If a task invokes other functions or libraries, consider propagating the cancellation signal to those dependencies. This ensures that cancellation is handled consistently throughout the workflow.
+5. **Cancellation Propagation**: If a task invokes other functions or libraries, consider propagating the cancellation signal to those dependencies. This ensures that cancellation is handled consistently throughout the task.
 
 ## Additional Features
 
@@ -107,6 +107,6 @@ In addition to the methods of cancellation listed here, Hatchet also supports [b
 
 ## Conclusion
 
-Cancellation is a powerful feature in Hatchet that allows you to gracefully stop workflow executions when needed. Remember to follow best practices when implementing cancellation in your workflows, such as graceful termination, regular cancellation checks, handling asynchronous operations, proper error handling, and cancellation propagation.
+Cancellation is a powerful feature in Hatchet that allows you to gracefully stop task executions when needed. Remember to follow best practices when implementing cancellation in your tasks, such as graceful termination, regular cancellation checks, handling asynchronous operations, proper error handling, and cancellation propagation.
 
-By incorporating cancellation into your Hatchet workflows, you can build more resilient and responsive systems that can adapt to changing circumstances and user needs.
+By incorporating cancellation into your Hatchet tasks and workflows, you can build more resilient and responsive systems that can adapt to changing circumstances and user needs.

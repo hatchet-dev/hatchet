@@ -1,36 +1,11 @@
 import { Tabs, Callout } from "nextra/components";
-import UniversalTabs from "../../components/UniversalTabs";
+import UniversalTabs from "../../../components/UniversalTabs";
 
 # CPU Instance Configuration
-
-<Callout type="warning">
-  This feature is currently in beta and may be subject to change.
-</Callout>
 
 ## Overview
 
 The Hatchet SDK provides a `Compute` class that allows you to define and manage compute resources for your workflows. Each step in your workflow can have its own compute configuration, enabling fine-grained control over resource allocation.
-
-## Basic Configuration
-
-<UniversalTabs items={['Python', 'TypeScript', 'Go']}>
-  <Tabs.Tab>
-
-```python
-from hatchet_sdk.compute.configs import Compute
-
-compute = Compute(
-cpu_kind="shared", # "shared" or "performance"
-cpus=2, # Number of CPU cores
-memory_mb=1024, # Memory in MB
-num_replicas=2, # Number of instances
-regions=["ewr"] # Region codes
-)
-
-```
-
-  </Tabs.Tab>
-</UniversalTabs>
 
 ## CPU Types and Memory Scaling
 
@@ -45,40 +20,6 @@ regions=["ewr"] # Region codes
 - **Memory Ratio**: 8GB per CPU core
 - **Minimum Memory**: 2048MB per CPU core
 - **Use Case**: Production and compute-intensive workloads
-
-### Memory Calculation Examples
-
-#### Shared CPU
-
-```python
-# 4 shared CPUs
-max_memory = 2048 * 4  # = 8192 MB (8GB)
-min_memory = 256 * 4   # = 1024 MB (1GB)
-
-compute = Compute(
-    cpu_kind="shared",
-    cpus=4,
-    memory_mb=4096,    # Must be between min_memory and max_memory
-    num_replicas=1,
-    regions=["ewr"]
-)
-```
-
-#### Performance CPU
-
-```python
-# 4 performance CPUs
-max_memory = 8192 * 4  # = 32768 MB (32GB)
-min_memory = 2048 * 4  # = 8192 MB (8GB)
-
-compute = Compute(
-    cpu_kind="performance",
-    cpus=4,
-    memory_mb=16384,   # Must be between min_memory and max_memory
-    num_replicas=1,
-    regions=["ewr"]
-)
-```
 
 ## Available Regions
 
@@ -122,43 +63,6 @@ compute = Compute(
 ## Replica Configuration
 
 The `num_replicas` parameter determines the total number of machines that will run your workload. These instances are randomly distributed across the specified regions.
-
-### Example Configurations
-
-```python
-# Single region, multiple replicas
-compute = Compute(
-    cpu_kind="shared",
-    cpus=2,
-    memory_mb=1024,
-    num_replicas=3,
-    regions=["ewr"]    # All 3 replicas in ewr
-)
-
-# Multiple regions, multiple replicas
-compute = Compute(
-    cpu_kind="shared",
-    cpus=2,
-    memory_mb=1024,
-    num_replicas=6,
-    regions=["ewr", "lax", "lhr"]    # 6 replicas randomly distributed across the three regions
-)
-```
-
-## Usage in Workflows
-
-```python
-from hatchet_sdk import Hatchet, Context
-
-hatchet = Hatchet()
-
-@hatchet.workflow()
-class MyWorkflow:
-    @hatchet.step(compute=compute)
-    def process_data(self, context: Context):
-        # Your code here
-        pass
-```
 
 ## Best Practices
 

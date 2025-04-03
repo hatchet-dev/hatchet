@@ -153,12 +153,12 @@ export default function DemoTemplate() {
         }
       }, 1000);
     } catch (error) {
-      console.error('Failed to trigger workflow:', error);
+      console.error('Failed to trigger run:', error);
       setTriggering(false);
     }
   };
 
-  // Automatically trigger workflow runs when success step is opened
+  // Automatically trigger task runs when success step is opened
   useEffect(() => {
     if (successStepOpen && workflowId && !allRunsTriggered) {
       const triggerRuns = async () => {
@@ -314,7 +314,7 @@ print(result)
 import (
 	"fmt"
 
-	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/tasks"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/joho/godotenv"
@@ -876,22 +876,20 @@ func main() {
                         •
                       </span>
                       <span>
-                        Three demo workflow runs have been triggered for you
+                        Three demo task runs have been triggered for you
                       </span>
                     </li>
                     <li className="flex items-start">
                       <span className="text-primary mr-2 flex items-center mt-0.5">
                         •
                       </span>
-                      <span>
-                        Use the API to trigger additional workflow runs
-                      </span>
+                      <span>Use the API to trigger additional task runs</span>
                     </li>
                     <li className="flex items-start">
                       <span className="text-primary mr-2 flex items-center mt-0.5">
                         •
                       </span>
-                      <span>Monitor workflow runs in the dashboard</span>
+                      <span>Monitor task runs in the dashboard</span>
                     </li>
                   </ul>
 
@@ -906,14 +904,14 @@ func main() {
 
                   {/* Secondary action buttons */}
                   <div className="grid grid-cols-2 gap-3">
-                    <Link to="/v1/workflow-runs">
+                    <Link to="/v1/runs">
                       <Button variant="outline" className="w-full">
-                        View Workflow Runs
+                        View Runs
                       </Button>
                     </Link>
-                    <Link to="/v1/workflows">
+                    <Link to="/v1/tasks">
                       <Button variant="outline" className="w-full">
-                        View Workflows
+                        View RegisteredTasks
                       </Button>
                     </Link>
                   </div>

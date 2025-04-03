@@ -161,7 +161,7 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   return (
     <div className="flex flex-col gap-y-4">
       <p className="text-md">
-        Confirm to {label.toLowerCase()} the following workflow runs:
+        Confirm to {label.toLowerCase()} the following runs:
       </p>
       <ul className="list-disc pl-4 ml-4">
         {displayNames?.slice(0, 10).map((record) => (
@@ -199,8 +199,8 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
     return (
       <div className="gap-y-4 flex flex-col">
         <p className="text-md">
-          Confirm to {label.toLowerCase()} all workflow runs matching the
-          following filters:
+          Confirm to {label.toLowerCase()} all runs matching the following
+          filters:
         </p>
         <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4">
           {statusToolbarFilter && (
@@ -325,7 +325,7 @@ const ConfirmActionModal = ({
       <DialogContent className="sm:max-w-[800px] py-12 max-h-screen overflow-auto">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
-            <DialogTitle>{label} workflow runs</DialogTitle>
+            <DialogTitle>{label} runs</DialogTitle>
           </div>
         </DialogHeader>
 

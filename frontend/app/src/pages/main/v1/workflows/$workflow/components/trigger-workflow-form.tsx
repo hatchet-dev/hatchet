@@ -17,8 +17,6 @@ import { Button } from '@/components/v1/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PlusIcon } from '@heroicons/react/24/outline';
-import { cn } from '@/lib/utils';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
@@ -86,6 +84,7 @@ export function TriggerWorkflowForm({
 
   const { data: workflowKeys, isFetched } = useQuery({
     ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
+    refetchInterval: 15000,
   });
 
   const workflow = useMemo(() => {
@@ -127,7 +126,7 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      navigate(`/v1/workflow-runs/${workflowRun.run.metadata.id}`);
+      navigate(`/v1/runs/${workflowRun.run.metadata.id}`);
     },
     onError: handleApiError,
   });
@@ -277,18 +276,18 @@ export function TriggerWorkflowForm({
     >
       <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
         <DialogHeader className="gap-2">
-          <DialogTitle>Trigger Workflow</DialogTitle>
+          <DialogTitle>Trigger Run</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Trigger a workflow to run now, at a scheduled time, or on a cron
-            schedule.
+            Trigger a task or workflow to run now, at a scheduled time, or on a
+            cron schedule.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="font-bold">Workflow</div>
+        <div className="font-bold">Task or Workflow</div>
         <Combobox
           values={selectedWorkflowId ? [selectedWorkflowId] : []}
           setValues={(values) => setSelectedWorkflowId(values[0])}
-          title="Select Workflow"
+          title="Select Task or Workflow"
           options={workflowKeys?.rows?.map((w) => ({
             value: w.metadata.id,
             label: w.name,
@@ -428,27 +427,19 @@ export function TriggerWorkflowForm({
           </Tabs>
         </div>
 
-        <Button
-          className="w-fit mt-6"
-          disabled={
-            triggerNowMutation.isPending ||
-            triggerScheduleMutation.isPending ||
-            triggerCronMutation.isPending
-          }
-          onClick={handleSubmit}
-        >
-          <PlusIcon
-            className={cn(
+        <div className="flex justify-end">
+          <Button
+            className="w-fit mt-6"
+            disabled={
               triggerNowMutation.isPending ||
-                triggerScheduleMutation.isPending ||
-                triggerCronMutation.isPending
-                ? 'rotate-180'
-                : '',
-              'h-4 w-4 mr-2',
-            )}
-          />
-          Trigger workflow
-        </Button>
+              triggerScheduleMutation.isPending ||
+              triggerCronMutation.isPending
+            }
+            onClick={handleSubmit}
+          >
+            Run Task
+          </Button>
+        </div>
         {(errors.length > 0 ||
           triggerNowMutation.error ||
           triggerScheduleMutation.error ||

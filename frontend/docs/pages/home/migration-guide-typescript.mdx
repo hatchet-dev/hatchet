@@ -23,11 +23,11 @@ This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK
 
 #### Introductory Example
 
-First, we've exposed a new `hatchet.task` method in the V1 SDK for single-task workflows.
+First, we've exposed a new `hatchet.task` method in the V1 SDK for single function tasks.
 
 <GithubSnippet src={SimpleWorker} target="Declaring a Task" />
 
-Dags are still defined as workflows, but they can now be declared using the `hatchet.workflow` method.
+DAGs are still defined as workflows, but they can now be declared using the `hatchet.workflow` method.
 
 <GithubSnippet src={DagsWorker} target="Declaring a DAG Workflow" />
 
@@ -37,21 +37,21 @@ You can now run work for tasks and workflows by directly interacting with the re
 
 There are a few important things to note when migrating to the new SDK:
 
-1. The new SDK uses a factory pattern (shown above) for creating workflows and declaring their tasks, which we've found to be more ergonomic than the previous SDK.
-2. The old method of defining workflows will still work in the new SDK, but we recommend migrating over to the new method shown above for improved type checking and for access to new features.
-3. New features of the SDK, such as the new durable execution features rolled out in V1, will only be accessible from the new `WorkflowDeclaration` object in the new SDK.
+1. The new SDK uses a factory pattern (shown above) for creating tasks and workflows, which we've found to be more ergonomic than the previous SDK.
+2. The old method of defining tasks will still work in the new SDK, but we recommend migrating over to the new method shown above for improved type checking and for access to new features.
+3. New features of the SDK, such as the new durable execution features rolled out in V1, will only be accessible from the new `TaskDeclaration` object in the new SDK.
 
-Since the old pattern for declaring workflows will still work in the new SDK, we recommend migrating existing workflows to the new patterns in V1 gradually.
+Since the old pattern for declaring tasks will still work in the new SDK, we recommend migrating existing tasks to the new patterns in V1 gradually.
 
 #### Fanout Example
 
-The new SDK also provides improved type support for spawning workflows (such as children) from around the codebase. Consider the following example:
+The new SDK also provides improved type support for spawning child tasks from around the codebase. Consider the following example:
 
-First, we declare a child workflow:
+First, we declare a child task:
 
 <GithubSnippet src={FanoutWorker} target="Declaring a Child" />
 
-Next, we spawn that child from a parent workflow:
+Next, we spawn that child from a parent task:
 
 <GithubSnippet src={FanoutWorker} target="Declaring a Parent" />
 
