@@ -56,7 +56,7 @@ const nextConfig = {
         permanent: false,
       },
       {
-        source: "/home/features/concurrency/*",
+        source: "/home/features/concurrency/:path*",
         destination: "/home/concurrency",
         permanent: false,
       },
@@ -66,7 +66,7 @@ const nextConfig = {
         permanent: false,
       },
       {
-        source: "/home/features/retries/*",
+        source: "/home/features/retries/:path*",
         destination: "/home/retry-policies",
         permanent: false,
       },
