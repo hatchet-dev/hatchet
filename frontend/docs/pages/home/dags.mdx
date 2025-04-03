@@ -16,7 +16,7 @@ Hatchet workflows are designed in a **Directed Acyclic Graph (DAG)** format, whe
 
 Start by declaring a workflow with a name. The workflow object can declare additional workflow-level configuration options which we'll cover later.
 
-The returned object is an instance of the `Workflow` class, which is the primary interface for interacting with the workflow (i.e. [running](./run-with-results.mdx), [enqueuing](./enqueue-runs.mdx), [scheduling](./scheduled-runs.mdx), etc).
+The returned object is an instance of the `Workflow` class, which is the primary interface for interacting with the workflow (i.e. [running](./run-with-results.mdx), [enqueuing](./run-no-wait.mdx), [scheduling](./scheduled-runs.mdx), etc).
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
