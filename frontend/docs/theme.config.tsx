@@ -9,7 +9,7 @@ const config = {
   head: () => {
     const { title } = useConfig()
 
-    const fallbackTitle = "Hatchet Docs"
+    const fallbackTitle = "Hatchet Documentation"
 
     return (
       <>
