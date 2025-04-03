@@ -7,9 +7,13 @@ const config = {
     <Image src="/hatchet_logo.png" alt="Hatchet logo" width={120} height={35} />
   ),
   head: () => {
+    const { title } = useConfig()
+
+    const fallbackTitle = "Hatchet Docs"
+
     return (
       <>
-        <title>Hatchet Docs</title>
+        <title>{title ? `${title} - ${fallbackTitle}` : fallbackTitle}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="icon" type="image/png" href="/favicon.ico" />
       </>
