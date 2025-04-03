@@ -969,7 +969,7 @@ SELECT
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
-    wv."defaultPriority" AS "defaultPriority",
+    COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount"
 FROM
@@ -1017,7 +1017,7 @@ type ListStepsByIdsRow struct {
 	WorkflowVersionSticky NullStickyStrategy `json:"workflowVersionSticky"`
 	WorkflowName          string             `json:"workflowName"`
 	WorkflowId            pgtype.UUID        `json:"workflowId"`
-	DefaultPriority       pgtype.Int4        `json:"defaultPriority"`
+	DefaultPriority       int32              `json:"defaultPriority"`
 	ExprCount             int64              `json:"exprCount"`
 	ConcurrencyCount      int64              `json:"concurrencyCount"`
 }
