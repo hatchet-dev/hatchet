@@ -4,7 +4,7 @@ import { AxiosError, isAxiosError } from 'axios';
 import { useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 
-function isTerminalState(status: V1TaskStatus | undefined) {
+export function isTerminalState(status: V1TaskStatus | undefined) {
   if (!status) {
     return false;
   }

@@ -24,6 +24,7 @@ import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { StepRunLogs } from './step-run-logs';
+import { isTerminalState } from '../../../hooks/workflow-details';
 
 export enum TabOption {
   Output = 'output',
@@ -86,7 +87,15 @@ export const TaskRunDetail = ({
 
   const taskRunQuery = useQuery({
     ...queries.v1Tasks.get(taskRunId),
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+
+      if (isTerminalState(status)) {
+        return 5000;
+      }
+
+      return 1000;
+    },
   });
 
   const taskRun = taskRunQuery.data;
