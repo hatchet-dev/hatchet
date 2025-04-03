@@ -36,7 +36,7 @@ Hatchet is a platform for running background tasks, built on top of Postgres. In
 
 Background tasks are critical for offloading work from your main web application. Usually background tasks are sent through a FIFO (first-in-first-out) queue, which helps guard against traffic spikes (queues can absorb a lot of load) and ensures that tasks are retried when your task handlers error out. Most stacks begin with a library-based queue backed by Redis or RabbitMQ (like Celery or BullMQ). But as your tasks become more complex, these queues become difficult to debug, monitor and start to fail in unexpected ways.
 
-This is where Hatchet comes in. Hatchet is a full-featured background task management platform, with built-in support for chaining complex tasks together into workflows, alerting on failures, and building complex workflows which would otherwise take months of engineering effort.
+This is where Hatchet comes in. Hatchet is a full-featured background task management platform, with built-in support for chaining complex tasks together into workflows, alerting on failures, making tasks more durable, and viewing tasks in a real-time web dashboard.
 
 ### Features
 
@@ -730,7 +730,7 @@ Most AI frameworks are built to run in-memory, with horizontal scaling and durab
 
 ### Issues
 
-Please submit any bugs that you encounter via Github issues. However, please reach out on [Discord](https://hatchet.run/discord) before submitting a feature request - as the project is very early, we'd like to build a solid foundation before adding more complex features.
+Please submit any bugs that you encounter via Github issues.
 
 ### I'd Like to Contribute
 

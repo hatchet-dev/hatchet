@@ -1,0 +1,19 @@
+## Durable Execution Best Practices
+
+Durable tasks require a bit of extra work to ensure that they are not misused. An important concept in running a durable task is that the task should be **deterministic**. This means that the task should always perform the same sequence of operations in between retries.
+
+The deterministic nature of durable tasks is what allows Hatchet to replay the task from the last checkpoint. If a task is not deterministic, it may produce different results on each retry, which can lead to unexpected behavior.
+
+## Maintaining Determinism
+
+By following a few simple rules, you can ensure that your durable tasks are deterministic:
+
+1. **Only call methods available on the `DurableContext`**: a very common way to introduce non-determinism is to call methods within your application code which produces side effects. If you need to call a method in your application code which fetches data from a database, calls any sort of i/o operation, or otherwise interacts with other systems, you should spawn those tasks as a **child task** or **child workflow** using `RunChild`.
+
+2. **When updating durable tasks, always guarantee backwards compatibility**: if you change the order of operations in a durable task, you may break determinism. For example, if you call `SleepFor` followed by `WaitFor`, and then change the order of those calls, Hatchet will not be able to replay the task correctly. This is because the task may have already been checkpointed at the first call to `SleepFor`, and if you change the order of operations, the checkpoint is meaningless.
+
+## Using DAGs instead of durable tasks
+
+[DAGs](./dags) are generally a much easier, more intuitive way to run a durable, deterministic workflow. DAGs are inherently deterministic, as their shape of work is predefined, and they cache intermediate results. If you are running simple workflows that can be represented as a DAG, you should use DAGs instead of durable tasks. DAGs also have conditional execution primitives which match the behavior of `SleepFor` and `WaitFor` in durable tasks.
+
+Durable tasks are useful if you need to run a workflow that is not easily represented as a DAG.

@@ -20,7 +20,7 @@ type DurableSleepOutput struct {
 }
 
 func DurableSleep(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DurableSleepInput, DurableSleepOutput] {
-	// ctx as first param of NewTask
+	// ❓ Durable Sleep
 	simple := factory.NewDurableTask(
 		create.StandaloneTask{
 			Name: "durable-sleep",
@@ -38,6 +38,7 @@ func DurableSleep(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Durable
 		},
 		hatchet,
 	)
+	// !!
 
 	return simple
 }

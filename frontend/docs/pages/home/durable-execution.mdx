@@ -21,9 +21,7 @@ This is especially useful in cases such as:
 
 ## How Hatchet Runs Durable Tasks
 
-When you register a durable task, Hatchet marks the entire task as durable. Then, when you start your worker, Hatchet will start a second worker in the background for running durable tasks.
-
-If you don't register any durable tasks, the durable worker will not be started. Similarly, if you start a worker with _only_ durable tasks, the "main" worker will not start, and _only_ the durable worker will run. The durable worker will show up as a second worker in the Hatchet Dashboard.
+When you register a durable task, Hatchet will start a second worker in the background for running durable tasks. If you don't register any durable workflows, the durable worker will not be started. Similarly, if you start a worker with _only_ durable workflows, the "main" worker will not start, and _only_ the durable worker will run. The durable worker will show up as a second worker in the Hatchet Dashboard.
 
 Tasks that are declared as being durable (using `durable_task` instead of `task`), will receive a `DurableContext` object instead of a normal `Context,` which extends the `Context` by providing some additional tools for working with durable execution features.
 
