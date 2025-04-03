@@ -92,7 +92,6 @@ export default {
   },
   "cancellation": {
     "title": "Cancellation",
-    "display": "hidden"
   },
   "--v1-migration-guides": {
     "title": "V1 Migration Guides",

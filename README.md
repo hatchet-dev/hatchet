@@ -30,15 +30,21 @@
 
 ### What is Hatchet?
 
-Hatchet is a platform for running background tasks, built on top of Postgres. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure -- the only required dependency is Postgres.
+Hatchet is a platform for running background tasks, built on top of Postgres. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure.
 
-It includes the following features:
+### When should I use Hatchet?
 
-<details><summary><strong>📥 Queues</strong></summary>
+Background tasks are critical for offloading work from your main web application. Usually background tasks are sent through a FIFO (first-in-first-out) queue, which helps guard against traffic spikes (queues can absorb a lot of load) and ensures that tasks are retried when your task handlers error out. Most stacks begin with a library-based queue backed by Redis or RabbitMQ (like Celery or BullMQ). But as your tasks become more complex, these queues become difficult to debug, monitor and start to fail in unexpected ways.
+
+This is where Hatchet comes in. Hatchet is a full-featured background task management platform, with built-in support for chaining complex tasks together into workflows, alerting on failures, and building complex workflows which would otherwise take months of engineering effort.
+
+### Features
+
+<details open><summary><strong>📥 Queues</strong></summary>
 
 ####
 
-Hatchet is a durable task queue, which means that we ingest your tasks and send them to your workers at a rate that your workers can handle. Hatchet will track the progress of your task and ensure that the work gets completed (or you get alerted), even if your application crashes.
+Hatchet is built on a durable task queue that enqueues your tasks and sends them to your workers at a rate that your workers can handle. Hatchet will track the progress of your task and ensure that the work gets completed (or you get alerted), even if your application crashes.
 
 **This is particularly useful for:**
 
@@ -664,47 +670,61 @@ The most up-to-date documentation can be found at https://docs.hatchet.run.
 - [Github Discussions](https://github.com/hatchet-dev/hatchet/discussions) - used for starting in-depth technical discussions that are suited for asynchronous communication
 - [Email](mailto:contact@hatchet.run) - best for getting Hatchet Cloud support and for help with billing, data deletion, etc.
 
-### SDKs
-
-If you encounter any issues while using the SDKs, please [submit an issue](https://github.com/hatchet-dev/hatchet/issues):
-
 ### Hatchet vs...
 
 <details>
 <summary>Hatchet vs Temporal</summary>
 
-Hatchet is designed to be a general-purpose task orchestration platform -- it can be used as a queue, a DAG-based orchestrator, a durable execution engine, or all three. As a result, Hatchet covers a wider array of use-cases, like multiple queueing strategies, rate limiting, DAG features like conditional triggering, streaming features, and much more.
+####
 
-Temporal is narrowly focused on the durable execution pattern, but supports a wider range of database backends and result stores, like Apache Cassandra, MySQL, PostgreSQL, and SQLite.
+Hatchet is designed to be a general-purpose task orchestration platform -- it can be used as a queue, a DAG-based orchestrator, a durable execution engine, or all three. As a result, Hatchet covers a wider array of use-cases, like multiple queueing strategies, rate limiting, DAG features, conditional triggering, streaming features, and much more.
 
-**When to use Hatchet:** when you'd like to get more control over the underlying queue, run DAG-based workflows, or want to simplify self-hosting by only running the Hatchet engine and Postgres.
+Temporal is narrowly focused on durable execution, and supports a wider range of database backends and result stores, like Apache Cassandra, MySQL, PostgreSQL, and SQLite.
+
+**When to use Hatchet:** when you'd like to get more control over the underlying queue logic, run DAG-based workflows, or want to simplify self-hosting by only running the Hatchet engine and Postgres.
 
 **When to use Temporal:** when you'd like to use a non-Postgres result store, or your only workload is best suited for durable execution.
 
 </details>
 
 <details>
+
 <summary>Hatchet vs Task Queues (BullMQ, Celery)</summary>
+
+####
 
 Hatchet is a durable task queue, meaning it persists the history of all executions (up to a retention period), which allows for easy monitoring + debugging and powers a bunch of the durability features above. This isn’t the standard behavior of Celery and BullMQ (and you need to rely on third-party UI tools which are extremely limited in functionality, like Celery Flower).
 
 **When to use Hatchet:** when you'd like results to be persisted and observable in a UI
 
-**When to use task queue library like BullMQ/Celery:** when you need very high throughput (>10k/s) without retention, or when you'd like to use a single library (instead of a standalone service) to interact with your queue
+**When to use task queue library like BullMQ/Celery:** when you need very high throughput (>10k/s) without retention, or when you'd like to use a single library (instead of a standalone service like Hatchet) to interact with your queue.
 
 </details>
 
 <details>
+
 <summary>Hatchet vs DAG-based platforms (Airflow, Prefect, Dagster)</summary>
 
-These tools are usually built with data engineers in mind, and aren’t meant to run from a high-volume application. They’re usually lower latency and higher cost, with their primary selling point being integrations with common datastores and connectors.
+####
+
+These tools are usually built with data engineers in mind, and aren’t designed to run as part of a high-volume application. They’re usually higher latency and higher cost, with their primary selling point being integrations with common datastores and connectors.
+
+**When to use Hatchet:** when you'd like to use a DAG-based framework, write your own integrations and functions, and require higher throughput (>100/s)
+
+**When to use other DAG-based platforms:** when you'd like to use other data stores and connectors that work out of the box
 
 </details>
 
 <details>
 <summary>Hatchet vs AI Frameworks</summary>
 
+####
+
 Most AI frameworks are built to run in-memory, with horizontal scaling and durability as an afterthought. While you can use an AI framework in conjunction with Hatchet, most of our users discard their AI framework and use Hatchet’s primitives to build their applications.
+
+**When to use Hatchet:** when you'd like full control over your underlying functions and LLM calls, or you require high availability and durability for your functions.
+
+**When to use an AI framework:** when you'd like to get started quickly with simple abstractions.
 
 </details>
 
@@ -714,4 +734,4 @@ Please submit any bugs that you encounter via Github issues. However, please rea
 
 ### I'd Like to Contribute
 
-See the contributing docs [here](https://docs.hatchet.run/contributing), and please let us know what you're interesting in working on in the #contributing channel on [Discord](https://hatchet.run/discord). This will help us shape the direction of the project and will make collaboration much easier!
+Please let us know what you're interesting in working on in the #contributing channel on [Discord](https://discord.gg/ZMeUafwH89). This will help us shape the direction of the project and will make collaboration much easier!

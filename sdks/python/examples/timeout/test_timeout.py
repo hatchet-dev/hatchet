@@ -4,7 +4,6 @@ from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from hatchet_sdk import Hatchet
 
 
-# requires scope module or higher for shared event loop
 @pytest.mark.asyncio()
 async def test_execution_timeout(hatchet: Hatchet) -> None:
     run = timeout_wf.run_no_wait()
