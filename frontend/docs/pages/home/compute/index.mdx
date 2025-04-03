@@ -10,24 +10,24 @@ Hatchet Managed Compute provides the simplicity of serverless while delivering t
 
 - **Sub-100ms Instance Provisioning**: Pre-warms instances before resource demands
 - **Distributed Architecture**: Built on [Hatchet Queue](../home/) for reliable workload distribution
-- **[Multi-Region Support](./cpu.mdx#available-regions)**: Deploy across regions for fault tolerance and data locality
-- **[Auto-Scaling](./auto-scaling.mdx)**: Automatically scale your compute resources based on workload demand
+- **[Multi-Region Support](./compute/cpu.mdx#available-regions)**: Deploy across regions for fault tolerance and data locality
+- **[Auto-Scaling](./compute/auto-scaling.mdx)**: Automatically scale your compute resources based on workload demand
 
 ### Available Compute Classes
 
-- [Shared CPUs](./cpu.mdx#shared-cpu)
-- [Performance CPUs](./cpu.mdx#performance-cpu)
-- [GPU instances](./gpu.mdx)
+- [Shared CPUs](./compute/cpu.mdx#shared-cpu)
+- [Performance CPUs](./compute/cpu.mdx#performance-cpu)
+- [GPU instances](./compute/gpu.mdx)
 
 ### Smart Workload Management
 
-- **State-Aware**: Routes tasks to instances with preloaded models/resources using [worker labels](../home/features/worker-assignment/worker-affinity.mdx)
+- **State-Aware**: Routes tasks to instances with preloaded models/resources using [worker labels](../worker-affinity.mdx)
 - **Burstable Capacity**: Scales dynamically based on queue depth
-- **Sticky Assignment**: Routes tasks to the same instance when possible using [sticky assignments](../home/features/worker-assignment/sticky-assignment.mdx)
+- **Sticky Assignment**: Routes tasks to the same instance when possible using [sticky assignments](../sticky-assignment.mdx)
 
 ## Deployment
 
-- **[GitOps Integration](./git-ops.mdx)**: Automatic builds and deployments on commit
+- **[GitOps Integration](./compute/git-ops.mdx)**: Automatic builds and deployments on commit
 - **Zero-Ops**: Managed infrastructure eliminates operational overhead
 - **Version Control**: Infrastructure changes tracked in code
 

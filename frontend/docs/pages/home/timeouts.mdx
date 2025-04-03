@@ -19,7 +19,7 @@ export const getStaticProps = ({}) =>
 
 # Timeouts in Hatchet
 
-Timeouts are an important concept in Hatchet that allow you to control how long a task is allowed to run before it is considered to have failed. This is useful for ensuring that your tasks don't run indefinitely and consume unnecessary resources. Timeouts in Hatchet are treated as failures and the task will be [retried](./retries.mdx) if specified.
+Timeouts are an important concept in Hatchet that allow you to control how long a task is allowed to run before it is considered to have failed. This is useful for ensuring that your tasks don't run indefinitely and consume unnecessary resources. Timeouts in Hatchet are treated as failures and the task will be [retried](./retry-policies.mdx) if specified.
 
 There are two types of timeouts in Hatchet:
 
