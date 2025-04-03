@@ -54,7 +54,7 @@ Typing improvements:
 3. All interactions with the `Task` and `Workflow` objects are now typed, so you know e.g. what the type of the input to the task needs to be at type checking time (we see this in the Pydantic example above).
 4. All external-facing types that are used for triggering tasks, scheduling tasks, etc. are now Pydantic objects, as opposed to being `TypedDict`s.
 5. The return type of each `Task` is restricted to a `JSONSerializableMapping` or a Pydantic model, to better align with what the Hatchet Engine expects.
-6. The `ClientConfig` now uses Pydantic Settings, and we've removed the static methods on the Client for `from_environment` and `from_config` in favor of passing configuration in correctly. See the [configuration example](./client.mdx) for more details.
+6. The `ClientConfig` now uses Pydantic Settings, and we've removed the static methods on the Client for `from_environment` and `from_config` in favor of passing configuration in correctly.
 7. The REST API wrappers, which previously were under `hatchet.rest`, have been completely overhauled.
 
 Naming changes:

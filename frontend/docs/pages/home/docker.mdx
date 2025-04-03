@@ -8,7 +8,7 @@ This guide explains how to create Dockerfiles for Hatchet applications. There ar
 
 Before creating your Dockerfile, understand that Hatchet workers require specific entry point configuration:
 
-1. The entry point must run code that runs the Hatchet worker. This can be done by calling the `worker.start()` method. [See the Python SDK docs for more information](./worker.mdx#starting-a-worker)
+1. The entry point must run code that runs the Hatchet worker. This can be done by calling the `worker.start()` method in your respective SDK.
 2. Proper environment variables must be set for Hatchet SDK
 3. The worker should be configured to handle your workflows using the `worker.register` method or by passing workflows into the worker constructor or factory.
 

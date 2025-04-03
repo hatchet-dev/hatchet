@@ -40,9 +40,9 @@ There are several reasons why you might want to use concurrency control in your 
 
 ### Available Strategies:
 
-- [`GROUP_ROUND_ROBIN`](./overview.mdx#group-round-robin): Distribute task instances across available slots in a round-robin fashion based on the `key` function.
-- [`CANCEL_IN_PROGRESS`](./overview.mdx#cancel-in-progress): Cancel the currently running task instances for the same concurrency key to free up slots for the new instance.
-- [`CANCEL_NEWEST`](./overview.mdx#cancel-newest): Cancel the newest task instance for the same concurrency key to free up slots for the new instance.
+- [`GROUP_ROUND_ROBIN`](#group-round-robin): Distribute task instances across available slots in a round-robin fashion based on the `key` function.
+- [`CANCEL_IN_PROGRESS`](#cancel-in-progress): Cancel the currently running task instances for the same concurrency key to free up slots for the new instance.
+- [`CANCEL_NEWEST`](#cancel-newest): Cancel the newest task instance for the same concurrency key to free up slots for the new instance.
 
 > We're always open to adding more strategies to fit your needs. Join our [discord](https://hatchet.run/discord) to let us know.
 
@@ -88,7 +88,7 @@ The `GROUP_ROUND_ROBIN` strategy is particularly useful in scenarios where:
 
 Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all use cases, especially those that require strict ordering or prioritization of the most recent events.
 
-## CANCEL_IN_PROGRESS
+## Cancel In Progress
 
 ### How it works
 
@@ -100,7 +100,7 @@ When a new task instance is triggered, the `CANCEL_IN_PROGRESS` strategy will:
 4. If there are no available slots, currently running task instances for the same concurrency key are cancelled to free up slots for the new instance.
 5. The new task instance starts executing immediately.
 
-### When to use `CANCEL_IN_PROGRESS`
+### When to use Cancel In Progress
 
 The `CANCEL_IN_PROGRESS` strategy is particularly useful in scenarios where:
 
@@ -109,7 +109,7 @@ The `CANCEL_IN_PROGRESS` strategy is particularly useful in scenarios where:
 - You have resource-intensive tasks where it's more efficient to cancel an in-progress instance and start a new one than to wait for the old instance to complete.
 - Your user UI allows for multiple inputs, but only the most recent is relevant (i.e. chat messages, form submissions, etc.).
 
-## CANCEL_NEWEST
+## Cancel Newest
 
 ### How it works
 
