@@ -1373,8 +1373,8 @@ events_to_lock AS (
     FROM
         v1_task_event e
     JOIN
-        distinct_events de 
-		ON e.task_id = de.task_id 
+        distinct_events de
+		ON e.task_id = de.task_id
 		AND e.task_inserted_at = de.task_inserted_at
     WHERE
         e.tenant_id = $4::uuid
