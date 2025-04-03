@@ -1,0 +1,159 @@
+import { Callout } from "nextra/components";
+
+# GitOps with Hatchet Compute
+
+Hatchet Compute uses GitOps principles to manage and deploy your services. This approach ensures that your infrastructure configuration is version controlled, reproducible, and follows best practices for continuous deployment.
+
+<Callout type="info">
+  GitHub accounts must have read access to a repository to configure worker
+  pools. Make sure your GitHub account has the necessary permissions before
+  proceeding.
+</Callout>
+
+## Overview
+
+GitOps in Hatchet Compute means that:
+
+- Your service configuration lives in your Git repository
+- Changes to your service are triggered by Git events
+- The deployed state always matches your Git repository's state
+- You have a complete audit trail of all service changes
+
+## Build Configuration
+
+### Repository Setup
+
+1. **Github Account**
+
+   - Select your GitHub account from the dropdown
+   - If your account isn't listed, click "Link a new repository" to connect your GitHub account
+   - Hatchet requires GitHub repository access to enable GitOps workflows
+
+2. **Github Repository**
+
+   - Choose the repository containing your service code
+   - The repository should contain your application code and Dockerfile(s)
+   - Ensure Hatchet has the necessary permissions to access your repository
+
+3. **Github Branch**
+   - Select the branch you want to deploy from
+   - This branch will be monitored for changes
+   - Any commits to this branch will trigger new deployments
+   - Note: You can configure Dev/Prod branches to deploy to different services with [namespaces or tenants](../environments.mdx)
+
+### Build Settings
+
+1. **Build Directory**
+
+   - Specify the directory containing your service code
+   - This is the root directory where your build will run
+   - Example: `.` for repository root, or `services/myservice` for a monorepo
+
+2. **Path to Dockerfile(s)**
+   - Provide the relative path to your Dockerfile
+   - Default: `./Dockerfile`
+   - The path is relative to your build directory
+   - You can maintain multiple Dockerfiles for different worker configurations:
+     ```
+     .
+     ├── Dockerfile.worker1        # For worker pool 1
+     ├── Dockerfile.worker2        # For worker pool 2
+     └── services/
+         └── special/
+             └── Dockerfile        # For specialized worker
+     ```
+
+## Docker Configuration
+
+Your Dockerfile needs to be properly configured to run Hatchet workers. See our [Docker configuration guide](../docker.mdx) for:
+
+- Language-specific Dockerfile examples (Python, JavaScript, Go)
+- Package manager configurations (pip, poetry, npm, yarn, pnpm)
+- Entry point configuration
+- Multi-stage build optimizations
+
+<Callout type="info">
+  When using multiple worker configurations in the same repository, you can
+  create separate Dockerfiles with different dependencies, environment
+  variables, and entry points for each worker pool.
+</Callout>
+
+## Best Practices
+
+1. **Example Repository Structure**
+
+   ```
+   .
+   ├── Dockerfile.worker1          # Primary worker configuration
+   ├── Dockerfile.worker2          # Secondary worker configuration
+   ├── .dockerignore
+   ├── src/
+   │   ├── worker1/               # Worker 1 specific code
+   │   │   └── worker.py
+   │   └── worker2/               # Worker 2 specific code
+   │       └── worker.py
+   └── hatchet.yaml               # Optional Hatchet configuration
+   ```
+
+2. **Dockerfile Guidelines**
+
+   - Use multi-stage builds to optimize image size
+   - Specify exact versions for base images
+   - Include only necessary files using `.dockerignore`
+   - Set appropriate user permissions
+   - Cache dependencies effectively
+
+3. **Branch Management**
+
+   - Use feature branches for development
+   - Set up branch protection rules
+   - Consider using environment-specific branches (e.g., `main` for production, `staging` for staging)
+
+4. **Security**
+   - Never commit secrets to your repository
+   - Use Hatchet's secrets management for sensitive data
+   - Regularly update dependencies
+   - Scan your containers for vulnerabilities
+
+## Continuous Deployment
+
+Hatchet automatically sets up a continuous deployment pipeline that:
+
+1. Monitors your selected branch for changes
+2. Triggers a new build when changes are detected
+3. Builds your Docker image using the specified Dockerfile
+4. Deploys the new image to your compute environment
+5. Updates your service with zero downtime
+
+## Monitoring Deployments
+
+You can monitor your deployments in the Hatchet UI:
+
+1. View build status and logs
+2. See deployment history
+3. Track service health metrics
+4. Monitor resource utilization
+
+## Troubleshooting
+
+Common issues and solutions:
+
+1. **Build Failures**
+
+   - Check your Dockerfile syntax
+   - Verify build context is correct
+   - Ensure all required files are included
+   - Review build logs in the Hatchet UI
+
+2. **Permission Issues**
+
+   - Verify GitHub repository access for Hatchet users who need to manage configuration
+   - Ensure correct branch configuration for your service
+
+3. **Deployment Problems**
+   - Validate your container configuration
+   - Check resource limits and requests
+   - Review service logs
+   - Verify network connectivity
+
+For additional help, join the [Hatchet Community](https://hatchet.run/discord) or reach out to us [here](https://hatchet.run/office-hours).

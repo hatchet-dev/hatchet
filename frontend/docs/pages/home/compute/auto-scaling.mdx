@@ -1,0 +1,114 @@
+# Autoscaling with Hatchet Compute
+
+Hatchet Compute provides automatic scaling capabilities to ensure your workflow workers efficiently handle varying workloads. This guide explains how to configure and use autoscaling features.
+
+## Overview
+
+Autoscaling automatically adjusts the number of worker replicas based on utilization metrics. When workload increases, Hatchet scales up your workers to handle the load. When workload decreases, it scales down to optimize resource usage.
+
+## Basic Configuration
+
+The basic autoscaling configuration requires two parameters:
+
+1. **Minimum Replicas**: The minimum number of worker replicas that should be running at all times.
+2. **Maximum Replicas**: The maximum number of worker replicas that can be created during high load.
+
+You can also enable "Scale to zero during periods of inactivity" to allow the system to scale down to zero replicas when there's no work to be done, helping to reduce costs.
+
+## Advanced Autoscaling Settings
+
+### Wait Duration
+
+The wait duration specifies how long to wait between autoscaling events. This prevents rapid scaling changes that could destabilize your system.
+
+**Format**: Use time units like:
+
+- `10s` (10 seconds)
+- `5m` (5 minutes)
+- `1h` (1 hour)
+
+**Default**: `1m` (1 minute)
+
+### Rolling Window Duration
+
+This setting determines the time window used to calculate utilization metrics for scaling decisions. Shorter windows make the system more responsive but potentially more volatile.
+
+**Format**: Use time units like:
+
+- `2m` (2 minutes)
+- `5m` (5 minutes)
+- `1h` (1 hour)
+
+**Default**: `2m` (2 minutes)
+
+### Utilization Scale Up Threshold
+
+This threshold determines when to scale up worker replicas. It's expressed as a decimal between 0 and 1.
+
+**Example**: A value of `0.75` means:
+
+- If utilization exceeds 75%, add more replicas
+- Scale up occurs in increments defined by the scaling increment
+
+**Default**: `0.75`
+
+### Utilization Scale Down Threshold
+
+This threshold determines when to scale down worker replicas. It's expressed as a decimal between 0 and 1.
+
+**Example**: A value of `0.25` means:
+
+- If utilization falls below 25%, remove replicas
+- Scale down occurs in increments defined by the scaling increment
+
+**Default**: `0.25`
+
+### Scaling Increment
+
+The number of replicas to add or remove during each scaling event.
+
+**Example**: A value of `1` means:
+
+- Add or remove 1 replica at a time
+- Higher values enable faster scaling but may be less stable
+
+**Default**: `1`
+
+## Best Practices
+
+1. **Start Conservative**: Begin with moderate thresholds (e.g., 0.75 for scale-up and 0.25 for scale-down) and adjust based on your workload patterns.
+
+2. **Tune Wait Duration**:
+
+   - Shorter durations (e.g., 1m) work well for bursty workloads
+   - Longer durations (e.g., 5m) are better for stable, predictable loads
+
+3. **Rolling Window**:
+
+   - Shorter windows (2-5m) provide faster response to changes
+   - Longer windows (10m+) provide more stable scaling behavior
+
+4. **Monitor and Adjust**:
+   - Watch your scaling patterns in the Hatchet UI
+   - Adjust thresholds based on observed behavior
+   - Consider your cost vs. performance requirements
+
+## Monitoring Autoscaling
+
+You can monitor your autoscaling behavior in the Hatchet UI under the Managed Compute section. The UI shows:
+
+- Current number of replicas
+- Scaling events history
+- Utilization metrics
+- Scaling decisions and their triggers
+
+## Troubleshooting
+
+If you're experiencing unexpected scaling behavior:
+
+1. Check your utilization metrics in the Hatchet UI
+2. Verify your threshold settings are appropriate for your workload
+3. Ensure your wait duration isn't too short or too long
+4. Review your scaling events history for patterns
+
+For additional help, join the [Hatchet Community](https://hatchet.run/discord) or reach out to us [here](https://hatchet.run/office-hours).

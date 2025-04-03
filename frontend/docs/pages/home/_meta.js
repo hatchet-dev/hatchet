@@ -84,6 +84,7 @@ export default {
     "type": "separator"
   },
   "docker": "Running with Docker",
+  "compute": "Managed Compute",
   "worker-healthchecks": "Worker Health Checks",
   "--cancellation": {
     "title": "Cancellation",

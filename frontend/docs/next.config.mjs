@@ -21,6 +21,16 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: '/compute',
+        destination: '/home/compute',
+        permanent: true,
+      },
+      {
+        source: '/compute/:path',
+        destination: '/home/compute',
+        permanent: true,
+      },
+      {
         source: '/:path((?!home|v1|v0|compute|sdk|contributing|self-hosting|launches|blog|favicon\\.ico|hatchet_logo\\.png|_next/.*|monitoring\-demo\.mp4).*)',
         destination: '/home/:path*',
         permanent: false,
