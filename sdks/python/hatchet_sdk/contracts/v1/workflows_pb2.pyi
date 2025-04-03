@@ -119,7 +119,7 @@ class TriggerWorkflowRunResponse(_message.Message):
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
 class CreateWorkflowVersionRequest(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -130,6 +130,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     CRON_INPUT_FIELD_NUMBER: _ClassVar[int]
     ON_FAILURE_TASK_FIELD_NUMBER: _ClassVar[int]
     STICKY_FIELD_NUMBER: _ClassVar[int]
+    DEFAULT_PRIORITY_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -140,7 +141,8 @@ class CreateWorkflowVersionRequest(_message.Message):
     cron_input: str
     on_failure_task: CreateTaskOpts
     sticky: StickyStrategy
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ...) -> None: ...
+    default_priority: int
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ...) -> None: ...
 
 class Concurrency(_message.Message):
     __slots__ = ("expression", "max_runs", "limit_strategy")

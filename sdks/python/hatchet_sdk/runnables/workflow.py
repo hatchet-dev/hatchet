@@ -248,6 +248,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             cron_input=None,
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto),  # type: ignore[arg-type]
+            default_priority=self.config.default_priority,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
