@@ -1352,36 +1352,49 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($2::bigint[]) AS task_id,
-                unnest($3::timestamptz[]) AS task_inserted_at,
-                unnest($4::text[]) AS event_key
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::text[]) AS event_key
         ) AS subquery
+),
+distinct_events AS (
+    SELECT DISTINCT
+        task_id, task_inserted_at
+    FROM
+        input
+),
+events_to_lock AS (
+    SELECT
+        e.id,
+        e.event_key,
+        e.data,
+		e.task_id,
+		e.task_inserted_at
+    FROM
+        v1_task_event e
+    JOIN
+        distinct_events de
+		ON e.task_id = de.task_id
+		AND e.task_inserted_at = de.task_inserted_at
+    WHERE
+        e.tenant_id = $4::uuid
+        AND e.event_type = 'SIGNAL_CREATED'
 )
 SELECT
-    e.id,
-    e.event_key,
-    e.data
+	e.id,
+	e.event_key,
+	e.data
 FROM
-    v1_task_event e
+	events_to_lock e
 WHERE
-    (e.task_id, e.task_inserted_at, e.event_key) IN (
-        SELECT
-            task_id, task_inserted_at, event_key
-        FROM
-            input
-    )
-    AND e.tenant_id = $1::uuid
-    AND e.event_type = 'SIGNAL_CREATED'
-ORDER BY
-    e.task_id, e.task_inserted_at, e.id
-FOR UPDATE
+	e.event_key = ANY(SELECT event_key FROM input)
 `
 
 type LockSignalCreatedEventsParams struct {
-	Tenantid        pgtype.UUID          `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Eventkeys       []string             `json:"eventkeys"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
 
 type LockSignalCreatedEventsRow struct {
@@ -1394,10 +1407,10 @@ type LockSignalCreatedEventsRow struct {
 // modify the events.
 func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg LockSignalCreatedEventsParams) ([]*LockSignalCreatedEventsRow, error) {
 	rows, err := db.Query(ctx, lockSignalCreatedEvents,
-		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Eventkeys,
+		arg.Tenantid,
 	)
 	if err != nil {
 		return nil, err

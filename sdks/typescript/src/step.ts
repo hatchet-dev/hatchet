@@ -470,10 +470,10 @@ export class Context<T, K = {}> {
     });
 
     try {
-      // Batch workflowRuns in groups of 500
+      const batchSize = 1000;
       let resp: WorkflowRunRef<P>[] = [];
-      for (let i = 0; i < workflowRuns.length; i += 500) {
-        const batch = workflowRuns.slice(i, i + 500);
+      for (let i = 0; i < workflowRuns.length; i += batchSize) {
+        const batch = workflowRuns.slice(i, i + batchSize);
         const batchResp = await this.client.admin.runWorkflows<Q, P>(batch);
         resp = resp.concat(batchResp);
       }
