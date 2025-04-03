@@ -7,7 +7,6 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
-# requires scope module or higher for shared event loop
 @pytest.mark.skip(reason="The timing for this test is not reliable")
 @pytest.mark.asyncio()
 async def test_run(hatchet: Hatchet) -> None:

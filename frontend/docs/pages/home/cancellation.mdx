@@ -1,1 +1,112 @@
-TODO V1 DOCS
+import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const CancelPy = {
+  path: "examples/cancellation/worker.py",
+};
+export const CancelTs = {
+  path: "src/v1/examples/cancellations/workflow.ts",
+};
+
+export const CancelGo = {
+  path: "examples/v1/workflows/cancellations.go",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([CancelPy, CancelTs, CancelGo]);
+
+# Cancellation in Hatchet Workflows
+
+Hatchet provides a mechanism for canceling workflow executions gracefully, allowing you to stop running workflows and their associated tasks when needed. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency.mdx#cancel_in_progress), which cancels currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
+
+When a workflow is canceled, Hatchet sends a cancellation signal to all the currently executing tasks. The tasks can then check for the cancellation signal and take appropriate action, such as cleaning up resources, aborting network requests, or gracefully terminating their execution.
+
+## Cancellation Mechanisms
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+
+<Tabs.Tab>
+
+Hatchet's Python SDK provides a number of ways to handle cancellations, in addition to some important footguns to be aware of when running tasks.
+
+For async tasks, Hatchet uses the `cancel` method of [asyncio's `task`](https://docs.python.org/3/library/asyncio-task.html#task-cancellation) to handle cancellation. This means that for any async work, the task will be cancelled at the next `await` point via a `CancelledError` exception.
+
+For synchronous tasks, cancellation is more involved (and riskier) because of how Hatchet uses threads to run synchronous work without blocking the event loop. Threads cannot be cancelled the same was as async tasks can, which means that synchronous tasks, when running, cannot be cancelled easily. If you need to have tasks be cancellable, we highly recommend making them async. However, if they _really_ need to be both synchronous _and_ cancellable, Hatchet exposes a configuration option called `enable_force_kill_sync_threads`, which can be set by setting the `HATCHET_CLIENT_ENABLE_FORCE_KILL_SYNC_THREADS` to `True`, which will forcibly kill the thread the task is running on and cause it to exit immediately.
+
+<Callout type="warning" emoji="⚠️">
+  It's important to note that forcibly killing threads is an inherently
+  dangerous operation, which can lead to data loss, data corruption, and so on.
+  As mentioned above, a much preferred option for tasks that need to be
+  cancellable is to make them asynchronous.
+</Callout>
+
+While your task is running, you can manage cancellation by:
+
+1. Checking for cancellation using the `Context.exit_flag`, which indicates whether a task has been cancelled. You can check this flag at any point in your task to determine whether or not to exit. For example:
+
+<GithubSnippet src={CancelPy} target="Checking exit flag" />
+
+2. Using `Context.cancel` or `Context.aio_cancel` to cancel the task. This method will set the `exit_flag` to `True` and will notify the engine that it should cancel the task. For example:
+
+<GithubSnippet src={CancelPy} target="Self-cancelling task" />
+
+</Tabs.Tab>
+
+<Tabs.Tab>
+
+Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each task in a workflow has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the task and any asynchronous operations it may be performing.
+
+Inside a task, you can check for cancellation by accessing the `cancelled` property of the `Context`, which is a boolean value indicating whether the task has been cancelled or not. For example:
+
+<GithubSnippet src={CancelTs} target="Declaring a Task" />
+
+In this example, the task checks the `cancelled` flag and aborts.
+
+Additionally, you can register an event listener for the `'abort'` event on the `signal`. This listener will be called when the cancellation signal is received, allowing you to handle the cancellation asynchronously.
+
+## Aborting Network Requests
+
+One common use case for cancellation is aborting network requests that are no longer needed. Hatchet's cancellation mechanism integrates seamlessly with many network libraries that support the `AbortSignal` interface.
+
+Here's an example of how to pass the `AbortSignal` to an `axios` request:
+
+<GithubSnippet src={CancelTs} target="Abort Signal" />
+
+In this example, the `signal` property from the `Context.controller` is passed as an option to the `axios.get` request. If the task is canceled while the request is still pending, the request will be automatically aborted, and an error will be thrown. You can catch the error and check if it was due to cancellation using the `axios.isCancel` method.
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+Hatchet uses the standard `context.WithCancel` way of creating a context and passes that to a task. Each task can check for cancellation signals using the `Done()` method that context package provides.
+
+Here's an example of how to check for cancellation in a task:
+
+<GithubSnippet src={CancelGo} target="Cancelled task" />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+## Cancellation Best Practices
+
+When working with cancellation in Hatchet workflows, consider the following best practices:
+
+1. **Graceful Termination**: When a task receives a cancellation signal, aim to terminate its execution gracefully. Clean up any resources, abort pending operations, and perform any necessary cleanup tasks before returning from the task function.
+
+2. **Cancellation Checks**: Regularly check for cancellation signals within long-running tasks or loops. This allows the task to respond to cancellation in a timely manner and avoid unnecessary processing.
+
+3. **Asynchronous Operations**: If a task performs asynchronous operations, such as network requests or file I/O, consider passing the cancellation signal to those operations. Many libraries and APIs support cancellation through the `AbortSignal` interface.
+
+4. **Error Handling**: Handle cancellation errors appropriately. Distinguish between cancellation errors and other types of errors to provide meaningful error messages and take appropriate actions.
+
+5. **Cancellation Propagation**: If a task invokes other functions or libraries, consider propagating the cancellation signal to those dependencies. This ensures that cancellation is handled consistently throughout the workflow.
+
+## Additional Features
+
+In addition to the methods of cancellation listed here, Hatchet also supports [bulk cancellation](./bulk-retries-and-cancellations.mdx), which allows you to cancel many tasks in bulk using either their IDs or a set of filters, which is often the easiest way to cancel many things at once.
+
+## Conclusion
+
+Cancellation is a powerful feature in Hatchet that allows you to gracefully stop workflow executions when needed. Remember to follow best practices when implementing cancellation in your workflows, such as graceful termination, regular cancellation checks, handling asynchronous operations, proper error handling, and cancellation propagation.
+
+By incorporating cancellation into your Hatchet workflows, you can build more resilient and responsive systems that can adapt to changing circumstances and user needs.

@@ -1,39 +1,36 @@
 import { RateLimitDuration } from '@hatchet/protoc/v1/workflows';
 import { hatchet } from '../hatchet-client';
 
-// ❓ Workflow
-type RateLimitInput = {
-  userId: string;
-};
-
-export const rateLimitWorkflow = hatchet.workflow<RateLimitInput>({
-  name: 'RateLimitWorkflow',
+// ❓ Upsert Rate Limit
+hatchet.ratelimits.upsert({
+  key: 'api-service-rate-limit',
+  limit: 10,
+  duration: RateLimitDuration.SECOND,
 });
-
 // !!
 
 // ❓ Static
-const RATE_LIMIT_KEY = 'test-limit';
+const RATE_LIMIT_KEY = 'api-service-rate-limit';
 
-const task1 = rateLimitWorkflow.task({
+const task1 = hatchet.task({
   name: 'task1',
-  fn: (input) => {
-    console.log('executed task1');
-  },
   rateLimits: [
     {
       staticKey: RATE_LIMIT_KEY,
       units: 1,
     },
   ],
+  fn: (input) => {
+    console.log('executed task1');
+  },
 });
 
 // !!
 
 // ❓ Dynamic
-const task2 = rateLimitWorkflow.task({
+const task2 = hatchet.task({
   name: 'task2',
-  fn: (input) => {
+  fn: (input: { userId: string }) => {
     console.log('executed task2 for user: ', input.userId);
   },
   rateLimits: [
@@ -45,5 +42,4 @@ const task2 = rateLimitWorkflow.task({
     },
   ],
 });
-
 // !!

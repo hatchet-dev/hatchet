@@ -18,6 +18,7 @@ type CancellationResult struct {
 
 func Cancellation(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[CancellationInput, CancellationResult] {
 
+	// ❓ Cancelled task
 	// Create a task that sleeps for 10 seconds and checks if it was cancelled
 	cancellation := factory.NewTask(
 		create.StandaloneTask{
@@ -40,6 +41,7 @@ func Cancellation(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Cancell
 		},
 		hatchet,
 	)
+	// !!
 
 	return cancellation
 }

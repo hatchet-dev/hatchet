@@ -287,13 +287,14 @@ class Runner:
         constructor = DurableContext if is_durable else Context
 
         return constructor(
-            action,
-            self.dispatcher_client,
-            self.admin_client,
-            self.client.event,
-            self.durable_event_listener,
-            self.worker_context,
+            action=action,
+            dispatcher_client=self.dispatcher_client,
+            admin_client=self.admin_client,
+            event_client=self.client.event,
+            durable_event_listener=self.durable_event_listener,
+            worker=self.worker_context,
             validator_registry=self.validator_registry,
+            runs_client=self.client.runs,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -415,7 +416,7 @@ class Runner:
                 context = self.contexts.get(run_id)
 
                 if context:
-                    context.cancel()
+                    await context.aio_cancel()
 
             await asyncio.sleep(1)
 

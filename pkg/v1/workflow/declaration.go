@@ -83,6 +83,9 @@ type WorkflowDeclaration[I, O any] interface {
 	// Instead it returns a run ID that can be used to check the status of the workflow.
 	RunNoWait(ctx context.Context, input I, opts ...RunOpts) (*v0Client.Workflow, error)
 
+	// RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
+	RunBulkNoWait(ctx context.Context, input []I, opts ...RunOpts) ([]string, error)
+
 	// Cron schedules the workflow to run on a regular basis using a cron expression.
 	Cron(ctx context.Context, name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error)
 
@@ -465,6 +468,37 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 	w.OnFailureTask = taskDecl
 
 	return taskDecl
+}
+
+// RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
+// Instead it returns a list of run IDs that can be used to check the status of the workflows.
+func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input []I, opts ...RunOpts) ([]string, error) {
+
+	runOpts := []v0Client.RunOptFunc{}
+
+	if len(opts) > 0 {
+		if opts[0].AdditionalMetadata != nil {
+			fn := v0Client.WithRunMetadata(opts[0].AdditionalMetadata)
+			runOpts = append(runOpts, fn)
+		}
+	}
+
+	toRun := make([]*v0Client.WorkflowRun, len(input))
+
+	for i, inp := range input {
+		toRun[i] = &v0Client.WorkflowRun{
+			Name:    w.Name,
+			Input:   inp,
+			Options: runOpts,
+		}
+	}
+
+	run, err := w.v0.Admin().BulkRunWorkflow(toRun)
+	if err != nil {
+		return nil, err
+	}
+
+	return run, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for it to complete.
