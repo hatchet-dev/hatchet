@@ -969,6 +969,7 @@ SELECT
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
+    wv."defaultPriority" AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount"
 FROM
@@ -1016,6 +1017,7 @@ type ListStepsByIdsRow struct {
 	WorkflowVersionSticky NullStickyStrategy `json:"workflowVersionSticky"`
 	WorkflowName          string             `json:"workflowName"`
 	WorkflowId            pgtype.UUID        `json:"workflowId"`
+	DefaultPriority       pgtype.Int4        `json:"defaultPriority"`
 	ExprCount             int64              `json:"exprCount"`
 	ConcurrencyCount      int64              `json:"concurrencyCount"`
 }
@@ -1048,6 +1050,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.WorkflowVersionSticky,
 			&i.WorkflowName,
 			&i.WorkflowId,
+			&i.DefaultPriority,
 			&i.ExprCount,
 			&i.ConcurrencyCount,
 		); err != nil {
