@@ -95,6 +95,7 @@ services:
       SERVER_GRPC_INSECURE: "t"
       SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
+      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: hatchet-engine:7077
     volumes:
       - hatchet_certs:/hatchet/certs
       - hatchet_config:/hatchet/config
