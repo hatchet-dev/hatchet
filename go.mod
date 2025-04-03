@@ -2,6 +2,8 @@ module github.com/hatchet-dev/hatchet
 
 go 1.23.0
 
+toolchain go1.24.1
+
 require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/creasty/defaults v1.8.0
@@ -23,7 +25,7 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
-	github.com/posthog/posthog-go v1.4.5
+	github.com/posthog/posthog-go v1.4.7
 	github.com/pressly/goose/v3 v3.24.2
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.9.1
