@@ -60,7 +60,7 @@ Typing improvements:
 Naming changes:
 
 1. We no longer have nested `aio` clients for async methods. Instead, async methods throughout the entire SDK are prefixed by `aio_`, similar to [Langchain's use of the `a` prefix](https://python.langchain.com/docs/concepts/streaming/#stream-and-astream) to indicate async. For example, to run a task, you may now either use `workflow.run()` or `workflow.aio_run()`.
-2. All functions on Hatchet clients are now _verbs_. For instance the way to list workflow runs is via `hatchet.workflows.list_runs()`.
+2. All functions on Hatchet clients are now _verbs_. For instance the way to list workflow runs is via `hatchet.runs.list()`.
 3. `max_runs` on the worker has been renamed to `slots`.
 
 Removals:

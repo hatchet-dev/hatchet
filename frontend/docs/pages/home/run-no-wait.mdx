@@ -25,12 +25,12 @@ Some example use cases for fire-and-forget style tasks might be:
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
-    You can use your `Task` object to run a task and "forget" it by calling the `run_no_wait` method. This method enqueue a task run and return a `TaskRunRef`, a reference to that run, without waiting for the result.
+    You can use your `Workflow` object to run a task and "forget" it by calling the `run_no_wait` method. This method enqueue a task run and return a `WorkflowRunRef`, a reference to that run, without waiting for the result.
 
 ```python
-from src.tasks import my_task, MyTaskInputModel
+from src.workflows import my_workflow, MyWorkflowInputModel
 
-ref = my_task.run_no_wait(MyTaskInputModel(foo="bar"))
+ref = my_workflow.run_no_wait(MyWorkflowInputModel(foo="bar"))
 ```
 
 You can also `await` the result of `aio_run_no_wait`:
@@ -59,7 +59,7 @@ Note that the type of `input` here is a Pydantic model that matches the input sc
 
 ## Subscribing to results from an enqueued task
 
-Often is is useful to subscribe to the results of a task at a later time. The `run_no_wait` method returns a `TaskRunRef` object which includes a listener for the result of the task.
+Often is is useful to subscribe to the results of a task at a later time. The `run_no_wait` method returns a `WorkflowRunRef` object which includes a listener for the result of the task.
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
