@@ -29,7 +29,7 @@ export const getStaticProps = ({}) =>
 
 # Simple Task Retries
 
-Hatchet provides a simple and effective way to handle failures in your workflow tasks using the task-level retry configuration. This feature allows you to specify the number of times a task should be retried if it fails, helping to improve the reliability and resilience of your workflows.
+Hatchet provides a simple and effective way to handle failures in your tasks using a retry policy. This feature allows you to specify the number of times a task should be retried if it fails, helping to improve the reliability and resilience of your tasks.
 
 <Callout type="info">
   Task-level retries can be added to both `Standalone Tasks` and `Workflow
@@ -38,18 +38,18 @@ Hatchet provides a simple and effective way to handle failures in your workflow 
 
 ## How it works
 
-When a task in your workflow fails (i.e. throws an error or returns a non-zero exit code), Hatchet can automatically retry the task based on the `retries` configuration defined in the task object. Here's how it works:
+When a task fails (i.e. throws an error or returns a non-zero exit code), Hatchet can automatically retry the task based on the `retries` configuration defined in the task object. Here's how it works:
 
 1. If a task fails and `retries` is set to a value greater than 0, Hatchet will catch the error and retry the task.
 2. The task will be retried up to the specified number of times, with each retry being executed after a short delay to avoid overwhelming the system.
-3. If the task succeeds during any of the retries, the workflow will continue to the next task as normal.
-4. If the task continues to fail after exhausting all the specified retries, the workflow will be marked as failed.
+3. If the task succeeds during any of the retries, the task will continue as normal.
+4. If the task continues to fail after exhausting all the specified retries, the task will be marked as failed.
 
-This simple retry mechanism can help to mitigate transient failures, such as network issues or temporary unavailability of external services, without requiring complex error handling logic in your workflow code.
+This simple retry mechanism can help to mitigate transient failures, such as network issues or temporary unavailability of external services, without requiring complex error handling logic in your task code.
 
 ## How to use task-level retries
 
-To enable retries for a task in your workflow, simply add the `retries` property to the task object in your workflow definition:
+To enable retries for a task, simply add the `retries` property to the task object in your task definition:
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
@@ -63,13 +63,13 @@ To enable retries for a task in your workflow, simply add the `retries` property
   </Tabs.Tab>
 </UniversalTabs>
 
-You can add the `retries` property to any task in your workflow, and Hatchet will handle the retry logic automatically.
+You can add the `retries` property to any task, and Hatchet will handle the retry logic automatically.
 
 It's important to note that task-level retries are not suitable for all types of failures. For example, if a task fails due to a programming error or an invalid configuration, retrying the task will likely not resolve the issue. In these cases, you should fix the underlying problem in your code or configuration rather than relying on retries.
 
 Additionally, if a task interacts with external services or databases, you should ensure that the operation is idempotent (i.e. can be safely repeated without changing the result) before enabling retries. Otherwise, retrying the task could lead to unintended side effects or inconsistencies in your data.
 
-## Accessing the Retry Count in a Step
+## Accessing the Retry Count in a Running Task
 
 If you need to access the current retry count within a task, you can use the `retryCount` method available in the task context:
 
@@ -125,6 +125,6 @@ In these cases, even though `retries` is set to a non-zero number (meaning the t
 
 ## Conclusion
 
-Hatchet's task-level retry feature is a simple and effective way to handle transient failures in your workflow tasks, improving the reliability and resilience of your workflows. By specifying the number of retries for each task, you can ensure that your workflows can recover from temporary issues without requiring complex error handling logic.
+Hatchet's task-level retry feature is a simple and effective way to handle transient failures in your tasks, improving the reliability and resilience of your tasks. By specifying the number of retries for each task, you can ensure that your tasks can recover from temporary issues without requiring complex error handling logic.
 
 Remember to use retries judiciously and only for tasks that are idempotent and can safely be repeated. For more advanced retry strategies, such as exponential backoff or circuit breaking, stay tuned for future updates to Hatchet's retry capabilities.

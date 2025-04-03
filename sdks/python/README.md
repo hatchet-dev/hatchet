@@ -26,26 +26,7 @@ poetry add hatchet-sdk
 
 ## Quick Start
 
-Here's a simple example of how to use the Hatchet Python SDK:
-
-```python
-from hatchet_sdk import Context, EmptyModel, Hatchet
-
-hatchet = Hatchet(debug=True)
-
-
-@hatchet.task(name="SimpleWorkflow")
-def step1(input: EmptyModel, ctx: Context) -> None:
-    print("executed step1")
-
-
-def main() -> None:
-    worker = hatchet.worker("test-worker", slots=1, workflows=[step1])
-    worker.start()
-
-if __name__ == "__main__":
-    main()
-```
+For examples of how to use the Hatchet Python SDK, including worker setup and task execution, please see our [official documentation](https://docs.hatchet.run/home/setup).
 
 ## Features
 

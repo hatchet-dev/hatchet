@@ -14,9 +14,7 @@ export default function RateLimits() {
           <h2 className="text-2xl font-bold leading-tight text-foreground">
             Scheduled Runs
           </h2>
-          <Button onClick={() => setTriggerWorkflow(true)}>
-            Schedule Workflow
-          </Button>
+          <Button onClick={() => setTriggerWorkflow(true)}>Schedule Run</Button>
         </div>
         <TriggerWorkflowForm
           defaultTimingOption="schedule"

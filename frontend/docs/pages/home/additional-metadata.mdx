@@ -17,7 +17,7 @@ export const getStaticProps = ({}) => getSnippets([TS, Py, GO]);
 
 # Additional Metadata
 
-Hatchet allows you to attach arbitrary key-value string pairs to events and workflow runs, which can be used for filtering, searching, or any other lookup purposes. This additional metadata is not part of the event payload or workflow input data but provides supplementary information for better organization and discoverability.
+Hatchet allows you to attach arbitrary key-value string pairs to events and task runs, which can be used for filtering, searching, or any other lookup purposes. This additional metadata is not part of the event payload or task input data but provides supplementary information for better organization and discoverability.
 
 <Callout type="info">
   Additional metadata can be added to `Runs`, `Scheduled Runs`, `Cron Runs`, and
@@ -25,9 +25,9 @@ Hatchet allows you to attach arbitrary key-value string pairs to events and work
   runs.
 </Callout>
 
-You can attach additional metadata when pushing events or triggering workflow runs using the Hatchet client libraries:
+You can attach additional metadata when pushing events or triggering task runs using the Hatchet client libraries:
 
-<Tabs items={['Event Push', 'Workflow Run Trigger']}>
+<Tabs items={['Event Push', 'Task Run Trigger']}>
   <Tabs.Tab>
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
@@ -76,9 +76,9 @@ err := c.Event().Push(
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
-simple_workflow.run(
+simple_task.run(
     SimpleInput(user_id=1234),
-    options=TriggerWorkflowOptions(
+    options=TriggerTaskOptions(
         additional_metadata={
           "hello": "moon" # Arbitrary key-value pair
         }
@@ -88,8 +88,7 @@ simple_workflow.run(
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
-const workflowRunId = await hatchet.admin.run_workflow(
-  'user-workflow',
+const taskRunId = await simple.run(
   {
     userId: '1234',
   },
@@ -103,8 +102,8 @@ const workflowRunId = await hatchet.admin.run_workflow(
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
-workflowRunId, err := c.Admin().RunWorkflow(
-    "user-workflow",
+taskRunId, err := c.Admin().RunWorkflow(
+    "user-task",
     &userCreateEvent{
         UserID: "1234",
     },
@@ -118,11 +117,9 @@ workflowRunId, err := c.Admin().RunWorkflow(
   </Tabs.Tab>
 </Tabs>
 
-> **Note:** This feature is in development. Cron, Schedule, and Child Workflow triggers do not currently support additional metadata.
-
 ## Filtering in the Dashboard
 
-Once you've attached additional metadata to events or workflow runs, this data will be available in the Event and Workflow Run list views in the Hatchet dashboard. You can use the filter input field to search for events or workflow runs based on the additional metadata key-value pairs you've attached.
+Once you've attached additional metadata to events or task runs, this data will be available in the Event and Task Run list views in the Hatchet dashboard. You can use the filter input field to search for events or task runs based on the additional metadata key-value pairs you've attached.
 
 For example, you can filter events by the `source` metadata keys to quickly find events originating from a specific source or environment.
 
@@ -132,8 +129,8 @@ For example, you can filter events by the `source` metadata keys to quickly find
 
 Some common use cases for additional metadata include:
 
-- Tagging events or workflow runs with environment information (e.g., `production`, `staging`, `development`)
+- Tagging events or task runs with environment information (e.g., `production`, `staging`, `development`)
 - Specifying the source or origin of events (e.g., `api`, `webhook`, `manual`)
-- Categorizing events or workflow runs based on business-specific criteria (e.g., `priority`, `region`, `product`)
+- Categorizing events or task runs based on business-specific criteria (e.g., `priority`, `region`, `product`)
 
-By leveraging additional metadata, you can enhance the organization, searchability, and discoverability of your events and workflow runs within Hatchet.
+By leveraging additional metadata, you can enhance the organization, searchability, and discoverability of your events and task runs within Hatchet.

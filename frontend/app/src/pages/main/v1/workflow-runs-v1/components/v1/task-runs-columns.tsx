@@ -104,7 +104,7 @@ export const columns: (
     cell: ({ row }) => {
       if (row.getCanExpand()) {
         return (
-          <Link to={'/v1/workflow-runs/' + row.original.metadata.id}>
+          <Link to={'/v1/runs/' + row.original.metadata.id}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.displayName}
             </div>
@@ -154,7 +154,7 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflowId && workflowName && (
-            <a href={`/v1/workflows/${workflowId}`}>{workflowName}</a>
+            <a href={`/v1/tasks/${workflowId}`}>{workflowName}</a>
           )) ||
             'N/A'}
         </div>

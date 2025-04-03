@@ -19,11 +19,11 @@ export const getStaticProps = ({}) =>
 
 # On-Failure Tasks
 
-The on-failure task is a special type of task in Hatchet workflows that allows you to define a function to be executed in the event that any task in the main workflow fails. This feature enables you to handle errors, perform cleanup tasks, or trigger notifications in case of workflow failures.
+The on-failure task is a special type of task in Hatchet that allows you to define a function to be executed in the event that any task in the main task fails. This feature enables you to handle errors, perform cleanup tasks, or trigger notifications in case of task failure within a workflow.
 
 ## Defining an on-failure task
 
-You can define an on-failure task on your workflow the same as you'd define any other task:
+You can define an on-failure task on your task the same as you'd define any other task:
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -40,15 +40,15 @@ You can define an on-failure task on your workflow the same as you'd define any 
   </Tabs.Tab>
 </UniversalTabs>
 
-In the examples above, the on-failure task will be executed only if any of the main workflow task fail.
+In the examples above, the on-failure task will be executed only if any of the main tasks in the workflow fail.
 
 ## Use Cases
 
 Some common use cases for the on-failure task include:
 
-- Performing cleanup tasks after a workflow failure
+- Performing cleanup tasks after a task failure in a workflow
 - Sending notifications or alerts about the failure
 - Logging additional information for debugging purposes
-- Triggering a compensating action or a fallback workflow
+- Triggering a compensating action or a fallback task
 
 By utilizing the on-failure task, you can handle workflow failures gracefully and ensure that necessary actions are taken in case of errors.

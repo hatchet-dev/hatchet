@@ -62,10 +62,10 @@ const TaskRunPermalinkOrBacklink = ({
     );
   } else if (taskRun.workflowRunExternalId) {
     return (
-      <Link to={`/v1/workflow-runs/${taskRun.workflowRunExternalId}`}>
+      <Link to={`/v1/runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
-          View Workflow Run
+          View Run
         </Button>
       </Link>
     );
@@ -106,7 +106,7 @@ export const TaskRunDetail = ({
           <div className="flex flex-row gap-4 items-center">
             {taskRun.status && <V1RunIndicator status={taskRun.status} />}
             <h3 className="text-lg font-mono font-semibold leading-tight tracking-tight text-foreground flex flex-row gap-4 items-center">
-              {taskRun.displayName || 'Step Run Detail'}
+              {taskRun.displayName || 'Task Run Detail'}
             </h3>
           </div>
         </div>

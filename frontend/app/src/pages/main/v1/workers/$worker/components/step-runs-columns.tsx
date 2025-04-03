@@ -14,7 +14,7 @@ export const columns: ColumnDef<RecentStepRuns>[] = [
     ),
     cell: ({ row }) => {
       return (
-        <Link to={'/v1/workflow-runs/' + row.original.workflowRunId}>
+        <Link to={'/v1/runs/' + row.original.workflowRunId}>
           <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
             {row.original.actionId}
           </div>

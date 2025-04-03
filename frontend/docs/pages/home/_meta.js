@@ -14,11 +14,11 @@ export default {
   "workers": "Workers",
   "running-your-task": "Running Tasks",
   "environments": "Environments",
-  "--running-workflows": {
+  "--running-tasks": {
     "title": "Ways of Running Tasks",
     "type": "separator"
   },
-  "running-workflows": "Introduction",
+  "running-tasks": "Introduction",
   "run-with-results": "Run and Wait Trigger",
   "run-no-wait": "Run Without Wait Trigger",
   "scheduled-runs": "Scheduled Trigger",
@@ -48,6 +48,7 @@ export default {
     "title": "Directed Acyclic Graphs (DAGs)"
   },
   "conditional-workflows": "Conditional Workflows",
+  "on-failure-tasks": "On Failure Tasks",
   "durable-execution": {
     "title": "Durable Execution"
   },
@@ -62,7 +63,6 @@ export default {
     "type": "separator"
   },
   "timeouts": "Timeouts",
-  "on-failure-tasks": "On Failure Tasks",
   "retry-policies": "Retry Policies",
   "bulk-retries-and-cancellations": "Bulk Retries and Cancellations",
 
@@ -84,6 +84,7 @@ export default {
     "type": "separator"
   },
   "docker": "Running with Docker",
+  "compute": "Managed Compute",
   "worker-healthchecks": "Worker Health Checks",
   "--cancellation": {
     "title": "Cancellation",

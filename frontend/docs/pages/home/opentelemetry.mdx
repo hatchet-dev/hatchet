@@ -6,7 +6,7 @@ import { Callout } from "nextra/components";
   OpenTelemetry support is currently only available for the Python SDK.
 </Callout>
 
-Hatchet supports exporting traces from your workflows to an [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) to improve visibility into your Hatchet tasks.
+Hatchet supports exporting traces from your tasks to an [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) to improve visibility into your Hatchet tasks.
 
 ## Usage
 
@@ -61,9 +61,9 @@ The `HatchetInstrumentor` also has some methods for generating traceparents that
 
 ### Spans
 
-By default, Hatchet creates spans at the following points in the lifecycle of a workflow run:
+By default, Hatchet creates spans at the following points in the lifecycle of a task run:
 
-1. When a trigger is run on the client side, e.g. `run_workflow()` or `push()` is called.
+1. When a trigger is run on the client side, e.g. `run()` or `push()` is called.
 2. When a worker handles a task event, like starting running the task or cancelling the task
 
-In addition, you'll get a handful of attributes set (prefixed by `hatchet.`) on the task run events, such as the workflow name and the worker id, as well as success / failure states, and so on.
+In addition, you'll get a handful of attributes set (prefixed by `hatchet.`) on the task run events, such as the task name and the worker id, as well as success / failure states, and so on.

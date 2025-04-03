@@ -51,7 +51,7 @@ export const DefaultOnboardingWorkflow: React.FC<{
         return;
       }
 
-      navigate(`/v1/workflow-runs/${workflowRun.run.metadata.id}`);
+      navigate(`/v1/runs/${workflowRun.run.metadata.id}`);
     },
   });
 
