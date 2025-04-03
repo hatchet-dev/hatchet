@@ -14,6 +14,9 @@ print("Sleeping")
 time.sleep(2)
 
 print("Pushing event")
-hatchet.event.push(EVENT_KEY, {
-    "user_id": "1234",
-})
+hatchet.event.push(
+    EVENT_KEY,
+    {
+        "user_id": "1234",
+    },
+)
