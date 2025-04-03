@@ -48,8 +48,10 @@ tasks:
         DATABASE_LOGGER_LEVEL=error
         DATABASE_LOGGER_FORMAT=console
 
-        SERVER_GRPC_BROADCAST_ADDRESS=grpc.dev.hatchet-tools.com:443
+        SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
         SERVER_GRPC_INSECURE=true
+        SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
+        SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
         EOF
   start-db:
     cmds:
