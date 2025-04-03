@@ -470,7 +470,6 @@ export class Context<T, K = {}> {
     });
 
     try {
-      // Batch workflowRuns in groups of 500
       const batchSize = 1000;
       let resp: WorkflowRunRef<P>[] = [];
       for (let i = 0; i < workflowRuns.length; i += batchSize) {

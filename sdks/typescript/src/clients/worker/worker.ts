@@ -460,7 +460,8 @@ export class V0Worker {
             action,
             StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
             false,
-            result || null
+            result || null,
+            action.retryCount
           );
           await this.client.dispatcher.sendStepActionEvent(event);
         } catch (actionEventError: any) {
@@ -473,7 +474,8 @@ export class V0Worker {
             action,
             StepActionEventType.STEP_EVENT_TYPE_FAILED,
             false,
-            actionEventError.message
+            actionEventError.message,
+            action.retryCount
           );
 
           try {
@@ -512,7 +514,8 @@ export class V0Worker {
             {
               message: error?.message,
               stack: error?.stack,
-            }
+            },
+            action.retryCount
           );
           await this.client.dispatcher.sendStepActionEvent(event);
         } catch (e: any) {
@@ -542,7 +545,9 @@ export class V0Worker {
       const event = this.getStepActionEvent(
         action,
         StepActionEventType.STEP_EVENT_TYPE_STARTED,
-        false
+        false,
+        undefined,
+        action.retryCount
       );
       this.client.dispatcher.sendStepActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
@@ -652,7 +657,8 @@ export class V0Worker {
     action: Action,
     eventType: StepActionEventType,
     shouldNotRetry: boolean,
-    payload: any = ''
+    payload: any = '',
+    retryCount: number = 0
   ): StepActionEvent {
     return {
       workerId: this.name,
@@ -665,6 +671,7 @@ export class V0Worker {
       eventType,
       eventPayload: JSON.stringify(payload),
       shouldNotRetry,
+      retryCount,
     };
   }
 

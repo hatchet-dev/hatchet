@@ -23,7 +23,7 @@ async def test_list_runs(hatchet: Hatchet) -> None:
 async def test_get_run(hatchet: Hatchet) -> None:
     dag_ref = await dag_workflow.aio_run_no_wait()
 
-    await asyncio.sleep(3)
+    await asyncio.sleep(5)
 
     run = await hatchet.runs.aio_get(dag_ref.workflow_run_id)
 

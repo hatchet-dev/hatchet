@@ -73,3 +73,31 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 
 	return simple
 }
+
+func ParentTask(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
+
+	// ❓ Spawning Tasks from within a Task
+	simple := Simple(hatchet)
+
+	parent := factory.NewTask(
+		create.StandaloneTask{
+			Name: "parent-task",
+		}, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
+
+			// Run the child task
+			child, err := simple.RunAsChild(ctx, SimpleInput{Message: input.Message})
+			if err != nil {
+				return nil, err
+			}
+
+			// Transform the input message to lowercase
+			return &SimpleResult{
+				TransformedMessage: child.TransformedMessage,
+			}, nil
+		},
+		hatchet,
+	)
+	// ‼️
+
+	return parent
+}

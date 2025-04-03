@@ -63,7 +63,7 @@ For detailed documentation, examples, and best practices, visit:
 
 ## Contributing
 
-We welcome contributions! Please check out our [contributing guidelines](https://docs.hatchet.run/contributing) and join our [Discord community](https://discord.gg/ZMeUafwH89) for discussions and support.
+We welcome contributions! Please check out our [contributing guidelines](https://docs.hatchet.run/contributing) and join our [Discord community](https://hatchet.run/discord) for discussions and support.
 
 ## License
 

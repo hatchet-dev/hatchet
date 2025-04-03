@@ -22,6 +22,11 @@ func NewWorkflow(
 	}
 }
 
+func (r *Workflow) RunId() string {
+	return r.workflowRunId
+}
+
+// Deprecated: Use RunId instead
 func (r *Workflow) WorkflowRunId() string {
 	return r.workflowRunId
 }

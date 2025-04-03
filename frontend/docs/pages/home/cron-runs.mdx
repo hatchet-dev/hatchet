@@ -15,7 +15,7 @@ export const CronTriggerPy = {
 };
 
 export const CronTriggerGo = {
-  path: "examples/cron/main.go",
+  path: "examples/v1/workflows/on-cron.go",
 };
 
 export const CronTriggerTsProgrammatic = {
@@ -31,7 +31,7 @@ export const CronTriggerPyProgrammaticAsync = {
 };
 
 export const CronTriggerGoProgrammatic = {
-  path: "examples/cron-programmatic/main.go",
+  path: "examples/v1/run/cron.go",
 };
 
 export const getStaticProps = ({}) =>
@@ -64,7 +64,7 @@ Hatchet supports cron triggers to run on a schedule defined in a few different w
 - [Dynamic Programmatically](./cron-runs.mdx#programmatically-creating-cron-triggers): Use the Hatchet SDKs to dynamically set the cron schedule of a workflow.
 - [Hatchet Dashboard](./cron-runs.mdx#managing-cron-jobs-in-the-hatchet-dashboard): Manually create cron triggers from the Hatchet Dashboard.
 
-<Callout type="warning">
+<Callout type="info">
   The expression is when Hatchet **enqueues** the workflow, not when the run
   starts. Scheduling constraints like concurrency limits, rate limits, and retry
   policies can affect run start times.
@@ -222,4 +222,4 @@ When using cron triggers, there are a few considerations to keep in mind:
 
 3. **Missed Schedules**: If a scheduled workflow is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances. It will wait for the next scheduled time to trigger the workflow.
 
-4. **Overlapping Schedules**: If a workflow is still running when the next scheduled time arrives, Hatchet will start a new instance of the workflow or respect [concurrency](../concurrency/overview.mdx) policy.
+4. **Overlapping Schedules**: If a workflow is still running when the next scheduled time arrives, Hatchet will start a new instance of the workflow or respect [concurrency](./concurrency.mdx) policy.
