@@ -21,9 +21,10 @@ type DurableEventOutput struct {
 }
 
 func DurableEvent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DurableEventInput, DurableEventOutput] {
-	durableEventWorkflow := factory.NewDurableTask(
+	// ❓ Durable Event
+	durableEventTask := factory.NewDurableTask(
 		create.StandaloneTask{
-			Name: "durable-sleep",
+			Name: "durable-event",
 		},
 		func(ctx worker.DurableHatchetContext, input DurableEventInput) (*DurableEventOutput, error) {
 			eventData, err := ctx.WaitForEvent("user:update", "")
@@ -45,6 +46,34 @@ func DurableEvent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Durable
 		},
 		hatchet,
 	)
+	// !!
 
-	return durableEventWorkflow
+	factory.NewDurableTask(
+		create.StandaloneTask{
+			Name: "durable-event",
+		},
+		func(ctx worker.DurableHatchetContext, input DurableEventInput) (*DurableEventOutput, error) {
+			// ❓ Durable Event With Filter
+			eventData, err := ctx.WaitForEvent("user:update", "input.user_id == '1234'")
+			// !!
+
+			if err != nil {
+				return nil, err
+			}
+
+			v := EventData{}
+			err = eventData.Unmarshal(&v)
+
+			if err != nil {
+				return nil, err
+			}
+
+			return &DurableEventOutput{
+				Data: v,
+			}, nil
+		},
+		hatchet,
+	)
+
+	return durableEventTask
 }
