@@ -45,8 +45,8 @@ Run-on-event allows you to trigger one or more tasks when a specific event occur
 2. When you want to run multiple independent tasks in response to a single event. For instance, if you wanted to run a `send_welcome_email` task, and you also wanted to run a `grant_new_user_credits` task, and a `reward_referral` task, all triggered by the signup. In this case, you might declare all three of those tasks with an event trigger for `user:signup`, and then have them all kick off when that event happens.
 
 <Callout type="info">
-  Event triggers evaluate tasks to run at the time of the event. If an event
-  is received before the task is registered, the task will not be run.
+  Event triggers evaluate tasks to run at the time of the event. If an event is
+  received before the task is registered, the task will not be run.
 </Callout>
 
 ## Declaring Event Triggers

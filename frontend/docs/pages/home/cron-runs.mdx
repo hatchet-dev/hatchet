@@ -65,8 +65,8 @@ Hatchet supports cron triggers to run on a schedule defined in a few different w
 - [Hatchet Dashboard](./cron-runs.mdx#managing-cron-jobs-in-the-hatchet-dashboard): Manually create cron triggers from the Hatchet Dashboard.
 
 <Callout type="warning">
-  The expression is when Hatchet **enqueues** the task, not when the run
-  starts. Scheduling constraints like concurrency limits, rate limits, and retry
+  The expression is when Hatchet **enqueues** the task, not when the run starts.
+  Scheduling constraints like concurrency limits, rate limits, and retry
   policies can affect run start times.
 </Callout>
 
@@ -121,9 +121,9 @@ You can define a task with a cron schedule by configuring the cron expression as
 In the examples above, we set the `on cron` property of the task. The property specifies the cron expression that determines when the task should be triggered.
 
 <Callout>
-  Note: When modifying a cron in your task definition, it will override any
-  cron schedule for previous crons defined in previous task definitions, but
-  crons created via the API or Dashboard will still be respected.
+  Note: When modifying a cron in your task definition, it will override any cron
+  schedule for previous crons defined in previous task definitions, but crons
+  created via the API or Dashboard will still be respected.
 </Callout>
 
 ## Programmatically Creating Cron Triggers
@@ -179,8 +179,8 @@ You can delete a cron trigger by passing the cron object or a cron trigger id to
 
 <Callout>
   Note: Deleting a cron trigger will not cancel any currently running instances
-  of the task. It will simply stop the cron trigger from triggering the
-  task again.
+  of the task. It will simply stop the cron trigger from triggering the task
+  again.
 </Callout>
 
 ### List Cron Triggers
