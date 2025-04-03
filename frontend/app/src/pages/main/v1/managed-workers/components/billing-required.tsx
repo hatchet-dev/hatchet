@@ -40,7 +40,7 @@ export function BillingRequired({
             </div>
 
             <h3 className="text-2xl font-semibold mb-2">
-              Ready to supercharge your workflows?
+              Ready to supercharge your task runs?
             </h3>
 
             <p className="text-muted-foreground mb-6">

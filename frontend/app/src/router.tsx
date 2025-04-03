@@ -362,7 +362,18 @@ export const routes: RouteObject[] = [
             lazy: async () => {
               return {
                 loader: function () {
-                  return redirect('/v1/workflow-runs');
+                  return redirect('/v1/runs');
+                },
+              };
+            },
+          },
+          {
+            path: '/v1/workflow-runs',
+            // FIXME: i'm not sure why we're still redirecting from root to here
+            lazy: async () => {
+              return {
+                loader: function () {
+                  return redirect('/v1/runs');
                 },
               };
             },
@@ -423,6 +434,17 @@ export const routes: RouteObject[] = [
               },
               {
                 path: '/v1/workflows',
+                // FIXME: i'm not sure why we're still redirecting from root to here
+                lazy: async () => {
+                  return {
+                    loader: function () {
+                      return redirect('/v1/tasks');
+                    },
+                  };
+                },
+              },
+              {
+                path: '/v1/tasks',
                 lazy: async () =>
                   import('./pages/main/v1/workflows').then((res) => {
                     return {
@@ -432,6 +454,17 @@ export const routes: RouteObject[] = [
               },
               {
                 path: '/v1/workflows/:workflow',
+                // FIXME: i'm not sure why we're still redirecting from root to here
+                lazy: async () => {
+                  return {
+                    loader: function ({ params }) {
+                      return redirect(`/v1/tasks/${params.workflow}`);
+                    },
+                  };
+                },
+              },
+              {
+                path: '/v1/tasks/:workflow',
                 lazy: async () =>
                   import('./pages/main/v1/workflows/$workflow').then((res) => {
                     return {
@@ -440,7 +473,7 @@ export const routes: RouteObject[] = [
                   }),
               },
               {
-                path: '/v1/workflow-runs',
+                path: '/v1/runs',
                 lazy: async () =>
                   import('./pages/main/v1/workflow-runs-v1/index.tsx').then(
                     (res) => {
@@ -452,6 +485,17 @@ export const routes: RouteObject[] = [
               },
               {
                 path: '/v1/workflow-runs/:run',
+                // FIXME: i'm not sure why we're still redirecting from root to here
+                lazy: async () => {
+                  return {
+                    loader: function ({ params }) {
+                      return redirect(`/v1/runs/${params.run}`);
+                    },
+                  };
+                },
+              },
+              {
+                path: '/v1/runs/:run',
                 lazy: async () =>
                   import('./pages/main/v1/workflow-runs-v1/$run').then(
                     (res) => {

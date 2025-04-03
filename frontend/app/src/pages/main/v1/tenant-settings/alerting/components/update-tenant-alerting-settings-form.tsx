@@ -107,7 +107,7 @@ export function UpdateTenantAlertingSettings({
             }}
           />
           <Label htmlFor="awrf" className="text-sm">
-            Enable Workflow Run Failure Alerts
+            Enable Run Failure Alerts
           </Label>
         </div>
 
@@ -115,7 +115,7 @@ export function UpdateTenantAlertingSettings({
           {enabledWorkflowAlerting && (
             <div className="grid gap-2">
               <Label htmlFor="maxAlertingFrequency">
-                Max Workflow Run Failure Alerting Frequency
+                Max Run Failure Alerting Frequency
               </Label>
               <Controller
                 control={control}

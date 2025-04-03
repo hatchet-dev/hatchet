@@ -25,7 +25,7 @@ export const columns = ({
       ),
       cell: ({ row }) => {
         return row.original.workflowRunId ? (
-          <Link to={`/v1/workflow-runs/${row.original.workflowRunId}`}>
+          <Link to={`/v1/runs/${row.original.workflowRunId}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.workflowRunName}
             </div>
@@ -61,7 +61,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <a href={`/v1/workflows/${row.original.workflowId}`}>
+            <a href={`/v1/tasks/${row.original.workflowId}`}>
               {row.original.workflowName}
             </a>
           </div>
@@ -114,7 +114,7 @@ export const columns = ({
                 onClick: () => onDeleteClick(row.original),
                 disabled:
                   row.original.method !== 'API'
-                    ? 'Cannot delete scheduled workflow created via workflow code definition'
+                    ? 'Cannot delete scheduled run created via code definition'
                     : undefined,
               },
             ]}

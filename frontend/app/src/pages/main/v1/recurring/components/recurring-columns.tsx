@@ -61,7 +61,7 @@ export const columns = ({
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-            <Link to={`/v1/workflows/${row.original.workflowId}`}>
+            <Link to={`/v1/tasks/${row.original.workflowId}`}>
               {row.original.workflowName}
             </Link>
           </div>
@@ -128,7 +128,7 @@ export const columns = ({
                 onClick: () => onDeleteClick(row.original),
                 disabled:
                   row.original.method !== 'API'
-                    ? 'This cron was created via the workflow code definition. Delete it from the workflow definition instead.'
+                    ? 'This cron was created via a code definition. Delete it from the code definition instead.'
                     : undefined,
               },
             ]}

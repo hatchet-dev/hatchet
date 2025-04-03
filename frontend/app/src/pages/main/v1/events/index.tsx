@@ -458,7 +458,7 @@ function EventsTable() {
           },
           {
             columnId: 'workflows',
-            title: 'Workflow',
+            title: 'Task',
             options: workflowKeyFilters,
           },
           {
@@ -514,9 +514,7 @@ function ExpandedEventContent({ event }: { event: Event }) {
       </h3>
       <Separator />
       <EventDataSection event={event} />
-      <h3 className="text-lg font-bold leading-tight text-foreground">
-        Workflow Runs
-      </h3>
+      <h3 className="text-lg font-bold leading-tight text-foreground">Runs</h3>
       <Separator />
       <EventWorkflowRunsList event={event} />
     </DialogContent>
