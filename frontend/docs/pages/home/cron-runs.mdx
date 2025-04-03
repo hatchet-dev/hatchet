@@ -222,4 +222,4 @@ When using cron triggers, there are a few considerations to keep in mind:
 
 3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances. It will wait for the next scheduled time to trigger the task.
 
-4. **Overlapping Schedules**: If a task is still running when the next scheduled time arrives, Hatchet will start a new instance of the task or respect [concurrency](../concurrency/overview.mdx) policy.
+4. **Overlapping Schedules**: If a task is still running when the next scheduled time arrives, Hatchet will start a new instance of the task or respect [concurrency](./concurrency.mdx) policy.

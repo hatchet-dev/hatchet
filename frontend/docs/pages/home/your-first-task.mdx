@@ -31,7 +31,7 @@ As we continue to build with Hatchet, we'll add additional configuration options
 
 Start by declaring a task with a name. The task object can declare additional task-level configuration options which we'll cover later.
 
-The returned object is an instance of the `Task` class, which is the primary interface for interacting with the task (i.e. [running](./run-with-results.mdx), [enqueuing](./enqueue-runs.mdx), [scheduling](./scheduled-runs.mdx), etc).
+The returned object is an instance of the `Task` class, which is the primary interface for interacting with the task (i.e. [running](./run-with-results.mdx), [enqueuing](./run-no-wait.mdx), [scheduling](./scheduled-runs.mdx), etc).
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
@@ -90,7 +90,7 @@ simple.run(SimpleInput(message="HeLlO WoRlD"))
 There are many ways to run a task, including:
 
 - [Running a task with results](./run-with-results.mdx)
-- [Enqueuing a task](./enqueue-runs.mdx)
+- [Enqueuing a task](./run-no-wait.mdx)
 - [Scheduling a task](./scheduled-runs.mdx)
 - [Scheduling a task with a cron schedule](./cron-schedules.mdx)
 - [Event-driven task execution](./run-on-event.mdx)
