@@ -2,7 +2,7 @@ version: "3.8"
 services:
   postgres:
     image: postgres:15.6
-    command: postgres -c 'max_connections=500'
+    command: postgres -c 'max_connections=500' -c 'shared_preload_libraries=auto_explain' -c 'auto_explain.log_min_duration=1000' -c 'auto_explain.log_analyze=on' -c 'auto_explain.log_verbose=on' -c 'auto_explain.log_timing=on' -c 'auto_explain.log_buffers=on' -c 'auto_explain.log_wal=on' -c 'auto_explain.log_triggers=on' -c 'auto_explain.log_format=text'
     restart: always
     environment:
       - POSTGRES_USER=hatchet

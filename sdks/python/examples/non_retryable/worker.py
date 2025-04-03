@@ -1,4 +1,5 @@
-from hatchet_sdk import Context, EmptyModel, Hatchet, NonRetryableException
+from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk.exceptions import NonRetryableException
 
 hatchet = Hatchet(debug=True)
 

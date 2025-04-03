@@ -56,7 +56,7 @@ class Hatchet:
         self,
         debug: bool = False,
         client: Client | None = None,
-        config: ClientConfig = ClientConfig(),
+        config: ClientConfig | None = None,
     ):
         """
         Initialize a new Hatchet instance.
@@ -74,7 +74,9 @@ class Hatchet:
         if debug:
             logger.setLevel(logging.DEBUG)
 
-        self._client = client if client else Client(config=config, debug=debug)
+        self._client = (
+            client if client else Client(config=config or ClientConfig(), debug=debug)
+        )
 
     @property
     def cron(self) -> CronClient:

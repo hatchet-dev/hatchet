@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.2.1"
+version = "1.2.2"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
@@ -17,12 +17,10 @@ grpcio-tools = [
     { version = ">=1.69.0", markers = "python_version >= '3.13'" },
 ]
 protobuf = "^5.29.1"
-pyyaml = "^6.0.1"
 pydantic = "^2.6.3"
 python-dateutil = "^2.9.0.post0"
 urllib3 = ">=1.26.20"
 aiostream = "^0.5.2"
-nest-asyncio = "^1.6.0"
 aiohttp = "^3.10.5"
 aiohttp-retry = "^2.8.3"
 tenacity = ">=8.4.1"
@@ -35,14 +33,6 @@ opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
 opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
 prometheus-client = "^0.21.1"
 pydantic-settings = "^2.7.1"
-pytest-timeout = "^2.3.1"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.5"
-pytest-asyncio = "^0.25.3"
-psutil = "^6.0.0"
-grpc-stubs = "^1.53.0.5"
-pytest-xdist = "^3.6.1"
 
 [tool.poetry.group.lint.dependencies]
 mypy = "^1.14.0"
@@ -52,9 +42,16 @@ isort = "^5.13.2"
 types-psutil = "^6.1.0.20241221"
 ruff = "^0.9.7"
 types-requests = "^2.32.0.20241016"
+psutil = "^6.0.0"
+grpc-stubs = "^1.53.0.5"
 
 [tool.poetry.group.test.dependencies]
+pytest = "^8.3.5"
+pytest-asyncio = "^0.25.3"
 pytest-env = "^1.1.5"
+pytest-xdist = "^3.6.1"
+pytest-retry = "^1.7.0"
+pytest-timeout = "^2.3.1"
 
 [tool.poetry.extras]
 otel = [

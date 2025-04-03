@@ -138,7 +138,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 )
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.runnables.task import NonRetryableException, Task
+from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
@@ -269,5 +269,4 @@ __all__ = [
     "BulkCancelReplayOpts",
     "RunFilter",
     "V1TaskStatus",
-    "NonRetryableException",
 ]

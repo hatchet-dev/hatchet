@@ -1,38 +1,25 @@
-import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
-import UniversalTabs from "@/components/UniversalTabs";
-import New from "../_setup/new.mdx";
-import Existing from "../_setup/existing.mdx";
-import Clone from "../_setup/clone.mdx";
+import Tabs from "../_setup/tabs.mdx";
 
 # Get Started with Hatchet
 
 This guide will help you get started with Hatchet, at the end of the guide you will have a Hatchet project with a basic workflow and a worker to execute the workflow.
 
-<UniversalTabs
-  items={[
-    "Clone a Quickstart Project",
-    "Create a New Project from Scratch",
-    "Add to an Existing Project",
-  ]}
-  optionKey="setup"
->
-  <Tabs.Tab title="Clone a Quickstart Project">
-    <Clone />
-  </Tabs.Tab>
-  <Tabs.Tab title="Create a New Project from Scratch">
-    <New />
-  </Tabs.Tab>
-  <Tabs.Tab title="Add Hatchet to an Existing Project">
-    <Existing />
-  </Tabs.Tab>
-</UniversalTabs>
+## Set environment variables
 
-## Set Your Environment Variables
+All Hatchet SDKs require the `HATCHET_CLIENT_TOKEN` environment variable to be set. This token is used to authenticate your requests to the Hatchet API. You can generate an API token from the Hatchet frontend by navigating to the `Settings` tab and clicking on the `API Tokens` tab. Click the `Generate API Token` button to create a new token. Set this environment variable in your project, and **do not share it publicly**.
 
 ```bash copy
 export HATCHET_CLIENT_TOKEN="<your-client-token>"
 ```
 
-## You're All Set!
+Additionally, if you are a self-hosted user provisioning without TLS enabled, you will need to set the `HATCHET_CLIENT_TLS_STRATEGY` environment variable to `none`. If you are on Hatchet Cloud, TLS is enabled by default, so this is not required.
 
-Continue to the next section to learn how to [create your first workflow](./basic-workflows)
+```bash copy
+export HATCHET_CLIENT_TLS_STRATEGY=none
+```
+
+## Setup your codebase
+
+<Tabs />
+
+Continue to the next section to learn how to [create your first task](./your-first-task)

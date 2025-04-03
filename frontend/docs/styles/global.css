@@ -103,7 +103,9 @@
   position: relative;
   overflow: hidden;
   box-shadow: 0 1000px 0 0 hsl(217.2 32.6% 17.5%) inset;
-  transition: box-shadow var(--transition), background var(--transition),
+  transition:
+    box-shadow var(--transition),
+    background var(--transition),
     transform var(--transition);
 }
 
@@ -120,7 +122,9 @@
   inset: 1px;
   background: var(--background);
   border-radius: 10px;
-  transition: background var(--transition), opacity var(--transition);
+  transition:
+    background var(--transition),
+    opacity var(--transition);
 }
 
 /* ========================= */
@@ -189,19 +193,27 @@ html.dark ._border {
 /* ========================= */
 /* Code Block Styling        */
 /* ========================= */
-html.dark .nextra-code-block pre,
-.dark .shiki {
-  background-color: #1e293b !important;
-}
-
 .shiki {
   padding: 15px !important;
   border-radius: 10px !important;
-  background-color: rgba(40, 99, 159, 0.05) !important;
+  background-color: #ccc;
+  border-radius: 0.375rem; /* rounded-md */
+  font-size: 0.875rem;
+  border: 1px solid #333;
+}
+
+html.dark .nextra-code-block pre,
+.dark .shiki {
+  background-color: transparent !important;
 }
 
 pre.shiki {
   overflow-x: auto;
+}
+
+/* High contrast mode */
+.contrast-more .shiki {
+  filter: contrast(1.5);
 }
 
 /* ========================= */

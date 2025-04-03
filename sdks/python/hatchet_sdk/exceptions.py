@@ -1,0 +1,2 @@
+class NonRetryableException(Exception):
+    pass
