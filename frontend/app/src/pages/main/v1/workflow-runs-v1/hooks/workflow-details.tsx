@@ -1,8 +1,20 @@
-import { queries } from '@/lib/api';
+import { queries, V1TaskStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError, isAxiosError } from 'axios';
 import { useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
+
+function isTerminalState(status: V1TaskStatus | undefined) {
+  if (!status) {
+    return false;
+  }
+
+  return [
+    V1TaskStatus.COMPLETED,
+    V1TaskStatus.FAILED,
+    V1TaskStatus.CANCELLED,
+  ].includes(status);
+}
 
 export const useWorkflowDetails = () => {
   const params = useParams();
@@ -16,6 +28,15 @@ export const useWorkflowDetails = () => {
       }
 
       return true;
+    },
+    refetchInterval: (query) => {
+      const data = query.state.data;
+
+      if (isTerminalState(data?.run?.status)) {
+        return 5000;
+      }
+
+      return 1000;
     },
     ...queries.v1WorkflowRuns.details(params.run),
   });
