@@ -78,12 +78,17 @@ class ClientConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_addresses(self) -> "ClientConfig":
-        if self.host_port == DEFAULT_HOST_PORT:
-            server_url, grpc_broadcast_address = get_addresses_from_jwt(self.token)
-            self.host_port = grpc_broadcast_address
-            self.server_url = server_url
-        else:
-            self.server_url = self.host_port
+        ## If nothing is set, read from the token
+        ## If either is set, override what's in the JWT
+        server_url_from_jwt, grpc_broadcast_address_from_jwt = get_addresses_from_jwt(
+            self.token
+        )
+
+        if "host_port" not in self.model_fields_set:
+            self.host_port = grpc_broadcast_address_from_jwt
+
+        if "server_url" not in self.model_fields_set:
+            self.server_url = server_url_from_jwt
 
         if not self.tls_config.server_name:
             self.tls_config.server_name = self.host_port.split(":")[0]
