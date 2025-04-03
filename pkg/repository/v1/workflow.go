@@ -44,6 +44,8 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
+
+	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -339,12 +341,15 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	cs, err := checksumV1(opts)
 
+	fmt.Println("Error creating checksum", err)
+
 	if err != nil {
 		return "", err
 	}
 
 	// if the checksum matches the old checksum, we don't need to create a new workflow version
 	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
+		fmt.Println("returning early")
 		return sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID), nil
 	}
 
@@ -361,6 +366,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		}
 	}
 
+	if opts.DefaultPriority != nil {
+		createParams.DefaultPriority = pgtype.Int4{
+			Int32: *opts.DefaultPriority,
+			Valid: true,
+		}
+	}
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,
