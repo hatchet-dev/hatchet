@@ -40,7 +40,7 @@ This is where Hatchet comes in. Hatchet is a full-featured background task manag
 
 ### Features
 
-<details><summary><strong>📥 Queues</strong></summary>
+<details open><summary><strong>📥 Queues</strong></summary>
 
 ####
 
