@@ -730,7 +730,7 @@ Most AI frameworks are built to run in-memory, with horizontal scaling and durab
 
 ### Issues
 
-Please submit any bugs that you encounter via Github issues. However, please reach out on [Discord](https://hatchet.run/discord) before submitting a feature request - as the project is very early, we'd like to build a solid foundation before adding more complex features.
+Please submit any bugs that you encounter via Github issues.
 
 ### I'd Like to Contribute
 
