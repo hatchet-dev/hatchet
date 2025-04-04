@@ -18,7 +18,7 @@ export default function AuthenticatedGuard() {
 
   // user has no tenant
   if (!user.isLoading && user.memberships && user.memberships.length === 0) {
-    return <Navigate to="/tenant/create" />;
+    return <Navigate to="/onboarding/new" />;
   }
 
   return (

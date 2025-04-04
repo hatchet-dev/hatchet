@@ -1,12 +1,15 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserRegisterForm } from './components/user-register-form';
-import { useMutation } from '@tanstack/react-query';
-import api, { UserRegisterRequest } from '@/lib/api';
 import { useState } from 'react';
-import { GithubLogin, GoogleLogin, OrContinueWith } from '../login/login.page';
 import React from 'react';
 import useApiMeta from '@/hooks/use-api-meta';
-
+import {
+  AuthLayout,
+  GoogleLogin,
+  GithubLogin,
+  OrContinueWith,
+} from '../components/shared-auth-components';
+import useUser from '@/hooks/use-user';
 export default function Register() {
   const { data: meta, isLoading } = useApiMeta();
 
@@ -43,87 +46,46 @@ export default function Register() {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center w-full h-full lg:flex-row">
-      <div className="container relative flex-col items-center justify-center w-full lg:px-0">
-        <div className="mx-auto flex w-full max-w-md lg:p-8">
-          <div className="flex w-full flex-col justify-center space-y-6">
-            <div className="flex flex-col space-y-2 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                Create an account
-              </h1>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                {prompt}
-              </p>
-            </div>
-            {forms.map((form, index) => (
-              <React.Fragment key={index}>
-                {form}
-                {index < schemes.length - 1 && <OrContinueWith />}
-              </React.Fragment>
-            ))}
-            <div className="flex flex-col space-y-2">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                Already have an account?{' '}
-                <Link
-                  to="/auth/login"
-                  className="underline underline-offset-4 hover:text-primary"
-                >
-                  Log in
-                </Link>
-              </p>
-            </div>
-            <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
-              By clicking continue, you agree to our{' '}
-              <Link
-                to="https://www.iubenda.com/terms-and-conditions/76608149"
-                className="underline underline-offset-4 hover:text-primary"
-              >
-                Terms of Service
-              </Link>
-              ,{' '}
-              <Link
-                to="https://www.iubenda.com/privacy-policy/76608149/cookie-policy"
-                className="underline underline-offset-4 hover:text-primary"
-              >
-                Cookie Policy
-              </Link>
-              , and{' '}
-              <Link
-                to="https://www.iubenda.com/privacy-policy/76608149"
-                className="underline underline-offset-4 hover:text-primary"
-              >
-                Privacy Policy
-              </Link>
-              .
-            </p>
-          </div>
-        </div>
+    <AuthLayout title="Create an account" prompt={prompt}>
+      {forms.map((form, index) => (
+        <React.Fragment key={index}>
+          {form}
+          {index < schemes.length - 1 && <OrContinueWith />}
+        </React.Fragment>
+      ))}
+      <div className="flex flex-col space-y-2">
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          Already have an account?{' '}
+          <Link
+            to="/auth/login"
+            className="underline underline-offset-4 hover:text-primary"
+          >
+            Log in
+          </Link>
+        </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 
 function BasicRegister() {
   const navigate = useNavigate();
+  const { register } = useUser();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  const createMutation = useMutation({
-    mutationKey: ['user:create'],
-    mutationFn: async (data: UserRegisterRequest) => {
-      await api.userCreate(data);
-    },
-    onSuccess: () => {
-      navigate('/');
-    },
-  });
 
   // TODO: handle error
 
   return (
     <UserRegisterForm
-      isLoading={createMutation.isPending}
-      onSubmit={createMutation.mutate}
+      isLoading={register.isPending}
+      onSubmit={async (data) => {
+        const user = await register.mutateAsync(data);
+        if (user) {
+          navigate('/');
+        }
+      }}
       fieldErrors={fieldErrors}
+      apiError={register.error?.message}
     />
   );
 }

@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
@@ -16,6 +17,7 @@ interface UserLoginFormProps {
   onSubmit: (opts: z.infer<typeof schema>) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
+  apiError?: string;
 }
 
 export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
@@ -71,6 +73,14 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
             )}
           </div>
           <Button disabled={props.isLoading}>Sign In</Button>
+          {props.apiError && (
+            <Alert variant="destructive">
+              <AlertTitle>Login Request Failed</AlertTitle>
+              <AlertDescription>
+                <code>{props.apiError}</code>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </form>
     </div>

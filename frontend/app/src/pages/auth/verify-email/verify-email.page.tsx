@@ -59,7 +59,11 @@ export default function VerifyEmailPage() {
       </Alert>
 
       <div className="flex justify-end pt-4">
-        <Button variant="ghost" onClick={() => user.logout()}>
+        <Button
+          variant="ghost"
+          onClick={() => user.logout.mutate()}
+          loading={user.logout.isPending}
+        >
           Log Out
         </Button>
       </div>

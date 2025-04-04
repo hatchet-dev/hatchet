@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters long'),
@@ -19,6 +20,7 @@ interface UserRegisterFormProps {
   onSubmit: (opts: SubmitType) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
+  apiError?: string;
 }
 
 export function UserRegisterForm({
@@ -94,6 +96,12 @@ export function UserRegisterForm({
             )}
           </div>
           <Button loading={props.isLoading}>Create Account</Button>
+          {props.apiError && (
+            <Alert variant="destructive">
+              <AlertTitle>Registration Request Failed</AlertTitle>
+              <AlertDescription>{props.apiError}</AlertDescription>
+            </Alert>
+          )}
         </div>
       </form>
     </div>

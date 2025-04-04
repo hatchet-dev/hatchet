@@ -6,10 +6,6 @@ import { CenterStageLayout } from '@/components/layouts/center-stage.layout';
 export default function AuthLayoutGuard({ children }: PropsWithChildren) {
   const user = useUser();
 
-  if (user.isLoading) {
-    return <div className="bg-yellow-500">Loading...</div>;
-  }
-
   if (user.data && user.data.emailVerified) {
     return <Navigate to="/" />;
   }

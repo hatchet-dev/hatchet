@@ -1,11 +1,23 @@
-import api, { TenantMember, User } from '@/lib/api';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import api, {
+  TenantMember,
+  User,
+  UserLoginRequest,
+  UserRegisterRequest,
+} from '@/lib/api';
+import {
+  useMutation,
+  UseMutationResult,
+  useQuery,
+} from '@tanstack/react-query';
+import { AxiosResponse } from 'axios';
 
 interface UserState {
   data?: User;
   memberships?: TenantMember[];
   isLoading: boolean;
-  logout: () => void;
+  logout: UseMutationResult<AxiosResponse<User, any>, Error, void, unknown>;
+  login: UseMutationResult<User, Error, UserLoginRequest, unknown>;
+  register: UseMutationResult<User, Error, UserRegisterRequest, unknown>;
 }
 
 interface UseUserOptions {
@@ -34,7 +46,7 @@ export default function useUser({
   }
 
   const membershipsQuery = useQuery({
-    queryKey: ['tenant-memberships:list'],
+    queryKey: ['user-memberships:list'],
     queryFn: async () => (await api.tenantMembershipsList()).data,
     enabled: !!userQuery.data && userQuery.data.emailVerified,
   });
@@ -46,8 +58,8 @@ export default function useUser({
 
   const logoutMutation = useMutation({
     mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
+    mutationFn: () => {
+      return api.userUpdateLogout();
     },
     onSuccess: () => {
       // force a page reload to ensure the user is logged out
@@ -55,10 +67,40 @@ export default function useUser({
     },
   });
 
+  const loginMutation = useMutation({
+    mutationKey: ['user:update:login'],
+    mutationFn: async (data: UserLoginRequest) => {
+      const user = await api.userUpdateLogin(data);
+      if (user.status === 200) {
+        await userQuery.refetch();
+      }
+      return user.data;
+    },
+    onSuccess: (req) => {
+      return req;
+    },
+  });
+
+  const registerMutation = useMutation({
+    mutationKey: ['user:create'],
+    mutationFn: async (data: UserRegisterRequest) => {
+      const user = await api.userCreate(data);
+      if (user.status === 200) {
+        await userQuery.refetch();
+      }
+      return user.data;
+    },
+    onSuccess: (req) => {
+      return req;
+    },
+  });
+
   return {
     data: userQuery.data,
     memberships: membershipsQuery.data?.rows,
     isLoading: userQuery.isLoading,
-    logout: () => logoutMutation.mutate(),
+    logout: logoutMutation,
+    login: loginMutation,
+    register: registerMutation,
   };
 }

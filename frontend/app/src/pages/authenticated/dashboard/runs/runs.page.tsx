@@ -7,7 +7,9 @@ export default function RunsPage() {
   return (
     <div>
       {user?.email}
-      <Button onClick={() => logout()}>Logout</Button>
+      <Button onClick={() => logout.mutate()} loading={logout.isPending}>
+        Logout
+      </Button>
     </div>
   );
 }
