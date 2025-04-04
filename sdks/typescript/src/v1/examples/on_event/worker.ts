@@ -3,7 +3,7 @@ import { lower, upper } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('on-event-worker', {
-    workflows: [lower, upper],
+    register: [lower, upper],
   });
 
   await worker.start();
