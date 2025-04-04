@@ -39,6 +39,7 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
     child_key: str | None = None
     namespace: str | None = None
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
+    priority: int | None = None
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
@@ -106,12 +107,18 @@ class AdminClient:
         except json.JSONDecodeError as e:
             raise ValueError(f"Error encoding payload: {e}")
 
-        _options = self.TriggerWorkflowRequest.model_validate(
-            options.model_dump()
-        ).model_dump()
+        _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
         return v0_workflow_protos.TriggerWorkflowRequest(
-            name=workflow_name, input=payload_data, **_options
+            name=workflow_name,
+            input=payload_data,
+            parent_id=_options.parent_id,
+            parent_step_run_id=_options.parent_step_run_id,
+            child_index=_options.child_index,
+            child_key=_options.child_key,
+            additional_metadata=_options.additional_metadata,
+            desired_worker_id=_options.desired_worker_id,
+            priority=_options.priority,
         )
 
     def _prepare_put_workflow_request(
@@ -158,6 +165,7 @@ class AdminClient:
             child_index=options.child_index,
             child_key=options.child_key,
             additional_metadata=json.dumps(options.additional_metadata),
+            priority=options.priority,
         )
 
     @tenacity_retry
@@ -287,6 +295,7 @@ class AdminClient:
             child_index=child_index,
             additional_metadata=options.additional_metadata,
             desired_worker_id=desired_worker_id,
+            priority=options.priority,
         )
 
         namespace = options.namespace or self.namespace
