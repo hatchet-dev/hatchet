@@ -108,6 +108,48 @@ func (q *Queries) ConcurrencyAdvisoryLock(ctx context.Context, db DBTX, key int6
 	return err
 }
 
+const getWorkflowConcurrencyQueueCounts = `-- name: GetWorkflowConcurrencyQueueCounts :many
+SELECT
+    w."name" AS "workflowName",
+    cs.key,
+    COUNT(*) AS "count"
+FROM
+    v1_concurrency_slot cs
+JOIN
+    "Workflow" w ON w.id = cs.workflow_id
+WHERE
+    cs.tenant_id = $1::uuid
+GROUP BY
+    w."name",
+    cs.key
+`
+
+type GetWorkflowConcurrencyQueueCountsRow struct {
+	WorkflowName string `json:"workflowName"`
+	Key          string `json:"key"`
+	Count        int64  `json:"count"`
+}
+
+func (q *Queries) GetWorkflowConcurrencyQueueCounts(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetWorkflowConcurrencyQueueCountsRow, error) {
+	rows, err := db.Query(ctx, getWorkflowConcurrencyQueueCounts, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetWorkflowConcurrencyQueueCountsRow
+	for rows.Next() {
+		var i GetWorkflowConcurrencyQueueCountsRow
+		if err := rows.Scan(&i.WorkflowName, &i.Key, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActiveConcurrencyStrategies = `-- name: ListActiveConcurrencyStrategies :many
 SELECT
     sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency

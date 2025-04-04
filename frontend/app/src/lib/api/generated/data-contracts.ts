@@ -789,7 +789,7 @@ export interface TenantQueueMetrics {
 }
 
 export interface TenantStepRunQueueMetrics {
-  queues?: Record<string, number>;
+  queues?: object;
 }
 
 /** The key for the event. */

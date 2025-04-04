@@ -1050,7 +1050,7 @@ type TenantResourcePolicy struct {
 
 // TenantStepRunQueueMetrics defines model for TenantStepRunQueueMetrics.
 type TenantStepRunQueueMetrics struct {
-	Queues *map[string]int `json:"queues,omitempty"`
+	Queues *map[string]interface{} `json:"queues,omitempty"`
 }
 
 // TenantVersion defines model for TenantVersion.

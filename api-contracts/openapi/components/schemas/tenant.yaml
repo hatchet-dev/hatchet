@@ -355,5 +355,3 @@ TenantStepRunQueueMetrics:
   properties:
     queues:
       type: object
-      additionalProperties:
-        type: integer
