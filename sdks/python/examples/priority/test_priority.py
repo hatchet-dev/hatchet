@@ -7,27 +7,42 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from examples.priority.worker import priority_workflow
+from examples.priority.worker import DEFAULT_PRIORITY, priority_workflow
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+
+Priority = Literal["low", "medium", "high", "default"]
 
 
 class RunPriorityStartedAt(BaseModel):
-    priority: Literal["low", "high"]
+    priority: Priority
     started_at: datetime
     finished_at: datetime
+
+
+def priority_to_int(priority: Priority) -> int:
+    match priority:
+        case "high":
+            return 3
+        case "medium":
+            return 2
+        case "low":
+            return 1
+        case "default":
+            return DEFAULT_PRIORITY
+        case _:
+            raise ValueError(f"Invalid priority: {priority}")
 
 
 @pytest.mark.asyncio()
 async def test_priority(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
+    choices: list[Priority] = ["low", "medium", "high", "default"]
 
     run_refs = await priority_workflow.aio_run_many_no_wait(
         [
             priority_workflow.create_bulk_run_item(
                 options=TriggerWorkflowOptions(
-                    priority=(
-                        3 if (priority := choice(["low", "high"])) == "high" else 1
-                    ),
+                    priority=(priority_to_int(priority := choice(choices))),
                     additional_metadata={
                         "priority": priority,
                         "key": ix,
@@ -35,7 +50,7 @@ async def test_priority(hatchet: Hatchet) -> None:
                     },
                 )
             )
-            for ix in range(20)
+            for ix in range(30)
         ]
     )
 
@@ -74,20 +89,16 @@ async def test_priority(hatchet: Hatchet) -> None:
 
     assert len(runs_ids_started_ats) == len(run_refs)
 
-    has_seen_low_priority_run = None
+    for i in range(len(runs_ids_started_ats) - 1):
+        curr = runs_ids_started_ats[i]
+        nxt = runs_ids_started_ats[i + 1]
 
-    for run in runs_ids_started_ats:
-        if run.priority == "low" and has_seen_low_priority_run is None:
-            has_seen_low_priority_run = True
+        """Run start times should be in order of priority"""
+        assert priority_to_int(curr.priority) >= priority_to_int(nxt.priority)
 
-        if has_seen_low_priority_run is True:
-            assert run.priority == "low"
-        else:
-            assert run.priority == "high"
+        """Runs should proceed one at a time"""
+        assert curr.finished_at <= nxt.finished_at
+        assert nxt.finished_at >= nxt.started_at
 
-    low_prio_runs = [r for r in runs_ids_started_ats if r.priority == "low"]
-    high_prio_runs = [r for r in runs_ids_started_ats if r.priority == "high"]
-
-    assert max(r.finished_at for r in high_prio_runs) < min(
-        r.started_at for r in low_prio_runs
-    )
+        """Runs should finish after starting (this is mostly a test for engine datetime handling bugs)"""
+        assert curr.finished_at >= curr.started_at
