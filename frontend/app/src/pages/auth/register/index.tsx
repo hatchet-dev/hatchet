@@ -3,22 +3,22 @@ import { UserRegisterForm } from './components/user-register-form';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserRegisterRequest } from '@/lib/api';
 import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
-import useApiMeta from '../hooks/use-api-meta';
-import { Loading } from '@/components/ui/loading';
 import { GithubLogin, GoogleLogin, OrContinueWith } from '../login';
-import useErrorParam from '../hooks/use-error-param';
 import React from 'react';
+import useApiMeta from '@/hooks/use-api-meta';
 
 export default function Register() {
-  useErrorParam();
-  const meta = useApiMeta();
+  const { data: meta, isLoading } = useApiMeta();
 
-  if (meta.isLoading) {
-    return <Loading />;
+  if (isLoading) {
+    return 'Loading...'; // TODO: add loading
   }
 
-  const schemes = meta.data?.auth?.schemes || [];
+  if (!meta) {
+    return 'Error loading meta'; // TODO: add error
+  }
+
+  const schemes = meta.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
@@ -106,9 +106,6 @@ export default function Register() {
 function BasicRegister() {
   const navigate = useNavigate();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({
-    setFieldErrors: setFieldErrors,
-  });
 
   const createMutation = useMutation({
     mutationKey: ['user:create'],
@@ -118,8 +115,9 @@ function BasicRegister() {
     onSuccess: () => {
       navigate('/');
     },
-    onError: handleApiError,
   });
+
+  // TODO: handle error
 
   return (
     <UserRegisterForm

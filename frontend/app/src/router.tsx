@@ -1,6 +1,7 @@
 import { FC } from 'react';
 import {
   createBrowserRouter,
+  redirect,
   RouteObject,
   RouterProvider,
 } from 'react-router-dom';
@@ -19,12 +20,9 @@ export const routes: RouteObject[] = [
     children: [
       {
         path: '/auth',
-        lazy: async () =>
-          import('./pages/auth/no-auth').then((res) => {
-            return {
-              loader: res.loader,
-            };
-          }),
+        action: async () => {
+          throw redirect('/auth/login');
+        },
         children: [
           {
             path: '/auth/login',
@@ -45,6 +43,15 @@ export const routes: RouteObject[] = [
               }),
           },
         ],
+      },
+      {
+        path: '/',
+        lazy: async () =>
+          import('./pages/authenticated').then((res) => {
+            return {
+              Component: res.default,
+            };
+          }),
       },
     ],
   },

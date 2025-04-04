@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/ui/loading.tsx';
 
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters long'),
@@ -94,10 +93,7 @@ export function UserRegisterForm({
               <div className="text-sm text-red-500">{passwordError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading}>
-            {props.isLoading && <Spinner />}
-            Create Account
-          </Button>
+          <Button loading={props.isLoading}>Create Account</Button>
         </div>
       </form>
     </div>

@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/ui/loading.tsx';
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
@@ -71,8 +70,9 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
               <div className="text-sm text-red-500">{passwordError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading}>
-            {props.isLoading && <Spinner />}
+          <Button loading={props.isLoading}>
+            {/* TODO: add spinner */}
+            {props.isLoading && 'loading...'}
             Sign In
           </Button>
         </div>

@@ -4,22 +4,23 @@ import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import api, { UserLoginRequest } from '@/lib/api';
 import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
-import useApiMeta from '../hooks/use-api-meta';
-import { Loading } from '@/components/ui/loading';
-import { Icons } from '@/components/ui/icons';
-import useErrorParam from '../hooks/use-error-param';
 import React from 'react';
+import useApiMeta from '@/hooks/use-api-meta';
+
+import { FaGoogle, FaGithub } from 'react-icons/fa';
 
 export default function Login() {
-  useErrorParam();
-  const meta = useApiMeta();
+  const { data: meta, isLoading } = useApiMeta();
 
-  if (meta.isLoading) {
-    return <Loading />;
+  if (isLoading) {
+    return 'Loading...'; // TODO: add loading
   }
 
-  const schemes = meta.data?.auth?.schemes || [];
+  if (!meta) {
+    return 'Error loading meta'; // TODO: add error
+  }
+
+  const schemes = meta.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
@@ -123,7 +124,6 @@ export function OrContinueWith() {
 function BasicLogin() {
   const navigate = useNavigate();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({ setFieldErrors });
 
   const loginMutation = useMutation({
     mutationKey: ['user:update:login'],
@@ -133,7 +133,6 @@ function BasicLogin() {
     onSuccess: () => {
       navigate('/');
     },
-    onError: handleApiError,
   });
 
   return (
@@ -149,7 +148,7 @@ export function GoogleLogin() {
   return (
     <a href="/api/v1/users/google/start" className="w-full">
       <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.google className="mr-2 h-4 w-4" />
+        <FaGoogle className="mr-2 h-4 w-4" />
         Google
       </Button>
     </a>
@@ -160,7 +159,7 @@ export function GithubLogin() {
   return (
     <a href="/api/v1/users/github/start" className="w-full">
       <Button variant="outline" type="button" className="w-full py-2">
-        <Icons.gitHub className="mr-2 h-4 w-4" />
+        <FaGithub className="mr-2 h-4 w-4" />
         Github
       </Button>
     </a>
