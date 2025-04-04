@@ -14,6 +14,7 @@ from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 class RunPriorityStartedAt(BaseModel):
     priority: Literal["low", "high"]
     started_at: datetime
+    finished_at: datetime
 
 
 @pytest.mark.asyncio()
@@ -64,6 +65,7 @@ async def test_priority(hatchet: Hatchet) -> None:
             RunPriorityStartedAt(
                 priority=(r.additional_metadata or {}).get("priority") or "low",
                 started_at=r.started_at or datetime.min,
+                finished_at=r.finished_at or datetime.min,
             )
             for r in runs.rows
         ],
@@ -82,3 +84,10 @@ async def test_priority(hatchet: Hatchet) -> None:
             assert run.priority == "low"
         else:
             assert run.priority == "high"
+
+    low_prio_runs = [r for r in runs_ids_started_ats if r.priority == "low"]
+    high_prio_runs = [r for r in runs_ids_started_ats if r.priority == "high"]
+
+    assert max(r.finished_at for r in high_prio_runs) < min(
+        r.started_at for r in low_prio_runs
+    )
