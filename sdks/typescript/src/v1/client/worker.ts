@@ -32,9 +32,9 @@ export interface CreateWorkerOpts {
   /** @deprecated Use slots instead */
   maxRuns?: number;
 
-  /** (optional) Array of workflows to register 
+  /** (optional) Array of workflows to register
    * @deprecated use register instead
-  */
+   */
   workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
 }
 
