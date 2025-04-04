@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from typing import Literal, overload
 
@@ -19,7 +20,6 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.utils.aio import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -90,12 +90,12 @@ class RunsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TaskApi:
         return TaskApi(client)
 
-    async def aio_get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
-        async with self.client() as client:
-            return await self._wra(client).v1_workflow_run_get(str(workflow_run_id))
-
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
-        return run_async_from_sync(self.aio_get, workflow_run_id)
+        with self.client() as client:
+            return self._wra(client).v1_workflow_run_get(str(workflow_run_id))
+
+    async def aio_get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
+        return await asyncio.to_thread(self.get, workflow_run_id)
 
     async def aio_list(
         self,
@@ -110,8 +110,35 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
     ) -> V1TaskSummaryList:
-        async with self.client() as client:
-            return await self._wra(client).v1_workflow_run_list(
+        return await asyncio.to_thread(
+            self.list,
+            since=since,
+            only_tasks=only_tasks,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
+            until=until,
+            additional_metadata=additional_metadata,
+            workflow_ids=workflow_ids,
+            worker_id=worker_id,
+            parent_task_external_id=parent_task_external_id,
+        )
+
+    def list(
+        self,
+        since: datetime = datetime.now() - timedelta(hours=1),
+        only_tasks: bool = False,
+        offset: int | None = None,
+        limit: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        until: datetime | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        workflow_ids: list[str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+    ) -> V1TaskSummaryList:
+        with self.client() as client:
+            return self._wra(client).v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
                 since=since,
                 only_tasks=only_tasks,
@@ -127,41 +154,14 @@ class RunsClient(BaseRestClient):
                 parent_task_external_id=parent_task_external_id,
             )
 
-    def list(
-        self,
-        since: datetime = datetime.now() - timedelta(hours=1),
-        only_tasks: bool = False,
-        offset: int | None = None,
-        limit: int | None = None,
-        statuses: list[V1TaskStatus] | None = None,
-        until: datetime | None = None,
-        additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
-        worker_id: str | None = None,
-        parent_task_external_id: str | None = None,
-    ) -> V1TaskSummaryList:
-        return run_async_from_sync(
-            self.aio_list,
-            since=since,
-            only_tasks=only_tasks,
-            offset=offset,
-            limit=limit,
-            statuses=statuses,
-            until=until,
-            additional_metadata=additional_metadata,
-            workflow_ids=workflow_ids,
-            worker_id=worker_id,
-            parent_task_external_id=parent_task_external_id,
-        )
-
-    async def aio_create(
+    def create(
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping = {},
     ) -> V1WorkflowRunDetails:
-        async with self.client() as client:
-            return await self._wra(client).v1_workflow_run_create(
+        with self.client() as client:
+            return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,
                 v1_trigger_workflow_run_request=V1TriggerWorkflowRunRequest(
                     workflowName=workflow_name,
@@ -170,52 +170,47 @@ class RunsClient(BaseRestClient):
                 ),
             )
 
-    def create(
+    async def aio_create(
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping = {},
     ) -> V1WorkflowRunDetails:
-        return run_async_from_sync(
-            self.aio_create, workflow_name, input, additional_metadata
+        return await asyncio.to_thread(
+            self.create, workflow_name, input, additional_metadata
         )
 
-    async def aio_replay(self, run_id: str) -> None:
-        await self.aio_bulk_replay(opts=BulkCancelReplayOpts(ids=[run_id]))
-
     def replay(self, run_id: str) -> None:
-        return run_async_from_sync(self.aio_replay, run_id)
+        self.bulk_replay(opts=BulkCancelReplayOpts(ids=[run_id]))
 
-    async def aio_bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
-        async with self.client() as client:
-            await self._ta(client).v1_task_replay(
+    async def aio_replay(self, run_id: str) -> None:
+        return await asyncio.to_thread(self.replay, run_id)
+
+    def bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
+        with self.client() as client:
+            self._ta(client).v1_task_replay(
                 tenant=self.client_config.tenant_id,
                 v1_replay_task_request=opts.to_request("replay"),
             )
 
-    def bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
-        return run_async_from_sync(self.aio_bulk_replay, opts)
-
-    async def aio_cancel(self, run_id: str) -> None:
-        await self.aio_bulk_cancel(opts=BulkCancelReplayOpts(ids=[run_id]))
+    async def aio_bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
+        return await asyncio.to_thread(self.bulk_replay, opts)
 
     def cancel(self, run_id: str) -> None:
-        return run_async_from_sync(self.aio_cancel, run_id)
+        self.bulk_cancel(opts=BulkCancelReplayOpts(ids=[run_id]))
 
-    async def aio_bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
-        async with self.client() as client:
-            await self._ta(client).v1_task_cancel(
+    async def aio_cancel(self, run_id: str) -> None:
+        return await asyncio.to_thread(self.cancel, run_id)
+
+    def bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
+        with self.client() as client:
+            self._ta(client).v1_task_cancel(
                 tenant=self.client_config.tenant_id,
                 v1_cancel_task_request=opts.to_request("cancel"),
             )
 
-    def bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
-        return run_async_from_sync(self.aio_bulk_cancel, opts)
-
-    async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
-        details = await self.aio_get(run_id)
-
-        return details.run.output
+    async def aio_bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
+        return await asyncio.to_thread(self.bulk_cancel, opts)
 
     def get_result(self, run_id: str) -> JSONSerializableMapping:
         details = self.get(run_id)
@@ -227,3 +222,8 @@ class RunsClient(BaseRestClient):
             workflow_run_id=workflow_run_id,
             config=self.client_config,
         )
+
+    async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
+        details = await asyncio.to_thread(self.get, run_id)
+
+        return details.run.output

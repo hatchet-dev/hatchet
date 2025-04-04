@@ -52,7 +52,7 @@ class DefaultApi:
         self.api_client = api_client
 
     @validate_call
-    async def info_get_version(
+    def info_get_version(
         self,
         _request_timeout: Union[
             None,
@@ -102,17 +102,17 @@ class DefaultApi:
         _response_types_map: Dict[str, Optional[str]] = {
             "200": "InfoGetVersion200Response",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def info_get_version_with_http_info(
+    def info_get_version_with_http_info(
         self,
         _request_timeout: Union[
             None,
@@ -162,17 +162,17 @@ class DefaultApi:
         _response_types_map: Dict[str, Optional[str]] = {
             "200": "InfoGetVersion200Response",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def info_get_version_without_preload_content(
+    def info_get_version_without_preload_content(
         self,
         _request_timeout: Union[
             None,
@@ -222,7 +222,7 @@ class DefaultApi:
         _response_types_map: Dict[str, Optional[str]] = {
             "200": "InfoGetVersion200Response",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -279,7 +279,7 @@ class DefaultApi:
         )
 
     @validate_call
-    async def monitoring_post_run_probe(
+    def monitoring_post_run_probe(
         self,
         tenant: Annotated[
             str,
@@ -339,17 +339,17 @@ class DefaultApi:
             "200": None,
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def monitoring_post_run_probe_with_http_info(
+    def monitoring_post_run_probe_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -409,17 +409,17 @@ class DefaultApi:
             "200": None,
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def monitoring_post_run_probe_without_preload_content(
+    def monitoring_post_run_probe_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -479,7 +479,7 @@ class DefaultApi:
             "200": None,
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -539,7 +539,7 @@ class DefaultApi:
         )
 
     @validate_call
-    async def tenant_invite_delete(
+    def tenant_invite_delete(
         self,
         tenant: Annotated[
             str,
@@ -611,17 +611,17 @@ class DefaultApi:
             "200": "TenantInvite",
             "400": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_invite_delete_with_http_info(
+    def tenant_invite_delete_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -693,17 +693,17 @@ class DefaultApi:
             "200": "TenantInvite",
             "400": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_invite_delete_without_preload_content(
+    def tenant_invite_delete_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -775,7 +775,7 @@ class DefaultApi:
             "200": "TenantInvite",
             "400": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -838,7 +838,7 @@ class DefaultApi:
         )
 
     @validate_call
-    async def tenant_invite_update(
+    def tenant_invite_update(
         self,
         tenant: Annotated[
             str,
@@ -916,17 +916,17 @@ class DefaultApi:
             "200": "TenantInvite",
             "400": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_invite_update_with_http_info(
+    def tenant_invite_update_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1004,17 +1004,17 @@ class DefaultApi:
             "200": "TenantInvite",
             "400": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_invite_update_without_preload_content(
+    def tenant_invite_update_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1092,7 +1092,7 @@ class DefaultApi:
             "200": "TenantInvite",
             "400": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1168,7 +1168,7 @@ class DefaultApi:
         )
 
     @validate_call
-    async def webhook_create(
+    def webhook_create(
         self,
         tenant: Annotated[
             str,
@@ -1234,17 +1234,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def webhook_create_with_http_info(
+    def webhook_create_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1310,17 +1310,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def webhook_create_without_preload_content(
+    def webhook_create_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1386,7 +1386,7 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1459,7 +1459,7 @@ class DefaultApi:
         )
 
     @validate_call
-    async def webhook_delete(
+    def webhook_delete(
         self,
         webhook: Annotated[
             str,
@@ -1521,17 +1521,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def webhook_delete_with_http_info(
+    def webhook_delete_with_http_info(
         self,
         webhook: Annotated[
             str,
@@ -1593,17 +1593,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def webhook_delete_without_preload_content(
+    def webhook_delete_without_preload_content(
         self,
         webhook: Annotated[
             str,
@@ -1665,7 +1665,7 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1725,7 +1725,7 @@ class DefaultApi:
         )
 
     @validate_call
-    async def webhook_list(
+    def webhook_list(
         self,
         tenant: Annotated[
             str,
@@ -1787,17 +1787,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def webhook_list_with_http_info(
+    def webhook_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1859,17 +1859,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def webhook_list_without_preload_content(
+    def webhook_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1931,7 +1931,7 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1991,7 +1991,7 @@ class DefaultApi:
         )
 
     @validate_call
-    async def webhook_requests_list(
+    def webhook_requests_list(
         self,
         webhook: Annotated[
             str,
@@ -2053,17 +2053,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def webhook_requests_list_with_http_info(
+    def webhook_requests_list_with_http_info(
         self,
         webhook: Annotated[
             str,
@@ -2125,17 +2125,17 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def webhook_requests_list_without_preload_content(
+    def webhook_requests_list_without_preload_content(
         self,
         webhook: Annotated[
             str,
@@ -2197,7 +2197,7 @@ class DefaultApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
