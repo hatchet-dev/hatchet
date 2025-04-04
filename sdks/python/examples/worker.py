@@ -12,6 +12,7 @@ from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
 from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
+from examples.priority.worker import priority_workflow
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from examples.waits.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
@@ -46,6 +47,7 @@ def main() -> None:
             sync_fanout_parent,
             sync_fanout_child,
             non_retryable_workflow,
+            priority_workflow,
         ],
     )
 
