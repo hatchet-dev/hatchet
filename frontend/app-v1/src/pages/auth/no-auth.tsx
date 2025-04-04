@@ -1,6 +1,6 @@
 import { redirect } from 'react-router-dom';
 import api from '@/lib/api';
-import queryClient from '@/lib/query-client';
+import queryClient from '@/query-client';
 import { AxiosError, isAxiosError } from 'axios';
 
 const noAuthMiddleware = async () => {

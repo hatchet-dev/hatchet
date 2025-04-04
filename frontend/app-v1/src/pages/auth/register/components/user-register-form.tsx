@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils/index.ts';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,25 +8,33 @@ import { z } from 'zod';
 import { Spinner } from '@/components/ui/loading.tsx';
 
 const schema = z.object({
+  name: z.string().min(3, 'Name must be at least 3 characters long'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
 });
 
-interface UserLoginFormProps {
+type SubmitType = z.infer<typeof schema>;
+
+interface UserRegisterFormProps {
   className?: string;
-  onSubmit: (opts: z.infer<typeof schema>) => void;
+  onSubmit: (opts: SubmitType) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
 }
 
-export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
+export function UserRegisterForm({
+  className,
+  ...props
+}: UserRegisterFormProps) {
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<z.infer<typeof schema>>({
+  } = useForm<SubmitType>({
     resolver: zodResolver(schema),
   });
+
+  const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
 
   const emailError =
     errors.email?.message?.toString() || props.fieldErrors?.email;
@@ -42,6 +50,21 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
         })}
       >
         <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              {...register('name')}
+              id="name"
+              placeholder="Boba Fett"
+              type="name"
+              autoCapitalize="none"
+              autoCorrect="off"
+              disabled={props.isLoading}
+            />
+            {nameError && (
+              <div className="text-sm text-red-500">{nameError}</div>
+            )}
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -73,7 +96,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
           </div>
           <Button disabled={props.isLoading}>
             {props.isLoading && <Spinner />}
-            Sign In
+            Create Account
           </Button>
         </div>
       </form>

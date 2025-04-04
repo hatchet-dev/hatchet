@@ -1,5 +1,3 @@
-// TODO error boundary
-
 import { Button } from '@/components/ui/button';
 import { PropsWithChildren } from 'react';
 import { ErrorResponse, useNavigate, useRouteError } from 'react-router-dom';
