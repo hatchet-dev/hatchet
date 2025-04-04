@@ -591,6 +591,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 			DesiredWorkerLabels: affinity,
 			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
 			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
+			ScheduleTimeout:     stepCp.ScheduleTimeout,
 		}
 
 		// Safely set Parents
