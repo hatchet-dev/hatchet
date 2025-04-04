@@ -10,17 +10,18 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
+DEFAULT_PRIORITY = 2
+SLEEP_TIME = 0.25
+
 priority_workflow = hatchet.workflow(
     name="PriorityWorkflow",
-    default_priority=2,
+    default_priority=DEFAULT_PRIORITY,
     concurrency=ConcurrencyExpression(
         max_runs=1,
         expression="'true'",
         limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
     ),
 )
-
-SLEEP_TIME = 1
 
 
 @priority_workflow.task()
