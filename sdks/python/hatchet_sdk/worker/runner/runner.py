@@ -32,6 +32,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.exceptions import NonRetryableException
+from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_step_run_id,
@@ -91,6 +92,7 @@ class Runner:
         self.admin_client = AdminClient(
             self.config, self.workflow_listener, self.workflow_run_event_listener
         )
+        self.runs_client = RunsClient(self.config)
         self.event_client = EventClient(self.config)
         self.durable_event_listener = DurableEventListener(self.config)
 
@@ -299,7 +301,7 @@ class Runner:
             durable_event_listener=self.durable_event_listener,
             worker=self.worker_context,
             validator_registry=self.validator_registry,
-            runs_client=self.client.runs,
+            runs_client=self.runs_client,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
