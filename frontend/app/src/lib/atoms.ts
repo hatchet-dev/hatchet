@@ -1,11 +1,11 @@
 import { atom, useAtom } from 'jotai';
-import { Tenant, TenantVersion, queries } from './api';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Tenant, queries } from './api';
+import { useSearchParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { TenantBillingState } from './api/generated/cloud/data-contracts';
 import { Evaluate } from './can/shared/permission.base';
+import useCloudApiMeta from '@/hooks/use-cloud-api-meta';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
@@ -142,49 +142,6 @@ export function useTenant(): TenantContext {
 
   // Set the correct path for tenant version
   // NOTE: this is hacky and not ideal
-
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-
-  const [lastRedirected, setLastRedirected] = useState<string | undefined>();
-  const [previewV0, setPreviewV0] = useState<boolean>(false);
-
-  useEffect(() => {
-    const previewV0Params = params.get('previewV0');
-
-    if (previewV0Params == 'false' && previewV0) {
-      setPreviewV0(false);
-    } else if (previewV0Params == 'true' && !previewV0) {
-      setPreviewV0(true);
-      return;
-    }
-
-    if (previewV0) {
-      return;
-    }
-
-    if (pathname.startsWith('/onboarding')) {
-      return;
-    }
-
-    if (tenant?.version == TenantVersion.V0 && pathname.startsWith('/v1')) {
-      setLastRedirected(tenant?.slug);
-      return navigate({
-        pathname: pathname.replace('/v1', ''),
-        search: params.toString(),
-      });
-    }
-
-    if (tenant?.version == TenantVersion.V1 && !pathname.startsWith('/v1')) {
-      setLastRedirected(tenant?.slug);
-      return navigate({
-        pathname: '/v1' + pathname,
-        search: params.toString(),
-      });
-    }
-  }, [lastRedirected, navigate, params, pathname, previewV0, tenant]);
-
   // Tenant Billing State
 
   const [pollBilling, setPollBilling] = useState(false);

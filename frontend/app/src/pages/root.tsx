@@ -5,7 +5,7 @@ import { Outlet } from 'react-router-dom';
 function Root({ children }: PropsWithChildren) {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      {children ?? <Outlet />}xx
+      {children ?? <Outlet />}
     </ThemeProvider>
   );
 }

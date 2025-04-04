@@ -6,15 +6,10 @@ import { Navigate, Outlet } from 'react-router-dom';
 export default function Authenticated() {
   const user = useUser();
 
+  // user is not authenticated
   if (!user.isLoading && !user.data) {
     return <Navigate to="/auth/login" />;
   }
-
-  // if (!userQuery.data) {
-  //   return <Navigate to="/auth/login" />;
-  // }
-
-  console.log(user);
 
   return (
     <>

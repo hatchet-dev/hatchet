@@ -1,11 +1,7 @@
 import { cloudApi } from '@/lib/api/api';
-import { useApiError } from '@/lib/hooks';
 import { useQuery } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
 
 export default function useCloudFeatureFlags(tenantId: string) {
-  const { handleApiError } = useApiError({});
-
   const flagsQuery = useQuery({
     queryKey: ['feature-flags:list'],
     retry: false,
@@ -22,7 +18,8 @@ export default function useCloudFeatureFlags(tenantId: string) {
   });
 
   if (flagsQuery.isError) {
-    handleApiError(flagsQuery.error as AxiosError);
+    // TODO: handle error
+    console.error(flagsQuery.error);
   }
 
   return flagsQuery.data;

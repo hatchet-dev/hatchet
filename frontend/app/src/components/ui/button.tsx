@@ -3,6 +3,7 @@ import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils/index.ts';
+import { FaSpinner } from 'react-icons/fa';
 
 const buttonVariants = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 relative overflow-hidden',
@@ -56,10 +57,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="absolute inset-0 border-2 border-transparent border-t-primary animate-spin rounded-full" />
+            <FaSpinner className="animate-spin h-5 w-5 text-secondary" />
           </div>
         )}
-        <span className={cn(loading && 'opacity-0')}>{props.children}</span>
+        {props.children}
       </Comp>
     );
   },
