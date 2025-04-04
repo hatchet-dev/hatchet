@@ -1,5 +1,10 @@
-from examples.priority.worker import high_priority_workflow, low_priority_workflow, control_workflow
 from random import shuffle
+
+from examples.priority.worker import (
+    control_workflow,
+    high_priority_workflow,
+    low_priority_workflow,
+)
 
 control_workflow.run_no_wait()
 

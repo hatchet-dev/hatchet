@@ -4,7 +4,9 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-high_priority_workflow = hatchet.workflow(name="HighPriorityWorkflow", default_priority=3)
+high_priority_workflow = hatchet.workflow(
+    name="HighPriorityWorkflow", default_priority=3
+)
 low_priority_workflow = hatchet.workflow(name="LowPriorityWorkflow", default_priority=1)
 control_workflow = hatchet.workflow(name="ControlWorkflow", default_priority=1)
 
@@ -19,6 +21,7 @@ def high_prio_task(input: EmptyModel, ctx: Context) -> None:
 @low_priority_workflow.task()
 def low_prio_task(input: EmptyModel, ctx: Context) -> None:
     time.sleep(SLEEP_TIME)
+
 
 @control_workflow.task()
 def control_task(input: EmptyModel, ctx: Context) -> None:
