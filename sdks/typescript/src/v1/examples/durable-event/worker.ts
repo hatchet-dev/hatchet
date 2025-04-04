@@ -3,7 +3,7 @@ import { durableEvent } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('durable-event-worker', {
-    workflows: [durableEvent],
+    register: [durableEvent],
   });
 
   await worker.start();

@@ -3,7 +3,7 @@ import { simple } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('legacy-worker', {
-    workflows: [simple],
+    register: [simple],
   });
 
   await worker.start();

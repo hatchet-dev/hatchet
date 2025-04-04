@@ -16,17 +16,26 @@ const DEFAULT_DURABLE_SLOTS = 1_000;
 export interface CreateWorkerOpts {
   /** (optional) Maximum number of concurrent runs on this worker, defaults to 100 */
   slots?: number;
+
   /** (optional) Array of workflows to register */
-  workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
+  register?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
+
   /** (optional) Worker labels for affinity-based assignment */
   labels?: WorkerLabels;
+
   /** (optional) Whether to handle kill signals */
   handleKill?: boolean;
-  /** @deprecated Use slots instead */
-  maxRuns?: number;
 
   /** (optional) Maximum number of concurrent runs on the durable worker, defaults to 1,000 */
   durableSlots?: number;
+
+  /** @deprecated Use slots instead */
+  maxRuns?: number;
+
+  /** (optional) Array of workflows to register 
+   * @deprecated use register instead
+  */
+  workflows?: BaseWorkflowDeclaration<any, any>[] | V0Workflow[];
 }
 
 /**
@@ -76,8 +85,13 @@ export class Worker {
       ...options,
       maxRuns: options.slots || options.maxRuns,
     });
+
+    if (options.register && options.workflows) {
+      throw new Error('register and workflows are both set, use register instead');
+    }
+
     const worker = new Worker(v1, v0, v0worker, options, name);
-    await worker.registerWorkflows(options.workflows);
+    await worker.registerWorkflows(options.register || options.workflows);
     return worker;
   }
 

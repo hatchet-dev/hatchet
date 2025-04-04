@@ -3,7 +3,7 @@ import { dagWithConditions } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('dag-worker', {
-    workflows: [dagWithConditions],
+    register: [dagWithConditions],
   });
 
   await worker.start();

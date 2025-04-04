@@ -3,7 +3,7 @@ import { onCron } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('on-cron-worker', {
-    workflows: [onCron],
+    register: [onCron],
   });
 
   await worker.start();

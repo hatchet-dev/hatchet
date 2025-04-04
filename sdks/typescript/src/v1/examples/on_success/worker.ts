@@ -3,7 +3,7 @@ import { onSuccessDag } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('always-succeed-worker', {
-    workflows: [onSuccessDag],
+    register: [onSuccessDag],
   });
 
   await worker.start();

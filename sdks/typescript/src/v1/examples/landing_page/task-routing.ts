@@ -21,7 +21,7 @@ export const simple = hatchet.task({
 });
 
 hatchet.worker('task-routing-worker', {
-  workflows: [simple],
+  register: [simple],
   labels: {
     cpu: process.env.CPU_LABEL,
   },
