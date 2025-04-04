@@ -52,6 +52,8 @@ type TriggerTaskData struct {
 
 	// (optional) the child key
 	ChildKey *string `json:"child_key"`
+
+	Priority *int32 `json:"priority"`
 }
 
 type createDAGOpts struct {

@@ -830,6 +830,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				req.ChildKey,
 				additionalMetadata,
 				parentAdditionalMeta,
+				req.Priority,
 			)
 
 			if err != nil {
