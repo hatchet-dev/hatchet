@@ -66,7 +66,7 @@ class TenantApi:
         self.api_client = api_client
 
     @validate_call
-    async def alert_email_group_create(
+    def alert_email_group_create(
         self,
         tenant: Annotated[
             str,
@@ -134,17 +134,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def alert_email_group_create_with_http_info(
+    def alert_email_group_create_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -212,17 +212,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def alert_email_group_create_without_preload_content(
+    def alert_email_group_create_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -290,7 +290,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -363,7 +363,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def alert_email_group_delete(
+    def alert_email_group_delete(
         self,
         alert_email_group: Annotated[
             str,
@@ -427,17 +427,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def alert_email_group_delete_with_http_info(
+    def alert_email_group_delete_with_http_info(
         self,
         alert_email_group: Annotated[
             str,
@@ -501,17 +501,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def alert_email_group_delete_without_preload_content(
+    def alert_email_group_delete_without_preload_content(
         self,
         alert_email_group: Annotated[
             str,
@@ -575,7 +575,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -635,7 +635,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def alert_email_group_list(
+    def alert_email_group_list(
         self,
         tenant: Annotated[
             str,
@@ -696,17 +696,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def alert_email_group_list_with_http_info(
+    def alert_email_group_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -767,17 +767,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def alert_email_group_list_without_preload_content(
+    def alert_email_group_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -838,7 +838,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -898,7 +898,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def alert_email_group_update(
+    def alert_email_group_update(
         self,
         alert_email_group: Annotated[
             str,
@@ -969,17 +969,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def alert_email_group_update_with_http_info(
+    def alert_email_group_update_with_http_info(
         self,
         alert_email_group: Annotated[
             str,
@@ -1050,17 +1050,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def alert_email_group_update_without_preload_content(
+    def alert_email_group_update_without_preload_content(
         self,
         alert_email_group: Annotated[
             str,
@@ -1131,7 +1131,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1204,7 +1204,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_alerting_settings_get(
+    def tenant_alerting_settings_get(
         self,
         tenant: Annotated[
             str,
@@ -1265,17 +1265,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_alerting_settings_get_with_http_info(
+    def tenant_alerting_settings_get_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1336,17 +1336,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_alerting_settings_get_without_preload_content(
+    def tenant_alerting_settings_get_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1407,7 +1407,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1467,7 +1467,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_create(
+    def tenant_create(
         self,
         create_tenant_request: Annotated[
             CreateTenantRequest, Field(description="The tenant to create")
@@ -1525,17 +1525,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_create_with_http_info(
+    def tenant_create_with_http_info(
         self,
         create_tenant_request: Annotated[
             CreateTenantRequest, Field(description="The tenant to create")
@@ -1593,17 +1593,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_create_without_preload_content(
+    def tenant_create_without_preload_content(
         self,
         create_tenant_request: Annotated[
             CreateTenantRequest, Field(description="The tenant to create")
@@ -1661,7 +1661,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1731,7 +1731,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_get_step_run_queue_metrics(
+    def tenant_get_step_run_queue_metrics(
         self,
         tenant: Annotated[
             str,
@@ -1793,17 +1793,17 @@ class TenantApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_get_step_run_queue_metrics_with_http_info(
+    def tenant_get_step_run_queue_metrics_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1865,17 +1865,17 @@ class TenantApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_get_step_run_queue_metrics_without_preload_content(
+    def tenant_get_step_run_queue_metrics_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1937,7 +1937,7 @@ class TenantApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1997,7 +1997,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_invite_accept(
+    def tenant_invite_accept(
         self,
         accept_invite_request: Optional[AcceptInviteRequest] = None,
         _request_timeout: Union[
@@ -2053,17 +2053,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_invite_accept_with_http_info(
+    def tenant_invite_accept_with_http_info(
         self,
         accept_invite_request: Optional[AcceptInviteRequest] = None,
         _request_timeout: Union[
@@ -2119,17 +2119,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_invite_accept_without_preload_content(
+    def tenant_invite_accept_without_preload_content(
         self,
         accept_invite_request: Optional[AcceptInviteRequest] = None,
         _request_timeout: Union[
@@ -2185,7 +2185,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -2255,7 +2255,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_invite_create(
+    def tenant_invite_create(
         self,
         tenant: Annotated[
             str,
@@ -2322,17 +2322,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_invite_create_with_http_info(
+    def tenant_invite_create_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -2399,17 +2399,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_invite_create_without_preload_content(
+    def tenant_invite_create_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -2476,7 +2476,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -2549,7 +2549,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_invite_list(
+    def tenant_invite_list(
         self,
         tenant: Annotated[
             str,
@@ -2610,17 +2610,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_invite_list_with_http_info(
+    def tenant_invite_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -2681,17 +2681,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_invite_list_without_preload_content(
+    def tenant_invite_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -2752,7 +2752,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -2812,7 +2812,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_invite_reject(
+    def tenant_invite_reject(
         self,
         reject_invite_request: Optional[RejectInviteRequest] = None,
         _request_timeout: Union[
@@ -2868,17 +2868,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_invite_reject_with_http_info(
+    def tenant_invite_reject_with_http_info(
         self,
         reject_invite_request: Optional[RejectInviteRequest] = None,
         _request_timeout: Union[
@@ -2934,17 +2934,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_invite_reject_without_preload_content(
+    def tenant_invite_reject_without_preload_content(
         self,
         reject_invite_request: Optional[RejectInviteRequest] = None,
         _request_timeout: Union[
@@ -3000,7 +3000,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -3070,7 +3070,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_member_delete(
+    def tenant_member_delete(
         self,
         tenant: Annotated[
             str,
@@ -3144,17 +3144,17 @@ class TenantApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_member_delete_with_http_info(
+    def tenant_member_delete_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -3228,17 +3228,17 @@ class TenantApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_member_delete_without_preload_content(
+    def tenant_member_delete_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -3312,7 +3312,7 @@ class TenantApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -3375,7 +3375,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_member_list(
+    def tenant_member_list(
         self,
         tenant: Annotated[
             str,
@@ -3436,17 +3436,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_member_list_with_http_info(
+    def tenant_member_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -3507,17 +3507,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_member_list_without_preload_content(
+    def tenant_member_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -3578,7 +3578,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -3638,7 +3638,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_resource_policy_get(
+    def tenant_resource_policy_get(
         self,
         tenant: Annotated[
             str,
@@ -3699,17 +3699,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_resource_policy_get_with_http_info(
+    def tenant_resource_policy_get_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -3770,17 +3770,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_resource_policy_get_without_preload_content(
+    def tenant_resource_policy_get_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -3841,7 +3841,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -3901,7 +3901,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def tenant_update(
+    def tenant_update(
         self,
         tenant: Annotated[
             str,
@@ -3968,17 +3968,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def tenant_update_with_http_info(
+    def tenant_update_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -4045,17 +4045,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def tenant_update_without_preload_content(
+    def tenant_update_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -4122,7 +4122,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIError",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -4195,7 +4195,7 @@ class TenantApi:
         )
 
     @validate_call
-    async def user_list_tenant_invites(
+    def user_list_tenant_invites(
         self,
         _request_timeout: Union[
             None,
@@ -4247,17 +4247,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def user_list_tenant_invites_with_http_info(
+    def user_list_tenant_invites_with_http_info(
         self,
         _request_timeout: Union[
             None,
@@ -4309,17 +4309,17 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def user_list_tenant_invites_without_preload_content(
+    def user_list_tenant_invites_without_preload_content(
         self,
         _request_timeout: Union[
             None,
@@ -4371,7 +4371,7 @@ class TenantApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response

@@ -1,3 +1,5 @@
+import asyncio
+
 from pydantic import BaseModel, Field, field_validator
 
 from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
@@ -18,7 +20,6 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.utils.aio import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -77,7 +78,7 @@ class CronClient(BaseRestClient):
     def _wa(self, client: ApiClient) -> WorkflowApi:
         return WorkflowApi(client)
 
-    async def aio_create(
+    def create(
         self,
         workflow_name: str,
         cron_name: str,
@@ -102,8 +103,8 @@ class CronClient(BaseRestClient):
             expression=expression, input=input, additional_metadata=additional_metadata
         )
 
-        async with self.client() as client:
-            return await self._wra(client).cron_workflow_trigger_create(
+        with self.client() as client:
+            return self._wra(client).cron_workflow_trigger_create(
                 tenant=self.client_config.tenant_id,
                 workflow=workflow_name,
                 create_cron_workflow_trigger_request=CreateCronWorkflowTriggerRequest(
@@ -114,7 +115,7 @@ class CronClient(BaseRestClient):
                 ),
             )
 
-    def create(
+    async def aio_create(
         self,
         workflow_name: str,
         cron_name: str,
@@ -122,8 +123,8 @@ class CronClient(BaseRestClient):
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
     ) -> CronWorkflows:
-        return run_async_from_sync(
-            self.aio_create,
+        return await asyncio.to_thread(
+            self.create,
             workflow_name,
             cron_name,
             expression,
@@ -131,58 +132,22 @@ class CronClient(BaseRestClient):
             additional_metadata,
         )
 
-    async def aio_delete(self, cron_id: str) -> None:
+    def delete(self, cron_id: str) -> None:
         """
         Asynchronously deletes a workflow cron trigger.
 
         Args:
             cron_id (str): The cron trigger ID or CronWorkflows instance to delete.
         """
-        async with self.client() as client:
-            await self._wa(client).workflow_cron_delete(
+        with self.client() as client:
+            self._wa(client).workflow_cron_delete(
                 tenant=self.client_config.tenant_id, cron_workflow=str(cron_id)
             )
 
-    def delete(self, cron_id: str) -> None:
-        return run_async_from_sync(self.aio_delete, cron_id)
+    async def aio_delete(self, cron_id: str) -> None:
+        return await asyncio.to_thread(self.delete, cron_id)
 
     async def aio_list(
-        self,
-        offset: int | None = None,
-        limit: int | None = None,
-        workflow_id: str | None = None,
-        additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: CronWorkflowsOrderByField | None = None,
-        order_by_direction: WorkflowRunOrderByDirection | None = None,
-    ) -> CronWorkflowsList:
-        """
-        Asynchronously retrieves a list of all workflow cron triggers matching the criteria.
-
-        Args:
-            offset (int | None): The offset to start the list from.
-            limit (int | None): The maximum number of items to return.
-            workflow_id (str | None): The ID of the workflow to filter by.
-            additional_metadata (list[str] | None): Filter by additional metadata keys (e.g. ["key1:value1", "key2:value2"]).
-            order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
-            order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
-
-        Returns:
-            CronWorkflowsList: A list of cron workflows.
-        """
-        async with self.client() as client:
-            return await self._wa(client).cron_workflow_list(
-                tenant=self.client_config.tenant_id,
-                offset=offset,
-                limit=limit,
-                workflow_id=workflow_id,
-                additional_metadata=maybe_additional_metadata_to_kv(
-                    additional_metadata
-                ),
-                order_by_field=order_by_field,
-                order_by_direction=order_by_direction,
-            )
-
-    def list(
         self,
         offset: int | None = None,
         limit: int | None = None,
@@ -205,8 +170,8 @@ class CronClient(BaseRestClient):
         Returns:
             CronWorkflowsList: A list of cron workflows.
         """
-        return run_async_from_sync(
-            self.aio_list,
+        return await asyncio.to_thread(
+            self.list,
             offset=offset,
             limit=limit,
             workflow_id=workflow_id,
@@ -215,7 +180,43 @@ class CronClient(BaseRestClient):
             order_by_direction=order_by_direction,
         )
 
-    async def aio_get(self, cron_id: str) -> CronWorkflows:
+    def list(
+        self,
+        offset: int | None = None,
+        limit: int | None = None,
+        workflow_id: str | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        order_by_field: CronWorkflowsOrderByField | None = None,
+        order_by_direction: WorkflowRunOrderByDirection | None = None,
+    ) -> CronWorkflowsList:
+        """
+        Asynchronously retrieves a list of all workflow cron triggers matching the criteria.
+
+        Args:
+            offset (int | None): The offset to start the list from.
+            limit (int | None): The maximum number of items to return.
+            workflow_id (str | None): The ID of the workflow to filter by.
+            additional_metadata (list[str] | None): Filter by additional metadata keys (e.g. ["key1:value1", "key2:value2"]).
+            order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
+            order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
+
+        Returns:
+            CronWorkflowsList: A list of cron workflows.
+        """
+        with self.client() as client:
+            return self._wa(client).cron_workflow_list(
+                tenant=self.client_config.tenant_id,
+                offset=offset,
+                limit=limit,
+                workflow_id=workflow_id,
+                additional_metadata=maybe_additional_metadata_to_kv(
+                    additional_metadata
+                ),
+                order_by_field=order_by_field,
+                order_by_direction=order_by_direction,
+            )
+
+    def get(self, cron_id: str) -> CronWorkflows:
         """
         Asynchronously retrieves a specific workflow cron trigger by ID.
 
@@ -225,12 +226,12 @@ class CronClient(BaseRestClient):
         Returns:
             CronWorkflows: The requested cron workflow instance.
         """
-        async with self.client() as client:
-            return await self._wa(client).workflow_cron_get(
+        with self.client() as client:
+            return self._wa(client).workflow_cron_get(
                 tenant=self.client_config.tenant_id, cron_workflow=str(cron_id)
             )
 
-    def get(self, cron_id: str) -> CronWorkflows:
+    async def aio_get(self, cron_id: str) -> CronWorkflows:
         """
         Synchronously retrieves a specific workflow cron trigger by ID.
 
@@ -240,4 +241,4 @@ class CronClient(BaseRestClient):
         Returns:
             CronWorkflows: The requested cron workflow instance.
         """
-        return run_async_from_sync(self.aio_get, cron_id)
+        return await asyncio.to_thread(self.get, cron_id)

@@ -26,7 +26,6 @@ tmp_dir=./tmp
 
 # generate into tmp folder
 openapi-generator-cli generate -i ../../bin/oas/openapi.yaml -g python -o ./tmp --skip-validate-spec \
-    --library asyncio \
     --global-property=apiTests=false \
     --global-property=apiDocs=true \
     --global-property=modelTests=false \
@@ -41,7 +40,6 @@ mv $tmp_dir/hatchet_sdk/clients/rest/__init__.py $dst_dir/__init__.py
 mv $tmp_dir/hatchet_sdk/clients/rest/rest.py $dst_dir/rest.py
 
 openapi-generator-cli generate -i ../../bin/oas/openapi.yaml -g python -o . --skip-validate-spec \
-    --library asyncio \
     --global-property=apis,models \
     --global-property=apiTests=false \
     --global-property=apiDocs=false \

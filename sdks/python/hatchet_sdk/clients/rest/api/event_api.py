@@ -54,7 +54,7 @@ class EventApi:
         self.api_client = api_client
 
     @validate_call
-    async def event_create(
+    def event_create(
         self,
         tenant: Annotated[
             str,
@@ -122,17 +122,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_create_with_http_info(
+    def event_create_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -200,17 +200,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_create_without_preload_content(
+    def event_create_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -278,7 +278,7 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -351,7 +351,7 @@ class EventApi:
         )
 
     @validate_call
-    async def event_create_bulk(
+    def event_create_bulk(
         self,
         tenant: Annotated[
             str,
@@ -419,17 +419,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_create_bulk_with_http_info(
+    def event_create_bulk_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -497,17 +497,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_create_bulk_without_preload_content(
+    def event_create_bulk_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -575,7 +575,7 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -648,7 +648,7 @@ class EventApi:
         )
 
     @validate_call
-    async def event_data_get(
+    def event_data_get(
         self,
         event: Annotated[
             str,
@@ -709,17 +709,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_data_get_with_http_info(
+    def event_data_get_with_http_info(
         self,
         event: Annotated[
             str,
@@ -780,17 +780,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_data_get_without_preload_content(
+    def event_data_get_without_preload_content(
         self,
         event: Annotated[
             str,
@@ -851,7 +851,7 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -911,7 +911,7 @@ class EventApi:
         )
 
     @validate_call
-    async def event_get(
+    def event_get(
         self,
         event: Annotated[
             str,
@@ -972,17 +972,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_get_with_http_info(
+    def event_get_with_http_info(
         self,
         event: Annotated[
             str,
@@ -1043,17 +1043,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_get_without_preload_content(
+    def event_get_without_preload_content(
         self,
         event: Annotated[
             str,
@@ -1114,7 +1114,7 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1174,7 +1174,7 @@ class EventApi:
         )
 
     @validate_call
-    async def event_key_list(
+    def event_key_list(
         self,
         tenant: Annotated[
             str,
@@ -1235,17 +1235,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_key_list_with_http_info(
+    def event_key_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1306,17 +1306,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_key_list_without_preload_content(
+    def event_key_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1377,7 +1377,7 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1437,7 +1437,7 @@ class EventApi:
         )
 
     @validate_call
-    async def event_list(
+    def event_list(
         self,
         tenant: Annotated[
             str,
@@ -1564,17 +1564,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_list_with_http_info(
+    def event_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1701,17 +1701,17 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_list_without_preload_content(
+    def event_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1838,7 +1838,7 @@ class EventApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1954,7 +1954,7 @@ class EventApi:
         )
 
     @validate_call
-    async def event_update_cancel(
+    def event_update_cancel(
         self,
         tenant: Annotated[
             str,
@@ -2022,17 +2022,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_update_cancel_with_http_info(
+    def event_update_cancel_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -2100,17 +2100,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_update_cancel_without_preload_content(
+    def event_update_cancel_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -2178,7 +2178,7 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -2251,7 +2251,7 @@ class EventApi:
         )
 
     @validate_call
-    async def event_update_replay(
+    def event_update_replay(
         self,
         tenant: Annotated[
             str,
@@ -2319,17 +2319,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def event_update_replay_with_http_info(
+    def event_update_replay_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -2397,17 +2397,17 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def event_update_replay_without_preload_content(
+    def event_update_replay_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -2475,7 +2475,7 @@ class EventApi:
             "403": "APIErrors",
             "429": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response

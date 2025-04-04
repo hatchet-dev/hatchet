@@ -1,3 +1,5 @@
+import asyncio
+
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
 from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
@@ -11,7 +13,6 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.utils.aio import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -22,34 +23,34 @@ class MetricsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TenantApi:
         return TenantApi(client)
 
-    async def aio_get_workflow_metrics(
-        self,
-        workflow_id: str,
-        status: WorkflowRunStatus | None = None,
-        group_key: str | None = None,
-    ) -> WorkflowMetrics:
-        async with self.client() as client:
-            return await self._wa(client).workflow_get_metrics(
-                workflow=workflow_id, status=status, group_key=group_key
-            )
-
     def get_workflow_metrics(
         self,
         workflow_id: str,
         status: WorkflowRunStatus | None = None,
         group_key: str | None = None,
     ) -> WorkflowMetrics:
-        return run_async_from_sync(
-            self.aio_get_workflow_metrics, workflow_id, status, group_key
+        with self.client() as client:
+            return self._wa(client).workflow_get_metrics(
+                workflow=workflow_id, status=status, group_key=group_key
+            )
+
+    async def aio_get_workflow_metrics(
+        self,
+        workflow_id: str,
+        status: WorkflowRunStatus | None = None,
+        group_key: str | None = None,
+    ) -> WorkflowMetrics:
+        return await asyncio.to_thread(
+            self.get_workflow_metrics, workflow_id, status, group_key
         )
 
-    async def aio_get_queue_metrics(
+    def get_queue_metrics(
         self,
         workflow_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> TenantQueueMetrics:
-        async with self.client() as client:
-            return await self._wa(client).tenant_get_queue_metrics(
+        with self.client() as client:
+            return self._wa(client).tenant_get_queue_metrics(
                 tenant=self.client_config.tenant_id,
                 workflows=workflow_ids,
                 additional_metadata=maybe_additional_metadata_to_kv(
@@ -57,20 +58,20 @@ class MetricsClient(BaseRestClient):
                 ),
             )
 
-    def get_queue_metrics(
+    async def aio_get_queue_metrics(
         self,
         workflow_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
     ) -> TenantQueueMetrics:
-        return run_async_from_sync(
-            self.aio_get_queue_metrics, workflow_ids, additional_metadata
+        return await asyncio.to_thread(
+            self.get_queue_metrics, workflow_ids, additional_metadata
         )
 
-    async def aio_get_task_metrics(self) -> TenantStepRunQueueMetrics:
-        async with self.client() as client:
-            return await self._ta(client).tenant_get_step_run_queue_metrics(
+    def get_task_metrics(self) -> TenantStepRunQueueMetrics:
+        with self.client() as client:
+            return self._ta(client).tenant_get_step_run_queue_metrics(
                 tenant=self.client_config.tenant_id
             )
 
-    def get_task_metrics(self) -> TenantStepRunQueueMetrics:
-        return run_async_from_sync(self.aio_get_task_metrics)
+    async def aio_get_task_metrics(self) -> TenantStepRunQueueMetrics:
+        return await asyncio.to_thread(self.get_task_metrics)
