@@ -32,8 +32,14 @@ func (t *TenantService) tenantGetStepRunQueueMetricsV0(ctx echo.Context, tenant 
 		return nil, err
 	}
 
+	queueCountsInterface := make(map[string]interface{})
+
+	for k, v := range stepRunQueueCounts {
+		queueCountsInterface[k] = v
+	}
+
 	resp := gen.TenantStepRunQueueMetrics{
-		Queues: &stepRunQueueCounts,
+		Queues: &queueCountsInterface,
 	}
 
 	return gen.TenantGetStepRunQueueMetrics200JSONResponse(resp), nil

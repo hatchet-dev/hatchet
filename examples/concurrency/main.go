@@ -66,7 +66,7 @@ func run(events chan<- string) (func() error, error) {
 			On:          worker.Events("user:create:concurrency"),
 			Name:        "simple-concurrency",
 			Description: "This runs to test concurrency.",
-			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1).LimitStrategy(types.CancelInProgress),
+			Concurrency: worker.Expression("'concurrency'").MaxRuns(1).LimitStrategy(types.GroupRoundRobin),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &userCreateEvent{}
@@ -146,8 +146,4 @@ func run(events chan<- string) (func() error, error) {
 	}
 
 	return cleanup, nil
-}
-
-func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-	return "concurrency", nil
 }

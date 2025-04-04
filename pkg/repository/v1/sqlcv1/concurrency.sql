@@ -9,6 +9,21 @@ WHERE
     sc.tenant_id = @tenantId::uuid AND
     sc.is_active = TRUE;
 
+-- name: GetWorkflowConcurrencyQueueCounts :many
+SELECT
+    w."name" AS "workflowName",
+    cs.key,
+    COUNT(*) AS "count"
+FROM
+    v1_concurrency_slot cs
+JOIN
+    "Workflow" w ON w.id = cs.workflow_id
+WHERE
+    cs.tenant_id = @tenantId::uuid
+GROUP BY
+    w."name",
+    cs.key;
+
 -- name: ListConcurrencyStrategiesByStepId :many
 SELECT
     *

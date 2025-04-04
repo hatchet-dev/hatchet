@@ -232,7 +232,7 @@ type TaskRepository interface {
 
 	ProcessDurableSleeps(ctx context.Context, tenantId string) (*EventMatchResults, bool, error)
 
-	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
+	GetQueueCounts(ctx context.Context, tenantId string) (map[string]interface{}, error)
 
 	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
 
@@ -1178,21 +1178,75 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 	return results, len(emitted) == limit, nil
 }
 
-func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error) {
+func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string) (map[string]interface{}, error) {
+	counts, err := r.getFIFOQueuedCounts(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	concurrencyCounts, err := r.getConcurrencyQueuedCounts(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+
+	for k, v := range counts {
+		res[k] = v
+	}
+
+	for k, v := range concurrencyCounts {
+		res[k] = v
+	}
+
+	return res, nil
+}
+
+func (r *TaskRepositoryImpl) getFIFOQueuedCounts(ctx context.Context, tenantId string) (map[string]interface{}, error) {
 	counts, err := r.queries.GetQueuedCounts(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return map[string]int{}, nil
+			return map[string]interface{}{}, nil
 		}
 
 		return nil, err
 	}
 
-	res := make(map[string]int)
+	res := make(map[string]interface{})
 
 	for _, count := range counts {
 		res[count.Queue] = int(count.Count)
+	}
+
+	return res, nil
+}
+
+func (r *TaskRepositoryImpl) getConcurrencyQueuedCounts(ctx context.Context, tenantId string) (map[string]interface{}, error) {
+	concurrencyCounts, err := r.queries.GetWorkflowConcurrencyQueueCounts(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return map[string]interface{}{}, nil
+		}
+
+		return nil, err
+	}
+
+	res := make(map[string]interface{})
+
+	for _, count := range concurrencyCounts {
+		if _, ok := res[count.WorkflowName]; !ok {
+			res[count.WorkflowName] = map[string]int{}
+		}
+
+		v := res[count.WorkflowName].(map[string]int)
+
+		v[count.Key] = int(count.Count)
+
+		res[count.WorkflowName] = v
 	}
 
 	return res, nil
