@@ -3,7 +3,7 @@ import SupportChat from '@/components/providers/support-chat.provider';
 import useUser from '@/hooks/use-user';
 import { Navigate, Outlet } from 'react-router-dom';
 
-export default function Authenticated() {
+export default function AuthenticatedGuard() {
   const user = useUser();
 
   // user is not authenticated
@@ -17,8 +17,7 @@ export default function Authenticated() {
   }
 
   // user has no tenant
-  if (!user.memberships || user.memberships.length === 0) {
-    // TODO real redirect
+  if (!user.isLoading && user.memberships && user.memberships.length === 0) {
     return <Navigate to="/tenant/create" />;
   }
 

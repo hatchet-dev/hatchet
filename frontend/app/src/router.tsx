@@ -5,7 +5,7 @@ import {
   RouterProvider,
 } from 'react-router-dom';
 import ErrorBoundary from './pages/error/index.tsx';
-import Root from './pages/root.tsx';
+import Root from './pages/root.layout.tsx';
 import { authRoutes } from './pages/auth/auth.router.tsx';
 import { authenticatedRoutes } from './pages/authenticated/authenticated.router.tsx';
 

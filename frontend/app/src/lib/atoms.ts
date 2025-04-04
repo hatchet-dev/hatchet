@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { TenantBillingState } from './api/generated/cloud/data-contracts';
 import { Evaluate } from './can/shared/permission.base';
 import useCloudApiMeta from '@/hooks/use-cloud-api-meta';
-
+import useUser from '@/hooks/use-user';
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
 
@@ -65,6 +65,8 @@ type TenantContext = TenantContextPresent | TenantContextMissing;
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
 export function useTenant(): TenantContext {
+  const user = useUser();
+
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -78,14 +80,7 @@ export function useTenant(): TenantContext {
     [searchParams, setSearchParams, setLastTenant],
   );
 
-  const membershipsQuery = useQuery({
-    ...queries.user.listTenantMemberships,
-  });
-
-  const memberships = useMemo(
-    () => membershipsQuery.data?.rows || [],
-    [membershipsQuery.data],
-  );
+  const memberships = useMemo(() => user?.memberships || [], [user]);
 
   const findTenant = useCallback(
     (tenantId: string) => {

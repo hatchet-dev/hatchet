@@ -70,7 +70,7 @@ export function UserLoginForm({ className, ...props }: UserLoginFormProps) {
               <div className="text-sm text-red-500">{passwordError}</div>
             )}
           </div>
-          <Button loading={true}>Sign In</Button>
+          <Button disabled={props.isLoading}>Sign In</Button>
         </div>
       </form>
     </div>

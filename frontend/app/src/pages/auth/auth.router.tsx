@@ -4,16 +4,16 @@ export const authRoutes: RouteObject[] = [
   {
     path: '/auth',
     lazy: async () =>
-      import('./no-auth.middleware').then((res) => {
+      import('./auth.layout').then((res) => {
         return {
-          loader: res.loader,
+          Component: res.default,
         };
       }),
     children: [
       {
         path: '/auth/login',
         lazy: async () =>
-          import('./login').then((res) => {
+          import('./login/login.page').then((res) => {
             return {
               Component: res.default,
             };
@@ -22,7 +22,16 @@ export const authRoutes: RouteObject[] = [
       {
         path: '/auth/register',
         lazy: async () =>
-          import('./register').then((res) => {
+          import('./register/register.page').then((res) => {
+            return {
+              Component: res.default,
+            };
+          }),
+      },
+      {
+        path: '/auth/verify-email',
+        lazy: async () =>
+          import('./verify-email/verify-email.page').then((res) => {
             return {
               Component: res.default,
             };

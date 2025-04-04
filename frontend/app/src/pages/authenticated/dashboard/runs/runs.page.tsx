@@ -1,3 +1,13 @@
+import { Button } from '@/components/ui/button';
+import useUser from '@/hooks/use-user';
+
 export default function RunsPage() {
-  return <div>Runs</div>;
+  const { data: user, logout } = useUser();
+
+  return (
+    <div>
+      {user?.email}
+      <Button onClick={() => logout()}>Logout</Button>
+    </div>
+  );
 }

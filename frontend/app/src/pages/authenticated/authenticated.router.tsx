@@ -1,10 +1,10 @@
 import { RouteObject } from 'react-router-dom';
-import Authenticated from './authenticated.layout.tsx';
+import AuthenticatedGuard from './authenticated.guard.tsx';
 import { dashboardRoutes } from './dashboard/dashboard.router.tsx';
 export const authenticatedRoutes: RouteObject[] = [
   {
     path: '/',
-    element: <Authenticated />,
+    element: <AuthenticatedGuard />,
     children: [...dashboardRoutes],
   },
 ];
