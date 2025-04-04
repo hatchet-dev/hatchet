@@ -11,6 +11,17 @@ export default function Authenticated() {
     return <Navigate to="/auth/login" />;
   }
 
+  // user email is not verified
+  if (!user.isLoading && !user.data?.emailVerified) {
+    return <Navigate to="/auth/verify-email" />;
+  }
+
+  // user has no tenant
+  if (!user.memberships || user.memberships.length === 0) {
+    // TODO real redirect
+    return <Navigate to="/tenant/create" />;
+  }
+
   return (
     <>
       {user && (
