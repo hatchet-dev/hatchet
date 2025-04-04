@@ -73,6 +73,7 @@ class WorkflowConfig(BaseModel):
     sticky: StickyStrategy | None = None
     concurrency: ConcurrencyExpression | None = None
     input_validator: Type[BaseModel] = EmptyModel
+    default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
 
