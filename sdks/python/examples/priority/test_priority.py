@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 from examples.priority.worker import DEFAULT_PRIORITY, priority_workflow
 from hatchet_sdk import Hatchet, ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
-from hatchet_sdk.workflow_run import WorkflowRunRef
 
 Priority = Literal["low", "medium", "high", "default"]
 
