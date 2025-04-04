@@ -14,6 +14,13 @@ export default function useApiMeta() {
     refetchInterval,
   });
 
+  const { data: version } = useQuery({
+    ...queries.info.getVersion,
+    retryDelay: 150,
+    retry: 2,
+    refetchInterval,
+  });
+
   useEffect(() => {
     setRefetchInterval(metaQuery.isError ? 15000 : undefined);
   }, [metaQuery.isError]);
@@ -23,5 +30,6 @@ export default function useApiMeta() {
     isLoading: metaQuery.isLoading,
     hasFailed: metaQuery.isError && metaQuery.error,
     refetchInterval,
+    version: version?.version,
   };
 }

@@ -1,21 +1,26 @@
-import useUser from '@/hooks/use-user';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar } from './components/sidebar/sidebar';
+import { Separator } from '@/components/ui/separator';
+import { AppBreadcrumbs } from './components/breadcrumbs';
 
 export default function Authenticated() {
-  const user = useUser();
-
-  // user is not authenticated
-  if (!user.isLoading && !user.data) {
-    return <Navigate to="/auth/login" />;
-  }
-
   return (
     <>
-      {user && (
-        <div className="flex flex-col h-screen bg-yellow-500">
-          <Outlet />
-        </div>
-      )}
+      <SidebarProvider>
+        <AppSidebar>
+          <header className="flex h-16 shrink-0 items-center gap-2">
+            <div className="flex items-center gap-2 px-4">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              <AppBreadcrumbs />
+            </div>
+          </header>
+          <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <Outlet />
+          </main>
+        </AppSidebar>
+      </SidebarProvider>
     </>
   );
 }
