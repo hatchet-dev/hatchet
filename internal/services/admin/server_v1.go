@@ -146,6 +146,10 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		DesiredWorkerId:    req.DesiredWorkerId,
 	}
 
+	if req.Priority != nil {
+		t.Priority = req.Priority
+	}
+
 	if req.ParentStepRunId != nil {
 		// lookup the parent external id
 		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
