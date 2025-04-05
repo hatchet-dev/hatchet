@@ -10,24 +10,12 @@ export const apiTokens: PermissionSet = {
         TenantMemberRole.ADMIN,
         TenantMemberRole.MEMBER,
       ];
-
-      if (!membership) {
+      if (!membership || !allowed.includes(membership)) {
         return {
           allowed: false,
           reason: RejectReason.ROLE_REQUIRED,
           message:
-            'No membership found. You need to be a tenant member to manage API tokens.',
-        };
-      }
-
-      console.log('membership', membership);
-
-      if (!allowed.includes(membership)) {
-        return {
-          allowed: false,
-          reason: RejectReason.ROLE_REQUIRED,
-          message:
-            'You need to have Member or Admin role to manage API tokens.',
+            'You must be an owner, admin, or member to manage API tokens.',
         };
       }
 
