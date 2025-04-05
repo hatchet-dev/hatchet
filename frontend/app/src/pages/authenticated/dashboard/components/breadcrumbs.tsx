@@ -6,9 +6,8 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from '@/components/ui/breadcrumb';
-import { PropsWithChildren } from 'react';
 
-export function AppBreadcrumbs({ children }: PropsWithChildren) {
+export function AppBreadcrumbs() {
   return (
     <>
       <Breadcrumb>

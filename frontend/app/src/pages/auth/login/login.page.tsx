@@ -12,7 +12,7 @@ import {
 import useUser from '@/hooks/use-user';
 
 export default function Login() {
-  const { data: meta, isLoading } = useApiMeta();
+  const { oss: meta, isLoading } = useApiMeta();
 
   if (isLoading) {
     return 'Loading...'; // TODO: add loading

@@ -11,7 +11,7 @@ import {
 } from '../components/shared-auth-components';
 import useUser from '@/hooks/use-user';
 export default function Register() {
-  const { data: meta, isLoading } = useApiMeta();
+  const { oss: meta, isLoading } = useApiMeta();
 
   if (isLoading) {
     return 'Loading...'; // TODO: add loading

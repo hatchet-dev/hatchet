@@ -1,4 +1,4 @@
-import { RouteObject } from 'react-router-dom';
+import { RouteObject, Navigate } from 'react-router-dom';
 import DashboardLayout from './dashboard.layout';
 export const dashboardRoutes: RouteObject[] = [
   {
@@ -7,6 +7,10 @@ export const dashboardRoutes: RouteObject[] = [
     children: [
       {
         path: '/',
+        Component: () => <Navigate to="/runs" />,
+      },
+      {
+        path: '/runs',
         lazy: async () =>
           import('./runs/runs.page').then((res) => {
             return {

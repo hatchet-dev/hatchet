@@ -3,8 +3,12 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './components/sidebar/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { AppBreadcrumbs } from './components/breadcrumbs';
+import useTenant from '@/hooks/use-tenant';
+import { Unauthorized } from '@/components/errors/unauthorized';
 
 export default function Authenticated() {
+  const { tenant } = useTenant();
+
   return (
     <>
       <SidebarProvider>
@@ -17,7 +21,8 @@ export default function Authenticated() {
             </div>
           </header>
           <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
-            <Outlet />
+            {JSON.stringify(tenant)}
+            {tenant ? <Outlet /> : <Unauthorized />}
           </main>
         </AppSidebar>
       </SidebarProvider>

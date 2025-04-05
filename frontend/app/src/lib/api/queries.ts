@@ -25,17 +25,6 @@ type V2TaskGetPointMetricsQuery = Parameters<
 type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
 
 export const queries = createQueryKeyStore({
-  metadata: {
-    get: {
-      queryKey: ['metadata:get'],
-      queryFn: async () => {
-        const meta = await api.metadataGet();
-        return meta.data;
-      },
-      staleTime: 1000 * 60,
-    },
-  },
-
   cloud: {
     billing: (tenant: string) => ({
       queryKey: ['billing-state:get', tenant],
@@ -476,12 +465,5 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await api.webhookRequestsList(webhookWorkerId)).data,
     }),
-  },
-
-  info: {
-    getVersion: {
-      queryKey: ['info:version'],
-      queryFn: async () => (await api.infoGetVersion()).data,
-    },
   },
 });

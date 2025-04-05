@@ -1,6 +1,6 @@
 import useApiMeta from '@/hooks/use-api-meta';
 import useUser from '@/hooks/use-user';
-import { useTenant } from '@/lib/atoms';
+import useTenant from '@/hooks/use-tenant';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 const AnalyticsProvider: React.FC<PropsWithChildren> = ({ children }) => {
@@ -12,7 +12,7 @@ const AnalyticsProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { tenant } = useTenant();
 
   const config = useMemo(() => {
-    return meta.data?.posthog;
+    return meta.oss?.posthog;
   }, [meta]);
 
   useEffect(() => {

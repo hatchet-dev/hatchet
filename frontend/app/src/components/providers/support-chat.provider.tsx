@@ -1,6 +1,6 @@
 import useApiMeta from '@/hooks/use-api-meta';
 import useUser from '@/hooks/use-user';
-import { useTenant } from '@/lib/atoms';
+import useTenant from '@/hooks/use-tenant';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 interface PylonWindow extends Window {
@@ -21,8 +21,8 @@ const SupportChat: React.FC<PropsWithChildren> = ({ children }) => {
   const { tenant } = useTenant();
 
   const APP_ID = useMemo(
-    () => meta.data?.pylonAppId ?? null,
-    [meta.data?.pylonAppId],
+    () => meta.oss?.pylonAppId ?? null,
+    [meta.oss?.pylonAppId],
   );
 
   useEffect(() => {
