@@ -20,8 +20,6 @@ import { Input } from '@/components/ui/input';
 import { useApiTokensContext } from '@/hooks/use-api-tokens';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import docs from '@/docs-meta-data';
-
 interface TokensTableProps {
   data: APIToken[];
   isLoading: boolean;
@@ -37,7 +35,6 @@ export function TokensTable({
 }: TokensTableProps) {
   const { filters, setFilters } = useApiTokensContext();
   const [sorting, setSorting] = useState<SortingState>([]);
-  const taskPath = docs.home['your-first-task'].href;
   // Define columns
   const columns: ColumnDef<APIToken>[] = [
     {

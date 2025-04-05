@@ -7,8 +7,9 @@ import { APIToken } from '@/lib/api';
 import { Dialog } from '@/components/ui/dialog/dialog';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
-import { BookOpenIcon } from 'lucide-react';
+import { DocsButton } from '@/components/ui/docs-button';
 
+import docs from '@/docs-meta-data';
 export default function ApiTokensPage() {
   return (
     <ApiTokensProvider>
@@ -54,13 +55,7 @@ function ApiTokensContent() {
                 Create a new API token to get started.
               </p>
               <CreateTokenButton />
-              <Button
-                variant="outline"
-                onClick={() => setShowTokenDialog(true)}
-              >
-                <BookOpenIcon className="w-4 h-4 mr-2" />
-                Read the docs
-              </Button>
+              <DocsButton doc={docs.home.setup} />
             </div>
           }
         />
