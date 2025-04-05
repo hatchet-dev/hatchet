@@ -1,4 +1,5 @@
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import logo from '@/assets/logo.svg';
 
 const variants = {
   md: 'h-8 w-8 rounded-lg',
@@ -12,6 +13,7 @@ type LogoProps = {
 export function Logo({ variant = 'md' }: LogoProps) {
   return (
     <Avatar className={variants[variant]}>
+      <AvatarImage src={logo} />
       <AvatarFallback className="rounded-lg">🪓</AvatarFallback>
     </Avatar>
   );

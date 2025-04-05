@@ -49,6 +49,9 @@ import useTenant from '@/hooks/use-tenant';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Logo } from '@/components/ui/logo';
 import { Code } from '@/components/ui/code';
+import hatchet from '@/assets/hatchet.svg';
+import { useTheme } from '@/components/theme-provider';
+import { cn } from '@/lib/utils';
 export const iframeHeight = '800px';
 
 export const description = 'An inset sidebar with secondary navigation.';
@@ -61,6 +64,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const navigate = useNavigate();
   const location = useLocation();
   const navLinks = getMainNavLinks(location.pathname);
+  const { theme } = useTheme();
 
   const supportReference = useMemo(() => {
     return `ver: ${meta?.version}
@@ -80,8 +84,16 @@ name: ${user?.name}`;
                 <SidebarMenuButton size="lg" onClick={() => navigate('/')}>
                   <Logo variant="md" />
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Hatchet</span>
-                    <span className="truncate text-xs">xxx</span>
+                    <span className="truncate font-semibold">
+                      <img
+                        src={hatchet}
+                        alt="Hatchet"
+                        className={cn(
+                          'transition-all h-4 ml-1',
+                          theme === 'dark' ? 'invert' : '',
+                        )}
+                      />
+                    </span>
                   </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
