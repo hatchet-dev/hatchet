@@ -23,6 +23,8 @@ interface TokensFilters {
   search?: string;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
+  fromDate?: string;
+  toDate?: string;
 }
 
 interface TokensPagination {
@@ -75,6 +77,8 @@ export default function useApiTokens({
       filters.search,
       filters.sortBy,
       filters.sortDirection,
+      filters.fromDate,
+      filters.toDate,
       paginationState.currentPage,
       paginationState.pageSize,
     ],
@@ -94,6 +98,23 @@ export default function useApiTokens({
         filteredRows = filteredRows.filter((token) =>
           token.name.toLowerCase().includes(searchLower),
         );
+      }
+
+      // Client-side date filtering
+      if (filters.fromDate) {
+        const fromDate = new Date(filters.fromDate);
+        filteredRows = filteredRows.filter((token) => {
+          const createdAt = new Date(token.metadata.createdAt);
+          return createdAt >= fromDate;
+        });
+      }
+
+      if (filters.toDate) {
+        const toDate = new Date(filters.toDate);
+        filteredRows = filteredRows.filter((token) => {
+          const createdAt = new Date(token.metadata.createdAt);
+          return createdAt <= toDate;
+        });
       }
 
       // Client-side sorting if API doesn't support it

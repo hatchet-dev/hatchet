@@ -2,6 +2,13 @@ import * as React from 'react';
 import { Button, ButtonProps } from './button';
 import { BookOpenIcon } from 'lucide-react';
 import { DocRef, useDocs } from '@/hooks/use-docs-sheet';
+import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './tooltip';
 
 interface DocsButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -9,6 +16,7 @@ interface DocsButtonProps
   doc: DocRef;
   size?: ButtonProps['size'];
   method?: 'sheet' | 'link';
+  variant?: ButtonProps['variant'];
 }
 
 const baseDocsUrl = 'https://docs.hatchet.run';
@@ -18,6 +26,7 @@ export function DocsButton({
   prefix = 'Learn more about ',
   size = 'sm',
   method = 'sheet',
+  variant = 'outline',
   ...props
 }: DocsButtonProps) {
   const { open } = useDocs();
@@ -31,10 +40,31 @@ export function DocsButton({
     }
   };
 
-  return (
-    <Button variant="outline" {...props} size={size} onClick={handleClick}>
-      <BookOpenIcon className="w-4 h-4 mr-2" />
-      {prefix} {doc.title}
+  const buttonContent = (
+    <Button variant={variant} {...props} size={size} onClick={handleClick}>
+      <BookOpenIcon className={cn('w-4 h-4', size === 'icon' && 'w-6 h-6')} />
+      {size !== 'icon' && (
+        <span className="hidden md:block">
+          {prefix} {doc.title}
+        </span>
+      )}
     </Button>
   );
+
+  if (size === 'icon') {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{buttonContent}</TooltipTrigger>
+          <TooltipContent>
+            <p>
+              {prefix} {doc.title}
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return buttonContent;
 }

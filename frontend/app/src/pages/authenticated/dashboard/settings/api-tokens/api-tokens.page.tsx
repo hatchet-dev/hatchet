@@ -44,8 +44,10 @@ function ApiTokensContent() {
           <h2 className="text-2xl font-semibold leading-tight text-foreground">
             API Tokens
           </h2>
-
-          {canManage && <CreateTokenButton />}
+          <div className="flex flex-row items-center gap-2">
+            <DocsButton doc={docs.home.setup} size="icon" />
+            {canManage && <CreateTokenButton />}
+          </div>
         </div>
         <p className="text-gray-700 dark:text-gray-300 my-4">
           API tokens are used by workers to connect with the Hatchet API and

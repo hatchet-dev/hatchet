@@ -5,10 +5,12 @@ import {
   useReactTable,
   ColumnDef,
   SortingState,
+  Column,
+  Table,
 } from '@tanstack/react-table';
 import { APIToken } from '@/lib/api';
 import {
-  Table,
+  Table as UITable,
   TableBody,
   TableCell,
   TableHead,
@@ -16,11 +18,189 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useApiTokensContext } from '@/hooks/use-api-tokens';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiTokens } from '@/lib/can/features/api-tokens';
 import useCan from '@/hooks/use-can';
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsUpDownIcon,
+  EyeOffIcon,
+  SlidersHorizontalIcon,
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+
+// Create a DataTableColumnHeader component
+interface DataTableColumnHeaderProps<TData>
+  extends React.HTMLAttributes<HTMLDivElement> {
+  column: Column<TData, unknown>;
+  title: string;
+}
+
+function DataTableColumnHeader<TData>({
+  column,
+  title,
+  className,
+}: DataTableColumnHeaderProps<TData>) {
+  if (!column.getCanSort()) {
+    return <div className={cn(className)}>{title}</div>;
+  }
+
+  return (
+    <div className={cn('flex items-center justify-start', className)}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 data-[state=open]:bg-accent"
+          >
+            <span className="font-medium">{title}</span>
+            <div className="ml-2">
+              {column.getIsSorted() === 'desc' ? (
+                <ArrowDownIcon className="h-4 w-4" />
+              ) : column.getIsSorted() === 'asc' ? (
+                <ArrowUpIcon className="h-4 w-4" />
+              ) : (
+                <ChevronsUpDownIcon className="h-4 w-4" />
+              )}
+            </div>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={() => column.toggleSorting(false)}>
+            <ArrowUpIcon className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
+            Asc
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => column.toggleSorting(true)}>
+            <ArrowDownIcon className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
+            Desc
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => column.toggleVisibility(false)}>
+            <EyeOffIcon className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
+            Hide
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+// Create a DataTableViewOptions component
+interface DataTableViewOptionsProps<TData> {
+  table: Table<TData>;
+}
+
+function DataTableViewOptions<TData>({
+  table,
+}: DataTableViewOptionsProps<TData>) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+          <SlidersHorizontalIcon className="h-4 w-4" />
+          <span className="sr-only">View options</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[150px]">
+        <DropdownMenuItem
+          onClick={() => table.resetColumnVisibility()}
+          className="justify-between"
+        >
+          Reset
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {table
+          .getAllColumns()
+          .filter((column) => column.getCanHide())
+          .map((column) => {
+            return (
+              <DropdownMenuItem
+                key={column.id}
+                className="capitalize"
+                onClick={() => column.toggleVisibility(!column.getIsVisible())}
+              >
+                <div className="mr-1">{column.getIsVisible() ? '✓' : ''}</div>
+                {column.id}
+              </DropdownMenuItem>
+            );
+          })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// Create a DataTablePagination component
+interface DataTablePaginationProps<TData> {
+  table: Table<TData>;
+}
+
+function DataTablePagination<TData>({
+  table,
+}: DataTablePaginationProps<TData>) {
+  return (
+    <div className="flex items-center justify-between px-2 py-4">
+      <div className="flex-1 text-sm text-muted-foreground">
+        {table.getFilteredSelectedRowModel().rows.length} of{' '}
+        {table.getFilteredRowModel().rows.length} row(s) selected.
+      </div>
+      <div className="flex items-center space-x-6 lg:space-x-8">
+        <div className="flex items-center space-x-2">
+          <p className="text-sm font-medium">Rows per page</p>
+          <select
+            value={table.getState().pagination.pageSize}
+            onChange={(e) => {
+              table.setPageSize(Number(e.target.value));
+            }}
+            className="h-8 w-[70px] rounded-md border border-input bg-background px-3"
+          >
+            {[10, 20, 30, 40, 50].map((pageSize) => (
+              <option key={pageSize} value={pageSize}>
+                {pageSize}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+          Page {table.getState().pagination.pageIndex + 1} of{' '}
+          {table.getPageCount()}
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            className="h-8 w-8 p-0"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <span className="sr-only">Go to previous page</span>
+            <ChevronLeftIcon className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 w-8 p-0"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            <span className="sr-only">Go to next page</span>
+            <ChevronRightIcon className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface TokensTableProps {
   data: APIToken[];
   isLoading: boolean;
@@ -36,44 +216,66 @@ export function TokensTable({
 }: TokensTableProps) {
   const { filters, setFilters } = useApiTokensContext();
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
   const { can } = useCan();
 
   // Define columns
   const columns: ColumnDef<APIToken>[] = [
     {
       accessorKey: 'name',
-      header: 'Name',
-      cell: ({ row }) => <div>{row.getValue('name')}</div>,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Name" />
+      ),
+      cell: ({ row }) => (
+        <div className="font-medium">{row.getValue('name')}</div>
+      ),
+      enableSorting: true,
+      enableHiding: false,
     },
     {
-      accessorKey: 'metadata.createdAt',
-      header: 'Created',
+      accessorKey: 'createdAt',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Created" />
+      ),
       cell: ({ row }) => {
         const createdAt = new Date(row.original.metadata.createdAt);
         return <div>{createdAt.toLocaleDateString()}</div>;
       },
+      enableSorting: true,
+      enableHiding: true,
     },
     {
       accessorKey: 'expiresAt',
-      header: 'Expires',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Expires" />
+      ),
       cell: ({ row }) => {
         const expiresAt = new Date(row.original.expiresAt);
         return <div>{expiresAt.toLocaleDateString()}</div>;
       },
+      enableSorting: true,
+      enableHiding: true,
     },
     {
       id: 'actions',
-      header: '',
+      header: () => <div className="sr-only">Actions</div>,
       cell: ({ row }) =>
         can(apiTokens.manage()) && (
-          <Button
-            variant="ghost"
-            onClick={() => onRevokeClick(row.original)}
-            className="text-red-500 hover:text-red-700"
-          >
-            Revoke
-          </Button>
+          <div className="text-right">
+            <Button
+              variant="ghost"
+              onClick={() => onRevokeClick(row.original)}
+              className="text-red-500 hover:text-red-700"
+            >
+              Revoke
+            </Button>
+          </div>
         ),
+      enableSorting: false,
+      enableHiding: false,
     },
   ];
 
@@ -84,7 +286,10 @@ export function TokensTable({
     getCoreRowModel: getCoreRowModel(),
     state: {
       sorting,
+      pagination,
     },
+    enableSorting: true,
+    enableMultiSort: false,
     onSortingChange: (updaterOrValue) => {
       const newSorting =
         typeof updaterOrValue === 'function'
@@ -109,46 +314,33 @@ export function TokensTable({
         });
       }
     },
-    manualSorting: true,
+    onPaginationChange: setPagination,
+    manualSorting: true, // Keep as true since we're handling sorting through API
+    manualPagination: true,
+    pageCount: Math.ceil(data.length / pagination.pageSize),
   });
-
-  // Handle search
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFilters({
-      ...filters,
-      search: e.target.value,
-    });
-  };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Input
-          placeholder="Search tokens..."
-          className="max-w-sm"
-          value={filters.search || ''}
-          onChange={handleSearch}
-        />
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          {data.length} token(s) found
+        </div>
+        <DataTableViewOptions table={table} />
       </div>
       <div className="rounded-md border">
-        <Table>
+        <UITable>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className="cursor-pointer"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    <div className="flex items-center">
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                      {header.column.getIsSorted() === 'asc' && ' 🔼'}
-                      {header.column.getIsSorted() === 'desc' && ' 🔽'}
-                    </div>
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -171,7 +363,10 @@ export function TokensTable({
             ) : table.getRowModel().rows.length > 0 ? (
               // Data rows
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(
@@ -194,8 +389,9 @@ export function TokensTable({
               </TableRow>
             )}
           </TableBody>
-        </Table>
+        </UITable>
       </div>
+      <DataTablePagination table={table} />
     </div>
   );
 }
