@@ -20,18 +20,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ChevronDown } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 // Use the existing NavItem type from main-nav
 type NavItem = MainNavItem;
 
 export function BreadcrumbNav() {
   const location = useLocation();
+  const isMobile = useIsMobile();
   const navStructure = getMainNavLinks(location.pathname);
-
-  // If we're at the root, don't show breadcrumbs
-  if (location.pathname === '/') {
-    return null;
-  }
 
   // Flattened navigation map for easy lookup
   const navMap = new Map<string, NavItem>();
@@ -165,7 +162,7 @@ export function BreadcrumbNav() {
                   {index === 0 && item.icon && (
                     <item.icon className="mr-2 h-4 w-4" />
                   )}
-                  {item.title}
+                  {!(index !== 0 || isMobile) && item.title}
                   {item.isLast && <ChevronDown className="h-4 w-4" />}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">

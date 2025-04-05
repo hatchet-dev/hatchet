@@ -17,7 +17,7 @@ interface UseTenantOptions {
 export default function useTenant({
   refetchInterval,
 }: UseTenantOptions = {}): TenantState {
-  const { memberships } = useUser();
+  const { memberships, isLoading: isUserLoading } = useUser();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const setTenant = useCallback(
@@ -58,7 +58,7 @@ export default function useTenant({
   return {
     tenant: tenant?.tenant,
     role: tenant?.role,
-    isLoading: false,
+    isLoading: isUserLoading,
     setTenant,
   };
 }

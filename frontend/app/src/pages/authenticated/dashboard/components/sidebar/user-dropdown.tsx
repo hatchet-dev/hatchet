@@ -2,9 +2,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import useUser from '@/hooks/use-user';
 import useTenant from '@/hooks/use-tenant';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function UserBlock() {
   const { data: user } = useUser();
+  const isMobile = useIsMobile();
 
   const name = user?.name || user?.email;
   const initials = name
@@ -19,10 +21,12 @@ export function UserBlock() {
         {/* <AvatarImage src={user?.avatar} alt={user?.name} /> */}
         <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
       </Avatar>
-      <div className="grid flex-1 text-left text-sm leading-tight">
-        <span className="truncate font-semibold">{name}</span>
-        <span className="truncate text-xs">{user?.email}</span>
-      </div>
+      {!isMobile && (
+        <div className="grid flex-1 text-left text-sm leading-tight">
+          <span className="truncate font-semibold">{name}</span>
+          <span className="truncate text-xs">{user?.email}</span>
+        </div>
+      )}
     </>
   );
 }

@@ -98,7 +98,7 @@ export default function useUser({
   return {
     data: userQuery.data,
     memberships: membershipsQuery.data?.rows,
-    isLoading: userQuery.isLoading,
+    isLoading: userQuery.isLoading || membershipsQuery.isLoading,
     logout: logoutMutation,
     login: loginMutation,
     register: registerMutation,

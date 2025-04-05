@@ -1,14 +1,10 @@
 'use client';
 
 import {
-  BadgeCheck,
   ChevronRight,
   ChevronsUpDown,
-  LogOut,
   MessageCircle,
-  Moon,
   Plus,
-  Sun,
 } from 'lucide-react';
 
 import {
@@ -45,21 +41,20 @@ import {
 import { PropsWithChildren } from 'react';
 import useUser from '@/hooks/use-user';
 import { getMainNavLinks } from './main-nav';
-import { TenantBlock, UserBlock } from './user-dropdown';
-import { useTheme } from '@/components/theme-provider';
+import { TenantBlock } from './user-dropdown';
 import useApiMeta from '@/hooks/use-api-meta';
 import useSupportChat from '@/hooks/use-support-chat';
 import { QuestionMarkCircledIcon } from '@radix-ui/react-icons';
 import useTenant from '@/hooks/use-tenant';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { Logo } from '@/components/ui/logo';
 export const iframeHeight = '800px';
 
 export const description = 'An inset sidebar with secondary navigation.';
 
 export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
-  const { data: user, memberships, logout } = useUser();
-  const { toggleTheme, theme } = useTheme();
+  const { data: user, memberships } = useUser();
   const chat = useSupportChat();
   const { setTenant } = useTenant();
   const navigate = useNavigate();
@@ -68,13 +63,17 @@ export function AppSidebar({ children }: PropsWithChildren) {
 
   return (
     <>
-      <Sidebar variant="inset" collapsible="icon">
+      <Sidebar variant="floating" collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>
-            <header className="flex h-16 shrink-0 items-center gap-2">
+            <header>
               <SidebarMenuItem>
-                <SidebarMenuButton>
-                  🪓 <span>Hatchet</span>
+                <SidebarMenuButton size="lg" onClick={() => navigate('/')}>
+                  <Logo variant="md" />
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">Hatchet</span>
+                    <span className="truncate text-xs">xxx</span>
+                  </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </header>
@@ -244,50 +243,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton
-                    size="lg"
-                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  >
-                    <UserBlock />
-                    <ChevronsUpDown className="ml-auto size-4" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                  side="right"
-                  align="end"
-                  sideOffset={4}
-                >
-                  <DropdownMenuLabel className="p-0 font-normal">
-                    <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                      <UserBlock />
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem>
-                      {/* TODO: Add account settings page */}
-                      <BadgeCheck />
-                      Account Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => toggleTheme()}>
-                      {theme === 'dark' ? <Moon /> : <Sun />}
-                      Toggle Theme
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => logout.mutate()}>
-                    <LogOut />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          {/* User dropdown has been moved to the main layout */}
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
