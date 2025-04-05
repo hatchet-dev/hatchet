@@ -194,4 +194,4 @@ function findMatchingTimeOption(
     // Allow for a small deviation (1 second)
     return fromDiff < 1000 && toDiff < 1000;
   });
-} 
+}

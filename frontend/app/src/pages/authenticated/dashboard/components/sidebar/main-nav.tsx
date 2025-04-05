@@ -4,13 +4,13 @@ import {
   Bug,
   Calendar,
   Clock,
+  Code,
+  Cpu,
   Database,
   Github,
   Key,
-  LayoutGrid,
   Play,
   Scale,
-  Server,
   Settings,
   Users,
 } from 'lucide-react';
@@ -82,13 +82,13 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
           {
             title: 'Tasks & Workflows',
             url: '/tasks',
-            icon: LayoutGrid,
+            icon: Code,
             isActive: isActive('/tasks'),
           },
           {
             title: 'Workers',
             url: '/workers',
-            icon: Server,
+            icon: Cpu,
             isActive: isActive('/workers'),
           },
           {

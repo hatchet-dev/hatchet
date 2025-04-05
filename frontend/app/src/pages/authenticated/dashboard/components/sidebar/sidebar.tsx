@@ -37,6 +37,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  SidebarRail,
 } from '@/components/ui/sidebar';
 import { PropsWithChildren, useMemo } from 'react';
 import useUser from '@/hooks/use-user';
@@ -77,9 +78,10 @@ name: ${user?.name}`;
   return (
     <>
       <Sidebar variant="floating" collapsible="icon">
+        <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>
-            <header>
+            <header className="my-3">
               <SidebarMenuItem>
                 <SidebarMenuButton size="lg" onClick={() => navigate('/')}>
                   <Logo variant="md" />

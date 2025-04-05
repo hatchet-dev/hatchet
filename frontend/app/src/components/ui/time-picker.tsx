@@ -16,11 +16,11 @@ export function TimePicker({ date, setDate, timezone }: TimePickerProps) {
 
     const newDate = new Date(date);
     const [hours, minutes] = e.target.value.split(':').map(Number);
-    
+
     if (isNaN(hours) || isNaN(minutes)) {
       return;
     }
-    
+
     newDate.setHours(hours);
     newDate.setMinutes(minutes);
     setDate(newDate);
@@ -31,7 +31,7 @@ export function TimePicker({ date, setDate, timezone }: TimePickerProps) {
     if (!date) {
       return '';
     }
-    
+
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
@@ -50,4 +50,4 @@ export function TimePicker({ date, setDate, timezone }: TimePickerProps) {
       )}
     </div>
   );
-} 
+}
