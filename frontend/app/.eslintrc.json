@@ -36,11 +36,14 @@
     "curly": "error",
     "import/prefer-default-export": "off",
     "@typescript-eslint/no-explicit-any": "off",
-    "import/no-extraneous-dependencies": [
-      "error",
-      {
-        "devDependencies": ["vite.config.ts"]
+    "import/no-extraneous-dependencies": "off"
+  },
+  "settings": {
+    "import/resolver": {
+      "typescript": {},
+      "node": {
+        "extensions": [".js", ".jsx", ".ts", ".tsx"]
       }
-    ]
+    }
   }
 }

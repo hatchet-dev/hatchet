@@ -151,10 +151,6 @@ export const queries = createQueryKeyStore({
     }),
   },
   tokens: {
-    list: (tenant: string) => ({
-      queryKey: ['api-token:list', tenant],
-      queryFn: async () => (await api.apiTokenList(tenant)).data,
-    }),
   },
   emailGroups: {
     list: (tenant: string) => ({
@@ -257,8 +253,6 @@ export const queries = createQueryKeyStore({
   },
   v1WorkflowRuns: {
     list: (tenant: string, query: V2ListWorkflowRunsQuery) => ({
-      queryKey: ['v1:workflow-run:list', tenant, query],
-      queryFn: async () => (await api.v1WorkflowRunList(tenant, query)).data,
     }),
     listTaskEvents: (workflowRunId: string) => ({
       queryKey: ['v1:workflow-run:list-tasks', workflowRunId],

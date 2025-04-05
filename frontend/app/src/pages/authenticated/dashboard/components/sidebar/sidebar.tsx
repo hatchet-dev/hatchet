@@ -38,7 +38,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
-import { PropsWithChildren } from 'react';
+import { PropsWithChildren, useMemo } from 'react';
 import useUser from '@/hooks/use-user';
 import { getMainNavLinks } from './main-nav';
 import { TenantBlock } from './user-dropdown';
@@ -48,6 +48,7 @@ import { QuestionMarkCircledIcon } from '@radix-ui/react-icons';
 import useTenant from '@/hooks/use-tenant';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Logo } from '@/components/ui/logo';
+import { Code } from '@/components/ui/code';
 export const iframeHeight = '800px';
 
 export const description = 'An inset sidebar with secondary navigation.';
@@ -56,10 +57,18 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const { data: user, memberships } = useUser();
   const chat = useSupportChat();
-  const { setTenant } = useTenant();
+  const { tenant, setTenant } = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
   const navLinks = getMainNavLinks(location.pathname);
+
+  const supportReference = useMemo(() => {
+    return `ver: ${meta?.version}
+tenantId: ${tenant?.metadata.id}
+userId: ${user?.metadata.id}
+email: ${user?.email}
+name: ${user?.name}`;
+  }, [meta, tenant, user]);
 
   return (
     <>
@@ -212,17 +221,11 @@ export function AppSidebar({ children }: PropsWithChildren) {
                       </DropdownMenuGroup>
                       <DropdownMenuSeparator />
                       <DropdownMenuLabel className="p-0 font-normal">
-                        <pre className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                          <code>
-                            ver: {meta?.version}
-                            <br />
-                            userId: {user?.metadata.id}
-                            <br />
-                            email: {user?.email}
-                            <br />
-                            name: {user?.name}
-                          </code>
-                        </pre>
+                        <Code
+                          title="Support Reference"
+                          language="text"
+                          value={supportReference}
+                        />
                       </DropdownMenuLabel>
                     </DropdownMenuContent>
                   </DropdownMenu>
