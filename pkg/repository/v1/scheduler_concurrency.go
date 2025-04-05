@@ -141,111 +141,111 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	var cancelled []TaskWithCancelledReason
 	var nextConcurrencyStrategies []int64
 
-	if strategy.ParentStrategyID.Valid {
-		acquired, err := c.queries.TryConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+	// if strategy.ParentStrategyID.Valid {
+	// 	acquired, err := c.queries.TryConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
-		if err != nil {
-			return nil, err
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	if acquired {
+	// 		err = c.queries.RunParentGroupRoundRobin(ctx, tx, sqlcv1.RunParentGroupRoundRobinParams{
+	// 			Tenantid:   tenantId,
+	// 			Strategyid: strategy.ParentStrategyID.Int64,
+	// 			Maxruns:    strategy.MaxConcurrency,
+	// 		})
+
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 	}
+
+	// 	poppedResults, err := c.queries.RunChildGroupRoundRobin(ctx, tx, sqlcv1.RunChildGroupRoundRobinParams{
+	// 		Tenantid:         tenantId,
+	// 		Strategyid:       strategy.ID,
+	// 		Parentstrategyid: strategy.ParentStrategyID.Int64,
+	// 	})
+
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+
+	// 	queued = make([]TaskWithQueue, 0, len(poppedResults))
+	// 	cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
+	// 	nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
+
+	// 	for _, r := range poppedResults {
+	// 		idRetryCount := &TaskIdInsertedAtRetryCount{
+	// 			Id:         r.TaskID,
+	// 			InsertedAt: r.TaskInsertedAt,
+	// 			RetryCount: r.TaskRetryCount,
+	// 		}
+
+	// 		switch {
+	// 		case len(r.NextStrategyIds) > 0:
+	// 			nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
+	// 		case r.Operation == "SCHEDULING_TIMED_OUT":
+	// 			cancelled = append(cancelled, TaskWithCancelledReason{
+	// 				TaskIdInsertedAtRetryCount: idRetryCount,
+	// 				CancelledReason:            "SCHEDULING_TIMED_OUT",
+	// 				TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
+	// 				WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
+	// 			})
+	// 		default:
+	// 			queued = append(queued, TaskWithQueue{
+	// 				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+	// 					Id:         r.TaskID,
+	// 					InsertedAt: r.TaskInsertedAt,
+	// 					RetryCount: r.TaskRetryCount,
+	// 				},
+	// 				Queue: r.QueueToNotify,
+	// 			})
+	// 		}
+	// 	}
+	// } else {
+	poppedResults, err := c.queries.RunGroupRoundRobin(ctx, tx, sqlcv1.RunGroupRoundRobinParams{
+		Tenantid:   tenantId,
+		Strategyid: strategy.ID,
+		Maxruns:    strategy.MaxConcurrency,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	queued = make([]TaskWithQueue, 0, len(poppedResults))
+	cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
+	nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
+
+	for _, r := range poppedResults {
+		idRetryCount := &TaskIdInsertedAtRetryCount{
+			Id:         r.TaskID,
+			InsertedAt: r.TaskInsertedAt,
+			RetryCount: r.TaskRetryCount,
 		}
 
-		if acquired {
-			err = c.queries.RunParentGroupRoundRobin(ctx, tx, sqlcv1.RunParentGroupRoundRobinParams{
-				Tenantid:   tenantId,
-				Strategyid: strategy.ParentStrategyID.Int64,
-				Maxruns:    strategy.MaxConcurrency,
+		switch {
+		case len(r.NextStrategyIds) > 0:
+			nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
+		case r.Operation == "SCHEDULING_TIMED_OUT":
+			cancelled = append(cancelled, TaskWithCancelledReason{
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				CancelledReason:            "SCHEDULING_TIMED_OUT",
+				TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
+				WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 			})
-
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		poppedResults, err := c.queries.RunChildGroupRoundRobin(ctx, tx, sqlcv1.RunChildGroupRoundRobinParams{
-			Tenantid:         tenantId,
-			Strategyid:       strategy.ID,
-			Parentstrategyid: strategy.ParentStrategyID.Int64,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		queued = make([]TaskWithQueue, 0, len(poppedResults))
-		cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
-		nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
-
-		for _, r := range poppedResults {
-			idRetryCount := &TaskIdInsertedAtRetryCount{
-				Id:         r.TaskID,
-				InsertedAt: r.TaskInsertedAt,
-				RetryCount: r.TaskRetryCount,
-			}
-
-			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
-			case r.Operation == "SCHEDULING_TIMED_OUT":
-				cancelled = append(cancelled, TaskWithCancelledReason{
-					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
-				})
-			default:
-				queued = append(queued, TaskWithQueue{
-					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
-						Id:         r.TaskID,
-						InsertedAt: r.TaskInsertedAt,
-						RetryCount: r.TaskRetryCount,
-					},
-					Queue: r.QueueToNotify,
-				})
-			}
-		}
-	} else {
-		poppedResults, err := c.queries.RunGroupRoundRobin(ctx, tx, sqlcv1.RunGroupRoundRobinParams{
-			Tenantid:   tenantId,
-			Strategyid: strategy.ID,
-			Maxruns:    strategy.MaxConcurrency,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
-		queued = make([]TaskWithQueue, 0, len(poppedResults))
-		cancelled = make([]TaskWithCancelledReason, 0, len(poppedResults))
-		nextConcurrencyStrategies = make([]int64, 0, len(poppedResults))
-
-		for _, r := range poppedResults {
-			idRetryCount := &TaskIdInsertedAtRetryCount{
-				Id:         r.TaskID,
-				InsertedAt: r.TaskInsertedAt,
-				RetryCount: r.TaskRetryCount,
-			}
-
-			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
-			case r.Operation == "SCHEDULING_TIMED_OUT":
-				cancelled = append(cancelled, TaskWithCancelledReason{
-					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
-					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
-					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
-				})
-			default:
-				queued = append(queued, TaskWithQueue{
-					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
-						Id:         r.TaskID,
-						InsertedAt: r.TaskInsertedAt,
-						RetryCount: r.TaskRetryCount,
-					},
-					Queue: r.QueueToNotify,
-				})
-			}
+		default:
+			queued = append(queued, TaskWithQueue{
+				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+					Id:         r.TaskID,
+					InsertedAt: r.TaskInsertedAt,
+					RetryCount: r.TaskRetryCount,
+				},
+				Queue: r.QueueToNotify,
+			})
 		}
 	}
+	// }
 
 	if err = commit(ctx); err != nil {
 		return nil, err
