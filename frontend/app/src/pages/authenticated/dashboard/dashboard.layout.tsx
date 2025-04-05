@@ -41,10 +41,16 @@ export default function Authenticated() {
                   <div className="flex w-full items-center justify-between px-4">
                     <div className="flex items-center gap-2">
                       {isMobile && (
-                        <SidebarTrigger
-                          className="-ml-1"
-                          icon={<Logo variant="md" />}
-                        />
+                        <>
+                          <SidebarTrigger
+                            className="-ml-1"
+                            icon={<Logo variant="md" />}
+                          />
+                          <Separator
+                            orientation="vertical"
+                            className="mr-2 h-4"
+                          />
+                        </>
                       )}
                       <BreadcrumbNav />
                     </div>
