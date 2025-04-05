@@ -19,7 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useApiTokensContext } from '@/hooks/use-api-tokens';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { apiTokens } from '@/lib/can/features/api-tokens';
+import useCan from '@/hooks/use-can';
 interface TokensTableProps {
   data: APIToken[];
   isLoading: boolean;
@@ -35,6 +36,8 @@ export function TokensTable({
 }: TokensTableProps) {
   const { filters, setFilters } = useApiTokensContext();
   const [sorting, setSorting] = useState<SortingState>([]);
+  const { can } = useCan();
+
   // Define columns
   const columns: ColumnDef<APIToken>[] = [
     {
@@ -61,15 +64,16 @@ export function TokensTable({
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          onClick={() => onRevokeClick(row.original)}
-          className="text-red-500 hover:text-red-700"
-        >
-          Revoke
-        </Button>
-      ),
+      cell: ({ row }) =>
+        can(apiTokens.manage()) && (
+          <Button
+            variant="ghost"
+            onClick={() => onRevokeClick(row.original)}
+            className="text-red-500 hover:text-red-700"
+          >
+            Revoke
+          </Button>
+        ),
     },
   ];
 

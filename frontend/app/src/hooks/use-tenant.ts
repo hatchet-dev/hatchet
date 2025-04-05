@@ -1,11 +1,11 @@
-import { Tenant, TenantMemberRole } from '@/lib/api';
+import { Tenant, TenantMember } from '@/lib/api';
 import useUser from './use-user';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 interface TenantState {
   tenant?: Tenant;
-  role?: TenantMemberRole;
+  membership?: TenantMember['role'];
   isLoading: boolean;
   setTenant: (tenant: Tenant) => void;
 }
@@ -23,7 +23,7 @@ export default function useTenant(): TenantState {
     [searchParams, setSearchParams],
   );
 
-  const tenant = useMemo(() => {
+  const membership = useMemo(() => {
     const tenantId =
       searchParams.get('tenant') || localStorage.getItem('tenant');
 
@@ -50,9 +50,9 @@ export default function useTenant(): TenantState {
   }, [memberships, searchParams, setTenant]);
 
   return {
-    tenant: tenant?.tenant,
-    role: tenant?.role,
+    tenant: membership?.tenant,
     isLoading: isUserLoading,
+    membership: membership?.role,
     setTenant,
   };
 }
