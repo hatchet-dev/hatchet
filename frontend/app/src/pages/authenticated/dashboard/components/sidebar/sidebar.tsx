@@ -38,6 +38,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { PropsWithChildren, useMemo } from 'react';
 import useUser from '@/hooks/use-user';
@@ -66,6 +67,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const location = useLocation();
   const navLinks = getMainNavLinks(location.pathname);
   const { theme } = useTheme();
+  const { toggleSidebar } = useSidebar();
 
   const supportReference = useMemo(() => {
     return `ver: ${meta?.version}
@@ -83,7 +85,7 @@ name: ${user?.name}`;
           <SidebarMenu>
             <header className="my-3">
               <SidebarMenuItem>
-                <SidebarMenuButton size="lg" onClick={() => navigate('/')}>
+                <SidebarMenuButton size="lg" onClick={() => toggleSidebar()}>
                   <Logo variant="md" />
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">

@@ -40,15 +40,12 @@ export default function Authenticated() {
                 <header className="flex h-16 items-center gap-2 border-b">
                   <div className="flex w-full items-center justify-between px-4">
                     <div className="flex items-center gap-2">
-                      {isMobile ? (
+                      {isMobile && (
                         <SidebarTrigger
                           className="-ml-1"
                           icon={<Logo variant="md" />}
                         />
-                      ) : (
-                        <SidebarTrigger className="-ml-1" />
                       )}
-                      <Separator orientation="vertical" className="mr-2 h-4" />
                       <BreadcrumbNav />
                     </div>
 
