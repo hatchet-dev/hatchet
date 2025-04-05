@@ -1,4 +1,5 @@
 import { useLocation } from 'react-router-dom';
+import React from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -92,6 +93,7 @@ export function BreadcrumbNav() {
     isLast: boolean;
     siblings?: NavItem[];
     section?: string;
+    icon?: React.ElementType;
   }[] = [];
 
   // Build path segments and find matching nav items
@@ -121,6 +123,7 @@ export function BreadcrumbNav() {
         isLast: i === pathSegments.length - 1,
         siblings: siblings.length > 1 ? siblings : undefined,
         section: sectionName,
+        icon: navItem.icon,
       });
     }
   }
@@ -128,12 +131,15 @@ export function BreadcrumbNav() {
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        {breadcrumbItems.map((item) => (
+        {breadcrumbItems.map((item, index) => (
           <BreadcrumbItem key={item.url}>
             {item.isLast ? (
               item.siblings ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger className="flex items-center gap-1 font-normal text-foreground">
+                    {index === 0 && item.icon && (
+                      <item.icon className="mr-2 h-4 w-4" />
+                    )}
                     {item.title}
                     {item.isLast && <ChevronDown className="h-4 w-4" />}
                   </DropdownMenuTrigger>
@@ -155,7 +161,10 @@ export function BreadcrumbNav() {
               )
             ) : item.siblings ? (
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-1 transition-colors hover:text-foreground">
+                <DropdownMenuTrigger className="flex items-center gap-1 font-normal text-foreground">
+                  {index === 0 && item.icon && (
+                    <item.icon className="mr-2 h-4 w-4" />
+                  )}
                   {item.title}
                   {item.isLast && <ChevronDown className="h-4 w-4" />}
                 </DropdownMenuTrigger>
@@ -174,6 +183,9 @@ export function BreadcrumbNav() {
               </DropdownMenu>
             ) : (
               <BreadcrumbLink to={item.url}>
+                {index === 0 && item.icon && (
+                  <item.icon className="mr-2 h-4 w-4" />
+                )}
                 {item.title}
                 {item.isLast && <ChevronDown className="h-4 w-4" />}
               </BreadcrumbLink>
