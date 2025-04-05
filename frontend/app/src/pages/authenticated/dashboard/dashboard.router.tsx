@@ -1,5 +1,13 @@
 import { RouteObject, Navigate } from 'react-router-dom';
 import DashboardLayout from './dashboard.layout';
+import { settingsRoutes } from './settings/settings.router';
+import { runsRoutes } from './runs/runs.router';
+import { scheduledRunsRoutes } from './scheduled-runs/scheduled-runs.router';
+import { cronJobsRoutes } from './cron-jobs/cron-jobs.router';
+import { tasksRoutes } from './tasks/tasks.router';
+import { workersRoutes } from './workers/workers.router';
+import { rateLimitsRoutes } from './rate-limits/rate-limits.router';
+
 export const dashboardRoutes: RouteObject[] = [
   {
     path: '/',
@@ -9,25 +17,13 @@ export const dashboardRoutes: RouteObject[] = [
         path: '/',
         Component: () => <Navigate to="/runs" />,
       },
-      {
-        path: '/runs',
-        lazy: async () =>
-          import('./runs/runs.page').then((res) => {
-            return {
-              Component: res.default,
-            };
-          }),
-      },
+      ...runsRoutes,
+      ...scheduledRunsRoutes,
+      ...cronJobsRoutes,
+      ...tasksRoutes,
+      ...workersRoutes,
+      ...rateLimitsRoutes,
+      ...settingsRoutes,
     ],
   },
 ];
-
-// {
-//     path: '/',
-//     lazy: async () =>
-//       import('./pages/authenticated/authenticated.tsx').then((res) => {
-//         return {
-//           Component: res.default,
-//         };
-//       }),
-//   },

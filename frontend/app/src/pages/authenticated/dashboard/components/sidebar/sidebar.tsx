@@ -130,12 +130,22 @@ export function AppSidebar({ children }: PropsWithChildren) {
                     defaultOpen={item.isActive}
                   >
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild tooltip={item.title}>
-                        <Link to={item.url}>
-                          <item.icon />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip={item.title}
+                          className={
+                            item.isActive
+                              ? 'bg-muted/50 hover:bg-muted/80'
+                              : 'hover:bg-muted/30'
+                          }
+                        >
+                          <Link to={item.url}>
+                            <item.icon />
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
                       {item.items?.length ? (
                         <>
                           <CollapsibleTrigger asChild>
@@ -148,7 +158,14 @@ export function AppSidebar({ children }: PropsWithChildren) {
                             <SidebarMenuSub>
                               {item.items?.map((subItem) => (
                                 <SidebarMenuSubItem key={subItem.title}>
-                                  <SidebarMenuSubButton asChild>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    className={
+                                      subItem.isActive
+                                        ? 'bg-muted/50 hover:bg-muted/80'
+                                        : 'hover:bg-muted/30'
+                                    }
+                                  >
                                     <Link to={subItem.url}>
                                       <subItem.icon />
                                       <span>{subItem.title}</span>

@@ -1,13 +1,4 @@
-import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
-import { useEffect } from 'react';
-
-export default function RunsPage() {
-  const { breadcrumbs, setBreadcrumbs } = useBreadcrumbs();
-
-  useEffect(() => {
-    setBreadcrumbs([{ label: 'Runs', url: '/runs' }]);
-  }, [setBreadcrumbs]);
-
+export default function TasksPage() {
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">

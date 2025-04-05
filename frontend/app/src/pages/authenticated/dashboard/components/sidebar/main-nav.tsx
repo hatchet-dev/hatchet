@@ -44,7 +44,7 @@ export type NavStructure = {
 };
 
 export const getMainNavLinks = (currentPath: string): NavStructure => {
-  const isActive = (path: string) => currentPath === path;
+  const isActive = (path: string) => currentPath.startsWith(path);
 
   return {
     sections: {

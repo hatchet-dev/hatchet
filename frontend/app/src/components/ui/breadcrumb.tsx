@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cn } from '@/lib/utils';
 import { ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
+import { Link as RouterLink } from 'react-router-dom';
 
 const Breadcrumb = React.forwardRef<
   HTMLElement,
@@ -42,13 +43,22 @@ const BreadcrumbLink = React.forwardRef<
   HTMLAnchorElement,
   React.ComponentPropsWithoutRef<'a'> & {
     asChild?: boolean;
+    to?: string;
   }
->(({ asChild, className, ...props }, ref) => {
-  const Comp = asChild ? Slot : 'a';
-
+>(({ asChild, className, href, to, ...props }, ref) => {
+  if (asChild) {
+    return (
+      <Slot
+        ref={ref}
+        className={cn('transition-colors hover:text-foreground', className)}
+        {...props}
+      />
+    );
+  }
   return (
-    <Comp
+    <RouterLink
       ref={ref}
+      to={to || href || ''}
       className={cn('transition-colors hover:text-foreground', className)}
       {...props}
     />
