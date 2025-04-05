@@ -20,20 +20,24 @@ import { Input } from '@/components/ui/input';
 import { useApiTokensContext } from '@/hooks/use-api-tokens';
 import { Skeleton } from '@/components/ui/skeleton';
 
+import docs from '@/docs-meta-data';
+
 interface TokensTableProps {
   data: APIToken[];
   isLoading: boolean;
   onRevokeClick: (token: APIToken) => void;
+  emptyState?: React.ReactNode;
 }
 
 export function TokensTable({
   data,
   isLoading,
   onRevokeClick,
+  emptyState,
 }: TokensTableProps) {
   const { filters, setFilters } = useApiTokensContext();
   const [sorting, setSorting] = useState<SortingState>([]);
-
+  const taskPath = docs.home['your-first-task'].href;
   // Define columns
   const columns: ColumnDef<APIToken>[] = [
     {
@@ -184,7 +188,7 @@ export function TokensTable({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No API tokens found.
+                  {emptyState || 'No API tokens found.'}
                 </TableCell>
               </TableRow>
             )}

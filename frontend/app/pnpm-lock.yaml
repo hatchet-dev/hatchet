@@ -272,7 +272,7 @@ importers:
         version: 6.21.0(eslint@8.57.1)(typescript@5.8.2)
       '@vitejs/plugin-react':
         specifier: ^4.3.4
-        version: 4.3.4(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1))
+        version: 4.3.4(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1))
       autoprefixer:
         specifier: ^10.4.21
         version: 10.4.21(postcss@8.5.3)
@@ -318,15 +318,18 @@ importers:
       tailwindcss:
         specifier: ^3.4.17
         version: 3.4.17
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
       typescript:
         specifier: ^5.8.2
         version: 5.8.2
       vite:
         specifier: ^6.2.4
-        version: 6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1)
+        version: 6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1)
       vite-plugin-eslint:
         specifier: ^1.8.1
-        version: 1.8.1(eslint@8.57.1)(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1))
+        version: 1.8.1(eslint@8.57.1)(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1))
 
 packages:
 
@@ -4094,6 +4097,11 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
+  tsx@4.19.3:
+    resolution: {integrity: sha512-4H8vUNGNjQ4V2EOoGw005+c+dGuPSnhpPBPHBtsZdGZBk/iJb4kguGlPWaZTZ3q5nMtFOEsY0nRDlh9PJyd6SQ==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
+
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
@@ -6245,14 +6253,14 @@ snapshots:
       d3-time-format: 4.1.0
       internmap: 2.0.3
 
-  '@vitejs/plugin-react@4.3.4(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1))':
+  '@vitejs/plugin-react@4.3.4(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1))':
     dependencies:
       '@babel/core': 7.26.10
       '@babel/plugin-transform-react-jsx-self': 7.25.9(@babel/core@7.26.10)
       '@babel/plugin-transform-react-jsx-source': 7.25.9(@babel/core@7.26.10)
       '@types/babel__core': 7.20.5
       react-refresh: 0.14.2
-      vite: 6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1)
+      vite: 6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -8612,6 +8620,13 @@ snapshots:
 
   tslib@2.8.1: {}
 
+  tsx@4.19.3:
+    dependencies:
+      esbuild: 0.25.2
+      get-tsconfig: 4.10.0
+    optionalDependencies:
+      fsevents: 2.3.3
+
   type-check@0.4.0:
     dependencies:
       prelude-ls: 1.2.1
@@ -8783,15 +8798,15 @@ snapshots:
       d3-time: 3.1.0
       d3-timer: 3.0.1
 
-  vite-plugin-eslint@1.8.1(eslint@8.57.1)(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1)):
+  vite-plugin-eslint@1.8.1(eslint@8.57.1)(vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1)):
     dependencies:
       '@rollup/pluginutils': 4.2.1
       '@types/eslint': 8.56.12
       eslint: 8.57.1
       rollup: 2.79.2
-      vite: 6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1)
+      vite: 6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1)
 
-  vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(yaml@2.7.1):
+  vite@6.2.4(@types/node@20.17.28)(jiti@1.21.7)(tsx@4.19.3)(yaml@2.7.1):
     dependencies:
       esbuild: 0.25.2
       postcss: 8.5.3
@@ -8800,6 +8815,7 @@ snapshots:
       '@types/node': 20.17.28
       fsevents: 2.3.3
       jiti: 1.21.7
+      tsx: 4.19.3
       yaml: 2.7.1
 
   webidl-conversions@3.0.1: {}
