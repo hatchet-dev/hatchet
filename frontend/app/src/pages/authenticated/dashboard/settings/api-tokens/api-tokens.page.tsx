@@ -17,17 +17,9 @@ export default function ApiTokensPage() {
 }
 
 function ApiTokensContent() {
-  const { data, isLoading, create, revoke } = useApiTokens();
+  const { data, isLoading } = useApiTokens();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [revokeToken, setRevokeToken] = useState<APIToken | null>(null);
-
-  const handleRevoke = (token: APIToken) => {
-    revoke.mutate(token, {
-      onSuccess: () => {
-        setRevokeToken(null);
-      },
-    });
-  };
 
   return (
     <div className="flex-grow h-full w-full">
@@ -58,22 +50,14 @@ function ApiTokensContent() {
 
         {showTokenDialog && (
           <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
-            <CreateTokenDialog close={setShowTokenDialog} />
+            <CreateTokenDialog close={() => setShowTokenDialog(false)} />
           </Dialog>
         )}
 
         {revokeToken && (
           <RevokeTokenForm
             apiToken={revokeToken}
-            isLoading={revoke.isPending}
-            onSubmit={() => handleRevoke(revokeToken)}
-            onCancel={() => setRevokeToken(null)}
-            open={!!revokeToken}
-            onOpenChange={(open) => {
-              if (!open) {
-                setRevokeToken(null);
-              }
-            }}
+            close={() => setRevokeToken(null)}
           />
         )}
       </div>

@@ -10,13 +10,7 @@ interface TenantState {
   setTenant: (tenant: Tenant) => void;
 }
 
-interface UseTenantOptions {
-  refetchInterval?: number;
-}
-
-export default function useTenant({
-  refetchInterval,
-}: UseTenantOptions = {}): TenantState {
+export default function useTenant(): TenantState {
   const { memberships, isLoading: isUserLoading } = useUser();
   const [searchParams, setSearchParams] = useSearchParams();
 

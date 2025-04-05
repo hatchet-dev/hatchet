@@ -1,6 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserLoginForm } from './components/user-login-form';
-import { useState } from 'react';
 import React from 'react';
 import useApiMeta from '@/hooks/use-api-meta';
 import {
@@ -76,9 +75,6 @@ function BasicLogin() {
   const navigate = useNavigate();
   const { login } = useUser();
 
-  // TODO field-errors should be handled by the form component
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
   return (
     <UserLoginForm
       isLoading={login.isPending}
@@ -88,7 +84,6 @@ function BasicLogin() {
           navigate('/');
         }
       }}
-      fieldErrors={fieldErrors}
       apiError={login.error?.message}
     />
   );

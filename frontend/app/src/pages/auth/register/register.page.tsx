@@ -1,6 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { UserRegisterForm } from './components/user-register-form';
-import { useState } from 'react';
 import React from 'react';
 import useApiMeta from '@/hooks/use-api-meta';
 import {
@@ -71,8 +70,6 @@ export default function Register() {
 function BasicRegister() {
   const navigate = useNavigate();
   const { register } = useUser();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
   // TODO: handle error
 
   return (
@@ -84,7 +81,6 @@ function BasicRegister() {
           navigate('/');
         }
       }}
-      fieldErrors={fieldErrors}
       apiError={register.error?.message}
     />
   );

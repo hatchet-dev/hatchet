@@ -1,24 +1,16 @@
 import { APIToken } from '@/lib/api';
 import { DestructiveDialog } from '@/components/ui/dialog/destructive-dialog';
 import { Code } from '@/components/ui/code';
+import useApiTokens from '@/hooks/use-api-tokens';
 
 interface RevokeTokenFormProps {
   apiToken: APIToken;
-  isLoading: boolean;
-  onSubmit: () => void;
-  onCancel: () => void;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  close: () => void;
 }
 
-export function RevokeTokenForm({
-  apiToken,
-  isLoading,
-  onSubmit,
-  onCancel,
-  open,
-  onOpenChange,
-}: RevokeTokenFormProps) {
+export function RevokeTokenForm({ apiToken, close }: RevokeTokenFormProps) {
+  const { revoke } = useApiTokens();
+
   // Create code representation of the token
   const tokenCode = `{
   "name": "${apiToken.name}",
@@ -28,15 +20,18 @@ export function RevokeTokenForm({
 
   return (
     <DestructiveDialog
-      open={open}
-      onOpenChange={onOpenChange}
+      open={true}
+      onOpenChange={close}
       title="Revoke API Token"
       alertDescription="Are you sure you want to revoke this API token? Any workers that are using this token will no longer be assigned tasks and services will not be able to trigger runs."
       confirmationText={apiToken.name}
       confirmButtonText="Revoke Token"
-      isLoading={isLoading}
-      onConfirm={onSubmit}
-      onCancel={onCancel}
+      isLoading={revoke.isPending}
+      onConfirm={async () => {
+        await revoke.mutateAsync(apiToken);
+        close();
+      }}
+      onCancel={close}
     >
       <div className="mt-4">
         <Code language="json" value={tokenCode} noHeader />

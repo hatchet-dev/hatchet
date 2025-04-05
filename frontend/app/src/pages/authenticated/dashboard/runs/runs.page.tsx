@@ -1,7 +1,7 @@
 import useRuns from '@/hooks/use-runs';
 
 export default function RunsPage() {
-  const { data, isLoading } = useRuns();
+  const { data } = useRuns();
 
   return (
     <>

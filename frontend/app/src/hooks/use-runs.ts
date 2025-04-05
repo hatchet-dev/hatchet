@@ -28,6 +28,7 @@ export default function useRuns({
     queryKey: ['v1:workflow-run:list', tenant, query],
     queryFn: async () =>
       (await api.v1WorkflowRunList(tenant?.metadata.id || '', query)).data,
+    refetchInterval,
   });
 
   // ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
