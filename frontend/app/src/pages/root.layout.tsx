@@ -22,13 +22,20 @@ function Root({ children }: PropsWithChildren) {
             errorMessage={meta.hasFailed.message}
           />
         ) : (
-          <>
-            {children ?? <Outlet />}
+          <div className="flex h-full min-h-screen w-full overflow-hidden">
+            <div
+              className={`
+                flex-1 transition-all duration-300 ease-in-out h-full min-h-screen overflow-auto
+                ${docsState.sheet.isOpen ? 'lg:max-w-[calc(100%-600px)] md:max-w-[calc(100%-400px)] max-w-[calc(100%-300px)]' : 'max-w-full'}
+              `}
+            >
+              {children ?? <Outlet />}
+            </div>
             <DocsSheetComponent
               sheet={docsState.sheet}
               onClose={docsState.close}
             />
-          </>
+          </div>
         )}
       </DocsContext.Provider>
     </ThemeProvider>

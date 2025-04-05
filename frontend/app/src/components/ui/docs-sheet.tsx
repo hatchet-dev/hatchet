@@ -1,6 +1,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './sheet';
 import { DocsSheet } from '@/hooks/use-docs-sheet';
-import { Cross2Icon } from '@radix-ui/react-icons';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Cross2Icon, ExternalLinkIcon } from '@radix-ui/react-icons';
 
 interface DocsSheetProps {
   sheet: DocsSheet;
@@ -13,27 +14,45 @@ export function DocsSheetComponent({
   onClose,
   variant = 'push',
 }: DocsSheetProps) {
+  const isMobile = useIsMobile();
+
   // If using push variant, render as a side panel instead of using Sheet
-  if (variant === 'push') {
+  if (variant === 'push' && !isMobile) {
     return (
       <div
         className={`
           h-full min-h-screen bg-background border-l border-border
           transition-all duration-300 ease-in-out
-          ${sheet.isOpen ? 'w-[600px]' : 'w-0 overflow-hidden'}
+          ${sheet.isOpen ? 'lg:w-[600px] md:w-[400px] w-[300px]' : 'w-0 overflow-hidden'}
         `}
       >
         {sheet.isOpen && (
-          <div className="h-full min-h-screen flex flex-col p-6 overflow-hidden">
+          <div className="h-full min-h-screen flex flex-col p-4 md:p-6 overflow-hidden">
             <div className="flex justify-between items-center mb-4 shrink-0">
-              <h2 className="text-lg font-semibold">{sheet.title}</h2>
-              <button
-                onClick={onClose}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              >
-                <Cross2Icon className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </button>
+              <h2 className="text-lg font-semibold truncate pr-2">
+                {sheet.title}
+              </h2>
+              <div className="flex items-center gap-2">
+                {sheet.url && (
+                  <a
+                    href={sheet.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                    title="Open in new tab"
+                  >
+                    <ExternalLinkIcon className="h-4 w-4" />
+                    <span className="sr-only">Open in new tab</span>
+                  </a>
+                )}
+                <button
+                  onClick={onClose}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                >
+                  <Cross2Icon className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden relative">
               {sheet.url && (
@@ -41,6 +60,7 @@ export function DocsSheetComponent({
                   src={sheet.url}
                   className="absolute inset-0 w-full h-full rounded-md border"
                   title={`Documentation: ${sheet.title}`}
+                  loading="lazy"
                 />
               )}
             </div>
@@ -55,17 +75,32 @@ export function DocsSheetComponent({
     <Sheet open={sheet.isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
-        className="w-full max-w-[600px] sm:max-w-[600px] lg:max-w-[600px]"
+        className="p-4 md:p-6 w-full max-w-[300px] sm:max-w-[400px] lg:max-w-[600px]"
       >
-        <SheetHeader className="mb-4">
-          <SheetTitle>{sheet.title}</SheetTitle>
+        <SheetHeader className="mb-4 pr-8">
+          <div className="flex justify-between items-center">
+            <SheetTitle className="truncate">{sheet.title}</SheetTitle>
+            {sheet.url && (
+              <a
+                href={sheet.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                title="Open in new tab"
+              >
+                <ExternalLinkIcon className="h-4 w-4" />
+                <span className="sr-only">Open in new tab</span>
+              </a>
+            )}
+          </div>
         </SheetHeader>
-        <div className="h-[calc(100vh-120px)] w-full relative">
+        <div className="h-[calc(100vh-120px)] w-full relative overflow-hidden">
           {sheet.url && (
             <iframe
               src={sheet.url}
               className="absolute inset-0 w-full h-full rounded-md border"
               title={`Documentation: ${sheet.title}`}
+              loading="lazy"
             />
           )}
         </div>
