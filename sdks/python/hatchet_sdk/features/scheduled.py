@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from typing import Optional
 
@@ -22,7 +23,6 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.utils.aio import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -33,7 +33,7 @@ class ScheduledClient(BaseRestClient):
     def _wa(self, client: ApiClient) -> WorkflowApi:
         return WorkflowApi(client)
 
-    async def aio_create(
+    def create(
         self,
         workflow_name: str,
         trigger_at: datetime.datetime,
@@ -52,8 +52,8 @@ class ScheduledClient(BaseRestClient):
         Returns:
             ScheduledWorkflows: The created scheduled workflow instance.
         """
-        async with self.client() as client:
-            return await self._wra(client).scheduled_workflow_run_create(
+        with self.client() as client:
+            return self._wra(client).scheduled_workflow_run_create(
                 tenant=self.client_config.tenant_id,
                 workflow=workflow_name,
                 schedule_workflow_run_request=ScheduleWorkflowRunRequest(
@@ -63,7 +63,7 @@ class ScheduledClient(BaseRestClient):
                 ),
             )
 
-    def create(
+    async def aio_create(
         self,
         workflow_name: str,
         trigger_at: datetime.datetime,
@@ -83,29 +83,29 @@ class ScheduledClient(BaseRestClient):
             ScheduledWorkflows: The created scheduled workflow instance.
         """
 
-        return run_async_from_sync(
-            self.aio_create,
+        return await asyncio.to_thread(
+            self.create,
             workflow_name,
             trigger_at,
             input,
             additional_metadata,
         )
 
-    async def aio_delete(self, scheduled_id: str) -> None:
+    def delete(self, scheduled_id: str) -> None:
         """
         Deletes a scheduled workflow run.
 
         Args:
             scheduled_id (str): The scheduled workflow trigger ID to delete.
         """
-        async with self.client() as client:
-            await self._wa(client).workflow_scheduled_delete(
+        with self.client() as client:
+            self._wa(client).workflow_scheduled_delete(
                 tenant=self.client_config.tenant_id,
                 scheduled_workflow_run=scheduled_id,
             )
 
-    def delete(self, scheduled_id: str) -> None:
-        run_async_from_sync(self.aio_delete, scheduled_id)
+    async def aio_delete(self, scheduled_id: str) -> None:
+        await asyncio.to_thread(self.delete, scheduled_id)
 
     async def aio_list(
         self,
@@ -134,20 +134,17 @@ class ScheduledClient(BaseRestClient):
         Returns:
             List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
         """
-        async with self.client() as client:
-            return await self._wa(client).workflow_scheduled_list(
-                tenant=self.client_config.tenant_id,
-                offset=offset,
-                limit=limit,
-                order_by_field=order_by_field,
-                order_by_direction=order_by_direction,
-                workflow_id=workflow_id,
-                additional_metadata=maybe_additional_metadata_to_kv(
-                    additional_metadata
-                ),
-                parent_workflow_run_id=parent_workflow_run_id,
-                statuses=statuses,
-            )
+        return await asyncio.to_thread(
+            self.list,
+            offset=offset,
+            limit=limit,
+            workflow_id=workflow_id,
+            additional_metadata=additional_metadata,
+            order_by_field=order_by_field,
+            order_by_direction=order_by_direction,
+            parent_workflow_run_id=parent_workflow_run_id,
+            statuses=statuses,
+        )
 
     def list(
         self,
@@ -176,33 +173,19 @@ class ScheduledClient(BaseRestClient):
         Returns:
             List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
         """
-        return run_async_from_sync(
-            self.aio_list,
-            offset=offset,
-            limit=limit,
-            workflow_id=workflow_id,
-            additional_metadata=additional_metadata,
-            order_by_field=order_by_field,
-            order_by_direction=order_by_direction,
-            parent_workflow_run_id=parent_workflow_run_id,
-            statuses=statuses,
-        )
-
-    async def aio_get(self, scheduled_id: str) -> ScheduledWorkflows:
-        """
-        Retrieves a specific scheduled workflow by scheduled run trigger ID.
-
-        Args:
-            scheduled (str): The scheduled workflow trigger ID to retrieve.
-
-        Returns:
-            ScheduledWorkflows: The requested scheduled workflow instance.
-        """
-
-        async with self.client() as client:
-            return await self._wa(client).workflow_scheduled_get(
+        with self.client() as client:
+            return self._wa(client).workflow_scheduled_list(
                 tenant=self.client_config.tenant_id,
-                scheduled_workflow_run=scheduled_id,
+                offset=offset,
+                limit=limit,
+                order_by_field=order_by_field,
+                order_by_direction=order_by_direction,
+                workflow_id=workflow_id,
+                additional_metadata=maybe_additional_metadata_to_kv(
+                    additional_metadata
+                ),
+                parent_workflow_run_id=parent_workflow_run_id,
+                statuses=statuses,
             )
 
     def get(self, scheduled_id: str) -> ScheduledWorkflows:
@@ -215,4 +198,21 @@ class ScheduledClient(BaseRestClient):
         Returns:
             ScheduledWorkflows: The requested scheduled workflow instance.
         """
-        return run_async_from_sync(self.aio_get, scheduled_id)
+
+        with self.client() as client:
+            return self._wa(client).workflow_scheduled_get(
+                tenant=self.client_config.tenant_id,
+                scheduled_workflow_run=scheduled_id,
+            )
+
+    async def aio_get(self, scheduled_id: str) -> ScheduledWorkflows:
+        """
+        Retrieves a specific scheduled workflow by scheduled run trigger ID.
+
+        Args:
+            scheduled (str): The scheduled workflow trigger ID to retrieve.
+
+        Returns:
+            ScheduledWorkflows: The requested scheduled workflow instance.
+        """
+        return await asyncio.to_thread(self.get, scheduled_id)

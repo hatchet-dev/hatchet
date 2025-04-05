@@ -69,6 +69,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 		TaskInsertedAt:     task.InsertedAt.Time,
 		TaskExternalId:     taskExternalId,
 		StepId:             &stepId,
+		ActionId:           task.ActionID,
 	}
 }
 
@@ -288,6 +289,7 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		Type:                  gen.V1WorkflowTypeTASK,
 		NumSpawnedChildren:    int(taskWithData.SpawnedChildren.Int64),
 		StepId:                &stepId,
+		ActionId:              taskWithData.ActionID,
 	}
 }
 

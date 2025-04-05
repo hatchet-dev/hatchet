@@ -7,6 +7,8 @@ import grpc
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -14,6 +16,7 @@ from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
@@ -59,13 +62,23 @@ class DedupeViolationErr(Exception):
 
 
 class AdminClient:
-    def __init__(self, config: ClientConfig):
+    def __init__(
+        self,
+        config: ClientConfig,
+        workflow_run_listener: PooledWorkflowRunListener,
+        workflow_run_event_listener: RunEventListenerClient,
+        runs_client: RunsClient,
+    ):
         conn = new_conn(config, False)
         self.config = config
+        self.runs_client = runs_client
         self.client = AdminServiceStub(conn)
         self.v0_client = WorkflowServiceStub(conn)
         self.token = config.token
         self.namespace = config.namespace
+
+        self.workflow_run_listener = workflow_run_listener
+        self.workflow_run_event_listener = workflow_run_event_listener
 
     class TriggerWorkflowRequest(BaseModel):
         model_config = ConfigDict(extra="ignore")
@@ -317,7 +330,9 @@ class AdminClient:
 
         return WorkflowRunRef(
             workflow_run_id=resp.workflow_run_id,
-            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_run_listener,
+            runs_client=self.runs_client,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -349,8 +364,10 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
+            runs_client=self.runs_client,
             workflow_run_id=resp.workflow_run_id,
-            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_run_listener,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -378,8 +395,10 @@ class AdminClient:
 
         return [
             WorkflowRunRef(
+                runs_client=self.runs_client,
                 workflow_run_id=workflow_run_id,
-                config=self.config,
+                workflow_run_event_listener=self.workflow_run_event_listener,
+                workflow_run_listener=self.workflow_run_listener,
             )
             for workflow_run_id in resp.workflow_run_ids
         ]
@@ -412,14 +431,18 @@ class AdminClient:
 
         return [
             WorkflowRunRef(
+                runs_client=self.runs_client,
                 workflow_run_id=workflow_run_id,
-                config=self.config,
+                workflow_run_event_listener=self.workflow_run_event_listener,
+                workflow_run_listener=self.workflow_run_listener,
             )
             for workflow_run_id in resp.workflow_run_ids
         ]
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
         return WorkflowRunRef(
+            runs_client=self.runs_client,
             workflow_run_id=workflow_run_id,
-            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_run_listener,
         )

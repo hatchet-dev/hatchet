@@ -13,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[pgtype.UUID]string) gen.V1TaskSummary {
+func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[pgtype.UUID]string, actionId string) gen.V1TaskSummary {
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -88,12 +88,14 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		Type:               gen.V1WorkflowTypeDAG,
 		WorkflowName:       workflowName,
 		StepId:             &stepId,
+		ActionId:           actionId,
 	}
 }
 
 func ToWorkflowRunMany(
 	tasks []*v1.WorkflowRunData,
 	dagExternalIdToChildren map[uuid.UUID][]gen.V1TaskSummary,
+	taskIdToActionId map[int64]string,
 	workflowIdsToNames map[pgtype.UUID]string,
 	total int, limit, offset int64,
 ) gen.V1TaskSummaryList {
@@ -101,7 +103,18 @@ func ToWorkflowRunMany(
 
 	for i, task := range tasks {
 		dagExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID))
-		toReturn[i] = WorkflowRunDataToV1TaskSummary(task, workflowIdsToNames)
+
+		actionId := ""
+
+		if task.TaskId != nil {
+			actionIdFromMap, ok := taskIdToActionId[*task.TaskId]
+
+			if ok {
+				actionId = actionIdFromMap
+			}
+		}
+
+		toReturn[i] = WorkflowRunDataToV1TaskSummary(task, workflowIdsToNames, actionId)
 
 		children, ok := dagExternalIdToChildren[dagExternalId]
 
@@ -176,6 +189,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 		Type:               gen.V1WorkflowTypeTASK,
 		WorkflowName:       workflowName,
 		StepId:             &stepId,
+		ActionId:           task.ActionID,
 	}
 }
 

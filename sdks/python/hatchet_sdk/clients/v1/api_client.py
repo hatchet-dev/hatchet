@@ -1,4 +1,4 @@
-from typing import AsyncContextManager, ParamSpec, TypeVar
+from typing import ParamSpec, TypeVar
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
@@ -40,5 +40,5 @@ class BaseRestClient:
 
         self.api_config.datetime_format = "%Y-%m-%dT%H:%M:%S.%fZ"
 
-    def client(self) -> AsyncContextManager[ApiClient]:
+    def client(self) -> ApiClient:
         return ApiClient(self.api_config)

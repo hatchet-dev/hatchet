@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import subprocess
@@ -68,11 +67,9 @@ def worker() -> Generator[subprocess.Popen[bytes], None, None]:
     )
 
     try:
-        asyncio.run(
-            api.tenant_update(
-                tenant=hatchet.config.tenant_id,
-                update_tenant_request=UpdateTenantRequest(version=TenantVersion.V1),
-            )
+        api.tenant_update(
+            tenant=hatchet.config.tenant_id,
+            update_tenant_request=UpdateTenantRequest(version=TenantVersion.V1),
         )
     except Exception:
         pass

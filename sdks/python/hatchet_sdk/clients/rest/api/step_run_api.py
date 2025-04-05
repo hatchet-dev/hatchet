@@ -39,7 +39,7 @@ class StepRunApi:
         self.api_client = api_client
 
     @validate_call
-    async def step_run_get(
+    def step_run_get(
         self,
         tenant: Annotated[
             str,
@@ -110,17 +110,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def step_run_get_with_http_info(
+    def step_run_get_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -191,17 +191,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def step_run_get_without_preload_content(
+    def step_run_get_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -272,7 +272,7 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -335,7 +335,7 @@ class StepRunApi:
         )
 
     @validate_call
-    async def step_run_get_schema(
+    def step_run_get_schema(
         self,
         tenant: Annotated[
             str,
@@ -406,17 +406,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def step_run_get_schema_with_http_info(
+    def step_run_get_schema_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -487,17 +487,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def step_run_get_schema_without_preload_content(
+    def step_run_get_schema_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -568,7 +568,7 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -631,7 +631,7 @@ class StepRunApi:
         )
 
     @validate_call
-    async def step_run_list_archives(
+    def step_run_list_archives(
         self,
         step_run: Annotated[
             str,
@@ -705,17 +705,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def step_run_list_archives_with_http_info(
+    def step_run_list_archives_with_http_info(
         self,
         step_run: Annotated[
             str,
@@ -789,17 +789,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def step_run_list_archives_without_preload_content(
+    def step_run_list_archives_without_preload_content(
         self,
         step_run: Annotated[
             str,
@@ -873,7 +873,7 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -943,7 +943,7 @@ class StepRunApi:
         )
 
     @validate_call
-    async def step_run_list_events(
+    def step_run_list_events(
         self,
         step_run: Annotated[
             str,
@@ -1017,17 +1017,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def step_run_list_events_with_http_info(
+    def step_run_list_events_with_http_info(
         self,
         step_run: Annotated[
             str,
@@ -1101,17 +1101,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def step_run_list_events_without_preload_content(
+    def step_run_list_events_without_preload_content(
         self,
         step_run: Annotated[
             str,
@@ -1185,7 +1185,7 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1255,7 +1255,7 @@ class StepRunApi:
         )
 
     @validate_call
-    async def step_run_update_cancel(
+    def step_run_update_cancel(
         self,
         tenant: Annotated[
             str,
@@ -1325,17 +1325,17 @@ class StepRunApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def step_run_update_cancel_with_http_info(
+    def step_run_update_cancel_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1405,17 +1405,17 @@ class StepRunApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def step_run_update_cancel_without_preload_content(
+    def step_run_update_cancel_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1485,7 +1485,7 @@ class StepRunApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1548,7 +1548,7 @@ class StepRunApi:
         )
 
     @validate_call
-    async def step_run_update_rerun(
+    def step_run_update_rerun(
         self,
         tenant: Annotated[
             str,
@@ -1624,17 +1624,17 @@ class StepRunApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def step_run_update_rerun_with_http_info(
+    def step_run_update_rerun_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1710,17 +1710,17 @@ class StepRunApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def step_run_update_rerun_without_preload_content(
+    def step_run_update_rerun_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1796,7 +1796,7 @@ class StepRunApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1872,7 +1872,7 @@ class StepRunApi:
         )
 
     @validate_call
-    async def workflow_run_list_step_run_events(
+    def workflow_run_list_step_run_events(
         self,
         tenant: Annotated[
             str,
@@ -1952,17 +1952,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def workflow_run_list_step_run_events_with_http_info(
+    def workflow_run_list_step_run_events_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -2042,17 +2042,17 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def workflow_run_list_step_run_events_without_preload_content(
+    def workflow_run_list_step_run_events_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -2132,7 +2132,7 @@ class StepRunApi:
             "403": "APIErrors",
             "404": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response

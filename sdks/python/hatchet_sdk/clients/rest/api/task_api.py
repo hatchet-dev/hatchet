@@ -43,7 +43,7 @@ class TaskApi:
         self.api_client = api_client
 
     @validate_call
-    async def v1_dag_list_tasks(
+    def v1_dag_list_tasks(
         self,
         dag_ids: Annotated[
             List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
@@ -112,17 +112,17 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_dag_list_tasks_with_http_info(
+    def v1_dag_list_tasks_with_http_info(
         self,
         dag_ids: Annotated[
             List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
@@ -191,17 +191,17 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_dag_list_tasks_without_preload_content(
+    def v1_dag_list_tasks_without_preload_content(
         self,
         dag_ids: Annotated[
             List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
@@ -270,7 +270,7 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -339,7 +339,7 @@ class TaskApi:
         )
 
     @validate_call
-    async def v1_task_cancel(
+    def v1_task_cancel(
         self,
         tenant: Annotated[
             str,
@@ -408,17 +408,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_task_cancel_with_http_info(
+    def v1_task_cancel_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -487,17 +487,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_task_cancel_without_preload_content(
+    def v1_task_cancel_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -566,7 +566,7 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -639,7 +639,7 @@ class TaskApi:
         )
 
     @validate_call
-    async def v1_task_event_list(
+    def v1_task_event_list(
         self,
         task: Annotated[
             str,
@@ -712,17 +712,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_task_event_list_with_http_info(
+    def v1_task_event_list_with_http_info(
         self,
         task: Annotated[
             str,
@@ -795,17 +795,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_task_event_list_without_preload_content(
+    def v1_task_event_list_without_preload_content(
         self,
         task: Annotated[
             str,
@@ -878,7 +878,7 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -948,7 +948,7 @@ class TaskApi:
         )
 
     @validate_call
-    async def v1_task_get(
+    def v1_task_get(
         self,
         task: Annotated[
             str,
@@ -1009,17 +1009,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_task_get_with_http_info(
+    def v1_task_get_with_http_info(
         self,
         task: Annotated[
             str,
@@ -1080,17 +1080,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_task_get_without_preload_content(
+    def v1_task_get_without_preload_content(
         self,
         task: Annotated[
             str,
@@ -1151,7 +1151,7 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1211,7 +1211,7 @@ class TaskApi:
         )
 
     @validate_call
-    async def v1_task_get_point_metrics(
+    def v1_task_get_point_metrics(
         self,
         tenant: Annotated[
             str,
@@ -1286,17 +1286,17 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_task_get_point_metrics_with_http_info(
+    def v1_task_get_point_metrics_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1371,17 +1371,17 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_task_get_point_metrics_without_preload_content(
+    def v1_task_get_point_metrics_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1456,7 +1456,7 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1544,7 +1544,7 @@ class TaskApi:
         )
 
     @validate_call
-    async def v1_task_list_status_metrics(
+    def v1_task_list_status_metrics(
         self,
         tenant: Annotated[
             str,
@@ -1628,17 +1628,17 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_task_list_status_metrics_with_http_info(
+    def v1_task_list_status_metrics_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1722,17 +1722,17 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_task_list_status_metrics_without_preload_content(
+    def v1_task_list_status_metrics_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1816,7 +1816,7 @@ class TaskApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1900,7 +1900,7 @@ class TaskApi:
         )
 
     @validate_call
-    async def v1_task_replay(
+    def v1_task_replay(
         self,
         tenant: Annotated[
             str,
@@ -1969,17 +1969,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_task_replay_with_http_info(
+    def v1_task_replay_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -2048,17 +2048,17 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_task_replay_without_preload_content(
+    def v1_task_replay_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -2127,7 +2127,7 @@ class TaskApi:
             "404": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response

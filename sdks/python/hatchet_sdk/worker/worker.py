@@ -145,7 +145,7 @@ class Worker:
         for step in workflow.tasks:
             action_name = workflow._create_action_name(namespace, step)
 
-            if workflow.is_durable:
+            if step.is_durable:
                 self.has_any_durable = True
                 self.durable_action_registry[action_name] = step
             else:

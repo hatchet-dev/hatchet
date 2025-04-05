@@ -35,7 +35,7 @@ class GithubApi:
         self.api_client = api_client
 
     @validate_call
-    async def sns_update(
+    def sns_update(
         self,
         tenant: Annotated[
             str,
@@ -106,17 +106,17 @@ class GithubApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def sns_update_with_http_info(
+    def sns_update_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -187,17 +187,17 @@ class GithubApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def sns_update_without_preload_content(
+    def sns_update_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -268,7 +268,7 @@ class GithubApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response

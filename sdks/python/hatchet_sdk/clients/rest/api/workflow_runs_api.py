@@ -46,7 +46,7 @@ class WorkflowRunsApi:
         self.api_client = api_client
 
     @validate_call
-    async def v1_workflow_run_create(
+    def v1_workflow_run_create(
         self,
         tenant: Annotated[
             str,
@@ -113,17 +113,17 @@ class WorkflowRunsApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_workflow_run_create_with_http_info(
+    def v1_workflow_run_create_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -190,17 +190,17 @@ class WorkflowRunsApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_workflow_run_create_without_preload_content(
+    def v1_workflow_run_create_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -267,7 +267,7 @@ class WorkflowRunsApi:
             "400": "APIErrors",
             "403": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -340,7 +340,7 @@ class WorkflowRunsApi:
         )
 
     @validate_call
-    async def v1_workflow_run_display_names_list(
+    def v1_workflow_run_display_names_list(
         self,
         tenant: Annotated[
             str,
@@ -411,17 +411,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_workflow_run_display_names_list_with_http_info(
+    def v1_workflow_run_display_names_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -492,17 +492,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_workflow_run_display_names_list_without_preload_content(
+    def v1_workflow_run_display_names_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -573,7 +573,7 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -640,7 +640,7 @@ class WorkflowRunsApi:
         )
 
     @validate_call
-    async def v1_workflow_run_get(
+    def v1_workflow_run_get(
         self,
         v1_workflow_run: Annotated[
             str,
@@ -705,17 +705,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_workflow_run_get_with_http_info(
+    def v1_workflow_run_get_with_http_info(
         self,
         v1_workflow_run: Annotated[
             str,
@@ -780,17 +780,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_workflow_run_get_without_preload_content(
+    def v1_workflow_run_get_without_preload_content(
         self,
         v1_workflow_run: Annotated[
             str,
@@ -855,7 +855,7 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -915,7 +915,7 @@ class WorkflowRunsApi:
         )
 
     @validate_call
-    async def v1_workflow_run_list(
+    def v1_workflow_run_list(
         self,
         tenant: Annotated[
             str,
@@ -1043,17 +1043,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_workflow_run_list_with_http_info(
+    def v1_workflow_run_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -1181,17 +1181,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_workflow_run_list_without_preload_content(
+    def v1_workflow_run_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -1319,7 +1319,7 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -1447,7 +1447,7 @@ class WorkflowRunsApi:
         )
 
     @validate_call
-    async def v1_workflow_run_task_events_list(
+    def v1_workflow_run_task_events_list(
         self,
         v1_workflow_run: Annotated[
             str,
@@ -1524,17 +1524,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def v1_workflow_run_task_events_list_with_http_info(
+    def v1_workflow_run_task_events_list_with_http_info(
         self,
         v1_workflow_run: Annotated[
             str,
@@ -1611,17 +1611,17 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def v1_workflow_run_task_events_list_without_preload_content(
+    def v1_workflow_run_task_events_list_without_preload_content(
         self,
         v1_workflow_run: Annotated[
             str,
@@ -1698,7 +1698,7 @@ class WorkflowRunsApi:
             "403": "APIErrors",
             "501": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
