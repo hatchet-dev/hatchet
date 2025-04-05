@@ -11,7 +11,6 @@ from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
-from hatchet_sdk.utils.aio import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping, is_basemodel_subclass
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -37,7 +36,9 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self._s._extract_result(result)
 
     def result(self) -> R:
-        return run_async_from_sync(self.aio_result)
+        result = self._wrr.result()
+
+        return self._s._extract_result(result)
 
 
 class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
