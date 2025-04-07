@@ -92,7 +92,7 @@ export class RunsClient {
 
     return this.api.v1TaskCancel(this.tenantId, {
       externalIds: opts.ids,
-      filter,
+      filter: !opts.ids ? filter : undefined,
     });
   }
 
@@ -100,7 +100,7 @@ export class RunsClient {
     const filter = await this.prepareFilter(opts.filters || {});
     return this.api.v1TaskReplay(this.tenantId, {
       externalIds: opts.ids,
-      filter,
+      filter: !opts.ids ? filter : undefined,
     });
   }
 

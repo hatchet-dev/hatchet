@@ -26,7 +26,11 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 	externalIds := req.ExternalIds
 
-	if req.Filter != nil {
+	if len(externalIds) != 0 && req.Filter != nil {
+		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
+	}
+
+	if len(externalIds) == 0 && req.Filter != nil {
 		var (
 			statuses = []sqlcv1.V1ReadableStatusOlap{
 				sqlcv1.V1ReadableStatusOlapQUEUED,
@@ -149,7 +153,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 	externalIds := req.ExternalIds
 
-	if req.Filter != nil {
+	if len(externalIds) != 0 && req.Filter != nil {
+		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
+	}
+
+	if len(externalIds) == 0 && req.Filter != nil {
 		var (
 			statuses = []sqlcv1.V1ReadableStatusOlap{
 				sqlcv1.V1ReadableStatusOlapQUEUED,
