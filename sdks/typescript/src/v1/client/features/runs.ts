@@ -90,7 +90,6 @@ export class RunsClient {
   async cancel(opts: CancelRunOpts) {
     const filter = await this.prepareFilter(opts.filters || {});
 
-    console.log('filter', filter);
     return this.api.v1TaskCancel(this.tenantId, {
       externalIds: opts.ids,
       filter,
