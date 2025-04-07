@@ -627,6 +627,10 @@ func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts .
 
 // Helper function to get field names and types of a struct
 func getStructFields(t reflect.Type) map[string]reflect.Type {
+	if t == nil {
+		return nil
+	}
+
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
