@@ -29,6 +29,8 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 
 T = TypeVar("T")
 
+MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
+
 
 class ScheduleTriggerWorkflowOptions(BaseModel):
     parent_id: str | None = None
@@ -371,7 +373,7 @@ class AdminClient:
 
         refs: list[WorkflowRunRef] = []
 
-        for chunk in self.chunk(bulk_workflows, 1000):
+        for chunk in self.chunk(bulk_workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE):
             bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
                 workflows=chunk
             )
@@ -401,7 +403,7 @@ class AdminClient:
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        chunks = self.chunk(workflows, 1000)
+        chunks = self.chunk(workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE)
         refs: list[WorkflowRunRef] = []
 
         for chunk in chunks:
