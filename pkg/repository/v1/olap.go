@@ -75,25 +75,26 @@ type ReadTaskRunMetricsOpts struct {
 }
 
 type WorkflowRunData struct {
-	AdditionalMetadata []byte                      `json:"additional_metadata"`
-	CreatedAt          pgtype.Timestamptz          `json:"created_at"`
-	DisplayName        string                      `json:"display_name"`
-	ErrorMessage       string                      `json:"error_message"`
-	ExternalID         pgtype.UUID                 `json:"external_id"`
-	FinishedAt         pgtype.Timestamptz          `json:"finished_at"`
-	Input              []byte                      `json:"input"`
-	InsertedAt         pgtype.Timestamptz          `json:"inserted_at"`
-	Kind               sqlcv1.V1RunKind            `json:"kind"`
-	Output             *[]byte                     `json:"output,omitempty"`
-	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
-	StepId             *pgtype.UUID                `json:"step_id,omitempty"`
-	StartedAt          pgtype.Timestamptz          `json:"started_at"`
-	TaskExternalId     *pgtype.UUID                `json:"task_external_id,omitempty"`
-	TaskId             *int64                      `json:"task_id,omitempty"`
-	TaskInsertedAt     *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
-	TenantID           pgtype.UUID                 `json:"tenant_id"`
-	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
-	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
+	AdditionalMetadata   []byte                      `json:"additional_metadata"`
+	CreatedAt            pgtype.Timestamptz          `json:"created_at"`
+	DisplayName          string                      `json:"display_name"`
+	ErrorMessage         string                      `json:"error_message"`
+	ExternalID           pgtype.UUID                 `json:"external_id"`
+	FinishedAt           pgtype.Timestamptz          `json:"finished_at"`
+	Input                []byte                      `json:"input"`
+	InsertedAt           pgtype.Timestamptz          `json:"inserted_at"`
+	Kind                 sqlcv1.V1RunKind            `json:"kind"`
+	Output               *[]byte                     `json:"output,omitempty"`
+	ParentTaskExternalId *pgtype.UUID                `json:"parent_task_external_id,omitempty"`
+	ReadableStatus       sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	StepId               *pgtype.UUID                `json:"step_id,omitempty"`
+	StartedAt            pgtype.Timestamptz          `json:"started_at"`
+	TaskExternalId       *pgtype.UUID                `json:"task_external_id,omitempty"`
+	TaskId               *int64                      `json:"task_id,omitempty"`
+	TaskInsertedAt       *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
+	TenantID             pgtype.UUID                 `json:"tenant_id"`
+	WorkflowID           pgtype.UUID                 `json:"workflow_id"`
+	WorkflowVersionId    pgtype.UUID                 `json:"workflow_version_id"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -380,20 +381,21 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 
 	return &V1WorkflowRunPopulator{
 		WorkflowRun: &WorkflowRunData{
-			TenantID:           row.TenantID,
-			InsertedAt:         row.InsertedAt,
-			ExternalID:         row.ExternalID,
-			ReadableStatus:     row.ReadableStatus,
-			Kind:               row.Kind,
-			WorkflowID:         row.WorkflowID,
-			DisplayName:        row.DisplayName,
-			AdditionalMetadata: row.AdditionalMetadata,
-			CreatedAt:          row.CreatedAt,
-			StartedAt:          row.StartedAt,
-			FinishedAt:         row.FinishedAt,
-			ErrorMessage:       row.ErrorMessage.String,
-			WorkflowVersionId:  row.WorkflowVersionID,
-			Input:              row.Input,
+			TenantID:             row.TenantID,
+			InsertedAt:           row.InsertedAt,
+			ExternalID:           row.ExternalID,
+			ReadableStatus:       row.ReadableStatus,
+			Kind:                 row.Kind,
+			WorkflowID:           row.WorkflowID,
+			DisplayName:          row.DisplayName,
+			AdditionalMetadata:   row.AdditionalMetadata,
+			CreatedAt:            row.CreatedAt,
+			StartedAt:            row.StartedAt,
+			FinishedAt:           row.FinishedAt,
+			ErrorMessage:         row.ErrorMessage.String,
+			WorkflowVersionId:    row.WorkflowVersionID,
+			Input:                row.Input,
+			ParentTaskExternalId: &row.ParentTaskExternalID,
 		},
 		TaskMetadata: taskMetadata,
 	}, nil
@@ -770,24 +772,25 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 			}
 
 			res = append(res, &WorkflowRunData{
-				TenantID:           dag.TenantID,
-				InsertedAt:         dag.InsertedAt,
-				ExternalID:         dag.ExternalID,
-				WorkflowID:         dag.WorkflowID,
-				DisplayName:        dag.DisplayName,
-				ReadableStatus:     dag.ReadableStatus,
-				AdditionalMetadata: dag.AdditionalMetadata,
-				CreatedAt:          dag.CreatedAt,
-				StartedAt:          dag.StartedAt,
-				FinishedAt:         dag.FinishedAt,
-				ErrorMessage:       dag.ErrorMessage.String,
-				Kind:               sqlcv1.V1RunKindDAG,
-				WorkflowVersionId:  dag.WorkflowVersionID,
-				TaskExternalId:     nil,
-				TaskId:             nil,
-				TaskInsertedAt:     nil,
-				Output:             &dag.Output,
-				Input:              dag.Input,
+				TenantID:             dag.TenantID,
+				InsertedAt:           dag.InsertedAt,
+				ExternalID:           dag.ExternalID,
+				WorkflowID:           dag.WorkflowID,
+				DisplayName:          dag.DisplayName,
+				ReadableStatus:       dag.ReadableStatus,
+				AdditionalMetadata:   dag.AdditionalMetadata,
+				CreatedAt:            dag.CreatedAt,
+				StartedAt:            dag.StartedAt,
+				FinishedAt:           dag.FinishedAt,
+				ErrorMessage:         dag.ErrorMessage.String,
+				Kind:                 sqlcv1.V1RunKindDAG,
+				WorkflowVersionId:    dag.WorkflowVersionID,
+				TaskExternalId:       nil,
+				TaskId:               nil,
+				TaskInsertedAt:       nil,
+				Output:               &dag.Output,
+				Input:                dag.Input,
+				ParentTaskExternalId: &dag.ParentTaskExternalID,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]

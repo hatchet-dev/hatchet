@@ -310,13 +310,19 @@ func ToWorkflowRunDetails(
 
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
+	parentTaskExternalId := uuid.UUID{}
+	if workflowRun.ParentTaskExternalId != nil {
+		parentTaskExternalId = uuid.MustParse(sqlchelpers.UUIDToStr(*workflowRun.ParentTaskExternalId))
+	}
+
 	parsedWorkflowRun := gen.V1WorkflowRun{
-		AdditionalMetadata: &additionalMetadata,
-		CreatedAt:          &workflowRun.CreatedAt.Time,
-		DisplayName:        workflowRun.DisplayName,
-		Duration:           &duration,
-		ErrorMessage:       &workflowRun.ErrorMessage,
-		FinishedAt:         &workflowRun.FinishedAt.Time,
+		AdditionalMetadata:   &additionalMetadata,
+		CreatedAt:            &workflowRun.CreatedAt.Time,
+		DisplayName:          workflowRun.DisplayName,
+		Duration:             &duration,
+		ErrorMessage:         &workflowRun.ErrorMessage,
+		FinishedAt:           &workflowRun.FinishedAt.Time,
+		ParentTaskExternalId: &parentTaskExternalId,
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(workflowRun.ExternalID),
 			CreatedAt: workflowRun.InsertedAt.Time,

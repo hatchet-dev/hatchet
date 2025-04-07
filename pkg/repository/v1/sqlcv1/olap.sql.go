@@ -761,7 +761,8 @@ WITH input AS (
         d.display_name,
         d.input,
         d.additional_metadata,
-        d.workflow_version_id
+        d.workflow_version_id,
+        d.parent_task_external_id
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
     WHERE
@@ -811,7 +812,7 @@ WITH input AS (
 )
 
 SELECT
-    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id,
+    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
     m.created_at,
     m.started_at,
     m.finished_at,
@@ -831,23 +832,24 @@ type PopulateDAGMetadataParams struct {
 }
 
 type PopulateDAGMetadataRow struct {
-	DagID              int64                `json:"dag_id"`
-	RunID              int64                `json:"run_id"`
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	Kind               V1RunKind            `json:"kind"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	DisplayName        string               `json:"display_name"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
-	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
-	CreatedAt          pgtype.Timestamptz   `json:"created_at"`
-	StartedAt          pgtype.Timestamptz   `json:"started_at"`
-	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
-	ErrorMessage       pgtype.Text          `json:"error_message"`
-	Output             []byte               `json:"output"`
+	DagID                int64                `json:"dag_id"`
+	RunID                int64                `json:"run_id"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	Kind                 V1RunKind            `json:"kind"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	DisplayName          string               `json:"display_name"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
+	StartedAt            pgtype.Timestamptz   `json:"started_at"`
+	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
+	ErrorMessage         pgtype.Text          `json:"error_message"`
+	Output               []byte               `json:"output"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -872,6 +874,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.Input,
 			&i.AdditionalMetadata,
 			&i.WorkflowVersionID,
+			&i.ParentTaskExternalID,
 			&i.CreatedAt,
 			&i.StartedAt,
 			&i.FinishedAt,
@@ -1414,7 +1417,8 @@ WITH runs AS (
         d.display_name AS display_name,
         d.input AS input,
         d.additional_metadata AS additional_metadata,
-        d.workflow_version_id AS workflow_version_id
+        d.workflow_version_id AS workflow_version_id,
+        d.parent_task_external_id AS parent_task_external_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1440,7 +1444,8 @@ WITH runs AS (
         t.display_name AS display_name,
         t.input AS input,
         t.additional_metadata AS additional_metadata,
-        t.workflow_version_id AS workflow_version_id
+        t.workflow_version_id AS workflow_version_id,
+        NULL :: UUID AS parent_task_external_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1490,7 +1495,7 @@ WITH runs AS (
     LIMIT 1
 )
 SELECT
-    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id,
+    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
     m.created_at,
     m.started_at,
     m.finished_at,
@@ -1503,24 +1508,25 @@ ORDER BY r.inserted_at DESC
 `
 
 type ReadWorkflowRunByExternalIdRow struct {
-	DagID              pgtype.Int8          `json:"dag_id"`
-	TaskID             pgtype.Int8          `json:"task_id"`
-	ID                 int64                `json:"id"`
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	Kind               V1RunKind            `json:"kind"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	DisplayName        string               `json:"display_name"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
-	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
-	CreatedAt          pgtype.Timestamptz   `json:"created_at"`
-	StartedAt          pgtype.Timestamptz   `json:"started_at"`
-	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
-	ErrorMessage       pgtype.Text          `json:"error_message"`
-	TaskMetadata       []byte               `json:"task_metadata"`
+	DagID                pgtype.Int8          `json:"dag_id"`
+	TaskID               pgtype.Int8          `json:"task_id"`
+	ID                   int64                `json:"id"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	Kind                 V1RunKind            `json:"kind"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	DisplayName          string               `json:"display_name"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+	CreatedAt            pgtype.Timestamptz   `json:"created_at"`
+	StartedAt            pgtype.Timestamptz   `json:"started_at"`
+	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
+	ErrorMessage         pgtype.Text          `json:"error_message"`
+	TaskMetadata         []byte               `json:"task_metadata"`
 }
 
 func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, workflowrunexternalid pgtype.UUID) (*ReadWorkflowRunByExternalIdRow, error) {
@@ -1540,6 +1546,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.Input,
 		&i.AdditionalMetadata,
 		&i.WorkflowVersionID,
+		&i.ParentTaskExternalID,
 		&i.CreatedAt,
 		&i.StartedAt,
 		&i.FinishedAt,
