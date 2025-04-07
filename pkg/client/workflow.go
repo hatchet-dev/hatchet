@@ -98,7 +98,7 @@ func (c *Workflow) Result() (*WorkflowResult, error) {
 
 	for _, stepRunResult := range res.workflowRun.Results {
 		if stepRunResult.Error != nil {
-			return nil, fmt.Errorf("workflow run failed: %s", *stepRunResult.Error)
+			return nil, fmt.Errorf("%s", *stepRunResult.Error)
 		}
 	}
 
