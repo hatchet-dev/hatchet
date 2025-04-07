@@ -479,6 +479,7 @@ CREATE TABLE v1_workflow_concurrency_slot (
     workflow_version_id UUID NOT NULL,
     workflow_run_id UUID NOT NULL,
     strategy_id BIGINT NOT NULL,
+    -- DEPRECATED: this is no longer used to track progress of child strategy ids.
     completed_child_strategy_ids BIGINT[],
     child_strategy_ids BIGINT[],
     priority INTEGER NOT NULL DEFAULT 1,
@@ -744,44 +745,6 @@ AFTER DELETE ON v1_concurrency_slot
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_concurrency_slot_delete_function();
-
--- After we update the v1_workflow_concurrency_slot, we'd like to check whether all child_strategy_ids are
--- in the completed_child_strategy_ids. If so, we should delete the v1_workflow_concurrency_slot.
-CREATE OR REPLACE FUNCTION after_v1_workflow_concurrency_slot_update_function()
-RETURNS trigger AS $$
-BEGIN
-    -- place a lock on new_table
-    WITH slots_to_delete AS (
-        SELECT
-            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-        FROM
-            new_table wcs
-        WHERE
-            CARDINALITY(wcs.child_strategy_ids) = CARDINALITY(wcs.completed_child_strategy_ids)
-        ORDER BY
-            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-        FOR UPDATE
-    )
-    DELETE FROM
-        v1_workflow_concurrency_slot wcs
-    WHERE
-        (strategy_id, workflow_version_id, workflow_run_id) IN (
-            SELECT
-                strategy_id, workflow_version_id, workflow_run_id
-            FROM
-                slots_to_delete
-        );
-
-    RETURN NULL;
-END;
-
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER after_v1_workflow_concurrency_slot_update
-AFTER UPDATE ON v1_workflow_concurrency_slot
-REFERENCING NEW TABLE AS new_table
-FOR EACH STATEMENT
-EXECUTE FUNCTION after_v1_workflow_concurrency_slot_update_function();
 
 CREATE TABLE v1_retry_queue_item (
     task_id BIGINT NOT NULL,

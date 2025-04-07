@@ -371,6 +371,9 @@ END;
 $$
 LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS after_v1_workflow_concurrency_slot_update ON v1_workflow_concurrency_slot;
+DROP FUNCTION IF EXISTS after_v1_workflow_concurrency_slot_update_function();
+
 -- +goose StatementEnd
 
 -- +goose Down
@@ -745,5 +748,43 @@ DROP FUNCTION IF EXISTS cleanup_workflow_concurrency_slots(
     p_workflow_version_id UUID,
     p_workflow_run_id UUID
 );
+
+-- After we update the v1_workflow_concurrency_slot, we'd like to check whether all child_strategy_ids are
+-- in the completed_child_strategy_ids. If so, we should delete the v1_workflow_concurrency_slot.
+CREATE OR REPLACE FUNCTION after_v1_workflow_concurrency_slot_update_function()
+RETURNS trigger AS $$
+BEGIN
+    -- place a lock on new_table
+    WITH slots_to_delete AS (
+        SELECT
+            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+        FROM
+            new_table wcs
+        WHERE
+            CARDINALITY(wcs.child_strategy_ids) = CARDINALITY(wcs.completed_child_strategy_ids)
+        ORDER BY
+            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+        FOR UPDATE
+    )
+    DELETE FROM
+        v1_workflow_concurrency_slot wcs
+    WHERE
+        (strategy_id, workflow_version_id, workflow_run_id) IN (
+            SELECT
+                strategy_id, workflow_version_id, workflow_run_id
+            FROM
+                slots_to_delete
+        );
+
+    RETURN NULL;
+END;
+
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_workflow_concurrency_slot_update
+AFTER UPDATE ON v1_workflow_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_workflow_concurrency_slot_update_function();
 
 -- +goose StatementEnd
