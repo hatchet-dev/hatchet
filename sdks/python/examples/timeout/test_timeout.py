@@ -13,7 +13,7 @@ async def test_execution_timeout(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio()
-async def test_run_refresh_timeout(hatchet: Hatchet) -> None:
+async def test_run_refresh_timeout(aiohatchet: Hatchet) -> None:
     result = await refresh_timeout_wf.aio_run()
 
     assert result["refresh_task"]["status"] == "success"
