@@ -93,6 +93,7 @@ jobs:
           export SERVER_URL=http://localhost:8080
           export SERVER_AUTH_COOKIE_DOMAIN=localhost
           export SERVER_AUTH_COOKIE_INSECURE=true
+          export SERVER_DEFAULT_ENGINE_VERSION=V1
 
           go run ./cmd/hatchet-admin quickstart
 
