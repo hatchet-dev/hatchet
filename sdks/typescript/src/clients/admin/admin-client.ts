@@ -26,6 +26,8 @@ import {
 } from '../rest/generated/data-contracts';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 
+const MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000;
+
 type WorkflowMetricsQuery = {
   workflowId?: string;
   workflowName?: string;
@@ -201,6 +203,13 @@ export class AdminClient {
       throw new HatchetError(e.message);
     }
   }
+
+  private *chunk<T>(xs: T[], n: number): Generator<T[]> {
+    for (let i = 0; i < xs.length; i += n) {
+      yield xs.slice(i, i + n);
+    }
+  }
+
   /**
    * Run multiple workflows runs with the given input and options. This will create new workflow runs and return their IDs.
    * Order is preserved in the response.
@@ -241,25 +250,29 @@ export class AdminClient {
       };
     });
 
-    try {
-      // Call the bulk trigger workflow method
-      const bulkTriggerWorkflowResponse = this.client.bulkTriggerWorkflow(
-        BulkTriggerWorkflowRequest.create({
-          workflows: workflowRequests,
-        })
-      );
+    const refs: Promise<WorkflowRunRef<P>[]>[] = [];
 
-      return bulkTriggerWorkflowResponse.then((res) => {
-        return res.workflowRunIds.map((resp, index) => {
-          const { options } = workflowRuns[index];
-          return new WorkflowRunRef<P>(
-            resp,
-            this.listenerClient,
-            this.workflows,
-            options?.parentId
-          );
+    try {
+      for (const chunk of this.chunk(workflowRequests, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE)) {
+        const bulkRequest = BulkTriggerWorkflowRequest.create({
+          workflows: chunk,
         });
-      });
+
+        const result = this.client.bulkTriggerWorkflow(bulkRequest).then((response) => {
+          return response.workflowRunIds.map((runId, index) => {
+            return new WorkflowRunRef<P>(
+              runId,
+              this.listenerClient,
+              this.workflows,
+              chunk[index].parentId
+            );
+          });
+        });
+
+        refs.push(result);
+      }
+
+      return Promise.all(refs).then((r) => r.flat());
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
