@@ -6,14 +6,17 @@ import { hatchet } from '../hatchet-client';
 // ...
 async function main() {
   const run = cancellation.runNoWait({});
+  const run1 = cancellation.runNoWait({});
 
   await sleep(1000);
 
   await run.cancel();
 
   const res = await run.output;
+  const res1 = await run1.output;
 
   console.log(res);
+  console.log(res1);
 
   await sleep(1000);
 
@@ -23,7 +26,7 @@ async function main() {
 
   console.log(resReplay);
 
-  const run2 = cancellation.runNoWait({}, { additionalMetadata: { test: 'test' } });
+  const run2 = cancellation.runNoWait({}, { additionalMetadata: { test: 'abc' } });
   const run4 = cancellation.runNoWait({}, { additionalMetadata: { test: 'test' } });
 
   await sleep(1000);
