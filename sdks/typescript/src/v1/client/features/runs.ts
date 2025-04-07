@@ -4,7 +4,7 @@ import { WorkflowsClient } from './workflows';
 import { HatchetClient } from '../client';
 
 export type RunFilter = {
-  since: Date;
+  since?: Date;
   until?: Date;
   statuses?: V1TaskStatus[];
   workflowNames?: string[];
@@ -88,7 +88,9 @@ export class RunsClient {
   }
 
   async cancel(opts: CancelRunOpts) {
-    const filter = opts.filters && (await this.prepareFilter(opts.filters));
+    const filter = await this.prepareFilter(opts.filters || {});
+
+    console.log('filter', filter);
     return this.api.v1TaskCancel(this.tenantId, {
       externalIds: opts.ids,
       filter,
@@ -96,7 +98,7 @@ export class RunsClient {
   }
 
   async replay(opts: ReplayRunOpts) {
-    const filter = opts.filters && (await this.prepareFilter(opts.filters));
+    const filter = await this.prepareFilter(opts.filters || {});
     return this.api.v1TaskReplay(this.tenantId, {
       externalIds: opts.ids,
       filter,
