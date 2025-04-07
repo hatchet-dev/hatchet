@@ -202,6 +202,7 @@ export function TaskRunsTable({
             {tenantMetrics && (
               <CodeHighlighter
                 language="json"
+                className="max-h-[400px] overflow-y-auto"
                 code={JSON.stringify(tenantMetrics || '{}', null, 2)}
               />
             )}
