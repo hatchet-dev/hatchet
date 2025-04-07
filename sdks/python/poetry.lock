@@ -1656,21 +1656,6 @@ pytest = ">=7.0.0"
 dev = ["black", "flake8", "isort", "mypy"]
 
 [[package]]
-name = "pytest-timeout"
-version = "2.3.1"
-description = "pytest plugin to abort hanging tests"
-optional = false
-python-versions = ">=3.7"
-groups = ["test"]
-files = [
-    {file = "pytest-timeout-2.3.1.tar.gz", hash = "sha256:12397729125c6ecbdaca01035b9e5239d4db97352320af155b3f5de1ba5165d9"},
-    {file = "pytest_timeout-2.3.1-py3-none-any.whl", hash = "sha256:68188cb703edfc6a18fad98dc25a3c61e9f24d644b0b70f33af545219fc7813e"},
-]
-
-[package.dependencies]
-pytest = ">=7.0.0"
-
-[[package]]
 name = "pytest-xdist"
 version = "3.6.1"
 description = "pytest xdist plugin for distributed testing, most importantly across multiple CPUs"
@@ -2234,4 +2219,4 @@ otel = ["opentelemetry-api", "opentelemetry-distro", "opentelemetry-exporter-otl
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "aefaf08d9d452c523435af00962423d803d14a0d069a7946466d62468ef24e94"
+content-hash = "8e5a8339f501a0b5847e20daf908521133158d657ea028e8f28789ae014c5f26"
