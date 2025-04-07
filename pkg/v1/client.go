@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"github.com/hatchet-dev/hatchet/pkg/client"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -36,7 +35,7 @@ type HatchetClient interface {
 	Workflows() features.WorkflowsClient
 	Crons() features.CronsClient
 	Schedules() features.SchedulesClient
-	Events() client.EventClient
+	Events() v0Client.EventClient
 
 	// TODO Run, RunNoWait, bulk
 }
@@ -94,7 +93,7 @@ func (c *v1HatchetClientImpl) Workflow(opts create.WorkflowCreateOpts[any]) work
 	return workflow.NewWorkflowDeclaration[any, any](opts, c.v0)
 }
 
-func (c *v1HatchetClientImpl) Events() client.EventClient {
+func (c *v1HatchetClientImpl) Events() v0Client.EventClient {
 	return c.V0().Event()
 }
 
