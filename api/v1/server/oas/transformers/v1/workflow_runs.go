@@ -107,7 +107,7 @@ func ToWorkflowRunMany(
 		actionId := ""
 
 		if task.TaskId != nil {
-			actionIdFromMap, ok := taskIdToActionId[int64(*task.TaskId)]
+			actionIdFromMap, ok := taskIdToActionId[*task.TaskId]
 
 			if ok {
 				actionId = actionIdFromMap
