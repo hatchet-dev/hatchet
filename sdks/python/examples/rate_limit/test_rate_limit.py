@@ -4,11 +4,12 @@ import time
 import pytest
 
 from examples.rate_limit.worker import rate_limit_workflow
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.skip(reason="The timing for this test is not reliable")
 @pytest.mark.asyncio()
-async def test_run() -> None:
+async def test_run(hatchet: Hatchet) -> None:
 
     run1 = rate_limit_workflow.run_no_wait()
     run2 = rate_limit_workflow.run_no_wait()
