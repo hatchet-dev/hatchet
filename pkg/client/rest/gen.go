@@ -1264,6 +1264,9 @@ type V1TaskStatus string
 
 // V1TaskSummary defines model for V1TaskSummary.
 type V1TaskSummary struct {
+	// ActionId The action ID of the task.
+	ActionId string `json:"actionId"`
+
 	// AdditionalMetadata Additional metadata for the task run.
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 

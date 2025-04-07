@@ -34,6 +34,8 @@ export interface APIResourceMeta {
 
 export interface V1TaskSummary {
   metadata: APIResourceMeta;
+  /** The action ID of the task. */
+  actionId: string;
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
