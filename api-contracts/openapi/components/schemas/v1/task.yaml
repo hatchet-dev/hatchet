@@ -35,12 +35,22 @@ V1TaskSummary:
       description: The timestamp the task run finished.
     input:
       type: object
+      x-go-type: openapi.NonNullableJSON
+      x-go-type-import:
+        path: github.com/hatchet-dev/hatchet/api/v1/server/oas
+        name: NonNullableJSON
+      x-nullable: false
       description: The input of the task run.
     numSpawnedChildren:
       type: integer
       description: The number of spawned children tasks
     output:
       type: object
+      x-go-type: openapi.NonNullableJSON
+      x-go-type-import:
+        path: github.com/hatchet-dev/hatchet/api/v1/server/oas
+        name: NonNullableJSON
+      x-nullable: false
       description: The output of the task run (for the latest run)
     status:
       $ref: "#/V1TaskStatus"
