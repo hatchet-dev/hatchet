@@ -26,22 +26,25 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 	externalIds := req.ExternalIds
 
-	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
-		since       = req.Filter.Since.AsTime()
-		until       *time.Time
-		workflowIds       = []uuid.UUID{}
-		limit       int64 = 20000
-		offset      int64
-	)
+	if len(externalIds) != 0 && req.Filter != nil {
+		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
+	}
 
-	if req.Filter != nil {
+	if len(externalIds) == 0 && req.Filter != nil {
+		var (
+			statuses = []sqlcv1.V1ReadableStatusOlap{
+				sqlcv1.V1ReadableStatusOlapQUEUED,
+				sqlcv1.V1ReadableStatusOlapRUNNING,
+				sqlcv1.V1ReadableStatusOlapFAILED,
+				sqlcv1.V1ReadableStatusOlapCOMPLETED,
+				sqlcv1.V1ReadableStatusOlapCANCELLED,
+			}
+			since       = req.Filter.Since.AsTime()
+			until       *time.Time
+			workflowIds       = []uuid.UUID{}
+			limit       int64 = 20000
+			offset      int64
+		)
 
 		if len(req.Filter.Statuses) > 0 {
 			statuses = []sqlcv1.V1ReadableStatusOlap{}
@@ -55,8 +58,6 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			for _, id := range req.Filter.WorkflowIds {
 				workflowIds = append(workflowIds, uuid.MustParse(id))
 			}
-
-			fmt.Println("workflowIds", workflowIds)
 		}
 
 		if req.Filter.Until != nil {
@@ -152,22 +153,25 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 
 	externalIds := req.ExternalIds
 
-	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
-		since       = req.Filter.Since.AsTime()
-		until       *time.Time
-		workflowIds       = []uuid.UUID{}
-		limit       int64 = 1000
-		offset      int64
-	)
+	if len(externalIds) != 0 && req.Filter != nil {
+		return nil, status.Error(codes.InvalidArgument, "cannot provide both external ids and filter")
+	}
 
-	if req.Filter != nil {
+	if len(externalIds) == 0 && req.Filter != nil {
+		var (
+			statuses = []sqlcv1.V1ReadableStatusOlap{
+				sqlcv1.V1ReadableStatusOlapQUEUED,
+				sqlcv1.V1ReadableStatusOlapRUNNING,
+				sqlcv1.V1ReadableStatusOlapFAILED,
+				sqlcv1.V1ReadableStatusOlapCOMPLETED,
+				sqlcv1.V1ReadableStatusOlapCANCELLED,
+			}
+			since       = req.Filter.Since.AsTime()
+			until       *time.Time
+			workflowIds       = []uuid.UUID{}
+			limit       int64 = 1000
+			offset      int64
+		)
 
 		if len(req.Filter.Statuses) > 0 {
 			statuses = []sqlcv1.V1ReadableStatusOlap{}

@@ -15,8 +15,8 @@ async function main() {
   const res = await run.output;
   const res1 = await run1.output;
 
-  console.log(res);
-  console.log(res1);
+  console.log('canceled', res);
+  console.log('completed', res1);
 
   await sleep(1000);
 
