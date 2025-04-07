@@ -4,7 +4,7 @@ import { WorkflowsClient } from './workflows';
 import { HatchetClient } from '../client';
 
 export type RunFilter = {
-  since: Date;
+  since?: Date;
   until?: Date;
   statuses?: V1TaskStatus[];
   workflowNames?: string[];
@@ -20,6 +20,37 @@ export type ReplayRunOpts = {
   ids?: string[];
   filters?: RunFilter;
 };
+
+export interface ListRunsOpts extends RunFilter {
+  /**
+   * The number to skip
+   * @format int64
+   */
+  offset?: number;
+  /**
+   * The number to limit by
+   * @format int64
+   */
+  limit?: number;
+  /** A list of statuses to filter by */
+
+  /**
+   * The worker id to filter by
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workerId?: string;
+  /** Whether to include DAGs or only to include tasks */
+  onlyTasks: boolean;
+  /**
+   * The parent task external id to filter by
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentTaskExternalId?: string;
+}
 
 /**
  * RunsClient is used to list and manage runs
@@ -49,15 +80,16 @@ export class RunsClient {
     return data;
   }
 
-  async list(opts?: Parameters<typeof this.api.workflowRunList>[1]) {
-    // TODO workflow id on opts is a uuid
-
-    const { data } = await this.api.workflowRunList(this.tenantId, opts);
+  async list(opts?: Partial<ListRunsOpts>) {
+    const { data } = await this.api.v1WorkflowRunList(this.tenantId, {
+      ...(await this.prepareListFilter(opts || {})),
+    });
     return data;
   }
 
   async cancel(opts: CancelRunOpts) {
-    const filter = opts.filters && (await this.prepareFilter(opts.filters));
+    const filter = await this.prepareFilter(opts.filters || {});
+
     return this.api.v1TaskCancel(this.tenantId, {
       externalIds: opts.ids,
       filter,
@@ -65,7 +97,7 @@ export class RunsClient {
   }
 
   async replay(opts: ReplayRunOpts) {
-    const filter = opts.filters && (await this.prepareFilter(opts.filters));
+    const filter = await this.prepareFilter(opts.filters || {});
     return this.api.v1TaskReplay(this.tenantId, {
       externalIds: opts.ids,
       filter,
@@ -78,17 +110,41 @@ export class RunsClient {
     statuses,
     workflowNames,
     additionalMetadata,
-  }: RunFilter): Promise<V1TaskFilter> {
+  }: Partial<RunFilter>): Promise<V1TaskFilter> {
+    const am = Object.entries(additionalMetadata || {}).map(([key, value]) => `${key}:${value}`);
+
     return {
-      since: since.toISOString(),
+      // default to 1 hour ago
+      since: since ? since.toISOString() : new Date(Date.now() - 1000 * 60 * 60).toISOString(),
       until: until?.toISOString(),
       statuses,
       workflowIds: await Promise.all(
         workflowNames?.map(async (name) => (await this.workflows.get(name)).metadata.id) || []
       ),
-      additionalMetadata: Object.entries(additionalMetadata || {}).map(
-        ([key, value]) => `${key}:${value}`
+      additionalMetadata: am,
+    };
+  }
+
+  private async prepareListFilter(
+    opts: Partial<ListRunsOpts>
+  ): Promise<Parameters<typeof this.api.v1WorkflowRunList>[1]> {
+    const am = Object.entries(opts.additionalMetadata || {}).map(
+      ([key, value]) => `${key}:${value}`
+    );
+
+    return {
+      // default to 1 hour ago
+      since: opts.since
+        ? opts.since.toISOString()
+        : new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+      until: opts.until?.toISOString(),
+      statuses: opts.statuses,
+      worker_id: opts.workerId,
+      workflow_ids: await Promise.all(
+        opts.workflowNames?.map(async (name) => (await this.workflows.get(name)).metadata.id) || []
       ),
+      additional_metadata: am,
+      only_tasks: opts.onlyTasks || false,
     };
   }
 }
