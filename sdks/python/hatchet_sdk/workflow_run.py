@@ -6,6 +6,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.clients.rest.exceptions import NotFoundException
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.features.runs import RunsClient
 
@@ -43,21 +44,23 @@ class WorkflowRunRef:
         retries = 0
 
         while True:
-            time.sleep(1)
-
             try:
                 details = self.runs_client.get(self.workflow_run_id)
-            except Exception:
+            except Exception as e:
                 retries += 1
+
+                if not isinstance(e, NotFoundException):
+                    raise e
 
                 if retries > 10:
                     raise ValueError(f"Workflow run {self.workflow_run_id} not found")
 
+                time.sleep(1)
                 continue
 
             match details.run.status:
                 case V1TaskStatus.RUNNING:
-                    continue
+                    time.sleep(1)
                 case V1TaskStatus.FAILED:
                     raise ValueError(
                         f"Workflow run failed: {details.run.error_message}"
@@ -69,7 +72,7 @@ class WorkflowRunRef:
                         if (name := self._safely_get_action_name(t.action_id))
                     }
                 case V1TaskStatus.QUEUED:
-                    continue
+                    time.sleep(1)
                 case V1TaskStatus.CANCELLED:
                     raise ValueError(
                         f"Workflow run cancelled: {details.run.error_message}"
