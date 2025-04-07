@@ -237,7 +237,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
-		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
 		results := fnValue.Call(inputs)
 
 		// Handle errors
@@ -332,7 +332,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 	genericFn := func(ctx worker.DurableHatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
-		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
 		results := fnValue.Call(inputs)
 
 		// Handle errors
@@ -415,7 +415,7 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
 		// Use reflection to call the specific function
 		fnValue := reflect.ValueOf(fn)
-		inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
 		results := fnValue.Call(inputs)
 
 		// Handle errors
@@ -810,7 +810,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 				// Call the original function using reflection
 				fnValue := reflect.ValueOf(originalFn)
-				inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(durableCtx)}
+				inputs := []reflect.Value{reflect.ValueOf(durableCtx), reflect.ValueOf(input)}
 				results := fnValue.Call(inputs)
 
 				// Handle errors
@@ -835,7 +835,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 			// Call the function using reflection
 			fnValue := reflect.ValueOf(w.OnFailureTask.Fn)
-			inputs := []reflect.Value{reflect.ValueOf(input), reflect.ValueOf(ctx)}
+			inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
 			results := fnValue.Call(inputs)
 
 			// Handle errors

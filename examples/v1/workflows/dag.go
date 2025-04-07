@@ -2,6 +2,7 @@ package v1_workflows
 
 import (
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
@@ -10,6 +11,7 @@ import (
 
 type DagInput struct {
 	Message string
+	UserID  string `json:"user_id"`
 }
 
 type SimpleOutput struct {
@@ -23,19 +25,45 @@ type DagResult struct {
 
 func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput, DagResult] {
 	// ❓ Declaring a Workflow
+	grr := types.GroupRoundRobin
+	var maxRuns int32 = 50
+
 	simple := factory.NewWorkflow[DagInput, DagResult](
 		create.WorkflowCreateOpts[DagInput]{
 			Name: "simple-dag",
+			Concurrency: &types.Concurrency{
+				Expression:    "input.user_id",
+				LimitStrategy: &grr,
+				MaxRuns:       &maxRuns,
+			},
 		},
 		hatchet,
 	)
 	// ‼️
 
+	simple.OnFailure(
+		create.WorkflowOnFailureTask[DagInput, DagResult]{},
+		func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
+			// Handle failure
+			return nil, nil
+		},
+	)
+
 	// ❓ Defining a Task
-	simple.Task(
+	step1 := simple.Task(
 		create.WorkflowTask[DagInput, DagResult]{
-			Name: "step",
+			Name:    "step1",
+			Retries: 3,
+			// RetryBackoffFactor:     2.0,
+			// RetryMaxBackoffSeconds: 60,
 		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
+			// return nil, errors.New("intentional failure")
+
+			// // 50% chance of failure
+			// if rand.Intn(2) == 0 {
+			// 	return nil, errors.New("intentional failure")
+			// }
+
 			return &SimpleOutput{
 				Step: 1,
 			}, nil
@@ -44,10 +72,18 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 	// ‼️
 
 	// ❓ Adding a Task with a parent
-	step1 := simple.Task(
+	step2 := simple.Task(
 		create.WorkflowTask[DagInput, DagResult]{
-			Name: "step-1",
+			Name:    "step2",
+			Retries: 3,
+			// RetryBackoffFactor:     2.0,
+			// RetryMaxBackoffSeconds: 60,
 		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
+			// return nil, errors.New("intentional failure")
+			// if rand.Intn(2) == 0 {
+			// 	return nil, errors.New("intentional failure")
+			// }
+
 			return &SimpleOutput{
 				Step: 1,
 			}, nil
@@ -56,20 +92,18 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 
 	simple.Task(
 		create.WorkflowTask[DagInput, DagResult]{
-			Name: "step-2",
-			Parents: []create.NamedTask{
-				step1,
-			},
+			Name:    "step3",
+			Retries: 4,
+			// RetryBackoffFactor:     2.0,
+			// RetryMaxBackoffSeconds: 60,
+			Parents: []create.NamedTask{step1, step2},
 		}, func(ctx worker.HatchetContext, input DagInput) (interface{}, error) {
-			// Get the output of the parent task
-			var step1Output SimpleOutput
-			err := ctx.ParentOutput(step1, &step1Output)
-			if err != nil {
-				return nil, err
-			}
+			// if rand.Intn(2) == 0 {
+			// 	return nil, errors.New("intentional failure")
+			// }
 
 			return &SimpleOutput{
-				Step: 2,
+				Step: 1,
 			}, nil
 		},
 	)
