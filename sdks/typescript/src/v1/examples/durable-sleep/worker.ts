@@ -3,7 +3,7 @@ import { durableSleep } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('sleep-worker', {
-    workflows: [durableSleep],
+    register: [durableSleep],
   });
 
   await worker.start();

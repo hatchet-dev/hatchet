@@ -3,7 +3,7 @@ import { failureWorkflow } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('always-fail-worker', {
-    workflows: [failureWorkflow],
+    register: [failureWorkflow],
   });
 
   await worker.start();

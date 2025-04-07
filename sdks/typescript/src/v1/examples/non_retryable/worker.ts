@@ -3,7 +3,7 @@ import { nonRetryableWorkflow } from './workflow';
 
 async function main() {
   const worker = await hatchet.worker('no-retry-worker', {
-    workflows: [nonRetryableWorkflow],
+    register: [nonRetryableWorkflow],
   });
 
   await worker.start();
