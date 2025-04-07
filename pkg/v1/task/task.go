@@ -121,11 +121,6 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 		Concurrency: make([]*contracts.Concurrency, len(t.Concurrency)),
 	}
 
-	// Only set Retries if it's not nil
-	if t.Retries != nil {
-		taskOpts.Retries = *t.Retries
-	}
-
 	for j, rateLimit := range t.RateLimits {
 		taskOpts.RateLimits[j] = &contracts.CreateTaskRateLimit{
 			Key:     rateLimit.Key,
@@ -157,6 +152,19 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	if t.ScheduleTimeout != nil {
 		scheduleTimeout := t.ScheduleTimeout.String()
 		taskOpts.ScheduleTimeout = &scheduleTimeout
+	}
+
+	// Only set Retries if it's not nil
+	if t.Retries != nil {
+		taskOpts.Retries = *t.Retries
+	}
+
+	if t.RetryBackoffFactor != nil {
+		taskOpts.BackoffFactor = t.RetryBackoffFactor
+	}
+
+	if t.RetryMaxBackoffSeconds != nil {
+		taskOpts.BackoffMaxSeconds = t.RetryMaxBackoffSeconds
 	}
 
 	// Apply workflow task defaults if they are not set

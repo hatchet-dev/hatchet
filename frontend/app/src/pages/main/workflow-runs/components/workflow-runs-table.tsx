@@ -541,6 +541,7 @@ export function WorkflowRunsTable({
             {tenantMetricsQuery.data?.queues && (
               <CodeHighlighter
                 language="json"
+                className="max-h-[400px] overflow-y-auto"
                 code={JSON.stringify(
                   tenantMetricsQuery.data?.queues || '{}',
                   null,

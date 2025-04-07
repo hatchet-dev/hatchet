@@ -898,6 +898,14 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 		}
 	}
 
+	if len(matchResult.ReplayedTasks) > 0 {
+		err = tc.signalTasksReplayedFromMatch(ctx, tenantId, matchResult.ReplayedTasks)
+
+		if err != nil {
+			return fmt.Errorf("could not signal replayed tasks: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -965,6 +973,79 @@ func (tc *TasksControllerImpl) signalTasksCreated(ctx context.Context, tenantId 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
 			continue
+		}
+	}
+
+	eg := &errgroup.Group{}
+
+	if len(queuedTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndQueued(ctx, tenantId, queuedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(failedTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndFailed(ctx, tenantId, failedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(cancelledTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndCancelled(ctx, tenantId, cancelledTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(skippedTasks) > 0 {
+		eg.Go(func() error {
+			err := tc.signalTasksCreatedAndSkipped(ctx, tenantId, skippedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	return eg.Wait()
+}
+
+func (tc *TasksControllerImpl) signalTasksReplayedFromMatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
+	// group tasks by initial states
+	queuedTasks := make([]*sqlcv1.V1Task, 0)
+	failedTasks := make([]*sqlcv1.V1Task, 0)
+	cancelledTasks := make([]*sqlcv1.V1Task, 0)
+	skippedTasks := make([]*sqlcv1.V1Task, 0)
+
+	for _, task := range tasks {
+		switch task.InitialState {
+		case sqlcv1.V1TaskInitialStateQUEUED:
+			queuedTasks = append(queuedTasks, task)
+		case sqlcv1.V1TaskInitialStateFAILED:
+			failedTasks = append(failedTasks, task)
+		case sqlcv1.V1TaskInitialStateCANCELLED:
+			cancelledTasks = append(cancelledTasks, task)
+		case sqlcv1.V1TaskInitialStateSKIPPED:
+			skippedTasks = append(skippedTasks, task)
 		}
 	}
 

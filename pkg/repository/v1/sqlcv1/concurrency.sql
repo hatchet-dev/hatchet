@@ -12,17 +12,18 @@ WHERE
 -- name: GetWorkflowConcurrencyQueueCounts :many
 SELECT
     w."name" AS "workflowName",
-    cs.key,
+    wcs.key,
     COUNT(*) AS "count"
 FROM
-    v1_concurrency_slot cs
+    v1_workflow_concurrency_slot wcs
 JOIN
-    "Workflow" w ON w.id = cs.workflow_id
+    "Workflow" w ON w.id = wcs.workflow_id
 WHERE
-    cs.tenant_id = @tenantId::uuid
+    wcs.tenant_id = @tenantId::uuid
+    AND wcs.is_filled = FALSE
 GROUP BY
     w."name",
-    cs.key;
+    wcs.key;
 
 -- name: ListConcurrencyStrategiesByStepId :many
 SELECT
@@ -305,18 +306,13 @@ WITH filled_parent_slots AS (
         cs.*
     FROM
         v1_concurrency_slot cs
+    JOIN
+        eligible_slots_per_group es ON cs.task_id = es.task_id
     WHERE
-        (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
-            SELECT
-                es.task_inserted_at,
-                es.task_id,
-                es.task_retry_count,
-                es.tenant_id,
-                es.strategy_id
-            FROM
-                eligible_slots_per_group es
-        )
-        AND is_filled = FALSE
+        cs.task_inserted_at = es.task_inserted_at
+        AND cs.task_retry_count = es.task_retry_count
+        AND cs.strategy_id = es.strategy_id
+        AND cs.is_filled = FALSE
     ORDER BY
         task_id, task_inserted_at
     FOR UPDATE
