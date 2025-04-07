@@ -332,6 +332,12 @@ export interface V1WorkflowRun {
    * @format date-time
    */
   createdAt?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface WorkflowRunShapeItemForWorkflowRunDetails {

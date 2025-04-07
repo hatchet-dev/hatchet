@@ -1365,7 +1365,8 @@ type V1WorkflowRun struct {
 	Metadata APIResourceMeta        `json:"metadata"`
 
 	// Output The output of the task run (for the latest run)
-	Output map[string]interface{} `json:"output"`
+	Output               map[string]interface{} `json:"output"`
+	ParentTaskExternalId *openapi_types.UUID    `json:"parentTaskExternalId,omitempty"`
 
 	// StartedAt The timestamp the task run started.
 	StartedAt *time.Time   `json:"startedAt,omitempty"`

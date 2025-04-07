@@ -48,6 +48,11 @@ V1WorkflowRun:
       type: string
       format: date-time
       description: The timestamp the task run was created.
+    parentTaskExternalId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
   required:
     - metadata
     - id
