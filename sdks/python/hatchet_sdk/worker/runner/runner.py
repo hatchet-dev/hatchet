@@ -84,8 +84,6 @@ class Runner:
         self.killing = False
         self.handle_kill = handle_kill
 
-        # We need to initialize a new admin and dispatcher client *after* we've started the event loop,
-        # otherwise the grpc.aio methods will use a different event loop and we'll get a bunch of errors.
         self.dispatcher_client = DispatcherClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
         self.workflow_listener = PooledWorkflowRunListener(self.config)
