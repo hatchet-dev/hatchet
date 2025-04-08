@@ -57,11 +57,11 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 
 	// if token is empty, throw an error
 	if cf.Token == "" {
-		return nil, fmt.Errorf("API token is required. Set it via the HATCHET_CLIENT_TOKEN environment variable.")
+		return nil, fmt.Errorf("API token is required. Set it via the HATCHET_CLIENT_TOKEN environment variable")
 	}
 
 	grpcBroadcastAddress := cf.HostPort
-	serverURL := cf.HostPort
+	serverURL := cf.ServerURL
 
 	tokenConf, err := getConfFromJWT(cf.Token)
 
@@ -70,14 +70,19 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 			grpcBroadcastAddress = tokenConf.grpcBroadcastAddress
 		}
 
-		if tokenConf.serverURL != "" {
+		if serverURL == "" && tokenConf.serverURL != "" {
 			serverURL = tokenConf.serverURL
 		}
 	}
 
 	// if there's no broadcast address at this point, throw an error
 	if grpcBroadcastAddress == "" {
-		return nil, fmt.Errorf("GRPC broadcast address is required. Set it via the HATCHET_CLIENT_HOST_PORT environment variable.")
+		return nil, fmt.Errorf("gRPC broadcast address is required. Set it via the HATCHET_CLIENT_HOST_PORT environment variable")
+	}
+
+	// if there's no server URL at this point, throw an error
+	if serverURL == "" {
+		return nil, fmt.Errorf("server URL is required. Set it via the HATCHET_CLIENT_SERVER_URL environment variable")
 	}
 
 	if cf.TenantId == "" {

@@ -9,6 +9,7 @@ type Config struct {
 	TenantId           string
 	Token              string
 	HostPort           string
+	ServerURL          string
 	Namespace          string
 	NoGrpcRetry        bool
 	CloudRegisterID    string
@@ -30,6 +31,7 @@ func mapConfigToCF(opts Config) *v0Config.ClientConfigFile {
 	cf.TenantId = opts.TenantId
 	cf.Token = opts.Token
 	cf.HostPort = opts.HostPort
+	cf.ServerURL = opts.ServerURL
 	cf.Namespace = opts.Namespace
 	cf.NoGrpcRetry = opts.NoGrpcRetry
 	cf.CloudRegisterID = &opts.CloudRegisterID
