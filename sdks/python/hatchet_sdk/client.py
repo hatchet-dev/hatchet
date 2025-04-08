@@ -37,7 +37,11 @@ class Client:
         self.logs = LogsClient(self.config)
         self.metrics = MetricsClient(self.config)
         self.rate_limits = RateLimitsClient(self.config)
-        self.runs = RunsClient(self.config)
+        self.runs = RunsClient(
+            config=self.config,
+            workflow_run_event_listener=self.listener,
+            workflow_run_listener=self.workflow_listener,
+        )
         self.scheduled = ScheduledClient(self.config)
         self.workers = WorkersClient(self.config)
         self.workflows = WorkflowsClient(self.config)

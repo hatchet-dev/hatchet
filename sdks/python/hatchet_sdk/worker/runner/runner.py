@@ -87,7 +87,11 @@ class Runner:
         self.dispatcher_client = DispatcherClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
         self.workflow_listener = PooledWorkflowRunListener(self.config)
-        self.runs_client = RunsClient(self.config)
+        self.runs_client = RunsClient(
+            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_listener,
+        )
         self.admin_client = AdminClient(
             self.config,
             self.workflow_listener,
