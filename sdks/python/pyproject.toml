@@ -49,7 +49,6 @@ grpc-stubs = "^1.53.0.5"
 pytest = "^8.3.5"
 pytest-asyncio = "^0.25.3"
 pytest-env = "^1.1.5"
-pytest-xdist = "^3.6.1"
 pytest-retry = "^1.7.0"
 
 [tool.poetry.extras]
