@@ -4,7 +4,7 @@ from examples.concurrency_limit.worker import WorkflowInput, concurrency_limit_w
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio(loop_scope="session")
 @pytest.mark.skip(reason="The timing for this test is not reliable")
 async def test_run() -> None:
     num_runs = 6

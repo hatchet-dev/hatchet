@@ -4,18 +4,19 @@ import subprocess
 import time
 from io import BytesIO
 from threading import Thread
-from typing import Callable, Generator
+from typing import AsyncGenerator, Callable, Generator
 
 import psutil
 import pytest
+import pytest_asyncio
 import requests
 
 from hatchet_sdk import Hatchet
 
 
-@pytest.fixture(scope="function")
-def hatchet() -> Hatchet:
-    return Hatchet(
+@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
+async def hatchet() -> AsyncGenerator[Hatchet, None]:
+    yield Hatchet(
         debug=True,
     )
 

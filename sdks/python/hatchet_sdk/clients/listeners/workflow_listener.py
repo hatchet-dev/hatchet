@@ -27,15 +27,7 @@ class PooledWorkflowRunListener(
         return response.workflowRunId
 
     async def aio_result(self, id: str) -> dict[str, Any]:
-        import asyncio
-
         from hatchet_sdk.clients.admin import DedupeViolationErr
-
-        try:
-            loop = asyncio.get_event_loop()
-            print("\n\nLoop", loop, loop.is_running(), loop.is_closed())
-        except RuntimeError:
-            print("NO event loop")
 
         event = await self.subscribe(id)
         errors = [result.error for result in event.results if result.error]

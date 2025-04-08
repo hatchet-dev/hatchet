@@ -3,7 +3,7 @@ import pytest
 from examples.bulk_fanout.worker import ParentInput, bulk_parent_wf
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio(loop_scope="session")
 async def test_run() -> None:
     result = await bulk_parent_wf.aio_run(input=ParentInput(n=12))
 
