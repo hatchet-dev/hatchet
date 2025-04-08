@@ -33,6 +33,11 @@ V1WorkflowRun:
       format: uuid
     output:
       type: object
+      x-go-type: openapi.NonNullableJSON
+      x-go-type-import:
+        path: github.com/hatchet-dev/hatchet/api/v1/server/oas
+        name: NonNullableJSON
+      x-nullable: false
       description: The output of the task run (for the latest run)
     errorMessage:
       type: string
@@ -43,11 +48,21 @@ V1WorkflowRun:
       description: The ID of the workflow version.
     input:
       type: object
+      x-go-type: openapi.NonNullableJSON
+      x-go-type-import:
+        path: github.com/hatchet-dev/hatchet/api/v1/server/oas
+        name: NonNullableJSON
+      x-nullable: false
       description: The input of the task run.
     createdAt:
       type: string
       format: date-time
       description: The timestamp the task run was created.
+    parentTaskExternalId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
   required:
     - metadata
     - id

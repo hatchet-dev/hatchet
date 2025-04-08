@@ -69,6 +69,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 		TaskInsertedAt:     task.InsertedAt.Time,
 		TaskExternalId:     taskExternalId,
 		StepId:             &stepId,
+		ActionId:           task.ActionID,
 	}
 }
 
@@ -288,6 +289,7 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		Type:                  gen.V1WorkflowTypeTASK,
 		NumSpawnedChildren:    int(taskWithData.SpawnedChildren.Int64),
 		StepId:                &stepId,
+		ActionId:              taskWithData.ActionID,
 	}
 }
 
@@ -310,13 +312,19 @@ func ToWorkflowRunDetails(
 
 	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
+	parentTaskExternalId := uuid.UUID{}
+	if workflowRun.ParentTaskExternalId != nil {
+		parentTaskExternalId = uuid.MustParse(sqlchelpers.UUIDToStr(*workflowRun.ParentTaskExternalId))
+	}
+
 	parsedWorkflowRun := gen.V1WorkflowRun{
-		AdditionalMetadata: &additionalMetadata,
-		CreatedAt:          &workflowRun.CreatedAt.Time,
-		DisplayName:        workflowRun.DisplayName,
-		Duration:           &duration,
-		ErrorMessage:       &workflowRun.ErrorMessage,
-		FinishedAt:         &workflowRun.FinishedAt.Time,
+		AdditionalMetadata:   &additionalMetadata,
+		CreatedAt:            &workflowRun.CreatedAt.Time,
+		DisplayName:          workflowRun.DisplayName,
+		Duration:             &duration,
+		ErrorMessage:         &workflowRun.ErrorMessage,
+		FinishedAt:           &workflowRun.FinishedAt.Time,
+		ParentTaskExternalId: &parentTaskExternalId,
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(workflowRun.ExternalID),
 			CreatedAt: workflowRun.InsertedAt.Time,

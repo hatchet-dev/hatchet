@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/openapi"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -1263,6 +1264,9 @@ type V1TaskStatus string
 
 // V1TaskSummary defines model for V1TaskSummary.
 type V1TaskSummary struct {
+	// ActionId The action ID of the task.
+	ActionId string `json:"actionId"`
+
 	// AdditionalMetadata Additional metadata for the task run.
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 
@@ -1285,14 +1289,14 @@ type V1TaskSummary struct {
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
 	// Input The input of the task run.
-	Input    map[string]interface{} `json:"input"`
-	Metadata APIResourceMeta        `json:"metadata"`
+	Input    openapi.NonNullableJSON `json:"input"`
+	Metadata APIResourceMeta         `json:"metadata"`
 
 	// NumSpawnedChildren The number of spawned children tasks
 	NumSpawnedChildren int `json:"numSpawnedChildren"`
 
 	// Output The output of the task run (for the latest run)
-	Output map[string]interface{} `json:"output"`
+	Output openapi.NonNullableJSON `json:"output"`
 
 	// StartedAt The timestamp the task run started.
 	StartedAt *time.Time   `json:"startedAt,omitempty"`
@@ -1361,11 +1365,12 @@ type V1WorkflowRun struct {
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
 	// Input The input of the task run.
-	Input    map[string]interface{} `json:"input"`
-	Metadata APIResourceMeta        `json:"metadata"`
+	Input    openapi.NonNullableJSON `json:"input"`
+	Metadata APIResourceMeta         `json:"metadata"`
 
 	// Output The output of the task run (for the latest run)
-	Output map[string]interface{} `json:"output"`
+	Output               openapi.NonNullableJSON `json:"output"`
+	ParentTaskExternalId *openapi_types.UUID     `json:"parentTaskExternalId,omitempty"`
 
 	// StartedAt The timestamp the task run started.
 	StartedAt *time.Time   `json:"startedAt,omitempty"`

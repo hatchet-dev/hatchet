@@ -885,7 +885,8 @@ WITH input AS (
         d.display_name,
         d.input,
         d.additional_metadata,
-        d.workflow_version_id
+        d.workflow_version_id,
+        d.parent_task_external_id
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
     WHERE
@@ -1010,7 +1011,8 @@ WITH runs AS (
         d.display_name AS display_name,
         d.input AS input,
         d.additional_metadata AS additional_metadata,
-        d.workflow_version_id AS workflow_version_id
+        d.workflow_version_id AS workflow_version_id,
+        d.parent_task_external_id AS parent_task_external_id
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1036,7 +1038,8 @@ WITH runs AS (
         t.display_name AS display_name,
         t.input AS input,
         t.additional_metadata AS additional_metadata,
-        t.workflow_version_id AS workflow_version_id
+        t.workflow_version_id AS workflow_version_id,
+        NULL :: UUID AS parent_task_external_id
     FROM
         v1_lookup_table_olap lt
     JOIN
