@@ -51,7 +51,7 @@ class RunMetadata(BaseModel):
         return self.key
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio(loop_scope="session")
 async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
