@@ -1,5 +1,7 @@
 import asyncio
-from datetime import datetime, timedelta
+from collections import Counter
+from datetime import datetime
+from random import choice
 from typing import Literal
 from uuid import uuid4
 
@@ -7,11 +9,13 @@ import pytest
 from pydantic import BaseModel
 
 from examples.concurrency_multiple_keys.worker import (
-    SLEEP_TIME,
+    DIGIT_MAX_RUNS,
+    NAME_MAX_RUNS,
     WorkflowInput,
     concurrency_multiple_keys_workflow,
 )
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
 characters: list[Character] = [
@@ -24,29 +28,39 @@ characters: list[Character] = [
 ]
 
 
-class AdditionalMetadata(BaseModel):
+class RunMetadata(BaseModel):
     test_run_id: str
     key: str
     name: Character
     digit: str
+    started_at: datetime
+    finished_at: datetime
+
+    @staticmethod
+    def parse(task: V1TaskSummary) -> "RunMetadata":
+        return RunMetadata(
+            test_run_id=task.additional_metadata["test_run_id"],  # type: ignore
+            key=task.additional_metadata["key"],  # type: ignore
+            name=task.additional_metadata["name"],  # type: ignore
+            digit=task.additional_metadata["digit"],  # type: ignore
+            started_at=task.started_at or datetime.max,
+            finished_at=task.finished_at or datetime.min,
+        )
+
+    def __str__(self) -> str:
+        return self.key
 
 
 @pytest.mark.asyncio()
 async def test_priority(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
-    tasks: list[tuple[Character, str]] = [
-        ("Anna", "1"),
-        ("Anna", "2"),
-        ("Vronsky", "1"),
-        ("Stiva", "1"),
-    ]
 
     run_refs = await concurrency_multiple_keys_workflow.aio_run_many_no_wait(
         [
             concurrency_multiple_keys_workflow.create_bulk_run_item(
                 WorkflowInput(
-                    name=name,
-                    digit=digit,
+                    name=(name := choice(characters)),
+                    digit=(digit := choice([str(i) for i in range(6)])),
                 ),
                 options=TriggerWorkflowOptions(
                     additional_metadata={
@@ -57,7 +71,7 @@ async def test_priority(hatchet: Hatchet) -> None:
                     },
                 ),
             )
-            for name, digit in tasks
+            for _ in range(100)
         ]
     )
 
@@ -87,37 +101,54 @@ async def test_priority(hatchet: Hatchet) -> None:
         },
     )
 
-    sorted_runs = sorted(runs.rows, key=lambda r: r.started_at or datetime.min)
-
-    first_task_started_at = sorted_runs[0].started_at or datetime.max
-    first_three_runs = sorted_runs[:3]
-
-    last_run = sorted_runs[-1]
-    first_anna_run = next(
-        (
-            r
-            for r in first_three_runs
-            if AdditionalMetadata.model_validate(r.additional_metadata).name == "Anna"
-        ),
+    sorted_runs = sorted(
+        [RunMetadata.parse(r) for r in runs.rows], key=lambda r: r.started_at
     )
 
-    """The two Anna runs should not be able to run concurrently, but everything else can"""
-    assert {
-        AdditionalMetadata.model_validate(r.additional_metadata).name
-        for r in first_three_runs
-    } == {
-        "Anna",
-        "Vronsky",
-        "Stiva",
-    }
+    overlapping_groups: dict[int, list[RunMetadata]] = {}
 
-    """The second Anna run should start after the first Anna run finishes"""
-    assert (
-        AdditionalMetadata.model_validate(last_run.additional_metadata).name == "Anna"
-    )
-    assert (last_run.started_at or datetime.min) > (
-        first_anna_run.finished_at or datetime.max
-    )
-    assert (last_run.started_at or datetime.min) > first_task_started_at + timedelta(
-        seconds=SLEEP_TIME
-    )
+    for run in sorted_runs:
+        has_been_assigned = False
+        if not overlapping_groups:
+            overlapping_groups[1] = [run]
+            has_been_assigned = True
+            continue
+
+        for id, group in overlapping_groups.items():
+            if has_been_assigned:
+                break
+
+            for task in group:
+                if (
+                    run.started_at < task.finished_at
+                    and run.finished_at > task.started_at
+                ) or (
+                    run.finished_at > task.started_at
+                    and run.started_at < task.finished_at
+                ):
+                    overlapping_groups[id].append(run)
+                    has_been_assigned = True
+                    break
+
+        if not has_been_assigned:
+            overlapping_groups[len(overlapping_groups) + 1] = [run]
+
+    for id, group in overlapping_groups.items():
+        assert is_valid_group(group), f"Group {id} is not valid"
+
+
+def is_valid_group(group: list[RunMetadata]) -> bool:
+    digits = Counter[str]()
+    names = Counter[str]()
+
+    for task in group:
+        digits[task.digit] += 1
+        names[task.name] += 1
+
+    if any(v > DIGIT_MAX_RUNS for v in digits.values()):
+        return False
+
+    if any(v > NAME_MAX_RUNS for v in names.values()):
+        return False
+
+    return True

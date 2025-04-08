@@ -11,7 +11,9 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-SLEEP_TIME = 3
+SLEEP_TIME = 2
+DIGIT_MAX_RUNS = 8
+NAME_MAX_RUNS = 3
 
 
 # ❓ Concurrency Strategy With Key
@@ -31,12 +33,12 @@ concurrency_multiple_keys_workflow = hatchet.workflow(
     concurrency=[
         ConcurrencyExpression(
             expression="input.digit",
-            max_runs=3,
+            max_runs=DIGIT_MAX_RUNS,
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
         ),
         ConcurrencyExpression(
             expression="input.name",
-            max_runs=1,
+            max_runs=NAME_MAX_RUNS,
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
         ),
     ]
