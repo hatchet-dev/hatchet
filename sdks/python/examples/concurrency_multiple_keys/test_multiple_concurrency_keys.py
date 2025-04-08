@@ -52,7 +52,7 @@ class RunMetadata(BaseModel):
 
 
 @pytest.mark.asyncio()
-async def test_priority(hatchet: Hatchet) -> None:
+async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
     run_refs = await concurrency_multiple_keys_workflow.aio_run_many_no_wait(
