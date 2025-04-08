@@ -7,10 +7,10 @@ from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio()
-async def test_list_runs(aiohatchet: Hatchet) -> None:
+async def test_list_runs(hatchet: Hatchet) -> None:
     dag_result = await dag_workflow.aio_run()
 
-    runs = await aiohatchet.runs.aio_list(
+    runs = await hatchet.runs.aio_list(
         limit=10_000,
         only_tasks=True,
     )

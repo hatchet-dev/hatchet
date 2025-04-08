@@ -12,14 +12,14 @@ async def test_event_push(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio()
-async def test_async_event_push(aiohatchet: Hatchet) -> None:
-    e = await aiohatchet.event.aio_push("user:create", {"test": "test"})
+async def test_async_event_push(hatchet: Hatchet) -> None:
+    e = await hatchet.event.aio_push("user:create", {"test": "test"})
 
     assert e.eventId is not None
 
 
 @pytest.mark.asyncio()
-async def test_async_event_bulk_push(aiohatchet: Hatchet) -> None:
+async def test_async_event_bulk_push(hatchet: Hatchet) -> None:
 
     events = [
         BulkPushEventWithMetadata(
@@ -40,7 +40,7 @@ async def test_async_event_bulk_push(aiohatchet: Hatchet) -> None:
     ]
     opts = BulkPushEventOptions(namespace="bulk-test")
 
-    e = await aiohatchet.event.aio_bulk_push(events, opts)
+    e = await hatchet.event.aio_bulk_push(events, opts)
 
     assert len(e) == 3
 

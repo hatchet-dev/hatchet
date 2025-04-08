@@ -3,12 +3,12 @@ import asyncio
 import pytest
 
 from examples.on_failure.worker import on_failure_wf
-from hatchet_sdk import Hatchet, Worker
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
 @pytest.mark.asyncio()
-async def test_run_timeout(aiohatchet: Hatchet, worker: Worker) -> None:
+async def test_run_timeout(hatchet: Hatchet) -> None:
     run = on_failure_wf.run_no_wait()
     try:
         await run.aio_result()
@@ -19,7 +19,7 @@ async def test_run_timeout(aiohatchet: Hatchet, worker: Worker) -> None:
 
     await asyncio.sleep(5)  # Wait for the on_failure job to finish
 
-    details = await aiohatchet.runs.aio_get(run.workflow_run_id)
+    details = await hatchet.runs.aio_get(run.workflow_run_id)
 
     assert len(details.tasks) == 2
     assert sum(t.status == V1TaskStatus.COMPLETED for t in details.tasks) == 1
