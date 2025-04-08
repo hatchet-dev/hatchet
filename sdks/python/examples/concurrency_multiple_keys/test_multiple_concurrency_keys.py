@@ -112,7 +112,9 @@ async def test_priority(hatchet: Hatchet) -> None:
     }
 
     """The second Anna run should start after the first Anna run finishes"""
-    assert AdditionalMetadata.model_validate(last_run.additional_metadata).name == "Anna"
+    assert (
+        AdditionalMetadata.model_validate(last_run.additional_metadata).name == "Anna"
+    )
     assert (last_run.started_at or datetime.min) > (
         first_anna_run.finished_at or datetime.max
     )
