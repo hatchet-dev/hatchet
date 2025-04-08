@@ -14,14 +14,14 @@ import requests
 from hatchet_sdk import Hatchet
 
 
-@pytest_asyncio.fixture(loop_scope="session")
+@pytest_asyncio.fixture()
 async def aiohatchet() -> AsyncGenerator[Hatchet, None]:
     yield Hatchet(
         debug=True,
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def hatchet() -> Hatchet:
     return Hatchet(
         debug=True,
