@@ -191,7 +191,7 @@ WITH eligible_slots_per_group AS (
             AND wcs_all.strategy_id = @strategyId::bigint
         ORDER BY wcs_all.sort_id ASC
         LIMIT @maxRuns::int
-    ) wsc ON true
+    ) cs ON true
 ), schedule_timeout_slots AS (
     SELECT
         *
@@ -255,13 +255,27 @@ WITH eligible_slots_per_group AS (
         )
 )
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'RUNNING' AS "operation"
 FROM
     updated_slots;
@@ -684,13 +698,27 @@ WITH slots AS (
         )
 )
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'CANCELLED' AS "operation"
 FROM
     slots_to_cancel
@@ -706,7 +734,14 @@ WHERE
     )
 UNION ALL
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'RUNNING' AS "operation"
 FROM
     updated_slots;
@@ -1038,13 +1073,27 @@ WITH slots AS (
         )
 )
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'CANCELLED' AS "operation"
 FROM
     slots_to_cancel
@@ -1060,7 +1109,14 @@ WHERE
     )
 UNION ALL
 SELECT
-    *,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'RUNNING' AS "operation"
 FROM
     updated_slots;

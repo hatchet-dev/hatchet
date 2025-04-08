@@ -784,7 +784,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 						Tenantid:          tenantId,
 						Expression:        concurrency.Expression,
 						Maxconcurrency:    maxRuns,
-						Strategy:          string(strategy),
+						Strategy:          sqlcv1.V1ConcurrencyStrategy(strategy),
 					},
 				)
 

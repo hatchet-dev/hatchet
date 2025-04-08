@@ -447,7 +447,7 @@ VALUES (
     @workflowId::uuid,
     @workflowVersionId::uuid,
     @stepId::uuid,
-    @strategy::text,
+    @strategy::v1_concurrency_strategy,
     @expression::text,
     @tenantId::uuid,
     @maxConcurrency::integer

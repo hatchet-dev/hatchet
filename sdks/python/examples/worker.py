@@ -3,6 +3,7 @@ from examples.bulk_fanout.worker import bulk_child_wf, bulk_parent_wf
 from examples.cancellation.worker import cancellation_workflow
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
+from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
 from examples.dag.worker import dag_workflow
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
 from examples.durable.worker import durable_workflow
@@ -28,6 +29,7 @@ def main() -> None:
             bulk_parent_wf,
             concurrency_limit_workflow,
             concurrency_limit_rr_workflow,
+            concurrency_multiple_keys_workflow,
             dag_workflow,
             dedupe_child_wf,
             dedupe_parent_wf,
