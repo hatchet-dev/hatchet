@@ -274,7 +274,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @property
     def name(self) -> str:
-        return self.config.name
+        return self._get_name(self.client.config.namespace)
 
     def create_bulk_run_item(
         self,

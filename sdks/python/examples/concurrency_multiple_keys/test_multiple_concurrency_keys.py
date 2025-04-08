@@ -62,7 +62,6 @@ async def test_priority(hatchet: Hatchet) -> None:
     )
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
-    await asyncio.sleep(3)
 
     workflows = (
         await hatchet.workflows.aio_list(
