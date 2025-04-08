@@ -21,6 +21,7 @@ from hatchet_sdk.clients.v1.api_client import (
 )
 from hatchet_sdk.utils.aio import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
 class RunFilter(BaseModel):
@@ -220,3 +221,9 @@ class RunsClient(BaseRestClient):
         details = self.get(run_id)
 
         return details.run.output
+
+    def get_run_ref(self, workflow_run_id: str) -> WorkflowRunRef:
+        return WorkflowRunRef(
+            workflow_run_id=workflow_run_id,
+            config=self.client_config,
+        )
