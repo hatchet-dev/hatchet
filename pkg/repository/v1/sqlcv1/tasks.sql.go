@@ -77,13 +77,14 @@ func (q *Queries) DeleteMatchingSignalEvents(ctx context.Context, db DBTX, arg D
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at, is_non_retryable
+        task_id, task_inserted_at, task_retry_count, is_non_retryable
     FROM
         (
             SELECT
                 unnest($1::bigint[]) AS task_id,
                 unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::boolean[]) AS is_non_retryable
+                unnest($3::integer[]) AS task_retry_count,
+                unnest($4::boolean[]) AS is_non_retryable
         ) AS subquery
 ), locked_tasks AS (
     SELECT
@@ -92,14 +93,10 @@ WITH input AS (
         t.step_id
     FROM
         v1_task t
-    -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
-    -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
-    -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
-        (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-        AND t.tenant_id = $4::uuid
+        t.tenant_id = $5::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -122,8 +119,8 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    (v1_task.id, v1_task.inserted_at) IN (
-        SELECT task_id, task_inserted_at
+    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
         FROM input
         WHERE is_non_retryable = FALSE
     )
@@ -140,6 +137,7 @@ RETURNING
 type FailTaskAppFailureParams struct {
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
 	Isnonretryables []bool               `json:"isnonretryables"`
 	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
@@ -158,6 +156,7 @@ func (q *Queries) FailTaskAppFailure(ctx context.Context, db DBTX, arg FailTaskA
 	rows, err := db.Query(ctx, failTaskAppFailure,
 		arg.Taskids,
 		arg.Taskinsertedats,
+		arg.Taskretrycounts,
 		arg.Isnonretryables,
 		arg.Tenantid,
 	)
@@ -189,12 +188,13 @@ func (q *Queries) FailTaskAppFailure(ctx context.Context, db DBTX, arg FailTaskA
 const failTaskInternalFailure = `-- name: FailTaskInternalFailure :many
 WITH input AS (
     SELECT
-        task_id, task_inserted_at
+        task_id, task_inserted_at, task_retry_count
     FROM
         (
             SELECT
                 unnest($2::bigint[]) AS task_id,
-                unnest($3::timestamptz[]) AS task_inserted_at
+                unnest($3::timestamptz[]) AS task_inserted_at,
+                unnest($4::integer[]) AS task_retry_count
         ) AS subquery
 ), locked_tasks AS (
     SELECT
@@ -205,10 +205,9 @@ WITH input AS (
     -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
     -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
-        (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-        AND t.tenant_id = $4::uuid
+        t.tenant_id = $5::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -222,7 +221,10 @@ SET
 FROM
     locked_tasks
 WHERE
-    (v1_task.id, v1_task.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
+    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM input
+    )
     AND $1::int > v1_task.internal_retry_count
 RETURNING
     v1_task.id,
@@ -234,6 +236,7 @@ type FailTaskInternalFailureParams struct {
 	Maxinternalretries int32                `json:"maxinternalretries"`
 	Taskids            []int64              `json:"taskids"`
 	Taskinsertedats    []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts    []int32              `json:"taskretrycounts"`
 	Tenantid           pgtype.UUID          `json:"tenantid"`
 }
 
@@ -249,6 +252,7 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 		arg.Maxinternalretries,
 		arg.Taskids,
 		arg.Taskinsertedats,
+		arg.Taskretrycounts,
 		arg.Tenantid,
 	)
 	if err != nil {
@@ -1154,8 +1158,7 @@ SELECT
 FROM
     v1_task
 JOIN
-    -- NOTE: we only join when retry count matches
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at AND lrs.retry_count = v1_task.retry_count
+    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at
 `
 
 type ListTasksToReassignParams struct {
@@ -1222,8 +1225,7 @@ SELECT
 FROM
     v1_task
 JOIN
-    -- NOTE: we only join when retry count matches
-    expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count
+    expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at
 `
 
 type ListTasksToTimeoutParams struct {
