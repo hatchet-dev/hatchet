@@ -202,7 +202,7 @@ VALUES (
     $1::uuid,
     $2::uuid,
     $3::uuid,
-    $4::text,
+    $4::v1_concurrency_strategy,
     $5::text,
     $6::uuid,
     $7::integer
@@ -210,13 +210,13 @@ VALUES (
 `
 
 type CreateStepConcurrencyParams struct {
-	Workflowid        pgtype.UUID `json:"workflowid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
-	Stepid            pgtype.UUID `json:"stepid"`
-	Strategy          string      `json:"strategy"`
-	Expression        string      `json:"expression"`
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Maxconcurrency    int32       `json:"maxconcurrency"`
+	Workflowid        pgtype.UUID           `json:"workflowid"`
+	Workflowversionid pgtype.UUID           `json:"workflowversionid"`
+	Stepid            pgtype.UUID           `json:"stepid"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                `json:"expression"`
+	Tenantid          pgtype.UUID           `json:"tenantid"`
+	Maxconcurrency    int32                 `json:"maxconcurrency"`
 }
 
 func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg CreateStepConcurrencyParams) (*V1StepConcurrency, error) {

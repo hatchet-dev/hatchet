@@ -358,13 +358,27 @@ WITH slots AS (
         )
 )
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'CANCELLED' AS "operation"
 FROM
     slots_to_cancel
@@ -380,7 +394,14 @@ WHERE
     )
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'RUNNING' AS "operation"
 FROM
     updated_slots
@@ -393,26 +414,15 @@ type RunCancelInProgressParams struct {
 }
 
 type RunCancelInProgressRow struct {
-	SortID                pgtype.Int8        `json:"sort_id"`
-	TaskID                int64              `json:"task_id"`
-	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
-	TenantID              pgtype.UUID        `json:"tenant_id"`
-	WorkflowID            pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
-	StrategyID            int64              `json:"strategy_id"`
-	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
-	Priority              int32              `json:"priority"`
-	Key                   string             `json:"key"`
-	IsFilled              bool               `json:"is_filled"`
-	NextParentStrategyIds []int64            `json:"next_parent_strategy_ids"`
-	NextStrategyIds       []int64            `json:"next_strategy_ids"`
-	NextKeys              []string           `json:"next_keys"`
-	QueueToNotify         string             `json:"queue_to_notify"`
-	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
-	Operation             string             `json:"operation"`
+	TaskID          int64              `json:"task_id"`
+	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount  int32              `json:"task_retry_count"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	NextStrategyIds []int64            `json:"next_strategy_ids"`
+	ExternalID      pgtype.UUID        `json:"external_id"`
+	WorkflowRunID   pgtype.UUID        `json:"workflow_run_id"`
+	QueueToNotify   string             `json:"queue_to_notify"`
+	Operation       string             `json:"operation"`
 }
 
 func (q *Queries) RunCancelInProgress(ctx context.Context, db DBTX, arg RunCancelInProgressParams) ([]*RunCancelInProgressRow, error) {
@@ -425,25 +435,14 @@ func (q *Queries) RunCancelInProgress(ctx context.Context, db DBTX, arg RunCance
 	for rows.Next() {
 		var i RunCancelInProgressRow
 		if err := rows.Scan(
-			&i.SortID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
 			&i.TaskRetryCount,
-			&i.ExternalID,
 			&i.TenantID,
-			&i.WorkflowID,
-			&i.WorkflowVersionID,
-			&i.WorkflowRunID,
-			&i.StrategyID,
-			&i.ParentStrategyID,
-			&i.Priority,
-			&i.Key,
-			&i.IsFilled,
-			&i.NextParentStrategyIds,
 			&i.NextStrategyIds,
-			&i.NextKeys,
+			&i.ExternalID,
+			&i.WorkflowRunID,
 			&i.QueueToNotify,
-			&i.ScheduleTimeoutAt,
 			&i.Operation,
 		); err != nil {
 			return nil, err
@@ -572,13 +571,27 @@ WITH slots AS (
         )
 )
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'CANCELLED' AS "operation"
 FROM
     slots_to_cancel
@@ -594,7 +607,14 @@ WHERE
     )
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'RUNNING' AS "operation"
 FROM
     updated_slots
@@ -607,26 +627,15 @@ type RunCancelNewestParams struct {
 }
 
 type RunCancelNewestRow struct {
-	SortID                pgtype.Int8        `json:"sort_id"`
-	TaskID                int64              `json:"task_id"`
-	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
-	TenantID              pgtype.UUID        `json:"tenant_id"`
-	WorkflowID            pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
-	StrategyID            int64              `json:"strategy_id"`
-	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
-	Priority              int32              `json:"priority"`
-	Key                   string             `json:"key"`
-	IsFilled              bool               `json:"is_filled"`
-	NextParentStrategyIds []int64            `json:"next_parent_strategy_ids"`
-	NextStrategyIds       []int64            `json:"next_strategy_ids"`
-	NextKeys              []string           `json:"next_keys"`
-	QueueToNotify         string             `json:"queue_to_notify"`
-	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
-	Operation             string             `json:"operation"`
+	TaskID          int64              `json:"task_id"`
+	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount  int32              `json:"task_retry_count"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	NextStrategyIds []int64            `json:"next_strategy_ids"`
+	ExternalID      pgtype.UUID        `json:"external_id"`
+	WorkflowRunID   pgtype.UUID        `json:"workflow_run_id"`
+	QueueToNotify   string             `json:"queue_to_notify"`
+	Operation       string             `json:"operation"`
 }
 
 func (q *Queries) RunCancelNewest(ctx context.Context, db DBTX, arg RunCancelNewestParams) ([]*RunCancelNewestRow, error) {
@@ -639,25 +648,14 @@ func (q *Queries) RunCancelNewest(ctx context.Context, db DBTX, arg RunCancelNew
 	for rows.Next() {
 		var i RunCancelNewestRow
 		if err := rows.Scan(
-			&i.SortID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
 			&i.TaskRetryCount,
-			&i.ExternalID,
 			&i.TenantID,
-			&i.WorkflowID,
-			&i.WorkflowVersionID,
-			&i.WorkflowRunID,
-			&i.StrategyID,
-			&i.ParentStrategyID,
-			&i.Priority,
-			&i.Key,
-			&i.IsFilled,
-			&i.NextParentStrategyIds,
 			&i.NextStrategyIds,
-			&i.NextKeys,
+			&i.ExternalID,
+			&i.WorkflowRunID,
 			&i.QueueToNotify,
-			&i.ScheduleTimeoutAt,
 			&i.Operation,
 		); err != nil {
 			return nil, err
@@ -1278,7 +1276,7 @@ func (q *Queries) RunChildGroupRoundRobin(ctx context.Context, db DBTX, arg RunC
 
 const runGroupRoundRobin = `-- name: RunGroupRoundRobin :many
 WITH eligible_slots_per_group AS (
-    SELECT
+    SELECT cs.sort_id, cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.external_id, cs.tenant_id, cs.workflow_id, cs.workflow_version_id, cs.workflow_run_id, cs.strategy_id, cs.parent_strategy_id, cs.priority, cs.key, cs.is_filled, cs.next_parent_strategy_ids, cs.next_strategy_ids, cs.next_keys, cs.queue_to_notify, cs.schedule_timeout_at
     FROM (
         SELECT DISTINCT key
         FROM v1_concurrency_slot
@@ -1295,7 +1293,7 @@ WITH eligible_slots_per_group AS (
             AND wcs_all.strategy_id = $2::bigint
         ORDER BY wcs_all.sort_id ASC
         LIMIT $3::int
-    ) wsc ON true
+    ) cs ON true
 ), schedule_timeout_slots AS (
     SELECT
         sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
@@ -1359,13 +1357,27 @@ WITH eligible_slots_per_group AS (
         )
 )
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    tenant_id,
+    next_strategy_ids,
+    external_id,
+    workflow_run_id,
+    queue_to_notify,
     'RUNNING' AS "operation"
 FROM
     updated_slots
@@ -1378,26 +1390,15 @@ type RunGroupRoundRobinParams struct {
 }
 
 type RunGroupRoundRobinRow struct {
-	SortID                pgtype.Int8        `json:"sort_id"`
-	TaskID                int64              `json:"task_id"`
-	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
-	TaskRetryCount        int32              `json:"task_retry_count"`
-	ExternalID            pgtype.UUID        `json:"external_id"`
-	TenantID              pgtype.UUID        `json:"tenant_id"`
-	WorkflowID            pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID     pgtype.UUID        `json:"workflow_version_id"`
-	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
-	StrategyID            int64              `json:"strategy_id"`
-	ParentStrategyID      pgtype.Int8        `json:"parent_strategy_id"`
-	Priority              int32              `json:"priority"`
-	Key                   string             `json:"key"`
-	IsFilled              bool               `json:"is_filled"`
-	NextParentStrategyIds []int64            `json:"next_parent_strategy_ids"`
-	NextStrategyIds       []int64            `json:"next_strategy_ids"`
-	NextKeys              []string           `json:"next_keys"`
-	QueueToNotify         string             `json:"queue_to_notify"`
-	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
-	Operation             string             `json:"operation"`
+	TaskID          int64              `json:"task_id"`
+	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount  int32              `json:"task_retry_count"`
+	TenantID        pgtype.UUID        `json:"tenant_id"`
+	NextStrategyIds []int64            `json:"next_strategy_ids"`
+	ExternalID      pgtype.UUID        `json:"external_id"`
+	WorkflowRunID   pgtype.UUID        `json:"workflow_run_id"`
+	QueueToNotify   string             `json:"queue_to_notify"`
+	Operation       string             `json:"operation"`
 }
 
 // Used for round-robin scheduling when a strategy doesn't have a parent strategy
@@ -1411,25 +1412,14 @@ func (q *Queries) RunGroupRoundRobin(ctx context.Context, db DBTX, arg RunGroupR
 	for rows.Next() {
 		var i RunGroupRoundRobinRow
 		if err := rows.Scan(
-			&i.SortID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
 			&i.TaskRetryCount,
-			&i.ExternalID,
 			&i.TenantID,
-			&i.WorkflowID,
-			&i.WorkflowVersionID,
-			&i.WorkflowRunID,
-			&i.StrategyID,
-			&i.ParentStrategyID,
-			&i.Priority,
-			&i.Key,
-			&i.IsFilled,
-			&i.NextParentStrategyIds,
 			&i.NextStrategyIds,
-			&i.NextKeys,
+			&i.ExternalID,
+			&i.WorkflowRunID,
 			&i.QueueToNotify,
-			&i.ScheduleTimeoutAt,
 			&i.Operation,
 		); err != nil {
 			return nil, err
