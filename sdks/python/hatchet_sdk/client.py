@@ -21,7 +21,7 @@ class Client:
         event_client: EventClient | None = None,
         admin_client: AdminClient | None = None,
         dispatcher_client: DispatcherClient | None = None,
-        workflow_listener: PooledWorkflowRunListener | None | None = None,
+        workflow_listener: PooledWorkflowRunListener | None = None,
         debug: bool = False,
     ):
         self.config = config
