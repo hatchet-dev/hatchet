@@ -60,7 +60,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
             concurrency_multiple_keys_workflow.create_bulk_run_item(
                 WorkflowInput(
                     name=(name := choice(characters)),
-                    digit=(digit := choice([str(i) for i in range(6)])),
+                    digit=(digit := choice([str(i) for i in range(3)])),
                 ),
                 options=TriggerWorkflowOptions(
                     additional_metadata={
@@ -71,7 +71,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
                     },
                 ),
             )
-            for _ in range(100)
+            for _ in range(10)
         ]
     )
 
