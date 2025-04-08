@@ -82,7 +82,7 @@ class AdminClient:
         self.workflow_run_event_listener = workflow_run_event_listener
 
         self.client: AdminServiceStub | None = None
-        self.v0_client: WorkflowServiceStub | None
+        self.v0_client: WorkflowServiceStub | None = None
 
     def _get_or_create_v0_client(self) -> WorkflowServiceStub:
         if self.v0_client is None:
