@@ -407,7 +407,9 @@ class AdminClient:
                 [
                     WorkflowRunRef(
                         workflow_run_id=workflow_run_id,
-                        config=self.config,
+                        workflow_run_event_listener=self.workflow_run_event_listener,
+                        workflow_run_listener=self.workflow_run_listener,
+                        runs_client=self.runs_client,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -448,7 +450,9 @@ class AdminClient:
                 [
                     WorkflowRunRef(
                         workflow_run_id=workflow_run_id,
-                        config=self.config,
+                        workflow_run_event_listener=self.workflow_run_event_listener,
+                        workflow_run_listener=self.workflow_run_listener,
+                        runs_client=self.runs_client,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
