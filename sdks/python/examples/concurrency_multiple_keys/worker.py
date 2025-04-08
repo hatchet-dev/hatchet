@@ -12,8 +12,8 @@ from hatchet_sdk import (
 hatchet = Hatchet(debug=True)
 
 SLEEP_TIME = 2
-DIGIT_MAX_RUNS = 3
-NAME_MAX_RUNS = 1
+DIGIT_MAX_RUNS = 8
+NAME_MAX_RUNS = 3
 
 
 # ❓ Concurrency Strategy With Key
