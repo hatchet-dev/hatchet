@@ -241,6 +241,7 @@ WITH input AS (
             SELECT
                 unnest(@taskIds::bigint[]) AS task_id,
                 unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                unnest(@taskRetryCounts::integer[]) AS task_retry_count,
                 unnest(@isNonRetryables::boolean[]) AS is_non_retryable
         ) AS subquery
 ), locked_tasks AS (
@@ -250,14 +251,10 @@ WITH input AS (
         t.step_id
     FROM
         v1_task t
-    -- only fail tasks which have a v1_task_runtime equivalent to the current retry count. otherwise,
-    -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
-    -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
-        (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-        AND t.tenant_id = @tenantId::uuid
+        t.tenant_id = @tenantId::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -280,8 +277,8 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    (v1_task.id, v1_task.inserted_at) IN (
-        SELECT task_id, task_inserted_at
+    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
         FROM input
         WHERE is_non_retryable = FALSE
     )
@@ -303,7 +300,8 @@ WITH input AS (
         (
             SELECT
                 unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                unnest(@taskRetryCounts::integer[]) AS task_retry_count
         ) AS subquery
 ), locked_tasks AS (
     SELECT
@@ -314,10 +312,9 @@ WITH input AS (
     -- a cancellation which deletes the v1_task_runtime might lead to a future failure event, which triggers
     -- a retry.
     JOIN
-        v1_task_runtime rt ON rt.task_id = t.id AND rt.task_inserted_at = t.inserted_at AND rt.retry_count = t.retry_count
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
-        (t.id, t.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
-        AND t.tenant_id = @tenantId::uuid
+        t.tenant_id = @tenantId::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -331,7 +328,10 @@ SET
 FROM
     locked_tasks
 WHERE
-    (v1_task.id, v1_task.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
+    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
+        SELECT task_id, task_inserted_at, task_retry_count
+        FROM input
+    )
     AND @maxInternalRetries::int > v1_task.internal_retry_count
 RETURNING
     v1_task.id,
@@ -371,8 +371,7 @@ SELECT
 FROM
     v1_task
 JOIN
-    -- NOTE: we only join when retry count matches
-    expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count;
+    expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at;
 
 -- name: ListTasksToReassign :many
 WITH tasks_on_inactive_workers AS (
@@ -397,8 +396,7 @@ SELECT
 FROM
     v1_task
 JOIN
-    -- NOTE: we only join when retry count matches
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at AND lrs.retry_count = v1_task.retry_count;
+    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
 
 -- name: ProcessRetryQueueItems :many
 WITH rqis_to_delete AS (

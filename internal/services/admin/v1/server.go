@@ -711,6 +711,36 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					})
 				}
 			}
+
+		}
+
+		if stepCp.Concurrency != nil {
+			for _, concurrency := range stepCp.Concurrency {
+				// Skip nil concurrency
+				if concurrency == nil {
+					continue
+				}
+
+				if concurrency.Expression == "" {
+					return nil, status.Error(
+						codes.InvalidArgument,
+						fmt.Sprintf("CEL expression is required for concurrency (step %s)", stepCp.ReadableId),
+					)
+				}
+
+				var limitStrategy *string
+
+				if concurrency.LimitStrategy != nil && concurrency.LimitStrategy.String() != "" {
+					s := concurrency.LimitStrategy.String()
+					limitStrategy = &s
+				}
+
+				steps[j].Concurrency = append(steps[j].Concurrency, v1.CreateConcurrencyOpts{
+					Expression:    concurrency.Expression,
+					MaxRuns:       concurrency.MaxRuns,
+					LimitStrategy: limitStrategy,
+				})
+			}
 		}
 	}
 

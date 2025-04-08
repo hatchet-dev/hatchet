@@ -602,10 +602,12 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
 	appFailureTaskIds := make([]int64, 0)
 	appFailureTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+	appFailureTaskRetryCounts := make([]int32, 0)
 	appFailureIsNonRetryableStatuses := make([]bool, 0)
 
 	internalFailureTaskIds := make([]int64, 0)
 	internalFailureInsertedAts := make([]pgtype.Timestamptz, 0)
+	internalFailureTaskRetryCounts := make([]int32, 0)
 
 	for i, failureOpt := range failureOpts {
 		tasks[i] = *failureOpt.TaskIdInsertedAtRetryCount
@@ -613,10 +615,12 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		if failureOpt.IsAppError {
 			appFailureTaskIds = append(appFailureTaskIds, failureOpt.Id)
 			appFailureTaskInsertedAts = append(appFailureTaskInsertedAts, failureOpt.InsertedAt)
+			appFailureTaskRetryCounts = append(appFailureTaskRetryCounts, failureOpt.RetryCount)
 			appFailureIsNonRetryableStatuses = append(appFailureIsNonRetryableStatuses, failureOpt.IsNonRetryable)
 		} else {
 			internalFailureTaskIds = append(internalFailureTaskIds, failureOpt.Id)
 			internalFailureInsertedAts = append(internalFailureInsertedAts, failureOpt.InsertedAt)
+			internalFailureTaskRetryCounts = append(internalFailureTaskRetryCounts, failureOpt.RetryCount)
 		}
 	}
 
@@ -630,6 +634,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:         appFailureTaskIds,
 			Taskinsertedats: appFailureTaskInsertedAts,
+			Taskretrycounts: appFailureTaskRetryCounts,
 			Isnonretryables: appFailureIsNonRetryableStatuses,
 		})
 
@@ -659,6 +664,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:            internalFailureTaskIds,
 			Taskinsertedats:    internalFailureInsertedAts,
+			Taskretrycounts:    internalFailureTaskRetryCounts,
 			Maxinternalretries: r.maxInternalRetryCount,
 		})
 
