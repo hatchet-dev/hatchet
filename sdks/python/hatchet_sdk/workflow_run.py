@@ -31,7 +31,6 @@ class WorkflowRunRef:
         return self.workflow_run_event_listener.stream(self.workflow_run_id)
 
     async def aio_result(self) -> dict[str, Any]:
-        print("Calling aio_result")
         return await self.workflow_run_listener.aio_result(self.workflow_run_id)
 
     def _safely_get_action_name(self, action_id: str) -> str | None:
