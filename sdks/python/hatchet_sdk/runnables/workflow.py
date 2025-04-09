@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Generic, cast
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel
@@ -12,10 +12,7 @@ from hatchet_sdk.clients.admin import (
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
-    Concurrency,
-    CreateTaskOpts,
     CreateWorkflowVersionRequest,
     DesiredWorkerLabels,
 )
@@ -36,16 +33,9 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.waits import (
-    Action,
-    Condition,
-    OrGroup,
-    ParentCondition,
-    SleepCondition,
-    UserEventCondition,
-)
+from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -106,58 +96,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return True
 
-    @overload
-    def _concurrency_to_proto(self, concurrency: None) -> None: ...
-
-    @overload
-    def _concurrency_to_proto(
-        self, concurrency: ConcurrencyExpression
-    ) -> Concurrency: ...
-
-    def _concurrency_to_proto(
-        self, concurrency: ConcurrencyExpression | None
-    ) -> Concurrency | None:
-        if not concurrency:
-            return None
-
-        self._raise_for_invalid_concurrency(concurrency)
-
-        return Concurrency(
-            expression=concurrency.expression,
-            max_runs=concurrency.max_runs,
-            limit_strategy=concurrency.limit_strategy,
-        )
-
-    @overload
-    def _validate_task(
-        self, task: "Task[TWorkflowInput, R]", service_name: str
-    ) -> CreateTaskOpts: ...
-
-    @overload
-    def _validate_task(self, task: None, service_name: str) -> None: ...
-
-    def _validate_task(
-        self, task: Union["Task[TWorkflowInput, R]", None], service_name: str
-    ) -> CreateTaskOpts | None:
-        if not task:
-            return None
-
-        return CreateTaskOpts(
-            readable_id=task.name,
-            action=service_name + ":" + task.name,
-            timeout=timedelta_to_expr(task.execution_timeout),
-            inputs="{}",
-            parents=[p.name for p in task.parents],
-            retries=task.retries,
-            rate_limits=task.rate_limits,
-            worker_labels=task.desired_worker_labels,
-            backoff_factor=task.backoff_factor,
-            backoff_max_seconds=task.backoff_max_seconds,
-            concurrency=[self._concurrency_to_proto(t) for t in task.concurrency],
-            conditions=self._conditions_to_proto(task),
-            schedule_timeout=timedelta_to_expr(task.schedule_timeout),
-        )
-
     def _validate_priority(self, default_priority: int | None) -> int | None:
         validated_priority = (
             max(1, min(3, default_priority)) if default_priority else None
@@ -169,48 +107,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return validated_priority
 
-    def _assign_action(self, condition: Condition, action: Action) -> Condition:
-        condition.base.action = action
-
-        return condition
-
-    def _conditions_to_proto(self, task: Task[TWorkflowInput, Any]) -> TaskConditions:
-        wait_for_conditions = [
-            self._assign_action(w, Action.QUEUE) for w in task.wait_for
-        ]
-
-        cancel_if_conditions = [
-            self._assign_action(c, Action.CANCEL) for c in task.cancel_if
-        ]
-        skip_if_conditions = [self._assign_action(s, Action.SKIP) for s in task.skip_if]
-
-        conditions = wait_for_conditions + cancel_if_conditions + skip_if_conditions
-
-        if len({c.base.readable_data_key for c in conditions}) != len(
-            [c.base.readable_data_key for c in conditions]
-        ):
-            raise ValueError("Conditions must have unique readable data keys.")
-
-        user_events = [
-            c.to_pb() for c in conditions if isinstance(c, UserEventCondition)
-        ]
-        parent_overrides = [
-            c.to_pb() for c in conditions if isinstance(c, ParentCondition)
-        ]
-        sleep_conditions = [
-            c.to_pb() for c in conditions if isinstance(c, SleepCondition)
-        ]
-
-        return TaskConditions(
-            parent_override_conditions=parent_overrides,
-            sleep_conditions=sleep_conditions,
-            user_event_conditions=user_events,
-        )
-
     def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
         return not any(task in t.parents for t in self.tasks if task != t)
 
-    def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionRequest:
+    def _to_proto(self, namespace: str) -> CreateWorkflowVersionRequest:
         service_name = self._get_service_name(namespace)
 
         name = self._get_name(namespace)
@@ -223,10 +123,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 if task.type == StepType.DEFAULT and self._is_leaf_task(task)
             ]
 
-        on_success_task = self._validate_task(self._on_success_task, service_name)
+        on_success_task = (
+            t._to_proto(service_name) if (t := self._on_success_task) else None
+        )
 
         tasks = [
-            self._validate_task(task, service_name)
+            task._to_proto(service_name)
             for task in self.tasks
             if task.type == StepType.DEFAULT
         ]
@@ -234,7 +136,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if on_success_task:
             tasks += [on_success_task]
 
-        on_failure_task = self._validate_task(self._on_failure_task, service_name)
+        on_failure_task = (
+            t._to_proto(service_name) if (t := self._on_failure_task) else None
+        )
 
         return CreateWorkflowVersionRequest(
             name=name,
@@ -243,7 +147,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
             tasks=tasks,
-            concurrency=self._concurrency_to_proto(self.config.concurrency),
+            concurrency=(c.to_proto() if (c := self.config.concurrency) else None),
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_task,

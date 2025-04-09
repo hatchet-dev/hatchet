@@ -130,7 +130,7 @@ class Worker:
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         namespace = self.client.config.namespace
 
-        opts = workflow._get_create_opts(namespace)
+        opts = workflow._to_proto(namespace)
         name = workflow._get_name(namespace)
 
         try:
