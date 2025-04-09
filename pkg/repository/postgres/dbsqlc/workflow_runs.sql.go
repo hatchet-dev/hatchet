@@ -1351,7 +1351,7 @@ func (q *Queries) GetFailureDetails(ctx context.Context, db DBTX, arg GetFailure
 
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one
 SELECT
-    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt", method
+    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt", method, priority
 FROM
     "WorkflowTriggerScheduledRef"
 WHERE
@@ -1394,6 +1394,7 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 		&i.DeletedAt,
 		&i.UpdatedAt,
 		&i.Method,
+		&i.Priority,
 	)
 	return &i, err
 }
@@ -2329,7 +2330,7 @@ SELECT
     w."id" as "workflowId",
     v."id" as "workflowVersionId",
     w."tenantId",
-    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId", t."additionalMetadata", t."createdAt", t."deletedAt", t."updatedAt", t.method,
+    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId", t."additionalMetadata", t."createdAt", t."deletedAt", t."updatedAt", t.method, t.priority,
     wr."createdAt" as "workflowRunCreatedAt",
     wr."status" as "workflowRunStatus",
     wr."id" as "workflowRunId",
@@ -2400,6 +2401,7 @@ type ListScheduledWorkflowsRow struct {
 	DeletedAt            pgtype.Timestamp                   `json:"deletedAt"`
 	UpdatedAt            pgtype.Timestamp                   `json:"updatedAt"`
 	Method               WorkflowTriggerScheduledRefMethods `json:"method"`
+	Priority             int32                              `json:"priority"`
 	WorkflowRunCreatedAt pgtype.Timestamp                   `json:"workflowRunCreatedAt"`
 	WorkflowRunStatus    NullWorkflowRunStatus              `json:"workflowRunStatus"`
 	WorkflowRunId        pgtype.UUID                        `json:"workflowRunId"`
@@ -2446,6 +2448,7 @@ func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListS
 			&i.DeletedAt,
 			&i.UpdatedAt,
 			&i.Method,
+			&i.Priority,
 			&i.WorkflowRunCreatedAt,
 			&i.WorkflowRunStatus,
 			&i.WorkflowRunId,
