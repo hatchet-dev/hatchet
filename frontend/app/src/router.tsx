@@ -86,6 +86,15 @@ export const routes: RouteObject[] = [
               }),
           },
           {
+            path: '/onboarding/cloud',
+            lazy: async () =>
+              import('./pages/onboarding/get-started/cloud').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
             path: '/onboarding/get-started',
             lazy: async () =>
               import('./pages/onboarding/get-started').then((res) => {
