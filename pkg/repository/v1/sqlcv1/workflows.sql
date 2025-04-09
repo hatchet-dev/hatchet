@@ -213,8 +213,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "input",
     "additionalMetadata",
     "id",
-    "method"
-    -- Insert priority here
+    "method",
+    "priority"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
@@ -222,7 +222,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     sqlc.narg('input')::jsonb,
     sqlc.narg('additionalMetadata')::jsonb,
     gen_random_uuid(),
-    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one
