@@ -128,22 +128,18 @@ class Worker:
             sys.exit(1)
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
-        namespace = self.client.config.namespace
-
-        opts = workflow._to_proto(namespace)
-        name = workflow._get_name(namespace)
+        opts = workflow.to_proto()
+        name = workflow.name
 
         try:
             self.client.admin.put_workflow(name, opts)
         except Exception as e:
-            logger.error(
-                f"failed to register workflow: {workflow._get_name(namespace)}"
-            )
+            logger.error(f"failed to register workflow: {workflow.name}")
             logger.error(e)
             sys.exit(1)
 
         for step in workflow.tasks:
-            action_name = workflow._create_action_name(namespace, step)
+            action_name = workflow._create_action_name(step)
 
             if step.is_durable:
                 self.has_any_durable = True

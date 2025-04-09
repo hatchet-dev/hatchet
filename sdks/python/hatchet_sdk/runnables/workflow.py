@@ -68,16 +68,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self._on_success_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
-    def _get_service_name(self, namespace: str) -> str:
-        return f"{namespace}{self.config.name.lower()}"
+    @property
+    def service_name(self) -> str:
+        return f"{self.client.config.namespace}{self.config.name.lower()}"
 
-    def _create_action_name(
-        self, namespace: str, step: Task[TWorkflowInput, Any]
-    ) -> str:
-        return self._get_service_name(namespace) + ":" + step.name
-
-    def _get_name(self, namespace: str) -> str:
-        return namespace + self.config.name
+    def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
+        return self.service_name + ":" + step.name
 
     def _raise_for_invalid_concurrency(
         self, concurrency: ConcurrencyExpression
@@ -110,10 +106,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
         return not any(task in t.parents for t in self.tasks if task != t)
 
-    def _to_proto(self, namespace: str) -> CreateWorkflowVersionRequest:
-        service_name = self._get_service_name(namespace)
+    def to_proto(self) -> CreateWorkflowVersionRequest:
+        namespace = self.client.config.namespace
+        service_name = self.service_name
 
-        name = self._get_name(namespace)
+        name = self.name
         event_triggers = [namespace + event for event in self.config.on_events]
 
         if self._on_success_task:
@@ -124,11 +121,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ]
 
         on_success_task = (
-            t._to_proto(service_name) if (t := self._on_success_task) else None
+            t.to_proto(service_name) if (t := self._on_success_task) else None
         )
 
         tasks = [
-            task._to_proto(service_name)
+            task.to_proto(service_name)
             for task in self.tasks
             if task.type == StepType.DEFAULT
         ]
@@ -137,7 +134,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             tasks += [on_success_task]
 
         on_failure_task = (
-            t._to_proto(service_name) if (t := self._on_failure_task) else None
+            t.to_proto(service_name) if (t := self._on_failure_task) else None
         )
 
         return CreateWorkflowVersionRequest(
@@ -178,7 +175,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @property
     def name(self) -> str:
-        return self._get_name(self.client.config.namespace)
+        return self.client.config.namespace + self.config.name
 
     def create_bulk_run_item(
         self,

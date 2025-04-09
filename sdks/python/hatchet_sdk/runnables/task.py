@@ -152,7 +152,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
-    def _to_proto(self, service_name: str) -> CreateTaskOpts:
+    def to_proto(self, service_name: str) -> CreateTaskOpts:
         return CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
