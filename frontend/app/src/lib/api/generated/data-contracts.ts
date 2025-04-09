@@ -1023,6 +1023,12 @@ export interface ScheduleWorkflowRunRequest {
   additionalMetadata: object;
   /** @format date-time */
   triggerAt: string;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export enum ScheduledWorkflowsMethod {
@@ -1084,6 +1090,12 @@ export interface CreateCronWorkflowTriggerRequest {
   additionalMetadata: object;
   cronName: string;
   cronExpression: string;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export enum CronWorkflowsMethod {

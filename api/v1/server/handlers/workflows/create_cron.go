@@ -27,6 +27,14 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
 	}
 
+	var priority int32
+
+	if request.Body.Priority == nil {
+		priority = 1
+	} else {
+		priority = *request.Body.Priority
+	}
+
 	cronTrigger, err := t.config.APIRepository.Workflow().CreateCronWorkflow(
 		ctx.Request().Context(), tenantId, &repository.CreateCronWorkflowTriggerOpts{
 			Name:               request.Body.CronName,
@@ -34,6 +42,7 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 			Input:              request.Body.Input,
 			AdditionalMetadata: request.Body.AdditionalMetadata,
 			WorkflowId:         sqlchelpers.UUIDToStr(workflow.ID),
+			Priority:           &priority,
 		},
 	)
 
