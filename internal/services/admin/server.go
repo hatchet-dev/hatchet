@@ -372,7 +372,6 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		ctx,
 		tenantId,
 		workflowVersionId,
-		// Wire up priority to here
 		&repository.CreateWorkflowSchedulesOpts{
 			ScheduledTriggers:  dbSchedules,
 			Input:              []byte(req.Input),

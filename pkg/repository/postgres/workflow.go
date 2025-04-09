@@ -643,11 +643,18 @@ func (r *workflowEngineRepository) CreateSchedules(
 		return nil, err
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateSchedulesParams{
 		Workflowrunid:      sqlchelpers.UUIDFromStr(workflowVersionId),
 		Input:              opts.Input,
 		Triggertimes:       make([]pgtype.Timestamp, len(opts.ScheduledTriggers)),
 		Additionalmetadata: opts.AdditionalMetadata,
+		Priority:           sqlchelpers.ToInt(priority),
 	}
 
 	for i, scheduledTrigger := range opts.ScheduledTriggers {
