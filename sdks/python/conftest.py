@@ -14,7 +14,7 @@ import requests
 from hatchet_sdk import Hatchet
 
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def hatchet() -> AsyncGenerator[Hatchet, None]:
     yield Hatchet(
         debug=True,
