@@ -7,8 +7,9 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from examples.priority.worker import DEFAULT_PRIORITY, priority_workflow
+from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
 from hatchet_sdk import Hatchet, ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 Priority = Literal["low", "medium", "high", "default"]
 
@@ -73,6 +74,7 @@ async def test_priority(hatchet: Hatchet) -> None:
         additional_metadata={
             "test_run_id": test_run_id,
         },
+        limit=1_000,
     )
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -107,8 +109,10 @@ async def test_priority(hatchet: Hatchet) -> None:
 @pytest.mark.asyncio()
 async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
+    sleep_time = 3
+    n = 100
     choices: list[Priority] = ["low", "medium", "high", "default"]
-    run_at = datetime.now() + timedelta(seconds=3)
+    run_at = datetime.now() + timedelta(seconds=sleep_time)
 
     versions = await asyncio.gather(
         *[
@@ -123,17 +127,40 @@ async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
                     },
                 ),
             )
-            for ix in range(30)
+            for ix in range(n)
         ]
     )
 
-    await asyncio.sleep(15)
+    await asyncio.sleep(sleep_time * 2)
 
-    runs = await hatchet.runs.aio_list(
-        additional_metadata={
-            "test_run_id": test_run_id,
-        },
-    )
+    workflow_id = versions[0].workflow_id
+
+    attempts = 0
+
+    while True:
+        if attempts >= SLEEP_TIME * n * 2:
+            raise TimeoutError("Timed out waiting for runs to finish")
+
+        attempts += 1
+        await asyncio.sleep(1)
+        runs = await hatchet.runs.aio_list(
+            workflow_ids=[workflow_id],
+            additional_metadata={
+                "test_run_id": test_run_id,
+            },
+            limit=1_000,
+        )
+
+        if not runs.rows:
+            continue
+
+        if any(
+            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
+        ):
+            raise ValueError("One or more runs failed or were cancelled")
+
+        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+            break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
         [
@@ -152,6 +179,8 @@ async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
     for i in range(len(runs_ids_started_ats) - 1):
         curr = runs_ids_started_ats[i]
         nxt = runs_ids_started_ats[i + 1]
+
+        print(curr.priority, curr.started_at)
 
         """Run start times should be in order of priority"""
         assert priority_to_int(curr.priority) >= priority_to_int(nxt.priority)

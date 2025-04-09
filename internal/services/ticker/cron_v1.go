@@ -13,7 +13,7 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
-func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}) error {
+func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) error {
 	var additionalMetaBytes []byte
 	var err error
 
@@ -31,6 +31,7 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId string, wor
 			WorkflowName:       workflowVersion.WorkflowName,
 			Data:               input,
 			AdditionalMetadata: additionalMetaBytes,
+			Priority:           priority,
 		},
 		ExternalId: uuid.NewString(),
 		ShouldSkip: false,
