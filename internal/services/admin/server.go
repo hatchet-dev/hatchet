@@ -377,6 +377,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			ScheduledTriggers:  dbSchedules,
 			Input:              []byte(req.Input),
 			AdditionalMetadata: additionalMetadata,
+			Priority:           &req.Priority,
 		},
 	)
 

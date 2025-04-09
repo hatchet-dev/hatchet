@@ -698,6 +698,11 @@ CreateCronWorkflowTriggerRequest:
       type: string
     cronExpression:
       type: string
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - input
     - additionalMetadata
@@ -713,6 +718,11 @@ ScheduleWorkflowRunRequest:
     triggerAt:
       type: string
       format: date-time
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - input
     - additionalMetadata
