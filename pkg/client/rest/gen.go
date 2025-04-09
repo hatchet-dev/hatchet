@@ -454,6 +454,7 @@ type CronWorkflows struct {
 	Metadata           APIResourceMeta         `json:"metadata"`
 	Method             CronWorkflowsMethod     `json:"method"`
 	Name               *string                 `json:"name,omitempty"`
+	Priority           *int32                  `json:"priority,omitempty"`
 	TenantId           string                  `json:"tenantId"`
 	WorkflowId         string                  `json:"workflowId"`
 	WorkflowName       string                  `json:"workflowName"`
@@ -760,6 +761,7 @@ type ScheduledWorkflows struct {
 	Input                *map[string]interface{}  `json:"input,omitempty"`
 	Metadata             APIResourceMeta          `json:"metadata"`
 	Method               ScheduledWorkflowsMethod `json:"method"`
+	Priority             *int32                   `json:"priority,omitempty"`
 	TenantId             string                   `json:"tenantId"`
 	TriggerAt            time.Time                `json:"triggerAt"`
 	WorkflowId           string                   `json:"workflowId"`
