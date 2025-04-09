@@ -543,6 +543,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		WorkflowRunId:        workflowRunIdPtr,
 		WorkflowRunName:      &scheduled.WorkflowRunName.String,
 		Method:               gen.ScheduledWorkflowsMethod(scheduled.Method),
+		Priority:             &scheduled.Priority,
 	}
 
 	return res
@@ -569,6 +570,7 @@ func ToCronWorkflowsFromSQLC(cron *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflo
 		Name:               &cron.Name.String,
 		Enabled:            cron.Enabled,
 		Method:             gen.CronWorkflowsMethod(cron.Method),
+		Priority:           &cron.Priority,
 	}
 
 	return res

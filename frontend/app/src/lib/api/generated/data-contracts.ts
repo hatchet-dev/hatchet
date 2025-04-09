@@ -1058,6 +1058,12 @@ export interface ScheduledWorkflows {
    */
   workflowRunId?: string;
   method: ScheduledWorkflowsMethod;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export enum ScheduledWorkflowsOrderByField {
@@ -1115,6 +1121,12 @@ export interface CronWorkflows {
   additionalMetadata?: Record<string, any>;
   enabled: boolean;
   method: CronWorkflowsMethod;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export enum CronWorkflowsOrderByField {
