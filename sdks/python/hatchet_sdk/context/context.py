@@ -3,6 +3,7 @@ import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
+from warnings import warn
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
@@ -112,6 +113,11 @@ class Context:
         return self._task_output(task)
 
     def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+        warn(
+            "`aio_task_output` is deprecated. Use `task_output` instead.",
+            DeprecationWarning,
+        )
+
         if task.is_async_function:
             return self.task_output(task)
 
