@@ -19,6 +19,7 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId string
 			WorkflowName:       workflowVersion.WorkflowName,
 			Data:               scheduled.Input,
 			AdditionalMetadata: scheduled.AdditionalMetadata,
+			Priority:           &scheduled.Priority,
 		},
 		ExternalId: uuid.NewString(),
 		ShouldSkip: false,
