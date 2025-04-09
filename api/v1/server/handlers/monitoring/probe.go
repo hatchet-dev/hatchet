@@ -3,6 +3,7 @@ package monitoring
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"slices"
 	"strings"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"golang.org/x/exp/rand"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client"
@@ -143,7 +143,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 	streamKey := "streamKey"
-	streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
+	streamValue := fmt.Sprintf("stream-event-%d", rand.IntN(100)+1)
 	var wfrId string
 
 	err = w.RegisterWorkflow(
