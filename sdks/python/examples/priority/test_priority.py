@@ -104,7 +104,6 @@ async def test_priority(hatchet: Hatchet) -> None:
         assert curr.finished_at >= curr.started_at
 
 
-@pytest.mark.skip(reason="Skipping until priority is implemented for scheduling")
 @pytest.mark.asyncio()
 async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
