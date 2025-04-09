@@ -60,7 +60,7 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
             concurrency_workflow_level_workflow.create_bulk_run_item(
                 WorkflowInput(
                     name=(name := choice(characters)),
-                    digit=(digit := choice([str(i) for i in range(3)])),
+                    digit=(digit := choice([str(i) for i in range(6)])),
                 ),
                 options=TriggerWorkflowOptions(
                     additional_metadata={
@@ -71,7 +71,7 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
                     },
                 ),
             )
-            for _ in range(100)
+            for _ in range(200)
         ]
     )
 
