@@ -21,11 +21,9 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		return gen.ScheduledWorkflowRunCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
 	}
 
-	var priority int32
+	var priority int32 = 1
 
-	if request.Body.Priority == nil {
-		priority = 1
-	} else {
+	if request.Body.Priority != nil {
 		priority = *request.Body.Priority
 	}
 
