@@ -400,6 +400,7 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 			Valid:                         true,
 			WorkflowTriggerCronRefMethods: dbsqlc.WorkflowTriggerCronRefMethodsAPI,
 		},
+		Priority: sqlchelpers.ToInt(*opts.Priority),
 	}
 
 	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
@@ -1087,6 +1088,8 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 					String: "",
 					Valid:  true,
 				},
+				// TODO: Check this is right
+				Priority: sqlchelpers.ToInt(*opts.DefaultPriority),
 			},
 		)
 

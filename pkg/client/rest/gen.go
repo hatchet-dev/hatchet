@@ -402,6 +402,7 @@ type CreateCronWorkflowTriggerRequest struct {
 	CronExpression     string                 `json:"cronExpression"`
 	CronName           string                 `json:"cronName"`
 	Input              map[string]interface{} `json:"input"`
+	Priority           *int32                 `json:"priority,omitempty"`
 }
 
 // CreateEventRequest defines model for CreateEventRequest.
@@ -746,6 +747,7 @@ type SNSIntegration struct {
 type ScheduleWorkflowRunRequest struct {
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata"`
 	Input              map[string]interface{} `json:"input"`
+	Priority           *int32                 `json:"priority,omitempty"`
 	TriggerAt          time.Time              `json:"triggerAt"`
 }
 
