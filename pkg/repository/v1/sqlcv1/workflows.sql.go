@@ -510,6 +510,7 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "additionalMetadata",
     "id",
     "method"
+    -- Insert priority here
 ) VALUES (
     $1::uuid,
     $2::text,
@@ -518,7 +519,7 @@ INSERT INTO "WorkflowTriggerCronRef" (
     $5::jsonb,
     gen_random_uuid(),
     COALESCE($6::"WorkflowTriggerCronRefMethods", 'DEFAULT')
-) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id, method
+) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id, method, priority
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
@@ -553,6 +554,7 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 		&i.Name,
 		&i.ID,
 		&i.Method,
+		&i.Priority,
 	)
 	return &i, err
 }

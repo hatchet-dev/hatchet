@@ -1003,7 +1003,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "name" TEXT,
     "id" UUID NOT NULL,
-    "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT'
+    "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT',
+    "priority" INTEGER NOT NULL DEFAULT 1
 );
 
 -- CreateTable
@@ -1034,6 +1035,7 @@ CREATE TABLE "WorkflowTriggerScheduledRef" (
     "deletedAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "method" "WorkflowTriggerScheduledRefMethods" NOT NULL DEFAULT 'DEFAULT',
+    "priority" INTEGER NOT NULL DEFAULT 1,
     CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );
 
@@ -1786,6 +1788,17 @@ ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK (
     "priority" >= 1
     AND "priority" <= 4
 );
+
+-- Modify "WorkflowTriggerScheduledRef" table
+ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_priority_check" CHECK (
+    priority >= 1 AND priority <= 4
+);
+
+-- Modify "WorkflowTriggerCronRef" table
+ALTER TABLE "WorkflowTriggerCronRef" ADD CONSTRAINT "WorkflowTriggerCronRef_priority_check" CHECK (
+    priority >= 1 AND priority <= 4
+);
+
 
 -- Modify "InternalQueueItem" table
 ALTER TABLE "InternalQueueItem" ADD CONSTRAINT "InternalQueueItem_priority_check" CHECK (

@@ -428,6 +428,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "input",
     "additionalMetadata",
     "method"
+    -- Add priority here
 ) VALUES (
     gen_random_uuid(),
     (SELECT "id" FROM latest_version),
@@ -444,6 +445,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "triggerAt",
     "input",
     "additionalMetadata"
+    -- Add priority here
 ) VALUES (
     gen_random_uuid(),
     @workflowVersionId::uuid,
@@ -556,6 +558,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "triggerAt",
     "input",
     "additionalMetadata"
+    -- Add priority here
 ) VALUES (
     gen_random_uuid(),
     @workflowRunId::uuid,
