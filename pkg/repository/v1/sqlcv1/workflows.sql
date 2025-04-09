@@ -214,6 +214,7 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "additionalMetadata",
     "id",
     "method"
+    -- Insert priority here
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
