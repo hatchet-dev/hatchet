@@ -180,8 +180,6 @@ async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
         curr = runs_ids_started_ats[i]
         nxt = runs_ids_started_ats[i + 1]
 
-        print(curr.priority, curr.started_at)
-
         """Run start times should be in order of priority"""
         assert priority_to_int(curr.priority) >= priority_to_int(nxt.priority)
 
