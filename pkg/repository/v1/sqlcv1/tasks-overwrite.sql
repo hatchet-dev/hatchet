@@ -17,7 +17,6 @@ WITH input AS (
                 unnest(@workflowIds::uuid[]) AS workflow_id,
                 unnest(@scheduleTimeouts::text[]) AS schedule_timeout,
                 unnest(@stepTimeouts::text[]) AS step_timeout,
-                -- Need to wire the priority up from the API to here, then downstream stuff will work
                 unnest(@priorities::integer[]) AS priority,
                 unnest(cast(@stickies::text[] as v1_sticky_strategy[])) AS sticky,
                 unnest(@desiredWorkerIds::uuid[]) AS desired_worker_id,
