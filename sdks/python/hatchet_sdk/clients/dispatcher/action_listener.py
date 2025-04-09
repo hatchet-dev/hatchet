@@ -259,8 +259,11 @@ class ActionListener:
                     if listener is None:
                         continue
 
+                    def key_gen(action: AssignedAction) -> str:
+                        return action.actionId
+
                     t = asyncio.create_task(
-                        read_with_interrupt(listener, self.interrupt)
+                        read_with_interrupt(listener, self.interrupt, key_gen)
                     )
                     await self.interrupt.wait()
 
@@ -275,7 +278,7 @@ class ActionListener:
 
                         break
 
-                    assigned_action = t.result()
+                    assigned_action, _ = t.result()
 
                     if assigned_action is cygrpc.EOF:
                         self.retries = self.retries + 1

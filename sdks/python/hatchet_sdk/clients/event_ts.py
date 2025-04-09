@@ -1,5 +1,5 @@
 import asyncio
-from typing import TypeVar, cast
+from typing import Callable, TypeVar, cast
 
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
@@ -28,14 +28,16 @@ TResponse = TypeVar("TResponse")
 
 
 async def read_with_interrupt(
-    listener: grpc.aio.UnaryStreamCall[TRequest, TResponse], interrupt: ThreadSafeEvent
-) -> TResponse:
+    listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
+    interrupt: ThreadSafeEvent,
+    key_generator: Callable[[TResponse], str],
+) -> tuple[TResponse, str]:
     try:
-        result = await listener.read()
+        result = cast(TResponse, await listener.read())
 
         if result is cygrpc.EOF:
             raise ValueError("Unexpected EOF")
 
-        return cast(TResponse, result)
+        return result, key_generator(result)
     finally:
         interrupt.set()
