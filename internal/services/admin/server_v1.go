@@ -144,6 +144,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		Data:               []byte(req.Input),
 		AdditionalMetadata: []byte(additionalMeta),
 		DesiredWorkerId:    req.DesiredWorkerId,
+		Priority:           req.Priority,
 	}
 
 	if req.Priority != nil {
