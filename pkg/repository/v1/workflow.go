@@ -485,6 +485,8 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					String: "",
 					Valid:  true,
 				},
+				// TODO: check this is right
+				Priority: sqlchelpers.ToInt(*opts.DefaultPriority),
 			},
 		)
 
