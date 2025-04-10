@@ -132,7 +132,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self._workflow.schedule(
@@ -144,7 +144,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self._workflow.aio_schedule(
@@ -157,8 +157,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return self._workflow.create_cron(
             cron_name=cron_name,
@@ -171,8 +171,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return await self._workflow.aio_create_cron(
             cron_name=cron_name,

@@ -179,7 +179,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def create_bulk_run_item(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         key: str | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunTriggerConfig:
@@ -295,7 +295,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self.client._client.admin.schedule_workflow(
@@ -308,7 +308,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self.client._client.admin.aio_schedule_workflow(
@@ -322,7 +322,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return self.client.cron.create(
@@ -337,7 +337,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return await self.client.cron.aio_create(
