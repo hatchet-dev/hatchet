@@ -10,7 +10,8 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, TypeVar, get_type_hints
+from typing import Any, TypeVar
+from warnings import warn
 
 from aiohttp import web
 from aiohttp.web_request import Request
@@ -25,7 +26,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
@@ -36,6 +36,10 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
 )
 
 T = TypeVar("T")
+
+
+class LoopAlreadyRunningException(Exception):
+    pass
 
 
 class WorkerStatus(Enum):
@@ -82,8 +86,6 @@ class Worker:
         self.action_registry: dict[str, Task[Any, Any]] = {}
         self.durable_action_registry: dict[str, Task[Any, Any]] = {}
 
-        self.validator_registry: dict[str, WorkflowValidator] = {}
-
         self.killing: bool = False
         self._status: WorkerStatus
 
@@ -128,36 +130,25 @@ class Worker:
             sys.exit(1)
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
-        namespace = self.client.config.namespace
-
-        opts = workflow._get_create_opts(namespace)
-        name = workflow._get_name(namespace)
+        opts = workflow.to_proto()
+        name = workflow.name
 
         try:
             self.client.admin.put_workflow(name, opts)
         except Exception as e:
-            logger.error(
-                f"failed to register workflow: {workflow._get_name(namespace)}"
-            )
+            logger.error(f"failed to register workflow: {workflow.name}")
             logger.error(e)
             sys.exit(1)
 
         for step in workflow.tasks:
-            action_name = workflow._create_action_name(namespace, step)
+            action_name = workflow._create_action_name(step)
 
-            if workflow.is_durable:
+            if step.is_durable:
                 self.has_any_durable = True
                 self.durable_action_registry[action_name] = step
             else:
                 self.has_any_non_durable = True
                 self.action_registry[action_name] = step
-
-            return_type = get_type_hints(step.fn).get("return")
-
-            self.validator_registry[action_name] = WorkflowValidator(
-                workflow_input=workflow.config.input_validator,
-                step_output=return_type if is_basemodel_subclass(return_type) else None,
-            )
 
     def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
         for workflow in workflows:
@@ -167,21 +158,19 @@ class Worker:
     def status(self) -> WorkerStatus:
         return self._status
 
-    def _setup_loop(self, loop: asyncio.AbstractEventLoop | None = None) -> bool:
+    def _setup_loop(self) -> None:
         try:
-            self.loop = loop or asyncio.get_running_loop()
-            logger.debug("using existing event loop")
-
-            created_loop = False
+            asyncio.get_running_loop()
+            raise LoopAlreadyRunningException(
+                "An event loop is already running. This worker requires its own dedicated event loop. "
+                "Make sure you're not using asyncio.run() or other loop-creating functions in the main thread."
+            )
         except RuntimeError:
-            self.loop = asyncio.new_event_loop()
+            pass
 
-            logger.debug("creating new event loop")
-            created_loop = True
-
+        logger.debug("Creating new event loop")
+        self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-
-        return created_loop
 
     async def _health_check_handler(self, request: Request) -> Response:
         response = HealthCheckResponse(
@@ -224,7 +213,13 @@ class Worker:
         logger.info(f"healthcheck server running on port {port}")
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
-        self.owned_loop = self._setup_loop(options.loop)
+        if options.loop is not None:
+            warn(
+                "Passing a custom event loop is deprecated and will be removed in the future. This option no longer has any effect",
+                DeprecationWarning,
+            )
+
+        self._setup_loop()
 
         if not self.loop:
             raise RuntimeError("event loop not set, cannot start worker")
@@ -232,11 +227,10 @@ class Worker:
         asyncio.run_coroutine_threadsafe(self._aio_start(), self.loop)
 
         # start the loop and wait until its closed
-        if self.owned_loop:
-            self.loop.run_forever()
+        self.loop.run_forever()
 
-            if self.handle_kill:
-                sys.exit(0)
+        if self.handle_kill:
+            sys.exit(0)
 
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
@@ -281,7 +275,6 @@ class Worker:
             return WorkerActionRunLoopManager(
                 self.name + ("_durable" if is_durable else ""),
                 self.durable_action_registry if is_durable else self.action_registry,
-                self.validator_registry,
                 1_000 if is_durable else self.slots,
                 self.config,
                 self.durable_action_queue if is_durable else self.action_queue,

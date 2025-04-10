@@ -11,7 +11,6 @@ from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
-from hatchet_sdk.utils.aio import run_async_from_sync
 from hatchet_sdk.utils.typing import JSONSerializableMapping, is_basemodel_subclass
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -31,11 +30,15 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         return self.workflow_run_id
 
     async def aio_result(self) -> R:
-        result = await self._wrr.workflow_listener.aio_result(self._wrr.workflow_run_id)
+        result = await self._wrr.workflow_run_listener.aio_result(
+            self._wrr.workflow_run_id
+        )
         return self._s._extract_result(result)
 
     def result(self) -> R:
-        return run_async_from_sync(self.aio_result)
+        result = self._wrr.result()
+
+        return self._s._extract_result(result)
 
 
 class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
@@ -129,7 +132,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self._workflow.schedule(
@@ -141,7 +144,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self._workflow.aio_schedule(
@@ -154,8 +157,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return self._workflow.create_cron(
             cron_name=cron_name,
@@ -168,8 +171,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return await self._workflow.aio_create_cron(
             cron_name=cron_name,

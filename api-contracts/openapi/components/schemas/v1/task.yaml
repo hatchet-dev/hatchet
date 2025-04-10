@@ -104,7 +104,6 @@ V1TaskSummary:
       format: uuid
       description: The version ID of the workflow
   required:
-    - actionId
     - metadata
     - createdAt
     - displayName

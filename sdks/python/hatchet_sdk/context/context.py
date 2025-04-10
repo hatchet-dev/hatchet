@@ -1,47 +1,30 @@
-import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
-
-from pydantic import BaseModel
+from warnings import warn
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
 )
-from hatchet_sdk.clients.durable_event_listener import (
+from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     RegisterDurableEventRequest,
 )
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.types import R, TWorkflowInput
-
-
-DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
-
-
-def get_caller_file_path() -> str:
-    caller_frame = inspect.stack()[2]
-
-    return caller_frame.filename
-
-
-class StepRunError(BaseModel):
-    step_id: str
-    step_run_action_name: str
-    error: str
 
 
 class Context:
@@ -54,10 +37,8 @@ class Context:
         durable_event_listener: DurableEventListener | None,
         worker: WorkerContext,
         runs_client: RunsClient,
-        validator_registry: dict[str, WorkflowValidator] = {},
     ):
         self.worker = worker
-        self.validator_registry = validator_registry
 
         self.data = action.action_payload
 
@@ -85,38 +66,41 @@ class Context:
     def trigger_data(self) -> JSONSerializableMapping:
         return self.data.triggers
 
-    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def _task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
         if self.was_skipped(task):
             raise ValueError("{task.name} was skipped")
-
-        action_prefix = self.action.action_id.split(":")[0]
-
-        workflow_validator = next(
-            (
-                v
-                for k, v in self.validator_registry.items()
-                if k == f"{action_prefix}:{task.name}"
-            ),
-            None,
-        )
 
         try:
             parent_step_data = cast(R, self.data.parents[task.name])
         except KeyError:
             raise ValueError(f"Step output for '{task.name}' not found")
 
-        if (
-            parent_step_data
-            and workflow_validator
-            and (v := workflow_validator.step_output)
-        ):
+        if parent_step_data and (v := task.validators.step_output):
             return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
 
+    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+        from hatchet_sdk.runnables.types import R
+
+        ## If the task is async, we need to wrap its output in a coroutine
+        ## so that the type checker behaves right
+        async def _aio_output() -> "R":
+            return self._task_output(task)
+
+        if task.is_async_function:
+            return cast(R, _aio_output())
+
+        return self._task_output(task)
+
     def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+        warn(
+            "`aio_task_output` is deprecated. Use `task_output` instead.",
+            DeprecationWarning,
+        )
+
         if task.is_async_function:
             return self.task_output(task)
 

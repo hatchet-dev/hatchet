@@ -34,6 +34,9 @@ class V1TaskSummary(BaseModel):
     """  # noqa: E501
 
     metadata: APIResourceMeta
+    action_id: Optional[StrictStr] = Field(
+        default=None, description="The action ID of the task.", alias="actionId"
+    )
     additional_metadata: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Additional metadata for the task run.",
@@ -104,6 +107,7 @@ class V1TaskSummary(BaseModel):
     )
     __properties: ClassVar[List[str]] = [
         "metadata",
+        "actionId",
         "additionalMetadata",
         "children",
         "createdAt",
@@ -193,6 +197,7 @@ class V1TaskSummary(BaseModel):
                     if obj.get("metadata") is not None
                     else None
                 ),
+                "actionId": obj.get("actionId"),
                 "additionalMetadata": obj.get("additionalMetadata"),
                 "children": (
                     [V1TaskSummary.from_dict(_item) for _item in obj["children"]]
