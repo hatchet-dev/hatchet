@@ -51,7 +51,7 @@ class RunMetadata(BaseModel):
         return self.key
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio(loop_scope="session")
 async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
@@ -127,6 +127,10 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
 
         if not has_group_membership:
             overlapping_groups[len(overlapping_groups) + 1] = [run]
+
+    assert {s.key for s in sorted_runs} == {
+        k.key for v in overlapping_groups.values() for k in v
+    }
 
     for id, group in overlapping_groups.items():
         assert is_valid_group(group), f"Group {id} is not valid"

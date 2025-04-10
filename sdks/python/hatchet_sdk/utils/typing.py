@@ -1,8 +1,6 @@
-from typing import Any, Mapping, Type, TypeGuard, TypeVar
+from typing import Any, Mapping, Type, TypeGuard
 
 from pydantic import BaseModel
-
-T = TypeVar("T", bound=BaseModel)
 
 
 def is_basemodel_subclass(model: Any) -> TypeGuard[Type[BaseModel]]:
@@ -12,7 +10,7 @@ def is_basemodel_subclass(model: Any) -> TypeGuard[Type[BaseModel]]:
         return False
 
 
-class WorkflowValidator(BaseModel):
+class TaskIOValidator(BaseModel):
     workflow_input: Type[BaseModel] | None = None
     step_output: Type[BaseModel] | None = None
 

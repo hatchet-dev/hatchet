@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Generic, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, Generic, cast
 
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel
@@ -12,10 +12,7 @@ from hatchet_sdk.clients.admin import (
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
 from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
-    Concurrency,
-    CreateTaskOpts,
     CreateWorkflowVersionRequest,
     DesiredWorkerLabels,
 )
@@ -36,16 +33,9 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import JSONSerializableMapping
-from hatchet_sdk.waits import (
-    Action,
-    Condition,
-    OrGroup,
-    ParentCondition,
-    SleepCondition,
-    UserEventCondition,
-)
+from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -78,16 +68,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self._on_success_task: Task[TWorkflowInput, Any] | None = None
         self.client = client
 
-    def _get_service_name(self, namespace: str) -> str:
-        return f"{namespace}{self.config.name.lower()}"
+    @property
+    def service_name(self) -> str:
+        return f"{self.client.config.namespace}{self.config.name.lower()}"
 
-    def _create_action_name(
-        self, namespace: str, step: Task[TWorkflowInput, Any]
-    ) -> str:
-        return self._get_service_name(namespace) + ":" + step.name
-
-    def _get_name(self, namespace: str) -> str:
-        return namespace + self.config.name
+    def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
+        return self.service_name + ":" + step.name
 
     def _raise_for_invalid_concurrency(
         self, concurrency: ConcurrencyExpression
@@ -106,58 +92,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return True
 
-    @overload
-    def _concurrency_to_proto(self, concurrency: None) -> None: ...
-
-    @overload
-    def _concurrency_to_proto(
-        self, concurrency: ConcurrencyExpression
-    ) -> Concurrency: ...
-
-    def _concurrency_to_proto(
-        self, concurrency: ConcurrencyExpression | None
-    ) -> Concurrency | None:
-        if not concurrency:
-            return None
-
-        self._raise_for_invalid_concurrency(concurrency)
-
-        return Concurrency(
-            expression=concurrency.expression,
-            max_runs=concurrency.max_runs,
-            limit_strategy=concurrency.limit_strategy,
-        )
-
-    @overload
-    def _validate_task(
-        self, task: "Task[TWorkflowInput, R]", service_name: str
-    ) -> CreateTaskOpts: ...
-
-    @overload
-    def _validate_task(self, task: None, service_name: str) -> None: ...
-
-    def _validate_task(
-        self, task: Union["Task[TWorkflowInput, R]", None], service_name: str
-    ) -> CreateTaskOpts | None:
-        if not task:
-            return None
-
-        return CreateTaskOpts(
-            readable_id=task.name,
-            action=service_name + ":" + task.name,
-            timeout=timedelta_to_expr(task.execution_timeout),
-            inputs="{}",
-            parents=[p.name for p in task.parents],
-            retries=task.retries,
-            rate_limits=task.rate_limits,
-            worker_labels=task.desired_worker_labels,
-            backoff_factor=task.backoff_factor,
-            backoff_max_seconds=task.backoff_max_seconds,
-            concurrency=[self._concurrency_to_proto(t) for t in task.concurrency],
-            conditions=self._conditions_to_proto(task),
-            schedule_timeout=timedelta_to_expr(task.schedule_timeout),
-        )
-
     def _validate_priority(self, default_priority: int | None) -> int | None:
         validated_priority = (
             max(1, min(3, default_priority)) if default_priority else None
@@ -169,51 +103,14 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         return validated_priority
 
-    def _assign_action(self, condition: Condition, action: Action) -> Condition:
-        condition.base.action = action
-
-        return condition
-
-    def _conditions_to_proto(self, task: Task[TWorkflowInput, Any]) -> TaskConditions:
-        wait_for_conditions = [
-            self._assign_action(w, Action.QUEUE) for w in task.wait_for
-        ]
-
-        cancel_if_conditions = [
-            self._assign_action(c, Action.CANCEL) for c in task.cancel_if
-        ]
-        skip_if_conditions = [self._assign_action(s, Action.SKIP) for s in task.skip_if]
-
-        conditions = wait_for_conditions + cancel_if_conditions + skip_if_conditions
-
-        if len({c.base.readable_data_key for c in conditions}) != len(
-            [c.base.readable_data_key for c in conditions]
-        ):
-            raise ValueError("Conditions must have unique readable data keys.")
-
-        user_events = [
-            c.to_pb() for c in conditions if isinstance(c, UserEventCondition)
-        ]
-        parent_overrides = [
-            c.to_pb() for c in conditions if isinstance(c, ParentCondition)
-        ]
-        sleep_conditions = [
-            c.to_pb() for c in conditions if isinstance(c, SleepCondition)
-        ]
-
-        return TaskConditions(
-            parent_override_conditions=parent_overrides,
-            sleep_conditions=sleep_conditions,
-            user_event_conditions=user_events,
-        )
-
     def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
         return not any(task in t.parents for t in self.tasks if task != t)
 
-    def _get_create_opts(self, namespace: str) -> CreateWorkflowVersionRequest:
-        service_name = self._get_service_name(namespace)
+    def to_proto(self) -> CreateWorkflowVersionRequest:
+        namespace = self.client.config.namespace
+        service_name = self.service_name
 
-        name = self._get_name(namespace)
+        name = self.name
         event_triggers = [namespace + event for event in self.config.on_events]
 
         if self._on_success_task:
@@ -223,10 +120,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 if task.type == StepType.DEFAULT and self._is_leaf_task(task)
             ]
 
-        on_success_task = self._validate_task(self._on_success_task, service_name)
+        on_success_task = (
+            t.to_proto(service_name) if (t := self._on_success_task) else None
+        )
 
         tasks = [
-            self._validate_task(task, service_name)
+            task.to_proto(service_name)
             for task in self.tasks
             if task.type == StepType.DEFAULT
         ]
@@ -234,7 +133,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         if on_success_task:
             tasks += [on_success_task]
 
-        on_failure_task = self._validate_task(self._on_failure_task, service_name)
+        on_failure_task = (
+            t.to_proto(service_name) if (t := self._on_failure_task) else None
+        )
 
         return CreateWorkflowVersionRequest(
             name=name,
@@ -243,11 +144,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
             tasks=tasks,
-            concurrency=(
-                self._concurrency_to_proto(self.config.concurrency)
-                if isinstance(self.config.concurrency, ConcurrencyExpression)
-                else None
-            ),
+            concurrency=(c.to_proto() if (c := self.config.concurrency) else None),
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_task,
@@ -283,19 +180,30 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @property
     def name(self) -> str:
-        return self._get_name(self.client.config.namespace)
+        return self.client.config.namespace + self.config.name
 
     def create_bulk_run_item(
         self,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         key: str | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunTriggerConfig:
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=self._serialize_input(input),
             options=options,
             key=key,
+        )
+
+    def _serialize_input(self, input: TWorkflowInput | None) -> JSONSerializableMapping:
+        if not input:
+            return {}
+
+        if isinstance(input, BaseModel):
+            return input.model_dump(mode="json")
+
+        raise ValueError(
+            f"Input must be a BaseModel or `None`, got {type(input)} instead."
         )
 
 
@@ -312,7 +220,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> WorkflowRunRef:
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -323,7 +231,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> dict[str, Any]:
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -336,7 +244,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> WorkflowRunRef:
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -347,7 +255,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> dict[str, Any]:
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -392,26 +300,26 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput | None = None,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return self.client._client.admin.schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=input.model_dump() if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=input.model_dump(),
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -419,14 +327,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return self.client.cron.create(
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=input.model_dump(),
+            input=self._serialize_input(input),
             additional_metadata=additional_metadata,
         )
 
@@ -434,14 +342,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return await self.client.cron.aio_create(
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=input.model_dump(),
+            input=self._serialize_input(input),
             additional_metadata=additional_metadata,
         )
 

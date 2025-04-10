@@ -8,7 +8,6 @@ from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.utils.typing import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import capture_logs
@@ -24,7 +23,6 @@ class WorkerActionRunLoopManager:
         self,
         name: str,
         action_registry: dict[str, Task[Any, Any]],
-        validator_registry: dict[str, WorkflowValidator],
         slots: int | None,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
@@ -36,7 +34,6 @@ class WorkerActionRunLoopManager:
     ) -> None:
         self.name = name
         self.action_registry = action_registry
-        self.validator_registry = validator_registry
         self.slots = slots
         self.config = config
         self.action_queue = action_queue
@@ -55,17 +52,17 @@ class WorkerActionRunLoopManager:
         self.client = Client(config=self.config, debug=self.debug)
         self.start()
 
-    def start(self, retry_count: int = 1) -> None:
-        k = self.loop.create_task(self.aio_start(retry_count))  # noqa: F841
+    def start(self) -> None:
+        k = self.loop.create_task(self.aio_start())  # noqa: F841
 
     async def aio_start(self, retry_count: int = 1) -> None:
         await capture_logs(
             self.client.log_interceptor,
             self.client.event,
             self._async_start,
-        )(retry_count=retry_count)
+        )()
 
-    async def _async_start(self, retry_count: int = 1) -> None:
+    async def _async_start(self) -> None:
         logger.info("starting runner...")
         self.loop = asyncio.get_running_loop()
         # needed for graceful termination
@@ -88,7 +85,6 @@ class WorkerActionRunLoopManager:
             self.slots,
             self.handle_kill,
             self.action_registry,
-            self.validator_registry,
             self.labels,
         )
 

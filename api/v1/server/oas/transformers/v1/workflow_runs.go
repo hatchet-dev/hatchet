@@ -88,7 +88,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		Type:               gen.V1WorkflowTypeDAG,
 		WorkflowName:       workflowName,
 		StepId:             &stepId,
-		ActionId:           actionId,
+		ActionId:           &actionId,
 	}
 }
 
@@ -189,7 +189,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 		Type:               gen.V1WorkflowTypeTASK,
 		WorkflowName:       workflowName,
 		StepId:             &stepId,
-		ActionId:           task.ActionID,
+		ActionId:           &task.ActionID,
 	}
 }
 

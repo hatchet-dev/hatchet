@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -51,6 +52,13 @@ class ConcurrencyExpression(BaseModel):
     expression: str
     max_runs: int
     limit_strategy: ConcurrencyLimitStrategy
+
+    def to_proto(self) -> Concurrency:
+        return Concurrency(
+            expression=self.expression,
+            max_runs=self.max_runs,
+            limit_strategy=self.limit_strategy,
+        )
 
 
 TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)

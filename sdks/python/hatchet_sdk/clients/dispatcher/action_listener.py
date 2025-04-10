@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.clients.events import proto_timestamp_now
-from hatchet_sdk.clients.run_event_listener import (
+from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
 from hatchet_sdk.config import ClientConfig
@@ -275,7 +275,7 @@ class ActionListener:
 
                         break
 
-                    assigned_action = t.result()
+                    assigned_action, _ = t.result()
 
                     if assigned_action is cygrpc.EOF:
                         self.retries = self.retries + 1

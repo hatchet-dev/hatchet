@@ -37,7 +37,7 @@ class BaseCondition(BaseModel):
     or_group_id: str = Field(default_factory=generate_or_group_id)
     expression: str | None = None
 
-    def to_pb(self) -> BaseMatchCondition:
+    def to_proto(self) -> BaseMatchCondition:
         return BaseMatchCondition(
             readable_data_key=self.readable_data_key,
             action=convert_python_enum_to_proto(self.action, ProtoAction),  # type: ignore[arg-type]
@@ -51,7 +51,7 @@ class Condition(ABC):
         self.base = base
 
     @abstractmethod
-    def to_pb(
+    def to_proto(
         self,
     ) -> UserEventMatchCondition | ParentOverrideMatchCondition | SleepMatchCondition:
         pass
@@ -67,9 +67,9 @@ class SleepCondition(Condition):
 
         self.duration = duration
 
-    def to_pb(self) -> SleepMatchCondition:
+    def to_proto(self) -> SleepMatchCondition:
         return SleepMatchCondition(
-            base=self.base.to_pb(),
+            base=self.base.to_proto(),
             sleep_for=timedelta_to_expr(self.duration),
         )
 
@@ -86,9 +86,9 @@ class UserEventCondition(Condition):
         self.event_key = event_key
         self.expression = expression
 
-    def to_pb(self) -> UserEventMatchCondition:
+    def to_proto(self) -> UserEventMatchCondition:
         return UserEventMatchCondition(
-            base=self.base.to_pb(),
+            base=self.base.to_proto(),
             user_event_key=self.event_key,
         )
 
@@ -103,9 +103,9 @@ class ParentCondition(Condition):
 
         self.parent = parent
 
-    def to_pb(self) -> ParentOverrideMatchCondition:
+    def to_proto(self) -> ParentOverrideMatchCondition:
         return ParentOverrideMatchCondition(
-            base=self.base.to_pb(),
+            base=self.base.to_proto(),
             parent_readable_id=self.parent.name,
         )
 
