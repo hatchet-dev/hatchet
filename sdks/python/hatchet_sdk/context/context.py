@@ -1,22 +1,20 @@
-import inspect
 import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, cast
-
-from pydantic import BaseModel
+from warnings import warn
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
     Action,
     DispatcherClient,
 )
-from hatchet_sdk.clients.durable_event_listener import (
+from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     RegisterDurableEventRequest,
 )
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
@@ -27,21 +25,6 @@ from hatchet_sdk.waits import SleepCondition, UserEventCondition
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
     from hatchet_sdk.runnables.types import R, TWorkflowInput
-
-
-DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
-
-
-def get_caller_file_path() -> str:
-    caller_frame = inspect.stack()[2]
-
-    return caller_frame.filename
-
-
-class StepRunError(BaseModel):
-    step_id: str
-    step_run_action_name: str
-    error: str
 
 
 class Context:
@@ -85,7 +68,7 @@ class Context:
     def trigger_data(self) -> JSONSerializableMapping:
         return self.data.triggers
 
-    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def _task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
         if self.was_skipped(task):
@@ -116,7 +99,25 @@ class Context:
 
         return parent_step_data
 
+    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+        from hatchet_sdk.runnables.types import R
+
+        ## If the task is async, we need to wrap its output in a coroutine
+        ## so that the type checker behaves right
+        async def _aio_output() -> "R":
+            return self._task_output(task)
+
+        if task.is_async_function:
+            return cast(R, _aio_output())
+
+        return self._task_output(task)
+
     def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+        warn(
+            "`aio_task_output` is deprecated. Use `task_output` instead.",
+            DeprecationWarning,
+        )
+
         if task.is_async_function:
             return self.task_output(task)
 

@@ -57,7 +57,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -93,6 +93,7 @@ jobs:
           export SERVER_URL=http://localhost:8080
           export SERVER_AUTH_COOKIE_DOMAIN=localhost
           export SERVER_AUTH_COOKIE_INSECURE=true
+          export SERVER_DEFAULT_ENGINE_VERSION=V1
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -135,7 +136,7 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --capture=no -n 5 --timeout 120 --retries 5 --retry-delay 5
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 5 --retry-delay 2
 
       - name: Upload engine logs
         if: always()

@@ -10,7 +10,9 @@ from typing import (
 )
 
 from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    CreateTaskOpts,
     CreateTaskRateLimit,
     DesiredWorkerLabels,
 )
@@ -25,8 +27,15 @@ from hatchet_sdk.runnables.types import (
     is_durable_sync_fn,
     is_sync_fn,
 )
-from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.waits import Condition, OrGroup
+from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.waits import (
+    Action,
+    Condition,
+    OrGroup,
+    ParentCondition,
+    SleepCondition,
+    UserEventCondition,
+)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.workflow import Workflow
@@ -142,3 +151,58 @@ class Task(Generic[TWorkflowInput, R]):
             return await self.fn(workflow_input, cast(Context, ctx))  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
+
+    def to_proto(self, service_name: str) -> CreateTaskOpts:
+        return CreateTaskOpts(
+            readable_id=self.name,
+            action=service_name + ":" + self.name,
+            timeout=timedelta_to_expr(self.execution_timeout),
+            inputs="{}",
+            parents=[p.name for p in self.parents],
+            retries=self.retries,
+            rate_limits=self.rate_limits,
+            worker_labels=self.desired_worker_labels,
+            backoff_factor=self.backoff_factor,
+            backoff_max_seconds=self.backoff_max_seconds,
+            concurrency=[t.to_proto() for t in self.concurrency],
+            conditions=self._conditions_to_proto(),
+            schedule_timeout=timedelta_to_expr(self.schedule_timeout),
+        )
+
+    def _assign_action(self, condition: Condition, action: Action) -> Condition:
+        condition.base.action = action
+
+        return condition
+
+    def _conditions_to_proto(self) -> TaskConditions:
+        wait_for_conditions = [
+            self._assign_action(w, Action.QUEUE) for w in self.wait_for
+        ]
+
+        cancel_if_conditions = [
+            self._assign_action(c, Action.CANCEL) for c in self.cancel_if
+        ]
+        skip_if_conditions = [self._assign_action(s, Action.SKIP) for s in self.skip_if]
+
+        conditions = wait_for_conditions + cancel_if_conditions + skip_if_conditions
+
+        if len({c.base.readable_data_key for c in conditions}) != len(
+            [c.base.readable_data_key for c in conditions]
+        ):
+            raise ValueError("Conditions must have unique readable data keys.")
+
+        user_events = [
+            c.to_proto() for c in conditions if isinstance(c, UserEventCondition)
+        ]
+        parent_overrides = [
+            c.to_proto() for c in conditions if isinstance(c, ParentCondition)
+        ]
+        sleep_conditions = [
+            c.to_proto() for c in conditions if isinstance(c, SleepCondition)
+        ]
+
+        return TaskConditions(
+            parent_override_conditions=parent_overrides,
+            sleep_conditions=sleep_conditions,
+            user_event_conditions=user_events,
+        )

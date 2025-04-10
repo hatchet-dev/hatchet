@@ -55,17 +55,17 @@ class WorkerActionRunLoopManager:
         self.client = Client(config=self.config, debug=self.debug)
         self.start()
 
-    def start(self, retry_count: int = 1) -> None:
-        k = self.loop.create_task(self.aio_start(retry_count))  # noqa: F841
+    def start(self) -> None:
+        k = self.loop.create_task(self.aio_start())  # noqa: F841
 
     async def aio_start(self, retry_count: int = 1) -> None:
         await capture_logs(
             self.client.log_interceptor,
             self.client.event,
             self._async_start,
-        )(retry_count=retry_count)
+        )()
 
-    async def _async_start(self, retry_count: int = 1) -> None:
+    async def _async_start(self) -> None:
         logger.info("starting runner...")
         self.loop = asyncio.get_running_loop()
         # needed for graceful termination

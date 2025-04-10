@@ -7,6 +7,8 @@ import grpc
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -14,6 +16,7 @@ from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
@@ -64,13 +67,30 @@ class DedupeViolationErr(Exception):
 
 
 class AdminClient:
-    def __init__(self, config: ClientConfig):
-        conn = new_conn(config, False)
+    def __init__(
+        self,
+        config: ClientConfig,
+        workflow_run_listener: PooledWorkflowRunListener,
+        workflow_run_event_listener: RunEventListenerClient,
+        runs_client: RunsClient,
+    ):
         self.config = config
-        self.client = AdminServiceStub(conn)
-        self.v0_client = WorkflowServiceStub(conn)
+        self.runs_client = runs_client
         self.token = config.token
         self.namespace = config.namespace
+
+        self.workflow_run_listener = workflow_run_listener
+        self.workflow_run_event_listener = workflow_run_event_listener
+
+        self.client: AdminServiceStub | None = None
+        self.v0_client: WorkflowServiceStub | None = None
+
+    def _get_or_create_v0_client(self) -> WorkflowServiceStub:
+        if self.v0_client is None:
+            conn = new_conn(self.config, False)
+            self.v0_client = WorkflowServiceStub(conn)
+
+        return self.v0_client
 
     class TriggerWorkflowRequest(BaseModel):
         model_config = ConfigDict(extra="ignore")
@@ -207,6 +227,10 @@ class AdminClient:
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         opts = self._prepare_put_workflow_request(name, workflow, overrides)
 
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = AdminServiceStub(conn)
+
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
             self.client.PutWorkflow(
@@ -226,7 +250,9 @@ class AdminClient:
             duration, workflow_protos.RateLimitDuration
         )
 
-        self.v0_client.PutRateLimit(
+        client = self._get_or_create_v0_client()
+
+        client.PutRateLimit(
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
@@ -253,9 +279,11 @@ class AdminClient:
                 name, schedules, input, options
             )
 
+            client = self._get_or_create_v0_client()
+
             return cast(
                 v0_workflow_protos.WorkflowVersion,
-                self.v0_client.ScheduleWorkflow(
+                client.ScheduleWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -314,11 +342,12 @@ class AdminClient:
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
+        client = self._get_or_create_v0_client()
 
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
-                self.v0_client.TriggerWorkflow(
+                client.TriggerWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -330,7 +359,9 @@ class AdminClient:
 
         return WorkflowRunRef(
             workflow_run_id=resp.workflow_run_id,
-            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_run_listener,
+            runs_client=self.runs_client,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -341,13 +372,14 @@ class AdminClient:
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
+        client = self._get_or_create_v0_client()
         async with spawn_index_lock:
             request = self._create_workflow_run_request(workflow_name, input, options)
 
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
-                self.v0_client.TriggerWorkflow(
+                client.TriggerWorkflow(
                     request,
                     metadata=get_metadata(self.token),
                 ),
@@ -359,8 +391,10 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
+            runs_client=self.runs_client,
             workflow_run_id=resp.workflow_run_id,
-            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_run_listener,
         )
 
     def chunk(self, xs: list[T], n: int) -> Generator[list[T], None, None]:
@@ -373,6 +407,7 @@ class AdminClient:
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
+        client = self._get_or_create_v0_client()
         bulk_workflows = [
             self._create_workflow_run_request(
                 workflow.workflow_name, workflow.input, workflow.options
@@ -389,7 +424,7 @@ class AdminClient:
 
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
-                self.v0_client.BulkTriggerWorkflow(
+                client.BulkTriggerWorkflow(
                     bulk_request,
                     metadata=get_metadata(self.token),
                 ),
@@ -399,7 +434,9 @@ class AdminClient:
                 [
                     WorkflowRunRef(
                         workflow_run_id=workflow_run_id,
-                        config=self.config,
+                        workflow_run_event_listener=self.workflow_run_event_listener,
+                        workflow_run_listener=self.workflow_run_listener,
+                        runs_client=self.runs_client,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -412,6 +449,7 @@ class AdminClient:
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
+        client = self._get_or_create_v0_client()
         chunks = self.chunk(workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE)
         refs: list[WorkflowRunRef] = []
 
@@ -430,7 +468,7 @@ class AdminClient:
 
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
-                self.v0_client.BulkTriggerWorkflow(
+                client.BulkTriggerWorkflow(
                     bulk_request,
                     metadata=get_metadata(self.token),
                 ),
@@ -440,7 +478,9 @@ class AdminClient:
                 [
                     WorkflowRunRef(
                         workflow_run_id=workflow_run_id,
-                        config=self.config,
+                        workflow_run_event_listener=self.workflow_run_event_listener,
+                        workflow_run_listener=self.workflow_run_listener,
+                        runs_client=self.runs_client,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -450,6 +490,8 @@ class AdminClient:
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
         return WorkflowRunRef(
+            runs_client=self.runs_client,
             workflow_run_id=workflow_run_id,
-            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_run_listener,
         )

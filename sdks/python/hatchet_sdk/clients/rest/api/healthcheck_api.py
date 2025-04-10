@@ -35,7 +35,7 @@ class HealthcheckApi:
         self.api_client = api_client
 
     @validate_call
-    async def liveness_get(
+    def liveness_get(
         self,
         _request_timeout: Union[
             None,
@@ -86,17 +86,17 @@ class HealthcheckApi:
             "200": None,
             "500": None,
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def liveness_get_with_http_info(
+    def liveness_get_with_http_info(
         self,
         _request_timeout: Union[
             None,
@@ -147,17 +147,17 @@ class HealthcheckApi:
             "200": None,
             "500": None,
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def liveness_get_without_preload_content(
+    def liveness_get_without_preload_content(
         self,
         _request_timeout: Union[
             None,
@@ -208,7 +208,7 @@ class HealthcheckApi:
             "200": None,
             "500": None,
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -259,7 +259,7 @@ class HealthcheckApi:
         )
 
     @validate_call
-    async def readiness_get(
+    def readiness_get(
         self,
         _request_timeout: Union[
             None,
@@ -310,17 +310,17 @@ class HealthcheckApi:
             "200": None,
             "500": None,
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def readiness_get_with_http_info(
+    def readiness_get_with_http_info(
         self,
         _request_timeout: Union[
             None,
@@ -371,17 +371,17 @@ class HealthcheckApi:
             "200": None,
             "500": None,
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def readiness_get_without_preload_content(
+    def readiness_get_without_preload_content(
         self,
         _request_timeout: Union[
             None,
@@ -432,7 +432,7 @@ class HealthcheckApi:
             "200": None,
             "500": None,
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
