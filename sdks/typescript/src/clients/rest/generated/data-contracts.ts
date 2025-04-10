@@ -366,7 +366,7 @@ export interface TenantQueueMetrics {
 }
 
 export interface TenantStepRunQueueMetrics {
-  queues?: Record<string, number>;
+  queues?: object;
 }
 
 export interface AcceptInviteRequest {
@@ -794,6 +794,12 @@ export interface ScheduledWorkflows {
    */
   workflowRunId?: string;
   method: 'DEFAULT' | 'API';
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface ScheduledWorkflowsList {
@@ -828,6 +834,12 @@ export interface CronWorkflows {
   additionalMetadata?: Record<string, any>;
   enabled: boolean;
   method: 'DEFAULT' | 'API';
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface CronWorkflowsList {
@@ -1221,6 +1233,12 @@ export interface ScheduleWorkflowRunRequest {
   additionalMetadata: object;
   /** @format date-time */
   triggerAt: string;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface CreateCronWorkflowTriggerRequest {
@@ -1228,6 +1246,12 @@ export interface CreateCronWorkflowTriggerRequest {
   additionalMetadata: object;
   cronName: string;
   cronExpression: string;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface CreatePullRequestFromStepRun {
@@ -1432,6 +1456,8 @@ export interface V1WorkflowRunDisplayNameList {
 
 export interface V1TaskSummary {
   metadata: APIResourceMeta;
+  /** The action ID of the task. */
+  actionId: string;
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
@@ -1645,6 +1671,12 @@ export interface V1WorkflowRun {
    * @format date-time
    */
   createdAt?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentTaskExternalId?: string;
 }
 
 export interface V1WorkflowRunDetails {
