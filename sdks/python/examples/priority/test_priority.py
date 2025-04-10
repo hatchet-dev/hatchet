@@ -1,10 +1,11 @@
 import asyncio
 from datetime import datetime, timedelta
 from random import choice
-from typing import Literal
+from typing import AsyncGenerator, Literal
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 from pydantic import BaseModel
 
 from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
@@ -175,6 +176,105 @@ async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
     )
 
     assert len(runs_ids_started_ats) == len(versions)
+
+    for i in range(len(runs_ids_started_ats) - 1):
+        curr = runs_ids_started_ats[i]
+        nxt = runs_ids_started_ats[i + 1]
+
+        """Run start times should be in order of priority"""
+        assert priority_to_int(curr.priority) >= priority_to_int(nxt.priority)
+
+        """Runs should proceed one at a time"""
+        assert curr.finished_at <= nxt.finished_at
+        assert nxt.finished_at >= nxt.started_at
+
+        """Runs should finish after starting (this is mostly a test for engine datetime handling bugs)"""
+        assert curr.finished_at >= curr.started_at
+
+
+@pytest_asyncio.fixture(loop_scope="session", scope="session")
+async def crons(hatchet: Hatchet) -> AsyncGenerator[tuple[str, str, int], None]:
+    test_run_id = str(uuid4())
+    choices: list[Priority] = ["low", "medium", "high"]
+    n = 100
+
+    crons = await asyncio.gather(
+        *[
+            hatchet.cron.aio_create(
+                workflow_name=priority_workflow.name,
+                cron_name=f"{test_run_id}-cron-{i}",
+                expression="* * * * *",
+                input={},
+                additional_metadata={
+                    "trigger": "cron",
+                    "test_run_id": test_run_id,
+                    "priority": (priority := choice(choices)),
+                    "key": str(i),
+                },
+                priority=(priority_to_int(priority)),
+            )
+            for i in range(n)
+        ]
+    )
+
+    yield crons[0].workflow_id, test_run_id, n
+
+    await asyncio.gather(*[hatchet.cron.aio_delete(cron.metadata.id) for cron in crons])
+
+
+def time_until_next_minute() -> float:
+    now = datetime.now()
+    next_minute = now.replace(second=0, microsecond=0, minute=now.minute + 1)
+
+    return (next_minute - now).total_seconds()
+
+
+@pytest.mark.asyncio()
+async def test_priority_via_cron(hatchet: Hatchet, crons: tuple[str, str, int]) -> None:
+    workflow_id, test_run_id, n = crons
+
+    await asyncio.sleep(time_until_next_minute() + 10)
+
+    attempts = 0
+
+    while True:
+        if attempts >= SLEEP_TIME * n * 2:
+            raise TimeoutError("Timed out waiting for runs to finish")
+
+        attempts += 1
+        await asyncio.sleep(1)
+        runs = await hatchet.runs.aio_list(
+            workflow_ids=[workflow_id],
+            additional_metadata={
+                "test_run_id": test_run_id,
+            },
+            limit=1_000,
+        )
+
+        if not runs.rows:
+            continue
+
+        if any(
+            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
+        ):
+            raise ValueError("One or more runs failed or were cancelled")
+
+        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+            break
+
+    runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
+        [
+            RunPriorityStartedAt(
+                priority=(r.additional_metadata or {}).get("priority") or "low",
+                started_at=r.started_at or datetime.min,
+                finished_at=r.finished_at or datetime.min,
+            )
+            for r in runs.rows
+        ],
+        key=lambda x: x.started_at,
+    )
+
+    assert len(runs_ids_started_ats) == n
 
     for i in range(len(runs_ids_started_ats) - 1):
         curr = runs_ids_started_ats[i]
