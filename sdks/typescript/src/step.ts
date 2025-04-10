@@ -608,7 +608,16 @@ export class Context<T, K = {}> {
   }
 
   priority(): Priority | undefined {
-    throw new Error('not implemented');
+    switch (this.action.priority) {
+      case 1:
+        return Priority.LOW;
+      case 2:
+        return Priority.MEDIUM;
+      case 3:
+        return Priority.HIGH;
+      default:
+        return undefined;
+    }
   }
 }
 
