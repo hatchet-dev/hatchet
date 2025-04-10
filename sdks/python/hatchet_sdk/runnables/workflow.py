@@ -284,7 +284,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     ) -> WorkflowRunTriggerConfig:
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=input.model_dump(mode="json") if input else {},
             options=options,
             key=key,
         )
@@ -303,7 +303,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> WorkflowRunRef:
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=input.model_dump(mode="json") if input else {},
             options=options,
         )
 
@@ -314,7 +314,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> dict[str, Any]:
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=input.model_dump(mode="json") if input else {},
             options=options,
         )
 
@@ -327,7 +327,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> WorkflowRunRef:
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=input.model_dump(mode="json") if input else {},
             options=options,
         )
 
@@ -338,7 +338,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> dict[str, Any]:
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump() if input else {},
+            input=input.model_dump(mode="json") if input else {},
             options=options,
         )
 
@@ -389,7 +389,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         return self.client._client.admin.schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=input.model_dump() if input else {},
+            input=input.model_dump(mode="json") if input else {},
             options=options,
         )
 
@@ -402,7 +402,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=input.model_dump(),
+            input=input.model_dump(mode="json"),
             options=options,
         )
 
@@ -417,7 +417,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=input.model_dump(),
+            input=input.model_dump(mode="json"),
             additional_metadata=additional_metadata,
         )
 
@@ -432,7 +432,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=input.model_dump(),
+            input=input.model_dump(mode="json"),
             additional_metadata=additional_metadata,
         )
 
