@@ -10,7 +10,7 @@ def is_basemodel_subclass(model: Any) -> TypeGuard[Type[BaseModel]]:
         return False
 
 
-class WorkflowValidator(BaseModel):
+class TaskIOValidator(BaseModel):
     workflow_input: Type[BaseModel] | None = None
     step_output: Type[BaseModel] | None = None
 
