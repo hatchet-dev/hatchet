@@ -73,6 +73,8 @@ func (worker *subscribedWorker) StartStepRun(
 		StepName:      stepName,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
 		RetryCount:    stepRun.SRRetryCount,
+		// NOTE: This is the default because this method is unused
+		Priority: 1,
 	}
 
 	if stepRunData.AdditionalMetadata != nil {
@@ -128,6 +130,7 @@ func (worker *subscribedWorker) StartStepRunFromBulk(
 		StepName:      stepName,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
 		RetryCount:    stepRun.SRRetryCount,
+		Priority:      stepRun.Priority,
 	}
 
 	if stepRun.AdditionalMetadata != nil {

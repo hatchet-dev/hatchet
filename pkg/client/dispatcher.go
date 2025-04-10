@@ -114,6 +114,8 @@ type Action struct {
 
 	// the parent workflow run id
 	ParentWorkflowRunId *string
+
+	Priority int32 `json:"priority,omitempty"`
 }
 
 type WorkerActionListener interface {

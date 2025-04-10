@@ -105,6 +105,8 @@ class Action(BaseModel):
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
+    priority: int
+
     def _dump_payload_to_str(self) -> str:
         try:
             return json.dumps(self.action_payload.model_dump(), default=str)
@@ -320,6 +322,7 @@ class ActionListener:
                         child_workflow_index=assigned_action.child_workflow_index,
                         child_workflow_key=assigned_action.child_workflow_key,
                         parent_workflow_run_id=assigned_action.parent_workflow_run_id,
+                        priority=assigned_action.priority,
                     )
 
                     yield action
