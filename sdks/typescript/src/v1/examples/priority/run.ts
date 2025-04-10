@@ -1,4 +1,4 @@
-import { Priority } from '@hatchet/v1/task';
+import { Priority } from '@hatchet/v1';
 import { priority } from './workflow';
 
 /* eslint-disable no-console */

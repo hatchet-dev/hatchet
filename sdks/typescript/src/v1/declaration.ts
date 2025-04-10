@@ -14,13 +14,19 @@ import {
   CreateWorkflowDurableTaskOpts,
   CreateBaseTaskOpts,
   CreateOnSuccessTaskOpts,
-  Priority,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
+
+// eslint-disable-next-line no-shadow
+export enum Priority {
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+}
 
 /**
  * Additional metadata that can be attached to a workflow run.
@@ -98,6 +104,12 @@ export type CreateBaseWorkflowOpts = {
   onEvents?: string[];
 
   concurrency?: TaskConcurrency;
+
+  /**
+   * (optional) the priority for the workflow.
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  defaultPriority?: Priority;
 };
 
 export type CreateTaskWorkflowOpts<
@@ -113,12 +125,6 @@ export type CreateWorkflowOpts = CreateBaseWorkflowOpts & {
    * (optional) default configuration for all tasks in the workflow.
    */
   taskDefaults?: TaskDefaults;
-
-  /**
-   * (optional) the default priority for tasks.
-   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
-   */
-  defaultPriority?: Priority;
 };
 
 /**

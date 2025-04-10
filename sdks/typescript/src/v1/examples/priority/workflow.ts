@@ -22,7 +22,6 @@ export const priorityWf = hatchet.workflow({
 
 priorityWf.task({
   name: 'child-medium',
-  defaultPriority: Priority.MEDIUM,
   fn: async (_, ctx) => {
     return {
       priority: ctx.priority(),
