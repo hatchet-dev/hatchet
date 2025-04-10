@@ -53,6 +53,13 @@ export type DurableTaskFn<
   O extends OutputType = void,
 > = TaskFn<I, O, DurableContext<I>>;
 
+// eslint-disable-next-line no-shadow
+export enum Priority {
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+}
+
 /**
  * Options for creating a hatchet task which is an atomic unit of work in a workflow.
  * @template I The input type for the task function.
@@ -131,6 +138,12 @@ export type CreateBaseTaskOpts<
    * (optional) the concurrency options for the task
    */
   concurrency?: TaskConcurrency | TaskConcurrency[];
+
+  /**
+   * (optional) the default priority for the workflow.
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  defaultPriority?: Priority;
 };
 
 export type CreateWorkflowTaskOpts<

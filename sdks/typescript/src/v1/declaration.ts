@@ -14,6 +14,7 @@ import {
   CreateWorkflowDurableTaskOpts,
   CreateBaseTaskOpts,
   CreateOnSuccessTaskOpts,
+  Priority,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -31,9 +32,16 @@ type AdditionalMetadata = Record<string, string>;
  */
 export type RunOpts = {
   /**
-   * Additional metadata to attach to the workflow run.
+   * (optional) additional metadata to attach to the workflow run.
    */
   additionalMetadata?: AdditionalMetadata;
+
+  /**
+   * (optional) the priority for the workflow run.
+   *
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  priority?: Priority;
 };
 
 /**
@@ -105,6 +113,12 @@ export type CreateWorkflowOpts = CreateBaseWorkflowOpts & {
    * (optional) default configuration for all tasks in the workflow.
    */
   taskDefaults?: TaskDefaults;
+
+  /**
+   * (optional) the default priority for tasks.
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  defaultPriority?: Priority;
 };
 
 /**
@@ -338,7 +352,7 @@ export class BaseWorkflowDeclaration<
     const scheduled = this.client._v0.schedule.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
-      additionalMetadata: options?.additionalMetadata,
+      ...options,
     });
 
     return scheduled;
@@ -380,6 +394,7 @@ export class BaseWorkflowDeclaration<
     const cronDef = this.client._v0.cron.create(this.definition.name, {
       expression,
       input: input as JsonObject,
+      ...options,
       additionalMetadata: options?.additionalMetadata,
       name,
     });
