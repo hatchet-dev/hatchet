@@ -10,7 +10,7 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, TypeVar, get_type_hints
+from typing import Any, TypeVar
 from warnings import warn
 
 from aiohttp import web
@@ -26,7 +26,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
@@ -86,8 +85,6 @@ class Worker:
 
         self.action_registry: dict[str, Task[Any, Any]] = {}
         self.durable_action_registry: dict[str, Task[Any, Any]] = {}
-
-        self.validator_registry: dict[str, WorkflowValidator] = {}
 
         self.killing: bool = False
         self._status: WorkerStatus
@@ -152,13 +149,6 @@ class Worker:
             else:
                 self.has_any_non_durable = True
                 self.action_registry[action_name] = step
-
-            return_type = get_type_hints(step.fn).get("return")
-
-            self.validator_registry[action_name] = WorkflowValidator(
-                workflow_input=workflow.config.input_validator,
-                step_output=return_type if is_basemodel_subclass(return_type) else None,
-            )
 
     def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
         for workflow in workflows:
@@ -285,7 +275,6 @@ class Worker:
             return WorkerActionRunLoopManager(
                 self.name + ("_durable" if is_durable else ""),
                 self.durable_action_registry if is_durable else self.action_registry,
-                self.validator_registry,
                 1_000 if is_durable else self.slots,
                 self.config,
                 self.durable_action_queue if is_durable else self.action_queue,

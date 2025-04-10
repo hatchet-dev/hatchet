@@ -1,8 +1,6 @@
-from typing import Any, Mapping, Type, TypeGuard, TypeVar
+from typing import Any, Mapping, Type, TypeGuard
 
 from pydantic import BaseModel
-
-T = TypeVar("T", bound=BaseModel)
 
 
 def is_basemodel_subclass(model: Any) -> TypeGuard[Type[BaseModel]]:

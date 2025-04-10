@@ -43,7 +43,6 @@ from hatchet_sdk.runnables.contextvars import (
 )
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import R, TWorkflowInput
-from hatchet_sdk.utils.typing import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars
 
@@ -63,7 +62,6 @@ class Runner:
         slots: int | None = None,
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
-        validator_registry: dict[str, WorkflowValidator] = {},
         labels: dict[str, str | int] = {},
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
@@ -73,7 +71,6 @@ class Runner:
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
         self.action_registry = action_registry
-        self.validator_registry = validator_registry
 
         self.event_queue = event_queue
 
@@ -305,7 +302,6 @@ class Runner:
             event_client=self.event_client,
             durable_event_listener=self.durable_event_listener,
             worker=self.worker_context,
-            validator_registry=self.validator_registry,
             runs_client=self.runs_client,
         )
 

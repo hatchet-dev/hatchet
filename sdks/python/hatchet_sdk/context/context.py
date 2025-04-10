@@ -19,7 +19,7 @@ from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.waits import SleepCondition, UserEventCondition
 
 if TYPE_CHECKING:
@@ -37,10 +37,8 @@ class Context:
         durable_event_listener: DurableEventListener | None,
         worker: WorkerContext,
         runs_client: RunsClient,
-        validator_registry: dict[str, WorkflowValidator] = {},
     ):
         self.worker = worker
-        self.validator_registry = validator_registry
 
         self.data = action.action_payload
 
@@ -74,27 +72,14 @@ class Context:
         if self.was_skipped(task):
             raise ValueError("{task.name} was skipped")
 
-        action_prefix = self.action.action_id.split(":")[0]
-
-        workflow_validator = next(
-            (
-                v
-                for k, v in self.validator_registry.items()
-                if k == f"{action_prefix}:{task.name}"
-            ),
-            None,
-        )
+        workflow_validator = task.validators
 
         try:
             parent_step_data = cast(R, self.data.parents[task.name])
         except KeyError:
             raise ValueError(f"Step output for '{task.name}' not found")
 
-        if (
-            parent_step_data
-            and workflow_validator
-            and (v := workflow_validator.step_output)
-        ):
+        if parent_step_data and (v := workflow_validator.step_output):
             return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
