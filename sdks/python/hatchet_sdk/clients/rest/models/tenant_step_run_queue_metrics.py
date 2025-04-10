@@ -19,7 +19,7 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, StrictInt
+from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
 
@@ -28,7 +28,7 @@ class TenantStepRunQueueMetrics(BaseModel):
     TenantStepRunQueueMetrics
     """  # noqa: E501
 
-    queues: Optional[Dict[str, StrictInt]] = None
+    queues: Optional[Dict[str, Any]] = None
     __properties: ClassVar[List[str]] = ["queues"]
 
     model_config = ConfigDict(

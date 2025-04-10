@@ -4,22 +4,22 @@ from hatchet_sdk.clients.events import BulkPushEventOptions, BulkPushEventWithMe
 from hatchet_sdk.hatchet import Hatchet
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio(loop_scope="session")
 async def test_event_push(hatchet: Hatchet) -> None:
     e = hatchet.event.push("user:create", {"test": "test"})
 
     assert e.eventId is not None
 
 
-@pytest.mark.asyncio()
-async def test_async_event_push(aiohatchet: Hatchet) -> None:
-    e = await aiohatchet.event.aio_push("user:create", {"test": "test"})
+@pytest.mark.asyncio(loop_scope="session")
+async def test_async_event_push(hatchet: Hatchet) -> None:
+    e = await hatchet.event.aio_push("user:create", {"test": "test"})
 
     assert e.eventId is not None
 
 
-@pytest.mark.asyncio()
-async def test_async_event_bulk_push(aiohatchet: Hatchet) -> None:
+@pytest.mark.asyncio(loop_scope="session")
+async def test_async_event_bulk_push(hatchet: Hatchet) -> None:
 
     events = [
         BulkPushEventWithMetadata(
@@ -40,7 +40,7 @@ async def test_async_event_bulk_push(aiohatchet: Hatchet) -> None:
     ]
     opts = BulkPushEventOptions(namespace="bulk-test")
 
-    e = await aiohatchet.event.aio_bulk_push(events, opts)
+    e = await hatchet.event.aio_bulk_push(events, opts)
 
     assert len(e) == 3
 

@@ -46,14 +46,12 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, An
 @bulk_child_wf.task()
 def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     print(f"child process {input.a}")
-    ctx.put_stream("child 1...")
     return {"status": "success " + input.a}
 
 
 @bulk_child_wf.task()
 def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     print("child process2")
-    ctx.put_stream("child 2...")
     return {"status2": "success"}
 
 

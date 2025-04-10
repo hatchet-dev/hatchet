@@ -16,16 +16,23 @@ import io
 import json
 import re
 import ssl
-from typing import Optional, Union
 
-import aiohttp
-import aiohttp_retry
+import urllib3
 
 from hatchet_sdk.clients.rest.exceptions import ApiException, ApiValueError
 
-RESTResponseType = aiohttp.ClientResponse
+SUPPORTED_SOCKS_PROXIES = {"socks5", "socks5h", "socks4", "socks4a"}
+RESTResponseType = urllib3.HTTPResponse
 
-ALLOW_RETRY_METHODS = frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "PUT", "TRACE"})
+
+def is_socks_proxy_url(url):
+    if url is None:
+        return False
+    split_section = url.split("://")
+    if len(split_section) < 2:
+        return False
+    else:
+        return split_section[0].lower() in SUPPORTED_SOCKS_PROXIES
 
 
 class RESTResponse(io.IOBase):
@@ -36,13 +43,13 @@ class RESTResponse(io.IOBase):
         self.reason = resp.reason
         self.data = None
 
-    async def read(self):
+    def read(self):
         if self.data is None:
-            self.data = await self.response.read()
+            self.data = self.response.data
         return self.data
 
     def getheaders(self):
-        """Returns a CIMultiDictProxy of the response headers."""
+        """Returns a dictionary of the response headers."""
         return self.response.headers
 
     def getheader(self, name, default=None):
@@ -53,38 +60,57 @@ class RESTResponse(io.IOBase):
 class RESTClientObject:
 
     def __init__(self, configuration) -> None:
+        # urllib3.PoolManager will pass all kw parameters to connectionpool
+        # https://github.com/shazow/urllib3/blob/f9409436f83aeb79fbaf090181cd81b784f1b8ce/urllib3/poolmanager.py#L75  # noqa: E501
+        # https://github.com/shazow/urllib3/blob/f9409436f83aeb79fbaf090181cd81b784f1b8ce/urllib3/connectionpool.py#L680  # noqa: E501
+        # Custom SSL certificates and client certificates: http://urllib3.readthedocs.io/en/latest/advanced-usage.html  # noqa: E501
 
-        # maxsize is number of requests to host that are allowed in parallel
-        self.maxsize = configuration.connection_pool_maxsize
+        # cert_reqs
+        if configuration.verify_ssl:
+            cert_reqs = ssl.CERT_REQUIRED
+        else:
+            cert_reqs = ssl.CERT_NONE
 
-        self.ssl_context = ssl.create_default_context(
-            cafile=configuration.ssl_ca_cert,
-            cadata=configuration.ca_cert_data,
-        )
-        if configuration.cert_file:
-            self.ssl_context.load_cert_chain(
-                configuration.cert_file, keyfile=configuration.key_file
-            )
+        pool_args = {
+            "cert_reqs": cert_reqs,
+            "ca_certs": configuration.ssl_ca_cert,
+            "cert_file": configuration.cert_file,
+            "key_file": configuration.key_file,
+            "ca_cert_data": configuration.ca_cert_data,
+        }
+        if configuration.assert_hostname is not None:
+            pool_args["assert_hostname"] = configuration.assert_hostname
 
-        if not configuration.verify_ssl:
-            self.ssl_context.check_hostname = False
-            self.ssl_context.verify_mode = ssl.CERT_NONE
+        if configuration.retries is not None:
+            pool_args["retries"] = configuration.retries
 
-        self.proxy = configuration.proxy
-        self.proxy_headers = configuration.proxy_headers
+        if configuration.tls_server_name:
+            pool_args["server_hostname"] = configuration.tls_server_name
 
-        self.retries = configuration.retries
+        if configuration.socket_options is not None:
+            pool_args["socket_options"] = configuration.socket_options
 
-        self.pool_manager: Optional[aiohttp.ClientSession] = None
-        self.retry_client: Optional[aiohttp_retry.RetryClient] = None
+        if configuration.connection_pool_maxsize is not None:
+            pool_args["maxsize"] = configuration.connection_pool_maxsize
 
-    async def close(self) -> None:
-        if self.pool_manager:
-            await self.pool_manager.close()
-        if self.retry_client is not None:
-            await self.retry_client.close()
+        # https pool manager
+        self.pool_manager: urllib3.PoolManager
 
-    async def request(
+        if configuration.proxy:
+            if is_socks_proxy_url(configuration.proxy):
+                from urllib3.contrib.socks import SOCKSProxyManager
+
+                pool_args["proxy_url"] = configuration.proxy
+                pool_args["headers"] = configuration.proxy_headers
+                self.pool_manager = SOCKSProxyManager(**pool_args)
+            else:
+                pool_args["proxy_url"] = configuration.proxy
+                pool_args["proxy_headers"] = configuration.proxy_headers
+                self.pool_manager = urllib3.ProxyManager(**pool_args)
+        else:
+            self.pool_manager = urllib3.PoolManager(**pool_args)
+
+    def request(
         self,
         method,
         url,
@@ -93,7 +119,7 @@ class RESTClientObject:
         post_params=None,
         _request_timeout=None,
     ):
-        """Execute request
+        """Perform requests.
 
         :param method: http request method
         :param url: http request url
@@ -117,82 +143,105 @@ class RESTClientObject:
 
         post_params = post_params or {}
         headers = headers or {}
-        # url already contains the URL query string
-        timeout = _request_timeout or 5 * 60
 
-        if "Content-Type" not in headers:
-            headers["Content-Type"] = "application/json"
-
-        args = {"method": method, "url": url, "timeout": timeout, "headers": headers}
-
-        if self.proxy:
-            args["proxy"] = self.proxy
-        if self.proxy_headers:
-            args["proxy_headers"] = self.proxy_headers
-
-        # For `POST`, `PUT`, `PATCH`, `OPTIONS`, `DELETE`
-        if method in ["POST", "PUT", "PATCH", "OPTIONS", "DELETE"]:
-            if re.search("json", headers["Content-Type"], re.IGNORECASE):
-                if body is not None:
-                    body = json.dumps(body)
-                args["data"] = body
-            elif headers["Content-Type"] == "application/x-www-form-urlencoded":
-                args["data"] = aiohttp.FormData(post_params)
-            elif headers["Content-Type"] == "multipart/form-data":
-                # must del headers['Content-Type'], or the correct
-                # Content-Type which generated by aiohttp
-                del headers["Content-Type"]
-                data = aiohttp.FormData()
-                for param in post_params:
-                    k, v = param
-                    if isinstance(v, tuple) and len(v) == 3:
-                        data.add_field(k, value=v[1], filename=v[0], content_type=v[2])
-                    else:
-                        # Ensures that dict objects are serialized
-                        if isinstance(v, dict):
-                            v = json.dumps(v)
-                        elif isinstance(v, int):
-                            v = str(v)
-                        data.add_field(k, v)
-                args["data"] = data
-
-            # Pass a `bytes` or `str` parameter directly in the body to support
-            # other content types than Json when `body` argument is provided
-            # in serialized form
-            elif isinstance(body, str) or isinstance(body, bytes):
-                args["data"] = body
-            else:
-                # Cannot generate the request from given parameters
-                msg = """Cannot prepare a request message for provided
-                         arguments. Please check that your arguments match
-                         declared content type."""
-                raise ApiException(status=0, reason=msg)
-
-        pool_manager: Union[aiohttp.ClientSession, aiohttp_retry.RetryClient]
-
-        # https pool manager
-        if self.pool_manager is None:
-            self.pool_manager = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(
-                    limit=self.maxsize, ssl=self.ssl_context
-                ),
-                trust_env=True,
-            )
-        pool_manager = self.pool_manager
-
-        if self.retries is not None and method in ALLOW_RETRY_METHODS:
-            if self.retry_client is None:
-                self.retry_client = aiohttp_retry.RetryClient(
-                    client_session=self.pool_manager,
-                    retry_options=aiohttp_retry.ExponentialRetry(
-                        attempts=self.retries,
-                        factor=2.0,
-                        start_timeout=0.1,
-                        max_timeout=120.0,
-                    ),
+        timeout = None
+        if _request_timeout:
+            if isinstance(_request_timeout, (int, float)):
+                timeout = urllib3.Timeout(total=_request_timeout)
+            elif isinstance(_request_timeout, tuple) and len(_request_timeout) == 2:
+                timeout = urllib3.Timeout(
+                    connect=_request_timeout[0], read=_request_timeout[1]
                 )
-            pool_manager = self.retry_client
 
-        r = await pool_manager.request(**args)
+        try:
+            # For `POST`, `PUT`, `PATCH`, `OPTIONS`, `DELETE`
+            if method in ["POST", "PUT", "PATCH", "OPTIONS", "DELETE"]:
+
+                # no content type provided or payload is json
+                content_type = headers.get("Content-Type")
+                if not content_type or re.search("json", content_type, re.IGNORECASE):
+                    request_body = None
+                    if body is not None:
+                        request_body = json.dumps(body)
+                    r = self.pool_manager.request(
+                        method,
+                        url,
+                        body=request_body,
+                        timeout=timeout,
+                        headers=headers,
+                        preload_content=False,
+                    )
+                elif content_type == "application/x-www-form-urlencoded":
+                    r = self.pool_manager.request(
+                        method,
+                        url,
+                        fields=post_params,
+                        encode_multipart=False,
+                        timeout=timeout,
+                        headers=headers,
+                        preload_content=False,
+                    )
+                elif content_type == "multipart/form-data":
+                    # must del headers['Content-Type'], or the correct
+                    # Content-Type which generated by urllib3 will be
+                    # overwritten.
+                    del headers["Content-Type"]
+                    # Ensures that dict objects are serialized
+                    post_params = [
+                        (a, json.dumps(b)) if isinstance(b, dict) else (a, b)
+                        for a, b in post_params
+                    ]
+                    r = self.pool_manager.request(
+                        method,
+                        url,
+                        fields=post_params,
+                        encode_multipart=True,
+                        timeout=timeout,
+                        headers=headers,
+                        preload_content=False,
+                    )
+                # Pass a `string` parameter directly in the body to support
+                # other content types than JSON when `body` argument is
+                # provided in serialized form.
+                elif isinstance(body, str) or isinstance(body, bytes):
+                    r = self.pool_manager.request(
+                        method,
+                        url,
+                        body=body,
+                        timeout=timeout,
+                        headers=headers,
+                        preload_content=False,
+                    )
+                elif headers["Content-Type"].startswith("text/") and isinstance(
+                    body, bool
+                ):
+                    request_body = "true" if body else "false"
+                    r = self.pool_manager.request(
+                        method,
+                        url,
+                        body=request_body,
+                        preload_content=False,
+                        timeout=timeout,
+                        headers=headers,
+                    )
+                else:
+                    # Cannot generate the request from given parameters
+                    msg = """Cannot prepare a request message for provided
+                             arguments. Please check that your arguments match
+                             declared content type."""
+                    raise ApiException(status=0, reason=msg)
+            # For `GET`, `HEAD`
+            else:
+                r = self.pool_manager.request(
+                    method,
+                    url,
+                    fields={},
+                    timeout=timeout,
+                    headers=headers,
+                    preload_content=False,
+                )
+        except urllib3.exceptions.SSLError as e:
+            msg = "\n".join([type(e).__name__, str(e)])
+            raise ApiException(status=0, reason=msg)
 
         return RESTResponse(r)
