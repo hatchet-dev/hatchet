@@ -34,8 +34,8 @@ class V1TaskSummary(BaseModel):
     """  # noqa: E501
 
     metadata: APIResourceMeta
-    action_id: StrictStr = Field(
-        description="The action ID of the task.", alias="actionId"
+    action_id: Optional[StrictStr] = Field(
+        default=None, description="The action ID of the task.", alias="actionId"
     )
     additional_metadata: Optional[Dict[str, Any]] = Field(
         default=None,
