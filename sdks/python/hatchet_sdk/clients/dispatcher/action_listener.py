@@ -259,11 +259,8 @@ class ActionListener:
                     if listener is None:
                         continue
 
-                    def key_gen(action: AssignedAction) -> str:
-                        return action.actionId
-
                     t = asyncio.create_task(
-                        read_with_interrupt(listener, self.interrupt, key_gen)
+                        read_with_interrupt(listener, self.interrupt)
                     )
                     await self.interrupt.wait()
 
