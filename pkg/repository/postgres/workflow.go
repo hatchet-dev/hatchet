@@ -684,6 +684,12 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 		return nil, err
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateWorkflowTriggerScheduledRefForWorkflowParams{
 		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
 		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
@@ -693,6 +699,7 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 			Valid:                              true,
 			WorkflowTriggerScheduledRefMethods: dbsqlc.WorkflowTriggerScheduledRefMethodsAPI,
 		},
+		Priority: sqlchelpers.ToInt(priority),
 	}
 
 	created, err := r.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, r.pool, createParams)

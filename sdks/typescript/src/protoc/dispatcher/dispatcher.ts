@@ -419,6 +419,7 @@ export interface AssignedAction {
   childWorkflowKey?: string | undefined;
   /** (optional) the parent workflow run id (if this is a child workflow) */
   parentWorkflowRunId?: string | undefined;
+  priority: number;
 }
 
 export interface WorkerListenRequest {
@@ -1451,6 +1452,7 @@ function createBaseAssignedAction(): AssignedAction {
     childWorkflowIndex: undefined,
     childWorkflowKey: undefined,
     parentWorkflowRunId: undefined,
+    priority: 0,
   };
 }
 
@@ -1506,6 +1508,9 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     }
     if (message.parentWorkflowRunId !== undefined) {
       writer.uint32(138).string(message.parentWorkflowRunId);
+    }
+    if (message.priority !== 0) {
+      writer.uint32(144).int32(message.priority);
     }
     return writer;
   },
@@ -1653,6 +1658,14 @@ export const AssignedAction: MessageFns<AssignedAction> = {
           message.parentWorkflowRunId = reader.string();
           continue;
         }
+        case 18: {
+          if (tag !== 144) {
+            break;
+          }
+
+          message.priority = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1691,6 +1704,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
       parentWorkflowRunId: isSet(object.parentWorkflowRunId)
         ? globalThis.String(object.parentWorkflowRunId)
         : undefined,
+      priority: isSet(object.priority) ? globalThis.Number(object.priority) : 0,
     };
   },
 
@@ -1747,6 +1761,9 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.parentWorkflowRunId !== undefined) {
       obj.parentWorkflowRunId = message.parentWorkflowRunId;
     }
+    if (message.priority !== 0) {
+      obj.priority = Math.round(message.priority);
+    }
     return obj;
   },
 
@@ -1772,6 +1789,7 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.childWorkflowIndex = object.childWorkflowIndex ?? undefined;
     message.childWorkflowKey = object.childWorkflowKey ?? undefined;
     message.parentWorkflowRunId = object.parentWorkflowRunId ?? undefined;
+    message.priority = object.priority ?? 0;
     return message;
   },
 };

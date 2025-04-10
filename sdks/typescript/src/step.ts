@@ -12,8 +12,12 @@ import WorkflowRunRef from './util/workflow-run-ref';
 import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
-import { CreateWorkflowTaskOpts } from './v1/task';
-import { TaskWorkflowDeclaration, BaseWorkflowDeclaration as WorkflowV1 } from './v1/declaration';
+import { CreateWorkflowTaskOpts, Priority } from './v1';
+import {
+  RunOpts,
+  TaskWorkflowDeclaration,
+  BaseWorkflowDeclaration as WorkflowV1,
+} from './v1/declaration';
 import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
@@ -65,6 +69,8 @@ export const CreateStepSchema = z.object({
 export type NextStep = { [key: string]: JsonValue };
 
 type TriggerData = Record<string, Record<string, any>>;
+
+type ChildRunOpts = RunOpts & { key?: string; sticky?: boolean };
 
 interface ContextData<T, K> {
   input: T;
@@ -376,11 +382,7 @@ export class Context<T, K = {}> {
     children: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
-      options?: {
-        key?: string;
-        sticky?: boolean;
-        additionalMetadata?: Record<string, string>;
-      };
+      options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
     return this.spawnWorkflows(children);
@@ -395,11 +397,7 @@ export class Context<T, K = {}> {
     children: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
-      options?: {
-        key?: string;
-        sticky?: boolean;
-        additionalMetadata?: Record<string, string>;
-      };
+      options?: ChildRunOpts;
     }>
   ): Promise<P[]> {
     const runs = await this.bulkRunNoWaitChildren(children);
@@ -417,11 +415,7 @@ export class Context<T, K = {}> {
     workflows: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
-      options?: {
-        key?: string;
-        sticky?: boolean;
-        additionalMetadata?: Record<string, string>;
-      };
+      options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
     const { workflowRunId, stepRunId } = this.action;
@@ -437,15 +431,8 @@ export class Context<T, K = {}> {
 
       const name = this.client.config.namespace + workflowName;
 
-      let key: string | undefined;
-      let sticky: boolean | undefined = false;
-      let metadata: Record<string, string> | undefined;
-
-      if (options) {
-        key = options.key;
-        sticky = options.sticky;
-        metadata = options.additionalMetadata;
-      }
+      const opts = options || {};
+      const { sticky } = opts;
 
       if (sticky && !this.worker.hasWorkflow(name)) {
         throw new HatchetError(
@@ -457,12 +444,11 @@ export class Context<T, K = {}> {
         workflowName: name,
         input,
         options: {
+          ...opts,
           parentId: workflowRunId,
           parentStepRunId: stepRunId,
-          childKey: key,
           childIndex: this.spawnIndex,
           desiredWorkerId: sticky ? this.worker.id() : undefined,
-          additionalMetadata: metadata,
         },
       };
       this.spawnIndex += 1;
@@ -499,17 +485,15 @@ export class Context<T, K = {}> {
    *
    * @param workflow - The workflow to run (name, Workflow instance, or WorkflowV1 instance).
    * @param input - The input data for the workflow.
-   * @param optionsOrKey - Either a string key or an options object containing key, sticky, and additionalMetadata.
+   * @param options - An options object containing key, sticky, priority, and additionalMetadata.
    * @returns The result of the workflow.
    */
   async runChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
-    optionsOrKey?:
-      | string
-      | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
+    options?: ChildRunOpts
   ): Promise<P> {
-    const run = await this.spawnWorkflow(workflow, input, optionsOrKey);
+    const run = await this.spawnWorkflow(workflow, input, options);
     return run.output;
   }
 
@@ -518,17 +502,15 @@ export class Context<T, K = {}> {
    *
    * @param workflow - The workflow to enqueue (name, Workflow instance, or WorkflowV1 instance).
    * @param input - The input data for the workflow.
-   * @param optionsOrKey - Either a string key or an options object containing key, sticky, and additionalMetadata.
+   * @param options - An options object containing key, sticky, priority, and additionalMetadata.
    * @returns A reference to the spawned workflow run.
    */
   runNoWaitChild<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
-    optionsOrKey?:
-      | string
-      | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
+    options?: ChildRunOpts
   ): WorkflowRunRef<P> {
-    return this.spawnWorkflow(workflow, input, optionsOrKey);
+    return this.spawnWorkflow(workflow, input, options);
   }
 
   /**
@@ -543,9 +525,7 @@ export class Context<T, K = {}> {
   spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
     input: Q,
-    options?:
-      | string
-      | { key?: string; sticky?: boolean; additionalMetadata?: Record<string, string> }
+    options?: ChildRunOpts
   ): WorkflowRunRef<P> {
     const { workflowRunId, stepRunId } = this.action;
 
@@ -559,20 +539,8 @@ export class Context<T, K = {}> {
 
     const name = this.client.config.namespace + workflowName;
 
-    let key: string | undefined = '';
-    let sticky: boolean | undefined = false;
-    let metadata: Record<string, string> | undefined;
-
-    if (typeof options === 'string') {
-      this.logger.warn(
-        'Using key param is deprecated and will be removed in a future release. Use options.key instead.'
-      );
-      key = options;
-    } else {
-      key = options?.key;
-      sticky = options?.sticky;
-      metadata = options?.additionalMetadata;
-    }
+    const opts = options || {};
+    const { sticky } = opts;
 
     if (sticky && !this.worker.hasWorkflow(name)) {
       throw new HatchetError(
@@ -584,10 +552,9 @@ export class Context<T, K = {}> {
       const resp = this.client.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
         parentStepRunId: stepRunId,
-        childKey: key,
         childIndex: this.spawnIndex,
         desiredWorkerId: sticky ? this.worker.id() : undefined,
-        additionalMetadata: metadata,
+        ...opts,
       });
 
       this.spawnIndex += 1;
@@ -638,6 +605,19 @@ export class Context<T, K = {}> {
    */
   parentWorkflowRunId(): string | undefined {
     return this.action.parentWorkflowRunId;
+  }
+
+  priority(): Priority | undefined {
+    switch (this.action.priority) {
+      case 1:
+        return Priority.LOW;
+      case 2:
+        return Priority.MEDIUM;
+      case 3:
+        return Priority.HIGH;
+      default:
+        return undefined;
+    }
   }
 }
 

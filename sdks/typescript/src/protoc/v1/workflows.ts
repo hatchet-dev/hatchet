@@ -278,6 +278,8 @@ export interface CreateWorkflowVersionRequest {
   onFailureTask?: CreateTaskOpts | undefined;
   /** (optional) the sticky strategy for assigning steps to workers */
   sticky?: StickyStrategy | undefined;
+  /** (optional) the default priority for the workflow */
+  defaultPriority?: number | undefined;
 }
 
 export interface Concurrency {
@@ -960,6 +962,7 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     cronInput: undefined,
     onFailureTask: undefined,
     sticky: undefined,
+    defaultPriority: undefined,
   };
 }
 
@@ -997,6 +1000,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     }
     if (message.sticky !== undefined) {
       writer.uint32(80).int32(message.sticky);
+    }
+    if (message.defaultPriority !== undefined) {
+      writer.uint32(88).int32(message.defaultPriority);
     }
     return writer;
   },
@@ -1088,6 +1094,14 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           message.sticky = reader.int32() as any;
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.defaultPriority = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1117,6 +1131,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         ? CreateTaskOpts.fromJSON(object.onFailureTask)
         : undefined,
       sticky: isSet(object.sticky) ? stickyStrategyFromJSON(object.sticky) : undefined,
+      defaultPriority: isSet(object.defaultPriority)
+        ? globalThis.Number(object.defaultPriority)
+        : undefined,
     };
   },
 
@@ -1152,6 +1169,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.sticky !== undefined) {
       obj.sticky = stickyStrategyToJSON(message.sticky);
     }
+    if (message.defaultPriority !== undefined) {
+      obj.defaultPriority = Math.round(message.defaultPriority);
+    }
     return obj;
   },
 
@@ -1176,6 +1196,7 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         ? CreateTaskOpts.fromPartial(object.onFailureTask)
         : undefined;
     message.sticky = object.sticky ?? undefined;
+    message.defaultPriority = object.defaultPriority ?? undefined;
     return message;
   },
 };
