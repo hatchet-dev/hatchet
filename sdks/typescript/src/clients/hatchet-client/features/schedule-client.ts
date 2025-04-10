@@ -72,7 +72,6 @@ export class ScheduleClient {
     try {
       const parsedCron = CreateScheduledRunTriggerSchema.parse(cron);
 
-      console.log('parsedCron', parsedCron);
       const response = await this.api.scheduledWorkflowRunCreate(this.tenantId, workflowId, {
         input: parsedCron.input ?? {},
         additionalMetadata: parsedCron.additionalMetadata ?? {},
