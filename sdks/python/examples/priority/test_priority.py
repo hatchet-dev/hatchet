@@ -192,7 +192,7 @@ async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
         assert curr.finished_at >= curr.started_at
 
 
-@pytest_asyncio.fixture(loop_scope="session", scope="session")
+@pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def crons(hatchet: Hatchet) -> AsyncGenerator[tuple[str, str, int], None]:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high"]
