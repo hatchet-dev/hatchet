@@ -72,14 +72,12 @@ class Context:
         if self.was_skipped(task):
             raise ValueError("{task.name} was skipped")
 
-        workflow_validator = task.validators
-
         try:
             parent_step_data = cast(R, self.data.parents[task.name])
         except KeyError:
             raise ValueError(f"Step output for '{task.name}' not found")
 
-        if parent_step_data and (v := workflow_validator.step_output):
+        if parent_step_data and (v := task.validators.step_output):
             return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
