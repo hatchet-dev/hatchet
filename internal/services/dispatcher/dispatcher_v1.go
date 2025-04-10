@@ -76,6 +76,7 @@ func populateAssignedAction(tenantId string, task *sqlcv1.V1Task) *contracts.Ass
 		StepName:      task.StepReadableID,
 		WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
 		RetryCount:    task.RetryCount,
+		Priority:      task.Priority.Int32,
 	}
 
 	if task.AdditionalMetadata != nil {
