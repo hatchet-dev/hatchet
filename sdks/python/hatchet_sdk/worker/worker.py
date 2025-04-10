@@ -11,6 +11,7 @@ from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
 from typing import Any, TypeVar, get_type_hints
+from warnings import warn
 
 from aiohttp import web
 from aiohttp.web_request import Request
@@ -36,6 +37,10 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
 )
 
 T = TypeVar("T")
+
+
+class LoopAlreadyRunningException(Exception):
+    pass
 
 
 class WorkerStatus(Enum):
@@ -163,21 +168,19 @@ class Worker:
     def status(self) -> WorkerStatus:
         return self._status
 
-    def _setup_loop(self, loop: asyncio.AbstractEventLoop | None = None) -> bool:
+    def _setup_loop(self) -> None:
         try:
-            self.loop = loop or asyncio.get_running_loop()
-            logger.debug("using existing event loop")
-
-            created_loop = False
+            asyncio.get_running_loop()
+            raise LoopAlreadyRunningException(
+                "An event loop is already running. This worker requires its own dedicated event loop. "
+                "Make sure you're not using asyncio.run() or other loop-creating functions in the main thread."
+            )
         except RuntimeError:
-            self.loop = asyncio.new_event_loop()
+            pass
 
-            logger.debug("creating new event loop")
-            created_loop = True
-
+        logger.debug("Creating new event loop")
+        self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-
-        return created_loop
 
     async def _health_check_handler(self, request: Request) -> Response:
         response = HealthCheckResponse(
@@ -220,7 +223,13 @@ class Worker:
         logger.info(f"healthcheck server running on port {port}")
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
-        self.owned_loop = self._setup_loop(options.loop)
+        if options.loop is not None:
+            warn(
+                "Passing a custom event loop is deprecated and will be removed in the future. This option no longer has any effect",
+                DeprecationWarning,
+            )
+
+        self._setup_loop()
 
         if not self.loop:
             raise RuntimeError("event loop not set, cannot start worker")
@@ -228,11 +237,10 @@ class Worker:
         asyncio.run_coroutine_threadsafe(self._aio_start(), self.loop)
 
         # start the loop and wait until its closed
-        if self.owned_loop:
-            self.loop.run_forever()
+        self.loop.run_forever()
 
-            if self.handle_kill:
-                sys.exit(0)
+        if self.handle_kill:
+            sys.exit(0)
 
     async def _aio_start(self) -> None:
         main_pid = os.getpid()
