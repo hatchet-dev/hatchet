@@ -10,7 +10,7 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-DEFAULT_PRIORITY = 2
+DEFAULT_PRIORITY = 1
 SLEEP_TIME = 0.25
 
 priority_workflow = hatchet.workflow(

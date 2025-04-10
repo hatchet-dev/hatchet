@@ -84,6 +84,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
+        priority: int | None = None,
     ) -> CronWorkflows:
         """
         Asynchronously creates a new workflow cron trigger.
@@ -111,6 +112,7 @@ class CronClient(BaseRestClient):
                     cronExpression=validated_input.expression,
                     input=dict(validated_input.input),
                     additionalMetadata=dict(validated_input.additional_metadata),
+                    priority=priority,
                 ),
             )
 
@@ -121,6 +123,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
+        priority: int | None = None,
     ) -> CronWorkflows:
         return run_async_from_sync(
             self.aio_create,
@@ -129,6 +132,7 @@ class CronClient(BaseRestClient):
             expression,
             input,
             additional_metadata,
+            priority,
         )
 
     async def aio_delete(self, cron_id: str) -> None:
