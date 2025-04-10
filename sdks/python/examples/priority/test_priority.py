@@ -35,8 +35,33 @@ def priority_to_int(priority: Priority) -> int:
             raise ValueError(f"Invalid priority: {priority}")
 
 
+@pytest_asyncio.fixture(loop_scope="session", scope="function")
+async def dummy_runs() -> None:
+    priority: Priority = "high"
+
+    await priority_workflow.aio_run_many_no_wait(
+        [
+            priority_workflow.create_bulk_run_item(
+                options=TriggerWorkflowOptions(
+                    priority=(priority_to_int(priority)),
+                    additional_metadata={
+                        "priority": priority,
+                        "key": ix,
+                        "type": "dummy",
+                    },
+                )
+            )
+            for ix in range(60)
+        ]
+    )
+
+    await asyncio.sleep(5)
+
+    return None
+
+
 @pytest.mark.asyncio()
-async def test_priority(hatchet: Hatchet) -> None:
+async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high", "default"]
 
@@ -108,7 +133,7 @@ async def test_priority(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio()
-async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
+async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
     sleep_time = 3
     n = 100
@@ -193,7 +218,9 @@ async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
-async def crons(hatchet: Hatchet) -> AsyncGenerator[tuple[str, str, int], None]:
+async def crons(
+    hatchet: Hatchet, dummy_runs: None
+) -> AsyncGenerator[tuple[str, str, int], None]:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high"]
     n = 100
