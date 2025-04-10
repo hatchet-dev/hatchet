@@ -26,26 +26,26 @@ def step1(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 @dag_workflow.task(execution_timeout=timedelta(seconds=5))
-def step2(input: EmptyModel, ctx: Context) -> StepOutput:
+async def step2(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
 @dag_workflow.task(parents=[step1, step2])
-def step3(input: EmptyModel, ctx: Context) -> RandomSum:
+async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
     one = ctx.task_output(step1).random_number
-    two = ctx.task_output(step2).random_number
+    two = (await ctx.task_output(step2)).random_number
 
     return RandomSum(sum=one + two)
 
 
 @dag_workflow.task(parents=[step1, step3])
-def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print(
         "executed step4",
         time.strftime("%H:%M:%S", time.localtime()),
         input,
         ctx.task_output(step1),
-        ctx.task_output(step3),
+        await ctx.task_output(step3),
     )
     return {
         "step4": "step4",

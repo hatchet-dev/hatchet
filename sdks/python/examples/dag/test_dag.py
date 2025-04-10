@@ -4,7 +4,7 @@ from examples.dag.worker import dag_workflow
 from hatchet_sdk import Hatchet
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio(loop_scope="session")
 async def test_run(hatchet: Hatchet) -> None:
     result = await dag_workflow.aio_run()
 

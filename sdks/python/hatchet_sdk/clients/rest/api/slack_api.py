@@ -36,7 +36,7 @@ class SlackApi:
         self.api_client = api_client
 
     @validate_call
-    async def slack_webhook_delete(
+    def slack_webhook_delete(
         self,
         slack: Annotated[
             str,
@@ -101,17 +101,17 @@ class SlackApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def slack_webhook_delete_with_http_info(
+    def slack_webhook_delete_with_http_info(
         self,
         slack: Annotated[
             str,
@@ -176,17 +176,17 @@ class SlackApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def slack_webhook_delete_without_preload_content(
+    def slack_webhook_delete_without_preload_content(
         self,
         slack: Annotated[
             str,
@@ -251,7 +251,7 @@ class SlackApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response
@@ -311,7 +311,7 @@ class SlackApi:
         )
 
     @validate_call
-    async def slack_webhook_list(
+    def slack_webhook_list(
         self,
         tenant: Annotated[
             str,
@@ -373,17 +373,17 @@ class SlackApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
 
     @validate_call
-    async def slack_webhook_list_with_http_info(
+    def slack_webhook_list_with_http_info(
         self,
         tenant: Annotated[
             str,
@@ -445,17 +445,17 @@ class SlackApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
-        await response_data.read()
+        response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
 
     @validate_call
-    async def slack_webhook_list_without_preload_content(
+    def slack_webhook_list_without_preload_content(
         self,
         tenant: Annotated[
             str,
@@ -517,7 +517,7 @@ class SlackApi:
             "401": "APIErrors",
             "405": "APIErrors",
         }
-        response_data = await self.api_client.call_api(
+        response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
         )
         return response_data.response

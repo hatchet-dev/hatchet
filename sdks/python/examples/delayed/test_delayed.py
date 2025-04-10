@@ -6,6 +6,6 @@
 
 # worker = fixture_bg_worker(["poetry", "run", "manual_trigger"])
 
-# # @pytest.mark.asyncio()
+# # @pytest.mark.asyncio(loop_scope="session")
 # async def test_run(hatchet: Hatchet):
 #     # TODO

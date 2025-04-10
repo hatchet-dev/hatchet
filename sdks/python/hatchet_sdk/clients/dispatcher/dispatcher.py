@@ -35,15 +35,20 @@ DEFAULT_REGISTER_TIMEOUT = 30
 
 class DispatcherClient:
     def __init__(self, config: ClientConfig):
-        conn = new_conn(config, False)
-        self.client = DispatcherStub(conn)
-
         self.token = config.token
         self.config = config
 
         ## IMPORTANT: This needs to be created lazily so we don't require
         ## an event loop to instantiate the client.
         self.aio_client: DispatcherStub | None = None
+        self.client: DispatcherStub | None = None
+
+    def _get_or_create_client(self) -> DispatcherStub:
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = DispatcherStub(conn)
+
+        return self.client
 
     async def get_action_listener(
         self, req: GetActionListenerRequest
@@ -167,23 +172,29 @@ class DispatcherClient:
         )
 
     def put_overrides_data(self, data: OverridesData) -> ActionEventResponse:
+        client = self._get_or_create_client()
+
         return cast(
             ActionEventResponse,
-            self.client.PutOverridesData(
+            client.PutOverridesData(
                 data,
                 metadata=get_metadata(self.token),
             ),
         )
 
     def release_slot(self, step_run_id: str) -> None:
-        self.client.ReleaseSlot(
+        client = self._get_or_create_client()
+
+        client.ReleaseSlot(
             ReleaseSlotRequest(stepRunId=step_run_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
         )
 
     def refresh_timeout(self, step_run_id: str, increment_by: str) -> None:
-        self.client.RefreshTimeout(
+        client = self._get_or_create_client()
+
+        client.RefreshTimeout(
             RefreshTimeoutRequest(
                 stepRunId=step_run_id,
                 incrementTimeoutBy=increment_by,
@@ -203,7 +214,9 @@ class DispatcherClient:
             else:
                 worker_labels[key] = WorkerLabels(strValue=str(value))
 
-        self.client.UpsertWorkerLabels(
+        client = self._get_or_create_client()
+
+        client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(workerId=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=get_metadata(self.token),
