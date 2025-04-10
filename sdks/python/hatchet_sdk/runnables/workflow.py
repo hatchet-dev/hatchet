@@ -144,13 +144,17 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
             tasks=tasks,
-            concurrency=(c.to_proto() if (c := self.config.concurrency) else None),
+            concurrency=(
+                c.to_proto()
+                if isinstance((c := self.config.concurrency), ConcurrencyExpression)
+                else None
+            ),
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto),  # type: ignore[arg-type]
             concurrency_arr=(
-                [self._concurrency_to_proto(c) for c in self.config.concurrency]
+                [c.to_proto() for c in self.config.concurrency]
                 if isinstance(self.config.concurrency, list)
                 else None
             ),
