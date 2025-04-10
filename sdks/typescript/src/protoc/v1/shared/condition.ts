@@ -5,9 +5,9 @@
 // source: v1/shared/condition.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = 'v1';
+export const protobufPackage = "v1";
 
 export enum Action {
   CREATE = 0,
@@ -20,19 +20,19 @@ export enum Action {
 export function actionFromJSON(object: any): Action {
   switch (object) {
     case 0:
-    case 'CREATE':
+    case "CREATE":
       return Action.CREATE;
     case 1:
-    case 'QUEUE':
+    case "QUEUE":
       return Action.QUEUE;
     case 2:
-    case 'CANCEL':
+    case "CANCEL":
       return Action.CANCEL;
     case 3:
-    case 'SKIP':
+    case "SKIP":
       return Action.SKIP;
     case -1:
-    case 'UNRECOGNIZED':
+    case "UNRECOGNIZED":
     default:
       return Action.UNRECOGNIZED;
   }
@@ -41,16 +41,16 @@ export function actionFromJSON(object: any): Action {
 export function actionToJSON(object: Action): string {
   switch (object) {
     case Action.CREATE:
-      return 'CREATE';
+      return "CREATE";
     case Action.QUEUE:
-      return 'QUEUE';
+      return "QUEUE";
     case Action.CANCEL:
-      return 'CANCEL';
+      return "CANCEL";
     case Action.SKIP:
-      return 'SKIP';
+      return "SKIP";
     case Action.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return "UNRECOGNIZED";
   }
 }
 
@@ -68,7 +68,9 @@ export interface ParentOverrideMatchCondition {
 }
 
 export interface SleepMatchCondition {
-  base: BaseMatchCondition | undefined;
+  base:
+    | BaseMatchCondition
+    | undefined;
   /** a duration string indicating how long to sleep */
   sleepFor: string;
 }
@@ -90,21 +92,21 @@ export interface DurableEventListenerConditions {
 }
 
 function createBaseBaseMatchCondition(): BaseMatchCondition {
-  return { readableDataKey: '', action: 0, orGroupId: '', expression: '' };
+  return { readableDataKey: "", action: 0, orGroupId: "", expression: "" };
 }
 
 export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
   encode(message: BaseMatchCondition, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.readableDataKey !== '') {
+    if (message.readableDataKey !== "") {
       writer.uint32(10).string(message.readableDataKey);
     }
     if (message.action !== 0) {
       writer.uint32(16).int32(message.action);
     }
-    if (message.orGroupId !== '') {
+    if (message.orGroupId !== "") {
       writer.uint32(26).string(message.orGroupId);
     }
-    if (message.expression !== '') {
+    if (message.expression !== "") {
       writer.uint32(34).string(message.expression);
     }
     return writer;
@@ -160,27 +162,25 @@ export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
 
   fromJSON(object: any): BaseMatchCondition {
     return {
-      readableDataKey: isSet(object.readableDataKey)
-        ? globalThis.String(object.readableDataKey)
-        : '',
+      readableDataKey: isSet(object.readableDataKey) ? globalThis.String(object.readableDataKey) : "",
       action: isSet(object.action) ? actionFromJSON(object.action) : 0,
-      orGroupId: isSet(object.orGroupId) ? globalThis.String(object.orGroupId) : '',
-      expression: isSet(object.expression) ? globalThis.String(object.expression) : '',
+      orGroupId: isSet(object.orGroupId) ? globalThis.String(object.orGroupId) : "",
+      expression: isSet(object.expression) ? globalThis.String(object.expression) : "",
     };
   },
 
   toJSON(message: BaseMatchCondition): unknown {
     const obj: any = {};
-    if (message.readableDataKey !== '') {
+    if (message.readableDataKey !== "") {
       obj.readableDataKey = message.readableDataKey;
     }
     if (message.action !== 0) {
       obj.action = actionToJSON(message.action);
     }
-    if (message.orGroupId !== '') {
+    if (message.orGroupId !== "") {
       obj.orGroupId = message.orGroupId;
     }
-    if (message.expression !== '') {
+    if (message.expression !== "") {
       obj.expression = message.expression;
     }
     return obj;
@@ -191,27 +191,24 @@ export const BaseMatchCondition: MessageFns<BaseMatchCondition> = {
   },
   fromPartial(object: DeepPartial<BaseMatchCondition>): BaseMatchCondition {
     const message = createBaseBaseMatchCondition();
-    message.readableDataKey = object.readableDataKey ?? '';
+    message.readableDataKey = object.readableDataKey ?? "";
     message.action = object.action ?? 0;
-    message.orGroupId = object.orGroupId ?? '';
-    message.expression = object.expression ?? '';
+    message.orGroupId = object.orGroupId ?? "";
+    message.expression = object.expression ?? "";
     return message;
   },
 };
 
 function createBaseParentOverrideMatchCondition(): ParentOverrideMatchCondition {
-  return { base: undefined, parentReadableId: '' };
+  return { base: undefined, parentReadableId: "" };
 }
 
 export const ParentOverrideMatchCondition: MessageFns<ParentOverrideMatchCondition> = {
-  encode(
-    message: ParentOverrideMatchCondition,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
+  encode(message: ParentOverrideMatchCondition, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.base !== undefined) {
       BaseMatchCondition.encode(message.base, writer.uint32(10).fork()).join();
     }
-    if (message.parentReadableId !== '') {
+    if (message.parentReadableId !== "") {
       writer.uint32(18).string(message.parentReadableId);
     }
     return writer;
@@ -252,9 +249,7 @@ export const ParentOverrideMatchCondition: MessageFns<ParentOverrideMatchConditi
   fromJSON(object: any): ParentOverrideMatchCondition {
     return {
       base: isSet(object.base) ? BaseMatchCondition.fromJSON(object.base) : undefined,
-      parentReadableId: isSet(object.parentReadableId)
-        ? globalThis.String(object.parentReadableId)
-        : '',
+      parentReadableId: isSet(object.parentReadableId) ? globalThis.String(object.parentReadableId) : "",
     };
   },
 
@@ -263,7 +258,7 @@ export const ParentOverrideMatchCondition: MessageFns<ParentOverrideMatchConditi
     if (message.base !== undefined) {
       obj.base = BaseMatchCondition.toJSON(message.base);
     }
-    if (message.parentReadableId !== '') {
+    if (message.parentReadableId !== "") {
       obj.parentReadableId = message.parentReadableId;
     }
     return obj;
@@ -274,17 +269,16 @@ export const ParentOverrideMatchCondition: MessageFns<ParentOverrideMatchConditi
   },
   fromPartial(object: DeepPartial<ParentOverrideMatchCondition>): ParentOverrideMatchCondition {
     const message = createBaseParentOverrideMatchCondition();
-    message.base =
-      object.base !== undefined && object.base !== null
-        ? BaseMatchCondition.fromPartial(object.base)
-        : undefined;
-    message.parentReadableId = object.parentReadableId ?? '';
+    message.base = (object.base !== undefined && object.base !== null)
+      ? BaseMatchCondition.fromPartial(object.base)
+      : undefined;
+    message.parentReadableId = object.parentReadableId ?? "";
     return message;
   },
 };
 
 function createBaseSleepMatchCondition(): SleepMatchCondition {
-  return { base: undefined, sleepFor: '' };
+  return { base: undefined, sleepFor: "" };
 }
 
 export const SleepMatchCondition: MessageFns<SleepMatchCondition> = {
@@ -292,7 +286,7 @@ export const SleepMatchCondition: MessageFns<SleepMatchCondition> = {
     if (message.base !== undefined) {
       BaseMatchCondition.encode(message.base, writer.uint32(10).fork()).join();
     }
-    if (message.sleepFor !== '') {
+    if (message.sleepFor !== "") {
       writer.uint32(18).string(message.sleepFor);
     }
     return writer;
@@ -333,7 +327,7 @@ export const SleepMatchCondition: MessageFns<SleepMatchCondition> = {
   fromJSON(object: any): SleepMatchCondition {
     return {
       base: isSet(object.base) ? BaseMatchCondition.fromJSON(object.base) : undefined,
-      sleepFor: isSet(object.sleepFor) ? globalThis.String(object.sleepFor) : '',
+      sleepFor: isSet(object.sleepFor) ? globalThis.String(object.sleepFor) : "",
     };
   },
 
@@ -342,7 +336,7 @@ export const SleepMatchCondition: MessageFns<SleepMatchCondition> = {
     if (message.base !== undefined) {
       obj.base = BaseMatchCondition.toJSON(message.base);
     }
-    if (message.sleepFor !== '') {
+    if (message.sleepFor !== "") {
       obj.sleepFor = message.sleepFor;
     }
     return obj;
@@ -353,28 +347,24 @@ export const SleepMatchCondition: MessageFns<SleepMatchCondition> = {
   },
   fromPartial(object: DeepPartial<SleepMatchCondition>): SleepMatchCondition {
     const message = createBaseSleepMatchCondition();
-    message.base =
-      object.base !== undefined && object.base !== null
-        ? BaseMatchCondition.fromPartial(object.base)
-        : undefined;
-    message.sleepFor = object.sleepFor ?? '';
+    message.base = (object.base !== undefined && object.base !== null)
+      ? BaseMatchCondition.fromPartial(object.base)
+      : undefined;
+    message.sleepFor = object.sleepFor ?? "";
     return message;
   },
 };
 
 function createBaseUserEventMatchCondition(): UserEventMatchCondition {
-  return { base: undefined, userEventKey: '' };
+  return { base: undefined, userEventKey: "" };
 }
 
 export const UserEventMatchCondition: MessageFns<UserEventMatchCondition> = {
-  encode(
-    message: UserEventMatchCondition,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
+  encode(message: UserEventMatchCondition, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.base !== undefined) {
       BaseMatchCondition.encode(message.base, writer.uint32(10).fork()).join();
     }
-    if (message.userEventKey !== '') {
+    if (message.userEventKey !== "") {
       writer.uint32(18).string(message.userEventKey);
     }
     return writer;
@@ -415,7 +405,7 @@ export const UserEventMatchCondition: MessageFns<UserEventMatchCondition> = {
   fromJSON(object: any): UserEventMatchCondition {
     return {
       base: isSet(object.base) ? BaseMatchCondition.fromJSON(object.base) : undefined,
-      userEventKey: isSet(object.userEventKey) ? globalThis.String(object.userEventKey) : '',
+      userEventKey: isSet(object.userEventKey) ? globalThis.String(object.userEventKey) : "",
     };
   },
 
@@ -424,7 +414,7 @@ export const UserEventMatchCondition: MessageFns<UserEventMatchCondition> = {
     if (message.base !== undefined) {
       obj.base = BaseMatchCondition.toJSON(message.base);
     }
-    if (message.userEventKey !== '') {
+    if (message.userEventKey !== "") {
       obj.userEventKey = message.userEventKey;
     }
     return obj;
@@ -435,11 +425,10 @@ export const UserEventMatchCondition: MessageFns<UserEventMatchCondition> = {
   },
   fromPartial(object: DeepPartial<UserEventMatchCondition>): UserEventMatchCondition {
     const message = createBaseUserEventMatchCondition();
-    message.base =
-      object.base !== undefined && object.base !== null
-        ? BaseMatchCondition.fromPartial(object.base)
-        : undefined;
-    message.userEventKey = object.userEventKey ?? '';
+    message.base = (object.base !== undefined && object.base !== null)
+      ? BaseMatchCondition.fromPartial(object.base)
+      : undefined;
+    message.userEventKey = object.userEventKey ?? "";
     return message;
   },
 };
@@ -474,9 +463,7 @@ export const TaskConditions: MessageFns<TaskConditions> = {
             break;
           }
 
-          message.parentOverrideConditions.push(
-            ParentOverrideMatchCondition.decode(reader, reader.uint32())
-          );
+          message.parentOverrideConditions.push(ParentOverrideMatchCondition.decode(reader, reader.uint32()));
           continue;
         }
         case 2: {
@@ -529,9 +516,7 @@ export const TaskConditions: MessageFns<TaskConditions> = {
       obj.sleepConditions = message.sleepConditions.map((e) => SleepMatchCondition.toJSON(e));
     }
     if (message.userEventConditions?.length) {
-      obj.userEventConditions = message.userEventConditions.map((e) =>
-        UserEventMatchCondition.toJSON(e)
-      );
+      obj.userEventConditions = message.userEventConditions.map((e) => UserEventMatchCondition.toJSON(e));
     }
     return obj;
   },
@@ -542,12 +527,9 @@ export const TaskConditions: MessageFns<TaskConditions> = {
   fromPartial(object: DeepPartial<TaskConditions>): TaskConditions {
     const message = createBaseTaskConditions();
     message.parentOverrideConditions =
-      object.parentOverrideConditions?.map((e) => ParentOverrideMatchCondition.fromPartial(e)) ||
-      [];
-    message.sleepConditions =
-      object.sleepConditions?.map((e) => SleepMatchCondition.fromPartial(e)) || [];
-    message.userEventConditions =
-      object.userEventConditions?.map((e) => UserEventMatchCondition.fromPartial(e)) || [];
+      object.parentOverrideConditions?.map((e) => ParentOverrideMatchCondition.fromPartial(e)) || [];
+    message.sleepConditions = object.sleepConditions?.map((e) => SleepMatchCondition.fromPartial(e)) || [];
+    message.userEventConditions = object.userEventConditions?.map((e) => UserEventMatchCondition.fromPartial(e)) || [];
     return message;
   },
 };
@@ -557,10 +539,7 @@ function createBaseDurableEventListenerConditions(): DurableEventListenerConditi
 }
 
 export const DurableEventListenerConditions: MessageFns<DurableEventListenerConditions> = {
-  encode(
-    message: DurableEventListenerConditions,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
+  encode(message: DurableEventListenerConditions, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.sleepConditions) {
       SleepMatchCondition.encode(v!, writer.uint32(10).fork()).join();
     }
@@ -619,9 +598,7 @@ export const DurableEventListenerConditions: MessageFns<DurableEventListenerCond
       obj.sleepConditions = message.sleepConditions.map((e) => SleepMatchCondition.toJSON(e));
     }
     if (message.userEventConditions?.length) {
-      obj.userEventConditions = message.userEventConditions.map((e) =>
-        UserEventMatchCondition.toJSON(e)
-      );
+      obj.userEventConditions = message.userEventConditions.map((e) => UserEventMatchCondition.toJSON(e));
     }
     return obj;
   },
@@ -631,25 +608,19 @@ export const DurableEventListenerConditions: MessageFns<DurableEventListenerCond
   },
   fromPartial(object: DeepPartial<DurableEventListenerConditions>): DurableEventListenerConditions {
     const message = createBaseDurableEventListenerConditions();
-    message.sleepConditions =
-      object.sleepConditions?.map((e) => SleepMatchCondition.fromPartial(e)) || [];
-    message.userEventConditions =
-      object.userEventConditions?.map((e) => UserEventMatchCondition.fromPartial(e)) || [];
+    message.sleepConditions = object.sleepConditions?.map((e) => SleepMatchCondition.fromPartial(e)) || [];
+    message.userEventConditions = object.userEventConditions?.map((e) => UserEventMatchCondition.fromPartial(e)) || [];
     return message;
   },
 };
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-  ? T
-  : T extends globalThis.Array<infer U>
-    ? globalThis.Array<DeepPartial<U>>
-    : T extends ReadonlyArray<infer U>
-      ? ReadonlyArray<DeepPartial<U>>
-      : T extends {}
-        ? { [K in keyof T]?: DeepPartial<T[K]> }
-        : Partial<T>;
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
