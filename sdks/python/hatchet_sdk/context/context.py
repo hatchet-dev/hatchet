@@ -239,7 +239,7 @@ class Context:
         return self.action.parent_workflow_run_id
 
     @property
-    def priority(self) -> int:
+    def priority(self) -> int | None:
         return self.action.priority
 
     @property

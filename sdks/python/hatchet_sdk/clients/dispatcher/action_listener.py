@@ -105,7 +105,7 @@ class Action(BaseModel):
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
-    priority: int
+    priority: int | None = None
 
     def _dump_payload_to_str(self) -> str:
         try:
