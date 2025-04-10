@@ -284,9 +284,20 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     ) -> WorkflowRunTriggerConfig:
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
-            input=input.model_dump(mode="json") if input else {},
+            input=self._serialize_input(input),
             options=options,
             key=key,
+        )
+
+    def _serialize_input(self, input: TWorkflowInput | None) -> JSONSerializableMapping:
+        if not input:
+            return {}
+
+        if isinstance(input, BaseModel):
+            return input.model_dump(mode="json")
+
+        raise ValueError(
+            f"Input must be a BaseModel or `None`, got {type(input)} instead."
         )
 
 
@@ -303,7 +314,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> WorkflowRunRef:
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump(mode="json") if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -314,7 +325,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> dict[str, Any]:
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump(mode="json") if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -327,7 +338,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> WorkflowRunRef:
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump(mode="json") if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -338,7 +349,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> dict[str, Any]:
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
-            input=input.model_dump(mode="json") if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -389,20 +400,20 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         return self.client._client.admin.schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=input.model_dump(mode="json") if input else {},
+            input=self._serialize_input(input),
             options=options,
         )
 
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput,
+        input: TWorkflowInput | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
-            input=input.model_dump(mode="json"),
+            input=self._serialize_input(input),
             options=options,
         )
 
@@ -410,14 +421,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return self.client.cron.create(
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=input.model_dump(mode="json"),
+            input=self._serialize_input(input),
             additional_metadata=additional_metadata,
         )
 
@@ -425,14 +436,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput,
-        additional_metadata: JSONSerializableMapping,
+        input: TWorkflowInput | None = None,
+        additional_metadata: JSONSerializableMapping = {},
     ) -> CronWorkflows:
         return await self.client.cron.aio_create(
             workflow_name=self.config.name,
             cron_name=cron_name,
             expression=expression,
-            input=input.model_dump(mode="json"),
+            input=self._serialize_input(input),
             additional_metadata=additional_metadata,
         )
 
