@@ -12,7 +12,7 @@ import WorkflowRunRef from './util/workflow-run-ref';
 import { V0Worker } from './clients/worker';
 import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
 import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
-import { CreateWorkflowTaskOpts, Priority } from './v1/task';
+import { CreateWorkflowTaskOpts, Priority } from './v1';
 import {
   RunOpts,
   TaskWorkflowDeclaration,
