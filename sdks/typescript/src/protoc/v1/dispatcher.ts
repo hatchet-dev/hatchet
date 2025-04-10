@@ -5,11 +5,11 @@
 // source: v1/dispatcher.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
-import { type CallContext, type CallOptions } from 'nice-grpc-common';
-import { DurableEventListenerConditions } from './shared/condition';
+import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { type CallContext, type CallOptions } from "nice-grpc-common";
+import { DurableEventListenerConditions } from "./shared/condition";
 
-export const protobufPackage = 'v1';
+export const protobufPackage = "v1";
 
 export interface RegisterDurableEventRequest {
   /** external uuid for the task run */
@@ -20,7 +20,8 @@ export interface RegisterDurableEventRequest {
   conditions: DurableEventListenerConditions | undefined;
 }
 
-export interface RegisterDurableEventResponse {}
+export interface RegisterDurableEventResponse {
+}
 
 export interface ListenForDurableEventRequest {
   /** single listener per worker */
@@ -37,18 +38,15 @@ export interface DurableEvent {
 }
 
 function createBaseRegisterDurableEventRequest(): RegisterDurableEventRequest {
-  return { taskId: '', signalKey: '', conditions: undefined };
+  return { taskId: "", signalKey: "", conditions: undefined };
 }
 
 export const RegisterDurableEventRequest: MessageFns<RegisterDurableEventRequest> = {
-  encode(
-    message: RegisterDurableEventRequest,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.taskId !== '') {
+  encode(message: RegisterDurableEventRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.taskId !== "") {
       writer.uint32(10).string(message.taskId);
     }
-    if (message.signalKey !== '') {
+    if (message.signalKey !== "") {
       writer.uint32(18).string(message.signalKey);
     }
     if (message.conditions !== undefined) {
@@ -99,20 +97,18 @@ export const RegisterDurableEventRequest: MessageFns<RegisterDurableEventRequest
 
   fromJSON(object: any): RegisterDurableEventRequest {
     return {
-      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      signalKey: isSet(object.signalKey) ? globalThis.String(object.signalKey) : '',
-      conditions: isSet(object.conditions)
-        ? DurableEventListenerConditions.fromJSON(object.conditions)
-        : undefined,
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
+      signalKey: isSet(object.signalKey) ? globalThis.String(object.signalKey) : "",
+      conditions: isSet(object.conditions) ? DurableEventListenerConditions.fromJSON(object.conditions) : undefined,
     };
   },
 
   toJSON(message: RegisterDurableEventRequest): unknown {
     const obj: any = {};
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       obj.taskId = message.taskId;
     }
-    if (message.signalKey !== '') {
+    if (message.signalKey !== "") {
       obj.signalKey = message.signalKey;
     }
     if (message.conditions !== undefined) {
@@ -126,12 +122,11 @@ export const RegisterDurableEventRequest: MessageFns<RegisterDurableEventRequest
   },
   fromPartial(object: DeepPartial<RegisterDurableEventRequest>): RegisterDurableEventRequest {
     const message = createBaseRegisterDurableEventRequest();
-    message.taskId = object.taskId ?? '';
-    message.signalKey = object.signalKey ?? '';
-    message.conditions =
-      object.conditions !== undefined && object.conditions !== null
-        ? DurableEventListenerConditions.fromPartial(object.conditions)
-        : undefined;
+    message.taskId = object.taskId ?? "";
+    message.signalKey = object.signalKey ?? "";
+    message.conditions = (object.conditions !== undefined && object.conditions !== null)
+      ? DurableEventListenerConditions.fromPartial(object.conditions)
+      : undefined;
     return message;
   },
 };
@@ -180,18 +175,15 @@ export const RegisterDurableEventResponse: MessageFns<RegisterDurableEventRespon
 };
 
 function createBaseListenForDurableEventRequest(): ListenForDurableEventRequest {
-  return { taskId: '', signalKey: '' };
+  return { taskId: "", signalKey: "" };
 }
 
 export const ListenForDurableEventRequest: MessageFns<ListenForDurableEventRequest> = {
-  encode(
-    message: ListenForDurableEventRequest,
-    writer: BinaryWriter = new BinaryWriter()
-  ): BinaryWriter {
-    if (message.taskId !== '') {
+  encode(message: ListenForDurableEventRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.taskId !== "") {
       writer.uint32(10).string(message.taskId);
     }
-    if (message.signalKey !== '') {
+    if (message.signalKey !== "") {
       writer.uint32(18).string(message.signalKey);
     }
     return writer;
@@ -231,17 +223,17 @@ export const ListenForDurableEventRequest: MessageFns<ListenForDurableEventReque
 
   fromJSON(object: any): ListenForDurableEventRequest {
     return {
-      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      signalKey: isSet(object.signalKey) ? globalThis.String(object.signalKey) : '',
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
+      signalKey: isSet(object.signalKey) ? globalThis.String(object.signalKey) : "",
     };
   },
 
   toJSON(message: ListenForDurableEventRequest): unknown {
     const obj: any = {};
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       obj.taskId = message.taskId;
     }
-    if (message.signalKey !== '') {
+    if (message.signalKey !== "") {
       obj.signalKey = message.signalKey;
     }
     return obj;
@@ -252,22 +244,22 @@ export const ListenForDurableEventRequest: MessageFns<ListenForDurableEventReque
   },
   fromPartial(object: DeepPartial<ListenForDurableEventRequest>): ListenForDurableEventRequest {
     const message = createBaseListenForDurableEventRequest();
-    message.taskId = object.taskId ?? '';
-    message.signalKey = object.signalKey ?? '';
+    message.taskId = object.taskId ?? "";
+    message.signalKey = object.signalKey ?? "";
     return message;
   },
 };
 
 function createBaseDurableEvent(): DurableEvent {
-  return { taskId: '', signalKey: '', data: new Uint8Array(0) };
+  return { taskId: "", signalKey: "", data: new Uint8Array(0) };
 }
 
 export const DurableEvent: MessageFns<DurableEvent> = {
   encode(message: DurableEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       writer.uint32(10).string(message.taskId);
     }
-    if (message.signalKey !== '') {
+    if (message.signalKey !== "") {
       writer.uint32(18).string(message.signalKey);
     }
     if (message.data.length !== 0) {
@@ -318,18 +310,18 @@ export const DurableEvent: MessageFns<DurableEvent> = {
 
   fromJSON(object: any): DurableEvent {
     return {
-      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : '',
-      signalKey: isSet(object.signalKey) ? globalThis.String(object.signalKey) : '',
+      taskId: isSet(object.taskId) ? globalThis.String(object.taskId) : "",
+      signalKey: isSet(object.signalKey) ? globalThis.String(object.signalKey) : "",
       data: isSet(object.data) ? bytesFromBase64(object.data) : new Uint8Array(0),
     };
   },
 
   toJSON(message: DurableEvent): unknown {
     const obj: any = {};
-    if (message.taskId !== '') {
+    if (message.taskId !== "") {
       obj.taskId = message.taskId;
     }
-    if (message.signalKey !== '') {
+    if (message.signalKey !== "") {
       obj.signalKey = message.signalKey;
     }
     if (message.data.length !== 0) {
@@ -343,8 +335,8 @@ export const DurableEvent: MessageFns<DurableEvent> = {
   },
   fromPartial(object: DeepPartial<DurableEvent>): DurableEvent {
     const message = createBaseDurableEvent();
-    message.taskId = object.taskId ?? '';
-    message.signalKey = object.signalKey ?? '';
+    message.taskId = object.taskId ?? "";
+    message.signalKey = object.signalKey ?? "";
     message.data = object.data ?? new Uint8Array(0);
     return message;
   },
@@ -352,11 +344,11 @@ export const DurableEvent: MessageFns<DurableEvent> = {
 
 export type V1DispatcherDefinition = typeof V1DispatcherDefinition;
 export const V1DispatcherDefinition = {
-  name: 'V1Dispatcher',
-  fullName: 'v1.V1Dispatcher',
+  name: "V1Dispatcher",
+  fullName: "v1.V1Dispatcher",
   methods: {
     registerDurableEvent: {
-      name: 'RegisterDurableEvent',
+      name: "RegisterDurableEvent",
       requestType: RegisterDurableEventRequest,
       requestStream: false,
       responseType: RegisterDurableEventResponse,
@@ -364,7 +356,7 @@ export const V1DispatcherDefinition = {
       options: {},
     },
     listenForDurableEvent: {
-      name: 'ListenForDurableEvent',
+      name: "ListenForDurableEvent",
       requestType: ListenForDurableEventRequest,
       requestStream: true,
       responseType: DurableEvent,
@@ -377,28 +369,28 @@ export const V1DispatcherDefinition = {
 export interface V1DispatcherServiceImplementation<CallContextExt = {}> {
   registerDurableEvent(
     request: RegisterDurableEventRequest,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): Promise<DeepPartial<RegisterDurableEventResponse>>;
   listenForDurableEvent(
     request: AsyncIterable<ListenForDurableEventRequest>,
-    context: CallContext & CallContextExt
+    context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<DurableEvent>>;
 }
 
 export interface V1DispatcherClient<CallOptionsExt = {}> {
   registerDurableEvent(
     request: DeepPartial<RegisterDurableEventRequest>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): Promise<RegisterDurableEventResponse>;
   listenForDurableEvent(
     request: AsyncIterable<DeepPartial<ListenForDurableEventRequest>>,
-    options?: CallOptions & CallOptionsExt
+    options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<DurableEvent>;
 }
 
 function bytesFromBase64(b64: string): Uint8Array {
   if ((globalThis as any).Buffer) {
-    return Uint8Array.from(globalThis.Buffer.from(b64, 'base64'));
+    return Uint8Array.from(globalThis.Buffer.from(b64, "base64"));
   } else {
     const bin = globalThis.atob(b64);
     const arr = new Uint8Array(bin.length);
@@ -411,35 +403,29 @@ function bytesFromBase64(b64: string): Uint8Array {
 
 function base64FromBytes(arr: Uint8Array): string {
   if ((globalThis as any).Buffer) {
-    return globalThis.Buffer.from(arr).toString('base64');
+    return globalThis.Buffer.from(arr).toString("base64");
   } else {
     const bin: string[] = [];
     arr.forEach((byte) => {
       bin.push(globalThis.String.fromCharCode(byte));
     });
-    return globalThis.btoa(bin.join(''));
+    return globalThis.btoa(bin.join(""));
   }
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin
-  ? T
-  : T extends globalThis.Array<infer U>
-    ? globalThis.Array<DeepPartial<U>>
-    : T extends ReadonlyArray<infer U>
-      ? ReadonlyArray<DeepPartial<U>>
-      : T extends {}
-        ? { [K in keyof T]?: DeepPartial<T[K]> }
-        : Partial<T>;
+export type DeepPartial<T> = T extends Builtin ? T
+  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
+  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
+  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
+  : Partial<T>;
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
 }
 
-export type ServerStreamingMethodResult<Response> = {
-  [Symbol.asyncIterator](): AsyncIterator<Response, void>;
-};
+export type ServerStreamingMethodResult<Response> = { [Symbol.asyncIterator](): AsyncIterator<Response, void> };
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;
