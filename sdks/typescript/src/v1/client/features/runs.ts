@@ -69,14 +69,7 @@ export class RunsClient {
   async get<T = any>(run: string | WorkflowRunRef<T>) {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
 
-    const { data } = await this.api.workflowRunGet(this.tenantId, runId);
-    return data;
-  }
-
-  async getDetails<T = any>(run: string | WorkflowRunRef<T>) {
-    const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
-
-    const { data } = await this.api.workflowRunGetShape(this.tenantId, runId);
+    const { data } = await this.api.v1WorkflowRunGet(runId);
     return data;
   }
 
