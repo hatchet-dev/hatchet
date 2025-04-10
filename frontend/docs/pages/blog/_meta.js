@@ -10,5 +10,8 @@ export default {
   },
   "multi-tenant-queues": {
     "title": "An unfair advantage: multi-tenant queues in Postgres"
+  },
+  "task-queue-modern-python": {
+    "title": "A task queue for modern Python applications"
   }
 }

@@ -1,0 +1,115 @@
+import DynamicLottie from "../../components/DynamicLottie";
+import * as prefetch from "./_celery_prefetch.json";
+import { Callout } from "nextra/components";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const ChildWorker = {
+  path: "examples/child/worker.py",
+};
+export const ChildTrigger = {
+  path: "examples/child/trigger.py",
+};
+export const Cron = {
+  path: "examples/cron/programatic-sync.py",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([ChildWorker, ChildTrigger, Cron]);
+
+# **A task queue for modern Python applications**
+
+<div className="w-full pb-4 mx-auto border-b shadow-md flex flex-row justify-between items-center mt-10">
+  <h5 className="text-xl font-bold tracking-tight text-foreground">
+    Matt Kaye
+  </h5>
+  <p className="font-light text-foreground">Published on April 10th, 2025</p>
+</div>
+
+_**Disclosure:** I'm an engineer at [Hatchet](https://hatchet.run), a multi-language task queue with Python support. We're [open-source](https://github.com/hatchet-dev/hatchet) (with a cloud version) and we aim to be a drop-in replacement for Celery that supports a modern Python stack._
+
+Modern Python applications often make heavy use of (relatively) new features and tooling that have emerged in Python over the past decade and change. Two of the most widespread are:
+
+1. The proliferation of type hints, and adoption of type checkers like [Mypy](https://mypy-lang.org/) and [Pyright](https://microsoft.github.io/pyright/#/), and tools like [Pydantic](https://docs.pydantic.dev/latest/) and [attrs](https://www.attrs.org/en/stable/) that lean on them.
+2. The adoption of `async` / `await`.
+
+These two sets of features have also played a role in the explosion of [FastAPI](https://fastapi.tiangolo.com/), which has quickly become one of the most, if not _the_ most, popular web frameworks in Python.
+
+<Callout type="info" emoji="⚡️">
+  If you aren't familiar with FastAPI, I'd recommending skimming through the
+  documentation to get a sense of some of its features, and on how heavily it
+  relies on Pydantic and `async` / `await` for building type-safe, performant
+  web applications.
+</Callout>
+
+## Hatchet's Python SDK
+
+Hatchet's Python SDK has drawn inspiration from FastAPI and is similarly a Pydantic- and async-first way of running background tasks.
+
+### Pydantic
+
+When working with Hatchet, you can define inputs and outputs of your tasks as Pydantic models, which the SDK will then serialize and deserialize for you internally. This means that you can write a task like this:
+
+<GithubSnippet src={ChildWorker} target="Simple" />
+
+In this example, we've defined a single Hatchet task that takes a Pydantic model as input, and returns a Pydantic model as output. This means that, for instance, if you want to trigger this task from somewhere else in your codebase, you can use:
+
+<GithubSnippet src={ChildTrigger} target="Running a Task" />
+
+Calling one of the `.run` methods trigger the workflow and has type-safe input which can be statically type checked and is also validated by Pydantic. This means that when triggering tasks, you don't need to, for instance, provide a set of untyped positional or keyword arguments.
+
+### Triggering task runs other ways
+
+You can also _schedule_ a task for the future (similar to Celery's `eta` or `countdown` features) using the `.schedule` method:
+
+<GithubSnippet src={ChildTrigger} target="Schedule a Task" />
+
+Importantly, Hatchet will not hold scheduled tasks in memory, so it's perfectly safe to schedule tasks for arbitrarily far in the future.
+
+Finally, Hatchet also has first-class support for cron jobs. You can either create crons dynamically:
+
+<GithubSnippet src={Cron} target="Create" />
+
+Or you can define them declaratively when you create you workflow:
+
+```python
+cron_workflow = hatchet.workflow(name="CronWorkflow", on_crons=["* * * * *"])
+```
+
+Importantly, first-class support for crons in Hatchet means there's no need for a tool like [beat](https://docs.celeryq.dev/en/latest/userguide/periodic-tasks.html#introduction) in Celery for handling scheduling periodic tasks.
+
+### `async` / `await`
+
+With Hatchet, all of your tasks can be defined as either sync or async functions, and Hatchet will run sync tasks in a non-blocking way behind the scenes. If you've worked in FastAPI, this should feel familiar. Ultimately, this gives developers using Hatchet the full power of `asyncio` in Python with no need for workarounds like increasing a `concurrency` setting on a worker in order to handle more concurrent work.
+
+As a simple example, you can easily run a Hatchet task that makes 10 concurrent API calls using `async` / `await` with `asyncio.gather` and `aiohttp`, as opposed to needing to run each one in a blocking fashion as its own task. For instance:
+
+```python
+import asyncio
+
+from aiohttp import ClientSession
+
+from hatchet_sdk import Context, EmptyModel, Hatchet
+
+hatchet = Hatchet()
+
+
+async def fetch(session: ClientSession, url: str) -> bool:
+    async with session.get(url) as response:
+        return response.status == 200
+
+
+@hatchet.task(name="Fetch")
+async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> int:
+    num_requests = 10
+
+    async with ClientSession() as session:
+        tasks = [
+            fetch(session, "https://docs.hatchet.run/home") for _ in range(num_requests)
+        ]
+
+        results = await asyncio.gather(*tasks)
+
+        return results.count(True)
+```
+
+With Hatchet, you can perform all of these requests in a single task concurrently, as opposed to needing to e.g. enqueue a single task per request, which is easier to program and reason about, more performant on your (the client) side, and also puts less pressure on the backing queue, since it needs to handle an order of magnitude fewer requests in this case.
