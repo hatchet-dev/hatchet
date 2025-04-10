@@ -105,11 +105,13 @@ find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i
 
 find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/def __init__(self, channel):/def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:/g'
 
-# ensure that pre-commit is applied without errors
+set +e
+# Note: Hack to run the linters without failing so that we can apply the patch
 ./lint.sh
+set -e
 
 # apply patch to openapi-generator generated code
 patch -p1 --no-backup-if-mismatch <./openapi_patch.patch
 
-# ensure that pre-commit is applied without errors
+# Rerun the linters and fail if there are any issues
 ./lint.sh
