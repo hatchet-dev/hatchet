@@ -78,6 +78,9 @@ class V1WorkflowRun(BaseModel):
         description="The timestamp the task run was created.",
         alias="createdAt",
     )
+    parent_task_external_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(default=None, alias="parentTaskExternalId")
     __properties: ClassVar[List[str]] = [
         "metadata",
         "status",
@@ -93,6 +96,7 @@ class V1WorkflowRun(BaseModel):
         "workflowVersionId",
         "input",
         "createdAt",
+        "parentTaskExternalId",
     ]
 
     model_config = ConfigDict(
@@ -166,6 +170,7 @@ class V1WorkflowRun(BaseModel):
                 "workflowVersionId": obj.get("workflowVersionId"),
                 "input": obj.get("input"),
                 "createdAt": obj.get("createdAt"),
+                "parentTaskExternalId": obj.get("parentTaskExternalId"),
             }
         )
         return _obj
