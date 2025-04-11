@@ -2,8 +2,6 @@ package sqlcv1
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -215,9 +213,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.WorkflowRunIds,
 	)
 	if err != nil {
-		argBytes, _ := json.Marshal(arg)
-		fmt.Println("FAILED ARG BYTES ARE", string(argBytes))
-
 		return nil, err
 	}
 	defer rows.Close()
@@ -263,17 +258,11 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.WorkflowVersionID,
 			&i.WorkflowRunID,
 		); err != nil {
-			argBytes, _ := json.Marshal(arg)
-			fmt.Println("FAILED ARG BYTES ARE", string(argBytes))
-
 			return nil, err
 		}
 		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
-		argBytes, _ := json.Marshal(arg)
-		fmt.Println("FAILED ARG BYTES ARE", string(argBytes))
-
 		return nil, err
 	}
 	return items, nil

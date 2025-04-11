@@ -9,11 +9,11 @@ import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
   CreateOnFailureTaskOpts,
-  TaskConcurrency,
   TaskFn,
   CreateWorkflowDurableTaskOpts,
   CreateBaseTaskOpts,
   CreateOnSuccessTaskOpts,
+  Concurrency,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -89,7 +89,10 @@ export type CreateBaseWorkflowOpts = {
    */
   onEvents?: string[];
 
-  concurrency?: TaskConcurrency;
+  /**
+   * (optional) concurrency config for the workflow.
+   */
+  concurrency?: Concurrency | Concurrency[];
 };
 
 export type CreateTaskWorkflowOpts<
@@ -160,7 +163,7 @@ export type TaskDefaults = {
   /**
    * (optional) the concurrency options for the task.
    */
-  concurrency?: TaskConcurrency | TaskConcurrency[];
+  concurrency?: Concurrency | Concurrency[];
 };
 
 /**

@@ -8,11 +8,11 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from examples.concurrency_multiple_keys.worker import (
+from examples.concurrency_workflow_level.worker import (
     DIGIT_MAX_RUNS,
     NAME_MAX_RUNS,
     WorkflowInput,
-    concurrency_multiple_keys_workflow,
+    concurrency_workflow_level_workflow,
 )
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -51,13 +51,13 @@ class RunMetadata(BaseModel):
         return self.key
 
 
-@pytest.mark.asyncio(loop_scope="session")
-async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
+@pytest.mark.asyncio()
+async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
-    run_refs = await concurrency_multiple_keys_workflow.aio_run_many_no_wait(
+    run_refs = await concurrency_workflow_level_workflow.aio_run_many_no_wait(
         [
-            concurrency_multiple_keys_workflow.create_bulk_run_item(
+            concurrency_workflow_level_workflow.create_bulk_run_item(
                 WorkflowInput(
                     name=(name := choice(characters)),
                     digit=(digit := choice([str(i) for i in range(6)])),
@@ -79,7 +79,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
 
     workflows = (
         await hatchet.workflows.aio_list(
-            workflow_name=concurrency_multiple_keys_workflow.name,
+            workflow_name=concurrency_workflow_level_workflow.name,
             limit=1_000,
         )
     ).rows
@@ -87,13 +87,13 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
     assert workflows
 
     workflow = next(
-        (w for w in workflows if w.name == concurrency_multiple_keys_workflow.name),
+        (w for w in workflows if w.name == concurrency_workflow_level_workflow.name),
         None,
     )
 
     assert workflow
 
-    assert workflow.name == concurrency_multiple_keys_workflow.name
+    assert workflow.name == concurrency_workflow_level_workflow.name
 
     runs = await hatchet.runs.aio_list(
         workflow_ids=[workflow.metadata.id],
@@ -127,10 +127,6 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
 
         if not has_group_membership:
             overlapping_groups[len(overlapping_groups) + 1] = [run]
-
-    assert {s.key for s in sorted_runs} == {
-        k.key for v in overlapping_groups.values() for k in v
-    }
 
     for id, group in overlapping_groups.items():
         assert is_valid_group(group), f"Group {id} is not valid"

@@ -42,7 +42,7 @@ type WorkflowCreateOpts[I any] struct {
 	OnCron []string
 
 	// (optional) Concurrency settings to control parallel execution
-	Concurrency *types.Concurrency
+	Concurrency []types.Concurrency
 
 	// (optional) Strategy for sticky execution of workflow runs
 	StickyStrategy *types.StickyStrategy

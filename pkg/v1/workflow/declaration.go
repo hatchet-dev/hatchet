@@ -133,7 +133,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 	Description    *string
 	OnEvents       []string
 	OnCron         []string
-	Concurrency    *types.Concurrency
+	Concurrency    []types.Concurrency
 	OnFailureTask  *task.OnFailureTaskDeclaration[I]
 	StickyStrategy *types.StickyStrategy
 
@@ -740,18 +740,20 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		req.Description = *w.Description
 	}
 
-	if w.Concurrency != nil {
-		req.Concurrency = &contracts.Concurrency{
-			Expression: w.Concurrency.Expression,
-			MaxRuns:    w.Concurrency.MaxRuns,
+	for _, concurrency := range w.Concurrency {
+		c := contracts.Concurrency{
+			Expression: concurrency.Expression,
+			MaxRuns:    concurrency.MaxRuns,
 		}
 
-		if w.Concurrency.LimitStrategy != nil {
-			strategy := *w.Concurrency.LimitStrategy
+		if concurrency.LimitStrategy != nil {
+			strategy := *concurrency.LimitStrategy
 			strategyInt := contracts.ConcurrencyLimitStrategy_value[string(strategy)]
 			strategyEnum := contracts.ConcurrencyLimitStrategy(strategyInt)
-			req.Concurrency.LimitStrategy = &strategyEnum
+			c.LimitStrategy = &strategyEnum
 		}
+
+		req.ConcurrencyArr = append(req.ConcurrencyArr, &c)
 	}
 
 	if w.OnFailureTask != nil {

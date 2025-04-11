@@ -74,10 +74,13 @@ message CreateWorkflowVersionRequest {
     repeated string event_triggers = 4; // (optional) event triggers for the workflow
     repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
     repeated CreateTaskOpts tasks = 6; // (required) the workflow jobs
+
+    // Deprecated: use concurrency_arr instead
     Concurrency concurrency = 7; // (optional) the workflow concurrency options
     optional string cron_input = 8; // (optional) the input for the cron trigger
     optional CreateTaskOpts on_failure_task = 9; // (optional) the job to run on failure
     optional StickyStrategy sticky = 10; // (optional) the sticky strategy for assigning steps to workers
+    repeated Concurrency concurrency_arr = 11; // (optional) the workflow concurrency options
 }
 
 enum ConcurrencyLimitStrategy {

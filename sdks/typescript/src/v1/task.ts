@@ -7,7 +7,7 @@ import { InputType, OutputType, UnknownInputType } from './types';
 /**
  * Options for configuring the concurrency for a task.
  */
-export type TaskConcurrency = {
+export type Concurrency = {
   /**
    * required the CEL expression to use for concurrency
    *
@@ -32,6 +32,11 @@ export type TaskConcurrency = {
    */
   limitStrategy?: ConcurrencyLimitStrategy;
 };
+
+/**
+ * @deprecated use Concurrency instead
+ */
+export type TaskConcurrency = Concurrency;
 
 export class NonRetryableError extends Error {
   constructor(message?: string) {
@@ -130,7 +135,7 @@ export type CreateBaseTaskOpts<
   /**
    * (optional) the concurrency options for the task
    */
-  concurrency?: TaskConcurrency | TaskConcurrency[];
+  concurrency?: Concurrency | Concurrency[];
 };
 
 export type CreateWorkflowTaskOpts<
