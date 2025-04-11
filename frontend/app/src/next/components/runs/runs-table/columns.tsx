@@ -1,6 +1,6 @@
 'use client';
 
-import { ColumnDef } from '@tanstack/react-table';
+import { ColumnDef, Row } from '@tanstack/react-table';
 import {
   V1TaskSummary,
   V1TaskStatus,
@@ -18,6 +18,9 @@ import { DataTableRowActions } from './data-table-row-actions';
 import { RunId } from '../run-id';
 import { RunsBadge } from '../runs-badge';
 import { Duration } from '@/next/components/ui/duration';
+import { AdditionalMetadata } from '@/next/components/ui/additional-meta';
+import { useFilters } from '@/next/hooks/use-filters';
+import { RunsFilters } from '@/next/hooks/use-runs';
 
 export const statusOptions = [
   { label: 'Pending', value: 'PENDING' },
@@ -150,6 +153,17 @@ export const columns: ColumnDef<V1TaskSummary>[] = [
     enableHiding: true,
   },
   {
+    accessorKey: 'additionalMetadata',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Metadata" />
+    ),
+    cell: ({ row }) => {
+      return <AdditionalMetadataCell row={row} />;
+    },
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
     id: 'actions',
     cell: ({ row }) => (
       <div className="flex items-center justify-end h-full">
@@ -159,3 +173,24 @@ export const columns: ColumnDef<V1TaskSummary>[] = [
     enableHiding: false,
   },
 ];
+
+export function AdditionalMetadataCell({ row }: { row: Row<V1TaskSummary> }) {
+  const { setFilter, filters } = useFilters<RunsFilters>();
+
+  const metadata = row.original.additionalMetadata;
+  if (!metadata) {
+    return <span>-</span>;
+  }
+
+  return (
+    <AdditionalMetadata
+      metadata={metadata}
+      onClick={(click) => {
+        setFilter('additional_metadata', [
+          ...(filters.additional_metadata || []),
+          `${click.key}:${click.value}`,
+        ]);
+      }}
+    />
+  );
+}

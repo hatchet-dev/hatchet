@@ -4,9 +4,16 @@ import { simple } from './workflow';
 
 async function main() {
   // ❓ Running a Task
-  const res = await simple.run({
-    Message: 'HeLlO WoRlD',
-  });
+  const res = await simple.run(
+    {
+      Message: 'HeLlO WoRlD',
+    },
+    {
+      additionalMetadata: {
+        test: 'test',
+      },
+    }
+  );
 
   // 👀 Access the results of the Task
   console.log(res.TransformedMessage);

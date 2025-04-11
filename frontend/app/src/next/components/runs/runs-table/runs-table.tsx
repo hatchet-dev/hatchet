@@ -13,6 +13,7 @@ import {
   FilterGroup,
   FilterSelect,
   FilterTaskSelect,
+  FilterKeyValue,
 } from '@/next/components/ui/filters/filters';
 import { V1TaskStatus } from '@/next/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
@@ -20,6 +21,7 @@ import docs from '@/next/docs-meta-data';
 import { Plus } from 'lucide-react';
 import { Button } from '@/next/components/ui/button';
 import { RunsMetricsView } from '../runs-metrics/runs-metrics';
+import { useMemo } from 'react';
 
 export function RunsTable() {
   const { filters } = useFilters<RunsFilters>();
@@ -33,6 +35,24 @@ export function RunsTable() {
     filters,
     refetchInterval: 3000,
   });
+
+  const additionalMetaOpts = useMemo(() => {
+    if (!runs || runs.length === 0) {
+      return [];
+    }
+
+    const allKeys = new Set<string>();
+    runs.forEach((run) => {
+      if (run.additionalMetadata) {
+        Object.keys(run.additionalMetadata).forEach((key) => allKeys.add(key));
+      }
+    });
+
+    return Array.from(allKeys).map((key) => ({
+      label: key,
+      value: key,
+    }));
+  }, [runs]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,6 +83,11 @@ export function RunsTable() {
           name="workflows_ids"
           placeholder="Task Name"
           multi
+        />
+        <FilterKeyValue<RunsFilters>
+          name="additional_metadata"
+          placeholder="Additional Metadata"
+          options={additionalMetaOpts}
         />
       </FilterGroup>
       <RunsMetricsView metrics={metrics} />
