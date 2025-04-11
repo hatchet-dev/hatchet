@@ -34,13 +34,16 @@ export function BreadcrumbNav() {
   const { breadcrumbs } = useBreadcrumbs();
 
   // Flattened navigation map for easy lookup
-  const navMap = new Map<string, NavItem>();
+  const navMap = useMemo(() => new Map<string, NavItem>(), []);
 
   // Map to track siblings at each level of the hierarchy
-  const siblingsByPath = new Map<string, NavItem[]>();
+  const siblingsByPath = useMemo(() => new Map<string, NavItem[]>(), []);
 
   // Store section items by their first segment for root level organization
-  const sectionItemsByRootPath = new Map<string, NavSection>();
+  const sectionItemsByRootPath = useMemo(
+    () => new Map<string, NavSection>(),
+    [],
+  );
 
   // Process all sections and organize them
   Object.values(navStructure.sections).forEach((section) => {
