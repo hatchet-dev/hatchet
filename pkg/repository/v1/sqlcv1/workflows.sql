@@ -50,6 +50,7 @@ SELECT
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
+    COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount"
 FROM
@@ -117,7 +118,8 @@ INSERT INTO "WorkflowVersion" (
     "workflowId",
     "scheduleTimeout",
     "sticky",
-    "kind"
+    "kind",
+    "defaultPriority"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -129,7 +131,8 @@ INSERT INTO "WorkflowVersion" (
     -- Deprecated: this is set but unused
     '5m',
     sqlc.narg('sticky')::"StickyStrategy",
-    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG')
+    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG'),
+    sqlc.narg('defaultPriority') :: integer
 ) RETURNING *;
 
 -- name: CreateJob :one
@@ -210,7 +213,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "input",
     "additionalMetadata",
     "id",
-    "method"
+    "method",
+    "priority"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
@@ -218,7 +222,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     sqlc.narg('input')::jsonb,
     sqlc.narg('additionalMetadata')::jsonb,
     gen_random_uuid(),
-    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one

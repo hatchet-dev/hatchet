@@ -229,7 +229,7 @@ FROM
     active_cron_schedules
 WHERE
     cronSchedules."parentId" = active_cron_schedules."parentId"
-RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, cronschedules."additionalMetadata", cronschedules."createdAt", cronschedules."deletedAt", cronschedules."updatedAt", cronschedules.name, cronschedules.id, cronschedules.method, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
+RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, cronschedules."additionalMetadata", cronschedules."createdAt", cronschedules."deletedAt", cronschedules."updatedAt", cronschedules.name, cronschedules.id, cronschedules.method, cronschedules.priority, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
 `
 
 type PollCronSchedulesRow struct {
@@ -245,6 +245,7 @@ type PollCronSchedulesRow struct {
 	Name               pgtype.Text                   `json:"name"`
 	ID                 pgtype.UUID                   `json:"id"`
 	Method             WorkflowTriggerCronRefMethods `json:"method"`
+	Priority           int32                         `json:"priority"`
 	WorkflowVersionId  pgtype.UUID                   `json:"workflowVersionId"`
 	TenantId           pgtype.UUID                   `json:"tenantId"`
 }
@@ -271,6 +272,7 @@ func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtyp
 			&i.Name,
 			&i.ID,
 			&i.Method,
+			&i.Priority,
 			&i.WorkflowVersionId,
 			&i.TenantId,
 		); err != nil {
@@ -473,7 +475,7 @@ FROM
     active_scheduled_workflows
 WHERE
     scheduledWorkflows."id" = active_scheduled_workflows."id"
-RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, scheduledworkflows.priority, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
 `
 
 type PollScheduledWorkflowsRow struct {
@@ -491,6 +493,7 @@ type PollScheduledWorkflowsRow struct {
 	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
 	UpdatedAt           pgtype.Timestamp                   `json:"updatedAt"`
 	Method              WorkflowTriggerScheduledRefMethods `json:"method"`
+	Priority            int32                              `json:"priority"`
 	WorkflowVersionId   pgtype.UUID                        `json:"workflowVersionId"`
 	TenantId            pgtype.UUID                        `json:"tenantId"`
 }
@@ -521,6 +524,7 @@ func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid 
 			&i.DeletedAt,
 			&i.UpdatedAt,
 			&i.Method,
+			&i.Priority,
 			&i.WorkflowVersionId,
 			&i.TenantId,
 		); err != nil {

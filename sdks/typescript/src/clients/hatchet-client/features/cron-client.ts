@@ -6,7 +6,6 @@ import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
 import { Logger } from '@util/logger';
-
 /**
  * Schema for creating a Cron Trigger.
  */
@@ -20,6 +19,7 @@ export const CreateCronTriggerSchema = z.object({
   }, 'Invalid cron expression'),
   input: z.record(z.any()).optional(),
   additionalMetadata: z.record(z.string()).optional(),
+  priority: z.number().optional(),
 });
 
 /**
@@ -76,6 +76,7 @@ export class CronClient {
         cronExpression: parsedCron.expression,
         input: parsedCron.input ?? {},
         additionalMetadata: parsedCron.additionalMetadata ?? {},
+        priority: parsedCron.priority,
       });
       return response.data;
     } catch (err) {

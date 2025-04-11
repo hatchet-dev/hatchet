@@ -376,6 +376,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			ScheduledTriggers:  dbSchedules,
 			Input:              []byte(req.Input),
 			AdditionalMetadata: additionalMetadata,
+			Priority:           &req.Priority,
 		},
 	)
 
@@ -830,6 +831,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				req.ChildKey,
 				additionalMetadata,
 				parentAdditionalMeta,
+				req.Priority,
 			)
 
 			if err != nil {

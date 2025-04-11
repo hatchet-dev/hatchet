@@ -21,11 +21,18 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 		return gen.ScheduledWorkflowRunCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
 	}
 
+	var priority int32 = 1
+
+	if request.Body.Priority != nil {
+		priority = *request.Body.Priority
+	}
+
 	scheduled, err := t.config.APIRepository.Workflow().CreateScheduledWorkflow(ctx.Request().Context(), tenantId, &repository.CreateScheduledWorkflowRunForWorkflowOpts{
 		ScheduledTrigger:   request.Body.TriggerAt,
 		Input:              request.Body.Input,
 		AdditionalMetadata: request.Body.AdditionalMetadata,
 		WorkflowId:         sqlchelpers.UUIDToStr(workflow.ID),
+		Priority:           &priority,
 	})
 
 	if err != nil {

@@ -37,12 +37,13 @@ func NewDurableTask[I, O any](opts create.StandaloneTask, fn func(ctx worker.Dur
 
 	// Create a workflow with the same name as the task
 	workflowOpts := create.WorkflowCreateOpts[I]{
-		Name:        opts.Name,
-		Version:     opts.Version,
-		Description: opts.Description,
-		OnEvents:    opts.OnEvents,
-		OnCron:      opts.OnCron,
-		OutputKey:   &opts.Name,
+		Name:            opts.Name,
+		Version:         opts.Version,
+		Description:     opts.Description,
+		OnEvents:        opts.OnEvents,
+		OnCron:          opts.OnCron,
+		OutputKey:       &opts.Name,
+		DefaultPriority: opts.DefaultPriority,
 	}
 
 	// Create the workflow
@@ -59,6 +60,7 @@ func NewDurableTask[I, O any](opts create.StandaloneTask, fn func(ctx worker.Dur
 		RateLimits:             opts.RateLimits,
 		WorkerLabels:           opts.WorkerLabels,
 		Concurrency:            opts.Concurrency,
+		DefaultPriority:        opts.DefaultPriority,
 	}
 
 	fixedFn := func(ctx worker.DurableHatchetContext, input I) (interface{}, error) {

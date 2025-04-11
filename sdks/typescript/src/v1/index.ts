@@ -5,3 +5,4 @@ export * from './declaration';
 export * from './conditions';
 export * from './client/duration';
 export * from './types';
+export * from './task';

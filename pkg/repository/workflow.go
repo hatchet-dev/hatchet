@@ -67,6 +67,8 @@ type CreateCronWorkflowTriggerOpts struct {
 
 	Input              map[string]interface{}
 	AdditionalMetadata map[string]interface{}
+
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {
@@ -88,6 +90,8 @@ type CreateWorkflowSchedulesOpts struct {
 
 	Input              []byte
 	AdditionalMetadata []byte
+
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateScheduledWorkflowRunForWorkflowOpts struct {
@@ -97,6 +101,8 @@ type CreateScheduledWorkflowRunForWorkflowOpts struct {
 
 	Input              map[string]interface{}
 	AdditionalMetadata map[string]interface{}
+
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateWorkflowTagOpts struct {

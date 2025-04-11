@@ -20,7 +20,7 @@ import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing_extensions import Self
+from typing_extensions import Annotated, Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.cron_workflows_method import CronWorkflowsMethod
@@ -44,6 +44,7 @@ class CronWorkflows(BaseModel):
     )
     enabled: StrictBool
     method: CronWorkflowsMethod
+    priority: Optional[Annotated[int, Field(le=3, strict=True, ge=1)]] = None
     __properties: ClassVar[List[str]] = [
         "metadata",
         "tenantId",
@@ -56,6 +57,7 @@ class CronWorkflows(BaseModel):
         "additionalMetadata",
         "enabled",
         "method",
+        "priority",
     ]
 
     model_config = ConfigDict(
@@ -126,6 +128,7 @@ class CronWorkflows(BaseModel):
                 "additionalMetadata": obj.get("additionalMetadata"),
                 "enabled": obj.get("enabled"),
                 "method": obj.get("method"),
+                "priority": obj.get("priority"),
             }
         )
         return _obj

@@ -9,7 +9,6 @@ import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
 import { Logger } from '@util/logger';
-
 /**
  * Schema for creating a Scheduled Run Trigger.
  */
@@ -17,6 +16,7 @@ export const CreateScheduledRunTriggerSchema = z.object({
   triggerAt: z.coerce.date(),
   input: z.record(z.any()).optional(),
   additionalMetadata: z.record(z.string()).optional(),
+  priority: z.number().optional(),
 });
 
 /**
@@ -71,10 +71,12 @@ export class ScheduleClient {
     // Validate cron input with zod schema
     try {
       const parsedCron = CreateScheduledRunTriggerSchema.parse(cron);
+
       const response = await this.api.scheduledWorkflowRunCreate(this.tenantId, workflowId, {
         input: parsedCron.input ?? {},
         additionalMetadata: parsedCron.additionalMetadata ?? {},
         triggerAt: parsedCron.triggerAt.toISOString(),
+        priority: parsedCron.priority,
       });
       return response.data;
     } catch (err) {

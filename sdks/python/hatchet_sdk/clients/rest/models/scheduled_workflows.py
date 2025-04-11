@@ -58,6 +58,7 @@ class ScheduledWorkflows(BaseModel):
         Annotated[str, Field(min_length=36, strict=True, max_length=36)]
     ] = Field(default=None, alias="workflowRunId")
     method: ScheduledWorkflowsMethod
+    priority: Optional[Annotated[int, Field(le=3, strict=True, ge=1)]] = None
     __properties: ClassVar[List[str]] = [
         "metadata",
         "tenantId",
@@ -72,6 +73,7 @@ class ScheduledWorkflows(BaseModel):
         "workflowRunStatus",
         "workflowRunId",
         "method",
+        "priority",
     ]
 
     model_config = ConfigDict(
@@ -144,6 +146,7 @@ class ScheduledWorkflows(BaseModel):
                 "workflowRunStatus": obj.get("workflowRunStatus"),
                 "workflowRunId": obj.get("workflowRunId"),
                 "method": obj.get("method"),
+                "priority": obj.get("priority"),
             }
         )
         return _obj

@@ -26,6 +26,7 @@ const mockAssignedActions: AssignActionMock[] = [
     getGroupKeyRunId: 'groupKeyRun1',
     stepName: 'step1',
     retryCount: 0,
+    priority: 1,
   },
   // ... Add more mock AssignedAction objects as needed
 ];

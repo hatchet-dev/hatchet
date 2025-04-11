@@ -61,6 +61,8 @@ type WorkflowTask[I, O any] struct {
 
 	// (optional) Parents are the tasks that must successfully complete before this task can start
 	Parents []NamedTask
+
+	DefaultPriority *int32
 }
 
 type WorkflowOnFailureTask[I, O any] struct {
@@ -137,6 +139,8 @@ type StandaloneTask struct {
 
 	// (optional) The cron expressions for scheduled workflow runs
 	OnCron []string
+
+	DefaultPriority *int32
 }
 
 // DurableTaskCreateOpts defines options for creating a standalone durable task.

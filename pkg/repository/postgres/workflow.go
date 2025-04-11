@@ -400,6 +400,7 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 			Valid:                         true,
 			WorkflowTriggerCronRefMethods: dbsqlc.WorkflowTriggerCronRefMethodsAPI,
 		},
+		Priority: sqlchelpers.ToInt(*opts.Priority),
 	}
 
 	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
@@ -642,11 +643,18 @@ func (r *workflowEngineRepository) CreateSchedules(
 		return nil, err
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateSchedulesParams{
 		Workflowrunid:      sqlchelpers.UUIDFromStr(workflowVersionId),
 		Input:              opts.Input,
 		Triggertimes:       make([]pgtype.Timestamp, len(opts.ScheduledTriggers)),
 		Additionalmetadata: opts.AdditionalMetadata,
+		Priority:           sqlchelpers.ToInt(priority),
 	}
 
 	for i, scheduledTrigger := range opts.ScheduledTriggers {
@@ -676,6 +684,12 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 		return nil, err
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateWorkflowTriggerScheduledRefForWorkflowParams{
 		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
 		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
@@ -685,6 +699,7 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 			Valid:                              true,
 			WorkflowTriggerScheduledRefMethods: dbsqlc.WorkflowTriggerScheduledRefMethodsAPI,
 		},
+		Priority: sqlchelpers.ToInt(priority),
 	}
 
 	created, err := r.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, r.pool, createParams)
@@ -1087,6 +1102,8 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 					String: "",
 					Valid:  true,
 				},
+				// TODO: Check this is right
+				Priority: sqlchelpers.ToInt(*opts.DefaultPriority),
 			},
 		)
 

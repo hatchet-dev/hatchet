@@ -100,6 +100,10 @@ func (c *testHatchetContext) RetryCount() int {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) Priority() int32 {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) action() *client.Action {
 	panic("not implemented")
 }

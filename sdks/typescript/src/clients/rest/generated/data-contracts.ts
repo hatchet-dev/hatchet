@@ -794,6 +794,12 @@ export interface ScheduledWorkflows {
    */
   workflowRunId?: string;
   method: 'DEFAULT' | 'API';
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface ScheduledWorkflowsList {
@@ -828,6 +834,12 @@ export interface CronWorkflows {
   additionalMetadata?: Record<string, any>;
   enabled: boolean;
   method: 'DEFAULT' | 'API';
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface CronWorkflowsList {
@@ -1221,6 +1233,12 @@ export interface ScheduleWorkflowRunRequest {
   additionalMetadata: object;
   /** @format date-time */
   triggerAt: string;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface CreateCronWorkflowTriggerRequest {
@@ -1228,6 +1246,12 @@ export interface CreateCronWorkflowTriggerRequest {
   additionalMetadata: object;
   cronName: string;
   cronExpression: string;
+  /**
+   * @format int32
+   * @min 1
+   * @max 3
+   */
+  priority?: number;
 }
 
 export interface CreatePullRequestFromStepRun {

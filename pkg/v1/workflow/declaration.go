@@ -47,6 +47,7 @@ type WorkflowBase interface {
 
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
+	Priority           *int32
 
 	childOpts *client.ChildWorkflowOpts
 }
@@ -148,6 +149,8 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 	// Map to store task output setters
 	outputSetters map[string]func(*O, interface{})
+
+	DefaultPriority *int32
 }
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
@@ -181,6 +184,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		durableTasks:     []*task.DurableTaskDeclaration[I]{},
 		durableTaskFuncs: make(map[string]interface{}),
 		outputSetters:    make(map[string]func(*O, interface{})),
+		DefaultPriority:  opts.DefaultPriority,
 	}
 
 	if opts.Version != "" {
@@ -726,10 +730,11 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	tasksToRegister := append(taskOpts, durableOpts...)
 
 	req := &contracts.CreateWorkflowVersionRequest{
-		Tasks:         tasksToRegister,
-		Name:          w.Name,
-		EventTriggers: w.OnEvents,
-		CronTriggers:  w.OnCron,
+		Tasks:           tasksToRegister,
+		Name:            w.Name,
+		EventTriggers:   w.OnEvents,
+		CronTriggers:    w.OnCron,
+		DefaultPriority: w.DefaultPriority,
 	}
 
 	if w.Version != nil {

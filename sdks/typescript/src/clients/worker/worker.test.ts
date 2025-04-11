@@ -22,6 +22,7 @@ const mockStart: AssignActionMock = {
   getGroupKeyRunId: 'groupKeyRun1',
   stepName: 'step1',
   retryCount: 0,
+  priority: 1,
 };
 
 const mockCancel: AssignActionMock = {

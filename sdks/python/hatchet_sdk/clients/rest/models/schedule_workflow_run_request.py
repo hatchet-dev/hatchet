@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
+from typing_extensions import Annotated, Self
 
 
 class ScheduleWorkflowRunRequest(BaseModel):
@@ -32,7 +32,13 @@ class ScheduleWorkflowRunRequest(BaseModel):
     input: Dict[str, Any]
     additional_metadata: Dict[str, Any] = Field(alias="additionalMetadata")
     trigger_at: datetime = Field(alias="triggerAt")
-    __properties: ClassVar[List[str]] = ["input", "additionalMetadata", "triggerAt"]
+    priority: Optional[Annotated[int, Field(le=3, strict=True, ge=1)]] = None
+    __properties: ClassVar[List[str]] = [
+        "input",
+        "additionalMetadata",
+        "triggerAt",
+        "priority",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -87,6 +93,7 @@ class ScheduleWorkflowRunRequest(BaseModel):
                 "input": obj.get("input"),
                 "additionalMetadata": obj.get("additionalMetadata"),
                 "triggerAt": obj.get("triggerAt"),
+                "priority": obj.get("priority"),
             }
         )
         return _obj

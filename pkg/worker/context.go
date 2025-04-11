@@ -87,6 +87,8 @@ type HatchetContext interface {
 
 	CurChildIndex() int
 	IncChildIndex()
+
+	Priority() int32
 }
 
 type TriggeredBy string
@@ -325,6 +327,7 @@ type SpawnWorkflowOpts struct {
 	Key                *string
 	Sticky             *bool
 	AdditionalMetadata *map[string]string
+	Priority           *int32
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
@@ -366,6 +369,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			ChildKey:           opts.Key,
 			DesiredWorkerId:    desiredWorker,
 			AdditionalMetadata: opts.AdditionalMetadata,
+			Priority:           opts.Priority,
 		},
 	)
 
@@ -457,6 +461,10 @@ func (h *hatchetContext) ChildKey() *string {
 
 func (h *hatchetContext) ParentWorkflowRunId() *string {
 	return h.a.ParentWorkflowRunId
+}
+
+func (h *hatchetContext) Priority() int32 {
+	return h.a.Priority
 }
 
 func (h *hatchetContext) populateStepDataForGroupKeyRun() error {

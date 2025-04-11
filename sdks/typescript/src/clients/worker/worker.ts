@@ -297,6 +297,7 @@ export class V0Worker {
         sticky: workflow.sticky,
         concurrency,
         onFailureTask,
+        defaultPriority: workflow.defaultPriority,
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,

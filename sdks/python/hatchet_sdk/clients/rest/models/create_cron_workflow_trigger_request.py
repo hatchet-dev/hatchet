@@ -20,7 +20,7 @@ import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
+from typing_extensions import Annotated, Self
 
 
 class CreateCronWorkflowTriggerRequest(BaseModel):
@@ -32,11 +32,13 @@ class CreateCronWorkflowTriggerRequest(BaseModel):
     additional_metadata: Dict[str, Any] = Field(alias="additionalMetadata")
     cron_name: StrictStr = Field(alias="cronName")
     cron_expression: StrictStr = Field(alias="cronExpression")
+    priority: Optional[Annotated[int, Field(le=3, strict=True, ge=1)]] = None
     __properties: ClassVar[List[str]] = [
         "input",
         "additionalMetadata",
         "cronName",
         "cronExpression",
+        "priority",
     ]
 
     model_config = ConfigDict(
@@ -93,6 +95,7 @@ class CreateCronWorkflowTriggerRequest(BaseModel):
                 "additionalMetadata": obj.get("additionalMetadata"),
                 "cronName": obj.get("cronName"),
                 "cronExpression": obj.get("cronExpression"),
+                "priority": obj.get("priority"),
             }
         )
         return _obj
