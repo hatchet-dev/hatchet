@@ -20,10 +20,10 @@ type Result struct {
 	Step PriorityOutput
 }
 
-// ❓ Static Rate Limit
 func Priority(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[PriorityInput, Result] {
 	// Create a standalone task that transforms a message
 
+	// ❓ Default priority
 	defaultPriority := int32(1)
 
 	workflow := factory.NewWorkflow[PriorityInput, Result](
@@ -33,6 +33,7 @@ func Priority(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[PriorityInp
 		},
 		hatchet,
 	)
+	// ‼️
 
 	// ❓ Defining a Task
 	workflow.Task(

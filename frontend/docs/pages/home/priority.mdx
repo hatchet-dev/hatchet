@@ -12,13 +12,26 @@ export const PriorityTriggerPy = {
 export const PriorityTs = {
   path: "src/v1/examples/priority/workflow.ts",
 };
+export const PriorityTriggerTs = {
+  path: "src/v1/examples/priority/run.ts",
+};
 
 export const PriorityGo = {
   path: "examples/v1/workflows/priority.go",
 };
+export const PriorityTriggerGo = {
+  path: "examples/v1/run/priority.go",
+};
 
 export const getStaticProps = ({}) =>
-  getSnippets([PriorityPy, PriorityTs, PriorityGo, PriorityTriggerPy]);
+  getSnippets([
+    PriorityPy,
+    PriorityTs,
+    PriorityGo,
+    PriorityTriggerPy,
+    PriorityTriggerTs,
+    PriorityTriggerGo,
+  ]);
 
 # Assigning Priority to tasks in Hatchet
 
@@ -76,12 +89,11 @@ When you trigger a run, you can set the priority of the triggered run to overrid
   </Tabs.Tab>
   <Tabs.Tab>
 
-<GithubSnippet src={PriorityTs} target="Task Priority in a Workflow" />
+<GithubSnippet src={PriorityTriggerTs} target="Run a Task with a Priority" />
 
   </Tabs.Tab>
   <Tabs.Tab>
-{/* TODO: Fill this in */}
-    {/* <GithubSnippet src={PriorityGo} target="Default priority" /> */}
+    <GithubSnippet src={PriorityTriggerGo} target="Running a Task with Priority" />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -96,13 +108,11 @@ Similarly, you can also assign a priority to scheduled and cron workflows.
   </Tabs.Tab>
   <Tabs.Tab>
 
-{/* TODO: Fill this in */}
-{/* <GithubSnippet src={PriorityTs} target="Task Priority in a Workflow" /> */}
+<GithubSnippet src={PriorityTriggerTs} target="Schedule and cron" />
 
   </Tabs.Tab>
   <Tabs.Tab>
-{/* TODO: Fill this in */}
-    {/* <GithubSnippet src={PriorityGo} target="Default priority" /> */}
+    <GithubSnippet src={PriorityTriggerGo} target="Schedule and cron" />
 
   </Tabs.Tab>
 </UniversalTabs>

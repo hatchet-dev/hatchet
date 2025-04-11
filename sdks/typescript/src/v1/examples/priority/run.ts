@@ -5,21 +5,28 @@ import { priority } from './workflow';
 async function main() {
   try {
     console.log('running priority workflow');
-    // ❓ Run a Workflow with a Priority
-    // const result = priority.run({}, { priority: Priority.LOW });
-    // const run = priority.runNoWait({}, { priority: Priority.HIGH });
+
+    // ❓ Run a Task with a Priority
+    const run = priority.run(
+      new Date(Date.now() + 60 * 60 * 1000),
+      { priority: Priority.HIGH }
+    );
+    // !!
+
+    // ❓ Schedule and cron
     const scheduled = priority.schedule(
       new Date(Date.now() + 60 * 60 * 1000),
       {},
       { priority: Priority.HIGH }
     );
     const delayed = priority.delay(60 * 60 * 1000, {}, { priority: Priority.HIGH });
-    // const cron = priority.cron(
-    //   `daily-cron-${Math.random()}`,
-    //   '0 0 * * *',
-    //   {},
-    //   { priority: Priority.HIGH }
-    // );
+    const cron = priority.cron(
+      `daily-cron-${Math.random()}`,
+      '0 0 * * *',
+      {},
+      { priority: Priority.HIGH }
+    );
+    // !!
 
     const [scheduledResult, delayedResult] = await Promise.all([scheduled, delayed]);
     console.log('scheduledResult', scheduledResult);
