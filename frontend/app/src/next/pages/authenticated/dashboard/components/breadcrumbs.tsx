@@ -23,8 +23,25 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { BreadcrumbData, useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { BASE_PATH } from '@/next/lib/routes';
+
 // Use the existing NavItem type from main-nav
 type NavItem = MainNavItem;
+
+// Utility functions for base path handling
+const stripBasePath = (path: string) => path.replace(BASE_PATH, '');
+const addBasePath = (path: string) => BASE_PATH + path;
+
+// Utility functions for working with NavItems
+const stripNavItemBasePath = (item: NavItem): NavItem => ({
+  ...item,
+  url: stripBasePath(item.url),
+  items: item.items?.map(stripNavItemBasePath),
+});
+
+const stripNavSectionBasePath = (section: NavSection): NavSection => ({
+  ...section,
+  items: section.items.map(stripNavItemBasePath),
+});
 
 export function BreadcrumbNav() {
   const location = useLocation();
@@ -47,20 +64,12 @@ export function BreadcrumbNav() {
 
   // Process all sections and organize them
   Object.values(navStructure.sections).forEach((section) => {
-    section.items.forEach((item) => {
+    const strippedSection = stripNavSectionBasePath(section);
+    strippedSection.items.forEach((item) => {
       // Get the first segment of the URL path (e.g., '/runs' -> 'runs')
-      const rootSegment = item.url
-        .replace(BASE_PATH, '')
-        .split('/')
-        .filter(Boolean)[0];
+      const rootSegment = item.url.split('/').filter(Boolean)[0];
       if (rootSegment) {
-        sectionItemsByRootPath.set(rootSegment, {
-          ...section,
-          items: section.items.map((item) => ({
-            ...item,
-            url: item.url.replace(BASE_PATH, ''),
-          })),
-        });
+        sectionItemsByRootPath.set(rootSegment, strippedSection);
       }
     });
   });
@@ -70,70 +79,36 @@ export function BreadcrumbNav() {
     const siblings: NavItem[] = [];
 
     items.forEach((item) => {
-      navMap.set(item.url.replace(BASE_PATH, ''), {
-        ...item,
-        url: item.url.replace(BASE_PATH, ''),
-      });
-      siblings.push({
-        ...item,
-        url: item.url.replace(BASE_PATH, ''),
-      });
+      const strippedItem = stripNavItemBasePath(item);
+      navMap.set(strippedItem.url, strippedItem);
+      siblings.push(strippedItem);
 
-      if (item.items) {
-        addToMap(
-          item.items.map((item) => ({
-            ...item,
-            url: item.url.replace(BASE_PATH, ''),
-          })),
-          item.url.replace(BASE_PATH, ''),
-        );
+      if (strippedItem.items) {
+        addToMap(strippedItem.items, strippedItem.url);
       }
     });
 
     if (parentPath) {
-      siblingsByPath.set(
-        parentPath.replace(BASE_PATH, ''),
-        siblings.map((item) => ({
-          ...item,
-          url: item.url.replace(BASE_PATH, ''),
-        })),
-      );
+      siblingsByPath.set(stripBasePath(parentPath), siblings);
     }
   };
 
   // First, collect all root-level items across all sections
   const rootItems: NavItem[] = [];
   Object.values(navStructure.sections).forEach((section) => {
-    rootItems.push(
-      ...section.items.map((item) => ({
-        ...item,
-        url: item.url.replace(BASE_PATH, ''),
-      })),
-    );
+    rootItems.push(...section.items.map(stripNavItemBasePath));
   });
 
   // Set the root siblings
-  siblingsByPath.set(
-    '/',
-    rootItems.map((item) => ({
-      ...item,
-      url: item.url.replace(BASE_PATH, ''),
-    })),
-  );
+  siblingsByPath.set('/', rootItems);
 
   // Now process all items in each section
   Object.values(navStructure.sections).forEach((section) => {
-    addToMap(
-      section.items.map((item) => ({
-        ...item,
-        url: item.url.replace(BASE_PATH, ''),
-      })),
-    );
+    addToMap(section.items.map(stripNavItemBasePath));
   });
 
   // Build breadcrumb path based on current location
-  const pathSegments = location.pathname
-    .replace(BASE_PATH, '')
+  const pathSegments = stripBasePath(location.pathname)
     .split('/')
     .filter(Boolean);
 
@@ -210,7 +185,7 @@ export function BreadcrumbNav() {
                     {item.siblings.map((sibling, index) => (
                       <DropdownMenuItem key={sibling.url + index} asChild>
                         <BreadcrumbLink
-                          to={BASE_PATH + sibling.url}
+                          to={addBasePath(sibling.url)}
                           className="flex items-center gap-2"
                         >
                           {sibling.icon && (
@@ -237,7 +212,7 @@ export function BreadcrumbNav() {
             ) : item.siblings ? (
               <div className="group flex items-center">
                 <BreadcrumbLink
-                  to={BASE_PATH + item.url}
+                  to={addBasePath(item.url)}
                   className="flex items-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis"
                 >
                   {(item.isFirst || item.alwaysShowIcon) && item.icon && (
@@ -259,7 +234,7 @@ export function BreadcrumbNav() {
                       {item.siblings.map((sibling, index) => (
                         <DropdownMenuItem key={sibling.url + index} asChild>
                           <BreadcrumbLink
-                            to={BASE_PATH + sibling.url}
+                            to={addBasePath(sibling.url)}
                             className="flex items-center gap-2"
                           >
                             {sibling.icon && (
@@ -275,7 +250,7 @@ export function BreadcrumbNav() {
               </div>
             ) : (
               <BreadcrumbLink
-                to={BASE_PATH + item.url}
+                to={addBasePath(item.url)}
                 className="whitespace-nowrap overflow-hidden text-ellipsis inline-flex items-center gap-2"
               >
                 {(item.isFirst || item.alwaysShowIcon) && item.icon && (
