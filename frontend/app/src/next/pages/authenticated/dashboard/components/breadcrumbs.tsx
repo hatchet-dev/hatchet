@@ -137,6 +137,7 @@ export function BreadcrumbNav() {
 
         breadcrumbItemsFromNav.push({
           title: navItem.title,
+          label: navItem.title,
           url: navItem.url,
           siblings: siblings.length > 1 ? siblings : undefined,
           section: sectionName,
@@ -152,13 +153,19 @@ export function BreadcrumbNav() {
   >(() => {
     const mergedBreadcrumbs = [...breadcrumbItemsFromNav, ...breadcrumbs];
 
-    return mergedBreadcrumbs.map((item, index) => ({
+    const breadcrumbItems = mergedBreadcrumbs.map((item, index) => ({
       ...item,
       alwaysShowTitle: item.alwaysShowTitle ?? true,
       alwaysShowIcon: item.alwaysShowIcon ?? true,
       isLast: index === mergedBreadcrumbs.length - 1,
       isFirst: index === 0,
     }));
+
+    const lastItem = mergedBreadcrumbs[mergedBreadcrumbs.length - 1];
+
+    document.title = lastItem.title + ' - Hatchet';
+
+    return breadcrumbItems;
   }, [breadcrumbItemsFromNav, breadcrumbs]);
 
   return (
@@ -177,7 +184,7 @@ export function BreadcrumbNav() {
                       <item.icon className="h-4 w-4 flex-shrink-0" />
                     )}
                     <span className="overflow-hidden text-ellipsis">
-                      {item.title}
+                      {item.label}
                     </span>
                     <ChevronDown className="h-4 w-4 flex-shrink-0 ml-1" />
                   </DropdownMenuTrigger>
@@ -204,7 +211,7 @@ export function BreadcrumbNav() {
                   )}
                   {(item.alwaysShowTitle || !(item.isFirst || isMobile)) && (
                     <span className="overflow-hidden text-ellipsis">
-                      {item.title}
+                      {item.label}
                     </span>
                   )}
                 </BreadcrumbPage>
@@ -220,7 +227,7 @@ export function BreadcrumbNav() {
                   )}
                   {(item.alwaysShowTitle || !(item.isFirst || isMobile)) && (
                     <span className="overflow-hidden text-ellipsis">
-                      {item.title}
+                      {item.label}
                     </span>
                   )}
                 </BreadcrumbLink>
@@ -258,7 +265,7 @@ export function BreadcrumbNav() {
                 )}
                 {(item.alwaysShowTitle || !(item.isFirst || isMobile)) && (
                   <span className="overflow-hidden text-ellipsis">
-                    {item.title}
+                    {item.label}
                   </span>
                 )}
               </BreadcrumbLink>

@@ -2,7 +2,8 @@ import { NavItem } from '@/next/pages/authenticated/dashboard/components/sidebar
 import * as React from 'react';
 
 export interface BreadcrumbData {
-  title: React.ReactNode;
+  title: string;
+  label: React.ReactNode;
   url: string;
   siblings?: NavItem[];
   section?: string;

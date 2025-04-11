@@ -34,7 +34,8 @@ export default function ServiceDetailPage() {
 
     const breadcrumbs = [
       {
-        title: serviceName,
+        title: 'Worker Services',
+        label: serviceName,
         url: ROUTES.services.detail(encodeURIComponent(decodedServiceName)),
       },
     ];

@@ -12,7 +12,7 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { RunDataCard } from '@/next/components/runs/run-output-card';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
-import { RunId } from '@/next/components/runs/run-id';
+import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { RunChildrenCardRoot } from '@/next/components/runs/run-children';
 import { DocsButton } from '@/next/components/ui/docs-button';
@@ -74,7 +74,8 @@ export default function RunDetailPage() {
       const parentUrl = ROUTES.runs.parent(workflow);
       if (parentUrl) {
         breadcrumbs.push({
-          title: <RunId wfRun={parentData.run} />,
+          title: getFriendlyWorkflowRunId(parentData.run) || '',
+          label: <RunId wfRun={parentData.run} />,
           url: parentUrl,
           icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
           alwaysShowIcon: true,
@@ -83,7 +84,8 @@ export default function RunDetailPage() {
     }
 
     breadcrumbs.push({
-      title: <RunId wfRun={workflow} />,
+      title: getFriendlyWorkflowRunId(workflow) || '',
+      label: <RunId wfRun={workflow} />,
       url:
         task?.metadata.id === workflow?.metadata.id
           ? ROUTES.runs.detail(workflow.metadata.id)
