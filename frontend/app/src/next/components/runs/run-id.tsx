@@ -21,7 +21,7 @@ export function RunId({
   const isTaskRun = taskRun !== undefined;
 
   if (taskRun?.displayName.startsWith('leaf')) {
-    console.log(taskRun);
+    // Debugging code removed.
   }
 
   const url = !isTaskRun
