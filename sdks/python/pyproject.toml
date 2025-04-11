@@ -5,6 +5,7 @@ description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
 include = ["hatchet_sdk/py.typed"]
+license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
