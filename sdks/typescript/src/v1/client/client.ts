@@ -24,6 +24,7 @@ import {
   WorkflowDeclaration,
   TaskWorkflowDeclaration,
   CreateDurableTaskWorkflow,
+  CreateDurableTaskWorkflowOpts,
 } from '../declaration';
 import { IHatchetClient } from './client.interface';
 import { CreateWorkerOpts, Worker } from './worker';
@@ -31,7 +32,6 @@ import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
-import { CreateStandaloneDurableTaskOpts } from '../task';
 import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
 import { RatelimitsClient } from './features';
 
@@ -179,7 +179,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A TaskWorkflowDeclaration instance for a durable task
    */
   durableTask<I extends InputType, O extends OutputType>(
-    options: CreateStandaloneDurableTaskOpts<I, O>
+    options: CreateDurableTaskWorkflowOpts<I, O>
   ): TaskWorkflowDeclaration<I, O>;
 
   /**
@@ -201,7 +201,7 @@ export class HatchetClient implements IHatchetClient {
   >(
     options: {
       fn: Fn;
-    } & Omit<CreateStandaloneDurableTaskOpts<I, O>, 'fn'>
+    } & Omit<CreateDurableTaskWorkflowOpts<I, O>, 'fn'>
   ): TaskWorkflowDeclaration<I, O>;
 
   /**
