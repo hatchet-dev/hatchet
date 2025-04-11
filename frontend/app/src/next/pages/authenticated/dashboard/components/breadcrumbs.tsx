@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -161,12 +161,19 @@ export function BreadcrumbNav() {
       isFirst: index === 0,
     }));
 
-    const lastItem = mergedBreadcrumbs[mergedBreadcrumbs.length - 1];
-
-    document.title = lastItem.title + ' - Hatchet';
-
     return breadcrumbItems;
   }, [breadcrumbItemsFromNav, breadcrumbs]);
+
+  useEffect(() => {
+    if (breadcrumbItems.length === 0) {
+      document.title = 'hatchet';
+    }
+    const lastItem = breadcrumbItems[breadcrumbItems.length - 1];
+
+    if (lastItem) {
+      document.title = 'hatchet/' + lastItem.title.toLowerCase();
+    }
+  }, [breadcrumbItems]);
 
   return (
     <Breadcrumb>
