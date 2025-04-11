@@ -5,7 +5,7 @@ import { onboardingRoutes } from './onboarding/onboarding.router.tsx';
 
 export const authenticatedRoutes: RouteObject[] = [
   {
-    path: '/',
+    path: '',
     element: <AuthenticatedGuard />,
     children: [...dashboardRoutes, ...onboardingRoutes],
   },

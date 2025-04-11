@@ -2,11 +2,11 @@ import { Navigate, RouteObject } from 'react-router-dom';
 
 export const settingsRoutes: RouteObject[] = [
   {
-    path: '/settings',
-    Component: () => <Navigate to="/settings/overview" />,
+    path: 'settings',
+    Component: () => <Navigate to="overview" />,
   },
   {
-    path: '/settings/overview',
+    path: 'settings/overview',
     lazy: async () =>
       import('./overview/overview.page').then((res) => {
         return {
@@ -15,7 +15,7 @@ export const settingsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/settings/api-tokens',
+    path: 'settings/api-tokens',
     lazy: async () =>
       import('./api-tokens/api-tokens.page').then((res) => {
         return {
@@ -24,7 +24,7 @@ export const settingsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/settings/github',
+    path: 'settings/github',
     lazy: async () =>
       import('./github/github.page').then((res) => {
         return {
@@ -33,7 +33,7 @@ export const settingsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/settings/team',
+    path: 'settings/team',
     lazy: async () =>
       import('./team/team.page').then((res) => {
         return {
@@ -42,7 +42,7 @@ export const settingsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/settings/resource-limits',
+    path: 'settings/resource-limits',
     lazy: async () =>
       import('./resource-limits/resource-limits.page').then((res) => {
         return {
@@ -51,7 +51,7 @@ export const settingsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/settings/alerting',
+    path: 'settings/alerting',
     lazy: async () =>
       import('./alerting/alerting.page').then((res) => {
         return {
@@ -60,7 +60,7 @@ export const settingsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/settings/ingestors',
+    path: 'settings/ingestors',
     lazy: async () =>
       import('./ingestors/ingestors.page').then((res) => {
         return {

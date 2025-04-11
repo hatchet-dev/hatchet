@@ -2,7 +2,7 @@ import { RouteObject } from 'react-router-dom';
 
 export const workerServicesRoutes: RouteObject[] = [
   {
-    path: '/services',
+    path: 'services',
     lazy: async () =>
       import('./worker-services.page').then((res) => {
         return {
@@ -11,7 +11,7 @@ export const workerServicesRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/services/:serviceName',
+    path: 'services/:serviceName',
     lazy: async () =>
       import('./worker-service-detail.page').then((res) => {
         return {
@@ -20,7 +20,7 @@ export const workerServicesRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/services/:serviceName/:workerId',
+    path: 'services/:serviceName/:workerId',
     lazy: async () =>
       import('./worker-detail.page').then((res) => {
         return {

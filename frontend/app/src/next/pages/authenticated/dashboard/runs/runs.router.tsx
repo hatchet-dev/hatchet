@@ -2,7 +2,7 @@ import { RouteObject } from 'react-router-dom';
 
 export const runsRoutes: RouteObject[] = [
   {
-    path: '/runs',
+    path: 'runs',
     lazy: async () =>
       import('./runs.page').then((res) => {
         return {
@@ -11,7 +11,7 @@ export const runsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/runs/:workflowRunId',
+    path: 'runs/:workflowRunId',
     lazy: async () =>
       import('./run-detail.page').then((res) => {
         return {
@@ -20,7 +20,7 @@ export const runsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: '/runs/:workflowRunId/:taskId',
+    path: 'runs/:workflowRunId/:taskId',
     lazy: async () =>
       import('./run-detail.page').then((res) => {
         return {

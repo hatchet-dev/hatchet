@@ -10,12 +10,12 @@ import { rateLimitsRoutes } from './rate-limits/rate-limits.router';
 
 export const dashboardRoutes: RouteObject[] = [
   {
-    path: '/',
+    path: '',
     element: <DashboardLayout />,
     children: [
       {
-        path: '/',
-        Component: () => <Navigate to="/runs" />,
+        path: '',
+        Component: () => <Navigate to="runs" />,
       },
       ...runsRoutes,
       ...scheduledRunsRoutes,

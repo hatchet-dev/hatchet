@@ -2,7 +2,7 @@ import { RouteObject } from 'react-router-dom';
 
 export const scheduledRunsRoutes: RouteObject[] = [
   {
-    path: '/scheduled',
+    path: 'scheduled',
     lazy: async () =>
       import('./scheduled-runs.page').then((res) => {
         return {
