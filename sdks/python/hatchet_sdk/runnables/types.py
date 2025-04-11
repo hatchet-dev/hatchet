@@ -79,20 +79,14 @@ class WorkflowConfig(BaseModel):
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
-    concurrency: ConcurrencyExpression | None = None
+    concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: Type[BaseModel] = EmptyModel
 
     task_defaults: TaskDefaults = TaskDefaults()
 
-    @model_validator(mode="after")
-    def validate_concurrency_expression(self) -> "WorkflowConfig":
-        if not self.concurrency:
-            return self
-
-        expr = self.concurrency.expression
-
+    def _raise_for_invalid_expression(self, expr: str) -> None:
         if not expr.startswith("input."):
-            return self
+            return None
 
         _, field = expr.split(".", maxsplit=2)
 
@@ -100,6 +94,18 @@ class WorkflowConfig(BaseModel):
             raise ValueError(
                 f"The concurrency expression provided relies on the `{field}` field, which was not present in `{self.input_validator.__name__}`."
             )
+
+    @model_validator(mode="after")
+    def validate_concurrency_expression(self) -> "WorkflowConfig":
+        if not self.concurrency:
+            return self
+
+        if isinstance(self.concurrency, list):
+            for item in self.concurrency:
+                self._raise_for_invalid_expression(item.expression)
+
+        if isinstance(self.concurrency, ConcurrencyExpression):
+            self._raise_for_invalid_expression(self.concurrency.expression)
 
         return self
 
