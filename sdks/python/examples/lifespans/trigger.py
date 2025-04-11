@@ -1,3 +1,5 @@
-from examples.lifespans.worker import lifespan_task
+from examples.lifespans.worker import lifespan_workflow
 
-lifespan_task.run_no_wait()
+result = lifespan_workflow.run()
+
+print(result)

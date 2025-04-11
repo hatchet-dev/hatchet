@@ -15,8 +15,30 @@ class TaskOutput(BaseModel):
     external_ids: list[UUID]
 
 
-@hatchet.task(name="LifespanWorkflow")
-def lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
+lifespan_workflow = hatchet.workflow(name="LifespanWorkflow")
+
+
+@lifespan_workflow.task()
+def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
+    pool = cast(ConnectionPool, ctx.lifespan["pool"])
+
+    with pool.connection() as conn:
+        query = conn.execute("SELECT * FROM v1_lookup_table_olap LIMIT 5;")
+        rows = query.fetchall()
+
+        for row in rows:
+            print(row)
+
+        print("executed step1 with lifespan", ctx.lifespan)
+
+        return TaskOutput(
+            num_rows=len(rows),
+            external_ids=[cast(UUID, row[0]) for row in rows],
+        )
+
+
+@lifespan_workflow.task()
+async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
     pool = cast(ConnectionPool, ctx.lifespan["pool"])
 
     with pool.connection() as conn:
@@ -50,7 +72,7 @@ async def lifespan() -> AsyncGenerator[dict[str, Any], None]:
 
 
 worker = hatchet.worker(
-    "test-worker", slots=1, workflows=[lifespan_task], lifespan=lifespan
+    "test-worker", slots=1, workflows=[lifespan_workflow], lifespan=lifespan
 )
 # !!
 
