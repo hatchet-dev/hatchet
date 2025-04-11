@@ -442,6 +442,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				ChildIndex:          assignedAction.ChildWorkflowIndex,
 				ChildKey:            assignedAction.ChildWorkflowKey,
 				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
+				Priority:            assignedAction.Priority,
 			}
 		}
 

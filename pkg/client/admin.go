@@ -29,6 +29,7 @@ type ChildWorkflowOpts struct {
 	ChildKey           *string
 	DesiredWorkerId    *string
 	AdditionalMetadata *map[string]string
+	Priority           *int32
 }
 
 type WorkflowRun struct {
@@ -145,6 +146,7 @@ func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVers
 type scheduleOpts struct {
 	schedules []time.Time
 	input     any
+	priority  *int32
 }
 
 type ScheduleOptFunc func(*scheduleOpts)
@@ -192,6 +194,7 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		Name:      workflowName,
 		Schedules: pbSchedules,
 		Input:     string(inputBytes),
+		Priority:  *opts.priority,
 	})
 
 	if err != nil {
@@ -332,6 +335,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		ChildKey:           opts.ChildKey,
 		DesiredWorkerId:    opts.DesiredWorkerId,
 		AdditionalMetadata: &metadata,
+		Priority:           opts.Priority,
 	})
 
 	if err != nil {
@@ -397,6 +401,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			ChildKey:           workflow.Opts.ChildKey,
 			DesiredWorkerId:    workflow.Opts.DesiredWorkerId,
 			AdditionalMetadata: &metadata,
+			Priority:           workflow.Opts.Priority,
 		}
 
 	}
