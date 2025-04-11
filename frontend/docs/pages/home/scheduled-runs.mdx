@@ -124,6 +124,6 @@ When using scheduled runs, there are a few considerations to keep in mind:
 
 2. **Execution Time**: The actual execution time of a scheduled run may vary slightly from the scheduled time. Hatchet makes a best-effort attempt to enqueue the task as close to the scheduled time as possible, but there may be slight delays due to system load or other factors.
 
-3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances.
+3. **Missed Schedules**: If a scheduled task is missed (e.g., due to system downtime), Hatchet will not automatically run the missed instances when the service comes back online.
 
 4. **Overlapping Schedules**: If a task is still running when a second scheduled run is scheduled to start, Hatchet will start a new instance of the task or respect [concurrency](./concurrency.mdx) policy.
