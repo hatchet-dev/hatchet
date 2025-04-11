@@ -47,6 +47,7 @@ type WorkflowBase interface {
 
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
+	Priority           *int32
 
 	childOpts *client.ChildWorkflowOpts
 }
