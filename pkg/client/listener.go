@@ -68,10 +68,6 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
-
 	r.workflowRunListener = w
 
 	go func() {
@@ -129,7 +125,7 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 			})
 
 			if err != nil {
-				w.l.Error().Err(err).Msgf("could not subscribe to the worker")
+				w.l.Error().Err(err).Msgf("could not subscribe to the worker for workflow run id %s", workflowRunId)
 				rangeErr = err
 				return false
 			}
@@ -138,6 +134,7 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 		})
 
 		if rangeErr != nil {
+			retries++
 			continue
 		}
 
@@ -148,22 +145,23 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 }
 
 type threadSafeHandlers struct {
-	handlers []WorkflowRunEventHandler
+	// map of session ids to handlers
+	handlers map[string]WorkflowRunEventHandler
 	mu       sync.RWMutex
 }
 
 func (l *WorkflowRunsListener) AddWorkflowRun(
-	workflowRunId string,
+	workflowRunId, sessionId string,
 	handler WorkflowRunEventHandler,
 ) error {
 	handlers, _ := l.handlers.LoadOrStore(workflowRunId, &threadSafeHandlers{
-		handlers: []WorkflowRunEventHandler{},
+		handlers: map[string]WorkflowRunEventHandler{},
 	})
 
 	h := handlers.(*threadSafeHandlers)
 
 	h.mu.Lock()
-	h.handlers = append(h.handlers, handler)
+	h.handlers[sessionId] = handler
 	l.handlers.Store(workflowRunId, h)
 	h.mu.Unlock()
 
@@ -174,6 +172,27 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	}
 
 	return nil
+}
+
+func (l *WorkflowRunsListener) RemoveWorkflowRun(
+	workflowRunId, sessionId string,
+) {
+	handlers, ok := l.handlers.Load(workflowRunId)
+
+	if !ok {
+		return
+	}
+
+	h := handlers.(*threadSafeHandlers)
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	delete(h.handlers, sessionId)
+
+	if len(h.handlers) == 0 {
+		l.handlers.Delete(workflowRunId)
+	}
 }
 
 func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
@@ -208,6 +227,11 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 		if err != nil {
 			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
 				return nil
+			}
+
+			if status.Code(err) == codes.Unavailable {
+				l.l.Warn().Err(err).Msg("dispatcher is unavailable, retrying subscribe after 1 second")
+				time.Sleep(1 * time.Second)
 			}
 
 			retryErr := l.retrySubscribe(ctx)
