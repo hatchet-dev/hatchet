@@ -22,17 +22,13 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
-    WorkflowRunsMetricsCounts,
-)
-
 
 class WorkflowRunsMetrics(BaseModel):
     """
     WorkflowRunsMetrics
     """  # noqa: E501
 
-    counts: Optional[WorkflowRunsMetricsCounts] = None
+    counts: Optional[Dict[str, Any]] = None
     __properties: ClassVar[List[str]] = ["counts"]
 
     model_config = ConfigDict(

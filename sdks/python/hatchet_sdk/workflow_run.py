@@ -32,7 +32,10 @@ class WorkflowRunRef:
     async def aio_result(self) -> dict[str, Any]:
         return await self.workflow_run_listener.aio_result(self.workflow_run_id)
 
-    def _safely_get_action_name(self, action_id: str) -> str | None:
+    def _safely_get_action_name(self, action_id: str | None) -> str | None:
+        if not action_id:
+            return None
+
         try:
             return action_id.split(":", maxsplit=1)[1]
         except IndexError:

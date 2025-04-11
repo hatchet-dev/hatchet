@@ -7,6 +7,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    get_type_hints,
 )
 
 from hatchet_sdk.context.context import Context, DurableContext
@@ -28,6 +29,7 @@ from hatchet_sdk.runnables.types import (
     is_sync_fn,
 )
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.typing import TaskIOValidator, is_basemodel_subclass
 from hatchet_sdk.waits import (
     Action,
     Condition,
@@ -105,6 +107,13 @@ class Task(Generic[TWorkflowInput, R]):
         self.wait_for = self._flatten_conditions(wait_for)
         self.skip_if = self._flatten_conditions(skip_if)
         self.cancel_if = self._flatten_conditions(cancel_if)
+
+        return_type = get_type_hints(_fn).get("return")
+
+        self.validators: TaskIOValidator = TaskIOValidator(
+            workflow_input=workflow.config.input_validator,
+            step_output=return_type if is_basemodel_subclass(return_type) else None,
+        )
 
     def _flatten_conditions(
         self, conditions: list[Condition | OrGroup]
