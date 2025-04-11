@@ -59,15 +59,13 @@ export function ScheduledRunsTable({
   const paginationManager = usePagination();
   const { filters, setFilter } = useFilters<SchedulesFilters>();
 
-  const {
-    data: scheduledRunsData = [],
-    isLoading,
-    delete: deleteSchedule,
-  } = useSchedules({
-    refetchInterval: 5000,
-    paginationManager,
-    filters,
-  });
+  const { data: scheduledRunsData = [], delete: deleteSchedule } = useSchedules(
+    {
+      refetchInterval: 5000,
+      paginationManager,
+      filters,
+    },
+  );
 
   const handleDeleteClick = (run: ScheduledWorkflows) => {
     setSelectedRun(run);

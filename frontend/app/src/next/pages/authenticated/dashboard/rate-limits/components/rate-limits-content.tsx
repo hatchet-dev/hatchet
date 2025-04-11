@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Card, CardContent } from '@/next/components/ui/card';
 import { Button } from '@/next/components/ui/button';
 import { Badge } from '@/next/components/ui/badge';
@@ -13,38 +12,16 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { Separator } from '@/next/components/ui/separator';
-import { Dialog } from '@/next/components/ui/dialog';
-import {
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  Edit,
-  Trash2,
-  Lock,
-} from 'lucide-react';
-import { useRateLimitsContext } from '@/next/hooks/use-ratelimits';
-import { CreateRateLimitDialog } from './create-rate-limit-dialog';
+import { MoreHorizontal, RefreshCw, Lock } from 'lucide-react';
+import useRateLimits from '@/next/hooks/use-ratelimits';
+import docs from '@/next/docs-meta-data';
+import { DocsButton } from '@/next/components/ui/docs-button';
 
 export function RateLimitsContent() {
-  const [showRateLimitDialog, setShowRateLimitDialog] = useState(false);
-
-  const { data: rateLimits, isLoading } = useRateLimitsContext();
-
-  const CreateRateLimitButton = () => (
-    <Button
-      key="create-rate-limit"
-      onClick={() => setShowRateLimitDialog(true)}
-    >
-      <Plus className="h-4 w-4 mr-2" />
-      Create Rate Limit
-    </Button>
-  );
+  const { data: rateLimits, isLoading } = useRateLimits();
 
   // Format the rate limit period display
   const formatWindow = (rateLimit: any) => {
@@ -96,15 +73,11 @@ export function RateLimitsContent() {
           <h2 className="text-2xl font-semibold leading-tight text-foreground">
             Rate Limits
           </h2>
-          <div className="flex flex-row items-center gap-2">
-            <CreateRateLimitButton />
-          </div>
+          <div className="flex flex-row items-center gap-2"></div>
         </div>
-
         <p className="text-gray-700 dark:text-gray-300 my-4">
           Rate limits help you control API usage and prevent abuse.
         </p>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 mt-6">
           <Card>
             <CardContent className="pt-6">
@@ -135,9 +108,7 @@ export function RateLimitsContent() {
             </CardContent>
           </Card>
         </div>
-
         <Separator className="my-6" />
-
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <RefreshCw className="h-8 w-8 animate-spin text-primary" />
@@ -163,7 +134,7 @@ export function RateLimitsContent() {
                         <p className="text-sm text-muted-foreground">
                           Create a new rate limit to get started.
                         </p>
-                        <CreateRateLimitButton />
+                        <DocsButton doc={docs.home['rate-limits']} />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -192,21 +163,7 @@ export function RateLimitsContent() {
                                 <span className="sr-only">Open menu</span>
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => handleDeleteRateLimit(limit.key)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
+                            <DropdownMenuContent align="end"></DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                       </TableCell>
@@ -216,17 +173,6 @@ export function RateLimitsContent() {
               </TableBody>
             </Table>
           </div>
-        )}
-
-        {showRateLimitDialog && (
-          <Dialog
-            open={showRateLimitDialog}
-            onOpenChange={setShowRateLimitDialog}
-          >
-            <CreateRateLimitDialog
-              close={() => setShowRateLimitDialog(false)}
-            />
-          </Dialog>
         )}
       </div>
     </div>

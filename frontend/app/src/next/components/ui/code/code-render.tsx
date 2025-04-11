@@ -1,5 +1,5 @@
 import { useTheme } from '@/next/components/theme-provider';
-import React, { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { codeToHtml } from 'shiki';
 
 interface CodeStyleRenderProps {

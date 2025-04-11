@@ -144,7 +144,7 @@ function ChildrenList({
   expandedIds,
   toggleExpanded,
 }: ChildrenListProps) {
-  const { data, isLoading } = useRuns({
+  const { data } = useRuns({
     refetchInterval: 3000,
     filters: {
       parent_task_external_id: run.metadata.id,
@@ -204,7 +204,7 @@ export function RunChildrenCardRoot({
   workflow,
   parentRun,
 }: RunChildrenCardProps) {
-  const { data, isLoading } = useRunDetail(workflow.metadata.id, 1000);
+  const { data } = useRunDetail(workflow.metadata.id, 1000);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const run = data?.run;

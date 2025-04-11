@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/next/lib/utils';
 import { Button } from '@/next/components/ui/button';
 import { CheckIcon, Copy } from 'lucide-react';

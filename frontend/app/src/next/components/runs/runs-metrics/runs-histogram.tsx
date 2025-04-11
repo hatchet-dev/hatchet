@@ -1,6 +1,16 @@
+import { useQuery } from '@tanstack/react-query';
+import { Skeleton } from '@/next/components/ui/skeleton';
 import { DataPoint } from '@/next/components/ui/charts/zoomable';
-
 import { ZoomableChart } from '@/next/components/ui/charts/zoomable';
+import { queries } from '@/next/lib/api/queries';
+
+interface WorkflowChartProps {
+  tenantId: string;
+  createdAfter?: string;
+  finishedBefore?: string;
+  refetchInterval?: number;
+  zoom: (startTime: string, endTime: string) => void;
+}
 
 const GetWorkflowChart = ({
   tenantId,
@@ -8,19 +18,13 @@ const GetWorkflowChart = ({
   finishedBefore,
   refetchInterval,
   zoom,
-}: {
-  tenantId: string;
-  createdAfter?: string;
-  finishedBefore?: string;
-  refetchInterval?: number;
-  zoom: (startTime: string, endTime: string) => void;
-}) => {
+}: WorkflowChartProps) => {
   const workflowRunEventsMetricsQuery = useQuery({
     ...queries.cloud.workflowRunMetrics(tenantId, {
       createdAfter,
       finishedBefore,
     }),
-    placeholderData: (prev) => prev,
+    placeholderData: (prev: any) => prev,
     refetchInterval,
   });
 
@@ -34,7 +38,7 @@ const GetWorkflowChart = ({
         kind="bar"
         data={
           workflowRunEventsMetricsQuery.data?.results?.map(
-            (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
+            (result: any): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
               date: result.time,
               SUCCEEDED: result.SUCCEEDED,
               FAILED: result.FAILED,
@@ -51,3 +55,5 @@ const GetWorkflowChart = ({
     </div>
   );
 };
+
+export default GetWorkflowChart;

@@ -8,16 +8,10 @@ import { Code } from '@/next/components/ui/code';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-import { Worker } from '@/next/lib/api';
+import { Worker } from '@/next/lib/api/generated/data-contracts';
 
 interface WorkerIdProps {
-  worker: {
-    metadata: {
-      id: string;
-    };
-    name: string;
-    serviceName: string;
-  };
+  worker: Worker;
 }
 
 export function WorkerId({ worker }: WorkerIdProps) {
@@ -29,27 +23,20 @@ export function WorkerId({ worker }: WorkerIdProps) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span>
-            <Link
-              to={ROUTES.services.workerDetail(
-                encodeURIComponent(worker.serviceName),
-                encodeURIComponent(worker.name),
-              )}
-              className="hover:underline text-blue-500"
-            >
+          <Link
+            to={ROUTES.services.workerDetail(
+              encodeURIComponent(worker.name),
+              worker.metadata.id,
+            )}
+            className="hover:underline"
+          >
+            <Code language="plaintext" value={name}>
               {name}
-            </Link>
-          </span>
+            </Code>
+          </Link>
         </TooltipTrigger>
         <TooltipContent>
-          <Code
-            variant="inline"
-            className="font-medium"
-            language={'plaintext'}
-            value={worker.metadata.id}
-          >
-            {worker.metadata.id}
-          </Code>
+          <p>View worker details</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -58,8 +45,14 @@ export function WorkerId({ worker }: WorkerIdProps) {
 
 export function getFriendlyWorkerId(worker: Worker) {
   if (!worker) {
-    return;
+    return '';
   }
 
-  return worker.name;
+  // If the worker has a name, use that
+  if (worker.name) {
+    return worker.name;
+  }
+
+  // Otherwise, use the ID
+  return worker.metadata.id;
 }

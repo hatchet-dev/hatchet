@@ -26,10 +26,8 @@ export function DateRangePicker({
   timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   placeholder = 'Select date range',
 }: DateRangePickerProps) {
-  const [startTime, setStartTime] = React.useState<Date | undefined>(
-    value?.from,
-  );
-  const [endTime, setEndTime] = React.useState<Date | undefined>(value?.to);
+  const [, setStartTime] = React.useState<Date | undefined>(value?.from);
+  const [, setEndTime] = React.useState<Date | undefined>(value?.to);
 
   // Update time values when the date range changes
   React.useEffect(() => {

@@ -8,10 +8,6 @@ import {
   createElement,
 } from 'react';
 import { PaginationManager, PaginationManagerNoOp } from './use-pagination';
-interface DefinitionsPagination {
-  currentPage: number;
-  pageSize: number;
-}
 
 // Main hook return type
 interface DefinitionsState {
@@ -26,7 +22,6 @@ interface UseDefinitionsOptions {
 }
 
 export default function useDefinitions({
-  refetchInterval,
   pagination = PaginationManagerNoOp,
 }: UseDefinitionsOptions = {}): DefinitionsState {
   const { tenant } = useTenant();

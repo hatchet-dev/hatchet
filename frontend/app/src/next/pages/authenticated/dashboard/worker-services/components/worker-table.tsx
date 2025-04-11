@@ -162,8 +162,6 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
     handleWorkerAction(workerId, 'resume');
   const handlePauseWorker = (workerId: string) =>
     handleWorkerAction(workerId, 'pause');
-  const handleStopWorker = (workerId: string) =>
-    handleWorkerAction(workerId, 'stop');
 
   const handleBulkAction = async (action: 'pause' | 'resume' | 'stop') => {
     const isPaused = action === 'resume' ? false : true;

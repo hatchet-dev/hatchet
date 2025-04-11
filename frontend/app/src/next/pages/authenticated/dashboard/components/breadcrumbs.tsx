@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,

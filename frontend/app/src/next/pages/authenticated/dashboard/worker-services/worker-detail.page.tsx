@@ -8,7 +8,6 @@ import {
   CardDescription,
 } from '@/next/components/ui/card';
 import { Button } from '@/next/components/ui/button';
-import { Badge } from '@/next/components/ui/badge';
 import { Separator } from '@/next/components/ui/separator';
 import {
   ChevronLeft,
@@ -111,45 +110,6 @@ export default function WorkerDetailPage() {
       return 'Never';
     }
     return new Date(dateString).toLocaleString();
-  };
-
-  // Helper function to get the correct status badge
-  const getStatusBadge = (status?: string) => {
-    if (!status) {
-      return <Badge variant="outline">Unknown</Badge>;
-    }
-
-    switch (status) {
-      case 'ACTIVE':
-        return (
-          <Badge
-            variant="outline"
-            className="bg-green-50 text-green-700 border-green-200"
-          >
-            Active
-          </Badge>
-        );
-      case 'INACTIVE':
-        return (
-          <Badge
-            variant="outline"
-            className="bg-red-50 text-red-700 border-red-200"
-          >
-            Inactive
-          </Badge>
-        );
-      case 'PAUSED':
-        return (
-          <Badge
-            variant="outline"
-            className="bg-yellow-50 text-yellow-700 border-yellow-200"
-          >
-            Paused
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
   };
 
   // Calculate time since last heartbeat

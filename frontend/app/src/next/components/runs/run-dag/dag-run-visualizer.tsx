@@ -32,7 +32,6 @@ interface WorkflowRunVisualizerProps {
 
 const WorkflowRunVisualizer = ({
   workflowRunId,
-  selectedTaskRunId,
 }: WorkflowRunVisualizerProps) => {
   const { theme } = useTheme();
   const navigate = useNavigate();

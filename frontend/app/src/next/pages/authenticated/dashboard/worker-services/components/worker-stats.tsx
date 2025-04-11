@@ -31,8 +31,6 @@ interface StatCardProps {
   value: number | React.ReactNode;
   label: string;
   colorClass: string;
-  slots?: number;
-  maxSlots?: number;
   className?: string;
   status?: 'ACTIVE' | 'PAUSED' | 'INACTIVE';
 }
@@ -41,8 +39,6 @@ const StatCard = ({
   value,
   label,
   colorClass,
-  slots,
-  maxSlots,
   className,
   status,
 }: StatCardProps) => {

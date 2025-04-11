@@ -132,7 +132,7 @@ export function useRuns({
   // Create workflow run implementation
   const createRunMutation = useMutation({
     mutationKey: ['v1:workflow-run:create', tenant],
-    mutationFn: async ({ workflowId, data }: CreateRunParams) => {
+    mutationFn: async ({ data }: CreateRunParams) => {
       if (!tenant) {
         throw new Error('Tenant not found');
       }

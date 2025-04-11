@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ScheduledRunsTable } from './components/scheduled-runs-table';
 import useCan from '@/next/hooks/use-can';
 import { scheduledRuns } from '@/next/lib/can/features/scheduled-runs.permissions';
@@ -7,7 +6,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
-import { Lock, Plus } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { PaginationProvider } from '@/next/components/ui/pagination';
 import { FilterProvider } from '@/next/hooks/use-filters';
 import {
@@ -18,13 +17,11 @@ import {
 } from '@/next/components/ui/page-header';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
-import { Button } from '@/next/components/ui/button';
 import { Separator } from '@/next/components/ui/separator';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 
 export default function ScheduledRunsPage() {
   const { canWithReason } = useCan();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const { allowed: canManage, message: canManageMessage } = canWithReason(
     scheduledRuns.manage(),
@@ -40,7 +37,7 @@ export default function ScheduledRunsPage() {
           <HeadlineActionItem>
             <DocsButton doc={docs.home['scheduled-runs']} size="icon" />
           </HeadlineActionItem>
-          {canManage && (
+          {/* {canManage && (
             <HeadlineActionItem>
               <Button
                 className="w-full md:w-auto"
@@ -50,7 +47,7 @@ export default function ScheduledRunsPage() {
                 Schedule New Run
               </Button>
             </HeadlineActionItem>
-          )}
+          )} */}
         </HeadlineActions>
       </Headline>
       {canManageMessage && (
@@ -66,9 +63,7 @@ export default function ScheduledRunsPage() {
 
           <FilterProvider>
             <PaginationProvider>
-              <ScheduledRunsTable
-                onCreateClicked={() => setIsCreateDialogOpen(true)}
-              />
+              <ScheduledRunsTable onCreateClicked={() => {}} />
             </PaginationProvider>
           </FilterProvider>
         </>
