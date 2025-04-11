@@ -5,11 +5,11 @@
 // source: events/events.proto
 
 /* eslint-disable */
-import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import { type CallContext, type CallOptions } from "nice-grpc-common";
-import { Timestamp } from "../google/protobuf/timestamp";
+import { BinaryReader, BinaryWriter } from '@bufbuild/protobuf/wire';
+import { type CallContext, type CallOptions } from 'nice-grpc-common';
+import { Timestamp } from '../google/protobuf/timestamp';
 
-export const protobufPackage = "";
+export const protobufPackage = '';
 
 export interface Event {
   /** the tenant id */
@@ -21,9 +21,7 @@ export interface Event {
   /** the payload for the event */
   payload: string;
   /** when the event was generated */
-  eventTimestamp:
-    | Date
-    | undefined;
+  eventTimestamp: Date | undefined;
   /** the payload for the event */
   additionalMetadata?: string | undefined;
 }
@@ -36,37 +34,29 @@ export interface PutLogRequest {
   /** the step run id for the request */
   stepRunId: string;
   /** when the log line was created */
-  createdAt:
-    | Date
-    | undefined;
+  createdAt: Date | undefined;
   /** the log line message */
   message: string;
   /** the log line level */
-  level?:
-    | string
-    | undefined;
+  level?: string | undefined;
   /** associated log line metadata */
   metadata: string;
 }
 
-export interface PutLogResponse {
-}
+export interface PutLogResponse {}
 
 export interface PutStreamEventRequest {
   /** the step run id for the request */
   stepRunId: string;
   /** when the stream event was created */
-  createdAt:
-    | Date
-    | undefined;
+  createdAt: Date | undefined;
   /** the stream event message */
   message: Uint8Array;
   /** associated stream event metadata */
   metadata: string;
 }
 
-export interface PutStreamEventResponse {
-}
+export interface PutStreamEventResponse {}
 
 export interface BulkPushEventRequest {
   events: PushEventRequest[];
@@ -78,9 +68,7 @@ export interface PushEventRequest {
   /** the payload for the event */
   payload: string;
   /** when the event was generated */
-  eventTimestamp:
-    | Date
-    | undefined;
+  eventTimestamp: Date | undefined;
   /** metadata for the event */
   additionalMetadata?: string | undefined;
 }
@@ -91,21 +79,28 @@ export interface ReplayEventRequest {
 }
 
 function createBaseEvent(): Event {
-  return { tenantId: "", eventId: "", key: "", payload: "", eventTimestamp: undefined, additionalMetadata: undefined };
+  return {
+    tenantId: '',
+    eventId: '',
+    key: '',
+    payload: '',
+    eventTimestamp: undefined,
+    additionalMetadata: undefined,
+  };
 }
 
 export const Event: MessageFns<Event> = {
   encode(message: Event, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.tenantId !== "") {
+    if (message.tenantId !== '') {
       writer.uint32(10).string(message.tenantId);
     }
-    if (message.eventId !== "") {
+    if (message.eventId !== '') {
       writer.uint32(18).string(message.eventId);
     }
-    if (message.key !== "") {
+    if (message.key !== '') {
       writer.uint32(26).string(message.key);
     }
-    if (message.payload !== "") {
+    if (message.payload !== '') {
       writer.uint32(34).string(message.payload);
     }
     if (message.eventTimestamp !== undefined) {
@@ -183,27 +178,31 @@ export const Event: MessageFns<Event> = {
 
   fromJSON(object: any): Event {
     return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      eventId: isSet(object.eventId) ? globalThis.String(object.eventId) : "",
-      key: isSet(object.key) ? globalThis.String(object.key) : "",
-      payload: isSet(object.payload) ? globalThis.String(object.payload) : "",
-      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
-      additionalMetadata: isSet(object.additionalMetadata) ? globalThis.String(object.additionalMetadata) : undefined,
+      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : '',
+      eventId: isSet(object.eventId) ? globalThis.String(object.eventId) : '',
+      key: isSet(object.key) ? globalThis.String(object.key) : '',
+      payload: isSet(object.payload) ? globalThis.String(object.payload) : '',
+      eventTimestamp: isSet(object.eventTimestamp)
+        ? fromJsonTimestamp(object.eventTimestamp)
+        : undefined,
+      additionalMetadata: isSet(object.additionalMetadata)
+        ? globalThis.String(object.additionalMetadata)
+        : undefined,
     };
   },
 
   toJSON(message: Event): unknown {
     const obj: any = {};
-    if (message.tenantId !== "") {
+    if (message.tenantId !== '') {
       obj.tenantId = message.tenantId;
     }
-    if (message.eventId !== "") {
+    if (message.eventId !== '') {
       obj.eventId = message.eventId;
     }
-    if (message.key !== "") {
+    if (message.key !== '') {
       obj.key = message.key;
     }
-    if (message.payload !== "") {
+    if (message.payload !== '') {
       obj.payload = message.payload;
     }
     if (message.eventTimestamp !== undefined) {
@@ -220,10 +219,10 @@ export const Event: MessageFns<Event> = {
   },
   fromPartial(object: DeepPartial<Event>): Event {
     const message = createBaseEvent();
-    message.tenantId = object.tenantId ?? "";
-    message.eventId = object.eventId ?? "";
-    message.key = object.key ?? "";
-    message.payload = object.payload ?? "";
+    message.tenantId = object.tenantId ?? '';
+    message.eventId = object.eventId ?? '';
+    message.key = object.key ?? '';
+    message.payload = object.payload ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
     return message;
@@ -267,7 +266,11 @@ export const Events: MessageFns<Events> = {
   },
 
   fromJSON(object: any): Events {
-    return { events: globalThis.Array.isArray(object?.events) ? object.events.map((e: any) => Event.fromJSON(e)) : [] };
+    return {
+      events: globalThis.Array.isArray(object?.events)
+        ? object.events.map((e: any) => Event.fromJSON(e))
+        : [],
+    };
   },
 
   toJSON(message: Events): unknown {
@@ -289,24 +292,24 @@ export const Events: MessageFns<Events> = {
 };
 
 function createBasePutLogRequest(): PutLogRequest {
-  return { stepRunId: "", createdAt: undefined, message: "", level: undefined, metadata: "" };
+  return { stepRunId: '', createdAt: undefined, message: '', level: undefined, metadata: '' };
 }
 
 export const PutLogRequest: MessageFns<PutLogRequest> = {
   encode(message: PutLogRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.stepRunId !== "") {
+    if (message.stepRunId !== '') {
       writer.uint32(10).string(message.stepRunId);
     }
     if (message.createdAt !== undefined) {
       Timestamp.encode(toTimestamp(message.createdAt), writer.uint32(18).fork()).join();
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       writer.uint32(26).string(message.message);
     }
     if (message.level !== undefined) {
       writer.uint32(34).string(message.level);
     }
-    if (message.metadata !== "") {
+    if (message.metadata !== '') {
       writer.uint32(42).string(message.metadata);
     }
     return writer;
@@ -370,29 +373,29 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
 
   fromJSON(object: any): PutLogRequest {
     return {
-      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : "",
+      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '',
       createdAt: isSet(object.createdAt) ? fromJsonTimestamp(object.createdAt) : undefined,
-      message: isSet(object.message) ? globalThis.String(object.message) : "",
+      message: isSet(object.message) ? globalThis.String(object.message) : '',
       level: isSet(object.level) ? globalThis.String(object.level) : undefined,
-      metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : "",
+      metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : '',
     };
   },
 
   toJSON(message: PutLogRequest): unknown {
     const obj: any = {};
-    if (message.stepRunId !== "") {
+    if (message.stepRunId !== '') {
       obj.stepRunId = message.stepRunId;
     }
     if (message.createdAt !== undefined) {
       obj.createdAt = message.createdAt.toISOString();
     }
-    if (message.message !== "") {
+    if (message.message !== '') {
       obj.message = message.message;
     }
     if (message.level !== undefined) {
       obj.level = message.level;
     }
-    if (message.metadata !== "") {
+    if (message.metadata !== '') {
       obj.metadata = message.metadata;
     }
     return obj;
@@ -403,11 +406,11 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
   },
   fromPartial(object: DeepPartial<PutLogRequest>): PutLogRequest {
     const message = createBasePutLogRequest();
-    message.stepRunId = object.stepRunId ?? "";
+    message.stepRunId = object.stepRunId ?? '';
     message.createdAt = object.createdAt ?? undefined;
-    message.message = object.message ?? "";
+    message.message = object.message ?? '';
     message.level = object.level ?? undefined;
-    message.metadata = object.metadata ?? "";
+    message.metadata = object.metadata ?? '';
     return message;
   },
 };
@@ -456,12 +459,12 @@ export const PutLogResponse: MessageFns<PutLogResponse> = {
 };
 
 function createBasePutStreamEventRequest(): PutStreamEventRequest {
-  return { stepRunId: "", createdAt: undefined, message: new Uint8Array(0), metadata: "" };
+  return { stepRunId: '', createdAt: undefined, message: new Uint8Array(0), metadata: '' };
 }
 
 export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
   encode(message: PutStreamEventRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.stepRunId !== "") {
+    if (message.stepRunId !== '') {
       writer.uint32(10).string(message.stepRunId);
     }
     if (message.createdAt !== undefined) {
@@ -470,7 +473,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     if (message.message.length !== 0) {
       writer.uint32(26).bytes(message.message);
     }
-    if (message.metadata !== "") {
+    if (message.metadata !== '') {
       writer.uint32(42).string(message.metadata);
     }
     return writer;
@@ -526,16 +529,16 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
 
   fromJSON(object: any): PutStreamEventRequest {
     return {
-      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : "",
+      stepRunId: isSet(object.stepRunId) ? globalThis.String(object.stepRunId) : '',
       createdAt: isSet(object.createdAt) ? fromJsonTimestamp(object.createdAt) : undefined,
       message: isSet(object.message) ? bytesFromBase64(object.message) : new Uint8Array(0),
-      metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : "",
+      metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : '',
     };
   },
 
   toJSON(message: PutStreamEventRequest): unknown {
     const obj: any = {};
-    if (message.stepRunId !== "") {
+    if (message.stepRunId !== '') {
       obj.stepRunId = message.stepRunId;
     }
     if (message.createdAt !== undefined) {
@@ -544,7 +547,7 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
     if (message.message.length !== 0) {
       obj.message = base64FromBytes(message.message);
     }
-    if (message.metadata !== "") {
+    if (message.metadata !== '') {
       obj.metadata = message.metadata;
     }
     return obj;
@@ -555,10 +558,10 @@ export const PutStreamEventRequest: MessageFns<PutStreamEventRequest> = {
   },
   fromPartial(object: DeepPartial<PutStreamEventRequest>): PutStreamEventRequest {
     const message = createBasePutStreamEventRequest();
-    message.stepRunId = object.stepRunId ?? "";
+    message.stepRunId = object.stepRunId ?? '';
     message.createdAt = object.createdAt ?? undefined;
     message.message = object.message ?? new Uint8Array(0);
-    message.metadata = object.metadata ?? "";
+    message.metadata = object.metadata ?? '';
     return message;
   },
 };
@@ -669,15 +672,15 @@ export const BulkPushEventRequest: MessageFns<BulkPushEventRequest> = {
 };
 
 function createBasePushEventRequest(): PushEventRequest {
-  return { key: "", payload: "", eventTimestamp: undefined, additionalMetadata: undefined };
+  return { key: '', payload: '', eventTimestamp: undefined, additionalMetadata: undefined };
 }
 
 export const PushEventRequest: MessageFns<PushEventRequest> = {
   encode(message: PushEventRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.key !== "") {
+    if (message.key !== '') {
       writer.uint32(10).string(message.key);
     }
-    if (message.payload !== "") {
+    if (message.payload !== '') {
       writer.uint32(18).string(message.payload);
     }
     if (message.eventTimestamp !== undefined) {
@@ -739,19 +742,23 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
 
   fromJSON(object: any): PushEventRequest {
     return {
-      key: isSet(object.key) ? globalThis.String(object.key) : "",
-      payload: isSet(object.payload) ? globalThis.String(object.payload) : "",
-      eventTimestamp: isSet(object.eventTimestamp) ? fromJsonTimestamp(object.eventTimestamp) : undefined,
-      additionalMetadata: isSet(object.additionalMetadata) ? globalThis.String(object.additionalMetadata) : undefined,
+      key: isSet(object.key) ? globalThis.String(object.key) : '',
+      payload: isSet(object.payload) ? globalThis.String(object.payload) : '',
+      eventTimestamp: isSet(object.eventTimestamp)
+        ? fromJsonTimestamp(object.eventTimestamp)
+        : undefined,
+      additionalMetadata: isSet(object.additionalMetadata)
+        ? globalThis.String(object.additionalMetadata)
+        : undefined,
     };
   },
 
   toJSON(message: PushEventRequest): unknown {
     const obj: any = {};
-    if (message.key !== "") {
+    if (message.key !== '') {
       obj.key = message.key;
     }
-    if (message.payload !== "") {
+    if (message.payload !== '') {
       obj.payload = message.payload;
     }
     if (message.eventTimestamp !== undefined) {
@@ -768,8 +775,8 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
   },
   fromPartial(object: DeepPartial<PushEventRequest>): PushEventRequest {
     const message = createBasePushEventRequest();
-    message.key = object.key ?? "";
-    message.payload = object.payload ?? "";
+    message.key = object.key ?? '';
+    message.payload = object.payload ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
     return message;
@@ -777,12 +784,12 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
 };
 
 function createBaseReplayEventRequest(): ReplayEventRequest {
-  return { eventId: "" };
+  return { eventId: '' };
 }
 
 export const ReplayEventRequest: MessageFns<ReplayEventRequest> = {
   encode(message: ReplayEventRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.eventId !== "") {
+    if (message.eventId !== '') {
       writer.uint32(10).string(message.eventId);
     }
     return writer;
@@ -813,12 +820,12 @@ export const ReplayEventRequest: MessageFns<ReplayEventRequest> = {
   },
 
   fromJSON(object: any): ReplayEventRequest {
-    return { eventId: isSet(object.eventId) ? globalThis.String(object.eventId) : "" };
+    return { eventId: isSet(object.eventId) ? globalThis.String(object.eventId) : '' };
   },
 
   toJSON(message: ReplayEventRequest): unknown {
     const obj: any = {};
-    if (message.eventId !== "") {
+    if (message.eventId !== '') {
       obj.eventId = message.eventId;
     }
     return obj;
@@ -829,18 +836,18 @@ export const ReplayEventRequest: MessageFns<ReplayEventRequest> = {
   },
   fromPartial(object: DeepPartial<ReplayEventRequest>): ReplayEventRequest {
     const message = createBaseReplayEventRequest();
-    message.eventId = object.eventId ?? "";
+    message.eventId = object.eventId ?? '';
     return message;
   },
 };
 
 export type EventsServiceDefinition = typeof EventsServiceDefinition;
 export const EventsServiceDefinition = {
-  name: "EventsService",
-  fullName: "EventsService",
+  name: 'EventsService',
+  fullName: 'EventsService',
   methods: {
     push: {
-      name: "Push",
+      name: 'Push',
       requestType: PushEventRequest,
       requestStream: false,
       responseType: Event,
@@ -848,7 +855,7 @@ export const EventsServiceDefinition = {
       options: {},
     },
     bulkPush: {
-      name: "BulkPush",
+      name: 'BulkPush',
       requestType: BulkPushEventRequest,
       requestStream: false,
       responseType: Events,
@@ -856,7 +863,7 @@ export const EventsServiceDefinition = {
       options: {},
     },
     replaySingleEvent: {
-      name: "ReplaySingleEvent",
+      name: 'ReplaySingleEvent',
       requestType: ReplayEventRequest,
       requestStream: false,
       responseType: Event,
@@ -864,7 +871,7 @@ export const EventsServiceDefinition = {
       options: {},
     },
     putLog: {
-      name: "PutLog",
+      name: 'PutLog',
       requestType: PutLogRequest,
       requestStream: false,
       responseType: PutLogResponse,
@@ -872,7 +879,7 @@ export const EventsServiceDefinition = {
       options: {},
     },
     putStreamEvent: {
-      name: "PutStreamEvent",
+      name: 'PutStreamEvent',
       requestType: PutStreamEventRequest,
       requestStream: false,
       responseType: PutStreamEventResponse,
@@ -883,30 +890,54 @@ export const EventsServiceDefinition = {
 } as const;
 
 export interface EventsServiceImplementation<CallContextExt = {}> {
-  push(request: PushEventRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Event>>;
-  bulkPush(request: BulkPushEventRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Events>>;
-  replaySingleEvent(request: ReplayEventRequest, context: CallContext & CallContextExt): Promise<DeepPartial<Event>>;
-  putLog(request: PutLogRequest, context: CallContext & CallContextExt): Promise<DeepPartial<PutLogResponse>>;
+  push(
+    request: PushEventRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<Event>>;
+  bulkPush(
+    request: BulkPushEventRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<Events>>;
+  replaySingleEvent(
+    request: ReplayEventRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<Event>>;
+  putLog(
+    request: PutLogRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<PutLogResponse>>;
   putStreamEvent(
     request: PutStreamEventRequest,
-    context: CallContext & CallContextExt,
+    context: CallContext & CallContextExt
   ): Promise<DeepPartial<PutStreamEventResponse>>;
 }
 
 export interface EventsServiceClient<CallOptionsExt = {}> {
-  push(request: DeepPartial<PushEventRequest>, options?: CallOptions & CallOptionsExt): Promise<Event>;
-  bulkPush(request: DeepPartial<BulkPushEventRequest>, options?: CallOptions & CallOptionsExt): Promise<Events>;
-  replaySingleEvent(request: DeepPartial<ReplayEventRequest>, options?: CallOptions & CallOptionsExt): Promise<Event>;
-  putLog(request: DeepPartial<PutLogRequest>, options?: CallOptions & CallOptionsExt): Promise<PutLogResponse>;
+  push(
+    request: DeepPartial<PushEventRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<Event>;
+  bulkPush(
+    request: DeepPartial<BulkPushEventRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<Events>;
+  replaySingleEvent(
+    request: DeepPartial<ReplayEventRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<Event>;
+  putLog(
+    request: DeepPartial<PutLogRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<PutLogResponse>;
   putStreamEvent(
     request: DeepPartial<PutStreamEventRequest>,
-    options?: CallOptions & CallOptionsExt,
+    options?: CallOptions & CallOptionsExt
   ): Promise<PutStreamEventResponse>;
 }
 
 function bytesFromBase64(b64: string): Uint8Array {
   if ((globalThis as any).Buffer) {
-    return Uint8Array.from(globalThis.Buffer.from(b64, "base64"));
+    return Uint8Array.from(globalThis.Buffer.from(b64, 'base64'));
   } else {
     const bin = globalThis.atob(b64);
     const arr = new Uint8Array(bin.length);
@@ -919,23 +950,27 @@ function bytesFromBase64(b64: string): Uint8Array {
 
 function base64FromBytes(arr: Uint8Array): string {
   if ((globalThis as any).Buffer) {
-    return globalThis.Buffer.from(arr).toString("base64");
+    return globalThis.Buffer.from(arr).toString('base64');
   } else {
     const bin: string[] = [];
     arr.forEach((byte) => {
       bin.push(globalThis.String.fromCharCode(byte));
     });
-    return globalThis.btoa(bin.join(""));
+    return globalThis.btoa(bin.join(''));
   }
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends {}
+        ? { [K in keyof T]?: DeepPartial<T[K]> }
+        : Partial<T>;
 
 function toTimestamp(date: Date): Timestamp {
   const seconds = Math.trunc(date.getTime() / 1_000);
@@ -952,7 +987,7 @@ function fromTimestamp(t: Timestamp): Date {
 function fromJsonTimestamp(o: any): Date {
   if (o instanceof globalThis.Date) {
     return o;
-  } else if (typeof o === "string") {
+  } else if (typeof o === 'string') {
     return new globalThis.Date(o);
   } else {
     return fromTimestamp(Timestamp.fromJSON(o));

@@ -288,11 +288,8 @@ export class V0Worker {
         ...(workflow.on?.cron ? [workflow.on.cron] : []),
       ];
 
-      const concurrencyArr = concurrency
-        ? Array.isArray(concurrency)
-          ? concurrency
-          : [concurrency]
-        : [];
+      const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
+      const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
 
       const registeredWorkflow = this.client.admin.putWorkflowV1({
         name: workflow.name,
@@ -333,7 +330,7 @@ export class V0Worker {
                 : [workflow.taskDefaults.concurrency]
               : [],
         })),
-        concurrency: undefined,
+        concurrency: concurrencySolo,
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;
