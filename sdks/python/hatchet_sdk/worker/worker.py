@@ -155,6 +155,11 @@ class Worker:
             sys.exit(1)
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
+        if not workflow.tasks:
+            raise ValueError(
+                "workflow must have at least one task registered before registering"
+            )
+
         opts = workflow.to_proto()
         name = workflow.name
 
@@ -238,6 +243,11 @@ class Worker:
         logger.info(f"healthcheck server running on port {port}")
 
     def start(self, options: WorkerStartOptions = WorkerStartOptions()) -> None:
+        if not (self.action_registry or self.durable_action_registry):
+            raise ValueError(
+                "no actions registered, register workflows before starting worker"
+            )
+
         if options.loop is not None:
             warn(
                 "Passing a custom event loop is deprecated and will be removed in the future. This option no longer has any effect",
