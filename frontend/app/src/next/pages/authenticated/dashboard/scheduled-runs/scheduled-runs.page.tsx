@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { ScheduledRunsTable } from './components/scheduled-runs-table';
 import useCan from '@/next/hooks/use-can';
 import { scheduledRuns } from '@/next/lib/can/features/scheduled-runs.permissions';
-import { Alert, AlertTitle, AlertDescription } from '@/next/components/ui/alert';
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from '@/next/components/ui/alert';
 import { Lock, Plus } from 'lucide-react';
 import { PaginationProvider } from '@/next/components/ui/pagination';
 import { FilterProvider } from '@/next/hooks/use-filters';

@@ -9,7 +9,11 @@ import { DocsButton } from '@/next/components/ui/docs-button';
 import useCan from '@/next/hooks/use-can';
 import docs from '@/next/docs-meta-data';
 import { apiTokens } from '@/next/lib/can/features/api-tokens.permissions';
-import { Alert, AlertTitle, AlertDescription } from '@/next/components/ui/alert';
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from '@/next/components/ui/alert';
 import { Lock } from 'lucide-react';
 import { PaginationProvider } from '@/next/components/ui/pagination';
 import {

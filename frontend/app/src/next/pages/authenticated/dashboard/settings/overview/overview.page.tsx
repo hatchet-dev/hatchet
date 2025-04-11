@@ -10,7 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/next/components/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/next/components/ui/alert';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/next/components/ui/alert';
 import useTenant from '@/next/hooks/use-tenant';
 import {
   TenantVersion,

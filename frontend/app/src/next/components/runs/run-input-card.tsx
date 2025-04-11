@@ -1,4 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/next/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/next/components/ui/card';
 import { Code } from '@/next/components/ui/code';
 
 export interface RunInputCardProps {

@@ -1,4 +1,8 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/next/components/ui/avatar';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/next/components/ui/avatar';
 import logo from '@/next/assets/logo.svg';
 import hatchet from '@/next/assets/hatchet.svg';
 import { cn } from '@/next/lib/utils';

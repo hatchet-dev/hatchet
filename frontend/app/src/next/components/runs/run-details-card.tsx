@@ -1,5 +1,10 @@
 import { Clock } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/next/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/next/components/ui/card';
 import { Time } from '@/next/components/ui/time';
 import {
   Tooltip,

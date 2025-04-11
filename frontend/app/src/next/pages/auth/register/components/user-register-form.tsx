@@ -5,7 +5,11 @@ import { Label } from '@/next/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Alert, AlertTitle, AlertDescription } from '@/next/components/ui/alert';
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from '@/next/components/ui/alert';
 
 const schema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters long'),

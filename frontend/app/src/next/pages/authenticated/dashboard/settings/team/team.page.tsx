@@ -8,7 +8,11 @@ import { UserPlus, Lock } from 'lucide-react';
 import { Dialog } from '@/next/components/ui/dialog';
 import useCan from '@/next/hooks/use-can';
 import { members } from '@/next/lib/can/features/members.permissions';
-import { Alert, AlertTitle, AlertDescription } from '@/next/components/ui/alert';
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from '@/next/components/ui/alert';
 import { CreateInviteForm } from './components/create-invite-form';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import {

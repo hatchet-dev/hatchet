@@ -1,4 +1,7 @@
-import { Evaluate, EvaluateResult } from '@/next/lib/can/shared/permission.base';
+import {
+  Evaluate,
+  EvaluateResult,
+} from '@/next/lib/can/shared/permission.base';
 
 import useTenant from './use-tenant';
 import useUser from './use-user';

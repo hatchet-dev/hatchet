@@ -23,7 +23,10 @@ import { WorkerId } from './worker-id';
 import { Time } from '@/next/components/ui/time';
 import useWorkers from '@/next/hooks/use-workers';
 import { useFilters } from '@/next/hooks/use-filters';
-import { FilterGroup, FilterSelect } from '@/next/components/ui/filters/filters';
+import {
+  FilterGroup,
+  FilterSelect,
+} from '@/next/components/ui/filters/filters';
 
 interface WorkerTableProps {
   serviceName: string;
