@@ -32,6 +32,7 @@ import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
+import { GrUpgrade } from 'react-icons/gr';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -125,6 +126,10 @@ function AccountDropdown({ user }: MainNavProps) {
     (window as any).upgrade = upgrade;
   }, []);
 
+  const canUpgrade = useMemo(() => {
+    return localStorage.getItem('next-ui') != undefined;
+  }, []);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -159,15 +164,17 @@ function AccountDropdown({ user }: MainNavProps) {
               View Legacy V0 Data
             </DropdownMenuItem>
           )}
-        {/* <DropdownMenuItem
-          onClick={() => {
-            localStorage.setItem('next-ui', 'true');
-            window.location.href = '/next';
-          }}
-        >
-          <GrUpgrade className="mr-2 h-4 w-4" />
-          Switch to Next UI
-        </DropdownMenuItem> */}
+        {canUpgrade && (
+          <DropdownMenuItem
+            onClick={() => {
+              localStorage.setItem('next-ui', 'true');
+              window.location.href = '/next';
+            }}
+          >
+            <GrUpgrade className="mr-2 h-4 w-4" />
+            Switch to Next UI
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
