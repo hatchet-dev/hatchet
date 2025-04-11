@@ -149,6 +149,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             cron_input=None,
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto),  # type: ignore[arg-type]
+            concurrency_arr=(
+                [self._concurrency_to_proto(c) for c in self.config.concurrency]
+                if isinstance(self.config.concurrency, list)
+                else None
+            ),
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
