@@ -2,12 +2,12 @@
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet(debug=True)
 
 
-class SimpleInput(EmptyModel):
+class SimpleInput(BaseModel):
     message: str
 
 
@@ -24,12 +24,13 @@ def step1(input: SimpleInput, ctx: Context) -> SimpleOutput:
     return SimpleOutput(transformed_message=input.message.upper())
 
 
+# ‼️
+
+
 def main() -> None:
     worker = hatchet.worker("test-worker", slots=1, workflows=[child_task])
     worker.start()
 
-
-# ‼️
 
 if __name__ == "__main__":
     main()
