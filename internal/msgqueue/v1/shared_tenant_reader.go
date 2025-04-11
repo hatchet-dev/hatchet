@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -27,7 +28,7 @@ func NewSharedTenantReader(mq MessageQueue) *SharedTenantReader {
 	}
 }
 
-func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func() error, error) {
+func (s *SharedTenantReader) Subscribe(tenantId string, f DstFunc) (func() error, error) {
 	tenant, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
 		fs: &sync.Map{},
 	})
@@ -41,7 +42,7 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 
 	subId := t.counter
 
-	t.fs.Store(subId, postAck)
+	t.fs.Store(subId, f)
 
 	if !t.isRunning {
 		t.isRunning = true
@@ -54,13 +55,13 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 			return nil, err
 		}
 
-		cleanupSingleSub, err := s.mq.Subscribe(q, NoOpHook, func(task *Message) error {
+		subBuffer := NewMQSubBuffer(q, s.mq, func(tenantId, msgId string, payloads [][]byte) error {
 			var innerErr error
 
 			t.fs.Range(func(key, value interface{}) bool {
-				f := value.(AckHook)
+				f := value.(DstFunc)
 
-				if err := f(task); err != nil {
+				if err := f(tenantId, msgId, payloads); err != nil {
 					innerErr = multierror.Append(innerErr, err)
 				}
 
@@ -68,7 +69,9 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 			})
 
 			return innerErr
-		})
+		}, WithKind(PostAck), WithMaxConcurrency(1), WithFlushInterval(20*time.Millisecond), WithDisableImmediateFlush(true))
+
+		cleanupSingleSub, err := subBuffer.Start()
 
 		if err != nil {
 			return nil, err

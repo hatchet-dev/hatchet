@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -111,6 +112,28 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return nil
 	}
 
+	f := func(tenantId, msgId string, payloads [][]byte) error {
+		wg.Add(1)
+		defer wg.Done()
+
+		workflowRunIds := acks.getNonAckdWorkflowRunsMap()
+
+		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msgId, payloads, workflowRunIds); ok {
+			if err := iter(matchedWorkflowRunIds); err != nil {
+				s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+			}
+		}
+
+		return nil
+	}
+
+	// subscribe to the task queue for the tenant
+	cleanupQueue, err := s.sharedReaderv1.Subscribe(tenantId, f)
+
+	if err != nil {
+		return err
+	}
+
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
@@ -161,9 +184,9 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 	<-ctx.Done()
 
-	// if err := cleanupQueue(); err != nil {
-	// 	return fmt.Errorf("could not cleanup queue: %w", err)
-	// }
+	if err := cleanupQueue(); err != nil {
+		return fmt.Errorf("could not cleanup queue: %w", err)
+	}
 
 	waitFor(&wg, 60*time.Second, s.l)
 
@@ -517,12 +540,13 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	var mu sync.Mutex     // Mutex to protect activeRunIds
 	var sendMu sync.Mutex // Mutex to protect sending messages
 
-	f := func(task *msgqueue.Message) error {
+	f := func(tenantId, msgId string, payloads [][]byte) error {
 		wg.Add(1)
 		defer wg.Done()
 
 		events, err := s.msgsToWorkflowEvent(
-			task,
+			msgId,
+			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
 				workflowRunIds := make([]string, 0)
 				workflowRunIdsToEvents := make(map[string][]*contracts.WorkflowEvent)
@@ -639,12 +663,13 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 	var mu sync.Mutex     // Mutex to protect activeRunIds
 	var sendMu sync.Mutex // Mutex to protect sending messages
 
-	f := func(task *msgqueue.Message) error {
+	f := func(tenantId, msgId string, payloads [][]byte) error {
 		wg.Add(1)
 		defer wg.Done()
 
 		events, err := s.msgsToWorkflowEvent(
-			task,
+			msgId,
+			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
 				workflowRunIds := make([]string, 0)
 				workflowRunIdsToEvents := make(map[string][]*contracts.WorkflowEvent)
@@ -812,12 +837,12 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId string, 
 	return res, nil
 }
 
-func (s *DispatcherImpl) msgsToWorkflowEvent(msg *msgqueue.Message, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
+func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
 	workflowEvents := []*contracts.WorkflowEvent{}
 
-	switch msg.ID {
+	switch msgId {
 	case "created-task":
-		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](msg.Payloads)
+		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -825,12 +850,12 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msg *msgqueue.Message, filter func(
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
 				ResourceId:     sqlchelpers.UUIDToStr(payload.ExternalID),
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED,
-				EventTimestamp: timestamppb.New(time.Now()),
+				EventTimestamp: timestamppb.New(payload.InsertedAt.Time),
 				RetryCount:     &payload.RetryCount,
 			})
 		}
 	case "task-completed":
-		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](msg.Payloads)
+		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -844,7 +869,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msg *msgqueue.Message, filter func(
 			})
 		}
 	case "task-failed":
-		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](msg.Payloads)
+		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -858,7 +883,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msg *msgqueue.Message, filter func(
 			})
 		}
 	case "task-cancelled":
-		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](msg.Payloads)
+		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -871,7 +896,7 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msg *msgqueue.Message, filter func(
 			})
 		}
 	case "task-stream-event":
-		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](msg.Payloads)
+		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
 
 		for _, payload := range payloads {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
@@ -879,12 +904,12 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msg *msgqueue.Message, filter func(
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
 				ResourceId:     payload.StepRunId,
 				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
-				EventTimestamp: timestamppb.New(time.Now()),
+				EventTimestamp: timestamppb.New(payload.CreatedAt),
 				EventPayload:   string(payload.Payload),
 			})
 		}
 	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
+		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
 
 		for _, payload := range payloads {
 			eventType := contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
@@ -920,5 +945,46 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msg *msgqueue.Message, filter func(
 		return nil, err
 	}
 
+	// order matches
+	slices.SortFunc(matches, func(a, b *contracts.WorkflowEvent) int {
+		// anything with a hangup should be last
+		if a.Hangup && !b.Hangup {
+			return 1
+		} else if !a.Hangup && b.Hangup {
+			return -1
+		}
+
+		if a.EventTimestamp.AsTime().Before(b.EventTimestamp.AsTime()) {
+			return -1
+		}
+
+		if a.EventTimestamp.AsTime().After(b.EventTimestamp.AsTime()) {
+			return 1
+		}
+
+		return 0
+	})
+
 	return matches, nil
+}
+
+func (s *DispatcherImpl) isMatchingWorkflowRunV1(msgId string, payloadBytes [][]byte, workflowRunIds map[string]bool) ([]string, bool) {
+	if msgId != "workflow-run-finished" {
+		return nil, false
+	}
+
+	payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloadBytes)
+	res := make([]string, 0)
+
+	for _, payload := range payloads {
+		if _, ok := workflowRunIds[payload.ExternalId]; ok {
+			res = append(res, payload.ExternalId)
+		}
+	}
+
+	if len(res) == 0 {
+		return nil, false
+	}
+
+	return res, true
 }

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
@@ -78,9 +80,11 @@ func (r *WorkflowResult) Results() (interface{}, error) {
 
 func (c *Workflow) Result() (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
+	sessionId := uuid.NewString()
 
 	err := c.listener.AddWorkflowRun(
 		c.workflowRunId,
+		sessionId,
 		func(event WorkflowRunEvent) error {
 			resChan <- &WorkflowResult{
 				workflowRun: event,
@@ -89,6 +93,10 @@ func (c *Workflow) Result() (*WorkflowResult, error) {
 			return nil
 		},
 	)
+
+	defer func() {
+		c.listener.RemoveWorkflowRun(c.workflowRunId, sessionId)
+	}()
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen for workflow events: %w", err)
