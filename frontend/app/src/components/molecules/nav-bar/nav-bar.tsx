@@ -124,6 +124,10 @@ function AccountDropdown({ user }: MainNavProps) {
 
     // Attach upgrade function to window object
     (window as any).upgrade = upgrade;
+
+    return () => {
+      delete (window as any).upgrade;
+    };
   }, []);
 
   const canUpgrade = useMemo(() => {
