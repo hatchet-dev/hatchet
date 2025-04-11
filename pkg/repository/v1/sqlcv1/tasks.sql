@@ -780,23 +780,18 @@ SELECT
     t.dag_id
 FROM
     v1_task t
+JOIN
+    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
     v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.retry_count = t.retry_count AND e.event_type = ANY('{COMPLETED, FAILED, CANCELLED}'::v1_task_event_type[])
 LEFT JOIN
-    v1_task_runtime tr ON tr.task_id = t.id
+    v1_task_runtime tr ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
 LEFT JOIN
-    v1_concurrency_slot cs ON cs.task_id = t.id
+    v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
 LEFT JOIN
-    v1_retry_queue_item rqi ON rqi.task_id = t.id
+    v1_retry_queue_item rqi ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at AND rqi.task_retry_count = t.retry_count
 WHERE
-    (t.id, t.inserted_at) IN (
-        SELECT
-            task_id,
-            task_inserted_at
-        FROM
-            input
-    )
-    AND t.tenant_id = @tenantId::uuid
+    t.tenant_id = @tenantId::uuid
     AND e.id IS NULL
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL);
 

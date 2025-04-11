@@ -43,6 +43,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 	wg := sync.WaitGroup{}
 	sendMu := sync.Mutex{}
+	ringIndex := 0
 	iterMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
@@ -74,13 +75,31 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		}
 
 		if !iterMu.TryLock() {
-			s.l.Warn().Msg("could not acquire lock")
+			s.l.Debug().Msg("could not acquire lock")
 			return nil
 		}
 
 		defer iterMu.Unlock()
 
-		workflowRunIds = workflowRunIds[:min(1000, len(workflowRunIds))]
+		bufferSize := 1000
+
+		if len(workflowRunIds) > bufferSize {
+			start := ringIndex % len(workflowRunIds)
+
+			if start+bufferSize <= len(workflowRunIds) {
+				workflowRunIds = workflowRunIds[start : start+bufferSize]
+				ringIndex = start + bufferSize
+			} else {
+				end := (start + bufferSize) % len(workflowRunIds)
+				workflowRunIds = append(workflowRunIds[start:], workflowRunIds[:end]...)
+				ringIndex = end
+			}
+
+			if ringIndex >= len(workflowRunIds) {
+				ringIndex = 0
+			}
+		}
+
 		start := time.Now()
 
 		finalizedWorkflowRuns, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, workflowRunIds)
@@ -112,13 +131,13 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		return nil
 	}
 
-	f := func(tenantId, msgId string, payloads [][]byte) error {
+	f := func(msg *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
 
 		workflowRunIds := acks.getNonAckdWorkflowRunsMap()
 
-		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msgId, payloads, workflowRunIds); ok {
+		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, workflowRunIds); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
 				s.l.Error().Err(err).Msg("could not iterate over workflow runs")
 			}
@@ -128,7 +147,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.sharedReaderv1.Subscribe(tenantId, f)
+	cleanupQueue, err := s.sharedNonBufferedReaderv1.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -632,7 +651,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.sharedReaderv1.Subscribe(tenantId, f)
+	cleanupQueue, err := s.sharedBufferedReaderv1.Subscribe(tenantId, f)
 
 	if err != nil {
 		return fmt.Errorf("could not subscribe to shared tenant queue: %w", err)
@@ -764,7 +783,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.sharedReaderv1.Subscribe(tenantId, f)
+	cleanupQueue, err := s.sharedBufferedReaderv1.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -968,12 +987,12 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 	return matches, nil
 }
 
-func (s *DispatcherImpl) isMatchingWorkflowRunV1(msgId string, payloadBytes [][]byte, workflowRunIds map[string]bool) ([]string, bool) {
-	if msgId != "workflow-run-finished" {
+func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, workflowRunIds map[string]bool) ([]string, bool) {
+	if msg.ID != "workflow-run-finished" {
 		return nil, false
 	}
 
-	payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloadBytes)
+	payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
 	res := make([]string, 0)
 
 	for _, payload := range payloads {
