@@ -186,10 +186,10 @@ export interface ManagedWorkerRuntimeConfig {
 }
 
 export enum ManagedWorkerEventStatus {
-  IN_PROGRESS = "IN_PROGRESS",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
+  IN_PROGRESS = 'IN_PROGRESS',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export interface ManagedWorkerEvent {
@@ -256,39 +256,39 @@ export interface CreateBuildStepRequest {
 }
 
 export enum ManagedWorkerRegion {
-  Ams = "ams",
-  Arn = "arn",
-  Atl = "atl",
-  Bog = "bog",
-  Bos = "bos",
-  Cdg = "cdg",
-  Den = "den",
-  Dfw = "dfw",
-  Ewr = "ewr",
-  Eze = "eze",
-  Gdl = "gdl",
-  Gig = "gig",
-  Gru = "gru",
-  Hkg = "hkg",
-  Iad = "iad",
-  Jnb = "jnb",
-  Lax = "lax",
-  Lhr = "lhr",
-  Mad = "mad",
-  Mia = "mia",
-  Nrt = "nrt",
-  Ord = "ord",
-  Otp = "otp",
-  Phx = "phx",
-  Qro = "qro",
-  Scl = "scl",
-  Sea = "sea",
-  Sin = "sin",
-  Sjc = "sjc",
-  Syd = "syd",
-  Waw = "waw",
-  Yul = "yul",
-  Yyz = "yyz",
+  Ams = 'ams',
+  Arn = 'arn',
+  Atl = 'atl',
+  Bog = 'bog',
+  Bos = 'bos',
+  Cdg = 'cdg',
+  Den = 'den',
+  Dfw = 'dfw',
+  Ewr = 'ewr',
+  Eze = 'eze',
+  Gdl = 'gdl',
+  Gig = 'gig',
+  Gru = 'gru',
+  Hkg = 'hkg',
+  Iad = 'iad',
+  Jnb = 'jnb',
+  Lax = 'lax',
+  Lhr = 'lhr',
+  Mad = 'mad',
+  Mia = 'mia',
+  Nrt = 'nrt',
+  Ord = 'ord',
+  Otp = 'otp',
+  Phx = 'phx',
+  Qro = 'qro',
+  Scl = 'scl',
+  Sea = 'sea',
+  Sin = 'sin',
+  Sjc = 'sjc',
+  Syd = 'syd',
+  Waw = 'waw',
+  Yul = 'yul',
+  Yyz = 'yyz',
 }
 
 export interface CreateManagedWorkerRuntimeConfigRequest {
@@ -315,7 +315,7 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    */
   memoryMb: number;
   /** The kind of GPU to use for the worker */
-  gpuKind?: "a10" | "l40s" | "a100-40gb" | "a100-80gb";
+  gpuKind?: 'a10' | 'l40s' | 'a100-40gb' | 'a100-80gb';
   /**
    * The number of GPUs to use for the worker
    * @min 1
@@ -383,10 +383,10 @@ export interface TenantPaymentMethod {
 }
 
 export enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
+  Active = 'active',
+  Pending = 'pending',
+  Terminated = 'terminated',
+  Canceled = 'canceled',
 }
 
 export interface Coupon {
@@ -409,8 +409,8 @@ export interface Coupon {
 }
 
 export enum CouponFrequency {
-  Once = "once",
-  Recurring = "recurring",
+  Once = 'once',
+  Recurring = 'recurring',
 }
 
 export type VectorPushRequest = EventObject[];
@@ -558,8 +558,8 @@ export interface AutoscalingConfig {
 }
 
 export enum AutoscalingTargetKind {
-  PORTER = "PORTER",
-  FLY = "FLY",
+  PORTER = 'PORTER',
+  FLY = 'FLY',
 }
 
 export interface CreateOrUpdateAutoscalingRequest {
@@ -578,7 +578,7 @@ export interface CreateOrUpdateAutoscalingRequest {
 
 export interface CreatePorterAutoscalingRequest {
   token: string;
-  targetUrl: "CLOUD" | "DASHBOARD";
+  targetUrl: 'CLOUD' | 'DASHBOARD';
   targetProject: string;
   targetCluster: string;
   targetAppName: string;
@@ -590,9 +590,9 @@ export interface CreateFlyAutoscalingRequest {
 }
 
 export enum TemplateOptions {
-  QUICKSTART_PYTHON = "QUICKSTART_PYTHON",
-  QUICKSTART_TYPESCRIPT = "QUICKSTART_TYPESCRIPT",
-  QUICKSTART_GO = "QUICKSTART_GO",
+  QUICKSTART_PYTHON = 'QUICKSTART_PYTHON',
+  QUICKSTART_TYPESCRIPT = 'QUICKSTART_TYPESCRIPT',
+  QUICKSTART_GO = 'QUICKSTART_GO',
 }
 
 export interface CreateManagedWorkerFromTemplateRequest {

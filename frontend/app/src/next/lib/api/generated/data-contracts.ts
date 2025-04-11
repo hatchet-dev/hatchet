@@ -359,7 +359,8 @@ export interface WorkflowRunShapeItemForWorkflowRunDetails {
   taskName: string;
 }
 
-export type WorkflowRunShapeForWorkflowRunDetails = WorkflowRunShapeItemForWorkflowRunDetails[];
+export type WorkflowRunShapeForWorkflowRunDetails =
+  WorkflowRunShapeItemForWorkflowRunDetails[];
 
 export interface V1WorkflowRunDetails {
   run: V1WorkflowRun;
