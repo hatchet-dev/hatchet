@@ -18,12 +18,14 @@ import {
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { useTheme } from '@/next/components/theme-provider';
-import { Sun, Moon, LogOut, BadgeCheck } from 'lucide-react';
+import { Sun, Moon, LogOut } from 'lucide-react';
 import useUser from '@/next/hooks/use-user';
 import { Button } from '@/next/components/ui/button';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { Logo } from '@/next/components/ui/logo';
 import { Alerter } from './components/sidebar/alerter';
+import { GrRevert } from 'react-icons/gr';
+
 export default function DashboardLayout() {
   const { tenant, isLoading } = useTenant();
   const { toggleTheme, theme } = useTheme();
@@ -80,10 +82,14 @@ export default function DashboardLayout() {
                           </DropdownMenuLabel>
                           <DropdownMenuSeparator />
                           <DropdownMenuGroup>
-                            <DropdownMenuItem>
-                              {/* TODO: Add account settings page */}
-                              <BadgeCheck className="mr-2 h-4 w-4" />
-                              Account Settings
+                            <DropdownMenuItem
+                              onClick={() => {
+                                localStorage.setItem('next-ui', 'false');
+                                window.location.href = '/';
+                              }}
+                            >
+                              <GrRevert className="mr-2 h-4 w-4" />
+                              Switch to Old UI
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => toggleTheme()}>
                               {theme === 'dark' ? (

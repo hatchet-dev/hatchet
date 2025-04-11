@@ -8,6 +8,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { GrUpgrade } from 'react-icons/gr';
 
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import api, { TenantVersion, User } from '@/lib/api';
@@ -148,6 +149,15 @@ function AccountDropdown({ user }: MainNavProps) {
               View Legacy V0 Data
             </DropdownMenuItem>
           )}
+        <DropdownMenuItem
+          onClick={() => {
+            localStorage.setItem('next-ui', 'true');
+            window.location.href = '/next';
+          }}
+        >
+          <GrUpgrade className="mr-2 h-4 w-4" />
+          Switch to Next UI
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
