@@ -137,6 +137,16 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             t.to_proto(service_name) if (t := self._on_failure_task) else None
         )
 
+        if isinstance(self.config.concurrency, list):
+            _concurrency_arr = [c.to_proto() for c in self.config.concurrency]
+            _concurrency = None
+        elif isinstance(self.config.concurrency, ConcurrencyExpression):
+            _concurrency_arr = []
+            _concurrency = self.config.concurrency.to_proto()
+        else:
+            _concurrency = None
+            _concurrency_arr = []
+
         return CreateWorkflowVersionRequest(
             name=name,
             description=self.config.description,
@@ -144,20 +154,12 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
             tasks=tasks,
-            concurrency=(
-                c.to_proto()
-                if isinstance((c := self.config.concurrency), ConcurrencyExpression)
-                else None
-            ),
             ## TODO: Fix this
             cron_input=None,
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto),  # type: ignore[arg-type]
-            concurrency_arr=(
-                [c.to_proto() for c in self.config.concurrency]
-                if isinstance(self.config.concurrency, list)
-                else None
-            ),
+            concurrency=_concurrency,
+            concurrency_arr=_concurrency_arr,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
