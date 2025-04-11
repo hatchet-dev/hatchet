@@ -5,6 +5,7 @@ import { Handle, Position } from 'reactflow';
 import { Link } from 'react-router-dom';
 import { Duration } from '@/next/components/ui/duration';
 import { RunsBadge } from '../runs-badge';
+import { ROUTES } from '@/next/lib/routes';
 
 export enum TabOption {
   Output = 'output',
@@ -79,7 +80,7 @@ export default memo(({ data }: { data: NodeData }) => {
       {data.childWorkflowsCount && data.taskRun ? (
         <Link
           to={{
-            pathname: '/v1/runs',
+            pathname: ROUTES.runs.list,
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
               // [queryParamNames.parentTaskExternalId]: data.taskRun.metadata.id,

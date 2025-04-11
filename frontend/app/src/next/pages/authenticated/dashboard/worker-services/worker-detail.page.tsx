@@ -24,6 +24,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import { WorkerStatusBadge } from './components/worker-status-badge';
+import { ROUTES } from '@/next/lib/routes';
 
 // Extending Worker type with additional properties that may exist
 interface WorkerDetails {
@@ -193,7 +194,7 @@ export default function WorkerDetailPage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="flex items-center mb-4">
           <Link
-            to={`/services/${encodeURIComponent(decodedServiceName)}`}
+            to={ROUTES.services.detail(encodeURIComponent(decodedServiceName))}
             className="mr-2"
           >
             <Button variant="ghost" size="sm">
@@ -213,7 +214,11 @@ export default function WorkerDetailPage() {
           </div>
           <div className="mt-6">
             <Button asChild>
-              <Link to={`/services/${encodeURIComponent(decodedServiceName)}`}>
+              <Link
+                to={ROUTES.services.detail(
+                  encodeURIComponent(decodedServiceName),
+                )}
+              >
                 Return to Service
               </Link>
             </Button>
@@ -227,7 +232,7 @@ export default function WorkerDetailPage() {
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center mb-4">
         <Link
-          to={`/services/${encodeURIComponent(decodedServiceName)}`}
+          to={ROUTES.services.detail(encodeURIComponent(decodedServiceName))}
           className="mr-2"
         >
           <Button variant="ghost" size="sm">

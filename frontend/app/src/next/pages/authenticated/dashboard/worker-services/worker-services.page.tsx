@@ -57,6 +57,7 @@ import {
 import docs from '@/next/docs-meta-data';
 import { Separator } from '@/next/components/ui/separator';
 import useDefinitions from '@/next/hooks/use-definitions';
+import { ROUTES } from '@/next/lib/routes';
 
 // Service row component to simplify the main component
 const ServiceRow = ({ service }: { service: any }) => {
@@ -116,7 +117,7 @@ const ServiceRow = ({ service }: { service: any }) => {
   return (
     <TableRow key={service.id}>
       <TableCell className="font-medium">
-        <Link to={`/services/${encodeURIComponent(service.name)}`}>
+        <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
           {service.name}
         </Link>
       </TableCell>
@@ -142,7 +143,7 @@ const ServiceRow = ({ service }: { service: any }) => {
       <TableCell>{getLastActiveTime()}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
-          <Link to={`/services/${encodeURIComponent(service.name)}`}>
+          <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
             <Button variant="ghost" size="icon">
               <ArrowUpRight className="h-4 w-4" />
             </Button>
@@ -159,7 +160,7 @@ const ServiceRow = ({ service }: { service: any }) => {
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Link
-                  to={`/services/${encodeURIComponent(service.name)}`}
+                  to={ROUTES.services.detail(encodeURIComponent(service.name))}
                   className="w-full"
                 >
                   View details
@@ -254,13 +255,7 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
       </div>
     </CardContent>
     <CardFooter>
-      <a
-        href="https://docs.hatchet.run/home/managed-compute"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <Button variant="outline">Learn more about Hatchet Cloud</Button>
-      </a>
+      <DocsButton doc={docs.home.compute} size="lg" />
     </CardFooter>
   </Card>
 );

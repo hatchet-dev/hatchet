@@ -9,6 +9,7 @@ import {
 import { Code } from '@/next/components/ui/code';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 export function RunId({
   wfRun,
@@ -24,10 +25,10 @@ export function RunId({
   }
 
   const url = !isTaskRun
-    ? `/runs/${wfRun?.metadata.id}`
+    ? ROUTES.runs.detail(wfRun?.metadata.id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
-      : `/runs/${taskRun?.taskExternalId}`;
+      : ROUTES.runs.detail(taskRun?.taskExternalId || '');
 
   const name = useMemo(() => {
     if (isTaskRun) {

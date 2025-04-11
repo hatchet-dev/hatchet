@@ -1,9 +1,9 @@
-import { RouteObject } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
-export const rateLimitsRoutes: RouteObject[] = [
+export const rateLimitsRoutes = [
   {
-    path: 'rate-limits',
-    lazy: async () =>
+    path: ROUTES.rateLimits.list,
+    lazy: () =>
       import('./rate-limits.page').then((res) => {
         return {
           Component: res.default,

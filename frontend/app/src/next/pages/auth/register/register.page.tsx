@@ -9,6 +9,7 @@ import {
   OrContinueWith,
 } from '../components/shared-auth-components';
 import useUser from '@/next/hooks/use-user';
+import { ROUTES } from '@/next/lib/routes';
 export default function Register() {
   const { oss: meta, isLoading } = useApiMeta();
 
@@ -56,7 +57,7 @@ export default function Register() {
         <p className="text-sm text-gray-700 dark:text-gray-300">
           Already have an account?{' '}
           <Link
-            to="/auth/login"
+            to={ROUTES.auth.login}
             className="underline underline-offset-4 hover:text-primary"
           >
             Log in
@@ -78,7 +79,7 @@ function BasicRegister() {
       onSubmit={async (data) => {
         const user = await register.mutateAsync(data);
         if (user) {
-          navigate('/');
+          navigate(ROUTES.runs.list);
         }
       }}
       apiError={register.error?.message}

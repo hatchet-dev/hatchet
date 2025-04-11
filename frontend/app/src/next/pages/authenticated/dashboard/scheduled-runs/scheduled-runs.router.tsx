@@ -1,9 +1,9 @@
-import { RouteObject } from 'react-router-dom';
+import { FEATURES_BASE_PATH } from '@/next/lib/routes';
 
-export const scheduledRunsRoutes: RouteObject[] = [
+export const scheduledRunsRoutes = [
   {
-    path: 'scheduled',
-    lazy: async () =>
+    path: FEATURES_BASE_PATH.scheduled,
+    lazy: () =>
       import('./scheduled-runs.page').then((res) => {
         return {
           Component: res.default,

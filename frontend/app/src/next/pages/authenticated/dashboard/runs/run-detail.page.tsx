@@ -1,7 +1,11 @@
 import { useParams } from 'react-router-dom';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/next/components/ui/alert';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { useEffect, useMemo, useCallback } from 'react';
@@ -31,6 +35,7 @@ import { TooltipProvider } from '@/next/components/ui/tooltip';
 import { Time } from '@/next/components/ui/time';
 import { Duration } from '@/next/components/ui/duration';
 import { V1TaskStatus } from '@/next/lib/api/generated/data-contracts';
+import { ROUTES } from '@/next/lib/routes';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -66,20 +71,23 @@ export default function RunDetailPage() {
     const breadcrumbs = [];
 
     if (parentData && parentData?.run) {
-      breadcrumbs.push({
-        title: <RunId wfRun={parentData.run} />,
-        url: `/runs/${workflow.parentTaskExternalId}`,
-        icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-        alwaysShowIcon: true,
-      });
+      const parentUrl = ROUTES.runs.parent(workflow);
+      if (parentUrl) {
+        breadcrumbs.push({
+          title: <RunId wfRun={parentData.run} />,
+          url: parentUrl,
+          icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
+          alwaysShowIcon: true,
+        });
+      }
     }
 
     breadcrumbs.push({
       title: <RunId wfRun={workflow} />,
       url:
         task?.metadata.id === workflow?.metadata.id
-          ? `/runs/${workflowRunId}`
-          : `/runs/${workflowRunId}/${task?.taskExternalId}`,
+          ? ROUTES.runs.detail(workflow.metadata.id)
+          : ROUTES.runs.taskDetail(workflow.metadata.id, task!.taskExternalId),
       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
       alwaysShowIcon: true,
     });

@@ -12,6 +12,7 @@ import {
 } from '@/next/components/ui/dropdown-menu';
 import { V1TaskSummary, V1TaskStatus } from '@/next/lib/api';
 import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
@@ -34,7 +35,7 @@ export function DataTableRowActions<TData>({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link to={`/runs/${run.metadata.id}`}>
+            <Link to={ROUTES.runs.detail(run.metadata.id)}>
               <FileText className="mr-2 h-4 w-4" />
               View Details
             </Link>

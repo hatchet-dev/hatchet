@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import {
   Tooltip,
   TooltipContent,
@@ -6,6 +5,10 @@ import {
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
 import { Code } from '@/next/components/ui/code';
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
+import { Worker } from '@/next/lib/api';
 
 interface WorkerIdProps {
   worker: {
@@ -13,26 +16,28 @@ interface WorkerIdProps {
       id: string;
     };
     name: string;
+    serviceName: string;
   };
 }
 
-function getFriendlyWorkerId(worker: WorkerIdProps['worker']) {
-  return `${worker.name}/${worker.metadata.id.substring(0, 8)}...`;
-}
-
 export function WorkerId({ worker }: WorkerIdProps) {
+  const name = useMemo(() => {
+    return getFriendlyWorkerId(worker);
+  }, [worker]);
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <span>
             <Link
-              to={`/services/${encodeURIComponent(worker.name)}/${encodeURIComponent(
-                worker.metadata.id,
-              )}`}
-              className="hover:underline text-primary"
+              to={ROUTES.services.workerDetail(
+                encodeURIComponent(worker.serviceName),
+                encodeURIComponent(worker.name),
+              )}
+              className="hover:underline text-blue-500"
             >
-              {getFriendlyWorkerId(worker)}
+              {name}
             </Link>
           </span>
         </TooltipTrigger>
@@ -49,4 +54,12 @@ export function WorkerId({ worker }: WorkerIdProps) {
       </Tooltip>
     </TooltipProvider>
   );
+}
+
+export function getFriendlyWorkerId(worker: Worker) {
+  if (!worker) {
+    return;
+  }
+
+  return worker.name;
 }

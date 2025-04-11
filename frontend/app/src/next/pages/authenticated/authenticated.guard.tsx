@@ -9,12 +9,12 @@ export default function AuthenticatedGuard() {
 
   // user is not authenticated
   if (!user.isLoading && !user.data) {
-    return <Navigate to="/auth/login" />;
+    return <Navigate to="../auth/login" />;
   }
 
   // user email is not verified
   if (!user.isLoading && !user.data?.emailVerified) {
-    return <Navigate to="/auth/verify-email" />;
+    return <Navigate to="../auth/verify-email" />;
   }
 
   // user has no tenant
@@ -24,7 +24,7 @@ export default function AuthenticatedGuard() {
     user.memberships.length === 0 &&
     !location.pathname.startsWith('/onboarding')
   ) {
-    return <Navigate to="/onboarding" />;
+    return <Navigate to="onboarding" />;
   }
 
   return (

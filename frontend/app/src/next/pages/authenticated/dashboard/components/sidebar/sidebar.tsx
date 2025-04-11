@@ -53,6 +53,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Logo } from '@/next/components/ui/logo';
 import { Code } from '@/next/components/ui/code';
 import { pages, useDocs } from '@/next/hooks/use-docs-sheet';
+import { ROUTES } from '@/next/lib/routes';
 export const iframeHeight = '800px';
 
 export const description = 'An inset sidebar with secondary navigation.';
@@ -147,7 +148,9 @@ name: ${user?.name}`;
                       ))}
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/onboarding/new')}>
+                  <DropdownMenuItem
+                    onClick={() => navigate(ROUTES.onboarding.newTenant)}
+                  >
                     <Plus />
                     Create New Tenant
                   </DropdownMenuItem>

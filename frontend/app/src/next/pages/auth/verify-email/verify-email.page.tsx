@@ -1,11 +1,15 @@
-import { Alert, AlertTitle, AlertDescription } from '@/next/components/ui/alert';
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from '@/next/components/ui/alert';
 import { Button } from '@/next/components/ui/button';
 import useUser from '@/next/hooks/use-user';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import { FaEnvelope } from 'react-icons/fa';
 import { Navigate } from 'react-router-dom';
-
+import { ROUTES } from '@/next/lib/routes';
 export default function VerifyEmailPage() {
   const retryInterval = 5000;
 
@@ -38,7 +42,7 @@ export default function VerifyEmailPage() {
 
   // once the email is verified, redirect to the home page
   if (user.data?.emailVerified) {
-    return <Navigate to="/" />;
+    return <Navigate to={ROUTES.runs.list} />;
   }
 
   return (

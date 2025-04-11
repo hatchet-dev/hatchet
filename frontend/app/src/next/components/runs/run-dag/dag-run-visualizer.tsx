@@ -13,6 +13,7 @@ import stepRunNode, { NodeData } from './step-run-node';
 import { V1TaskStatus } from '@/next/lib/api';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 const connectionLineStyleDark = { stroke: '#fff' };
 const connectionLineStyleLight = { stroke: '#000' };
 
@@ -42,7 +43,7 @@ const WorkflowRunVisualizer = ({
 
   const setSelectedTaskRunId = useCallback(
     (taskRunId: string) => {
-      navigate(`/runs/${workflowRunId}/${taskRunId}`);
+      navigate(ROUTES.runs.taskDetail(workflowRunId, taskRunId));
     },
     [navigate, workflowRunId],
   );

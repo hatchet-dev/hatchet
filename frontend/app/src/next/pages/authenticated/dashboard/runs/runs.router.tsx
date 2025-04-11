@@ -1,9 +1,9 @@
-import { RouteObject } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
-export const runsRoutes: RouteObject[] = [
+export const runsRoutes = [
   {
-    path: 'runs',
-    lazy: async () =>
+    path: ROUTES.runs.list,
+    lazy: () =>
       import('./runs.page').then((res) => {
         return {
           Component: res.default,
@@ -11,8 +11,8 @@ export const runsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: 'runs/:workflowRunId',
-    lazy: async () =>
+    path: ROUTES.runs.detail(':workflowRunId'),
+    lazy: () =>
       import('./run-detail.page').then((res) => {
         return {
           Component: res.default,
@@ -20,8 +20,8 @@ export const runsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: 'runs/:workflowRunId/:taskId',
-    lazy: async () =>
+    path: ROUTES.runs.taskDetail(':workflowRunId', ':taskId'),
+    lazy: () =>
       import('./run-detail.page').then((res) => {
         return {
           Component: res.default,

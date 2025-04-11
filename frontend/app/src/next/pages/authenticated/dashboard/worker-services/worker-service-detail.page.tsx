@@ -15,6 +15,7 @@ import {
 import docs from '@/next/docs-meta-data';
 import { WorkerTable } from './components/worker-table';
 import { FilterProvider } from '@/next/hooks/use-filters';
+import { ROUTES } from '@/next/lib/routes';
 
 export default function ServiceDetailPage() {
   const { serviceName = '' } = useParams<{ serviceName: string }>();
@@ -34,7 +35,7 @@ export default function ServiceDetailPage() {
     const breadcrumbs = [
       {
         title: serviceName,
-        url: `/services/${encodeURIComponent(decodedServiceName)}`,
+        url: ROUTES.services.detail(encodeURIComponent(decodedServiceName)),
       },
     ];
 

@@ -9,7 +9,7 @@ import {
   OrContinueWith,
 } from '../components/shared-auth-components';
 import useUser from '@/next/hooks/use-user';
-
+import { ROUTES } from '@/next/lib/routes';
 export default function Login() {
   const { oss: meta, isLoading } = useApiMeta();
 
@@ -60,7 +60,7 @@ export default function Login() {
         <p className="text-sm text-gray-700 dark:text-gray-300">
           Don't have an account?{' '}
           <Link
-            to="/auth/register"
+            to={ROUTES.auth.register}
             className="underline underline-offset-4 hover:text-primary"
           >
             Sign up
@@ -81,7 +81,7 @@ function BasicLogin() {
       onSubmit={async (data) => {
         const user = await login.mutateAsync(data);
         if (user) {
-          navigate('/');
+          navigate(ROUTES.runs.list);
         }
       }}
       apiError={login.error?.message}

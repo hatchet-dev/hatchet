@@ -15,6 +15,7 @@ import {
   UsersIcon,
 } from 'lucide-react';
 import { FaDiscord, FaPlay } from 'react-icons/fa';
+import { FEATURES_BASE_PATH, ROUTES } from '@/next/lib/routes';
 
 export type NavItem = {
   title: string;
@@ -53,9 +54,9 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Runs',
-            url: '/runs',
+            url: ROUTES.runs.list,
             icon: Play,
-            isActive: isActive('/runs'),
+            isActive: isActive(ROUTES.runs.list),
           },
         ],
       },
@@ -64,15 +65,15 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Scheduled Runs',
-            url: '/scheduled',
+            url: ROUTES.scheduled.list,
             icon: Calendar,
-            isActive: isActive('/scheduled'),
+            isActive: isActive(ROUTES.scheduled.list),
           },
           {
             title: 'Cron Jobs',
-            url: '/crons',
+            url: ROUTES.crons.list,
             icon: Clock,
-            isActive: isActive('/crons'),
+            isActive: isActive(ROUTES.crons.list),
           },
         ],
       },
@@ -81,21 +82,21 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Tasks & Workflows',
-            url: '/tasks',
+            url: ROUTES.tasks.list,
             icon: Code,
-            isActive: isActive('/tasks'),
+            isActive: isActive(ROUTES.tasks.list),
           },
           {
             title: 'Worker Services',
-            url: '/services',
+            url: ROUTES.services.list,
             icon: Cpu,
-            isActive: isActive('/services'),
+            isActive: isActive(ROUTES.services.list),
           },
           {
             title: 'Rate Limits',
-            url: '/rate-limits',
+            url: ROUTES.rateLimits.list,
             icon: Scale,
-            isActive: isActive('/rate-limits'),
+            isActive: isActive(ROUTES.rateLimits.list),
           },
         ],
       },
@@ -104,51 +105,51 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'API Tokens',
-            url: '/settings/api-tokens',
+            url: ROUTES.settings.apiTokens,
             icon: Key,
-            isActive: isActive('/settings/api-tokens'),
+            isActive: isActive(ROUTES.settings.apiTokens),
           },
           {
             title: 'Team',
-            url: '/settings/team',
+            url: ROUTES.settings.team,
             icon: Users,
-            isActive: isActive('/settings/team'),
+            isActive: isActive(ROUTES.settings.team),
           },
           {
             title: 'More Settings',
-            url: '/settings',
+            url: ROUTES.settings.overview,
             icon: Settings,
-            isActive: isActive('/settings'),
+            isActive: isActive(FEATURES_BASE_PATH.settings),
             items: [
               {
                 title: 'Tenant Settings',
-                url: '/settings/overview',
+                url: ROUTES.settings.overview,
                 icon: UsersIcon,
-                isActive: isActive('/settings/overview'),
+                isActive: isActive(ROUTES.settings.overview),
               },
               {
                 title: 'Github',
-                url: '/settings/github',
+                url: ROUTES.settings.github,
                 icon: Github,
-                isActive: isActive('/settings/github'),
+                isActive: isActive(ROUTES.settings.github),
               },
               {
                 title: 'Resource Limits',
-                url: '/settings/resource-limits',
+                url: ROUTES.settings.resourceLimits,
                 icon: Scale,
-                isActive: isActive('/settings/resource-limits'),
+                isActive: isActive(ROUTES.settings.resourceLimits),
               },
               {
                 title: 'Alerting',
-                url: '/settings/alerting',
+                url: ROUTES.settings.alerting,
                 icon: AlertTriangle,
-                isActive: isActive('/settings/alerting'),
+                isActive: isActive(ROUTES.settings.alerting),
               },
               {
                 title: 'Ingestors',
-                url: '/settings/ingestors',
+                url: ROUTES.settings.ingestors,
                 icon: Database,
-                isActive: isActive('/settings/ingestors'),
+                isActive: isActive(ROUTES.settings.ingestors),
               },
             ],
           },
@@ -158,19 +159,19 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
     support: [
       {
         title: 'Join Our Community',
-        url: 'https://hatchet.run/discord',
+        url: ROUTES.common.community,
         icon: FaDiscord,
       },
       {
         title: 'Restart Tutorial',
-        url: '/tutorial',
+        url: ROUTES.common.tutorial,
         icon: FaPlay,
       },
     ],
     navSecondary: [
       {
         title: 'Feedback',
-        url: 'https://github.com/hatchet-dev/hatchet/issues',
+        url: ROUTES.common.feedback,
         icon: Bug,
       },
     ],

@@ -14,6 +14,7 @@ import { Sun, Moon, LogOut } from 'lucide-react';
 import useUser from '@/next/hooks/use-user';
 import { Button } from '@/next/components/ui/button';
 import { Logo } from '@/next/components/ui/logo';
+import { ROUTES } from '@/next/lib/routes';
 
 export function OnboardingLayout() {
   const { toggleTheme, theme } = useTheme();
@@ -38,17 +39,17 @@ export function OnboardingLayout() {
   if (
     !invites.loading &&
     invites.list.length > 0 &&
-    !location.pathname.startsWith('/onboarding/invites')
+    !location.pathname.startsWith(ROUTES.onboarding.invites)
   ) {
-    return <Navigate to="/onboarding/invites" />;
+    return <Navigate to={ROUTES.onboarding.invites} />;
   }
 
   if (
     !invites.loading &&
     invites.list.length === 0 &&
-    !location.pathname.startsWith('/onboarding/new')
+    !location.pathname.startsWith(ROUTES.onboarding.newTenant)
   ) {
-    return <Navigate to="/onboarding/new" />;
+    return <Navigate to={ROUTES.onboarding.newTenant} />;
   }
 
   return (
