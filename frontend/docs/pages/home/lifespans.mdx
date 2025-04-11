@@ -1,0 +1,36 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const Lifespans = {
+  path: "examples/lifespans/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([Lifespans]);
+
+# Lifespans
+
+Hatchet's Python SDK allows you define a **_lifespan_**, which is an async generator that runs when your worker starts up and cleans up when it exits, which lets you share state across all of the tasks running on the worker. This behaves almost identically to [FastAPI's lifespans](https://fastapi.tiangolo.com/advanced/events/), and is intended to be used in the same way. Lifespans are useful for sharing state like connection pools across all tasks on a single worker. They also work great for loading expensive machine learning models into memory before the worker starts.
+
+## Usage
+
+To use Hatchet's `lifespan` feature, define an async generator and pass it into your `worker`:
+
+<GithubSnippet src={Lifespans} target="Define a lifespan" />
+
+As you can see in the above example, the worker will run the lifespan up to the `yield` when it starts, and then will clean it up on exit.
+
+<Callout type="warning" emoji="⚠️">
+  Your lifespan must only `yield` **_once_**.
+</Callout>
+
+Then, to use your lifespan in a task, you can extract it from the context with `Context.lifespan`.
+
+<GithubSnippet src={Lifespans} target="Use the lifespan in a task" />
+
+<Callout type="info" emoji="💡">
+  For type checking, cast the `Context.lifespan` to whatever type your lifespan
+  generator yields.
+</Callout>
+
+And that's it! Now, any task running on the worker with the lifespan provided will have access to the lifespan data.

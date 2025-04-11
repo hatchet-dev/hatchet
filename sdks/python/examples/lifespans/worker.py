@@ -1,5 +1,3 @@
-# ❓ Lifespan
-
 from typing import Any, AsyncGenerator, cast
 from uuid import UUID
 
@@ -11,20 +9,10 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 hatchet = Hatchet(debug=True)
 
 
+# ❓ Use the lifespan in a task
 class TaskOutput(BaseModel):
     num_rows: int
     external_ids: list[UUID]
-
-
-async def lifespan() -> AsyncGenerator[dict[str, Any], None]:
-    print("Running lifespan!")
-    with ConnectionPool("postgres://hatchet:hatchet@localhost:5431/hatchet") as pool:
-        yield {
-            "foo": "bar",
-            "pool": pool,
-        }
-
-    print("Cleaning up lifespan!")
 
 
 @hatchet.task(name="LifespanWorkflow")
@@ -46,14 +34,30 @@ def lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
         )
 
 
+# !!
+
+
+# ❓ Define a lifespan
+async def lifespan() -> AsyncGenerator[dict[str, Any], None]:
+    print("Running lifespan!")
+    with ConnectionPool("postgres://hatchet:hatchet@localhost:5431/hatchet") as pool:
+        yield {
+            "foo": "bar",
+            "pool": pool,
+        }
+
+    print("Cleaning up lifespan!")
+
+
+worker = hatchet.worker(
+    "test-worker", slots=1, workflows=[lifespan_task], lifespan=lifespan
+)
+# !!
+
+
 def main() -> None:
-    worker = hatchet.worker(
-        "test-worker", slots=1, workflows=[lifespan_task], lifespan=lifespan
-    )
     worker.start()
 
-
-# ‼️
 
 if __name__ == "__main__":
     main()
