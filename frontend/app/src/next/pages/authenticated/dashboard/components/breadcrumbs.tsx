@@ -22,7 +22,7 @@ import {
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { BreadcrumbData, useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
-
+import { BASE_PATH } from '@/next/lib/routes';
 // Use the existing NavItem type from main-nav
 type NavItem = MainNavItem;
 
@@ -49,9 +49,18 @@ export function BreadcrumbNav() {
   Object.values(navStructure.sections).forEach((section) => {
     section.items.forEach((item) => {
       // Get the first segment of the URL path (e.g., '/runs' -> 'runs')
-      const rootSegment = item.url.split('/').filter(Boolean)[0];
+      const rootSegment = item.url
+        .replace(BASE_PATH, '')
+        .split('/')
+        .filter(Boolean)[0];
       if (rootSegment) {
-        sectionItemsByRootPath.set(rootSegment, section);
+        sectionItemsByRootPath.set(rootSegment, {
+          ...section,
+          items: section.items.map((item) => ({
+            ...item,
+            url: item.url.replace(BASE_PATH, ''),
+          })),
+        });
       }
     });
   });
@@ -61,35 +70,73 @@ export function BreadcrumbNav() {
     const siblings: NavItem[] = [];
 
     items.forEach((item) => {
-      navMap.set(item.url, item);
-      siblings.push(item);
+      navMap.set(item.url.replace(BASE_PATH, ''), {
+        ...item,
+        url: item.url.replace(BASE_PATH, ''),
+      });
+      siblings.push({
+        ...item,
+        url: item.url.replace(BASE_PATH, ''),
+      });
 
       if (item.items) {
-        addToMap(item.items, item.url);
+        addToMap(
+          item.items.map((item) => ({
+            ...item,
+            url: item.url.replace(BASE_PATH, ''),
+          })),
+          item.url.replace(BASE_PATH, ''),
+        );
       }
     });
 
     if (parentPath) {
-      siblingsByPath.set(parentPath, siblings);
+      siblingsByPath.set(
+        parentPath.replace(BASE_PATH, ''),
+        siblings.map((item) => ({
+          ...item,
+          url: item.url.replace(BASE_PATH, ''),
+        })),
+      );
     }
   };
 
   // First, collect all root-level items across all sections
   const rootItems: NavItem[] = [];
   Object.values(navStructure.sections).forEach((section) => {
-    rootItems.push(...section.items);
+    rootItems.push(
+      ...section.items.map((item) => ({
+        ...item,
+        url: item.url.replace(BASE_PATH, ''),
+      })),
+    );
   });
 
   // Set the root siblings
-  siblingsByPath.set('/', rootItems);
+  siblingsByPath.set(
+    '/',
+    rootItems.map((item) => ({
+      ...item,
+      url: item.url.replace(BASE_PATH, ''),
+    })),
+  );
 
   // Now process all items in each section
   Object.values(navStructure.sections).forEach((section) => {
-    addToMap(section.items);
+    addToMap(
+      section.items.map((item) => ({
+        ...item,
+        url: item.url.replace(BASE_PATH, ''),
+      })),
+    );
   });
 
   // Build breadcrumb path based on current location
-  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const pathSegments = location.pathname
+    .replace(BASE_PATH, '')
+    .split('/')
+    .filter(Boolean);
+
   const breadcrumbItemsFromNav: BreadcrumbData[] = useMemo(() => {
     const breadcrumbItemsFromNav: BreadcrumbData[] = [];
     // Build path segments and find matching nav items
@@ -163,7 +210,7 @@ export function BreadcrumbNav() {
                     {item.siblings.map((sibling, index) => (
                       <DropdownMenuItem key={sibling.url + index} asChild>
                         <BreadcrumbLink
-                          to={sibling.url}
+                          to={BASE_PATH + sibling.url}
                           className="flex items-center gap-2"
                         >
                           {sibling.icon && (
@@ -190,7 +237,7 @@ export function BreadcrumbNav() {
             ) : item.siblings ? (
               <div className="group flex items-center">
                 <BreadcrumbLink
-                  to={item.url}
+                  to={BASE_PATH + item.url}
                   className="flex items-center gap-2 whitespace-nowrap overflow-hidden text-ellipsis"
                 >
                   {(item.isFirst || item.alwaysShowIcon) && item.icon && (
@@ -212,7 +259,7 @@ export function BreadcrumbNav() {
                       {item.siblings.map((sibling, index) => (
                         <DropdownMenuItem key={sibling.url + index} asChild>
                           <BreadcrumbLink
-                            to={sibling.url}
+                            to={BASE_PATH + sibling.url}
                             className="flex items-center gap-2"
                           >
                             {sibling.icon && (
@@ -228,7 +275,7 @@ export function BreadcrumbNav() {
               </div>
             ) : (
               <BreadcrumbLink
-                to={item.url}
+                to={BASE_PATH + item.url}
                 className="whitespace-nowrap overflow-hidden text-ellipsis inline-flex items-center gap-2"
               >
                 {(item.isFirst || item.alwaysShowIcon) && item.icon && (

@@ -117,7 +117,7 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
           },
           {
             title: 'More Settings',
-            url: ROUTES.settings.overview,
+            url: FEATURES_BASE_PATH.settings,
             icon: Settings,
             isActive: isActive(FEATURES_BASE_PATH.settings),
             items: [
