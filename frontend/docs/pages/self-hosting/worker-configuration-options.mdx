@@ -1,0 +1,93 @@
+# Worker Configuration Options
+
+The Hatchet worker can be configured via environment variables and programmatic options. This document contains a list of all available options.
+
+## Basic Configuration
+
+| Variable                     | Description                                    | Default Value |
+| ---------------------------- | ---------------------------------------------- | ------------- |
+| `HATCHET_CLIENT_TOKEN`       | Authentication token for the worker            |               |
+| `HATCHET_CLIENT_HOST_PORT`   | GRPC server host and port                      | * Inherited from token |
+| `HATCHET_CLIENT_API_URL` (TypeScript SDK)    | API server host and port                       | * Inherited from token |
+| `HATCHET_CLIENT_SERVER_URL` (Go SDK)     | API server host and port                       | * Inherited from token |
+| `HATCHET_CLIENT_NAMESPACE`   | Namespace prefix for the worker                | * Inherited from token |
+
+## Worker Runtime Configuration
+
+| Variable                                     | Description                                    | Default Value |
+| -------------------------------------------- | ---------------------------------------------- | ------------- |
+| `name`               | Friendly name of the worker                    |               |
+| `slots`                | Maximum number of concurrent runs              | `100`         |
+| `durable_slots`        | Maximum number of concurrent durable tasks     | `1000`        |
+
+## TLS Configuration
+
+| Variable                             | Description                                    | Default Value |
+| ------------------------------------ | ---------------------------------------------- | ------------- |
+| `HATCHET_CLIENT_TLS_STRATEGY`        | TLS strategy (tls, mtls, none)                 | `tls`         |
+| `HATCHET_CLIENT_TLS_CERT_FILE`       | Path to TLS certificate file                   |               |
+| `HATCHET_CLIENT_TLS_KEY_FILE`        | Path to TLS key file                           |               |
+| `HATCHET_CLIENT_TLS_ROOT_CA_FILE`    | Path to TLS root CA file                       |               |
+| `HATCHET_CLIENT_TLS_SERVER_NAME`     | TLS server name                                |               |
+
+## Logging Configuration
+
+| Variable                             | Description                                    | Default Value |
+| ------------------------------------ | ---------------------------------------------- | ------------- |
+| `HATCHET_CLIENT_LOG_LEVEL`           | Log level for the worker                       | `INFO`        |
+| `HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH` | Maximum gRPC message receive size (Python SDK only) | `4MB`         |
+| `HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH` | Maximum gRPC message send size (Python SDK only)    | `4MB`         |
+
+
+## SDK-Specific Configuration
+
+Each SDK has its own configuration options which can be configured at runtime in code:
+
+### TypeScript SDK
+
+```typescript
+const worker = await hatchet.worker("example-worker", {
+  slots: 100,                    // Maximum concurrent runs
+  durableSlots: 1000,            // Maximum concurrent durable tasks
+  labels: {                      // Worker labels
+    "environment": "production"
+  },
+  handleKill: true,              // Handle kill signals gracefully
+  workflows: [workflow1, workflow2] // Optional: Register workflows at creation
+});
+```
+
+### Python SDK
+
+```python
+worker = hatchet.worker(
+  name="example-worker",
+  slots=100,                     # Maximum concurrent runs
+  durable_slots=1000,            # Maximum concurrent durable tasks
+  labels={                       # Worker labels
+    "environment": "production"
+  },
+  handle_kill=True               # Handle kill signals gracefully
+)
+```
+
+### Go SDK
+
+```go
+// Create a new worker with v1 API
+worker, err := hatchet.NewWorker(
+    hatchet.WorkerOpts{
+        Name: "example-worker",           // Required: Friendly name of the worker
+        Slots: 100,                       // Optional: Maximum concurrent runs (default: 100)
+        DurableSlots: 1000,               // Optional: Maximum concurrent durable tasks (default: 1000)
+        Labels: map[string]interface{}{   // Optional: Worker labels
+            "environment": "production",
+        },
+        LogLevel: "INFO",                 // Optional: Log level
+        Workflows: []workflow.WorkflowBase{ // Optional: Register workflows at creation
+            workflow1,
+            workflow2,
+        },
+    },
+)
+```

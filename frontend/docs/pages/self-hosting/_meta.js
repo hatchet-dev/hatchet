@@ -20,7 +20,8 @@ export default {
     "type": "separator",
     "title": "Managing Hatchet"
   },
-  "configuration-options": "Configuration Options",
+  "configuration-options": "Engine Configuration Options",
+  "worker-configuration-options": "Worker Configuration Options",
   "benchmarking": "Benchmarking",
   "data-retention": "Data Retention",
   "improving-performance": "Improving Performance"
