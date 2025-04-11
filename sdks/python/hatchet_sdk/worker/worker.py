@@ -5,12 +5,13 @@ import os
 import re
 import signal
 import sys
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, TypeVar
+from typing import Any, AsyncGenerator, Callable, TypeVar
 from warnings import warn
 
 from aiohttp import web
@@ -63,21 +64,41 @@ class HealthCheckResponse(BaseModel):
     python_version: str
 
 
+LifespanGenerator = AsyncGenerator[Any, Any]
+LifespanFn = Callable[[], LifespanGenerator]
+
+
+@asynccontextmanager
+async def _create_async_context_manager(
+    gen: LifespanGenerator,
+) -> AsyncGenerator[None, None]:
+    try:
+        yield
+    finally:
+        try:
+            await anext(gen)
+        except StopAsyncIteration:
+            pass
+
+
 class Worker:
     def __init__(
         self,
         name: str,
         config: ClientConfig,
-        slots: int | None = None,
+        slots: int,
+        durable_slots: int,
         labels: dict[str, str | int] = {},
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] = [],
+        lifespan: LifespanFn | None = None,
     ) -> None:
         self.config = config
         self.name = self.config.namespace + name
         self.slots = slots
+        self.durable_slots = durable_slots
         self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
@@ -118,6 +139,10 @@ class Worker:
 
         self.has_any_durable = False
         self.has_any_non_durable = False
+
+        self.lifespan = lifespan
+        self.lifespan_context = None
+        self.lifespan_stack: AsyncExitStack | None = None
 
         self.register_workflows(workflows)
 
@@ -252,15 +277,23 @@ class Worker:
         if self.config.healthcheck.enabled:
             await self._start_health_server()
 
+        lifespan_context = None
+        if self.lifespan:
+            lifespan_context = await self._setup_lifespan()
+
         if self.has_any_non_durable:
             self.action_listener_process = self._start_action_listener(is_durable=False)
-            self.action_runner = self._run_action_runner(is_durable=False)
+            self.action_runner = self._run_action_runner(
+                is_durable=False, lifespan_context=lifespan_context
+            )
 
         if self.has_any_durable:
             self.durable_action_listener_process = self._start_action_listener(
                 is_durable=True
             )
-            self.durable_action_runner = self._run_action_runner(is_durable=True)
+            self.durable_action_runner = self._run_action_runner(
+                is_durable=True, lifespan_context=lifespan_context
+            )
 
         if self.loop:
             self.action_listener_health_check = self.loop.create_task(
@@ -269,13 +302,15 @@ class Worker:
 
             await self.action_listener_health_check
 
-    def _run_action_runner(self, is_durable: bool) -> WorkerActionRunLoopManager:
+    def _run_action_runner(
+        self, is_durable: bool, lifespan_context: Any | None
+    ) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         if self.loop:
             return WorkerActionRunLoopManager(
                 self.name + ("_durable" if is_durable else ""),
                 self.durable_action_registry if is_durable else self.action_registry,
-                1_000 if is_durable else self.slots,
+                self.durable_slots if is_durable else self.slots,
                 self.config,
                 self.durable_action_queue if is_durable else self.action_queue,
                 self.durable_event_queue if is_durable else self.event_queue,
@@ -283,9 +318,30 @@ class Worker:
                 self.handle_kill,
                 self.client.debug,
                 self.labels,
+                lifespan_context,
             )
 
         raise RuntimeError("event loop not set, cannot start action runner")
+
+    async def _setup_lifespan(self) -> Any:
+        if self.lifespan is None:
+            return None
+
+        self.lifespan_stack = AsyncExitStack()
+
+        lifespan_gen = self.lifespan()
+        try:
+            context = await anext(lifespan_gen)
+            await self.lifespan_stack.enter_async_context(
+                _create_async_context_manager(lifespan_gen)
+            )
+            return context
+        except StopAsyncIteration:
+            return None
+
+    async def _cleanup_lifespan(self) -> None:
+        if self.lifespan_stack is not None:
+            await self.lifespan_stack.aclose()
 
     def _start_action_listener(
         self, is_durable: bool
@@ -300,7 +356,7 @@ class Worker:
                         if is_durable
                         else list(self.action_registry.keys())
                     ),
-                    1_000 if is_durable else self.slots,
+                    self.durable_slots if is_durable else self.slots,
                     self.config,
                     self.durable_action_queue if is_durable else self.action_queue,
                     self.durable_event_queue if is_durable else self.event_queue,
@@ -393,6 +449,8 @@ class Worker:
             and self.durable_action_listener_process.is_alive()
         ):
             self.durable_action_listener_process.kill()
+
+        await self._cleanup_lifespan()
 
         await self._close()
         if self.loop and self.owned_loop:
