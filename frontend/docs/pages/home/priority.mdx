@@ -1,0 +1,110 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+import { GithubSnippet, getSnippets } from "@/components/code";
+
+export const PriorityPy = {
+  path: "examples/priority/worker.py",
+};
+export const PriorityTriggerPy = {
+  path: "examples/priority/trigger.py",
+};
+
+export const PriorityTs = {
+  path: "src/v1/examples/priority/workflow.ts",
+};
+
+export const PriorityGo = {
+  path: "examples/v1/workflows/priority.go",
+};
+
+export const getStaticProps = ({}) =>
+  getSnippets([PriorityPy, PriorityTs, PriorityGo, PriorityTriggerPy]);
+
+# Assigning Priority to tasks in Hatchet
+
+Hatchet allows you to assign different `priority` values to your tasks depending on how soon you want them to run. `priority` can be set to either `1`, `2`, or `3`, (`low`, `medium`, and `high`, respectively) with relatively higher values resulting in that task being picked up before others of the same type. **By default, runs in Hatchet have a priority of 1 (low) unless otherwise specified.**
+
+<Callout type="warning" emoji="🪓">
+
+Priority only affects multiple runs of a _single_ workflow. If you have two different workflows (A and B) and set A to globally have a priority of 3, and B to globally have a priority of 1, this does _not_ guarantee that if there is one task from A and one from B in the queue, that A's task will be run first.
+
+However, _within_ A, if you enqueue one task with priority 3 and one with priority 1, the priority 3 task will be run first.
+
+</Callout>
+
+A couple of common use cases for assigning priorities are things like:
+
+1. Having high-priority (e.g. paying, new, etc.) customers be prioritized over lower-priority ones, allowing them to get faster turnaround times on their tasks.
+2. Having tasks triggered via your API run with higher priority than the same tasks triggered by a cron.
+
+## Setting priority for a task or workflow
+
+There are a few different ways to set priorities for tasks or workflows in Hatchet.
+
+### Workflow-level default priority
+
+First, you can set a default priority at the workflow level:
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+<GithubSnippet src={PriorityPy} target="Default priority" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+<GithubSnippet src={PriorityTs} target="Task Priority in a Workflow" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <GithubSnippet src={PriorityGo} target="Default priority" />
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+This will assign the same default priority to all runs of this workflow (and all of the workflow's corresponding tasks), but will have no effect without also setting run-level priorities, since every run will use the same default.
+
+### Priority-on-trigger
+
+When you trigger a run, you can set the priority of the triggered run to override its default priority.
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+<GithubSnippet src={PriorityTriggerPy} target="Runtime priority" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+<GithubSnippet src={PriorityTs} target="Task Priority in a Workflow" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+{/* TODO: Fill this in */}
+    {/* <GithubSnippet src={PriorityGo} target="Default priority" /> */}
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+Similarly, you can also assign a priority to scheduled and cron workflows.
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+<GithubSnippet src={PriorityTriggerPy} target="Scheduled priority" />
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+{/* TODO: Fill this in */}
+{/* <GithubSnippet src={PriorityTs} target="Task Priority in a Workflow" /> */}
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+{/* TODO: Fill this in */}
+    {/* <GithubSnippet src={PriorityGo} target="Default priority" /> */}
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+In these cases, the priority set on the trigger will override the default priority, so these runs will be processed ahead of lower-priority ones.

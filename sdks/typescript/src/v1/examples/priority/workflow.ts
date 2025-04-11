@@ -19,6 +19,7 @@ export const priorityWf = hatchet.workflow({
   name: 'priorityWf',
   defaultPriority: Priority.HIGH,
 });
+// !!
 
 priorityWf.task({
   name: 'child-medium',
@@ -38,6 +39,5 @@ priorityWf.task({
     };
   },
 });
-// !!
 
 export const priorityTasks = [priority, priorityWf];

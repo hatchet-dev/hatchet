@@ -325,6 +325,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> CronWorkflows:
         return self.client.cron.create(
             workflow_name=self.config.name,
@@ -332,6 +333,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             expression=expression,
             input=self._serialize_input(input),
             additional_metadata=additional_metadata,
+            priority=priority,
         )
 
     async def aio_create_cron(
@@ -340,6 +342,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> CronWorkflows:
         return await self.client.cron.aio_create(
             workflow_name=self.config.name,
@@ -347,6 +350,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             expression=expression,
             input=self._serialize_input(input),
             additional_metadata=additional_metadata,
+            priority=priority,
         )
 
     def _parse_task_name(
