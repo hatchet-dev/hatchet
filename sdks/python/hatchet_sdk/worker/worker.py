@@ -141,7 +141,6 @@ class Worker:
         self.has_any_non_durable = False
 
         self.lifespan = lifespan
-        self.lifespan_context = None
         self.lifespan_stack: AsyncExitStack | None = None
 
         self.register_workflows(workflows)
