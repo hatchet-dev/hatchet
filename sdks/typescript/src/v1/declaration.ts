@@ -239,12 +239,52 @@ export class BaseWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts, _standaloneTaskName?: string): WorkflowRunRef<O> {
+  async runNoWait(
+    input: I,
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>>;
+  async runNoWait(
+    input: I[],
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>[]>;
+  async runNoWait(
+    input: I | I[],
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.name, input, options);
+    if (Array.isArray(input)) {
+      let resp: WorkflowRunRef<O>[] = [];
+      for (let i = 0; i < input.length; i += 500) {
+        const batch = input.slice(i, i + 500);
+        const batchResp = await this.client._v0.admin.runWorkflows<I, O>(
+          batch.map((inp) => ({
+            workflowName: this.definition.name,
+            input: inp,
+            options,
+          }))
+        );
+        resp = resp.concat(batchResp);
+      }
+
+      const res: WorkflowRunRef<O>[] = [];
+      resp.forEach((ref, index) => {
+        const wf = input[index].workflow;
+        if (wf instanceof TaskWorkflowDeclaration) {
+          // eslint-disable-next-line no-param-reassign
+          ref._standalone_task_name = wf._standalone_task_name;
+        }
+        res.push(ref);
+      });
+      return res;
+    }
+
+    const res = this.client._v0.admin.runWorkflow<I, O>(this.definition.name, input, options);
 
     if (_standaloneTaskName) {
       res._standalone_task_name = _standaloneTaskName;
@@ -661,7 +701,12 @@ export class TaskWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
+  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>>;
+  async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O>[]>;
+  async runNoWait(
+    input: I | I[],
+    options?: RunOpts
+  ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
