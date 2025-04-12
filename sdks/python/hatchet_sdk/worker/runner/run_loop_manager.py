@@ -31,7 +31,7 @@ class WorkerActionRunLoopManager:
         handle_kill: bool = True,
         debug: bool = False,
         labels: dict[str, str | int] = {},
-        lifespan_context: Any = None,
+        lifespan_context: Any | None = None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry

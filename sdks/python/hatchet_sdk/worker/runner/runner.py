@@ -63,7 +63,7 @@ class Runner:
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
         labels: dict[str, str | int] = {},
-        lifespan_context: Any = None,
+        lifespan_context: Any | None = None,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config

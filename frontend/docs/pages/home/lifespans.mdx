@@ -18,12 +18,11 @@ export const getStaticProps = ({}) => getSnippets([Lifespans]);
 Hatchet's Python SDK allows you define a **_lifespan_**, which is an async generator that runs when your worker starts up and cleans up when it exits, which lets you share state across all of the tasks running on the worker. This behaves almost identically to [FastAPI's lifespans](https://fastapi.tiangolo.com/advanced/events/), and is intended to be used in the same way. Lifespans are useful for sharing state like connection pools across all tasks on a single worker. They also work great for loading expensive machine learning models into memory before the worker starts.
 
 <Callout type="warning" emoji="⚠️">
-  We recommend only using lifespans for sharing **_immutable_** state. The
-  intention is not to e.g. store a dictionary that has the count of tasks that a
-  worker has run and use the lifespan to increment that counter on each task
-  run. This is prone to odd behavior due to concurrency in Hatchet, so you'd
-  need to be careful about using locks / mutexes for shared state mutation like
-  this to work properly.
+  We recommend only using lifespans for storing **_immutable_** state to share
+  between tasks running on your worker. The intention is not to e.g. store a
+  counter of the number of tasks that a worker has run and increment that
+  counter on each task run. This is prone to unexpected behavior due to
+  concurrency in Hatchet.
 </Callout>
 
 ## Usage
@@ -32,7 +31,7 @@ To use Hatchet's `lifespan` feature, define an async generator and pass it into 
 
 <GithubSnippet src={Lifespans} target="Define a lifespan" />
 
-As you can see in the above example, the worker will run the lifespan up to the `yield` when it starts, and then will clean it up on exit.
+When the worker starts, it will run the lifespan up to the `yield`. Then, on worker shutdown, it will clean up by running everything after the `yield` (the same as with any other generator).
 
 <Callout type="warning" emoji="⚠️">
   Your lifespan must only `yield` **_once_**.
