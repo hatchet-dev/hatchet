@@ -1,8 +1,8 @@
-from typing import Any, AsyncGenerator, cast
+from typing import AsyncGenerator, cast
 from uuid import UUID
 
 from psycopg_pool import ConnectionPool
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
@@ -20,26 +20,7 @@ lifespan_workflow = hatchet.workflow(name="LifespanWorkflow")
 
 @lifespan_workflow.task()
 def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
-    pool = cast(ConnectionPool, ctx.lifespan["pool"])
-
-    with pool.connection() as conn:
-        query = conn.execute("SELECT * FROM v1_lookup_table_olap LIMIT 5;")
-        rows = query.fetchall()
-
-        for row in rows:
-            print(row)
-
-        print("executed step1 with lifespan", ctx.lifespan)
-
-        return TaskOutput(
-            num_rows=len(rows),
-            external_ids=[cast(UUID, row[0]) for row in rows],
-        )
-
-
-@lifespan_workflow.task()
-async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
-    pool = cast(ConnectionPool, ctx.lifespan["pool"])
+    pool = cast(Lifespan, ctx.lifespan).pool
 
     with pool.connection() as conn:
         query = conn.execute("SELECT * FROM v1_lookup_table_olap LIMIT 5;")
@@ -59,14 +40,40 @@ async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
 # !!
 
 
+@lifespan_workflow.task()
+async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
+    pool = cast(Lifespan, ctx.lifespan).pool
+
+    with pool.connection() as conn:
+        query = conn.execute("SELECT * FROM v1_lookup_table_olap LIMIT 5;")
+        rows = query.fetchall()
+
+        for row in rows:
+            print(row)
+
+        print("executed step1 with lifespan", ctx.lifespan)
+
+        return TaskOutput(
+            num_rows=len(rows),
+            external_ids=[cast(UUID, row[0]) for row in rows],
+        )
+
+
 # ❓ Define a lifespan
-async def lifespan() -> AsyncGenerator[dict[str, Any], None]:
+class Lifespan(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    foo: str
+    pool: ConnectionPool
+
+
+async def lifespan() -> AsyncGenerator[Lifespan, None]:
     print("Running lifespan!")
     with ConnectionPool("postgres://hatchet:hatchet@localhost:5431/hatchet") as pool:
-        yield {
-            "foo": "bar",
-            "pool": pool,
-        }
+        yield Lifespan(
+            foo="bar",
+            pool=pool,
+        )
 
     print("Cleaning up lifespan!")
 
