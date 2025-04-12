@@ -29,7 +29,7 @@ def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
         for row in rows:
             print(row)
 
-        print("executed step1 with lifespan", ctx.lifespan)
+        print("executed sync task with lifespan", ctx.lifespan)
 
         return TaskOutput(
             num_rows=len(rows),
@@ -51,7 +51,7 @@ async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
         for row in rows:
             print(row)
 
-        print("executed step1 with lifespan", ctx.lifespan)
+        print("executed async task with lifespan", ctx.lifespan)
 
         return TaskOutput(
             num_rows=len(rows),
