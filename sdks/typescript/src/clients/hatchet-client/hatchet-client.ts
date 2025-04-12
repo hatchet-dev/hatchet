@@ -38,7 +38,9 @@ export const channelFactory = (config: ClientConfig, credentials: ChannelCredent
     'grpc.keepalive_timeout_ms': 60 * 1000,
     'grpc.client_idle_timeout_ms': 60 * 1000,
     'grpc.http2.max_pings_without_data': 0,
+    'grpc.http2.min_recv_ping_interval_without_data_ms': 60 * 1000,
     'grpc.keepalive_permit_without_calls': 1,
+    'grpc-node.max_session_memory': Number.MAX_SAFE_INTEGER,
   });
 
 export const addTokenMiddleware = (token: string) =>
