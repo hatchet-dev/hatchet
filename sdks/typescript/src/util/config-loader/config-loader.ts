@@ -17,7 +17,9 @@ type EnvVars =
   | 'HATCHET_CLIENT_TLS_ROOT_CA_FILE'
   | 'HATCHET_CLIENT_TLS_SERVER_NAME'
   | 'HATCHET_CLIENT_LOG_LEVEL'
-  | 'HATCHET_CLIENT_NAMESPACE';
+  | 'HATCHET_CLIENT_NAMESPACE'
+  | 'HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH'
+  | 'HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH';
 
 type TLSStrategy = 'tls' | 'mtls';
 
@@ -83,6 +85,15 @@ export class ConfigLoader {
     const namespace =
       override?.namespace ?? yaml?.namespace ?? this.env('HATCHET_CLIENT_NAMESPACE');
 
+    const grpcMaxSendMessageLength =
+      override?.grpc_max_send_message_length ??
+      yaml?.grpc_max_send_message_length ??
+      parseInt(this.env('HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH') ?? '-1', 10);
+
+    const grpcMaxRecvMessageLength =
+      override?.grpc_max_recv_message_length ??
+      yaml?.grpc_max_recv_message_length ??
+      parseInt(this.env('HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH') ?? '-1', 10);
     return {
       token: override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
       host_port: grpcBroadcastAddress,
@@ -95,6 +106,10 @@ export class ConfigLoader {
         'INFO',
       tenant_id: tenantId,
       namespace: namespace ? `${namespace}_`.toLowerCase() : '',
+      grpc_max_send_message_length:
+        grpcMaxSendMessageLength > 0 ? grpcMaxSendMessageLength : undefined,
+      grpc_max_recv_message_length:
+        grpcMaxRecvMessageLength > 0 ? grpcMaxRecvMessageLength : undefined,
     };
   }
 

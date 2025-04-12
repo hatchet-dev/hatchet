@@ -32,6 +32,8 @@ export interface HatchetClientOptions {
 
 export const channelFactory = (config: ClientConfig, credentials: ChannelCredentials) =>
   createChannel(config.host_port, credentials, {
+    'grpc.max_send_message_length': config.grpc_max_send_message_length,
+    'grpc.max_receive_message_length': config.grpc_max_recv_message_length,
     'grpc.ssl_target_name_override': config.tls_config.server_name,
     'grpc.keepalive_timeout_ms': 60 * 1000,
     'grpc.client_idle_timeout_ms': 60 * 1000,
