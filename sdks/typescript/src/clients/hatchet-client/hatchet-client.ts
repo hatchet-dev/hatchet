@@ -37,9 +37,7 @@ export const channelFactory = (config: ClientConfig, credentials: ChannelCredent
     'grpc.ssl_target_name_override': config.tls_config.server_name,
     'grpc.keepalive_timeout_ms': 60 * 1000,
     'grpc.client_idle_timeout_ms': 60 * 1000,
-    // Send keepalive pings every 10 seconds, default is 2 hours.
-    'grpc.keepalive_time_ms': 10 * 1000,
-    // Allow keepalive pings when there are no gRPC calls.
+    'grpc.http2.max_pings_without_data': 0,
     'grpc.keepalive_permit_without_calls': 1,
   });
 
