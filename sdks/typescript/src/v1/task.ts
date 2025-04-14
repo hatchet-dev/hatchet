@@ -136,7 +136,7 @@ export type CreateBaseTaskOpts<
   /**
    * (optional) the middleware for the task
    */
-  middleware?: Middleware;
+  middleware?: Middleware[];
 };
 
 export type CreateWorkflowTaskOpts<

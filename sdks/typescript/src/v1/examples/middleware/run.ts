@@ -8,10 +8,17 @@ async function main() {
   });
 
   // 👀 Access the results of the Task
-  console.log(res.TransformedMessage);
+  console.log(res);
   // !!
 }
 
 if (require.main === module) {
-  main();
+  main()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

@@ -32,12 +32,18 @@ import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
-import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
+import {
+  InputType,
+  OutputType,
+  UnknownInputType,
+  StrictWorkflowOutputType,
+  JsonObject,
+} from '../types';
 import { RatelimitsClient } from './features';
-import { Middleware } from '../next/middleware/middleware';
+import { Middleware, serializeInput, deserializeOutput } from '../next/middleware/middleware';
 
 export interface RuntimeOpts {
-  middleware?: Middleware;
+  middleware?: Middleware[];
 }
 
 type Config = Partial<ClientConfig> & RuntimeOpts;
@@ -52,7 +58,7 @@ export class HatchetClient implements IHatchetClient {
   _v0: InternalHatchetClient;
   _api: Api;
 
-  private _middleware?: Middleware;
+  private _middleware?: Middleware[];
 
   get middleware() {
     return this._middleware;
@@ -234,11 +240,11 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
+  async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
     workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
     input: I,
-    options: RunOpts
-  ): WorkflowRunRef<O> {
+    options: RunOpts = {}
+  ): Promise<WorkflowRunRef<O>> {
     let name: string;
     if (typeof workflow === 'string') {
       name = workflow;
@@ -248,7 +254,21 @@ export class HatchetClient implements IHatchetClient {
       throw new Error('unable to identify workflow');
     }
 
-    return this._v0.admin.runWorkflow<I, O>(name, input, options);
+    const serializedInput = await serializeInput(input as unknown as JsonObject, this.middleware);
+    const runRef = this._v0.admin.runWorkflow<I, O>(name, serializedInput as unknown as I, options);
+
+    // Wrap the runRef to apply output deserialization
+    const originalResult = runRef.result;
+    runRef.result = async () => {
+      const output = await originalResult.call(runRef);
+      const deserializedOutput = await deserializeOutput(
+        output as unknown as JsonObject,
+        this.middleware
+      );
+      return deserializedOutput as unknown as O;
+    };
+
+    return runRef;
   }
 
   /**
@@ -283,8 +303,14 @@ export class HatchetClient implements IHatchetClient {
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
-    const run = this.runNoWait<I, O>(workflow, input, options);
-    return run.output as Promise<O>;
+    const serializedInput = await serializeInput(input as unknown as JsonObject, this.middleware);
+    const runRef = await this.runNoWait<I, O>(workflow, serializedInput as unknown as I, options);
+    const output = await runRef.result();
+    const deserializedOutput = await deserializeOutput(
+      output as unknown as JsonObject,
+      this.middleware
+    );
+    return deserializedOutput as unknown as O;
   }
 
   /**
