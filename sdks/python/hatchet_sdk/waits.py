@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -58,10 +59,13 @@ class Condition(ABC):
 
 
 class SleepCondition(Condition):
-    def __init__(self, duration: Duration) -> None:
+    def __init__(
+        self, duration: Duration, readable_data_key: str | None = None
+    ) -> None:
         super().__init__(
             BaseCondition(
-                readable_data_key=f"sleep:{timedelta_to_expr(duration)}",
+                readable_data_key=readable_data_key
+                or f"sleep:{timedelta_to_expr(duration)}",
             )
         )
 
@@ -75,10 +79,15 @@ class SleepCondition(Condition):
 
 
 class UserEventCondition(Condition):
-    def __init__(self, event_key: str, expression: str | None = None) -> None:
+    def __init__(
+        self,
+        event_key: str,
+        expression: str | None = None,
+        readable_data_key: str | None = None,
+    ) -> None:
         super().__init__(
             BaseCondition(
-                readable_data_key=event_key,
+                readable_data_key=readable_data_key or event_key,
                 expression=expression,
             )
         )
@@ -95,10 +104,22 @@ class UserEventCondition(Condition):
 
 class ParentCondition(Condition):
     def __init__(
-        self, parent: "Task[TWorkflowInput, R]", expression: str | None = None
+        self,
+        parent: "Task[TWorkflowInput, R]",
+        expression: str | None = None,
+        readable_data_key: str | None = None,
     ) -> None:
         super().__init__(
-            BaseCondition(readable_data_key=parent.name, expression=expression)
+            BaseCondition(
+                readable_data_key=readable_data_key
+                or (
+                    parent.name
+                    + (f":{expression}" if expression else "")
+                    + ":"
+                    + datetime.now().isoformat()
+                ),
+                expression=expression,
+            )
         )
 
         self.parent = parent
