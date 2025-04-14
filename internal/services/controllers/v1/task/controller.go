@@ -711,6 +711,10 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 }
 
 func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId string, releasedTasks []*sqlcv1.ReleaseTasksRow) {
+	if len(releasedTasks) == 0 {
+		return
+	}
+
 	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
@@ -734,6 +738,38 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
 			}
 		}
+	}
+
+	payloads := make([]tasktypes.CandidateFinalizedPayload, 0, len(releasedTasks))
+
+	for _, releasedTask := range releasedTasks {
+		payloads = append(payloads, tasktypes.CandidateFinalizedPayload{
+			WorkflowRunId: sqlchelpers.UUIDToStr(releasedTask.WorkflowRunID),
+		})
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		"workflow-run-finished-candidate",
+		true,
+		false,
+		payloads...,
+	)
+
+	if err != nil {
+		tc.l.Err(err).Msg("could not create message for workflow run finished candidate")
+		return
+	}
+
+	err = tc.mq.SendMessage(
+		ctx,
+		msgqueue.TenantEventConsumerQueue(tenantId),
+		msg,
+	)
+
+	if err != nil {
+		tc.l.Err(err).Msg("could not send workflow-run-finished-candidate message")
+		return
 	}
 }
 

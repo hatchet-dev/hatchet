@@ -220,6 +220,7 @@ SELECT
     t.inserted_at,
     t.external_id,
     t.step_readable_id,
+    t.workflow_run_id,
     r.worker_id,
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,

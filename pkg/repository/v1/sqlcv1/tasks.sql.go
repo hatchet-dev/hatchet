@@ -1845,6 +1845,7 @@ SELECT
     t.inserted_at,
     t.external_id,
     t.step_readable_id,
+    t.workflow_run_id,
     r.worker_id,
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
@@ -1869,6 +1870,7 @@ type ReleaseTasksRow struct {
 	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
 	ExternalID             pgtype.UUID        `json:"external_id"`
 	StepReadableID         string             `json:"step_readable_id"`
+	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
 	WorkerID               pgtype.UUID        `json:"worker_id"`
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
@@ -1890,6 +1892,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 			&i.InsertedAt,
 			&i.ExternalID,
 			&i.StepReadableID,
+			&i.WorkflowRunID,
 			&i.WorkerID,
 			&i.RetryCount,
 			&i.IsCurrentRetry,
