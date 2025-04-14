@@ -12,7 +12,7 @@ import CronPrettifier from 'cronstrue';
 import { TimePicker } from '@/next/components/ui/time-picker';
 import useDefinitions from '@/next/hooks/use-definitions';
 import { useNavigate } from 'react-router-dom';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Workflow } from '@/next/lib/api';
 import { useRuns } from '@/next/hooks/use-runs';
 import useCrons from '@/next/hooks/use-crons';
@@ -58,6 +58,17 @@ export function TriggerRunModal({
   const { triggerNow } = useRuns({});
   const { create: createCron } = useCrons({});
   const { create: createSchedule } = useSchedules({});
+
+  useEffect(() => {
+    if (selectedRunDetails?.run) {
+      setInput(
+        JSON.stringify((selectedRunDetails.run.input as any).input, null, 2),
+      );
+      setAddlMeta(
+        JSON.stringify(selectedRunDetails.run.additionalMetadata, null, 2),
+      );
+    }
+  }, [selectedRunDetails]);
 
   const [input, setInput] = useState<string>(defaultInput);
   const [addlMeta, setAddlMeta] = useState<string>(defaultAddlMeta);
@@ -145,25 +156,32 @@ export function TriggerRunModal({
           data: {
             input: inputObj,
             additionalMetadata: addlMetaObj,
-            triggerAt: scheduleTime.toISOString(),
+            triggerAt: new Date(
+              scheduleTime.getTime() - scheduleTime.getTimezoneOffset() * 60000,
+            ).toISOString(),
           },
         },
         {
-          onSuccess: (scheduledWorkflow) => {
-            if (!scheduledWorkflow.workflowRunId) {
-              return;
-            }
+          onSuccess: () => {
             onClose();
-            navigate(ROUTES.runs.detail(scheduledWorkflow.workflowRunId));
+            navigate(ROUTES.scheduled.list);
           },
-          onError: (error) => {
-            setErrors([error.message]);
+          onError: (error: any) => {
+            if (error?.response?.data?.errors) {
+              setErrors(error.response.data.errors);
+            } else {
+              setErrors([error.message || 'Failed to schedule run']);
+            }
           },
         },
       );
     } else if (timingOption === 'cron') {
       if (!cronExpression) {
         setErrors(['Please enter a valid cron expression.']);
+        return;
+      }
+      if (!cronName) {
+        setErrors(['Please enter a name for the cron job.']);
         return;
       }
       createCron.mutate(
@@ -181,8 +199,12 @@ export function TriggerRunModal({
             onClose();
             navigate(ROUTES.crons.list);
           },
-          onError: (error) => {
-            setErrors([error.message]);
+          onError: (error: any) => {
+            if (error?.response?.data?.errors) {
+              setErrors(error.response.data.errors);
+            } else {
+              setErrors([error.message || 'Failed to create cron job']);
+            }
           },
         },
       );
@@ -240,23 +262,6 @@ export function TriggerRunModal({
               onChange={(e) => {
                 const runId = e.target.value;
                 setSelectedRunId(runId);
-                if (runId && selectedRunDetails) {
-                  // Populate form with selected run's data
-                  setInput(
-                    JSON.stringify(
-                      (selectedRunDetails.run.input as any).input,
-                      null,
-                      2,
-                    ),
-                  );
-                  setAddlMeta(
-                    JSON.stringify(
-                      selectedRunDetails.run.additionalMetadata,
-                      null,
-                      2,
-                    ),
-                  );
-                }
               }}
             >
               <option value="">Select a recent run</option>
@@ -308,31 +313,100 @@ export function TriggerRunModal({
               <TabsContent value="now" />
               <TabsContent value="schedule">
                 <div className="mt-4">
-                  <TimePicker date={scheduleTime} setDate={setScheduleTime} />
+                  <div className="font-bold mb-2">Select Date and Time</div>
+                  <div className="flex gap-2">
+                    <TimePicker
+                      date={scheduleTime}
+                      setDate={setScheduleTime}
+                      timezone="Local"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setScheduleTime(new Date())}
+                    >
+                      Now
+                    </Button>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newTime = new Date(scheduleTime || new Date());
+                        newTime.setSeconds(newTime.getSeconds() + 15);
+                        setScheduleTime(newTime);
+                      }}
+                    >
+                      +15s
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newTime = new Date(scheduleTime || new Date());
+                        newTime.setMinutes(newTime.getMinutes() + 1);
+                        setScheduleTime(newTime);
+                      }}
+                    >
+                      +1m
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newTime = new Date(scheduleTime || new Date());
+                        newTime.setMinutes(newTime.getMinutes() + 5);
+                        setScheduleTime(newTime);
+                      }}
+                    >
+                      +5m
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newTime = new Date(scheduleTime || new Date());
+                        newTime.setMinutes(newTime.getMinutes() + 15);
+                        setScheduleTime(newTime);
+                      }}
+                    >
+                      +15m
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newTime = new Date(scheduleTime || new Date());
+                        newTime.setMinutes(newTime.getMinutes() + 60);
+                        setScheduleTime(newTime);
+                      }}
+                    >
+                      +60m
+                    </Button>
+                  </div>
                 </div>
               </TabsContent>
               <TabsContent value="cron">
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Cron Name</label>
-                    <Input
-                      value={cronName}
-                      onChange={(e) => setCronName(e.target.value)}
-                      placeholder="Enter a name for this cron job"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">
-                      Cron Expression
-                    </label>
-                    <Input
-                      value={cronExpression}
-                      onChange={(e) => setCronExpression(e.target.value)}
-                      placeholder="* * * * *"
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {cronPretty.error || `(runs ${cronPretty.pretty})`}
-                    </p>
+                <div className="mt-4">
+                  <div className="font-bold mb-2">Cron Expression</div>
+                  <Input
+                    type="text"
+                    value={cronName}
+                    onChange={(e) => setCronName(e.target.value)}
+                    placeholder="e.g., cron-name"
+                    className="w-full mb-2"
+                  />
+                  <div className="font-bold mb-2">Cron Expression</div>
+                  <Input
+                    type="text"
+                    value={cronExpression}
+                    onChange={(e) => setCronExpression(e.target.value)}
+                    placeholder="e.g., 0 0 * * *"
+                    className="w-full"
+                  />
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {cronPretty.error || `(runs ${cronPretty.pretty} UTC)`}
                   </div>
                 </div>
               </TabsContent>
@@ -356,7 +430,11 @@ export function TriggerRunModal({
                 createCron.isPending
               }
             >
-              Trigger Run
+              {timingOption === 'now'
+                ? 'Run Now'
+                : timingOption === 'schedule'
+                  ? 'Schedule Run'
+                  : 'Create Cron'}
             </Button>
           </div>
         </div>

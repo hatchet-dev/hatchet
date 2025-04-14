@@ -15,14 +15,15 @@ export function TimePicker({ date, setDate, timezone }: TimePickerProps) {
     }
 
     const newDate = new Date(date);
-    const [hours, minutes] = e.target.value.split(':').map(Number);
+    const [hours, minutes, seconds] = e.target.value.split(':').map(Number);
 
-    if (isNaN(hours) || isNaN(minutes)) {
+    if (isNaN(hours) || isNaN(minutes) || isNaN(seconds)) {
       return;
     }
 
     newDate.setHours(hours);
     newDate.setMinutes(minutes);
+    newDate.setSeconds(seconds);
     setDate(newDate);
   };
 
@@ -34,7 +35,8 @@ export function TimePicker({ date, setDate, timezone }: TimePickerProps) {
 
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
   };
 
   return (
@@ -43,7 +45,8 @@ export function TimePicker({ date, setDate, timezone }: TimePickerProps) {
         type="time"
         value={formatTime(date)}
         onChange={handleTimeChange}
-        className="w-[120px]"
+        className="w-[140px]"
+        step="1"
       />
       {timezone && (
         <span className="text-xs text-muted-foreground">{timezone}</span>

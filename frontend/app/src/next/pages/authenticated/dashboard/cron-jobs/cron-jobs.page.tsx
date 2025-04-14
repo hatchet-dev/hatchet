@@ -16,12 +16,17 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
-import { Lock } from 'lucide-react';
+import { Lock, Plus } from 'lucide-react';
 import { PaginationProvider } from '@/next/components/ui/pagination';
 import { FilterProvider } from '@/next/hooks/use-filters';
+import { Button } from '@/next/components/ui/button';
+import { useState } from 'react';
+import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 
 export default function CronJobsPage() {
   const { canWithReason } = useCan();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
   const { allowed: canManage, message: canManageMessage } = canWithReason(
     cronJobs.manage(),
   );
@@ -36,6 +41,17 @@ export default function CronJobsPage() {
           <HeadlineActionItem>
             <DocsButton doc={docs.home['cron-runs']} size="icon" />
           </HeadlineActionItem>
+          {canManage && (
+            <HeadlineActionItem>
+              <Button
+                className="w-full md:w-auto"
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Cron Job
+              </Button>
+            </HeadlineActionItem>
+          )}
         </HeadlineActions>
       </Headline>
 
@@ -52,9 +68,17 @@ export default function CronJobsPage() {
           <Separator className="my-4" />
           <FilterProvider>
             <PaginationProvider>
-              <CronJobsTable />
+              <CronJobsTable
+                onCreateClicked={() => setIsCreateDialogOpen(true)}
+              />
             </PaginationProvider>
           </FilterProvider>
+
+          <TriggerRunModal
+            show={isCreateDialogOpen}
+            onClose={() => setIsCreateDialogOpen(false)}
+            defaultTimingOption="cron"
+          />
         </>
       )}
     </BasicLayout>

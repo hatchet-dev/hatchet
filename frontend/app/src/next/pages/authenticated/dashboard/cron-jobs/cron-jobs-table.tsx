@@ -16,7 +16,13 @@ import {
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { Button } from '@/next/components/ui/button';
-import { MoreHorizontal, Trash2, CalendarDays, RefreshCw } from 'lucide-react';
+import {
+  MoreHorizontal,
+  Trash2,
+  CalendarDays,
+  RefreshCw,
+  Plus,
+} from 'lucide-react';
 import useCrons, { CronsFilters } from '@/next/hooks/use-crons';
 import {
   PageSelector,
@@ -36,8 +42,14 @@ import {
   FilterTaskSelect,
 } from '@/next/components/ui/filters/filters';
 import { AdditionalMetadata } from '@/next/components/ui/additional-meta';
+import { DocsButton } from '@/next/components/ui/docs-button';
+import docs from '@/next/docs-meta-data';
 
-export default function CronJobsTable() {
+export default function CronJobsTable({
+  onCreateClicked,
+}: {
+  onCreateClicked: () => void;
+}) {
   const paginationManager = usePagination();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCron, setSelectedCron] = useState<CronWorkflows>();
@@ -117,8 +129,18 @@ export default function CronJobsTable() {
           <TableBody>
             {crons.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
-                  No cron jobs found.
+                <TableCell colSpan={8} className="h-24">
+                  <div className="flex flex-col items-center justify-center gap-4 py-8">
+                    <p className="text-md">No cron jobs found.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Create a new cron job to get started.
+                    </p>
+                    <Button onClick={onCreateClicked}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Cron Job
+                    </Button>
+                    <DocsButton doc={docs.home['cron-runs']} />
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (

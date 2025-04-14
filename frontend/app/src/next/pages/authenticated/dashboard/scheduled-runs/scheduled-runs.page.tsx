@@ -6,7 +6,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
-import { Lock } from 'lucide-react';
+import { Lock, Plus } from 'lucide-react';
 import { PaginationProvider } from '@/next/components/ui/pagination';
 import { FilterProvider } from '@/next/hooks/use-filters';
 import {
@@ -19,9 +19,13 @@ import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
 import { Separator } from '@/next/components/ui/separator';
 import BasicLayout from '@/next/components/layouts/basic.layout';
+import { Button } from '@/next/components/ui/button';
+import { useState } from 'react';
+import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 
 export default function ScheduledRunsPage() {
   const { canWithReason } = useCan();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const { allowed: canManage, message: canManageMessage } = canWithReason(
     scheduledRuns.manage(),
@@ -37,7 +41,7 @@ export default function ScheduledRunsPage() {
           <HeadlineActionItem>
             <DocsButton doc={docs.home['scheduled-runs']} size="icon" />
           </HeadlineActionItem>
-          {/* {canManage && (
+          {canManage && (
             <HeadlineActionItem>
               <Button
                 className="w-full md:w-auto"
@@ -47,7 +51,7 @@ export default function ScheduledRunsPage() {
                 Schedule New Run
               </Button>
             </HeadlineActionItem>
-          )} */}
+          )}
         </HeadlineActions>
       </Headline>
       {canManageMessage && (
@@ -63,9 +67,17 @@ export default function ScheduledRunsPage() {
 
           <FilterProvider>
             <PaginationProvider>
-              <ScheduledRunsTable onCreateClicked={() => {}} />
+              <ScheduledRunsTable
+                onCreateClicked={() => setIsCreateDialogOpen(true)}
+              />
             </PaginationProvider>
           </FilterProvider>
+
+          <TriggerRunModal
+            show={isCreateDialogOpen}
+            onClose={() => setIsCreateDialogOpen(false)}
+            defaultTimingOption="schedule"
+          />
         </>
       )}
     </BasicLayout>
