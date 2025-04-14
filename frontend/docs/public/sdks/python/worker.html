@@ -10,11 +10,11 @@
 
 
 
-        <link rel="canonical" href="https://docs.onhatchet.run/sdks/python/index.html">
+        <link rel="canonical" href="https://docs.onhatchet.run/sdks/python/worker.html">
 
 
+        <link rel="prev" href="features.html">
 
-        <link rel="next" href="client.html">
 
 
       <link rel="icon" href="assets/images/favicon.png">
@@ -22,7 +22,7 @@
 
 
 
-        <title>Hatchet Python SDK</title>
+        <title>Worker - Hatchet Python SDK</title>
 
 
 
@@ -74,7 +74,7 @@
     <div data-md-component="skip">
 
 
-        <a href="#hatchet-sdk" class="md-skip">
+        <a href="#worker" class="md-skip">
           Skip to content
         </a>
 
@@ -110,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
 
-              Home
+              Worker
 
           </span>
         </div>
@@ -229,30 +229,8 @@
 
 
 
-
-
-    <li class="md-nav__item md-nav__item--active">
-
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-
-
-
-
-
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-
-
-
-  <span class="md-ellipsis">
-    Home
-
-  </span>
-
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-
-      <a href="index.html" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
 
 
 
@@ -263,35 +241,6 @@
 
 
       </a>
-
-
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-
-
-
-
-
-
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-
-        <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Installation
-    </span>
-  </a>
-
-</li>
-
-    </ul>
-
-</nav>
-
     </li>
 
 
@@ -317,13 +266,13 @@
 
 
 
-    <li class="md-nav__item md-nav__item--nested">
+
+
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
 
 
 
-
-
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
 
 
           <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
@@ -339,7 +288,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
 
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             SDK Reference
@@ -421,8 +370,30 @@
 
 
 
-    <li class="md-nav__item">
-      <a href="worker.html" class="md-nav__link">
+
+
+    <li class="md-nav__item md-nav__item--active">
+
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+
+
+
+
+
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+
+
+
+  <span class="md-ellipsis">
+    Worker
+
+  </span>
+
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+
+      <a href="worker.html" class="md-nav__link md-nav__link--active">
 
 
 
@@ -433,6 +404,35 @@
 
 
       </a>
+
+
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+
+
+
+
+
+
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+
+        <li class="md-nav__item">
+  <a href="#worker.worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      worker
+    </span>
+  </a>
+
+</li>
+
+    </ul>
+
+</nav>
+
     </li>
 
 
@@ -472,9 +472,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
 
         <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
+  <a href="#worker.worker" class="md-nav__link">
     <span class="md-ellipsis">
-      Installation
+      worker
     </span>
   </a>
 
@@ -499,12 +499,41 @@
 
 
 
-<h1 id="hatchet-sdk">Hatchet SDK<a class="headerlink" href="#hatchet-sdk" title="Permanent link">&para;</a></h1>
-<p>Welcome to the Hatchet SDK documentation.</p>
-<p>This documentation provides a comprehensive guide to using the Hatchet SDK for Python.</p>
-<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>hatchet-sdk
-</code></pre></div>
+<h1 id="worker">Worker<a class="headerlink" href="#worker" title="Permanent link">&para;</a></h1>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="worker.worker"></a>
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
 
 
 

@@ -1,7 +1,7 @@
-site_name: Hatchet SDK
+site_name: Hatchet Python SDK
 site_description: Documentation for the Hatchet SDK
-repo_url: https://github.com/yourusername/hatchet-sdk  # Replace with your actual repo
-site_url: https://docs.onhatchet.run/docs/sdks/python/
+repo_url: https://github.com/hatchet-dev/hatchet
+site_url: https://docs.onhatchet.run/sdks/python/
 use_directory_urls: false
 
 theme:
@@ -9,6 +9,7 @@ theme:
   palette:
     primary: indigo
     accent: indigo
+  color_mode: auto
   features:
     - navigation.instant
     - navigation.tracking
@@ -42,8 +43,8 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - API Reference:
-    - Client: api/client.md
-    - Runnables: api/runnables.md
-    - Features: api/features.md
-    - Worker: api/worker.md
+  - SDK Reference:
+    - Client: client.md
+    - Runnables: runnables.md
+    - Features: features.md
+    - Worker: worker.md
