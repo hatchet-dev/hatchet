@@ -53,7 +53,6 @@ pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
 psycopg = { extras = ["pool"], version = "^3.2.6" }
 
-
 [tool.poetry.extras]
 otel = [
     "opentelemetry-api",
