@@ -52,7 +52,7 @@ func Parent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, 
 			// Launch child workflows in parallel
 			results := make([]*ValueOutput, 0, input.N)
 			for j := 0; j < input.N; j++ {
-				result, err := workflow.RunChildWorkflow(ctx, child, ChildInput{N: 1})
+				result, err := child.RunAsChild(ctx, ChildInput{N: j}, workflow.RunAsChildOpts{})
 
 				if err != nil {
 					// firstErr = err
