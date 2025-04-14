@@ -452,6 +452,7 @@ export default function RunDetailPage() {
         defaultInput={JSON.stringify((workflow.input as any).input, null, 2)}
         defaultAddlMeta={JSON.stringify(workflow.additionalMetadata, null, 2)}
         defaultWorkflowId={workflow.workflowId}
+        defaultRunId={workflow.metadata.id}
       />
     </BasicLayout>
   );

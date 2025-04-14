@@ -19,6 +19,10 @@ import useCrons from '@/next/hooks/use-crons';
 import useSchedules from '@/next/hooks/use-schedules';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { ROUTES } from '@/next/lib/routes';
+import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { getFriendlyWorkflowRunId } from '@/next/components/runs/run-id';
+import { PaginationManagerNoOp } from '@/next/hooks/use-pagination';
+import { FaCodeBranch } from 'react-icons/fa';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -29,6 +33,7 @@ export function TriggerRunModal({
   defaultInput = '{}',
   defaultAddlMeta = '{}',
   defaultWorkflowId,
+  defaultRunId,
 }: {
   show: boolean;
   onClose: () => void;
@@ -36,9 +41,20 @@ export function TriggerRunModal({
   defaultInput?: string;
   defaultAddlMeta?: string;
   defaultWorkflowId?: string;
+  defaultRunId?: string;
 }) {
   const navigate = useNavigate();
   const { data: workflows } = useDefinitions();
+  const { data: recentRuns } = useRuns({
+    pagination: {
+      ...PaginationManagerNoOp,
+      pageSize: 5,
+    },
+  });
+  const [selectedRunId, setSelectedRunId] = useState<string>(
+    defaultRunId || '',
+  );
+  const { data: selectedRunDetails } = useRunDetail(selectedRunId);
   const { triggerNow } = useRuns({});
   const { create: createCron } = useCrons({});
   const { create: createSchedule } = useSchedules({});
@@ -66,6 +82,7 @@ export function TriggerRunModal({
     setCronExpression('* * * * *');
     setCronName('');
     setSelectedWorkflowId(defaultWorkflowId);
+    setSelectedRunId('');
   };
 
   const cronPretty = useMemo(() => {
@@ -197,7 +214,10 @@ export function TriggerRunModal({
             <select
               className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2"
               value={selectedWorkflowId}
-              onChange={(e) => setSelectedWorkflowId(e.target.value)}
+              onChange={(e) => {
+                setSelectedWorkflowId(e.target.value);
+                setSelectedRunId(''); // Reset selected run when workflow changes
+              }}
             >
               <option value="">Select a workflow</option>
               {workflows?.map((workflow: Workflow) => (
@@ -205,6 +225,48 @@ export function TriggerRunModal({
                   {workflow.name}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium flex items-center gap-2">
+              <FaCodeBranch className="text-muted-foreground" size={16} />
+              From Recent Run
+            </label>
+            <select
+              className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              value={selectedRunId}
+              disabled={!selectedWorkflowId}
+              onChange={(e) => {
+                const runId = e.target.value;
+                setSelectedRunId(runId);
+                if (runId && selectedRunDetails) {
+                  // Populate form with selected run's data
+                  setInput(
+                    JSON.stringify(
+                      (selectedRunDetails.run.input as any).input,
+                      null,
+                      2,
+                    ),
+                  );
+                  setAddlMeta(
+                    JSON.stringify(
+                      selectedRunDetails.run.additionalMetadata,
+                      null,
+                      2,
+                    ),
+                  );
+                }
+              }}
+            >
+              <option value="">Select a recent run</option>
+              {recentRuns
+                ?.filter((run) => run.workflowId === selectedWorkflowId)
+                .map((run) => (
+                  <option key={run.metadata.id} value={run.metadata.id}>
+                    {getFriendlyWorkflowRunId(run)}
+                  </option>
+                ))}
             </select>
           </div>
 
