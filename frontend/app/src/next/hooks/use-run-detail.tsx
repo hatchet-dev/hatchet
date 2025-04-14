@@ -30,23 +30,42 @@ export function useRunDetail(runId: string, defaultRefetchInterval?: number) {
   });
 
   const activity = useQuery({
-    queryKey: ['task-events:get', runId],
+    queryKey: ['task-events:get', runId, runDetails.data?.tasks],
     queryFn: async () => {
       if (runId == '00000000-0000-0000-0000-000000000000') {
         return;
       }
 
+      const tasks = runDetails.data?.tasks || [];
+
+      const logPromises = tasks.map(async (task) =>
+        ((await api.v1LogLineList(task.metadata.id)).data?.rows || []).map(
+          (log) => ({
+            ...log,
+            taskId: task.metadata.id,
+          }),
+        ),
+      );
+
+      const eventPromises = tasks.map(
+        async (task) =>
+          (
+            await api.v1TaskEventList(task.metadata.id, {
+              limit: 50,
+              offset: 0,
+            })
+          ).data?.rows || [],
+      );
+
       const [logs, events] = await Promise.all([
-        (await api.v1LogLineList(runId)).data,
-        (
-          await api.v1TaskEventList(runId, {
-            limit: 50,
-            offset: 0,
-          })
-        ).data,
+        Promise.all(logPromises),
+        Promise.all(eventPromises),
       ]);
 
-      return { events, logs };
+      const mergedLogs = logs.flat();
+      const mergedEvents = events.flat();
+
+      return { events: mergedEvents, logs: mergedLogs };
     },
     refetchInterval: refetchInterval,
   });

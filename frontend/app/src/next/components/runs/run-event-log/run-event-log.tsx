@@ -323,12 +323,12 @@ export function RunEventLog({
   }, [tasks]);
 
   const mergedActivity = useMemo<V1TaskEvent[]>(() => {
-    const events = activity?.events?.rows || [];
-    const logs = activity?.logs?.rows || [];
+    const events = activity?.events || [];
+    const logs = activity?.logs || [];
 
     const logEvents: V1TaskEvent[] = logs.map((log, index) => ({
       id: index + 1,
-      taskId: workflow.metadata.id,
+      taskId: log.taskId,
       timestamp: log.createdAt,
       eventType: LogEventType,
       message: log.message,
@@ -341,7 +341,7 @@ export function RunEventLog({
       const timeB = new Date(b.timestamp).getTime();
       return timeB - timeA;
     });
-  }, [activity?.events?.rows, activity?.logs?.rows, workflow.metadata.id]);
+  }, [activity?.events, activity?.logs]);
 
   const eventTypeOptions = useMemo(() => {
     return Object.entries(EVENT_CONFIG).map(([type, config]) => ({
