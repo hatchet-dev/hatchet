@@ -263,6 +263,17 @@ export class BaseWorkflowDeclaration<
       res._standalone_task_name = _standaloneTaskName;
     }
 
+    // Wrap the result method to apply output deserialization
+    const originalResult = res.result;
+    res.result = async () => {
+      const output = await originalResult.call(res);
+      const deserializedOutput = await deserializeOutput(
+        output as unknown as JsonObject,
+        this.client?.middleware
+      );
+      return deserializedOutput as unknown as O;
+    };
+
     return res;
   }
 
@@ -292,6 +303,7 @@ export class BaseWorkflowDeclaration<
 
     return this.run(input, options, _standaloneTaskName);
   }
+
   /**
    * Executes the workflow with the given input and awaits the results.
    * @param input The input data for the workflow.
@@ -304,26 +316,8 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
-    const serializedInput = await serializeInput(
-      input as unknown as JsonObject,
-      this.client.middleware
-    );
-    const res = this.client._v0.admin.runWorkflow<I, O>(
-      this.name,
-      serializedInput as unknown as I,
-      options
-    );
-
-    if (_standaloneTaskName) {
-      res._standalone_task_name = _standaloneTaskName;
-    }
-
-    const output = await res.result();
-    const deserializedOutput = await deserializeOutput(
-      output as unknown as JsonObject,
-      this.client.middleware
-    );
-    return deserializedOutput as unknown as O;
+    const runRef = await this.runNoWait(input, options, _standaloneTaskName);
+    return runRef.result();
   }
 
   /**

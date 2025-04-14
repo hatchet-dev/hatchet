@@ -7,10 +7,10 @@ class EncodeSerializer implements Serializable<unknown> {
   deserialize(input: JsonObject) {
     console.log('client-encode-deserialize', input);
 
-    if (input.encrypted && typeof input.encrypted === 'string') {
+    if (input.encoded && typeof input.encoded === 'string') {
       console.warn('WARNING THIS IS NOT REAL ENCRYPTION');
-      const decrypted = Buffer.from(input.encrypted, 'base64').toString('utf-8');
-      return JSON.parse(decrypted);
+      const decoded = Buffer.from(input.encoded, 'base64').toString('utf-8');
+      return JSON.parse(decoded);
     }
 
     return input;
@@ -18,10 +18,10 @@ class EncodeSerializer implements Serializable<unknown> {
 
   serialize(input: unknown) {
     console.warn('WARNING THIS IS NOT REAL ENCRYPTION');
-    const encrypted = Buffer.from(JSON.stringify(input)).toString('base64');
+    const encoded = Buffer.from(JSON.stringify(input)).toString('base64');
     console.log('client-encode-serialize', input);
     return {
-      encrypted,
+      encoded,
     };
   }
 }
