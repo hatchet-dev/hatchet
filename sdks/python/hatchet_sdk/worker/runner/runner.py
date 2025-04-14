@@ -59,10 +59,11 @@ class Runner:
         self,
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
-        slots: int | None = None,
+        slots: int,
         handle_kill: bool = True,
         action_registry: dict[str, Task[TWorkflowInput, R]] = {},
         labels: dict[str, str | int] = {},
+        lifespan_context: Any | None = None,
     ):
         # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
@@ -101,6 +102,8 @@ class Runner:
         self.worker_context = WorkerContext(
             labels=labels, client=Client(config=config).dispatcher
         )
+
+        self.lifespan_context = lifespan_context
 
     def create_workflow_run_url(self, action: Action) -> str:
         return f"{self.config.server_url}/workflow-runs/{action.workflow_run_id}?tenant={action.tenant_id}"
@@ -303,6 +306,7 @@ class Runner:
             durable_event_listener=self.durable_event_listener,
             worker=self.worker_context,
             runs_client=self.runs_client,
+            lifespan_context=self.lifespan_context,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
