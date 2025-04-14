@@ -4,11 +4,27 @@ repo_url: https://github.com/hatchet-dev/hatchet
 site_url: https://docs.onhatchet.run/sdks/python/
 use_directory_urls: false
 
+
 theme:
   name: material
   palette:
-    primary: indigo
-    accent: indigo
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: youtube
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
   color_mode: auto
   features:
     - navigation.instant
@@ -16,6 +32,9 @@ theme:
     - navigation.expand
     - navigation.indexes
     - content.code.copy
+
+extra_css:
+  - styles.css
 
 plugins:
   - search
