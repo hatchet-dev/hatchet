@@ -827,6 +827,20 @@ func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
 	return ids
 }
 
+func (w *workflowRunAcks) getNonAckdWorkflowRunsMap() map[string]bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	// copy ids to a new map
+	acks := make(map[string]bool, len(w.acks))
+	for id, ack := range w.acks {
+		if !ack {
+			acks[id] = ack
+		}
+	}
+	return acks
+}
+
 func (w *workflowRunAcks) ackWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

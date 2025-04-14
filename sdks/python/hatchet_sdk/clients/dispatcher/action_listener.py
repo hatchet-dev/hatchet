@@ -42,7 +42,7 @@ class GetActionListenerRequest(BaseModel):
     worker_name: str
     services: list[str]
     actions: list[str]
-    slots: int = 100
+    slots: int
     raw_labels: dict[str, str | int] = Field(default_factory=dict)
 
     labels: dict[str, WorkerLabels] = Field(default_factory=dict)

@@ -125,6 +125,7 @@ export default {
   },
   "asyncio": "Asyncio",
   "pydantic": "Pydantic",
+  "lifespans": "Lifespans",
   "blog": {
     "title": "Blog",
     "type": "page",

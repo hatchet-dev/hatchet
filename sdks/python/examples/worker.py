@@ -9,6 +9,7 @@ from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
 from examples.durable.worker import durable_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
+from examples.lifespans.simple import lifespan, lifespan_task
 from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
@@ -48,7 +49,9 @@ def main() -> None:
             sync_fanout_child,
             non_retryable_workflow,
             priority_workflow,
+            lifespan_task,
         ],
+        lifespan=lifespan,
     )
 
     worker.start()

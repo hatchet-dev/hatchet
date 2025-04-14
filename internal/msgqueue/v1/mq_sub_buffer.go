@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// default values for the buffer
 const SUB_FLUSH_INTERVAL = 10 * time.Millisecond
 const SUB_BUFFER_SIZE = 1000
 const SUB_MAX_CONCURRENCY = 10
@@ -30,6 +31,13 @@ func JSONConvert[T any](payloads [][]byte) []*T {
 	return ret
 }
 
+type SubBufferKind string
+
+const (
+	PostAck SubBufferKind = "postAck"
+	PreAck  SubBufferKind = "preAck"
+)
+
 // MQSubBuffer buffers messages coming out of the task queue, groups them by tenantId and msgId, and then flushes them
 // to the task handler as necessary.
 type MQSubBuffer struct {
@@ -42,13 +50,83 @@ type MQSubBuffer struct {
 
 	// the destination function to send the messages to
 	dst DstFunc
+
+	// the kind of sub buffer
+	kind SubBufferKind
+
+	flushInterval         time.Duration
+	bufferSize            int
+	maxConcurrency        int
+	disableImmediateFlush bool
 }
 
-func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc) *MQSubBuffer {
+type mqSubBufferOpts struct {
+	kind                  SubBufferKind
+	flushInterval         time.Duration
+	bufferSize            int
+	maxConcurrency        int
+	disableImmediateFlush bool
+}
+
+type mqSubBufferOptFunc func(*mqSubBufferOpts)
+
+func WithKind(kind SubBufferKind) mqSubBufferOptFunc {
+	return func(opts *mqSubBufferOpts) {
+		opts.kind = kind
+	}
+}
+
+func WithFlushInterval(flushInterval time.Duration) mqSubBufferOptFunc {
+	return func(opts *mqSubBufferOpts) {
+		opts.flushInterval = flushInterval
+	}
+}
+
+func WithBufferSize(bufferSize int) mqSubBufferOptFunc {
+	return func(opts *mqSubBufferOpts) {
+		opts.bufferSize = bufferSize
+	}
+}
+
+func WithMaxConcurrency(maxConcurrency int) mqSubBufferOptFunc {
+	return func(opts *mqSubBufferOpts) {
+		opts.maxConcurrency = maxConcurrency
+	}
+}
+
+// "Immediate flush" means that if we haven't flushed yet, we can flush immediately without
+// waiting on the flush interval timer.
+func WithDisableImmediateFlush(disableImmediateFlush bool) mqSubBufferOptFunc {
+	return func(opts *mqSubBufferOpts) {
+		opts.disableImmediateFlush = disableImmediateFlush
+	}
+}
+
+func defaultMQSubBufferOpts() *mqSubBufferOpts {
+	return &mqSubBufferOpts{
+		kind:           PreAck,
+		flushInterval:  SUB_FLUSH_INTERVAL,
+		bufferSize:     SUB_BUFFER_SIZE,
+		maxConcurrency: SUB_MAX_CONCURRENCY,
+	}
+}
+
+func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc, fs ...mqSubBufferOptFunc) *MQSubBuffer {
+	opts := defaultMQSubBufferOpts()
+
+	for _, f := range fs {
+		f(opts)
+	}
+
 	return &MQSubBuffer{
-		queue: queue,
-		mq:    mq,
-		dst:   dst,
+		queue:                 queue,
+		mq:                    mq,
+		dst:                   dst,
+		kind:                  opts.kind,
+		flushInterval:         opts.flushInterval,
+		bufferSize:            opts.bufferSize,
+		maxConcurrency:        opts.maxConcurrency,
+		disableImmediateFlush: opts.disableImmediateFlush,
 	}
 }
 
@@ -59,8 +137,15 @@ func (m *MQSubBuffer) Start() (func() error, error) {
 		return m.handleMsg(ctx, msg)
 	}
 
-	// TODO: argument for queue type
-	cleanupQueue, err := m.mq.Subscribe(m.queue, f, NoOpHook)
+	var cleanupQueue func() error
+	var err error
+
+	switch m.kind {
+	case PreAck:
+		cleanupQueue, err = m.mq.Subscribe(m.queue, f, NoOpHook)
+	case PostAck:
+		cleanupQueue, err = m.mq.Subscribe(m.queue, NoOpHook, f)
+	}
 
 	if err != nil {
 		cancel()
@@ -100,7 +185,7 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 	buf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIdBuffer(msg.TenantID, msg.ID, m.dst))
+		buf, _ = m.buffers.LoadOrStore(k, newMsgIdBuffer(msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
 	// this places some backpressure on the consumer if buffers are full
@@ -130,19 +215,27 @@ type msgIdBuffer struct {
 	msgIdBufferCh chan *msgWithResultCh
 	notifier      chan struct{}
 
+	// "Immediate flush" means that if we haven't flushed yet, we can flush immediately without
+	// waiting on the timer.
+	disableImmediateFlush bool
+
 	semaphore chan struct{}
 
 	dst DstFunc
+
+	flushInterval time.Duration
 }
 
-func newMsgIdBuffer(tenantId, msgId string, dst DstFunc) *msgIdBuffer {
+func newMsgIdBuffer(tenantId, msgId string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
-		tenantId:      tenantId,
-		msgId:         msgId,
-		msgIdBufferCh: make(chan *msgWithResultCh, SUB_BUFFER_SIZE),
-		notifier:      make(chan struct{}),
-		dst:           dst,
-		semaphore:     make(chan struct{}, SUB_MAX_CONCURRENCY),
+		tenantId:              tenantId,
+		msgId:                 msgId,
+		msgIdBufferCh:         make(chan *msgWithResultCh, bufferSize),
+		notifier:              make(chan struct{}),
+		dst:                   dst,
+		disableImmediateFlush: disableImmediateFlush,
+		semaphore:             make(chan struct{}, maxConcurrency),
+		flushInterval:         flushInterval,
 	}
 
 	err := b.startFlusher()
@@ -156,7 +249,7 @@ func newMsgIdBuffer(tenantId, msgId string, dst DstFunc) *msgIdBuffer {
 }
 
 func (m *msgIdBuffer) startFlusher() error {
-	ticker := time.NewTicker(SUB_FLUSH_INTERVAL)
+	ticker := time.NewTicker(m.flushInterval)
 
 	go func() {
 		for {
@@ -164,7 +257,9 @@ func (m *msgIdBuffer) startFlusher() error {
 			case <-ticker.C:
 				go m.flush()
 			case <-m.notifier:
-				go m.flush()
+				if !m.disableImmediateFlush {
+					go m.flush()
+				}
 			}
 		}
 	}()
@@ -183,7 +278,7 @@ func (m *msgIdBuffer) flush() {
 
 	defer func() {
 		go func() {
-			<-time.After(SUB_FLUSH_INTERVAL - time.Since(startedFlush))
+			<-time.After(m.flushInterval - time.Since(startedFlush))
 			<-m.semaphore
 		}()
 	}()

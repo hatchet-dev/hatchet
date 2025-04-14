@@ -14,6 +14,7 @@ import {
   CreateWorkflowDurableTaskOpts,
   CreateBaseTaskOpts,
   CreateOnSuccessTaskOpts,
+  DurableTaskFn,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -116,6 +117,11 @@ export type CreateTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, TaskFn<I, O>>;
+
+export type CreateDurableTaskWorkflowOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>>;
 
 /**
  * Options for creating a new workflow.
