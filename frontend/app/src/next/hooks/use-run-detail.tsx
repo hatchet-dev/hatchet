@@ -29,24 +29,31 @@ export function useRunDetail(runId: string, defaultRefetchInterval?: number) {
     refetchInterval: refetchInterval,
   });
 
-  const taskEvents = useQuery({
+  const activity = useQuery({
     queryKey: ['task-events:get', runId],
     queryFn: async () => {
-      const events = (
-        await api.v1TaskEventList(runId, {
-          limit: 50,
-          offset: 0,
-        })
-      ).data;
+      if (runId == '00000000-0000-0000-0000-000000000000') {
+        return;
+      }
 
-      return events;
+      const [logs, events] = await Promise.all([
+        (await api.v1LogLineList(runId)).data,
+        (
+          await api.v1TaskEventList(runId, {
+            limit: 50,
+            offset: 0,
+          })
+        ).data,
+      ]);
+
+      return { events, logs };
     },
     refetchInterval: refetchInterval,
   });
 
   return {
     ...runDetails,
-    taskEvents,
+    activity: activity.data,
     cancel,
     replay,
   };

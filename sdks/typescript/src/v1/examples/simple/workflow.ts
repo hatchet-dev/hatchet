@@ -8,7 +8,8 @@ export type SimpleInput = {
 
 export const simple = hatchet.task({
   name: 'simple',
-  fn: (input: SimpleInput) => {
+  fn: (input: SimpleInput, ctx) => {
+    ctx.log('hello from the workflow');
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };
