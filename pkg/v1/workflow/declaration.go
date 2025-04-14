@@ -1008,37 +1008,5 @@ func RunChildWorkflow[I any, O any](
 		return nil, fmt.Errorf("child workflow execution failed: %w", err)
 	}
 
-	// Create a new output object
-	var output O
-
-	// Iterate through each task with a registered output setter
-	for taskName, setter := range wfImpl.outputSetters {
-		// Extract the specific task output using StepOutput
-		var taskOutput interface{}
-
-		// Use reflection to create the correct type for the task output
-		for fieldName, fieldType := range getStructFields(reflect.TypeOf(output)) {
-			if strings.EqualFold(fieldName, taskName) {
-				taskOutput = reflect.New(fieldType).Interface()
-				break
-			}
-		}
-
-		if taskOutput == nil {
-			continue // Skip if we couldn't find a matching field
-		}
-
-		// Extract task output using the StepOutput method
-		err := workflowResult.StepOutput(taskName, taskOutput)
-		if err != nil {
-			// Log the error but continue with other tasks
-			fmt.Printf("Error extracting output for task %s: %v\n", taskName, err)
-			continue
-		}
-
-		// Set the output value using the registered setter
-		setter(&output, taskOutput)
-	}
-
-	return &output, nil
+	return wfImpl.getOutputFromWorkflowResult(workflowResult)
 }
