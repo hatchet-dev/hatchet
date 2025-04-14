@@ -46,6 +46,7 @@ import {
   TabsContent,
 } from '@/components/v1/ui/tabs';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
+import { FilterProvider } from '@/next/hooks/use-filters';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -92,17 +93,15 @@ export default function RunDetailPage() {
 
     const breadcrumbs = [];
 
-    if (parentData && parentData?.run) {
-      const parentUrl = ROUTES.runs.parent(workflow);
-      if (parentUrl) {
-        breadcrumbs.push({
-          title: getFriendlyWorkflowRunId(parentData.run) || '',
-          label: <RunId wfRun={parentData.run} />,
-          url: parentUrl,
-          icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-          alwaysShowIcon: true,
-        });
-      }
+    if (parentData) {
+      const parentUrl = ROUTES.runs.detail(parentData.run.metadata.id);
+      breadcrumbs.push({
+        title: getFriendlyWorkflowRunId(parentData.run) || '',
+        label: <RunId wfRun={parentData.run} />,
+        url: parentUrl,
+        icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
+        alwaysShowIcon: true,
+      });
     }
 
     breadcrumbs.push({
@@ -113,7 +112,7 @@ export default function RunDetailPage() {
           ? ROUTES.runs.detail(workflow.metadata.id)
           : ROUTES.runs.taskDetail(
               workflow.metadata.id,
-              selectedTask!.taskExternalId,
+              selectedTask?.taskExternalId || '',
             ),
       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
       alwaysShowIcon: true,
@@ -516,24 +515,18 @@ export default function RunDetailPage() {
               Config
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="activity">
-            <RunEventLog
-              workflow={workflow}
-              onTaskSelect={(taskId) => {
-                navigate(ROUTES.runs.taskDetail(workflowRunId!, taskId));
-              }}
-            />
+          <TabsContent value="activity" className="mt-4">
+            <FilterProvider>
+              <RunEventLog
+                workflow={workflow}
+                onTaskSelect={(taskId) => {
+                  navigate(ROUTES.runs.taskDetail(workflowRunId!, taskId));
+                }}
+              />
+            </FilterProvider>
           </TabsContent>
-          <TabsContent value="config">
-            <RunDataCard
-              title="Configuration"
-              output={{
-                todo: 'TODO',
-              }}
-              status={workflow.status}
-              variant="metadata"
-              collapsed
-            />
+          <TabsContent value="config" className="mt-4">
+            TODO
           </TabsContent>
         </Tabs>
       </div>

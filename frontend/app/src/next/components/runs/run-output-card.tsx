@@ -42,6 +42,8 @@ export function RunDataCard({
 }: RunOutputCardProps) {
   const [isOpen, setIsOpen] = useState(!collapsed);
 
+  const errorData = error ? JSON.parse(error) : null;
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <Card>
@@ -55,29 +57,31 @@ export function RunDataCard({
                     isOpen ? 'rotate-0' : '-rotate-90',
                   )}
                 />
-                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  {error ? 'Error' : title}
+                </CardTitle>
                 {variant === 'output' && status && (
                   <RunsBadge status={status} variant="xs" />
                 )}
               </div>
               {actions}
             </div>
-            {description && (
+            {error ? (
+              <CardDescription className="text-base text-destructive">
+                {errorData?.message}
+              </CardDescription>
+            ) : description ? (
               <CardDescription className="text-xs">
                 {description}
               </CardDescription>
-            )}
+            ) : null}
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className={cn(error && 'border-destructive')}>
             <Code
-              language="json"
-              value={
-                error
-                  ? JSON.stringify(JSON.parse(error), null, 2)
-                  : JSON.stringify(output, null, 2)
-              }
+              language={error ? 'text' : 'json'}
+              value={error ? errorData?.stack : JSON.stringify(output, null, 2)}
             />
           </CardContent>
         </CollapsibleContent>

@@ -10,6 +10,9 @@ import { ChevronRight } from 'lucide-react';
 import { cn } from '@/next/lib/utils';
 import { RunsBadge } from './runs-badge';
 import { HiMiniArrowTurnLeftUp } from 'react-icons/hi2';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
+
 const MAX_CHILDREN = 10;
 const MAX_DEPTH = 2;
 
@@ -113,6 +116,8 @@ function RunRowWithChildren({
   toggleExpanded,
   onTaskSelect,
 }: RunRowWithChildrenProps) {
+  const navigate = useNavigate();
+
   const { data: childrenData } = useRuns({
     refetchInterval: 3000,
     filters: {
@@ -132,7 +137,13 @@ function RunRowWithChildren({
         hasChildren={hasActualChildren}
         isExpanded={isExpanded}
         toggleChildren={() => toggleExpanded(run.metadata.id)}
-        onClick={() => onTaskSelect?.(run.metadata.id)}
+        onClick={() => {
+          if (depth == 0) {
+            onTaskSelect?.(run.metadata.id);
+          } else {
+            navigate(ROUTES.runs.detail(run.metadata.id));
+          }
+        }}
       />
       {isExpanded && hasActualChildren && (
         <RunsProvider>
