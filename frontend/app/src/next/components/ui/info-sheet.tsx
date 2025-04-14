@@ -5,7 +5,7 @@ import { Cross2Icon } from '@radix-ui/react-icons';
 interface InfoSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
   variant?: 'overlay' | 'push';
 }

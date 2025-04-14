@@ -321,9 +321,17 @@ export default function RunDetailPage() {
           isOpen={!!taskId}
           onClose={handleCloseSheet}
           title={
-            selectedTask
-              ? `Task: ${selectedTask.displayName}`
-              : 'Run Information'
+            selectedTask ? (
+              <div className="flex items-center gap-2">
+                <span>Task Details</span>
+                <RunId taskRun={selectedTask} />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span>Run:</span>
+                <RunId wfRun={workflow} />
+              </div>
+            )
           }
         >
           <div className="flex flex-col gap-4">

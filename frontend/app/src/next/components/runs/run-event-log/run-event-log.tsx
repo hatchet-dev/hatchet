@@ -339,7 +339,27 @@ export function RunEventLog({
     return allEvents.sort((a, b) => {
       const timeA = new Date(a.timestamp).getTime();
       const timeB = new Date(b.timestamp).getTime();
-      return timeB - timeA;
+
+      // First sort by timestamp (newest first)
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+
+      // Then sort by event type (STARTED first)
+      if (
+        a.eventType === V1TaskEventType.STARTED &&
+        b.eventType !== V1TaskEventType.STARTED
+      ) {
+        return 1;
+      }
+      if (
+        a.eventType !== V1TaskEventType.STARTED &&
+        b.eventType === V1TaskEventType.STARTED
+      ) {
+        return -1;
+      }
+
+      return 0;
     });
   }, [activity?.events, activity?.logs]);
 
