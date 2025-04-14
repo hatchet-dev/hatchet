@@ -1,0 +1,49 @@
+site_name: Hatchet SDK
+site_description: Documentation for the Hatchet SDK
+repo_url: https://github.com/yourusername/hatchet-sdk  # Replace with your actual repo
+site_url: https://docs.onhatchet.run/docs/sdks/python/
+use_directory_urls: false
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.expand
+    - navigation.indexes
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [hatchet_sdk]  # This tells mkdocstrings where to look for your code
+          options:
+            show_source: false
+            heading_level: 3
+            show_category_heading: true
+            show_if_no_docstring: false
+            show_signature_annotations: false
+            filters: ["!^_"]  # Exclude private members
+            docstring_style: google  # Or numpy if you use that style
+            members_order: source
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - admonition
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - API Reference:
+    - Client: api/client.md
+    - Runnables: api/runnables.md
+    - Features: api/features.md
+    - Worker: api/worker.md
