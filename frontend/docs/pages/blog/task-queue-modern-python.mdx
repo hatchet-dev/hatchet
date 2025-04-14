@@ -114,7 +114,7 @@ async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> int:
         return results.count(True)
 ```
 
-With Hatchet, you can perform all of these requests in a single task concurrently, as opposed to needing to e.g. enqueue a single task per request. This is easier to program, easier to reason about, more performant on your (the client) side, and also puts less pressure on the backing queue, since it needs to handle an order of magnitude fewer requests in this case.
+With Hatchet, you can perform all of these requests concurrently, in a single task, as opposed to needing to e.g. enqueue a single task per request. This is easier to program, easier to reason about, more performant on your side (as the client), and also puts less pressure on the backing queue, since it needs to handle an order of magnitude fewer requests in this case.
 
 Support for `async` / `await` also allows you to make other parts of your codebase asynchronous as well, like database operations. In a setting where your app uses a task queue that does not support `async`, but you want to share CRUD operations between your task queue and main application, you're forced to make all of those operations synchronous. With Hatchet, this is not the case, which allows you to make use of tools like [asyncpg](https://github.com/MagicStack/asyncpg) and similar.
 
@@ -127,7 +127,7 @@ Hatchet's Python SDK also has a handful of other features that make working with
 
 ## Thank you!
 
-If you've made it this far, try us out! You can get up and running in five minutes on [Hatchet Cloud](https://cloud.onhatchet.run/). And if you'd like to learn more, can find us:
+If you've made it this far, try us out! You can get up and running in just five minutes on [Hatchet Cloud](https://cloud.onhatchet.run/). And if you'd like to learn more, can find us:
 
 - On [GitHub](https://github.com/hatchet-dev/hatchet)
 - On [Discord](https://hatchet.run/discord)
