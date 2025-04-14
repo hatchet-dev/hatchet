@@ -1,5 +1,5 @@
 // ❓ Declaring a Worker
-import { hatchet } from '../hatchet-client';
+import { hatchet } from './hatchet-client';
 import { withMiddleware } from './workflow';
 
 async function main() {

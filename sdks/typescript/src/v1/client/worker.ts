@@ -88,8 +88,8 @@ export class Worker {
       if (!task.middleware) {
         // eslint-disable-next-line no-param-reassign
         task.middleware = {
-          deserialize: [],
-          serialize: [],
+          deserialize: (input: string) => input,
+          serialize: (input: any) => input,
         };
       }
 
@@ -107,23 +107,35 @@ export class Worker {
       };
 
       // Get deserialize and serialize middleware arrays
-      let deserializeMiddleware = Array.isArray(task.middleware.deserialize)
-        ? task.middleware.deserialize
-        : [task.middleware.deserialize];
-      let serializeMiddleware = Array.isArray(task.middleware.serialize)
-        ? task.middleware.serialize
-        : [task.middleware.serialize];
+      let deserializeMiddleware: MiddlewareFn[] = [];
+      let serializeMiddleware: MiddlewareFn[] = [];
+
+      if (task.middleware.deserialize) {
+        deserializeMiddleware = Array.isArray(task.middleware.deserialize)
+          ? task.middleware.deserialize
+          : [task.middleware.deserialize];
+      }
+
+      if (task.middleware.serialize) {
+        serializeMiddleware = Array.isArray(task.middleware.serialize)
+          ? task.middleware.serialize
+          : [task.middleware.serialize];
+      }
 
       if (this._v1.middleware) {
-        const clientDeserialize = Array.isArray(this._v1.middleware.deserialize)
-          ? this._v1.middleware.deserialize
-          : [this._v1.middleware.deserialize];
-        const clientSerialize = Array.isArray(this._v1.middleware.serialize)
-          ? this._v1.middleware.serialize
-          : [this._v1.middleware.serialize];
+        if (this._v1.middleware.deserialize) {
+          const clientDeserialize = Array.isArray(this._v1.middleware.deserialize)
+            ? this._v1.middleware.deserialize
+            : [this._v1.middleware.deserialize];
+          deserializeMiddleware = [...clientDeserialize, ...deserializeMiddleware];
+        }
 
-        deserializeMiddleware = [...clientDeserialize, ...deserializeMiddleware];
-        serializeMiddleware = [...serializeMiddleware, ...clientSerialize];
+        if (this._v1.middleware.serialize) {
+          const clientSerialize = Array.isArray(this._v1.middleware.serialize)
+            ? this._v1.middleware.serialize
+            : [this._v1.middleware.serialize];
+          serializeMiddleware = [...serializeMiddleware, ...clientSerialize];
+        }
       }
 
       // Compose the middleware with the original function

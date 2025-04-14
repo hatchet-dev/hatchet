@@ -1,5 +1,5 @@
 // ❓ Declaring a Task
-import { hatchet } from '../hatchet-client';
+import { hatchet } from './hatchet-client';
 
 // (optional) Define the input type for the workflow
 export type SimpleInput = {
