@@ -391,7 +391,7 @@ export function RunEventLog({
       <FilterGroup>
         <FilterText<ActivityFilters>
           name="search"
-          placeholder="Search events..."
+          placeholder="Search activity..."
         />
         <FilterSelect<ActivityFilters, V1TaskEventType>
           name="eventType"
