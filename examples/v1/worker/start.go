@@ -63,10 +63,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	var slots int
+	if workflowName == "priority" {
+		slots = 1
+	} else {
+		slots = 100
+	}
+
 	worker, err := hatchet.Worker(
 		worker.WorkerOpts{
 			Name:      fmt.Sprintf("%s-worker", workflowName),
 			Workflows: workflow,
+			Slots:     slots,
 		},
 	)
 

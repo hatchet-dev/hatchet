@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/joho/godotenv"
@@ -177,6 +180,35 @@ func main() {
 				return err
 			}
 			fmt.Println("Cron task result:", result.Job.TransformedMessage)
+			return nil
+		},
+		"priority": func() error {
+
+			nRuns := 10
+			priorityWorkflow := v1_workflows.Priority(hatchet)
+
+			for i := 0; i < nRuns; i++ {
+				randomPrio := int32(rand.Intn(3) + 1)
+
+				fmt.Println("Random priority:", randomPrio)
+
+				priorityWorkflow.RunNoWait(ctx, v1_workflows.PriorityInput{
+					UserId: "1234",
+				}, client.WithRunMetadata(map[string]int32{"priority": randomPrio}), client.WithPriority(randomPrio))
+			}
+
+			triggerAt := time.Now().Add(time.Second + 5)
+
+			for i := 0; i < nRuns; i++ {
+				randomPrio := int32(rand.Intn(3) + 1)
+
+				fmt.Println("Random priority:", randomPrio)
+
+				priorityWorkflow.Schedule(ctx, triggerAt, v1_workflows.PriorityInput{
+					UserId: "1234",
+				}, client.WithRunMetadata(map[string]int32{"priority": randomPrio}), client.WithPriority(randomPrio))
+			}
+
 			return nil
 		},
 	}

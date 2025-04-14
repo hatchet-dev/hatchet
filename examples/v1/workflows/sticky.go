@@ -66,9 +66,10 @@ func Sticky(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[StickyInput, 
 		}, func(ctx worker.HatchetContext, input StickyInput) (*StickyResult, error) {
 			// Run a child workflow on the same worker
 			childWorkflow := Child(hatchet)
-			childResult, err := childWorkflow.RunAsChild(ctx, ChildInput{N: 1}, workflow.RunAsChildOpts{
-				Sticky: &[]bool{true}[0],
-			})
+			childResult, err := workflow.RunChildWorkflow(ctx, childWorkflow, ChildInput{N: 1}) // 	 workflow.RunAsChildOpts{
+			// 	Sticky: &[]bool{true}[0],
+			// }
+
 			if err != nil {
 				return nil, err
 			}

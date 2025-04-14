@@ -62,7 +62,7 @@ func Parent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, 
 			for j := 0; j < input.N; j++ {
 				go func(index int) {
 					defer wg.Done()
-					result, err := child.RunAsChild(ctx, ChildInput{N: 1})
+					result, err := workflow.RunChildWorkflow(ctx, child, ChildInput{N: 1})
 
 					mu.Lock()
 					defer mu.Unlock()

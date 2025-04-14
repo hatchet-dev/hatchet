@@ -1344,6 +1344,9 @@ type V1TriggerWorkflowRunRequest struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 	Input              map[string]interface{}  `json:"input"`
 
+	// Priority The priority of the workflow run.
+	Priority *int `json:"priority,omitempty"`
+
 	// WorkflowName The name of the workflow.
 	WorkflowName string `json:"workflowName"`
 }

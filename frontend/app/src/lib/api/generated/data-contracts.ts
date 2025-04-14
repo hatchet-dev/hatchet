@@ -287,6 +287,8 @@ export interface V1TriggerWorkflowRunRequest {
   workflowName: string;
   input: object;
   additionalMetadata?: object;
+  /** The priority of the workflow run. */
+  priority?: number;
 }
 
 export interface V1WorkflowRun {

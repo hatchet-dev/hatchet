@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client"
+	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -48,8 +48,6 @@ type WorkflowBase interface {
 type RunOpts struct {
 	AdditionalMetadata *map[string]interface{}
 	Priority           *int32
-
-	childOpts *client.ChildWorkflowOpts
 }
 
 type RunAsChildOpts struct {
@@ -75,23 +73,20 @@ type WorkflowDeclaration[I, O any] interface {
 	OnFailure(opts create.WorkflowOnFailureTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.OnFailureTaskDeclaration[I]
 
 	// Run executes the workflow with the provided input.
-	Run(ctx context.Context, input I, opts ...RunOpts) (*O, error)
-
-	// RunChild executes a child workflow with the provided input.
-	RunAsChild(ctx worker.HatchetContext, input I, opts ...RunAsChildOpts) (*O, error)
+	Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error)
 
 	// RunNoWait executes the workflow with the provided input without waiting for it to complete.
 	// Instead it returns a run ID that can be used to check the status of the workflow.
-	RunNoWait(ctx context.Context, input I, opts ...RunOpts) (*v0Client.Workflow, error)
+	RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error)
 
 	// RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
-	RunBulkNoWait(ctx context.Context, input []I, opts ...RunOpts) ([]string, error)
+	RunBulkNoWait(ctx context.Context, input []I, opts ...v0Client.RunOptFunc) ([]string, error)
 
 	// Cron schedules the workflow to run on a regular basis using a cron expression.
-	Cron(ctx context.Context, name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error)
+	Cron(ctx context.Context, name string, cronExpr string, input I, opts ...v0Client.RunOptFunc) (*rest.CronWorkflows, error)
 
 	// Schedule schedules the workflow to run at a specific time.
-	Schedule(ctx context.Context, triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error)
+	Schedule(ctx context.Context, triggerAt time.Time, input I, opts ...v0Client.RunOptFunc) (*rest.ScheduledWorkflows, error)
 
 	// Get retrieves the current state of the workflow.
 	Get(ctx context.Context) (*rest.Workflow, error)
@@ -476,16 +471,7 @@ func (w *workflowDeclarationImpl[I, O]) OnFailure(opts create.WorkflowOnFailureT
 
 // RunBulkNoWait executes the workflow with the provided inputs without waiting for them to complete.
 // Instead it returns a list of run IDs that can be used to check the status of the workflows.
-func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input []I, opts ...RunOpts) ([]string, error) {
-
-	runOpts := []v0Client.RunOptFunc{}
-
-	if len(opts) > 0 {
-		if opts[0].AdditionalMetadata != nil {
-			fn := v0Client.WithRunMetadata(opts[0].AdditionalMetadata)
-			runOpts = append(runOpts, fn)
-		}
-	}
+func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input []I, opts ...v0Client.RunOptFunc) ([]string, error) {
 
 	toRun := make([]*v0Client.WorkflowRun, len(input))
 
@@ -493,7 +479,7 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 		toRun[i] = &v0Client.WorkflowRun{
 			Name:    w.Name,
 			Input:   inp,
-			Options: runOpts,
+			Options: opts,
 		}
 	}
 
@@ -507,20 +493,11 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 
 // RunNoWait executes the workflow with the provided input without waiting for it to complete.
 // Instead it returns a run ID that can be used to check the status of the workflow.
-func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...RunOpts) (*v0Client.Workflow, error) {
+func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error) {
 
 	// TODO namespace
 
-	runOpts := []v0Client.RunOptFunc{}
-
-	if len(opts) > 0 {
-		if opts[0].AdditionalMetadata != nil {
-			fn := v0Client.WithRunMetadata(opts[0].AdditionalMetadata)
-			runOpts = append(runOpts, fn)
-		}
-	}
-
-	run, err := w.v0.Admin().RunWorkflow(w.Name, input, runOpts...)
+	run, err := w.v0.Admin().RunWorkflow(w.Name, input, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -528,50 +505,10 @@ func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, 
 	return run, nil
 }
 
-// RunAsChild executes the workflow as a child workflow with the provided input.
-func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, input I, opts ...RunAsChildOpts) (*O, error) {
-
-	runOpts := RunOpts{}
-	var desiredWorker *string
-	var key *string
-	if len(opts) > 0 {
-		if opts[0].AdditionalMetadata != nil {
-			runOpts.AdditionalMetadata = opts[0].AdditionalMetadata
-		}
-
-		if opts[0].Sticky != nil {
-			if !ctx.Worker().HasWorkflow(w.Name) {
-				return nil, fmt.Errorf("cannot run with sticky: workflow %s is not registered on this worker", w.Name)
-			}
-
-			id := ctx.Worker().ID()
-			desiredWorker = &id
-		}
-
-		if opts[0].Key != nil {
-			key = opts[0].Key
-		}
-	}
-
-	childOpts := &client.ChildWorkflowOpts{
-		ParentId:        ctx.WorkflowRunId(),
-		ParentStepRunId: ctx.StepRunId(),
-		ChildIndex:      ctx.CurChildIndex(),
-		ChildKey:        key,
-		DesiredWorkerId: desiredWorker,
-	}
-
-	ctx.IncChildIndex()
-
-	runOpts.childOpts = childOpts
-
-	return w.Run(ctx, input, runOpts)
-}
-
 // Run executes the workflow with the provided input.
 // It triggers a workflow run via the Hatchet client and waits for the result.
 // Returns the workflow output and any error encountered during execution.
-func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...RunOpts) (*O, error) {
+func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error) {
 	run, err := w.RunNoWait(ctx, input, opts...)
 
 	if err != nil {
@@ -653,12 +590,7 @@ func getStructFields(t reflect.Type) map[string]reflect.Type {
 }
 
 // Cron schedules the workflow to run on a regular basis using a cron expression.
-func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, cronExpr string, input I, opts ...RunOpts) (*rest.CronWorkflows, error) {
-	// Process additional metadata from options
-	var additionalMetadata map[string]interface{}
-	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
-		additionalMetadata = *opts[0].AdditionalMetadata
-	}
+func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, cronExpr string, input I, opts ...v0Client.RunOptFunc) (*rest.CronWorkflows, error) {
 
 	var inputMap map[string]interface{}
 	inputBytes, err := json.Marshal(input)
@@ -669,12 +601,27 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 		return nil, err
 	}
 
-	cronWorkflow, err := w.crons.Create(ctx, w.Name, features.CreateCronTrigger{
-		Name:               name,
-		Expression:         cronExpr,
-		Input:              inputMap,
-		AdditionalMetadata: additionalMetadata,
-	})
+	cronTriggerOpts := features.CreateCronTrigger{
+		Name:       name,
+		Expression: cronExpr,
+		Input:      inputMap,
+	}
+
+	runOpts := &admincontracts.TriggerWorkflowRequest{}
+
+	for _, opt := range opts {
+		opt(runOpts)
+	}
+
+	cronTriggerOpts.Priority = runOpts.Priority
+
+	if runOpts.AdditionalMetadata != nil {
+		additionalMeta := make(map[string]interface{})
+		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMeta)
+		cronTriggerOpts.AdditionalMetadata = additionalMeta
+	}
+
+	cronWorkflow, err := w.crons.Create(ctx, w.Name, cronTriggerOpts)
 
 	if err != nil {
 		return nil, err
@@ -684,13 +631,7 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 }
 
 // Schedule schedules the workflow to run at a specific time.
-func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt time.Time, input I, opts ...RunOpts) (*rest.ScheduledWorkflows, error) {
-	// Process additional metadata from options
-	var additionalMetadata map[string]interface{}
-	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
-		additionalMetadata = *opts[0].AdditionalMetadata
-	}
-
+func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt time.Time, input I, opts ...v0Client.RunOptFunc) (*rest.ScheduledWorkflows, error) {
 	var inputMap map[string]interface{}
 	inputBytes, err := json.Marshal(input)
 	if err != nil {
@@ -700,11 +641,27 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 		return nil, err
 	}
 
-	scheduledWorkflow, err := w.schedules.Create(ctx, w.Name, features.CreateScheduledRunTrigger{
-		TriggerAt:          triggerAt,
-		Input:              inputMap,
-		AdditionalMetadata: additionalMetadata,
-	})
+	triggerOpts := features.CreateScheduledRunTrigger{
+		TriggerAt: triggerAt,
+		Input:     inputMap,
+	}
+
+	runOpts := &admincontracts.TriggerWorkflowRequest{}
+
+	for _, opt := range opts {
+		opt(runOpts)
+	}
+
+	if runOpts.AdditionalMetadata != nil {
+		additionalMetadata := make(map[string]interface{})
+		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata)
+
+		triggerOpts.AdditionalMetadata = additionalMetadata
+	}
+
+	triggerOpts.Priority = runOpts.Priority
+
+	scheduledWorkflow, err := w.schedules.Create(ctx, w.Name, triggerOpts)
 
 	if err != nil {
 		return nil, err
@@ -956,7 +913,7 @@ func RunChildWorkflow[I any, O any](
 	ctx worker.HatchetContext,
 	workflow WorkflowDeclaration[I, O],
 	input I,
-	opts ...RunOpts,
+	opts ...v0Client.RunOptFunc,
 ) (*O, error) {
 	// Get the workflow name
 	wfImpl, ok := workflow.(*workflowDeclarationImpl[I, O])
@@ -964,11 +921,22 @@ func RunChildWorkflow[I any, O any](
 		return nil, fmt.Errorf("invalid workflow declaration type")
 	}
 
-	// Set up additional metadata if provided
-	var additionalMetadata *map[string]string
-	if len(opts) > 0 && opts[0].AdditionalMetadata != nil {
+	spawnOpts := &worker.SpawnWorkflowOpts{}
+
+	runOpts := &admincontracts.TriggerWorkflowRequest{}
+
+	for _, opt := range opts {
+		opt(runOpts)
+	}
+
+	spawnOpts.Priority = runOpts.Priority
+
+	if runOpts.AdditionalMetadata != nil {
+		additionalMetadata := make(map[string]interface{})
+		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata)
+
 		metadataStr := make(map[string]string)
-		for k, v := range *opts[0].AdditionalMetadata {
+		for k, v := range additionalMetadata {
 			// Convert interface{} values to strings
 			switch val := v.(type) {
 			case string:
@@ -982,13 +950,10 @@ func RunChildWorkflow[I any, O any](
 				metadataStr[k] = string(bytes)
 			}
 		}
-		additionalMetadata = &metadataStr
+		spawnOpts.AdditionalMetadata = &metadataStr
 	}
 
-	// Spawn the child workflow
-	childWorkflow, err := ctx.SpawnWorkflow(wfImpl.Name, input, &worker.SpawnWorkflowOpts{
-		AdditionalMetadata: additionalMetadata,
-	})
+	childWorkflow, err := ctx.SpawnWorkflow(wfImpl.Name, input, spawnOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to spawn child workflow: %w", err)
 	}
