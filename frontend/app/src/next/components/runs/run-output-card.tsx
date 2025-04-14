@@ -23,7 +23,7 @@ export interface RunOutputCardProps {
   title: string;
   description?: string;
   output?: any;
-  status: V1TaskStatus;
+  status?: V1TaskStatus;
   variant: RunOutputCardVariant;
   error?: string;
   collapsed?: boolean;
@@ -56,7 +56,7 @@ export function RunDataCard({
                   )}
                 />
                 <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                {variant === 'output' && (
+                {variant === 'output' && status && (
                   <RunsBadge status={status} variant="xs" />
                 )}
               </div>

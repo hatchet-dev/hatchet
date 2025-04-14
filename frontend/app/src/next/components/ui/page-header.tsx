@@ -9,7 +9,7 @@ const Headline = React.forwardRef<HTMLDivElement, HeadlineProps>(
   ({ className, children, ...props }, ref) => {
     return (
       <div className={cn('mb-6', className)} ref={ref} {...props}>
-        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           {children}
         </div>
       </div>
