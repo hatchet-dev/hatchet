@@ -6,6 +6,7 @@ import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
 import { BaseWorkflowDeclaration } from '../declaration';
 import { HatchetClient } from '..';
+import { bindMiddleware } from '../next/middleware/middleware';
 
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
@@ -90,8 +91,10 @@ export class Worker {
     return Promise.all(
       workflows?.map(async (wf) => {
         if (wf instanceof BaseWorkflowDeclaration) {
+          const withMiddleware = await bindMiddleware(wf, this._v1);
+
           // TODO check if tenant is V1
-          const register = this.nonDurable.registerWorkflowV1(wf);
+          const register = this.nonDurable.registerWorkflowV1(withMiddleware);
 
           if (wf.definition._durableTasks.length > 0) {
             if (!this.durable) {
@@ -100,7 +103,7 @@ export class Worker {
                 maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
               });
             }
-            this.durable.registerDurableActionsV1(wf.definition);
+            this.durable.registerDurableActionsV1(withMiddleware.definition);
           }
 
           return register;

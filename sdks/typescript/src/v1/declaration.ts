@@ -19,6 +19,7 @@ import {
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
+import { serializeInput, deserializeOutput } from './next/middleware/middleware';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -239,16 +240,39 @@ export class BaseWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts, _standaloneTaskName?: string): WorkflowRunRef<O> {
+  async runNoWait(
+    input: I,
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.name, input, options);
+    const serializedInput = await serializeInput(
+      input as unknown as JsonObject,
+      this.client.middleware
+    );
+    const res = this.client._v0.admin.runWorkflow<I, O>(
+      this.name,
+      serializedInput as unknown as I,
+      options
+    );
 
     if (_standaloneTaskName) {
       res._standalone_task_name = _standaloneTaskName;
     }
+
+    // Wrap the result method to apply output deserialization
+    const originalResult = res.result;
+    res.result = async () => {
+      const output = await originalResult.call(res);
+      const deserializedOutput = await deserializeOutput(
+        output as unknown as JsonObject,
+        this.client?.middleware
+      );
+      return deserializedOutput as unknown as O;
+    };
 
     return res;
   }
@@ -279,6 +303,7 @@ export class BaseWorkflowDeclaration<
 
     return this.run(input, options, _standaloneTaskName);
   }
+
   /**
    * Executes the workflow with the given input and awaits the results.
    * @param input The input data for the workflow.
@@ -294,38 +319,29 @@ export class BaseWorkflowDeclaration<
     }
 
     if (Array.isArray(input)) {
-      let resp: WorkflowRunRef<O>[] = [];
-      for (let i = 0; i < input.length; i += 500) {
-        const batch = input.slice(i, i + 500);
-        const batchResp = await this.client._v0.admin.runWorkflows<I, O>(
-          batch.map((inp) => ({
-            workflowName: this.definition.name,
-            input: inp,
-            options,
-          }))
-        );
-        resp = resp.concat(batchResp);
-      }
-
-      const res: Promise<O>[] = [];
-      resp.forEach((ref, index) => {
-        const wf = input[index].workflow;
-        if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
-          ref._standalone_task_name = wf._standalone_task_name;
-        }
-        res.push(ref.result());
-      });
-      return Promise.all(res);
+      return Promise.all(input.map((i) => this.run(i, options, _standaloneTaskName)));
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.definition.name, input, options);
+    const serializedInput = await serializeInput(
+      input as unknown as JsonObject,
+      this.client.middleware
+    );
+    const res = this.client._v0.admin.runWorkflow<I, O>(
+      this.name,
+      serializedInput as unknown as I,
+      options
+    );
 
     if (_standaloneTaskName) {
       res._standalone_task_name = _standaloneTaskName;
     }
 
-    return res.result() as Promise<O>;
+    const output = await res.result();
+    const deserializedOutput = await deserializeOutput(
+      output as unknown as JsonObject,
+      this.client.middleware
+    );
+    return deserializedOutput as unknown as O;
   }
 
   /**
@@ -648,25 +664,40 @@ export class TaskWorkflowDeclaration<
     });
   }
 
-  async run(input: I, options?: RunOpts): Promise<O>;
-  async run(input: I[], options?: RunOpts): Promise<O[]>;
-  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
-    return (await super.run(input as I, options, this._standalone_task_name)) as O | O[];
-  }
-
-  /**
-   * Triggers a workflow run without waiting for completion.
-   * @param input The input data for the workflow.
-   * @param options Optional configuration for this workflow run.
-   * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
-   * @throws Error if the workflow is not bound to a Hatchet client.
-   */
-  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
+  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    return super.runNoWait(input, options, this._standalone_task_name);
+    const res = await super.runNoWait(input, options, this._standalone_task_name);
+
+    // Wrap the result method to apply output deserialization
+    const originalResult = res.result;
+    res.result = async () => {
+      const output = await originalResult.call(res);
+      const deserializedOutput = await deserializeOutput(
+        output as unknown as JsonObject,
+        this.client?.middleware
+      );
+      return deserializedOutput as unknown as O;
+    };
+
+    return res;
+  }
+
+  async run(input: I, options?: RunOpts): Promise<O>;
+  async run(input: I[], options?: RunOpts): Promise<O[]>;
+  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+
+    if (Array.isArray(input)) {
+      return Promise.all(input.map((i) => this.run(i, options)));
+    }
+
+    const runRef = await this.runNoWait(input, options);
+    return runRef.result();
   }
 
   get taskDef() {

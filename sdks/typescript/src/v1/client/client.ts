@@ -32,17 +32,37 @@ import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
-import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
+import {
+  InputType,
+  OutputType,
+  UnknownInputType,
+  StrictWorkflowOutputType,
+  JsonObject,
+} from '../types';
 import { RatelimitsClient } from './features';
+import { Middleware, serializeInput, deserializeOutput } from '../next/middleware/middleware';
+
+export interface RuntimeOpts {
+  middleware?: Middleware[];
+}
+
+type Config = Partial<ClientConfig> & RuntimeOpts;
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
  * It provides methods for creating and executing workflows, as well as managing workers.
  */
+
 export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: InternalHatchetClient;
   _api: Api;
+
+  private _middleware?: Middleware[];
+
+  get middleware() {
+    return this._middleware;
+  }
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -66,11 +86,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
    */
-  constructor(
-    config?: Partial<ClientConfig>,
-    options?: HatchetClientOptions,
-    axiosConfig?: AxiosRequestConfig
-  ) {
+  constructor(config?: Config, options?: HatchetClientOptions, axiosConfig?: AxiosRequestConfig) {
     try {
       const loaded = ConfigLoader.loadClientConfig(config, {
         path: options?.config_path,
@@ -92,6 +108,10 @@ export class HatchetClient implements IHatchetClient {
       this.tenantId = clientConfig.tenant_id;
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
       this._v0 = new InternalHatchetClient(clientConfig, options, axiosConfig, this.runs);
+
+      if (config?.middleware) {
+        this._middleware = config.middleware;
+      }
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
@@ -108,7 +128,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A new Hatchet client instance
    */
   static init(
-    config?: Partial<ClientConfig>,
+    config?: Config,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
   ): HatchetClient {
@@ -220,11 +240,11 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
+  async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
     workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
     input: I,
-    options: RunOpts
-  ): WorkflowRunRef<O> {
+    options: RunOpts = {}
+  ): Promise<WorkflowRunRef<O>> {
     let name: string;
     if (typeof workflow === 'string') {
       name = workflow;
@@ -234,7 +254,21 @@ export class HatchetClient implements IHatchetClient {
       throw new Error('unable to identify workflow');
     }
 
-    return this._v0.admin.runWorkflow<I, O>(name, input, options);
+    const serializedInput = await serializeInput(input as unknown as JsonObject, this.middleware);
+    const runRef = this._v0.admin.runWorkflow<I, O>(name, serializedInput as unknown as I, options);
+
+    // Wrap the runRef to apply output deserialization
+    const originalResult = runRef.result;
+    runRef.result = async () => {
+      const output = await originalResult.call(runRef);
+      const deserializedOutput = await deserializeOutput(
+        output as unknown as JsonObject,
+        this.middleware
+      );
+      return deserializedOutput as unknown as O;
+    };
+
+    return runRef;
   }
 
   /**
@@ -269,8 +303,14 @@ export class HatchetClient implements IHatchetClient {
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
-    const run = this.runNoWait<I, O>(workflow, input, options);
-    return run.output as Promise<O>;
+    const serializedInput = await serializeInput(input as unknown as JsonObject, this.middleware);
+    const runRef = await this.runNoWait<I, O>(workflow, serializedInput as unknown as I, options);
+    const output = await runRef.result();
+    const deserializedOutput = await deserializeOutput(
+      output as unknown as JsonObject,
+      this.middleware
+    );
+    return deserializedOutput as unknown as O;
   }
 
   /**
