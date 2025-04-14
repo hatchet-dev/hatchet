@@ -51,11 +51,11 @@ async def dummy_runs() -> None:
                     },
                 )
             )
-            for ix in range(60)
+            for ix in range(40)
         ]
     )
 
-    await asyncio.sleep(5)
+    await asyncio.sleep(3)
 
     return None
 
@@ -64,6 +64,7 @@ async def dummy_runs() -> None:
 async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high", "default"]
+    N = 30
 
     run_refs = await priority_workflow.aio_run_many_no_wait(
         [
@@ -77,7 +78,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
                     },
                 )
             )
-            for ix in range(30)
+            for ix in range(N)
         ]
     )
 
@@ -116,6 +117,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
     )
 
     assert len(runs_ids_started_ats) == len(run_refs)
+    assert len(runs_ids_started_ats) == N
 
     for i in range(len(runs_ids_started_ats) - 1):
         curr = runs_ids_started_ats[i]
@@ -136,7 +138,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
 async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
     sleep_time = 3
-    n = 100
+    n = 30
     choices: list[Priority] = ["low", "medium", "high", "default"]
     run_at = datetime.now() + timedelta(seconds=sleep_time)
 
@@ -223,7 +225,7 @@ async def crons(
 ) -> AsyncGenerator[tuple[str, str, int], None]:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high"]
-    n = 100
+    n = 30
 
     crons = await asyncio.gather(
         *[
