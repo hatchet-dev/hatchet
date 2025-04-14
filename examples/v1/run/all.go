@@ -53,6 +53,19 @@ func main() {
 			fmt.Println(result.TransformedMessage)
 			return nil
 		},
+		"child": func() error {
+			parent := v1_workflows.Parent(hatchet)
+
+			result, err := parent.Run(ctx, v1_workflows.ParentInput{
+				N: 50,
+			})
+
+			if err != nil {
+				return err
+			}
+			fmt.Println("Parent result:", result.Result)
+			return nil
+		},
 		"dag": func() error {
 			dag := v1_workflows.DagWorkflow(hatchet)
 			result, err := dag.Run(ctx, v1_workflows.DagInput{

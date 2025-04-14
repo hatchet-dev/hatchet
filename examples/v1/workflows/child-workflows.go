@@ -1,8 +1,6 @@
 package v1_workflows
 
 import (
-	"sync"
-
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
@@ -51,39 +49,18 @@ func Parent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ParentInput, 
 
 			sum := 0
 
-			// Use a WaitGroup to coordinate parallel child workflows
-			var wg sync.WaitGroup
-			var mu sync.Mutex
-			var firstErr error
-
 			// Launch child workflows in parallel
 			results := make([]*ValueOutput, 0, input.N)
-			wg.Add(input.N)
 			for j := 0; j < input.N; j++ {
-				go func(index int) {
-					defer wg.Done()
-					result, err := workflow.RunChildWorkflow(ctx, child, ChildInput{N: 1})
+				result, err := workflow.RunChildWorkflow(ctx, child, ChildInput{N: 1})
 
-					mu.Lock()
-					defer mu.Unlock()
+				if err != nil {
+					// firstErr = err
+					return nil, err
+				}
 
-					if err != nil && firstErr == nil {
-						firstErr = err
-						return
-					}
+				results = append(results, result)
 
-					if firstErr == nil {
-						results = append(results, result)
-					}
-				}(j)
-			}
-
-			// Wait for all goroutines to complete
-			wg.Wait()
-
-			// Check if any errors occurred
-			if firstErr != nil {
-				return nil, firstErr
 			}
 
 			// Sum results from all children
