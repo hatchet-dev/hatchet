@@ -402,6 +402,7 @@ type CreateCronWorkflowTriggerRequest struct {
 	CronExpression     string                 `json:"cronExpression"`
 	CronName           string                 `json:"cronName"`
 	Input              map[string]interface{} `json:"input"`
+	Priority           *int32                 `json:"priority,omitempty"`
 }
 
 // CreateEventRequest defines model for CreateEventRequest.
@@ -453,6 +454,7 @@ type CronWorkflows struct {
 	Metadata           APIResourceMeta         `json:"metadata"`
 	Method             CronWorkflowsMethod     `json:"method"`
 	Name               *string                 `json:"name,omitempty"`
+	Priority           *int32                  `json:"priority,omitempty"`
 	TenantId           string                  `json:"tenantId"`
 	WorkflowId         string                  `json:"workflowId"`
 	WorkflowName       string                  `json:"workflowName"`
@@ -746,6 +748,7 @@ type SNSIntegration struct {
 type ScheduleWorkflowRunRequest struct {
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata"`
 	Input              map[string]interface{} `json:"input"`
+	Priority           *int32                 `json:"priority,omitempty"`
 	TriggerAt          time.Time              `json:"triggerAt"`
 }
 
@@ -758,6 +761,7 @@ type ScheduledWorkflows struct {
 	Input                *map[string]interface{}  `json:"input,omitempty"`
 	Metadata             APIResourceMeta          `json:"metadata"`
 	Method               ScheduledWorkflowsMethod `json:"method"`
+	Priority             *int32                   `json:"priority,omitempty"`
 	TenantId             string                   `json:"tenantId"`
 	TriggerAt            time.Time                `json:"triggerAt"`
 	WorkflowId           string                   `json:"workflowId"`
@@ -1339,6 +1343,9 @@ type V1TaskSummaryList struct {
 type V1TriggerWorkflowRunRequest struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 	Input              map[string]interface{}  `json:"input"`
+
+	// Priority The priority of the workflow run.
+	Priority *int `json:"priority,omitempty"`
 
 	// WorkflowName The name of the workflow.
 	WorkflowName string `json:"workflowName"`

@@ -509,7 +509,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "input",
     "additionalMetadata",
     "id",
-    "method"
+    "method",
+    "priority"
 ) VALUES (
     $1::uuid,
     $2::text,
@@ -517,8 +518,9 @@ INSERT INTO "WorkflowTriggerCronRef" (
     $4::jsonb,
     $5::jsonb,
     gen_random_uuid(),
-    COALESCE($6::"WorkflowTriggerCronRefMethods", 'DEFAULT')
-) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id, method
+    COALESCE($6::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
+    COALESCE($7::integer, 1)
+) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id, method, priority
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
@@ -528,6 +530,7 @@ type CreateWorkflowTriggerCronRefParams struct {
 	Input              []byte                            `json:"input"`
 	AdditionalMetadata []byte                            `json:"additionalMetadata"`
 	Method             NullWorkflowTriggerCronRefMethods `json:"method"`
+	Priority           pgtype.Int4                       `json:"priority"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
@@ -538,6 +541,7 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 		arg.Input,
 		arg.AdditionalMetadata,
 		arg.Method,
+		arg.Priority,
 	)
 	var i WorkflowTriggerCronRef
 	err := row.Scan(
@@ -553,6 +557,7 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 		&i.Name,
 		&i.ID,
 		&i.Method,
+		&i.Priority,
 	)
 	return &i, err
 }
@@ -628,7 +633,8 @@ INSERT INTO "WorkflowVersion" (
     "workflowId",
     "scheduleTimeout",
     "sticky",
-    "kind"
+    "kind",
+    "defaultPriority"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -640,20 +646,22 @@ INSERT INTO "WorkflowVersion" (
     -- Deprecated: this is set but unused
     '5m',
     $8::"StickyStrategy",
-    coalesce($9::"WorkflowKind", 'DAG')
+    coalesce($9::"WorkflowKind", 'DAG'),
+    $10 :: integer
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority"
 `
 
 type CreateWorkflowVersionParams struct {
-	ID         pgtype.UUID        `json:"id"`
-	CreatedAt  pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp   `json:"updatedAt"`
-	Deletedat  pgtype.Timestamp   `json:"deletedat"`
-	Checksum   string             `json:"checksum"`
-	Version    pgtype.Text        `json:"version"`
-	Workflowid pgtype.UUID        `json:"workflowid"`
-	Sticky     NullStickyStrategy `json:"sticky"`
-	Kind       NullWorkflowKind   `json:"kind"`
+	ID              pgtype.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp   `json:"updatedAt"`
+	Deletedat       pgtype.Timestamp   `json:"deletedat"`
+	Checksum        string             `json:"checksum"`
+	Version         pgtype.Text        `json:"version"`
+	Workflowid      pgtype.UUID        `json:"workflowid"`
+	Sticky          NullStickyStrategy `json:"sticky"`
+	Kind            NullWorkflowKind   `json:"kind"`
+	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -667,6 +675,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.Workflowid,
 		arg.Sticky,
 		arg.Kind,
+		arg.DefaultPriority,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -969,6 +978,7 @@ SELECT
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
+    COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount"
 FROM
@@ -1016,6 +1026,7 @@ type ListStepsByIdsRow struct {
 	WorkflowVersionSticky NullStickyStrategy `json:"workflowVersionSticky"`
 	WorkflowName          string             `json:"workflowName"`
 	WorkflowId            pgtype.UUID        `json:"workflowId"`
+	DefaultPriority       int32              `json:"defaultPriority"`
 	ExprCount             int64              `json:"exprCount"`
 	ConcurrencyCount      int64              `json:"concurrencyCount"`
 }
@@ -1048,6 +1059,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.WorkflowVersionSticky,
 			&i.WorkflowName,
 			&i.WorkflowId,
+			&i.DefaultPriority,
 			&i.ExprCount,
 			&i.ConcurrencyCount,
 		); err != nil {

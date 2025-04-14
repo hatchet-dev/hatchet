@@ -269,16 +269,20 @@ func (w *Worker) Use(mws ...MiddlewareFunc) {
 }
 
 func (w *Worker) NewService(name string) *Service {
-	namespace := w.client.Namespace()
-	namespaced := namespace + name
+	svcName := name
+
+	if w.client.Namespace() != "" && !strings.HasPrefix(name, w.client.Namespace()) {
+		namespace := w.client.Namespace()
+		svcName = namespace + name
+	}
 
 	svc := &Service{
-		Name:   namespaced,
+		Name:   svcName,
 		worker: w,
 		mws:    newMiddlewares(),
 	}
 
-	w.services.Store(namespaced, svc)
+	w.services.Store(svcName, svc)
 
 	return svc
 }

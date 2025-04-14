@@ -44,6 +44,8 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
+
+	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -361,6 +363,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		}
 	}
 
+	if opts.DefaultPriority != nil {
+		createParams.DefaultPriority = pgtype.Int4{
+			Int32: *opts.DefaultPriority,
+			Valid: true,
+		}
+	}
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,
@@ -477,6 +485,8 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					String: "",
 					Valid:  true,
 				},
+				// TODO: check this is right
+				Priority: sqlchelpers.ToInt(*opts.DefaultPriority),
 			},
 		)
 

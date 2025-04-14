@@ -19,7 +19,7 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
 
 
@@ -35,7 +35,15 @@ class V1TriggerWorkflowRunRequest(BaseModel):
     additional_metadata: Optional[Dict[str, Any]] = Field(
         default=None, alias="additionalMetadata"
     )
-    __properties: ClassVar[List[str]] = ["workflowName", "input", "additionalMetadata"]
+    priority: Optional[StrictInt] = Field(
+        default=None, description="The priority of the workflow run."
+    )
+    __properties: ClassVar[List[str]] = [
+        "workflowName",
+        "input",
+        "additionalMetadata",
+        "priority",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -90,6 +98,7 @@ class V1TriggerWorkflowRunRequest(BaseModel):
                 "workflowName": obj.get("workflowName"),
                 "input": obj.get("input"),
                 "additionalMetadata": obj.get("additionalMetadata"),
+                "priority": obj.get("priority"),
             }
         )
         return _obj

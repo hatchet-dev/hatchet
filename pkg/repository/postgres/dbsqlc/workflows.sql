@@ -365,7 +365,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "input",
     "additionalMetadata",
     "id",
-    "method"
+    "method",
+    "priority"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
@@ -373,7 +374,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     sqlc.narg('input')::jsonb,
     sqlc.narg('additionalMetadata')::jsonb,
     gen_random_uuid(),
-    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 
@@ -397,7 +399,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "input",
     "additionalMetadata",
     "id",
-    "method"
+    "method",
+    "priority"
 ) VALUES (
     (SELECT "id" FROM latest_trigger),
     @cronTrigger::text,
@@ -405,7 +408,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     sqlc.narg('input')::jsonb,
     sqlc.narg('additionalMetadata')::jsonb,
     gen_random_uuid(),
-    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRefForWorkflow :one
@@ -427,14 +431,16 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "triggerAt",
     "input",
     "additionalMetadata",
-    "method"
+    "method",
+    "priority"
 ) VALUES (
     gen_random_uuid(),
     (SELECT "id" FROM latest_version),
     @scheduledTrigger::timestamp,
     @input::jsonb,
     @additionalMetadata::jsonb,
-    COALESCE(sqlc.narg('method')::"WorkflowTriggerScheduledRefMethods", 'DEFAULT')
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerScheduledRefMethods", 'DEFAULT'),
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRef :one
@@ -443,13 +449,15 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "parentId",
     "triggerAt",
     "input",
-    "additionalMetadata"
+    "additionalMetadata",
+    "priority"
 ) VALUES (
     gen_random_uuid(),
     @workflowVersionId::uuid,
     @scheduledTrigger::timestamp,
     @input::jsonb,
-    @additionalMetadata::jsonb
+    @additionalMetadata::jsonb,
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 -- name: ListWorkflowsForEvent :many
@@ -555,13 +563,15 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "parentId",
     "triggerAt",
     "input",
-    "additionalMetadata"
+    "additionalMetadata",
+    "priority"
 ) VALUES (
     gen_random_uuid(),
     @workflowRunId::uuid,
     unnest(@triggerTimes::timestamp[]),
     @input::jsonb,
-    @additionalMetadata::json
+    @additionalMetadata::json,
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 -- name: GetWorkflowLatestVersion :one
