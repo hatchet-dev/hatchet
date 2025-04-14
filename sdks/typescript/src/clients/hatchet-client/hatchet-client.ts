@@ -110,11 +110,6 @@ export class InternalHatchetClient {
         ...valid,
         logger: logConstructor,
       };
-
-      // FIXME: the config loader is called twice so we get a double _
-      if (this.config.namespace) {
-        this.config.namespace = this.config.namespace.replace('__', '_');
-      }
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
