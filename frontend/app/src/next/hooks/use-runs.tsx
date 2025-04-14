@@ -181,6 +181,30 @@ export function useRuns({
     },
   });
 
+  const triggerNowMutation = useMutation({
+    mutationKey: ['workflow-run:create', tenant],
+    mutationFn: async (data: {
+      workflowName: string;
+      input: object;
+      additionalMetadata: object;
+    }) => {
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
+        workflowName: data.workflowName,
+        input: data.input,
+        additionalMetadata: data.additionalMetadata,
+      });
+
+      return res.data;
+    },
+    onSuccess: () => {
+      listRunsQuery.refetch();
+    },
+  });
+
   return {
     data: listRunsQuery.data?.rows || [],
     metrics: {
@@ -192,6 +216,7 @@ export function useRuns({
     create: createRunMutation,
     cancel: cancelRunMutation,
     replay: replayRunMutation,
+    triggerNow: triggerNowMutation,
     refetch: async () => {
       return Promise.all([listRunsQuery.refetch(), metricsRunsQuery.refetch()]);
     },
