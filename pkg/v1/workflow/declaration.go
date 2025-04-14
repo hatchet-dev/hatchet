@@ -75,6 +75,9 @@ type WorkflowDeclaration[I, O any] interface {
 	// Run executes the workflow with the provided input.
 	Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error)
 
+	// RunChild executes a child workflow with the provided input.
+	RunAsChild(ctx worker.HatchetContext, input I, opts RunAsChildOpts) (*O, error)
+
 	// RunNoWait executes the workflow with the provided input without waiting for it to complete.
 	// Instead it returns a run ID that can be used to check the status of the workflow.
 	RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error)
@@ -160,13 +163,19 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 	metrics := features.NewMetricsClient(api, &tenantId)
 	workflows := features.NewWorkflowsClient(api, &tenantId)
 
+	workflowName := opts.Name
+
+	if ns := v0.Namespace(); ns != "" && !strings.HasPrefix(opts.Name, ns) {
+		workflowName = fmt.Sprintf("%s%s", ns, workflowName)
+	}
+
 	wf := &workflowDeclarationImpl[I, O]{
 		v0:          v0,
 		crons:       crons,
 		schedules:   schedules,
 		metrics:     metrics,
 		workflows:   workflows,
-		Name:        opts.Name,
+		Name:        workflowName,
 		OnEvents:    opts.OnEvents,
 		OnCron:      opts.OnCron,
 		Concurrency: opts.Concurrency,
@@ -494,9 +503,6 @@ func (w *workflowDeclarationImpl[I, O]) RunBulkNoWait(ctx context.Context, input
 // RunNoWait executes the workflow with the provided input without waiting for it to complete.
 // Instead it returns a run ID that can be used to check the status of the workflow.
 func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*v0Client.Workflow, error) {
-
-	// TODO namespace
-
 	run, err := w.v0.Admin().RunWorkflow(w.Name, input, opts...)
 	if err != nil {
 		return nil, err
@@ -505,11 +511,26 @@ func (w *workflowDeclarationImpl[I, O]) RunNoWait(ctx context.Context, input I, 
 	return run, nil
 }
 
-// Run executes the workflow with the provided input.
-// It triggers a workflow run via the Hatchet client and waits for the result.
-// Returns the workflow output and any error encountered during execution.
-func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error) {
-	run, err := w.RunNoWait(ctx, input, opts...)
+// RunAsChild executes the workflow as a child workflow with the provided input.
+func (w *workflowDeclarationImpl[I, O]) RunAsChild(ctx worker.HatchetContext, input I, opts RunAsChildOpts) (*O, error) {
+	var additionalMetaOpt *map[string]string
+
+	if opts.AdditionalMetadata != nil {
+		additionalMeta := make(map[string]string)
+
+		for key, value := range *opts.AdditionalMetadata {
+			additionalMeta[key] = fmt.Sprintf("%v", value)
+		}
+
+		additionalMetaOpt = &additionalMeta
+	}
+
+	run, err := ctx.SpawnWorkflow(w.Name, input, &worker.SpawnWorkflowOpts{
+		Key:                opts.Key,
+		Sticky:             opts.Sticky,
+		Priority:           opts.Priority,
+		AdditionalMetadata: additionalMetaOpt,
+	})
 
 	if err != nil {
 		return nil, err
@@ -521,6 +542,10 @@ func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts .
 		return nil, err
 	}
 
+	return w.getOutputFromWorkflowResult(workflowResult)
+}
+
+func (w *workflowDeclarationImpl[I, O]) getOutputFromWorkflowResult(workflowResult *v0Client.WorkflowResult) (*O, error) {
 	// Create a new output object
 	var output O
 
@@ -564,6 +589,25 @@ func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts .
 	}
 
 	return &output, nil
+}
+
+// Run executes the workflow with the provided input.
+// It triggers a workflow run via the Hatchet client and waits for the result.
+// Returns the workflow output and any error encountered during execution.
+func (w *workflowDeclarationImpl[I, O]) Run(ctx context.Context, input I, opts ...v0Client.RunOptFunc) (*O, error) {
+	run, err := w.RunNoWait(ctx, input, opts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workflowResult, err := run.Result()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return w.getOutputFromWorkflowResult(workflowResult)
 }
 
 // Helper function to get field names and types of a struct
