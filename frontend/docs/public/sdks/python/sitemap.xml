@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://docs.onhatchet.run/docs/sdks/python/index.html</loc>
+         <lastmod>2025-04-14</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.onhatchet.run/docs/sdks/python/api/client.html</loc>
+         <lastmod>2025-04-14</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.onhatchet.run/docs/sdks/python/api/features.html</loc>
+         <lastmod>2025-04-14</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.onhatchet.run/docs/sdks/python/api/runnables.html</loc>
+         <lastmod>2025-04-14</lastmod>
+    </url>
+    <url>
+         <loc>https://docs.onhatchet.run/docs/sdks/python/api/worker.html</loc>
+         <lastmod>2025-04-14</lastmod>
+    </url>
+</urlset>
