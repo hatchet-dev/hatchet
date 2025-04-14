@@ -270,7 +270,7 @@ export interface CreateWorkflowVersionRequest {
   cronTriggers: string[];
   /** (required) the workflow jobs */
   tasks: CreateTaskOpts[];
-  /** Deprecated: use concurrency_arr instead */
+  /** (optional) the workflow concurrency options */
   concurrency: Concurrency | undefined;
   /** (optional) the input for the cron trigger */
   cronInput?: string | undefined;
@@ -278,8 +278,8 @@ export interface CreateWorkflowVersionRequest {
   onFailureTask?: CreateTaskOpts | undefined;
   /** (optional) the sticky strategy for assigning steps to workers */
   sticky?: StickyStrategy | undefined;
-  /** (optional) the workflow concurrency options */
-  concurrencyArr: Concurrency[];
+  /** (optional) the default priority for the workflow */
+  defaultPriority?: number | undefined;
 }
 
 export interface Concurrency {
@@ -962,7 +962,7 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     cronInput: undefined,
     onFailureTask: undefined,
     sticky: undefined,
-    concurrencyArr: [],
+    defaultPriority: undefined,
   };
 }
 
@@ -1001,8 +1001,8 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.sticky !== undefined) {
       writer.uint32(80).int32(message.sticky);
     }
-    for (const v of message.concurrencyArr) {
-      Concurrency.encode(v!, writer.uint32(90).fork()).join();
+    if (message.defaultPriority !== undefined) {
+      writer.uint32(88).int32(message.defaultPriority);
     }
     return writer;
   },
@@ -1095,11 +1095,11 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           continue;
         }
         case 11: {
-          if (tag !== 90) {
+          if (tag !== 88) {
             break;
           }
 
-          message.concurrencyArr.push(Concurrency.decode(reader, reader.uint32()));
+          message.defaultPriority = reader.int32();
           continue;
         }
       }
@@ -1131,9 +1131,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         ? CreateTaskOpts.fromJSON(object.onFailureTask)
         : undefined,
       sticky: isSet(object.sticky) ? stickyStrategyFromJSON(object.sticky) : undefined,
-      concurrencyArr: globalThis.Array.isArray(object?.concurrencyArr)
-        ? object.concurrencyArr.map((e: any) => Concurrency.fromJSON(e))
-        : [],
+      defaultPriority: isSet(object.defaultPriority)
+        ? globalThis.Number(object.defaultPriority)
+        : undefined,
     };
   },
 
@@ -1169,8 +1169,8 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.sticky !== undefined) {
       obj.sticky = stickyStrategyToJSON(message.sticky);
     }
-    if (message.concurrencyArr?.length) {
-      obj.concurrencyArr = message.concurrencyArr.map((e) => Concurrency.toJSON(e));
+    if (message.defaultPriority !== undefined) {
+      obj.defaultPriority = Math.round(message.defaultPriority);
     }
     return obj;
   },
@@ -1196,7 +1196,7 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         ? CreateTaskOpts.fromPartial(object.onFailureTask)
         : undefined;
     message.sticky = object.sticky ?? undefined;
-    message.concurrencyArr = object.concurrencyArr?.map((e) => Concurrency.fromPartial(e)) || [];
+    message.defaultPriority = object.defaultPriority ?? undefined;
     return message;
   },
 };

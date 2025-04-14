@@ -52,4 +52,7 @@ type WorkflowCreateOpts[I any] struct {
 
 	// (optional) The key to use for the output of the workflow (i.e. the name of the fn where O is the output type)
 	OutputKey *string
+
+	// (optional) The default priority for tasks in this workflow
+	DefaultPriority *int32
 }

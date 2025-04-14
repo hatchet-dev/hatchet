@@ -2964,6 +2964,7 @@ type WorkflowTriggerCronRef struct {
 	Name               pgtype.Text                   `json:"name"`
 	ID                 pgtype.UUID                   `json:"id"`
 	Method             WorkflowTriggerCronRefMethods `json:"method"`
+	Priority           int32                         `json:"priority"`
 }
 
 type WorkflowTriggerEventRef struct {
@@ -2986,6 +2987,7 @@ type WorkflowTriggerScheduledRef struct {
 	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
 	UpdatedAt           pgtype.Timestamp                   `json:"updatedAt"`
 	Method              WorkflowTriggerScheduledRefMethods `json:"method"`
+	Priority            int32                              `json:"priority"`
 }
 
 type WorkflowTriggers struct {

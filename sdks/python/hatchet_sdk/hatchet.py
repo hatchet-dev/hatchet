@@ -271,6 +271,7 @@ class Hatchet:
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
                 task_defaults=task_defaults,
+                default_priority=default_priority,
             ),
             self,
         )

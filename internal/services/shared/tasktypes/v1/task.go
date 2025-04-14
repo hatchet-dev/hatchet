@@ -202,3 +202,8 @@ type NotifyFinalizedPayload struct {
 	// (required) the status of the task
 	Status sqlcv1.V1ReadableStatusOlap
 }
+
+type CandidateFinalizedPayload struct {
+	// (required) the workflow run id (can either be a workflow run id or single task)
+	WorkflowRunId string `validate:"required"`
+}

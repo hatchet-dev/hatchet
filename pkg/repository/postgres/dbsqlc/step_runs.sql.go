@@ -990,6 +990,7 @@ SELECT
     sr."output",
     sr."error",
     sr."status",
+    COALESCE(sr."priority", 1) AS "priority",
     jr."id" AS "jobRunId",
     jr."status" AS "jobRunStatus",
     jr."status" AS "jobRunStatus",
@@ -1043,6 +1044,7 @@ type GetStepRunBulkDataForEngineRow struct {
 	Output              []byte        `json:"output"`
 	Error               pgtype.Text   `json:"error"`
 	Status              StepRunStatus `json:"status"`
+	Priority            int32         `json:"priority"`
 	JobRunId            pgtype.UUID   `json:"jobRunId"`
 	JobRunStatus        JobRunStatus  `json:"jobRunStatus"`
 	JobRunStatus_2      JobRunStatus  `json:"jobRunStatus_2"`
@@ -1082,6 +1084,7 @@ func (q *Queries) GetStepRunBulkDataForEngine(ctx context.Context, db DBTX, arg 
 			&i.Output,
 			&i.Error,
 			&i.Status,
+			&i.Priority,
 			&i.JobRunId,
 			&i.JobRunStatus,
 			&i.JobRunStatus_2,

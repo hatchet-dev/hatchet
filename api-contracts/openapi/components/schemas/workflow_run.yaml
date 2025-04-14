@@ -210,6 +210,11 @@ ScheduledWorkflows:
       format: uuid
     method:
       $ref: "#/ScheduledWorkflowsMethod"
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - metadata
     - tenantId
@@ -268,6 +273,11 @@ CronWorkflows:
       type: boolean
     method:
       $ref: "#/CronWorkflowsMethod"
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - metadata
     - tenantId
@@ -698,6 +708,11 @@ CreateCronWorkflowTriggerRequest:
       type: string
     cronExpression:
       type: string
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - input
     - additionalMetadata
@@ -713,6 +728,11 @@ ScheduleWorkflowRunRequest:
     triggerAt:
       type: string
       format: date-time
+    priority:
+      type: integer
+      minimum: 1
+      maximum: 3
+      format: int32
   required:
     - input
     - additionalMetadata

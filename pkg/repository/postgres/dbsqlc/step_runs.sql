@@ -56,6 +56,7 @@ SELECT
     sr."output",
     sr."error",
     sr."status",
+    COALESCE(sr."priority", 1) AS "priority",
     jr."id" AS "jobRunId",
     jr."status" AS "jobRunStatus",
     jr."status" AS "jobRunStatus",

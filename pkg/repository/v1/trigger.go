@@ -52,6 +52,8 @@ type TriggerTaskData struct {
 
 	// (optional) the child key
 	ChildKey *string `json:"child_key"`
+
+	Priority *int32 `json:"priority"`
 }
 
 type createDAGOpts struct {
@@ -214,6 +216,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 				parentTaskInsertedAt: opt.ParentTaskInsertedAt,
 				childIndex:           opt.ChildIndex,
 				childKey:             opt.ChildKey,
+				priority:             opt.Priority,
 			})
 		}
 	}
@@ -304,6 +307,8 @@ type triggerTuple struct {
 	additionalMetadata []byte
 
 	desiredWorkerId *string
+
+	priority *int32
 
 	// relevant parameters for child workflows
 	parentExternalId     *string
@@ -691,6 +696,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						StepIndex:            stepIndex,
 						ChildIndex:           tuple.childIndex,
 						ChildKey:             tuple.childKey,
+						Priority:             tuple.priority,
 					}
 
 					if isDag {

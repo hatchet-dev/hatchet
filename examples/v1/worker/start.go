@@ -45,6 +45,7 @@ func main() {
 		"retries":       {v1_workflows.Retries(hatchet), v1_workflows.RetriesWithCount(hatchet), v1_workflows.WithBackoff(hatchet)},
 		"on-cron":       {v1_workflows.OnCron(hatchet)},
 		"non-retryable": {v1_workflows.NonRetryableError(hatchet)},
+		"priority":      {v1_workflows.Priority(hatchet)},
 	}
 
 	// Add an "all" option that registers all workflows
@@ -57,15 +58,23 @@ func main() {
 	// Lookup workflow from map
 	workflow, ok := workflowMap[workflowName]
 	if !ok {
-		fmt.Println("Invalid workflow name provided. Usage: go run examples/v1/worker/ [workflow-name]")
+		fmt.Println("Invalid workflow name provided. Usage: go run examples/v1/worker/start.go [workflow-name]")
 		fmt.Println("Available workflows:", getAvailableWorkflows(workflowMap))
 		os.Exit(1)
+	}
+
+	var slots int
+	if workflowName == "priority" {
+		slots = 1
+	} else {
+		slots = 100
 	}
 
 	worker, err := hatchet.Worker(
 		worker.WorkerOpts{
 			Name:      fmt.Sprintf("%s-worker", workflowName),
 			Workflows: workflow,
+			Slots:     slots,
 		},
 	)
 

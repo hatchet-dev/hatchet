@@ -45,6 +45,7 @@ message TriggerWorkflowRunRequest {
     string workflow_name = 1;
     bytes input = 2;
     bytes additional_metadata = 3;
+    optional int32 priority = 4;
 }
 
 message TriggerWorkflowRunResponse {
@@ -80,7 +81,8 @@ message CreateWorkflowVersionRequest {
     optional string cron_input = 8; // (optional) the input for the cron trigger
     optional CreateTaskOpts on_failure_task = 9; // (optional) the job to run on failure
     optional StickyStrategy sticky = 10; // (optional) the sticky strategy for assigning steps to workers
-    repeated Concurrency concurrency_arr = 11; // (optional) the workflow concurrency options
+    optional int32 default_priority = 11; // (optional) the default priority for the workflow
+    repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
 }
 
 enum ConcurrencyLimitStrategy {
