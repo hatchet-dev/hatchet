@@ -486,7 +486,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		sticky = &s
 	}
 
-	var concurrency *v1.CreateConcurrencyOpts
+	var concurrency []v1.CreateConcurrencyOpts
 
 	if req.Concurrency != nil {
 		if req.Concurrency.Expression == "" {
@@ -503,11 +503,33 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			limitStrategy = &s
 		}
 
-		concurrency = &v1.CreateConcurrencyOpts{
+		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
 			LimitStrategy: limitStrategy,
 			Expression:    req.Concurrency.Expression,
 			MaxRuns:       req.Concurrency.MaxRuns,
+		})
+	}
+
+	for _, c := range req.ConcurrencyArr {
+		if c.Expression == "" {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"CEL expression is required for concurrency",
+			)
 		}
+
+		var limitStrategy *string
+
+		if c.LimitStrategy != nil && c.LimitStrategy.String() != "" {
+			s := c.LimitStrategy.String()
+			limitStrategy = &s
+		}
+
+		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
+			LimitStrategy: limitStrategy,
+			Expression:    c.Expression,
+			MaxRuns:       c.MaxRuns,
+		})
 	}
 
 	var cronInput []byte

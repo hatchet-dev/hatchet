@@ -501,6 +501,100 @@ func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg Cr
 	return &i, err
 }
 
+const createWorkflowConcurrencyV1 = `-- name: CreateWorkflowConcurrencyV1 :one
+WITH inserted_wcs AS (
+    INSERT INTO v1_workflow_concurrency (
+      workflow_id,
+      workflow_version_id,
+      strategy,
+      expression,
+      tenant_id,
+      max_concurrency
+    )
+    VALUES (
+      $1::uuid,
+      $2::uuid,
+      $3::v1_concurrency_strategy,
+      $4,
+      $5::uuid,
+      COALESCE($6::integer, 1)
+    )
+    RETURNING id, workflow_id, workflow_version_id, is_active, strategy, child_strategy_ids, expression, tenant_id, max_concurrency
+), inserted_scs AS (
+    INSERT INTO v1_step_concurrency (
+      parent_strategy_id,
+      workflow_id,
+      workflow_version_id,
+      step_id,
+      strategy,
+      expression,
+      tenant_id,
+      max_concurrency
+    )
+    SELECT
+      wcs.id,
+      s."workflowId",
+      s."workflowVersionId",
+      s."id",
+      $3::v1_concurrency_strategy,
+      $4,
+      s."tenantId",
+      COALESCE($6::integer, 1)
+    FROM (
+        SELECT
+          s."id",
+          wf."id" AS "workflowId",
+          wv."id" AS "workflowVersionId",
+          wf."tenantId"
+        FROM "Step" s
+        JOIN "Job" j ON s."jobId" = j."id"
+        JOIN "WorkflowVersion" wv ON j."workflowVersionId" = wv."id"
+        JOIN "Workflow" wf ON wv."workflowId" = wf."id"
+        WHERE
+          wv."id" = $2::uuid
+          AND j."kind" = 'DEFAULT'
+    ) s, inserted_wcs wcs
+    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+)
+SELECT
+    wcs.id,
+    ARRAY_AGG(scs.id)::bigint[] AS child_strategy_ids
+FROM
+    inserted_wcs wcs
+JOIN
+    inserted_scs scs ON scs.parent_strategy_id = wcs.id
+GROUP BY
+    wcs.id
+`
+
+type CreateWorkflowConcurrencyV1Params struct {
+	Workflowid        pgtype.UUID           `json:"workflowid"`
+	Workflowversionid pgtype.UUID           `json:"workflowversionid"`
+	Limitstrategy     V1ConcurrencyStrategy `json:"limitstrategy"`
+	Expression        string                `json:"expression"`
+	Tenantid          pgtype.UUID           `json:"tenantid"`
+	MaxRuns           pgtype.Int4           `json:"maxRuns"`
+}
+
+type CreateWorkflowConcurrencyV1Row struct {
+	ID               int64   `json:"id"`
+	ChildStrategyIds []int64 `json:"child_strategy_ids"`
+}
+
+func (q *Queries) CreateWorkflowConcurrencyV1(ctx context.Context, db DBTX, arg CreateWorkflowConcurrencyV1Params) (*CreateWorkflowConcurrencyV1Row, error) {
+	row := db.QueryRow(ctx, createWorkflowConcurrencyV1,
+		arg.Workflowid,
+		arg.Workflowversionid,
+		arg.Limitstrategy,
+		arg.Expression,
+		arg.Tenantid,
+		arg.MaxRuns,
+	)
+	var i CreateWorkflowConcurrencyV1Row
+	err := row.Scan(&i.ID, &i.ChildStrategyIds)
+	return &i, err
+}
+
 const createWorkflowTriggerCronRef = `-- name: CreateWorkflowTriggerCronRef :one
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
@@ -1260,6 +1354,32 @@ type MoveScheduledTriggerToNewWorkflowTriggersParams struct {
 
 func (q *Queries) MoveScheduledTriggerToNewWorkflowTriggers(ctx context.Context, db DBTX, arg MoveScheduledTriggerToNewWorkflowTriggersParams) error {
 	_, err := db.Exec(ctx, moveScheduledTriggerToNewWorkflowTriggers, arg.Newworkflowtriggerid, arg.Oldworkflowversionid)
+	return err
+}
+
+const updateWorkflowConcurrencyWithChildStrategyIds = `-- name: UpdateWorkflowConcurrencyWithChildStrategyIds :exec
+UPDATE v1_workflow_concurrency
+SET child_strategy_ids = $1::bigint[]
+WHERE workflow_id = $2::uuid
+  AND workflow_version_id = $3::uuid
+  AND id = $4::bigint
+`
+
+type UpdateWorkflowConcurrencyWithChildStrategyIdsParams struct {
+	Childstrategyids      []int64     `json:"childstrategyids"`
+	Workflowid            pgtype.UUID `json:"workflowid"`
+	Workflowversionid     pgtype.UUID `json:"workflowversionid"`
+	Workflowconcurrencyid int64       `json:"workflowconcurrencyid"`
+}
+
+// Update the workflow concurrency row using its primary key.
+func (q *Queries) UpdateWorkflowConcurrencyWithChildStrategyIds(ctx context.Context, db DBTX, arg UpdateWorkflowConcurrencyWithChildStrategyIdsParams) error {
+	_, err := db.Exec(ctx, updateWorkflowConcurrencyWithChildStrategyIds,
+		arg.Childstrategyids,
+		arg.Workflowid,
+		arg.Workflowversionid,
+		arg.Workflowconcurrencyid,
+	)
 	return err
 }
 
