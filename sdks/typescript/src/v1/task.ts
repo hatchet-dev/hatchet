@@ -3,6 +3,7 @@ import { Context, CreateStep, DurableContext } from '@hatchet/step';
 import { Conditions } from './conditions';
 import { Duration } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
+import { Middleware } from './next/middleware/middleware';
 
 /**
  * Options for configuring the concurrency for a task.
@@ -131,6 +132,11 @@ export type CreateBaseTaskOpts<
    * (optional) the concurrency options for the task
    */
   concurrency?: TaskConcurrency | TaskConcurrency[];
+
+  /**
+   * (optional) the middleware for the task
+   */
+  middleware?: Middleware;
 };
 
 export type CreateWorkflowTaskOpts<

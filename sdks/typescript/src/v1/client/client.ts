@@ -34,15 +34,29 @@ import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
 import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
 import { RatelimitsClient } from './features';
+import { Middleware } from '../next/middleware/middleware';
+
+export interface RuntimeOpts {
+  middleware?: Middleware;
+}
+
+type Config = Partial<ClientConfig> & RuntimeOpts;
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
  * It provides methods for creating and executing workflows, as well as managing workers.
  */
+
 export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
   _v0: InternalHatchetClient;
   _api: Api;
+
+  private _middleware?: Middleware;
+
+  get middleware() {
+    return this._middleware;
+  }
 
   /**
    * @deprecated v0 client will be removed in a future release, please upgrade to v1
@@ -66,11 +80,7 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Optional client options
    * @param axiosConfig - Optional Axios configuration for HTTP requests
    */
-  constructor(
-    config?: Partial<ClientConfig>,
-    options?: HatchetClientOptions,
-    axiosConfig?: AxiosRequestConfig
-  ) {
+  constructor(config?: Config, options?: HatchetClientOptions, axiosConfig?: AxiosRequestConfig) {
     try {
       const loaded = ConfigLoader.loadClientConfig(config, {
         path: options?.config_path,
@@ -92,6 +102,10 @@ export class HatchetClient implements IHatchetClient {
       this.tenantId = clientConfig.tenant_id;
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
       this._v0 = new InternalHatchetClient(clientConfig, options, axiosConfig, this.runs);
+
+      if (config?.middleware) {
+        this._middleware = config.middleware;
+      }
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
@@ -108,7 +122,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A new Hatchet client instance
    */
   static init(
-    config?: Partial<ClientConfig>,
+    config?: Config,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
   ): HatchetClient {

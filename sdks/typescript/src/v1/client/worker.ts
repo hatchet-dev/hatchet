@@ -4,8 +4,10 @@ import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
 import { V0Worker } from '@clients/worker';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
+import { Context } from '@hatchet/step';
 import { BaseWorkflowDeclaration } from '../declaration';
 import { HatchetClient } from '..';
+import { MiddlewareFn } from '../next/middleware/middleware';
 
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
@@ -81,6 +83,70 @@ export class Worker {
     return worker;
   }
 
+  private async bindMiddleware(wf: BaseWorkflowDeclaration<any, any>) {
+    const tasks = wf.definition._tasks.map((task) => {
+      if (!task.middleware) {
+        // eslint-disable-next-line no-param-reassign
+        task.middleware = {
+          deserialize: [],
+          serialize: [],
+        };
+      }
+
+      const originalFn = task.fn;
+
+      // Create a function that composes multiple middleware functions
+      const composeMiddleware = (fns: MiddlewareFn[]) => {
+        return async (input: any, ctx: Context<any, any>) => {
+          let result = input;
+          for (const fn of fns) {
+            result = await fn(result, ctx);
+          }
+          return result;
+        };
+      };
+
+      // Get deserialize and serialize middleware arrays
+      let deserializeMiddleware = Array.isArray(task.middleware.deserialize)
+        ? task.middleware.deserialize
+        : [task.middleware.deserialize];
+      let serializeMiddleware = Array.isArray(task.middleware.serialize)
+        ? task.middleware.serialize
+        : [task.middleware.serialize];
+
+      if (this._v1.middleware) {
+        const clientDeserialize = Array.isArray(this._v1.middleware.deserialize)
+          ? this._v1.middleware.deserialize
+          : [this._v1.middleware.deserialize];
+        const clientSerialize = Array.isArray(this._v1.middleware.serialize)
+          ? this._v1.middleware.serialize
+          : [this._v1.middleware.serialize];
+
+        deserializeMiddleware = [...clientDeserialize, ...deserializeMiddleware];
+        serializeMiddleware = [...serializeMiddleware, ...clientSerialize];
+      }
+
+      // Compose the middleware with the original function
+      // eslint-disable-next-line no-param-reassign
+      task.fn = async (input: any, ctx: Context<any, any>) => {
+        // Apply deserialize middleware
+        const deserializedInput = await composeMiddleware(deserializeMiddleware)(input, ctx);
+
+        // Run the original function
+        const result = await originalFn(deserializedInput, ctx);
+
+        // Apply serialize middleware
+        return composeMiddleware(serializeMiddleware)(result, ctx);
+      };
+
+      return task;
+    });
+
+    // eslint-disable-next-line no-param-reassign
+    wf.definition._tasks = tasks;
+    return wf;
+  }
+
   /**
    * Registers workflows with the worker
    * @param workflows - Array of workflows to register
@@ -90,8 +156,10 @@ export class Worker {
     return Promise.all(
       workflows?.map(async (wf) => {
         if (wf instanceof BaseWorkflowDeclaration) {
+          const withMiddleware = await this.bindMiddleware(wf);
+
           // TODO check if tenant is V1
-          const register = this.nonDurable.registerWorkflowV1(wf);
+          const register = this.nonDurable.registerWorkflowV1(withMiddleware);
 
           if (wf.definition._durableTasks.length > 0) {
             if (!this.durable) {
@@ -100,7 +168,7 @@ export class Worker {
                 maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
               });
             }
-            this.durable.registerDurableActionsV1(wf.definition);
+            this.durable.registerDurableActionsV1(withMiddleware.definition);
           }
 
           return register;
