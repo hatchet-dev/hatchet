@@ -33,7 +33,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.worker.worker import Worker
+from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 
 class Hatchet:
@@ -134,8 +134,10 @@ class Hatchet:
         self,
         name: str,
         slots: int = 100,
+        durable_slots: int = 1_000,
         labels: dict[str, str | int] = {},
         workflows: list[BaseWorkflow[Any]] = [],
+        lifespan: LifespanFn | None = None,
     ) -> Worker:
         """
         Create a Hatchet worker on which to run workflows.
@@ -165,11 +167,13 @@ class Hatchet:
         return Worker(
             name=name,
             slots=slots,
+            durable_slots=durable_slots,
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,
             owned_loop=loop is None,
             workflows=workflows,
+            lifespan=lifespan,
         )
 
     @overload
