@@ -182,7 +182,7 @@ export function useRuns({
   });
 
   const triggerNowMutation = useMutation({
-    mutationKey: ['workflow-run:create', tenant],
+    mutationKey: ['workflow-run:create', tenant?.metadata.id],
     mutationFn: async (data: {
       workflowName: string;
       input: object;
