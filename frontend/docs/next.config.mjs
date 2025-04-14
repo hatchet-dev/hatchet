@@ -31,7 +31,7 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/:path((?!home|v1|v0|sdks|compute|contributing|self-hosting|launches|blog|favicon\\.ico|hatchet_logo\\.png|_next/.*|monitoring\-demo\.mp4).*)',
+        source: '/:path((?!home|v1|v0|compute|sdk|contributing|self-hosting|launches|blog|favicon\\.ico|hatchet_logo\\.png|_next/.*|monitoring\-demo\.mp4).*)',
         destination: '/home/:path*',
         permanent: false,
       },
