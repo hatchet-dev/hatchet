@@ -45,12 +45,20 @@ export function TriggerRunModal({
 }) {
   const navigate = useNavigate();
   const { data: workflows } = useDefinitions();
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<
+    string | undefined
+  >(defaultWorkflowId);
+
   const { data: recentRuns } = useRuns({
     pagination: {
       ...PaginationManagerNoOp,
       pageSize: 5,
     },
+    filters: {
+      workflows_ids: selectedWorkflowId ? [selectedWorkflowId] : undefined,
+    },
   });
+
   const [selectedRunId, setSelectedRunId] = useState<string>(
     defaultRunId || '',
   );
@@ -80,9 +88,6 @@ export function TriggerRunModal({
   );
   const [cronExpression, setCronExpression] = useState<string>('* * * * *');
   const [cronName, setCronName] = useState<string>('');
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<
-    string | undefined
-  >(defaultWorkflowId);
 
   const resetForm = () => {
     setInput(defaultInput);
@@ -276,7 +281,20 @@ export function TriggerRunModal({
           </div>
 
           <div>
-            <label className="text-sm font-medium">Input</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Input</label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setInput('{}');
+                  setSelectedRunId('');
+                }}
+                className="h-8 px-2"
+              >
+                Clear
+              </Button>
+            </div>
             <CodeEditor
               language="json"
               className="mt-1"
@@ -287,7 +305,17 @@ export function TriggerRunModal({
           </div>
 
           <div>
-            <label className="text-sm font-medium">Additional Metadata</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Additional Metadata</label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAddlMeta('{}')}
+                className="h-8 px-2"
+              >
+                Clear
+              </Button>
+            </div>
             <CodeEditor
               language="json"
               className="mt-1"
