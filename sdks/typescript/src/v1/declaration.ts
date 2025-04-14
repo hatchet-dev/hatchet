@@ -311,13 +311,37 @@ export class BaseWorkflowDeclaration<
    * @returns A promise that resolves with the workflow result.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async run(input: I, options?: RunOpts, _standaloneTaskName?: string): Promise<O> {
+  async run(input: I, options?: RunOpts, _standaloneTaskName?: string): Promise<O>;
+  async run(input: I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O[]>;
+  async run(input: I | I[], options?: RunOpts, _standaloneTaskName?: string): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const runRef = await this.runNoWait(input, options, _standaloneTaskName);
-    return runRef.result();
+    if (Array.isArray(input)) {
+      return Promise.all(input.map((i) => this.run(i, options, _standaloneTaskName)));
+    }
+
+    const serializedInput = await serializeInput(
+      input as unknown as JsonObject,
+      this.client.middleware
+    );
+    const res = this.client._v0.admin.runWorkflow<I, O>(
+      this.name,
+      serializedInput as unknown as I,
+      options
+    );
+
+    if (_standaloneTaskName) {
+      res._standalone_task_name = _standaloneTaskName;
+    }
+
+    const output = await res.result();
+    const deserializedOutput = await deserializeOutput(
+      output as unknown as JsonObject,
+      this.client.middleware
+    );
+    return deserializedOutput as unknown as O;
   }
 
   /**
@@ -661,18 +685,19 @@ export class TaskWorkflowDeclaration<
     return res;
   }
 
-  async run(input: I, options?: RunOpts): Promise<O> {
+  async run(input: I, options?: RunOpts): Promise<O>;
+  async run(input: I[], options?: RunOpts): Promise<O[]>;
+  async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const res = await super.runNoWait(input, options, this._standalone_task_name);
-    const output = await res.result();
-    const deserializedOutput = await deserializeOutput(
-      output as unknown as JsonObject,
-      this.client.middleware
-    );
-    return deserializedOutput as unknown as O;
+    if (Array.isArray(input)) {
+      return Promise.all(input.map((i) => this.run(i, options)));
+    }
+
+    const runRef = await this.runNoWait(input, options);
+    return runRef.result();
   }
 
   get taskDef() {
