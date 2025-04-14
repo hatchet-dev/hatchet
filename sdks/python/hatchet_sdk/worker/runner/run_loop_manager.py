@@ -23,7 +23,7 @@ class WorkerActionRunLoopManager:
         self,
         name: str,
         action_registry: dict[str, Task[Any, Any]],
-        slots: int | None,
+        slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
         event_queue: "Queue[ActionEvent]",
@@ -31,6 +31,7 @@ class WorkerActionRunLoopManager:
         handle_kill: bool = True,
         debug: bool = False,
         labels: dict[str, str | int] = {},
+        lifespan_context: Any | None = None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
@@ -42,6 +43,7 @@ class WorkerActionRunLoopManager:
         self.handle_kill = handle_kill
         self.debug = debug
         self.labels = labels
+        self.lifespan_context = lifespan_context
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
@@ -86,6 +88,7 @@ class WorkerActionRunLoopManager:
             self.handle_kill,
             self.action_registry,
             self.labels,
+            self.lifespan_context,
         )
 
         logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")

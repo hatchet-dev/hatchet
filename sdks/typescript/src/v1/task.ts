@@ -205,12 +205,6 @@ export type CreateWorkflowTaskOpts<
   skipIf?: Conditions | Conditions[];
 };
 
-export type CreateStandaloneTaskOpts<
-  I extends InputType = UnknownInputType,
-  O extends OutputType = void,
-  C extends TaskFn<I, O> = TaskFn<I, O>,
-> = CreateBaseTaskOpts<I, O, C>;
-
 /**
  * Options for creating a hatchet durable task which is an atomic unit of work in a workflow.
  * @template I The input type for the task function.
@@ -221,17 +215,6 @@ export type CreateWorkflowDurableTaskOpts<
   O extends OutputType = void,
   C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
 > = CreateWorkflowTaskOpts<I, O, C>;
-
-/**
- * Options for creating a hatchet task which is an atomic unit of work in a workflow.
- * @template I The input type for the task function.
- * @template O The return type of the task function (can be inferred from the return value of fn).
- */
-export type CreateStandaloneDurableTaskOpts<
-  I extends InputType = UnknownInputType,
-  O extends OutputType = void,
-  C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
-> = CreateBaseTaskOpts<I, O, C>;
 
 /**
  * Options for configuring the onSuccess task that is invoked when a task succeeds.
