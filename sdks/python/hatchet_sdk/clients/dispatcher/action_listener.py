@@ -278,7 +278,7 @@ class ActionListener:
                     assigned_action, _, is_eof = t.result()
 
                     if is_eof:
-                        logger.warning("Handling EOF in Action Listener")
+                        logger.debug("Handling EOF in Action Listener")
                         self.retries = self.retries + 1
                         break
 

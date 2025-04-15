@@ -133,7 +133,7 @@ class PooledListener(Generic[R, T, L], ABC):
                             event, key, is_eof = t.result()
 
                             if is_eof:
-                                logger.warning(
+                                logger.debug(
                                     f"Handling EOF in Pooled Listener {self.__class__.__name__}"
                                 )
                                 break
