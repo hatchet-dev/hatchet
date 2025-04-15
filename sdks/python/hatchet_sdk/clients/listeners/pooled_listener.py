@@ -5,7 +5,6 @@ from typing import Generic, Literal, TypeVar
 
 import grpc
 import grpc.aio
-from grpc._cython import cygrpc  # type: ignore[attr-defined]
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.config import ClientConfig
@@ -131,9 +130,12 @@ class PooledListener(Generic[R, T, L], ABC):
                                 await asyncio.sleep(DEFAULT_LISTENER_RETRY_INTERVAL)
                                 break
 
-                            event, key = t.result()
+                            event, key, is_eof = t.result()
 
-                            if event is cygrpc.EOF:
+                            if is_eof:
+                                logger.warning(
+                                    f"Handling EOF in Pooled Listener {self.__class__.__name__}"
+                                )
                                 break
 
                             subscriptions = self.to_subscriptions.get(key, [])
