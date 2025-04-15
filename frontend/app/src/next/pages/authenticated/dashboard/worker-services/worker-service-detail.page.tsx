@@ -1,10 +1,9 @@
-import { useMemo, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useMemo, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import useWorkers from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { WorkerStats } from './components';
-import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -16,10 +15,16 @@ import docs from '@/next/docs-meta-data';
 import { WorkerTable } from './components/worker-table';
 import { FilterProvider } from '@/next/hooks/use-filters';
 import { ROUTES } from '@/next/lib/routes';
+import { WorkerDetailSheet } from './components/worker-detail-sheet';
+import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 
 export default function ServiceDetailPage() {
-  const { serviceName = '' } = useParams<{ serviceName: string }>();
+  const { serviceName = '', workerId } = useParams<{
+    serviceName: string;
+    workerId?: string;
+  }>();
   const decodedServiceName = decodeURIComponent(serviceName);
+  const navigate = useNavigate();
 
   const { data: workers = [], isLoading } = useWorkers({
     refetchInterval: 5000,
@@ -73,8 +78,21 @@ export default function ServiceDetailPage() {
     };
   }, [serviceWorkers]);
 
+  const handleCloseSheet = useCallback(() => {
+    navigate(ROUTES.services.detail(encodeURIComponent(decodedServiceName)));
+  }, [navigate, decodedServiceName]);
+
   return (
-    <BasicLayout>
+    <SheetViewLayout
+      sheet={
+        <WorkerDetailSheet
+          isOpen={!!workerId}
+          onClose={handleCloseSheet}
+          serviceName={decodedServiceName}
+          workerId={workerId || ''}
+        />
+      }
+    >
       <Headline>
         <PageTitle description="Manage workers in a worker service">
           {decodedServiceName}
@@ -95,6 +113,6 @@ export default function ServiceDetailPage() {
         {/* Worker Table */}
         <WorkerTable serviceName={decodedServiceName} />
       </FilterProvider>
-    </BasicLayout>
+    </SheetViewLayout>
   );
 }

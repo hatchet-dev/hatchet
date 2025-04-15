@@ -1,6 +1,7 @@
 import { ROUTES } from '@/next/lib/routes';
+import { RouteObject } from 'react-router-dom';
 
-export const workerServicesRoutes = [
+export const workerServicesRoutes: RouteObject[] = [
   {
     path: ROUTES.services.list,
     lazy: () =>
@@ -22,7 +23,7 @@ export const workerServicesRoutes = [
   {
     path: ROUTES.services.workerDetail(':serviceName', ':workerId'),
     lazy: () =>
-      import('./worker-detail.page').then((res) => {
+      import('./worker-service-detail.page').then((res) => {
         return {
           Component: res.default,
         };

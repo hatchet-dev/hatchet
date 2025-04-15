@@ -4,7 +4,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
-import { Code } from '@/next/components/ui/code';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
@@ -28,11 +27,9 @@ export function WorkerId({ worker }: WorkerIdProps) {
               encodeURIComponent(worker.name),
               worker.metadata.id,
             )}
-            className="hover:underline"
+            className="hover:underline font-mono"
           >
-            <Code language="plaintext" value={name}>
-              {name}
-            </Code>
+            {name}-{worker.metadata.id.split('-')[0]}
           </Link>
         </TooltipTrigger>
         <TooltipContent>

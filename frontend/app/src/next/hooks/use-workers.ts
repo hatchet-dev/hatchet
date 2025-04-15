@@ -3,6 +3,7 @@ import {
   useMutation,
   UseMutationResult,
   useQuery,
+  useQueryClient,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
@@ -68,7 +69,7 @@ export default function useWorkers({
   initialPagination = { currentPage: 1, pageSize: 10 },
 }: UseWorkersOptions = {}): WorkersState {
   const { tenant } = useTenant();
-
+  const queryClient = useQueryClient();
   // State from the former context
   const [filters, setFilters] = useState<WorkersFilters>(initialFilters);
   const [paginationState, setPagination] =
@@ -229,8 +230,10 @@ export default function useWorkers({
         targetWorkerIds.map((workerId) => api.workerUpdate(workerId, data)),
       );
     },
-    onSuccess: () => {
-      listWorkersQuery.refetch();
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['worker:list'],
+      });
     },
   });
 

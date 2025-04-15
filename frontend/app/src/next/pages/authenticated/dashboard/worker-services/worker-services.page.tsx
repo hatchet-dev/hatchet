@@ -56,7 +56,6 @@ import {
 } from '@/next/components/ui/page-header';
 import docs from '@/next/docs-meta-data';
 import { Separator } from '@/next/components/ui/separator';
-import useDefinitions from '@/next/hooks/use-definitions';
 import { ROUTES } from '@/next/lib/routes';
 
 // Service row component to simplify the main component
@@ -262,7 +261,6 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
 
 export default function WorkerServicesPage() {
   const [showCloudCard, setShowCloudCard] = useState(true);
-  const { data: definitions, slots } = useDefinitions();
 
   // Check local storage on component mount
   useEffect(() => {
@@ -368,8 +366,6 @@ export default function WorkerServicesPage() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <pre>{JSON.stringify(definitions, null, 2)}</pre>
-      <pre>{JSON.stringify(slots, null, 2)}</pre>
       <div className="mb-6">
         <div className="flex gap-4 mb-6">
           <Select
