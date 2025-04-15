@@ -35,6 +35,7 @@ export default {
   },
   "concurrency": "Concurrency",
   "rate-limits": "Rate Limits",
+  "priority": "Priority",
   "running-from-external-services": {
     "title": "Running from External Services",
     "display": "hidden"

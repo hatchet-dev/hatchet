@@ -17,7 +17,7 @@ import {
   AdminServiceDefinition,
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
-import { RunsClient } from '@hatchet/v1';
+import { Priority, RunsClient } from '@hatchet/v1';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -176,6 +176,7 @@ export class AdminClient {
       childKey?: string | undefined;
       additionalMetadata?: Record<string, string> | undefined;
       desiredWorkerId?: string | undefined;
+      priority?: Priority;
     }
   ) {
     let computedName = workflowName;
@@ -194,6 +195,7 @@ export class AdminClient {
         additionalMetadata: options?.additionalMetadata
           ? JSON.stringify(options?.additionalMetadata)
           : undefined,
+        priority: options?.priority,
       });
 
       return new WorkflowRunRef<P>(resp, this.listenerClient, this.workflows, options?.parentId);
@@ -218,6 +220,7 @@ export class AdminClient {
         childKey?: string | undefined;
         additionalMetadata?: Record<string, string> | undefined;
         desiredWorkerId?: string | undefined;
+        priority?: Priority;
       };
     }>
   ): Promise<WorkflowRunRef<P>[]> {

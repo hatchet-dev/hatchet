@@ -229,6 +229,10 @@ class Context:
         return self.action.parent_workflow_run_id
 
     @property
+    def priority(self) -> int | None:
+        return self.action.priority
+
+    @property
     def task_run_errors(self) -> dict[str, str]:
         errors = self.data.step_run_errors
 

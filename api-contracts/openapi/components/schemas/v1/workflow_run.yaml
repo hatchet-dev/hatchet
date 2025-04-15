@@ -136,6 +136,9 @@ V1TriggerWorkflowRunRequest:
       type: object
     additionalMetadata:
       type: object
+    priority:
+      type: integer
+      description: The priority of the workflow run.
   required:
     - workflowName
     - input

@@ -288,6 +288,9 @@ export class V0Worker {
         ...(workflow.on?.cron ? [workflow.on.cron] : []),
       ];
 
+      const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
+      const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
+
       const registeredWorkflow = this.client.admin.putWorkflowV1({
         name: workflow.name,
         description: workflow.description || '',
@@ -295,8 +298,9 @@ export class V0Worker {
         eventTriggers,
         cronTriggers,
         sticky: workflow.sticky,
-        concurrency,
+        concurrencyArr,
         onFailureTask,
+        defaultPriority: workflow.defaultPriority,
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
@@ -327,6 +331,7 @@ export class V0Worker {
                 : [workflow.taskDefaults.concurrency]
               : [],
         })),
+        concurrency: concurrencySolo,
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;

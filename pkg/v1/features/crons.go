@@ -37,6 +37,8 @@ type CreateCronTrigger struct {
 
 	// AdditionalMetadata is optional metadata to associate with the cron trigger.
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	Priority *int32 `json:"priority,omitempty"`
 }
 
 // cronsClientImpl implements the CronsClient interface.

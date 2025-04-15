@@ -89,6 +89,12 @@ export class HatchetClient implements IHatchetClient {
         logger: logConstructor,
       };
 
+      if (clientConfig.namespace) {
+        clientConfig.namespace = clientConfig.namespace.endsWith('_')
+          ? clientConfig.namespace.slice(0, -1)
+          : clientConfig.namespace;
+      }
+
       this.tenantId = clientConfig.tenant_id;
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
       this._v0 = new InternalHatchetClient(clientConfig, options, axiosConfig, this.runs);

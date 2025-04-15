@@ -188,7 +188,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
     ) -> Workflow[EmptyModel]: ...
 
@@ -204,7 +204,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
     ) -> Workflow[TWorkflowInput]: ...
 
@@ -219,7 +219,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
@@ -271,6 +271,7 @@ class Hatchet:
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
                 task_defaults=task_defaults,
+                default_priority=default_priority,
             ),
             self,
         )
@@ -287,7 +288,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
         execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
         retries: int = 0,
@@ -309,7 +310,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
         execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
         retries: int = 0,
@@ -332,7 +333,7 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | None = None,
+        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
         execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
         retries: int = 0,
@@ -416,6 +417,13 @@ class Hatchet:
             self,
         )
 
+        if isinstance(concurrency, list):
+            _concurrency = concurrency
+        elif isinstance(concurrency, ConcurrencyExpression):
+            _concurrency = [concurrency]
+        else:
+            _concurrency = []
+
         task_wrapper = workflow.task(
             name=name,
             schedule_timeout=schedule_timeout,
@@ -426,7 +434,7 @@ class Hatchet:
             desired_worker_labels=desired_worker_labels,
             backoff_factor=backoff_factor,
             backoff_max_seconds=backoff_max_seconds,
-            concurrency=[concurrency] if concurrency else [],
+            concurrency=_concurrency,
         )
 
         def inner(
