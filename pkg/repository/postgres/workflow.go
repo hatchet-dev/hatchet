@@ -390,6 +390,12 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 		}
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateWorkflowTriggerCronRefForWorkflowParams{
 		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
 		Crontrigger:        opts.Cron,
@@ -400,7 +406,7 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 			Valid:                         true,
 			WorkflowTriggerCronRefMethods: dbsqlc.WorkflowTriggerCronRefMethodsAPI,
 		},
-		Priority: sqlchelpers.ToInt(*opts.Priority),
+		Priority: sqlchelpers.ToInt(priority),
 	}
 
 	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
