@@ -7,6 +7,7 @@ import {
   useMutation,
   UseMutationResult,
   useQuery,
+  useQueryClient,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
@@ -58,6 +59,7 @@ export default function useCrons({
   paginationManager = PaginationManagerNoOp,
 }: UseCronsOptions = {}): CronsState {
   const { tenant } = useTenant();
+  const queryClient = useQueryClient();
 
   const listCronsQuery = useQuery({
     queryKey: ['cron:list', tenant, filters, paginationManager],
@@ -102,7 +104,7 @@ export default function useCrons({
       return res.data;
     },
     onSuccess: () => {
-      listCronsQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['cron:list'] });
     },
   });
 

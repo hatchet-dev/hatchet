@@ -8,7 +8,7 @@ import {
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useState } from 'react';
 import { RunDataCard } from '@/next/components/runs/run-output-card';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
@@ -36,6 +36,7 @@ import { Time } from '@/next/components/ui/time';
 import { Duration } from '@/next/components/ui/duration';
 import { V1TaskStatus } from '@/next/lib/api/generated/data-contracts';
 import { ROUTES } from '@/next/lib/routes';
+import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -49,6 +50,7 @@ export default function RunDetailPage() {
   const { data: parentData } = useRunDetail(
     data?.run?.parentTaskExternalId || '',
   );
+  const [showTriggerModal, setShowTriggerModal] = useState(false);
 
   const { setBreadcrumbs } = useBreadcrumbs();
 
@@ -335,6 +337,10 @@ export default function RunDetailPage() {
               onClick={async () => replay.mutateAsync({ tasks: tasks || [] })}
               dropdownItems={[
                 {
+                  label: 'Replay As New Run',
+                  onClick: () => setShowTriggerModal(true),
+                },
+                {
                   label: 'Replay Failed',
                   onClick: async () =>
                     replay.mutateAsync({ tasks: replayFailedTasks }),
@@ -439,6 +445,15 @@ export default function RunDetailPage() {
           collapsed
         />
       </div>
+
+      <TriggerRunModal
+        show={showTriggerModal}
+        onClose={() => setShowTriggerModal(false)}
+        defaultInput={JSON.stringify((workflow.input as any).input, null, 2)}
+        defaultAddlMeta={JSON.stringify(workflow.additionalMetadata, null, 2)}
+        defaultWorkflowId={workflow.workflowId}
+        defaultRunId={workflow.metadata.id}
+      />
     </BasicLayout>
   );
 }

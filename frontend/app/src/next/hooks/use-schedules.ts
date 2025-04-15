@@ -10,6 +10,7 @@ import {
   useMutation,
   UseMutationResult,
   useQuery,
+  useQueryClient,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
@@ -87,6 +88,7 @@ export default function useSchedules({
   paginationManager: pagination = PaginationManagerNoOp,
 }: UseSchedulesOptions = {}): SchedulesState {
   const { tenant } = useTenant();
+  const queryClient = useQueryClient();
 
   // State for filters only
 
@@ -144,7 +146,7 @@ export default function useSchedules({
       return res.data;
     },
     onSuccess: () => {
-      listSchedulesQuery.refetch();
+      queryClient.invalidateQueries({ queryKey: ['schedule:list'] });
     },
   });
 

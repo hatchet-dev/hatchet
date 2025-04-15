@@ -21,11 +21,13 @@ import docs from '@/next/docs-meta-data';
 import { Plus } from 'lucide-react';
 import { Button } from '@/next/components/ui/button';
 import { RunsMetricsView } from '../runs-metrics/runs-metrics';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { TriggerRunModal } from '../trigger-run-modal';
 
 export function RunsTable() {
   const { filters } = useFilters<RunsFilters>();
   const pagination = usePagination();
+  const [showTriggerModal, setShowTriggerModal] = useState(false);
   const {
     data: runs,
     metrics,
@@ -90,7 +92,13 @@ export function RunsTable() {
           options={additionalMetaOpts}
         />
       </FilterGroup>
-      <RunsMetricsView metrics={metrics} />
+      <div className="flex justify-between items-center">
+        <RunsMetricsView metrics={metrics} />
+        <Button onClick={() => setShowTriggerModal(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Trigger Run
+        </Button>
+      </div>
       <DataTable
         columns={columns}
         data={runs || []}
@@ -100,12 +108,6 @@ export function RunsTable() {
             <p className="text-sm text-muted-foreground">
               Trigger a new run to get started.
             </p>
-            {
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Trigger Run
-              </Button>
-            }
             <DocsButton
               doc={docs.home['running-tasks']}
               titleOverride="Running Tasks"
@@ -118,6 +120,10 @@ export function RunsTable() {
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>
+      <TriggerRunModal
+        show={showTriggerModal}
+        onClose={() => setShowTriggerModal(false)}
+      />
     </div>
   );
 }
