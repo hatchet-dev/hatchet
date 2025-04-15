@@ -9,14 +9,11 @@ import {
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { useEffect, useMemo, useCallback, useState } from 'react';
-import { RunDataCard } from '@/next/components/runs/run-output-card';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { RunChildrenCardRoot } from '@/next/components/runs/run-children';
-import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
 import { MdOutlineReplay } from 'react-icons/md';
 import { MdOutlineCancel } from 'react-icons/md';
 import WorkflowRunVisualizer from '@/next/components/runs/run-dag/dag-run-visualizer';
@@ -37,8 +34,6 @@ import { Duration } from '@/next/components/ui/duration';
 import { V1TaskStatus } from '@/next/lib/api/generated/data-contracts';
 import { ROUTES } from '@/next/lib/routes';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
-import { InfoSheet } from '@/next/components/ui/info-sheet';
-import { V1WorkflowType } from '@/lib/api';
 import {
   Tabs,
   TabsList,
@@ -47,6 +42,7 @@ import {
 } from '@/components/v1/ui/tabs';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
 import { FilterProvider } from '@/next/hooks/use-filters';
+import { RunDetailSheet } from './run-detail-sheet';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -317,96 +313,12 @@ export default function RunDetailPage() {
   return (
     <SheetViewLayout
       sheet={
-        <InfoSheet
+        <RunDetailSheet
           isOpen={!!taskId}
           onClose={handleCloseSheet}
-          title={
-            selectedTask ? (
-              <div className="flex items-center gap-2">
-                <span>Task Details</span>
-                <RunId taskRun={selectedTask} />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span>Run:</span>
-                <RunId wfRun={workflow} />
-              </div>
-            )
-          }
-        >
-          <div className="flex flex-col gap-4">
-            {selectedTask ? (
-              <>
-                <RunDataCard
-                  title="Input"
-                  output={(selectedTask.input as any).input}
-                  variant="input"
-                />
-                {selectedTask.type === V1WorkflowType.DAG && (
-                  <RunDataCard
-                    title="Parent Data"
-                    output={(selectedTask.input as any).parents}
-                    variant="input"
-                    collapsed
-                  />
-                )}
-                <RunDataCard
-                  title="Output"
-                  output={selectedTask.output}
-                  error={selectedTask.errorMessage}
-                  status={selectedTask.status}
-                  variant="output"
-                />
-                <RunDataCard
-                  title="Metadata"
-                  output={{
-                    taskRunId: selectedTask.metadata.id,
-                    workflowRunId: workflow.metadata.id,
-                    additional: selectedTask.additionalMetadata,
-                  }}
-                  status={selectedTask.status}
-                  variant="metadata"
-                  collapsed
-                  actions={
-                    <div className="flex items-center gap-2">
-                      <DocsButton
-                        doc={docs.home['additional-metadata']}
-                        size="icon"
-                      />
-                    </div>
-                  }
-                />
-              </>
-            ) : (
-              <>
-                <RunDataCard
-                  title="Input"
-                  output={(workflow.input as { input: object }).input}
-                  status={workflow.status}
-                  variant="input"
-                />
-                <RunDataCard
-                  title="Metadata"
-                  output={{
-                    workflowRunId: workflow.metadata.id,
-                    additional: workflow.additionalMetadata,
-                  }}
-                  status={workflow.status}
-                  variant="metadata"
-                  collapsed
-                  actions={
-                    <div className="flex items-center gap-2">
-                      <DocsButton
-                        doc={docs.home['additional-metadata']}
-                        size="icon"
-                      />
-                    </div>
-                  }
-                />
-              </>
-            )}
-          </div>
-        </InfoSheet>
+          workflow={workflow}
+          selectedTask={selectedTask}
+        />
       }
     >
       <Headline>
@@ -527,8 +439,10 @@ export default function RunDetailPage() {
             <FilterProvider>
               <RunEventLog
                 workflow={workflow}
-                onTaskSelect={(taskId) => {
-                  navigate(ROUTES.runs.taskDetail(workflowRunId!, taskId));
+                onTaskSelect={(taskId, options) => {
+                  navigate(
+                    ROUTES.runs.taskDetail(workflowRunId!, taskId, options),
+                  );
                 }}
               />
             </FilterProvider>

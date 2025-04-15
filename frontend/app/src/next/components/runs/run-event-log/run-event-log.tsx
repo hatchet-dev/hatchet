@@ -29,6 +29,7 @@ import {
   Info,
   Cpu,
   Bug,
+  CpuIcon,
 } from 'lucide-react';
 import { VscJson } from 'react-icons/vsc';
 import { Button } from '@/next/components/ui/button';
@@ -41,11 +42,14 @@ import {
   FilterSelect,
 } from '@/next/components/ui/filters/filters';
 import { useFilters } from '@/next/hooks/use-filters';
+import { ROUTES } from '@/next/lib/routes';
 
 interface RunEventLogProps {
   workflow: V1WorkflowRun;
-  onTaskSelect?: (taskId: string) => void;
-  onWorkerSelect?: (workerId: string) => void;
+  onTaskSelect?: (
+    taskId: string,
+    options?: Parameters<typeof ROUTES.runs.taskDetail>[2],
+  ) => void;
 }
 
 type EventConfig = {
@@ -57,11 +61,6 @@ type EventConfig = {
 };
 
 const LogEventType = 'LOG_LINE' as V1TaskEventType;
-
-interface LogMetadata {
-  taskId?: string;
-  [key: string]: any;
-}
 
 interface ActivityFilters {
   search?: string;
@@ -214,15 +213,13 @@ const EventIcon = ({ eventType, className }: EventIconProps) => {
 
 interface EventMessageProps {
   event: V1TaskEvent;
-  onTaskSelect?: (taskId: string) => void;
-  onWorkerSelect?: (workerId: string) => void;
+  onTaskSelect?: (
+    taskId: string,
+    options?: Parameters<typeof ROUTES.runs.taskDetail>[2],
+  ) => void;
 }
 
-const EventMessage = ({
-  event,
-  onTaskSelect,
-  onWorkerSelect,
-}: EventMessageProps) => {
+const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
   const config = EVENT_CONFIG[event.eventType];
   const message =
     typeof config.message === 'function'
@@ -234,7 +231,7 @@ const EventMessage = ({
       ? JSON.parse(event.errorMessage)
       : { message: 'Unknown error' };
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex justify-between gap-1">
         <span className="text-xs text-destructive">{error.message}</span>
         {onTaskSelect && (
           <Button
@@ -255,7 +252,7 @@ const EventMessage = ({
 
   if (event.eventType === V1TaskEventType.FINISHED) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex justify-between gap-1">
         <span className="text-xs">{message}</span>
         {onTaskSelect && (
           <Button
@@ -275,30 +272,26 @@ const EventMessage = ({
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex justify-between gap-1">
       <span className="text-xs">{message}</span>
-      {config.showWorkerButton && event.workerId && onWorkerSelect && (
+      {config.showWorkerButton && event.workerId && onTaskSelect && (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="h-4 px-1 text-xs"
+          className="h-5 px-2 text-xs text-muted-foreground hover:text-muted-foreground/80 border-muted-foreground/50"
           onClick={(e) => {
             e.stopPropagation();
-            onWorkerSelect(event.workerId!);
+            onTaskSelect(event.taskId, { task_tab: 'worker' });
           }}
         >
-          View Worker
+          <CpuIcon className="h-3 w-3" />
         </Button>
       )}
     </div>
   );
 };
 
-export function RunEventLog({
-  workflow,
-  onTaskSelect,
-  onWorkerSelect,
-}: RunEventLogProps) {
+export function RunEventLog({ workflow, onTaskSelect }: RunEventLogProps) {
   const { data, activity } = useRunDetail(workflow.metadata.id || '');
   const { filters } = useFilters<ActivityFilters>();
 
@@ -462,11 +455,7 @@ export function RunEventLog({
                       /
                     </p>
                     {event.eventType === LogEventType ? (
-                      <EventMessage
-                        event={event}
-                        onTaskSelect={onTaskSelect}
-                        onWorkerSelect={onWorkerSelect}
-                      />
+                      <EventMessage event={event} onTaskSelect={onTaskSelect} />
                     ) : (
                       <>
                         <p
@@ -483,7 +472,6 @@ export function RunEventLog({
                           <EventMessage
                             event={event}
                             onTaskSelect={onTaskSelect}
-                            onWorkerSelect={onWorkerSelect}
                           />
                         </div>
                       </>

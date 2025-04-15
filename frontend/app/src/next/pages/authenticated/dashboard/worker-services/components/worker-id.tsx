@@ -1,43 +1,30 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/next/components/ui/tooltip';
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { ROUTES } from '@/next/lib/routes';
 import { Worker } from '@/next/lib/api/generated/data-contracts';
+import useWorkers from '@/next/hooks/use-workers';
+import { getFriendlyWorkerId } from '@/next/lib/worker-id';
 
 interface WorkerIdProps {
-  worker: Worker;
+  worker?: Worker;
+  workerId?: string;
 }
 
-export function WorkerId({ worker }: WorkerIdProps) {
+export function WorkerId({ worker: providedWorker, workerId }: WorkerIdProps) {
+  const { data: workers = [] } = useWorkers({
+    initialPagination: { currentPage: 1, pageSize: 100 },
+    refetchInterval: 5000,
+  });
+
+  const worker =
+    providedWorker || workers.find((w: Worker) => w.metadata.id === workerId);
+
   const name = useMemo(() => {
-    return getFriendlyWorkerId(worker);
+    if (!worker) {
+      return 'Worker not found';
+    }
+    return worker.metadata.id;
   }, [worker]);
 
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Link
-            to={ROUTES.services.workerDetail(
-              encodeURIComponent(worker.name),
-              worker.metadata.id,
-            )}
-            className="hover:underline font-mono"
-          >
-            {name}-{worker.metadata.id.split('-')[0]}
-          </Link>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>View worker details</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
+  return <span>{name}</span>;
 }
 
 export function getFriendlyWorkerId(worker: Worker) {
