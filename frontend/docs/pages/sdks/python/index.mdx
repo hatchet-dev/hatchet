@@ -1,0 +1,52 @@
+---
+title: Python SDK
+description: Hatchet Python SDK documentation and API reference
+---
+
+# Python SDK
+
+The Hatchet Python SDK provides a simple and intuitive way to interact with the Hatchet workflow engine from Python applications.
+
+## Installation
+
+```bash
+pip install hatchet-sdk
+```
+
+## Quick Start
+
+```python
+from hatchet_sdk import Hatchet
+
+# Initialize the client
+client = Hatchet()
+
+# Create a workflow
+workflow = client.workflow(
+    name="my-workflow",
+    on_events=["my-event"]
+)
+
+# Define steps
+@workflow.step()
+def step1(context):
+    return {"result": "Hello from step 1!"}
+
+@workflow.step()
+def step2(context):
+    return {"result": "Hello from step 2!"}
+
+# Register the workflow
+client.register(workflow)
+```
+
+## API Reference
+
+The Python SDK provides the following main components:
+
+- `Hatchet`: The main client class for interacting with Hatchet
+- `Workflow`: Represents a workflow definition
+- `Step`: Represents a workflow step
+- `Context`: Provides access to workflow execution context
+
+For detailed API documentation, see the sections below. 

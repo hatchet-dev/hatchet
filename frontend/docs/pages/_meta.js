@@ -25,10 +25,6 @@ export default {
     "typescript": {
       "title": "TypeScript ↗",
       "href": "/sdks/typescript-sdk/docker"
-    },
-    "golang": {
-      "title": "Golang ↗",
-      "href": "/sdks/go-sdk"
     }
   },
   "self-hosting": {
@@ -49,22 +45,22 @@ export default {
     "type": "menu",
     "items": {
       "python": {
-        "title": "Python",
-        "href": "/sdks/python-sdk",
-        "type": "page"
+        "title": "Python SDK",
+        "type": "page",
+        "items": {
+          "index": "Overview",
+          "api": "API Reference"
+        }
       },
       "typescript": {
-        "title": "TypeScript",
-        "href": "/sdks/typescript-sdk",
-        "type": "page"
-      },
-      "golang": {
-        "title": "Golang",
-        "href": "/sdks/go-sdk",
-        "type": "page"
+        "title": "TypeScript SDK",
+        "type": "page",
+        "items": {
+          "index": "Overview",
+          "api": "API Reference"
+        }
       }
-    },
-    "display": "hidden"
+    }
   },
   "v0": {
     "title": "V0 (Old docs)",

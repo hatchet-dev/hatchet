@@ -1,0 +1,25 @@
+[**Hatchet TypeScript SDK**](../../../../README.md)
+
+***
+
+[Hatchet TypeScript SDK](../../../../README.md) / [APIContracts](../README.md) / StepRunEventList
+
+# Interface: StepRunEventList
+
+Defined in: [src/clients/rest/generated/data-contracts.ts:1087](https://github.com/hatchet-dev/hatchet/blob/0288a24f2e9f14787135b399bd47182f4d1260d9/sdks/typescript/src/clients/rest/generated/data-contracts.ts#L1087)
+
+## Properties
+
+### pagination?
+
+> `optional` **pagination**: [`PaginationResponse`](PaginationResponse.md)
+
+Defined in: [src/clients/rest/generated/data-contracts.ts:1088](https://github.com/hatchet-dev/hatchet/blob/0288a24f2e9f14787135b399bd47182f4d1260d9/sdks/typescript/src/clients/rest/generated/data-contracts.ts#L1088)
+
+***
+
+### rows?
+
+> `optional` **rows**: [`StepRunEvent`](StepRunEvent.md)[]
+
+Defined in: [src/clients/rest/generated/data-contracts.ts:1089](https://github.com/hatchet-dev/hatchet/blob/0288a24f2e9f14787135b399bd47182f4d1260d9/sdks/typescript/src/clients/rest/generated/data-contracts.ts#L1089)

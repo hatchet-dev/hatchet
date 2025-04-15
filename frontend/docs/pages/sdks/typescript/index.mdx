@@ -1,0 +1,56 @@
+---
+title: TypeScript SDK
+description: Hatchet TypeScript SDK documentation and API reference
+---
+
+# TypeScript SDK
+
+The Hatchet TypeScript SDK provides a type-safe way to interact with the Hatchet workflow engine from TypeScript/JavaScript applications.
+
+## Installation
+
+```bash
+npm install @hatchet-dev/sdk
+# or
+yarn add @hatchet-dev/sdk
+# or
+pnpm add @hatchet-dev/sdk
+```
+
+## Quick Start
+
+```typescript
+import { Hatchet } from '@hatchet-dev/sdk';
+
+// Initialize the client
+const client = new Hatchet();
+
+// Create a workflow
+const workflow = client.workflow({
+    name: "my-workflow",
+    onEvents: ["my-event"]
+});
+
+// Define steps
+workflow.step("step1", async (context) => {
+    return { result: "Hello from step 1!" };
+});
+
+workflow.step("step2", async (context) => {
+    return { result: "Hello from step 2!" };
+});
+
+// Register the workflow
+await client.register(workflow);
+```
+
+## API Reference
+
+The TypeScript SDK provides the following main components:
+
+- `Hatchet`: The main client class for interacting with Hatchet
+- `Workflow`: Represents a workflow definition
+- `Step`: Represents a workflow step
+- `Context`: Provides access to workflow execution context
+
+For detailed API documentation, see the sections below. 

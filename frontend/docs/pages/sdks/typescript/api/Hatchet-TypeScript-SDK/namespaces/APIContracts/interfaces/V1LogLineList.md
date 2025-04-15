@@ -1,0 +1,25 @@
+[**Hatchet TypeScript SDK**](../../../../README.md)
+
+***
+
+[Hatchet TypeScript SDK](../../../../README.md) / [APIContracts](../README.md) / V1LogLineList
+
+# Interface: V1LogLineList
+
+Defined in: [src/clients/rest/generated/data-contracts.ts:1741](https://github.com/hatchet-dev/hatchet/blob/0288a24f2e9f14787135b399bd47182f4d1260d9/sdks/typescript/src/clients/rest/generated/data-contracts.ts#L1741)
+
+## Properties
+
+### pagination?
+
+> `optional` **pagination**: [`PaginationResponse`](PaginationResponse.md)
+
+Defined in: [src/clients/rest/generated/data-contracts.ts:1742](https://github.com/hatchet-dev/hatchet/blob/0288a24f2e9f14787135b399bd47182f4d1260d9/sdks/typescript/src/clients/rest/generated/data-contracts.ts#L1742)
+
+***
+
+### rows?
+
+> `optional` **rows**: [`V1LogLine`](V1LogLine.md)[]
+
+Defined in: [src/clients/rest/generated/data-contracts.ts:1743](https://github.com/hatchet-dev/hatchet/blob/0288a24f2e9f14787135b399bd47182f4d1260d9/sdks/typescript/src/clients/rest/generated/data-contracts.ts#L1743)
