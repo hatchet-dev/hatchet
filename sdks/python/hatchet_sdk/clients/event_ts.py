@@ -53,7 +53,7 @@ async def read_with_interrupt(
     try:
         result = cast(TResponse, await listener.read())
 
-        if result is cygrpc.EOF or result is grpc.aio.EOFType:
+        if result is cygrpc.EOF:
             logger.warning("Received EOF from engine")
             return cast(TResponse, None), None, True
 
