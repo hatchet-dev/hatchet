@@ -63,7 +63,7 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 		if err != nil {
 			return err
 		}
-		err = w.StartBlocking()
+		err = w.StartBlocking(context.Background())
 		if err != nil {
 			return err
 		}

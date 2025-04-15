@@ -37,3 +37,31 @@ simpleConcurrency.task({
     };
   },
 });
+
+// ❓ Concurrency Strategy With Key
+export const multipleConcurrencyKeys = hatchet.workflow<SimpleInput, SimpleOutput>({
+  name: 'simple-concurrency',
+  concurrency: [
+    {
+      maxRuns: 1,
+      limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+      expression: 'input.Tier',
+    },
+    {
+      maxRuns: 1,
+      limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+      expression: 'input.Account',
+    },
+  ],
+});
+// !!
+
+multipleConcurrencyKeys.task({
+  name: 'to-lower',
+  fn: async (input) => {
+    await sleep(Math.floor(Math.random() * (1000 - 200 + 1)) + 200);
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
