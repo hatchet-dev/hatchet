@@ -52,7 +52,7 @@ func ConcurrencyRoundRobin(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 	return concurrency
 }
 
-func MulipleConcurrencyKeys(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ConcurrencyInput, TransformedOutput] {
+func MultipleConcurrencyKeys(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ConcurrencyInput, TransformedOutput] {
 	// ❓ Multiple Concurrency Keys
 	strategy := types.GroupRoundRobin
 	var maxRuns int32 = 20
