@@ -27,6 +27,18 @@ export const getStaticProps = ({}) =>
 
 _**Disclosure:** I'm an engineer at [Hatchet](https://hatchet.run), a multi-language task queue with Python support. We're [open-source](https://github.com/hatchet-dev/hatchet) (with a cloud version) and we aim to be a drop-in replacement for Celery that supports a modern Python stack._
 
+## What is Hatchet?
+
+Hatchet is a platform for running background tasks, built on top of Postgres. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration or infrastructure.
+
+## When should I use Hatchet?
+
+Background tasks are critical for offloading work from your main web application. Usually background tasks are sent through a FIFO (first-in-first-out) queue, which helps guard against traffic spikes (queues can absorb a lot of load) and ensures that tasks are retried when your task handlers error out. Most stacks begin with a library-based queue backed by Redis or RabbitMQ (like Celery or BullMQ). But as your tasks become more complex, these queues become difficult to debug, monitor and start to fail in unexpected ways.
+
+This is where Hatchet comes in. Hatchet is a full-featured background task management platform, with built-in support for chaining complex tasks together into workflows, alerting on failures, making tasks more durable, and viewing tasks in a real-time web dashboard.
+
+## Modern Python Features
+
 Modern Python applications often make heavy use of (relatively) new features and tooling that have emerged in Python over the past decade or so. Two of the most widespread are:
 
 1. The proliferation of type hints, adoption of type checkers like [Mypy](https://mypy-lang.org/) and [Pyright](https://microsoft.github.io/pyright/#/), and growth in popularity of tools like [Pydantic](https://docs.pydantic.dev/latest/) and [attrs](https://www.attrs.org/en/stable/) that lean on them.
