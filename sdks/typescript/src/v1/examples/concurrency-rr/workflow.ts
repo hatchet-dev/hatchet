@@ -38,7 +38,7 @@ simpleConcurrency.task({
   },
 });
 
-// ❓ Concurrency Strategy With Key
+// ❓ Multiple Concurrency Keys
 export const multipleConcurrencyKeys = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: [
