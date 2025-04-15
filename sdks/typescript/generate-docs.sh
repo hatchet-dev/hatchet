@@ -7,6 +7,11 @@ npm install -g typedoc typedoc-plugin-markdown
 SRC_DIR="$(pwd)/src"
 DOCS_DIR="$(pwd)/../../frontend/docs/pages/sdks/typescript/api"
 
+# Remove existing docs directory if it exists
+if [ -d "$DOCS_DIR" ]; then
+    rm -rf "$DOCS_DIR"
+fi
+
 # Create docs directory if it doesn't exist
 mkdir -p "$DOCS_DIR"
 

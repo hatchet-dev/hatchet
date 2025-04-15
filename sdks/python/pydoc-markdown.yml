@@ -1,0 +1,28 @@
+
+loaders:
+  - type: python
+    packages:
+      - hatchet_sdk
+processors:
+  - type: filter
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: docusaurus
+  docs_base_path: /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/sdks/python/api
+  relative_output_path: .
+  relative_sidebar_path: sidebar.json
+  sidebar_top_level_label: ""
+  markdown:
+    descriptive_class_title: false
+    render_toc: true
+    render_module_header: true
+    classdef_code_block: false
+    signature_in_header: false
+    add_method_class_prefix: false
+    add_member_class_prefix: false
+    sub_prefix: false
+  source_linker:
+    type: github
+    repo: hatchet-dev/hatchet
