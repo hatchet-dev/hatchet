@@ -71,7 +71,7 @@ Finally, Hatchet also has first-class support for cron jobs. You can either crea
 
 <GithubSnippet src={Cron} target="Create" />
 
-Or you can define them declaratively when you create you workflow:
+Or you can define them declaratively when you create your workflow:
 
 ```python
 cron_workflow = hatchet.workflow(name="CronWorkflow", on_crons=["* * * * *"])
@@ -114,7 +114,7 @@ async def hello_from_hatchet(input: EmptyModel, ctx: Context) -> int:
         return results.count(True)
 ```
 
-With Hatchet, you can perform all of these requests concurrently, in a single task, as opposed to needing to e.g. enqueue a single task per request. This is easier to program, easier to reason about, more performant on your side (as the client), and also puts less pressure on the backing queue, since it needs to handle an order of magnitude fewer requests in this case.
+With Hatchet, you can perform all of these requests concurrently, in a single task, as opposed to needing to e.g. enqueue a single task per request. This is more performant on your side (as the client), and also puts less pressure on the backing queue, since it needs to handle an order of magnitude fewer requests in this case.
 
 Support for `async` / `await` also allows you to make other parts of your codebase asynchronous as well, like database operations. In a setting where your app uses a task queue that does not support `async`, but you want to share CRUD operations between your task queue and main application, you're forced to make all of those operations synchronous. With Hatchet, this is not the case, which allows you to make use of tools like [asyncpg](https://github.com/MagicStack/asyncpg) and similar.
 
