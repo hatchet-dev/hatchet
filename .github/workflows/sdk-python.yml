@@ -66,42 +66,41 @@ jobs:
         with:
           version: '25.1'
 
-      # - name: Install Task
-      #   uses: arduino/setup-task@v2
+      - name: Install Task
+        uses: arduino/setup-task@v2
 
-      # - name: Setup Go
-      #   uses: actions/setup-go@v5
-      #   with:
-      #     go-version: '1.21'
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
 
-      # - name: Start Docker dependencies
-      #   working-directory: .
-      #   run: docker compose up -d
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
 
-      # - name: Generate
-      #   working-directory: .
-      #   run: |
-      #     export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-      #     go run ./cmd/hatchet-migrate
-      #     task generate-go
+      - name: Generate
+        working-directory: .
+        run: |
+          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          go run ./cmd/hatchet-migrate
+          task generate-go
 
-      # - name: Setup
-      #   working-directory: .
-      #   run: |
-      #     export SEED_DEVELOPMENT=true
-      #     export SERVER_PORT=8080
-      #     export SERVER_URL=http://localhost:8080
-      #     export SERVER_AUTH_COOKIE_DOMAIN=localhost
-      #     export SERVER_AUTH_COOKIE_INSECURE=true
-      #     export SERVER_DEFAULT_ENGINE_VERSION=V1
+      - name: Setup
+        working-directory: .
+        run: |
+          export SEED_DEVELOPMENT=true
+          export SERVER_PORT=8080
+          export SERVER_URL=http://localhost:8080
+          export SERVER_AUTH_COOKIE_DOMAIN=localhost
+          export SERVER_AUTH_COOKIE_INSECURE=true
+          export SERVER_DEFAULT_ENGINE_VERSION=V1
 
-      #     go run ./cmd/hatchet-admin quickstart
+          go run ./cmd/hatchet-admin quickstart
 
-      #     go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
-      #     go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
+          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
+          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
 
-      #     sleep 30
-
+          sleep 30
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -120,6 +119,13 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --all-extras
 
+      - name: Generate Env File
+        working-directory: .
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True" >> $GITHUB_ENV
+
       - name: Set HATCHET_CLIENT_NAMESPACE
         run: |
           PYTHON_VERSION=$(python -c "import sys; print(f'py{sys.version_info.major}{sys.version_info.minor}')")
@@ -127,26 +133,24 @@ jobs:
           echo "HATCHET_CLIENT_NAMESPACE=${PYTHON_VERSION}-${SHORT_SHA}" >> $GITHUB_ENV
 
       - name: Run pytest
-        env:
-          HATCHET_CLIENT_TOKEN: ${{ secrets.CI_STAGING_TOKEN }}
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
           poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2
 
-      # - name: Upload engine logs
-      #   if: always()
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: $HATCHET_CLIENT_NAMESPACE-engine-logs
-      #     path: $HATCHET_CLIENT_NAMESPACE-engine.log
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: $HATCHET_CLIENT_NAMESPACE-engine-logs
+          path: $HATCHET_CLIENT_NAMESPACE-engine.log
 
-      # - name: Upload API logs
-      #   if: always()
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: $HATCHET_CLIENT_NAMESPACE-api-logs
-      #     path: $HATCHET_CLIENT_NAMESPACE-api.log
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: $HATCHET_CLIENT_NAMESPACE-api-logs
+          path: $HATCHET_CLIENT_NAMESPACE-api.log
 
   publish:
     runs-on: ubuntu-latest
