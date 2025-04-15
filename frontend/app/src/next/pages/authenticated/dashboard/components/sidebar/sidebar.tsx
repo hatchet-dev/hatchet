@@ -269,7 +269,7 @@ name: ${user?.name}`;
                 <SidebarMenuItem key="docs">
                   <SidebarMenuButton
                     size="sm"
-                    onClick={() => docs.open(pages.home.index)}
+                    onClick={() => docs.toggle(pages.home.index)}
                   >
                     <BookOpen />
                     <span>Documentation</span>
