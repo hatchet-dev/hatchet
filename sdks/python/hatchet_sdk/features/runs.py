@@ -175,6 +175,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> V1WorkflowRunDetails:
         with self.client() as client:
             return self._wra(client).v1_workflow_run_create(
@@ -183,6 +184,7 @@ class RunsClient(BaseRestClient):
                     workflowName=workflow_name,
                     input=dict(input),
                     additionalMetadata=dict(additional_metadata),
+                    priority=priority,
                 ),
             )
 
@@ -191,9 +193,10 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> V1WorkflowRunDetails:
         return await asyncio.to_thread(
-            self.create, workflow_name, input, additional_metadata
+            self.create, workflow_name, input, additional_metadata, priority
         )
 
     def replay(self, run_id: str) -> None:

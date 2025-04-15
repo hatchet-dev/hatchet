@@ -196,7 +196,7 @@ class ListWorkflowsRequest(_message.Message):
     def __init__(self) -> None: ...
 
 class ScheduleWorkflowRequest(_message.Message):
-    __slots__ = ("name", "schedules", "input", "parent_id", "parent_step_run_id", "child_index", "child_key", "additional_metadata")
+    __slots__ = ("name", "schedules", "input", "parent_id", "parent_step_run_id", "child_index", "child_key", "additional_metadata", "priority")
     NAME_FIELD_NUMBER: _ClassVar[int]
     SCHEDULES_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
@@ -205,6 +205,7 @@ class ScheduleWorkflowRequest(_message.Message):
     CHILD_INDEX_FIELD_NUMBER: _ClassVar[int]
     CHILD_KEY_FIELD_NUMBER: _ClassVar[int]
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
+    PRIORITY_FIELD_NUMBER: _ClassVar[int]
     name: str
     schedules: _containers.RepeatedCompositeFieldContainer[_timestamp_pb2.Timestamp]
     input: str
@@ -213,7 +214,8 @@ class ScheduleWorkflowRequest(_message.Message):
     child_index: int
     child_key: str
     additional_metadata: str
-    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ...) -> None: ...
+    priority: int
+    def __init__(self, name: _Optional[str] = ..., schedules: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_step_run_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class ScheduledWorkflow(_message.Message):
     __slots__ = ("id", "trigger_at")

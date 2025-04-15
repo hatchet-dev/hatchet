@@ -42,7 +42,7 @@ type WorkflowCreateOpts[I any] struct {
 	OnCron []string
 
 	// (optional) Concurrency settings to control parallel execution
-	Concurrency *types.Concurrency
+	Concurrency []types.Concurrency
 
 	// (optional) Strategy for sticky execution of workflow runs
 	StickyStrategy *types.StickyStrategy
@@ -52,4 +52,7 @@ type WorkflowCreateOpts[I any] struct {
 
 	// (optional) The key to use for the output of the workflow (i.e. the name of the fn where O is the output type)
 	OutputKey *string
+
+	// (optional) The default priority for tasks in this workflow
+	DefaultPriority *int32
 }
