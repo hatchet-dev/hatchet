@@ -50,21 +50,10 @@ export default {
     "items": {
       "python": {
         "title": "Python",
-        "href": "/sdks/python-sdk",
+        "href": "/sdks/python",
         "type": "page"
       },
-      "typescript": {
-        "title": "TypeScript",
-        "href": "/sdks/typescript-sdk",
-        "type": "page"
-      },
-      "golang": {
-        "title": "Golang",
-        "href": "/sdks/go-sdk",
-        "type": "page"
-      }
     },
-    "display": "hidden"
   },
   "v0": {
     "title": "V0 (Old docs)",

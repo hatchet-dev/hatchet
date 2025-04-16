@@ -77,7 +77,7 @@ class ScheduledClient(BaseRestClient):
             workflow_name (str): The name of the scheduled workflow.
             trigger_at (datetime.datetime): The datetime when the run should be triggered.
             input (JSONSerializableMapping): The input data for the scheduled workflow.
-            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run as a key-value pair (e.g. {"key1": "value1", "key2": "value2"}).
+            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run as a key-value pair.
 
         Returns:
             ScheduledWorkflows: The created scheduled workflow instance.
