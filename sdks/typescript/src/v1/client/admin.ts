@@ -11,6 +11,7 @@ import {
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
+import { Logger } from '@hatchet/util/logger';
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
@@ -29,9 +30,11 @@ export class AdminClient {
   grpc: WorkflowServiceClient;
   listenerClient: RunListenerClient;
   runs: RunsClient;
+  logger: Logger;
 
   constructor(config: ClientConfig, api: Api, runs: RunsClient) {
     this.config = config;
+    this.logger = config.logger(`Admin`, config.log_level);
 
     const { client, channel, factory } = createGrpcClient(config, WorkflowServiceDefinition);
     this.grpc = client;
@@ -61,8 +64,6 @@ export class AdminClient {
     }
   ) {
     let computedName = workflowName;
-
-    console.log('using the correct admin client');
 
     try {
       if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
@@ -110,7 +111,8 @@ export class AdminClient {
         desiredWorkerId?: string | undefined;
         priority?: Priority;
       };
-    }>
+    }>,
+    batchSize: number = 500
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
@@ -132,20 +134,89 @@ export class AdminClient {
       };
     });
 
+    const batches = this.batchWorkflows(workflowRequests, batchSize);
+
+    this.logger.debug(`batching ${batches.length} batches`);
+
     try {
-      // Call the bulk trigger workflow method
-      const bulkTriggerWorkflowResponse = await this.grpc.bulkTriggerWorkflow(
-        BulkTriggerWorkflowRequest.create({
-          workflows: workflowRequests,
-        })
-      );
-      return bulkTriggerWorkflowResponse.workflowRunIds.map((resp, index) => {
-        const { options } = workflowRuns[index];
-        return new WorkflowRunRef<P>(resp, this.listenerClient, this.runs, options?.parentId);
-      });
+      const allResults: WorkflowRunRef<P>[] = [];
+
+      // Process each batch
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+        const batch = batches[batchIndex];
+        const { requests, originalIndices } = batch;
+
+        // Call the bulk trigger workflow method for this batch
+        const bulkTriggerWorkflowResponse = await this.grpc.bulkTriggerWorkflow(
+          BulkTriggerWorkflowRequest.create({
+            workflows: requests,
+          })
+        );
+
+        this.logger.debug(`batch ${batchIndex + 1} of ${batches.length}`);
+
+        // Map the results back to their original indices
+        const batchResults = bulkTriggerWorkflowResponse.workflowRunIds.map((resp, index) => {
+          const originalIndex = originalIndices[index];
+          const { options } = workflowRuns[originalIndex];
+          return new WorkflowRunRef<P>(resp, this.listenerClient, this.runs, options?.parentId);
+        });
+
+        allResults.push(...batchResults);
+      }
+
+      return allResults;
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
+  }
+
+  private batchWorkflows(
+    workflowRequests: any[],
+    batchSize: number
+  ): Array<{ requests: any[]; originalIndices: number[] }> {
+    const payloadLimit = 4 * 1024 * 1024; // 4MB limit
+    const batches: Array<{ requests: any[]; originalIndices: number[] }> = [];
+
+    let currentBatch: any[] = [];
+    let currentBatchIndices: number[] = [];
+    let currentBatchSize = 0;
+
+    for (let i = 0; i < workflowRequests.length; i += 1) {
+      const request = workflowRequests[i];
+      const requestSize = Buffer.byteLength(JSON.stringify(request), 'utf8');
+
+      // Check if adding this request would exceed either the payload limit or batch size
+      if (currentBatchSize + requestSize > payloadLimit || currentBatch.length >= batchSize) {
+        // If we have a batch, add it to batches
+        if (currentBatch.length > 0) {
+          batches.push({
+            requests: currentBatch,
+            originalIndices: currentBatchIndices,
+          });
+        }
+
+        // Start a new batch
+        currentBatch = [request];
+        currentBatchIndices = [i];
+        currentBatchSize = requestSize;
+      } else {
+        // Add to current batch
+        currentBatch.push(request);
+        currentBatchIndices.push(i);
+        currentBatchSize += requestSize;
+      }
+    }
+
+    // Add the last batch if it exists
+    if (currentBatch.length > 0) {
+      batches.push({
+        requests: currentBatch,
+        originalIndices: currentBatchIndices,
+      });
+    }
+
+    return batches;
   }
 
   async putRateLimit(key: string, limit: number, duration?: RateLimitDuration) {

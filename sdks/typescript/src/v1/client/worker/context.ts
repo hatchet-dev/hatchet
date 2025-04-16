@@ -309,16 +309,46 @@ export class Context<T, K = {}> {
     await this.client.event.putStream(stepRunId, data);
   }
 
+  private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
+    let workflowName: string;
+
+    if (typeof workflow === 'string') {
+      workflowName = workflow;
+    } else {
+      workflowName = workflow.id;
+    }
+
+    const opts = options || {};
+    const { sticky } = opts;
+
+    if (sticky && !this.worker.hasWorkflow(workflowName)) {
+      throw new HatchetError(
+        `Cannot run with sticky: workflow ${workflowName} is not registered on the worker`
+      );
+    }
+
+    const { workflowRunId, stepRunId } = this.action;
+
+    const finalOpts = {
+      ...options,
+      parentId: workflowRunId,
+      parentStepRunId: stepRunId,
+      childIndex: this.spawnIndex,
+      desiredWorkerId: sticky ? this.worker.id() : undefined,
+    };
+
+    this.spawnIndex += 1;
+
+    return { workflowName, opts: finalOpts };
+  }
+
   private spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ) {
-    if (typeof workflow === 'string') {
-      return this.client.admin.runWorkflow<Q, P>(workflow, input, options);
-    }
-
-    return this.client.admin.runWorkflow<Q, P>(workflow.id, input, options);
+    const { workflowName, opts } = this.spawnOptions(workflow, options);
+    return this.client.admin.runWorkflow<Q, P>(workflowName, input, opts);
   }
 
   private spawnWorkflows<Q extends JsonObject, P extends JsonObject>(
@@ -328,13 +358,12 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ) {
-    const workflows = children.map((child) => {
-      if (typeof child.workflow === 'string') {
-        return { workflowName: child.workflow, input: child.input, options: child.options };
+    const workflows: Parameters<typeof this.client.admin.runWorkflows<Q, P>>[0] = children.map(
+      (child) => {
+        const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
+        return { workflowName, input: child.input, options: opts };
       }
-
-      return { workflowName: child.workflow.id, input: child.input, options: child.options };
-    });
+    );
 
     return this.client.admin.runWorkflows<Q, P>(workflows);
   }
