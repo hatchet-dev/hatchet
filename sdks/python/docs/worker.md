@@ -1,3 +1,0 @@
-# Worker
-
-::: worker.worker
