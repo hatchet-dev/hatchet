@@ -108,7 +108,7 @@ export function CreateInviteForm({ className, close }: CreateInviteFormProps) {
     if (!isRoleAllowed(selectedRole)) {
       setValue('role', getDefaultRole());
     }
-  }, [selectedRole, setValue, allowedRoles]);
+  }, [selectedRole, setValue, allowedRoles, getDefaultRole, isRoleAllowed]);
 
   // Watch emails to update button text
   const emails = watch('emails');

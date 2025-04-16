@@ -233,7 +233,10 @@ export function FilterKeyValue<T>({
   const [key, setKey] = React.useState<string>('');
   const [value, setValue] = React.useState<string>('');
 
-  const currentFilters = (filters[name] as string[]) || [];
+  const currentFilters = useMemo(
+    () => (filters[name] as string[]) || [],
+    [filters, name],
+  );
 
   const handleAddFilter = () => {
     if (key && value) {

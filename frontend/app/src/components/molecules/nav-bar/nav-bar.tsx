@@ -244,7 +244,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, params, pathname, tenantVersion, versionedRoutes]);
+  }, [navigate, pathname, tenantVersion, versionedRoutes]);
 
   useEffect(() => {
     if (!setHasBanner) {

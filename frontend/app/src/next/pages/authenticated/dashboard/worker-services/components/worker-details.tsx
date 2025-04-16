@@ -22,7 +22,7 @@ import { Time } from '@/next/components/ui/time';
 import useWorkers from '@/next/hooks/use-workers';
 
 // Extending Worker type with additional properties that may exist
-interface WorkerDetails {
+interface IWorkerDetails {
   language?: string;
   languageVersion?: string;
   os?: string;
@@ -60,7 +60,7 @@ export function WorkerDetails({
   }
 
   // Cast worker to include additional properties
-  const workerDetails = worker as unknown as typeof worker & WorkerDetails;
+  const workerDetails = worker as unknown as typeof worker & IWorkerDetails;
 
   // Status management
   const handlePauseWorker = async () => {

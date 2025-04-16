@@ -10,9 +10,9 @@ import {
   TabsTrigger,
   TabsContent,
 } from '@/components/v1/ui/tabs';
-import { WorkerDetails } from '@/next/pages/authenticated/dashboard/worker-services/components/worker-details';
 import { useSearchParams } from 'react-router-dom';
 import { useCallback } from 'react';
+import { WorkerDetails } from '../worker-services/components/worker-details';
 
 interface RunDetailSheetProps {
   isOpen: boolean;
