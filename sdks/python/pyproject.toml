@@ -165,6 +165,6 @@ lifespans = "examples.lifespans.worker:main"
 
 [tool.pydoclint]
 style = 'sphinx'
-exclude = 'v0|clients/rest/*|contracts/*'
+exclude = 'v0|clients/rest/*|contracts/*|.venv'
 arg-type-hints-in-docstring = false       # Automatically checked by mypy and mkdocs
 check-return-types = false                # Automatically checked by mypy and mkdocs
