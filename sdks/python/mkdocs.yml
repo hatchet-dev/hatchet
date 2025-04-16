@@ -32,12 +32,17 @@ theme:
     - navigation.expand
     - navigation.indexes
     - content.code.copy
+    - header.autohide
+    - navigation.footer
+    - search.suggest
+    - search.highlight
 
 extra_css:
   - styles.css
 
 plugins:
-  - search
+  - search:
+      indexing: full
   - mkdocstrings:
       default_handler: python
       handlers:
