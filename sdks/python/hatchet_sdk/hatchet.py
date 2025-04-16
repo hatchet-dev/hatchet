@@ -58,16 +58,6 @@ class Hatchet:
         client: Client | None = None,
         config: ClientConfig | None = None,
     ):
-        """
-        Initialize a new Hatchet instance.
-
-        :param debug: Enable debug logging. Default: `False`
-
-        :param client: A pre-configured `Client` instance. Default: `None`.
-
-        :param config: Configuration for creating a new Client. Defaults to ClientConfig()
-        """
-
         if debug:
             logger.setLevel(logging.DEBUG)
 
@@ -141,12 +131,13 @@ class Hatchet:
 
         :param name: The name of the worker.
 
-        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time. Default: 100
+        :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time
 
-        :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels. Defaults to an empty dictionary (no labels)
+        :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
 
-        :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them. Defaults to an empty list
+        :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.
 
+        :param lifespan: A lifespan function to run on the worker. This function will be called when the worker is started, and can be used to perform any setup or teardown tasks.
 
         :returns: The created `Worker` object, which exposes an instance method `start` which can be called to start the worker.
         """
@@ -219,19 +210,19 @@ class Hatchet:
 
         :param name: The name of the workflow.
 
-        :param description: A description for the workflow. Default: None
+        :param description: A description for the workflow
 
-        :param version: A version for the workflow. Default: None
+        :param version: A version for the workflow
 
         :param input_validator: A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`.
 
-        :param on_events: A list of event triggers for the workflow - events which cause the workflow to be run. Defaults to an empty list, meaning the workflow will not be run on any event pushes.
+        :param on_events: A list of event triggers for the workflow - events which cause the workflow to be run.
 
-        :param on_crons: A list of cron triggers for the workflow. Defaults to an empty list, meaning the workflow will not be run on any cron schedules.
+        :param on_crons: A list of cron triggers for the workflow.
 
-        :param sticky: A sticky strategy for the workflow. Default: `None`
+        :param sticky: A sticky strategy for the workflow
 
-        :param default_priority: The priority of the workflow. Higher values will cause this workflow to have priority in scheduling over other, lower priority ones. Default: `1`
+        :param default_priority: The priority of the workflow. Higher values will cause this workflow to have priority in scheduling over other, lower priority ones.
 
         :param concurrency: A concurrency object controlling the concurrency settings for this workflow.
 
@@ -333,35 +324,35 @@ class Hatchet:
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
-        :param description: An optional description for the task. Default: None
+        :param description: An optional description for the task.
 
         :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
 
-        :param on_events: A list of event triggers for the task - events which cause the task to be run. Defaults to an empty list.
+        :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
-        :param on_crons: A list of cron triggers for the task. Defaults to an empty list.
+        :param on_crons: A list of cron triggers for the task.
 
-        :param version: A version for the task. Default: None
+        :param version: A version for the task.
 
-        :param sticky: A sticky strategy for the task. Default: None
+        :param sticky: A sticky strategy for the task.
 
-        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling. Default: 1
+        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
         :param concurrency: A concurrency object controlling the concurrency settings for this task.
 
-        :param schedule_timeout: The maximum time allowed for scheduling the task. Default: DEFAULT_SCHEDULE_TIMEOUT
+        :param schedule_timeout: The maximum time allowed for scheduling the task.
 
-        :param execution_timeout: The maximum time allowed for executing the task. Default: DEFAULT_EXECUTION_TIMEOUT
+        :param execution_timeout: The maximum time allowed for executing the task.
 
-        :param retries: The number of times to retry the task before failing. Default: 0
+        :param retries: The number of times to retry the task before failing.
 
-        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list.
+        :param rate_limits: A list of rate limit configurations for the task.
 
         :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
 
-        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: None
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: None
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :returns: A decorator which creates a `Standalone` task object.
         """
@@ -492,35 +483,35 @@ class Hatchet:
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
-        :param description: An optional description for the task. Default: None
+        :param description: An optional description for the task.
 
         :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
 
-        :param on_events: A list of event triggers for the task - events which cause the task to be run. Defaults to an empty list.
+        :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
-        :param on_crons: A list of cron triggers for the task. Defaults to an empty list.
+        :param on_crons: A list of cron triggers for the task.
 
-        :param version: A version for the task. Default: None
+        :param version: A version for the task.
 
-        :param sticky: A sticky strategy for the task. Default: None
+        :param sticky: A sticky strategy for the task.
 
-        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling. Default: 1
+        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
         :param concurrency: A concurrency object controlling the concurrency settings for this task.
 
-        :param schedule_timeout: The maximum time allowed for scheduling the task. Default: DEFAULT_SCHEDULE_TIMEOUT
+        :param schedule_timeout: The maximum time allowed for scheduling the task.
 
-        :param execution_timeout: The maximum time allowed for executing the task. Default: DEFAULT_EXECUTION_TIMEOUT
+        :param execution_timeout: The maximum time allowed for executing the task.
 
-        :param retries: The number of times to retry the task before failing. Default: 0
+        :param retries: The number of times to retry the task before failing.
 
-        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list.
+        :param rate_limits: A list of rate limit configurations for the task.
 
         :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
 
-        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: None
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: None
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :returns: A decorator which creates a `Standalone` task object.
         """
