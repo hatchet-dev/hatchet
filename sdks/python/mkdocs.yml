@@ -41,6 +41,7 @@ extra_css:
 
 plugins:
   - search
+  - markdown-export
   - mkdocstrings:
       default_handler: python
       handlers:
@@ -48,7 +49,7 @@ plugins:
           paths: [hatchet_sdk]
           options:
             show_source: false
-            heading_level: 2
+            heading_level: 4
             show_category_heading: true
             show_if_no_docstring: true
             show_signature_annotations: false

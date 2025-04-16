@@ -30,7 +30,7 @@ class CreateCronTriggerConfig(BaseModel):
     Attributes:
         expression (str): The cron expression defining the schedule.
         input (dict): The input data for the cron workflow.
-        additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger (e.g. {"key1": "value1", "key2": "value2"}).
+        additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
     """
 
     expression: str
@@ -95,7 +95,7 @@ class CronClient(BaseRestClient):
             cron_name (str): The name of the cron trigger.
             expression (str): The cron expression defining the schedule.
             input (dict): The input data for the cron workflow.
-            additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger (e.g. {"key1": "value1", "key2": "value2"}).
+            additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
 
         Returns:
             CronWorkflows: The created cron workflow instance.

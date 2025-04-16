@@ -59,6 +59,9 @@ mkdocs = "^1.6.1"
 mkdocstrings = { extras = ["python"], version = "^0.29.1" }
 mkdocs-material = "^9.6.11"
 pydoclint = "^0.6.6"
+trafilatura = "^2.0.0"
+markdownify = "^1.1.0"
+openai = "^1.75.0"
 
 [tool.poetry.extras]
 otel = [
@@ -166,5 +169,8 @@ lifespans = "examples.lifespans.worker:main"
 [tool.pydoclint]
 style = 'sphinx'
 exclude = 'v0|clients/rest/*|contracts/*|.venv'
-arg-type-hints-in-docstring = false       # Automatically checked by mypy and mkdocs
-check-return-types = false                # Automatically checked by mypy and mkdocs
+arg-type-hints-in-docstring = false             # Automatically checked by mypy and mkdocs
+check-return-types = false                      # Automatically checked by mypy and mkdocs
+
+[tool.poetry.plugins."mkdocs.plugins"]
+"markdown-export" = "docs.markdown_export:MarkdownExportPlugin"
