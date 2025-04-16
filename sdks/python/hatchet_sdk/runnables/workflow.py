@@ -446,6 +446,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
+        :param schedule_timeout: The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.
+
+        :param execution_timeout: The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.
+
         :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children.
 
         :param retries: The number of times to retry the task before failing.
@@ -528,6 +532,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
+        :param schedule_timeout: The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.
+
+        :param execution_timeout: The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.
+
         :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children.
 
         :param retries: The number of times to retry the task before failing.
@@ -599,6 +607,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param name: The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
 
+        :param schedule_timeout: The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.
+
+        :param execution_timeout: The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.
+
         :param retries: The number of times to retry the on-failure task before failing.
 
         :param rate_limits: A list of rate limit configurations for the on-failure task.
@@ -606,6 +618,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
+
+        :param concurrency: A list of concurrency expressions for the on-success task.
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -653,6 +667,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param name: The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
 
+        :param schedule_timeout: The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.
+
+        :param execution_timeout: The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.
+
         :param retries: The number of times to retry the on-success task before failing
 
         :param rate_limits: A list of rate limit configurations for the on-success task.
@@ -660,6 +678,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
+
+        :param concurrency: A list of concurrency expressions for the on-success task.
 
         :returns: A decorator which creates a Task object.
         """
