@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api, { TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -203,7 +203,6 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { tenant } = useTenant();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
 
   const versionedRoutes = useMemo(
     () =>
