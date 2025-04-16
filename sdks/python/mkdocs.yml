@@ -14,7 +14,7 @@ theme:
         name: Switch to light mode
 
     - media: "(prefers-color-scheme: light)"
-      scheme: youtube
+      scheme: default
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
@@ -40,8 +40,7 @@ extra_css:
   - styles.css
 
 plugins:
-  - search:
-      indexing: full
+  - search
   - mkdocstrings:
       default_handler: python
       handlers:
