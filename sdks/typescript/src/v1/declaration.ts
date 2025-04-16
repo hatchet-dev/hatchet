@@ -548,7 +548,7 @@ export class WorkflowDeclaration<
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as unknown as CreateWorkflowTaskOpts<I, TO>;
+      typedOptions = options as CreateWorkflowTaskOpts<I, TO>;
     }
 
     this.definition._tasks.push(typedOptions);
@@ -578,7 +578,7 @@ export class WorkflowDeclaration<
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as unknown as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
+      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
     }
 
     if (this.definition.onFailure) {
@@ -612,7 +612,7 @@ export class WorkflowDeclaration<
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as unknown as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
+      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
     }
 
     if (this.definition.onSuccess) {
