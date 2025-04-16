@@ -194,7 +194,7 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		Name:      workflowName,
 		Schedules: pbSchedules,
 		Input:     string(inputBytes),
-		Priority:  *opts.priority,
+		Priority:  opts.priority,
 	})
 
 	if err != nil {

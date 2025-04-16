@@ -491,6 +491,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	for _, cronTrigger := range opts.CronTriggers {
 
+		var priority pgtype.Int4
+
+		if opts.DefaultPriority != nil {
+			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
+		}
+
 		_, err := r.queries.CreateWorkflowTriggerCronRef(
 			ctx,
 			tx,
@@ -502,8 +508,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					String: "",
 					Valid:  true,
 				},
-				// TODO: check this is right
-				Priority: sqlchelpers.ToInt(*opts.DefaultPriority),
+				Priority: priority,
 			},
 		)
 
