@@ -446,25 +446,25 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
-        :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children. Defaults to an empty list (no parents).
+        :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children.
 
-        :param retries: The number of times to retry the task before failing. Default: `0`
+        :param retries: The number of times to retry the task before failing.
 
-        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list (no rate limits).
+        :param rate_limits: A list of rate limit configurations for the task.
 
-        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. Defaults to an empty dictionary (no desired worker labels).
+        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.
 
-        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
-        :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
+        :param concurrency: A list of concurrency expressions for the task.
 
-        :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
+        :param wait_for: A list of conditions that must be met before the task can run.
 
-        :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
+        :param skip_if: A list of conditions that, if met, will cause the task to be skipped.
 
-        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
+        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -528,25 +528,25 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
-        :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children. Defaults to an empty list (no parents).
+        :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children.
 
-        :param retries: The number of times to retry the task before failing. Default: `0`
+        :param retries: The number of times to retry the task before failing.
 
-        :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list (no rate limits).
+        :param rate_limits: A list of rate limit configurations for the task.
 
-        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. Defaults to an empty dictionary (no desired worker labels).
+        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.
 
-        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
-        :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
+        :param concurrency: A list of concurrency expressions for the task.
 
-        :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
+        :param wait_for: A list of conditions that must be met before the task can run.
 
-        :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
+        :param skip_if: A list of conditions that, if met, will cause the task to be skipped.
 
-        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
+        :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -599,13 +599,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param name: The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
 
-        :param retries: The number of times to retry the on-failure task before failing. Default: `0`
+        :param retries: The number of times to retry the on-failure task before failing.
 
-        :param rate_limits: A list of rate limit configurations for the on-failure task. Defaults to an empty list (no rate limits).
+        :param rate_limits: A list of rate limit configurations for the on-failure task.
 
-        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -655,11 +655,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param retries: The number of times to retry the on-success task before failing
 
-        :param rate_limits: A list of rate limit configurations for the on-success task. Defaults to an empty list (no rate limits).
+        :param rate_limits: A list of rate limit configurations for the on-success task.
 
-        :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :returns: A decorator which creates a Task object.
         """
