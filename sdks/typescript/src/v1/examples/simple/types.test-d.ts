@@ -3,6 +3,7 @@
 // in tsconfig.json to hide the errors (but fail on build)
 
 // eslint-disable-next-line import/no-extraneous-dependencies
+import { Context } from '@hatchet/step';
 import {
   CreateTaskWorkflowOpts,
   HatchetClient,
@@ -19,7 +20,6 @@ import {
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expectError, expectType } from 'jest-tsd';
 import { InputType, UnknownInputType, WorkflowOutputType } from '@hatchet/v1/types';
-import { Context } from '@hatchet/v1/client/worker/context';
 
 const hatchet = HatchetClient.init({ token: '' });
 
