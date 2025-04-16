@@ -138,22 +138,23 @@ def inject_traceparent_into_metadata(
 
 
 class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
+    """
+    Hatchet OpenTelemetry instrumentor.
+
+    The instrumentor provides an OpenTelemetry integration for Hatchet by setting up
+    tracing and metrics collection.
+
+    :param tracer_provider: TracerProvider | None: The OpenTelemetry TracerProvider to use.
+            If not provided, the global tracer provider will be used.
+    :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
+            If not provided, a no-op meter provider will be used.
+    """
+
     def __init__(
         self,
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
     ):
-        """
-        Hatchet OpenTelemetry instrumentor.
-
-        The instrumentor provides an OpenTelemetry integration for Hatchet by setting up
-        tracing and metrics collection.
-
-        :param tracer_provider: TracerProvider | None: The OpenTelemetry TracerProvider to use.
-                If not provided, the global tracer provider will be used.
-        :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
-                If not provided, a no-op meter provider will be used.
-        """
 
         self.tracer_provider = tracer_provider or get_tracer_provider()
         self.meter_provider = meter_provider or NoOpMeterProvider()

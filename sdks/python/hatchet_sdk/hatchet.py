@@ -133,6 +133,8 @@ class Hatchet:
 
         :param slots: The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time
 
+        :param durable_slots: The number of durable workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time that are durable.
+
         :param labels: A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.
 
         :param workflows: A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.
@@ -212,13 +214,13 @@ class Hatchet:
 
         :param description: A description for the workflow
 
-        :param version: A version for the workflow
-
         :param input_validator: A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`.
 
         :param on_events: A list of event triggers for the workflow - events which cause the workflow to be run.
 
         :param on_crons: A list of cron triggers for the workflow.
+
+        :param version: A version for the workflow
 
         :param sticky: A sticky strategy for the workflow
 
