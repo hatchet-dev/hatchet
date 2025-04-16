@@ -277,7 +277,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
         :returns: The result of the workflow execution as a dictionary.
-        :rtype: dict[str, Any]
 
         Example:
         ```python
@@ -468,7 +467,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
 
         :returns: A decorator which creates a `Task` object.
-        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
         """
 
         def inner(
@@ -551,7 +549,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
 
         :returns: A decorator which creates a `Task` object.
-        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
         """
 
         def inner(
@@ -611,7 +608,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
 
         :returns: A decorator which creates a `Task` object.
-        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
         """
 
         def inner(
@@ -665,8 +661,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
 
-        :returns: A decorator which creates a `Task` object.
-        :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
+        :returns: A decorator which creates a Task object.
         """
 
         def inner(

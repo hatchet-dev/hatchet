@@ -49,9 +49,12 @@ plugins:
             show_category_heading: true
             show_if_no_docstring: true
             show_signature_annotations: false
-            filters: ["!^_"]
+            show_signature: false
+            show_overloads: false
             docstring_style: sphinx
-            members_order: source
+            show_docstring_functions: false
+            inherited_members: false
+            filters: ["!^_"]
 
 markdown_extensions:
   - pymdownx.highlight
