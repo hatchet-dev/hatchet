@@ -299,7 +299,7 @@ export class Context<T, K = {}> {
     options?: ChildRunOpts
   ) {
     const { workflowName, opts } = this.spawnOptions(workflow, options);
-    return this.v1._v0.admin.runWorkflow<Q, P>(workflowName, input, opts);
+    return this.v1.admin.runWorkflow<Q, P>(workflowName, input, opts);
   }
 
   private spawnBulk<Q extends JsonObject, P extends JsonObject>(
@@ -309,14 +309,14 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ) {
-    const workflows: Parameters<typeof this.v1._v0.admin.runWorkflows<Q, P>>[0] = children.map(
+    const workflows: Parameters<typeof this.v1.admin.runWorkflows<Q, P>>[0] = children.map(
       (child) => {
         const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
         return { workflowName, input: child.input, options: opts };
       }
     );
 
-    return this.v1._v0.admin.runWorkflows<Q, P>(workflows);
+    return this.v1.admin.runWorkflows<Q, P>(workflows);
   }
 
   /**

@@ -41,7 +41,7 @@ export const parent = hatchet.task({
       });
     }
 
-    await ctx.bulkRunChildren(children);
+    await ctx.bulkRunNoWaitChildren(children);
 
     return {
       TransformedMessage: 'done',
