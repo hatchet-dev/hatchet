@@ -12,6 +12,7 @@ import {
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
+import { batch } from '@hatchet/util/batch';
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
@@ -134,22 +135,21 @@ export class AdminClient {
       };
     });
 
-    const batches = this.batchWorkflows(workflowRequests, batchSize);
+    const limit = 4 * 1024 * 1024; // FIXME configurable GRPC limit
+
+    const batches = batch(workflowRequests, batchSize, limit);
 
     this.logger.debug(`batching ${batches.length} batches`);
 
     try {
-      const allResults: WorkflowRunRef<P>[] = [];
+      const results: WorkflowRunRef<P>[] = [];
 
-      // Process each batch
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-        const batch = batches[batchIndex];
-        const { requests, originalIndices } = batch;
-
+      // for loop to ensure serial execution of batches
+      for (const { payloads, originalIndices, batchIndex } of batches) {
         // Call the bulk trigger workflow method for this batch
         const bulkTriggerWorkflowResponse = await this.grpc.bulkTriggerWorkflow(
           BulkTriggerWorkflowRequest.create({
-            workflows: requests,
+            workflows: payloads,
           })
         );
 
@@ -162,61 +162,12 @@ export class AdminClient {
           return new WorkflowRunRef<P>(resp, this.listenerClient, this.runs, options?.parentId);
         });
 
-        allResults.push(...batchResults);
+        results.push(...batchResults);
       }
-
-      return allResults;
+      return results;
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
-  }
-
-  private batchWorkflows(
-    workflowRequests: any[],
-    batchSize: number
-  ): Array<{ requests: any[]; originalIndices: number[] }> {
-    const payloadLimit = 4 * 1024 * 1024; // 4MB limit
-    const batches: Array<{ requests: any[]; originalIndices: number[] }> = [];
-
-    let currentBatch: any[] = [];
-    let currentBatchIndices: number[] = [];
-    let currentBatchSize = 0;
-
-    for (let i = 0; i < workflowRequests.length; i += 1) {
-      const request = workflowRequests[i];
-      const requestSize = Buffer.byteLength(JSON.stringify(request), 'utf8');
-
-      // Check if adding this request would exceed either the payload limit or batch size
-      if (currentBatchSize + requestSize > payloadLimit || currentBatch.length >= batchSize) {
-        // If we have a batch, add it to batches
-        if (currentBatch.length > 0) {
-          batches.push({
-            requests: currentBatch,
-            originalIndices: currentBatchIndices,
-          });
-        }
-
-        // Start a new batch
-        currentBatch = [request];
-        currentBatchIndices = [i];
-        currentBatchSize = requestSize;
-      } else {
-        // Add to current batch
-        currentBatch.push(request);
-        currentBatchIndices.push(i);
-        currentBatchSize += requestSize;
-      }
-    }
-
-    // Add the last batch if it exists
-    if (currentBatch.length > 0) {
-      batches.push({
-        requests: currentBatch,
-        originalIndices: currentBatchIndices,
-      });
-    }
-
-    return batches;
   }
 
   async putRateLimit(key: string, limit: number, duration?: RateLimitDuration) {
