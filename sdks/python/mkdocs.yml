@@ -68,6 +68,7 @@ markdown_extensions:
       permalink: true
 
 nav:
+  - Home: index.md
   - SDK Reference:
     - Runnables: runnables.md
     - Clients:

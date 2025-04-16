@@ -3,6 +3,10 @@ export default {
             "title": "Runnables",
         },
 
+        "index": {
+            "title": "Index",
+        },
+
         "clients": {
             "title": "Clients",
         },
