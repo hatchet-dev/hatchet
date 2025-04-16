@@ -1,7 +1,7 @@
 // ❓ Create a workflow
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { ParentCondition } from '@hatchet/v1/conditions/parent-condition';
-import { V0Context } from '@hatchet/step';
+import { Context } from '@hatchet/v1/client/worker/context';
 import { hatchet } from '../hatchet-client';
 
 export const taskConditionWorkflow = hatchet.workflow({
@@ -88,7 +88,7 @@ const waitForEvent = taskConditionWorkflow.task({
 taskConditionWorkflow.task({
   name: 'sum',
   parents: [start, waitForSleep, waitForEvent, skipOnEvent, leftBranch, rightBranch],
-  fn: async (_, ctx: V0Context<any, any>) => {
+  fn: async (_, ctx: Context<any, any>) => {
     const one = (await ctx.parentOutput(start)).randomNumber;
     const two = (await ctx.parentOutput(waitForEvent)).randomNumber;
     const three = (await ctx.parentOutput(waitForSleep)).randomNumber;
