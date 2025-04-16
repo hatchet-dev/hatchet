@@ -1,133 +1,454 @@
 :root {
-    --md-default-bg-color: hsl(0 0% 100%);
-    --md-default-fg-color: hsl(222.2 84% 4.9%);
-    --md-typeset-color: var(--md-default-fg-color);
+  /* Light mode variables */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
 
-    --md-primary-fg-color: hsl(222.2 47.4% 11.2%);
-    --md-primary-bg-color: hsl(210 40% 98%);
-    --md-accent-fg-color: hsl(210 40% 96.1%);
-    --md-accent-bg-color: hsl(222.2 47.4% 11.2%);
-    --md-code-bg-color: hsl(210 40% 96.1%);
-    --md-code-fg-color: hsl(222.2 47.4% 11.2%);
-    --md-typeset-a-color: hsl(221.2 83.2% 53.3%);
-    --md-typeset-mark-color: hsl(212 95% 68%);
-    --md-footer-bg-color: hsl(210 40% 98%);
-  }
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
 
-  [data-md-color-scheme="slate"] {
-    --md-default-bg-color: hsl(222.2 84% 4.9%);
-    --md-default-fg-color: hsl(210 40% 98%);
-    --md-typeset-color: var(--md-default-fg-color);
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
 
-    --md-primary-fg-color: hsl(210 40% 98%);
-    --md-primary-bg-color: hsl(222.2 47.4% 11.2%);
-    --md-accent-fg-color: hsl(217.2 32.6% 17.5%);
-    --md-accent-bg-color: hsl(210 40% 98%);
-    --md-code-bg-color: hsl(217.2 32.6% 17.5%);
-    --md-code-fg-color: hsl(210 40% 98%);
-    --md-typeset-a-color: hsl(221.2 83.2% 53.3%);
-    --md-typeset-mark-color: hsl(212 95% 68%);
-    --md-footer-bg-color: hsl(217.2 32.6% 17.5%);
-  }
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
 
-  /* Apply border and radius to cards/boxes */
-  .md-typeset .admonition,
-  .md-typeset details,
-  .md-typeset .md-typeset__table {
-    border-radius: 0.5rem;
-    border: 1px solid hsl(214.3 31.8% 91.4%);
-  }
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
 
-  [data-md-color-scheme="slate"] .md-typeset .admonition,
-  [data-md-color-scheme="slate"] .md-typeset details,
-  [data-md-color-scheme="slate"] .md-typeset .md-typeset__table {
-    border: 1px solid hsl(217.2 32.6% 17.5%);
-  }
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
 
-  /* Buttons and links */
-  .md-button,
-  .md-typeset a {
-    border-radius: 0.375rem;
-    transition: background 0.2s ease;
-  }
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
 
-  /* Override code block font size if needed */
-  .md-typeset code,
-  .md-typeset pre {
-    font-size: 0.875rem;
-  }
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
 
-  /* Fancy spark effect – optional */
-  .step-run-card {
-    position: relative;
-    overflow: hidden;
-    transform: scale(1);
-    transition: transform 0.25s ease;
-  }
-  .step-run-card.active {
-    transform: scale(1.05);
-  }
-  .spark {
-    position: absolute;
-    inset: 0;
-    border-radius: 2px;
-    rotate: 0deg;
-    overflow: hidden;
-    mask: linear-gradient(white, transparent 50%);
-    animation: flip 6s infinite steps(2, end);
-  }
-  @keyframes flip {
-    to {
-      rotate: 360deg;
-    }
-  }
-  .spark:before {
-    content: "";
-    position: absolute;
-    width: 200%;
-    aspect-ratio: 1;
-    inset: 0 auto auto 50%;
-    translate: -50% -15%;
-    transform: rotate(-90deg);
-    opacity: 1;
-    background: conic-gradient(from 0deg, transparent 0 340deg, white 360deg);
-    animation: rotate 3s linear infinite both;
-  }
-  @keyframes rotate {
-    to {
-      transform: rotate(90deg);
-    }
-  }
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
 
-  /* Typography tweaks */
-  .md-typeset h1,
-  .md-typeset h2,
-  .md-typeset h3 {
-    font-weight: 600;
-  }
+  --radius: 0.5rem;
 
-  .md-typeset p {
-    line-height: 1.75;
-  }
+  --chart-1: 221.2 83.2% 53.3%;
+  --chart-2: 212 95% 68%;
+  --chart-3: 216 92% 60%;
+  --chart-4: 210 98% 78%;
+  --chart-5: 212 97% 87%;
 
-  /* Light mode overrides */
-[data-md-color-scheme="default"] {
-    --md-primary-fg-color: hsl(222.2 47.4% 11.2%);
-    --md-primary-bg-color: hsl(0 0% 100%);
-    --md-accent-fg-color: hsl(210 40% 96.1%);
-    --md-accent-bg-color: hsl(222.2 47.4% 11.2%);
-    --md-default-bg-color: hsl(0 0% 100%);
-    --md-default-fg-color: hsl(222.2 84% 4.9%);
-    --md-typeset-color: hsl(222.2 84% 4.9%);
-  }
+  /* MkDocs Material light mode variables */
+  --md-default-bg-color: hsl(var(--background));
+  --md-default-fg-color: hsl(var(--foreground));
+  --md-typeset-color: hsl(var(--foreground));
 
-  /* Dark mode overrides */
-  [data-md-color-scheme="slate"] {
-    --md-primary-fg-color: hsl(210 40% 98%);
-    --md-primary-bg-color: hsl(222.2 84% 4.9%);
-    --md-accent-fg-color: hsl(217.2 32.6% 17.5%);
-    --md-accent-bg-color: hsl(210 40% 98%);
-    --md-default-bg-color: hsl(222.2 84% 4.9%);
-    --md-default-fg-color: hsl(210 40% 98%);
-    --md-typeset-color: hsl(210 40% 98%);
+  --md-primary-fg-color: hsl(var(--primary));
+  --md-primary-bg-color: hsl(var(--primary-foreground));
+
+  --md-accent-fg-color: hsl(var(--accent));
+  --md-accent-bg-color: hsl(var(--accent-foreground));
+
+  --md-code-bg-color: hsl(var(--secondary));
+  --md-code-fg-color: hsl(var(--secondary-foreground));
+
+  --md-typeset-a-color: hsl(var(--chart-1));
+  --md-typeset-mark-color: hsl(var(--chart-2));
+  --md-footer-bg-color: hsl(var(--secondary));
+  --md-footer-fg-color: hsl(var(--secondary-foreground));
+
+  --md-typeset-table-color: hsl(var(--border));
+  --md-typeset-table-bg-color: hsl(var(--background));
+
+  --md-admonition-bg-color: hsl(var(--card));
+  --md-admonition-fg-color: hsl(var(--card-foreground));
+}
+
+[data-md-color-scheme="slate"] {
+  /* Dark mode variables */
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+
+  /* MkDocs Material dark mode variables */
+  --md-default-bg-color: hsl(var(--background));
+  --md-default-fg-color: hsl(var(--foreground));
+  --md-typeset-color: hsl(var(--foreground));
+
+  --md-primary-fg-color: hsl(var(--primary));
+  --md-primary-bg-color: hsl(var(--primary-foreground));
+
+  --md-accent-fg-color: hsl(var(--accent));
+  --md-accent-bg-color: hsl(var(--accent-foreground));
+
+  --md-code-bg-color: hsl(var(--secondary));
+  --md-code-fg-color: hsl(var(--secondary-foreground));
+
+  --md-typeset-a-color: hsl(var(--chart-1));
+  --md-typeset-mark-color: hsl(var(--chart-2));
+  --md-footer-bg-color: hsl(var(--secondary));
+  --md-footer-fg-color: hsl(var(--secondary-foreground));
+
+  --md-typeset-table-color: hsl(var(--border));
+  --md-typeset-table-bg-color: hsl(var(--background));
+
+  --md-admonition-bg-color: hsl(var(--card));
+  --md-admonition-fg-color: hsl(var(--card-foreground));
+}
+
+/* Base styles */
+* {
+  border-color: hsl(var(--border));
+  outline-color: hsla(var(--ring), 50%);
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Typography */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.md-typeset p {
+  line-height: 1.75;
+}
+
+/* Links */
+.md-typeset a {
+  color: hsl(var(--chart-1));
+  border-radius: 0.375rem;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.md-typeset a:hover {
+  color: hsl(var(--chart-1));
+  text-decoration: underline;
+}
+
+/* Buttons */
+.md-button {
+  border-radius: 0.375rem !important;
+  transition: background 0.2s ease, border-color 0.2s ease !important;
+  text-align: center;
+  font-weight: 500;
+}
+
+.md-button:not(.md-button--primary) {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  border-color: transparent;
+}
+
+.md-button:not(.md-button--primary):hover {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.md-button--primary {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: transparent;
+}
+
+.md-button--primary:hover {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
+/* Navigation */
+.md-nav {
+  font-size: 0.875rem;
+}
+
+.md-nav__link {
+  color: hsl(var(--foreground) / 0.8);
+  transition: color 0.2s ease;
+}
+
+.md-nav__link:hover {
+  color: hsl(var(--foreground));
+}
+
+.md-nav__link--active {
+  color: hsl(var(--chart-1));
+  font-weight: 500;
+}
+
+/* Header */
+.md-header {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.md-header-nav__button.md-logo img,
+.md-header-nav__button.md-logo svg {
+  fill: currentColor;
+}
+
+/* Code blocks */
+.md-typeset code,
+.md-typeset pre {
+  font-size: 0.875rem;
+  border-radius: var(--radius);
+}
+
+.md-typeset pre > code {
+  padding: 1rem;
+  line-height: 1.5;
+}
+
+/* Cards and boxes */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  overflow: hidden;
+}
+
+.md-typeset .admonition-title,
+.md-typeset summary {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+
+/* Tables */
+.md-typeset table:not([class]) {
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  overflow: hidden;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.md-typeset table:not([class]) th {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-weight: 600;
+}
+
+.md-typeset table:not([class]) td {
+  border-top: 1px solid hsl(var(--border));
+}
+
+/* Footer */
+.md-footer {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+
+.md-footer-meta {
+  background-color: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+  border-top: 1px solid hsl(var(--border));
+}
+
+/* Search */
+.md-search__form {
+  background-color: hsl(var(--secondary));
+  border-radius: var(--radius);
+}
+
+.md-search__input {
+  color: hsl(var(--secondary-foreground));
+}
+
+.md-search__input::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Indentation from provided code */
+div.doc-contents:not(.first) {
+  padding-left: 25px;
+  border-left: .05rem solid hsl(var(--border));
+}
+
+/* External link marker from provided code */
+a.external::after,
+a.autorefs-external::after {
+  mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.25 15.5a.75.75 0 00.75-.75v-9a.75.75 0 00-.75-.75h-9a.75.75 0 000 1.5h7.19L6.22 16.72a.75.75 0 101.06 1.06L17.5 7.56v7.19c0 .414.336.75.75.75z"></path></svg>');
+  -webkit-mask-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.25 15.5a.75.75 0 00.75-.75v-9a.75.75 0 00-.75-.75h-9a.75.75 0 000 1.5h7.19L6.22 16.72a.75.75 0 101.06 1.06L17.5 7.56v7.19c0 .414.336.75.75.75z"></path></svg>');
+  content: ' ';
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  height: 1em;
+  width: 1em;
+  background-color: currentColor;
+}
+
+a.external:hover::after,
+a.autorefs-external:hover::after {
+  background-color: hsl(var(--chart-1));
+}
+
+/* Tree-like output for backlinks from provided code */
+.doc-backlink-list {
+  --tree-clr: hsl(var(--foreground));
+  --tree-font-size: 1rem;
+  --tree-item-height: 1;
+  --tree-offset: 1rem;
+  --tree-thickness: 1px;
+  --tree-style: solid;
+  display: grid;
+  list-style: none !important;
+}
+
+.doc-backlink-list li > span:first-child {
+  text-indent: .3rem;
+}
+
+.doc-backlink-list li {
+  padding-inline-start: var(--tree-offset);
+  border-left: var(--tree-thickness) var(--tree-style) var(--tree-clr);
+  position: relative;
+  margin-left: 0 !important;
+}
+
+.doc-backlink-list li:last-child {
+  border-color: transparent;
+}
+
+.doc-backlink-list li::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--tree-item-height) / 2 * -1 * var(--tree-font-size) + var(--tree-thickness));
+  left: calc(var(--tree-thickness) * -1);
+  width: calc(var(--tree-offset) + var(--tree-thickness) * 2);
+  height: calc(var(--tree-item-height) * var(--tree-font-size));
+  border-left: var(--tree-thickness) var(--tree-style) var(--tree-clr);
+  border-bottom: var(--tree-thickness) var(--tree-style) var(--tree-clr);
+}
+
+.doc-backlink-list li::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background-color: var(--tree-clr);
+  top: calc(var(--tree-item-height) / 2 * 1rem);
+  left: var(--tree-offset);
+  translate: calc(var(--tree-thickness) * -1) calc(var(--tree-thickness) * -1);
+}
+
+/* Fancy spark effect from your code */
+.step-run-card {
+  --transition: 0.25s;
+  --spark: 3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.step-run-card.active .step-run-backdrop {
+  background: hsl(var(--foreground));
+}
+
+.step-run-card.active {
+  transform: scale(1.05);
+}
+
+.spark {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  rotate: 0deg;
+  overflow: hidden;
+  mask: linear-gradient(white, transparent 50%);
+  animation: flip calc(var(--spark) * 2) infinite steps(2, end);
+}
+
+@keyframes flip {
+  to {
+    rotate: 360deg;
   }
+}
+
+.spark:before {
+  content: "";
+  position: absolute;
+  width: 200%;
+  aspect-ratio: 1;
+  inset: 0 auto auto 50%;
+  z-index: -1;
+  translate: -50% -15%;
+  rotate: 0;
+  transform: rotate(-90deg);
+  opacity: 1;
+  background: conic-gradient(from 0deg, transparent 0 340deg, white 360deg);
+  transition: opacity var(--transition);
+  animation: rotate var(--spark) linear infinite both;
+}
+
+.step-run-backdrop {
+  position: absolute;
+  inset: 1px;
+  background: hsl(var(--foreground));
+  border-radius: 2px;
+  transition: background var(--transition) opacity var(--transition);
+}
+
+@keyframes rotate {
+  to {
+    transform: rotate(90deg);
+  }
+}
+
+/* Code highlighting adjustments */
+.highlight .hll { background-color: hsl(var(--muted)); }
+.highlight .c { color: hsl(var(--muted-foreground)); } /* Comment */
+.highlight .k { color: hsl(var(--chart-3)); font-weight: bold; } /* Keyword */
+.highlight .o { color: hsl(var(--foreground)); } /* Operator */
+.highlight .p { color: hsl(var(--foreground)); } /* Punctuation */
+.highlight .cm { color: hsl(var(--muted-foreground)); } /* Comment.Multiline */
+.highlight .cp { color: hsl(var(--muted-foreground)); } /* Comment.Preproc */
+.highlight .c1 { color: hsl(var(--muted-foreground)); } /* Comment.Single */
+.highlight .cs { color: hsl(var(--muted-foreground)); } /* Comment.Special */
+.highlight .kc { color: hsl(var(--chart-3)); font-weight: bold; } /* Keyword.Constant */
+.highlight .kd { color: hsl(var(--chart-3)); font-weight: bold; } /* Keyword.Declaration */
+.highlight .kn { color: hsl(var(--chart-3)); font-weight: bold; } /* Keyword.Namespace */
+.highlight .kp { color: hsl(var(--chart-3)); } /* Keyword.Pseudo */
+.highlight .kr { color: hsl(var(--chart-3)); font-weight: bold; } /* Keyword.Reserved */
+.highlight .kt { color: hsl(var(--chart-2)); } /* Keyword.Type */
+.highlight .m { color: hsl(var(--chart-4)); } /* Literal.Number */
+.highlight .s { color: hsl(var(--chart-5)); } /* Literal.String */
+.highlight .n { color: hsl(var(--foreground)); } /* Name */
+.highlight .na { color: hsl(var(--foreground)); } /* Name.Attribute */
+.highlight .nb { color: hsl(var(--foreground)); } /* Name.Builtin */
+.highlight .nc { color: hsl(var(--chart-1)); font-weight: bold; } /* Name.Class */
+.highlight .no { color: hsl(var(--foreground)); } /* Name.Constant */
+.highlight .nd { color: hsl(var(--chart-2)); } /* Name.Decorator */
+.highlight .ni { color: hsl(var(--foreground)); } /* Name.Entity */
+.highlight .ne { color: hsl(var(--chart-1)); font-weight: bold; } /* Name.Exception */
+.highlight .nf { color: hsl(var(--chart-1)); } /* Name.Function */
+.highlight .nl { color: hsl(var(--foreground)); } /* Name.Label */
+.highlight .nn { color: hsl(var(--foreground)); } /* Name.Namespace */
+.highlight .nt { color: hsl(var(--chart-2)); } /* Name.Tag */
+.highlight .nv { color: hsl(var(--foreground)); } /* Name.Variable */
+.highlight .w { color: hsl(var(--foreground)); } /* Text.Whitespace */
