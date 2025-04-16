@@ -56,8 +56,9 @@ psycopg = { extras = ["pool"], version = "^3.2.6" }
 
 [tool.poetry.group.docs.dependencies]
 mkdocs = "^1.6.1"
-mkdocstrings = {extras = ["python"], version = "^0.29.1"}
+mkdocstrings = { extras = ["python"], version = "^0.29.1" }
 mkdocs-material = "^9.6.11"
+pydoclint = "^0.6.6"
 
 [tool.poetry.extras]
 otel = [
@@ -161,3 +162,9 @@ waits = "examples.waits.worker:main"
 durable = "examples.durable.worker:main"
 streaming = "examples.streaming.worker:main"
 lifespans = "examples.lifespans.worker:main"
+
+[tool.pydoclint]
+style = 'sphinx'
+exclude = 'v0|clients/rest/*|contracts/*'
+arg-type-hints-in-docstring = false       # Automatically checked by mypy and mkdocs
+check-return-types = false                # Automatically checked by mypy and mkdocs
