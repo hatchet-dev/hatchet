@@ -42,15 +42,15 @@ plugins:
       default_handler: python
       handlers:
         python:
-          paths: [hatchet_sdk]  # This tells mkdocstrings where to look for your code
+          paths: [hatchet_sdk]
           options:
             show_source: false
             heading_level: 3
             show_category_heading: true
-            show_if_no_docstring: false
+            show_if_no_docstring: true
             show_signature_annotations: false
-            filters: ["!^_"]  # Exclude private members
-            docstring_style: google  # Or numpy if you use that style
+            filters: ["!^_"]
+            docstring_style: sphinx
             members_order: source
 
 markdown_extensions:
@@ -63,7 +63,6 @@ markdown_extensions:
 nav:
   - Home: index.md
   - SDK Reference:
-    - Client: client.md
     - Runnables: runnables.md
     - Features: features.md
     - Worker: worker.md

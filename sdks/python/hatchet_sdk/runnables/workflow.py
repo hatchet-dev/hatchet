@@ -216,8 +216,39 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
     """
-    A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow, such as
-    running / spawning children and scheduling future runs.
+    A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow.
+
+    Workflows in Hatchet represent coordinated units of work that can be triggered, scheduled, or run on a cron schedule.
+    Each workflow can contain multiple tasks that can be arranged in dependencies (DAGs), have customized retry behavior,
+    timeouts, concurrency controls, and more.
+
+    Example:
+    ```python
+    from pydantic import BaseModel
+    from hatchet_sdk import Hatchet
+
+    class MyInput(BaseModel):
+        name: str
+
+    hatchet = Hatchet()
+    workflow = hatchet.workflow("my-workflow", input_type=MyInput)
+
+    @workflow.task()
+    def greet(input, ctx):
+        return f"Hello, {input.name}!"
+
+    # Run the workflow
+    result = workflow.run(MyInput(name="World"))
+    ```
+
+    Workflows support various execution patterns including:
+    - One-time execution with `run()` or `aio_run()`
+    - Scheduled execution with `schedule()`
+    - Cron-based recurring execution with `create_cron()`
+    - Bulk operations with `run_many()`
+
+    Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators
+    and can be arranged into complex dependency patterns.
     """
 
     def run_no_wait(
@@ -236,6 +267,25 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
+        """
+        Run the workflow synchronously and wait for it to complete.
+
+        This method triggers a workflow run, blocks until completion, and returns the final result.
+
+        :param input: The input data for the workflow, must match the workflow's input type.
+
+        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+
+        :returns: The result of the workflow execution as a dictionary.
+        :rtype: dict[str, Any]
+
+        Example:
+        ```python
+        result = my_workflow.run(MyInputModel(name="test"))
+        print(result)  # Final workflow output
+        ```
+        """
+
         ref = self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -396,40 +446,26 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         A decorator to transform a function into a Hatchet task that run as part of a workflow.
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
-        :type name: str | None
-
-        :param timeout: The execution timeout of the task. Defaults to 60 minutes.
-        :type timeout: datetime.timedelta | str
 
         :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children. Defaults to an empty list (no parents).
-        :type parents: list[Task]
 
         :param retries: The number of times to retry the task before failing. Default: `0`
-        :type retries: int
 
         :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list (no rate limits).
-        :type rate_limits: list[RateLimit]
 
         :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. Defaults to an empty dictionary (no desired worker labels).
-        :type desired_worker_labels: dict[str, DesiredWorkerLabel]
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
-        :type backoff_factor: float | None
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
-        :type backoff_max_seconds: int | None
 
         :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
-        :type concurrency: list[ConcurrencyExpression]
 
         :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
-        :type wait_for: list[Condition | OrGroup]
 
         :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
-        :type skip_if: list[Condition | OrGroup]
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
-        :type cancel_if: list[Condition | OrGroup]
 
         :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
@@ -493,40 +529,26 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         See the Hatchet docs for more information on durable execution to decide if this is right for you.
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
-        :type name: str | None
-
-        :param timeout: The execution timeout of the task. Defaults to 60 minutes.
-        :type timeout: datetime.timedelta | str
 
         :param parents: A list of tasks that are parents of the task. Note: Parents must be defined before their children. Defaults to an empty list (no parents).
-        :type parents: list[Task]
 
         :param retries: The number of times to retry the task before failing. Default: `0`
-        :type retries: int
 
         :param rate_limits: A list of rate limit configurations for the task. Defaults to an empty list (no rate limits).
-        :type rate_limits: list[RateLimit]
 
         :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. Defaults to an empty dictionary (no desired worker labels).
-        :type desired_worker_labels: dict[str, DesiredWorkerLabel]
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
-        :type backoff_factor: float | None
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
-        :type backoff_max_seconds: int | None
 
         :param concurrency: A list of concurrency expressions for the task. Defaults to an empty list (no concurrency).
-        :type concurrency: list[ConcurrencyExpression]
 
         :param wait_for: A list of conditions that must be met before the task can run. Defaults to an empty list (no conditions).
-        :type wait_for: list[Condition | OrGroup]
 
         :param skip_if: A list of conditions that, if met, will cause the task to be skipped. Defaults to an empty list (no conditions).
-        :type skip_if: list[Condition | OrGroup]
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled. Defaults to an empty list (no conditions).
-        :type cancel_if: list[Condition | OrGroup]
 
         :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
@@ -579,22 +601,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.
 
         :param name: The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
-        :type name: str | None
-
-        :param timeout: The execution timeout of the on-failure task. Defaults to 60 minutes.
-        :type timeout: datetime.timedelta | str
 
         :param retries: The number of times to retry the on-failure task before failing. Default: `0`
-        :type retries: int
 
         :param rate_limits: A list of rate limit configurations for the on-failure task. Defaults to an empty list (no rate limits).
-        :type rate_limits: list[RateLimit]
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
-        :type backoff_factor: float | None
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
-        :type backoff_max_seconds: int | None
 
         :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
@@ -642,22 +656,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed.
 
         :param name: The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
-        :type name: str | None
 
-        :param timeout: The execution timeout of the on-success task. Defaults to 60 minutes.
-        :type timeout: datetime.timedelta | str
-
-        :param retries: The number of times to retry the on-success task before failing. Default: `0`
-        :type retries: int
+        :param retries: The number of times to retry the on-success task before failing
 
         :param rate_limits: A list of rate limit configurations for the on-success task. Defaults to an empty list (no rate limits).
-        :type rate_limits: list[RateLimit]
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries. Default: `None`
-        :type backoff_factor: float | None
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue. Default: `None`
-        :type backoff_max_seconds: int | None
 
         :returns: A decorator which creates a `Task` object.
         :rtype: Callable[[Callable[[Type[BaseModel], Context], R]], Task[Type[BaseModel], R]]
