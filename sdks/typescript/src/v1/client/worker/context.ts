@@ -19,7 +19,7 @@ import { OutputType } from '@hatchet/v1/types';
 import { Workflow } from '@hatchet/workflow';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
-import { ContextWorker, V0Context } from '@hatchet/step';
+import { ContextWorker, NextStep } from '@hatchet/step';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -36,10 +36,12 @@ interface ContextData<T, K> {
   step_run_errors: Record<string, string>;
 }
 
-export class Context<T, K = {}> extends V0Context<T, K> {
+export class Context<T, K = {}> {
   data: ContextData<T, K>;
+  // @deprecated use input prop instead
   input: T;
 
+  // @deprecated use ctx.abortController instead
   controller = new AbortController();
   action: Action;
   v1: HatchetClient;
@@ -52,8 +54,6 @@ export class Context<T, K = {}> extends V0Context<T, K> {
   spawnIndex: number = 0;
 
   constructor(action: Action, v1: HatchetClient, worker: V1Worker) {
-    super(action, v1._v0, worker);
-
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;
@@ -212,7 +212,7 @@ export class Context<T, K = {}> extends V0Context<T, K> {
     }
 
     // FIXME: this is a hack to get around the fact that the log level is not typed
-    this.v0.event.putLog(stepRunId, message, level as any);
+    this.v1.event.putLog(stepRunId, message, level as any);
   }
 
   /**
@@ -229,7 +229,7 @@ export class Context<T, K = {}> extends V0Context<T, K> {
       return;
     }
 
-    await this.v0.dispatcher.refreshTimeout(incrementBy, stepRunId);
+    await this.v1._v0.dispatcher.refreshTimeout(incrementBy, stepRunId);
   }
 
   /**
@@ -238,7 +238,7 @@ export class Context<T, K = {}> extends V0Context<T, K> {
    * @returns A promise that resolves when the slot has been released.
    */
   async releaseSlot(): Promise<void> {
-    await this.v0.dispatcher.client.releaseSlot({
+    await this.v1._v0.dispatcher.client.releaseSlot({
       stepRunId: this.action.stepRunId,
     });
   }
@@ -257,7 +257,7 @@ export class Context<T, K = {}> extends V0Context<T, K> {
       return;
     }
 
-    await this.v0.event.putStream(stepRunId, data);
+    await this.v1._v0.event.putStream(stepRunId, data);
   }
 
   private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
@@ -299,7 +299,7 @@ export class Context<T, K = {}> extends V0Context<T, K> {
     options?: ChildRunOpts
   ) {
     const { workflowName, opts } = this.spawnOptions(workflow, options);
-    return this.v0.admin.runWorkflow<Q, P>(workflowName, input, opts);
+    return this.v1._v0.admin.runWorkflow<Q, P>(workflowName, input, opts);
   }
 
   private spawnBulk<Q extends JsonObject, P extends JsonObject>(
@@ -309,14 +309,14 @@ export class Context<T, K = {}> extends V0Context<T, K> {
       options?: ChildRunOpts;
     }>
   ) {
-    const workflows: Parameters<typeof this.v0.admin.runWorkflows<Q, P>>[0] = children.map(
+    const workflows: Parameters<typeof this.v1._v0.admin.runWorkflows<Q, P>>[0] = children.map(
       (child) => {
         const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
         return { workflowName, input: child.input, options: opts };
       }
     );
 
-    return this.v0.admin.runWorkflows<Q, P>(workflows);
+    return this.v1._v0.admin.runWorkflows<Q, P>(workflows);
   }
 
   /**
@@ -363,7 +363,7 @@ export class Context<T, K = {}> extends V0Context<T, K> {
     input: Q,
     options?: ChildRunOpts
   ): Promise<P> {
-    const run = await this.spawnWorkflow(workflow, input, options);
+    const run = await this.spawn(workflow, input, options);
     return run.output;
   }
 
@@ -380,7 +380,7 @@ export class Context<T, K = {}> extends V0Context<T, K> {
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
-    return this.spawnWorkflow(workflow, input, options);
+    return this.spawn(workflow, input, options);
   }
 
   /**
@@ -459,14 +459,14 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
-    await this.v0.durableListener.registerDurableEvent({
+    await this.v1._v0.durableListener.registerDurableEvent({
       taskId: this.action.stepRunId,
       signalKey: key,
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
 
-    const listener = this.v0.durableListener.subscribe({
+    const listener = this.v1._v0.durableListener.subscribe({
       taskId: this.action.stepRunId,
       signalKey: key,
     });
@@ -479,5 +479,175 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
     return res.CREATE;
+  }
+
+  // FIXME: drop these at some point soon
+
+  /**
+   * Get the output of a task.
+   * @param task - The name of the task to get the output for.
+   * @returns The output of the task.
+   * @throws An error if the task output is not found.
+   * @deprecated use ctx.parentOutput instead
+   */
+  stepOutput<L = NextStep>(step: string): L {
+    if (!this.data.parents) {
+      throw new HatchetError('Parent task outputs not found');
+    }
+    if (!this.data.parents[step]) {
+      throw new HatchetError(`Output for parent task '${step}' not found`);
+    }
+    return this.data.parents[step];
+  }
+
+  /**
+   * Gets the input data for the current workflow.
+   * @returns The input data for the workflow.
+   * @deprecated use task input parameter instead
+   */
+  workflowInput(): T {
+    return this.input;
+  }
+
+  /**
+   * Gets the name of the current task.
+   * @returns The name of the task.
+   * @deprecated use ctx.taskName instead
+   */
+  stepName(): string {
+    return this.taskName();
+  }
+
+  /**
+   * Spawns multiple workflows.
+   *
+   * @param workflows - An array of objects containing the workflow name, input data, and options for each workflow.
+   * @returns A list of references to the spawned workflow runs.
+   * @deprecated Use bulkRunNoWaitChildren or bulkRunChildren instead.
+   */
+  async spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
+    workflows: Array<{
+      workflow: string | Workflow | WorkflowV1<Q, P>;
+      input: Q;
+      options?: ChildRunOpts;
+    }>
+  ): Promise<WorkflowRunRef<P>[]> {
+    const { workflowRunId, stepRunId } = this.action;
+
+    const workflowRuns = workflows.map(({ workflow, input, options }) => {
+      let workflowName: string;
+
+      if (typeof workflow === 'string') {
+        workflowName = workflow;
+      } else {
+        workflowName = workflow.id;
+      }
+
+      const name = this.v1.config.namespace + workflowName;
+
+      const opts = options || {};
+      const { sticky } = opts;
+
+      if (sticky && !this.worker.hasWorkflow(name)) {
+        throw new HatchetError(
+          `Cannot run with sticky: workflow ${name} is not registered on the worker`
+        );
+      }
+
+      const resp = {
+        workflowName: name,
+        input,
+        options: {
+          ...opts,
+          parentId: workflowRunId,
+          parentStepRunId: stepRunId,
+          childIndex: this.spawnIndex,
+          desiredWorkerId: sticky ? this.worker.id() : undefined,
+        },
+      };
+      this.spawnIndex += 1;
+      return resp;
+    });
+
+    try {
+      const batchSize = 10;
+
+      let resp: WorkflowRunRef<P>[] = [];
+      for (let i = 0; i < workflowRuns.length; i += batchSize) {
+        const batch = workflowRuns.slice(i, i + batchSize);
+        const batchResp = await this.v1._v0.admin.runWorkflows<Q, P>(batch);
+        resp = resp.concat(batchResp);
+      }
+
+      const res: WorkflowRunRef<P>[] = [];
+      resp.forEach((ref, index) => {
+        const wf = workflows[index].workflow;
+        if (wf instanceof TaskWorkflowDeclaration) {
+          // eslint-disable-next-line no-param-reassign
+          ref._standalone_task_name = wf._standalone_task_name;
+        }
+        res.push(ref);
+      });
+
+      return resp;
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
+  }
+
+  /**
+   * Spawns a new workflow.
+   *
+   * @param workflow - The workflow to spawn (name, Workflow instance, or WorkflowV1 instance).
+   * @param input - The input data for the workflow.
+   * @param options - Additional options for spawning the workflow.
+   * @returns A reference to the spawned workflow run.
+   * @deprecated Use runChild or runNoWaitChild instead.
+   */
+  async spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
+    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
+    input: Q,
+    options?: ChildRunOpts
+  ): Promise<WorkflowRunRef<P>> {
+    const { workflowRunId, stepRunId } = this.action;
+
+    let workflowName: string = '';
+
+    if (typeof workflow === 'string') {
+      workflowName = workflow;
+    } else {
+      workflowName = workflow.id;
+    }
+
+    const name = this.v1.config.namespace + workflowName;
+
+    const opts = options || {};
+    const { sticky } = opts;
+
+    if (sticky && !this.worker.hasWorkflow(name)) {
+      throw new HatchetError(
+        `cannot run with sticky: workflow ${name} is not registered on the worker`
+      );
+    }
+
+    try {
+      const resp = await this.v1._v0.admin.runWorkflow<Q, P>(name, input, {
+        parentId: workflowRunId,
+        parentStepRunId: stepRunId,
+        childIndex: this.spawnIndex,
+        desiredWorkerId: sticky ? this.worker.id() : undefined,
+        ...opts,
+      });
+
+      this.spawnIndex += 1;
+
+      if (workflow instanceof TaskWorkflowDeclaration) {
+        resp._standalone_task_name = workflow._standalone_task_name;
+      }
+
+      return resp;
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
   }
 }
