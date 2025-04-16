@@ -1,73 +1,27 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable max-classes-per-file */
-import HatchetError from '@util/errors/hatchet-error';
-import * as z from 'zod';
-import { Workflow } from './workflow';
-import { Action } from './clients/dispatcher/action-listener';
-import { LogLevel } from './clients/event/event-client';
-import { Logger } from './util/logger';
-import { parseJSON } from './util/parse';
-import WorkflowRunRef from './util/workflow-run-ref';
-import { WorkerLabels } from './clients/dispatcher/dispatcher-client';
-import { CreateStepRateLimit, RateLimitDuration, WorkerLabelComparator } from './protoc/workflows';
-import { CreateWorkflowTaskOpts, Priority } from './v1';
 import {
+  Priority,
   RunOpts,
   TaskWorkflowDeclaration,
   BaseWorkflowDeclaration as WorkflowV1,
-} from './v1/declaration';
-import { Conditions, Render } from './v1/conditions';
-import { Action as ConditionAction } from './protoc/v1/shared/condition';
-import { conditionsToPb } from './v1/conditions/transformer';
-import { Duration } from './v1/client/duration';
-import { JsonObject, JsonValue, OutputType } from './v1/types';
-import { V1Worker } from './v1/client/worker/worker-internal';
-import { V0Worker } from './clients/worker';
-import { LegacyHatchetClient } from './clients/hatchet-client';
-
-export const CreateRateLimitSchema = z.object({
-  key: z.string().optional(),
-  staticKey: z.string().optional(),
-  dynamicKey: z.string().optional(),
-
-  units: z.union([z.number().min(0), z.string()]),
-  limit: z.union([z.number().min(1), z.string()]).optional(),
-  duration: z.nativeEnum(RateLimitDuration).optional(),
-});
-
-export const DesiredWorkerLabelSchema = z
-  .union([
-    z.string(),
-    z.number().int(),
-    z.object({
-      value: z.union([z.string(), z.number()]),
-      required: z.boolean().optional(),
-      weight: z.number().int().optional(),
-
-      // (optional) comparator for the label
-      // if not provided, the default is EQUAL
-      // desired COMPARATOR actual (i.e. desired > actual for GREATER_THAN)
-      comparator: z.nativeEnum(WorkerLabelComparator).optional(),
-    }),
-  ])
-  .optional();
-
-export const CreateStepSchema = z.object({
-  name: z.string(),
-  parents: z.array(z.string()).optional(),
-  timeout: z.string().optional(),
-  retries: z.number().optional(),
-  rate_limits: z.array(CreateRateLimitSchema).optional(),
-  worker_labels: z.record(z.lazy(() => DesiredWorkerLabelSchema)).optional(),
-  backoff: z
-    .object({
-      factor: z.number().optional(),
-      maxSeconds: z.number().optional(),
-    })
-    .optional(),
-});
-
-export type NextStep = { [key: string]: JsonValue };
+} from '@hatchet/v1/declaration';
+import HatchetError from '@util/errors/hatchet-error';
+import { JsonObject } from '@bufbuild/protobuf';
+import { Action } from '@hatchet/clients/dispatcher/action-listener';
+import { Logger, LogLevel } from '@hatchet/util/logger';
+import { parseJSON } from '@hatchet/util/parse';
+import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
+import { Conditions, Render } from '@hatchet/v1/conditions';
+import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
+import { CreateWorkflowTaskOpts } from '@hatchet/v1/task';
+import { OutputType } from '@hatchet/v1/types';
+import { Workflow } from '@hatchet/workflow';
+import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
+import { HatchetClient } from '@hatchet/v1';
+import { V1Worker } from './worker-internal';
+import { Duration } from '../duration';
 
 type TriggerData = Record<string, Record<string, any>>;
 
@@ -83,8 +37,8 @@ interface ContextData<T, K> {
 }
 
 export class ContextWorker {
-  private worker: V0Worker | V1Worker;
-  constructor(worker: V0Worker | V1Worker) {
+  private worker: V1Worker;
+  constructor(worker: V1Worker) {
     this.worker = worker;
   }
 
@@ -125,14 +79,21 @@ export class ContextWorker {
   }
 }
 
-export class V0Context<T, K = {}> {
+export class Context<T, K = {}> {
   data: ContextData<T, K>;
-  // @deprecated use input prop instead
-  input: T;
-  // @deprecated use ctx.abortController instead
-  controller = new AbortController();
+  _input: T;
+
+  get input() {
+    return this._input;
+  }
+
+  workflowInput() {
+    return this.input;
+  }
+
+  private controller = new AbortController();
   action: Action;
-  client: LegacyHatchetClient;
+  client: HatchetClient;
 
   worker: ContextWorker;
 
@@ -141,7 +102,7 @@ export class V0Context<T, K = {}> {
 
   spawnIndex: number = 0;
 
-  constructor(action: Action, client: LegacyHatchetClient, worker: V0Worker) {
+  constructor(action: Action, client: HatchetClient, worker: V1Worker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;
@@ -152,9 +113,9 @@ export class V0Context<T, K = {}> {
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
-        this.input = data;
+        this._input = data;
       } else {
-        this.input = data.input;
+        this._input = data.input;
       }
 
       this.overridesData = data.overrides || {};
@@ -177,30 +138,21 @@ export class V0Context<T, K = {}> {
    * @returns The output of the specified parent task.
    * @throws An error if the task output is not found.
    */
-  async parentOutput<L extends OutputType>(parentTask: CreateWorkflowTaskOpts<any, L> | string) {
+  async parentOutput<L extends OutputType>(
+    parentTask: CreateWorkflowTaskOpts<any, L> | string
+  ): Promise<L> {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
-    if (typeof parentTask === 'string') {
-      return this.stepOutput<L>(parentTask);
+    if (typeof parentTask !== 'string') {
+      return this.parentOutput<L>(parentTask.name);
     }
 
-    return this.stepOutput<L>(parentTask.name) as L;
-  }
-
-  /**
-   * Get the output of a task.
-   * @param task - The name of the task to get the output for.
-   * @returns The output of the task.
-   * @throws An error if the task output is not found.
-   * @deprecated use ctx.parentOutput instead
-   */
-  stepOutput<L = NextStep>(step: string): L {
     if (!this.data.parents) {
       throw new HatchetError('Parent task outputs not found');
     }
-    if (!this.data.parents[step]) {
-      throw new HatchetError(`Output for parent task '${step}' not found`);
+    if (!this.data.parents[parentTask]) {
+      throw new HatchetError(`Output for parent task '${parentTask}' not found`);
     }
-    return this.data.parents[step];
+    return this.data.parents[parentTask] as L;
   }
 
   /**
@@ -247,15 +199,6 @@ export class V0Context<T, K = {}> {
   }
 
   /**
-   * Gets the input data for the current workflow.
-   * @returns The input data for the workflow.
-   * @deprecated use task input parameter instead
-   */
-  workflowInput(): T {
-    return this.input;
-  }
-
-  /**
    * Gets the name of the current workflow.
    * @returns The name of the workflow.
    */
@@ -269,15 +212,6 @@ export class V0Context<T, K = {}> {
    */
   userData(): K {
     return this.data?.user_data;
-  }
-
-  /**
-   * Gets the name of the current task.
-   * @returns The name of the task.
-   * @deprecated use ctx.taskName instead
-   */
-  stepName(): string {
-    return this.taskName();
   }
 
   /**
@@ -326,7 +260,8 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    this.client.event.putLog(stepRunId, message, level);
+    // FIXME: this is a hack to get around the fact that the log level is not typed
+    this.client.event.putLog(stepRunId, message, level as any);
   }
 
   /**
@@ -343,7 +278,7 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    await this.client.dispatcher.refreshTimeout(incrementBy, stepRunId);
+    await this.client._v0.dispatcher.refreshTimeout(incrementBy, stepRunId);
   }
 
   /**
@@ -352,7 +287,7 @@ export class V0Context<T, K = {}> {
    * @returns A promise that resolves when the slot has been released.
    */
   async releaseSlot(): Promise<void> {
-    await this.client.dispatcher.client.releaseSlot({
+    await this.client._v0.dispatcher.client.releaseSlot({
       stepRunId: this.action.stepRunId,
     });
   }
@@ -374,6 +309,36 @@ export class V0Context<T, K = {}> {
     await this.client.event.putStream(stepRunId, data);
   }
 
+  private spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
+    workflow: string | Workflow | WorkflowV1<Q, P>,
+    input: Q,
+    options?: ChildRunOpts
+  ) {
+    if (typeof workflow === 'string') {
+      return this.client.admin.runWorkflow<Q, P>(workflow, input, options);
+    }
+
+    return this.client.admin.runWorkflow<Q, P>(workflow.id, input, options);
+  }
+
+  private spawnWorkflows<Q extends JsonObject, P extends JsonObject>(
+    children: Array<{
+      workflow: string | Workflow | WorkflowV1<Q, P>;
+      input: Q;
+      options?: ChildRunOpts;
+    }>
+  ) {
+    const workflows = children.map((child) => {
+      if (typeof child.workflow === 'string') {
+        return { workflowName: child.workflow, input: child.input, options: child.options };
+      }
+
+      return { workflowName: child.workflow.id, input: child.input, options: child.options };
+    });
+
+    return this.client.admin.runWorkflows<Q, P>(workflows);
+  }
+
   /**
    * Runs multiple children workflows in parallel without waiting for their results.
    * @param children - An array of  objects containing the workflow name, input data, and options for each workflow.
@@ -386,7 +351,7 @@ export class V0Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    return this.spawnWorkflows(children);
+    return this.spawnWorkflows<Q, P>(children);
   }
 
   /**
@@ -403,84 +368,6 @@ export class V0Context<T, K = {}> {
   ): Promise<P[]> {
     const runs = await this.bulkRunNoWaitChildren(children);
     return Promise.all(runs.map((run) => run.output));
-  }
-
-  /**
-   * Spawns multiple workflows.
-   *
-   * @param workflows - An array of objects containing the workflow name, input data, and options for each workflow.
-   * @returns A list of references to the spawned workflow runs.
-   * @deprecated Use bulkRunNoWaitChildren or bulkRunChildren instead.
-   */
-  async spawnWorkflows<Q extends JsonObject = any, P extends JsonObject = any>(
-    workflows: Array<{
-      workflow: string | Workflow | WorkflowV1<Q, P>;
-      input: Q;
-      options?: ChildRunOpts;
-    }>
-  ): Promise<WorkflowRunRef<P>[]> {
-    const { workflowRunId, stepRunId } = this.action;
-
-    const workflowRuns = workflows.map(({ workflow, input, options }) => {
-      let workflowName: string;
-
-      if (typeof workflow === 'string') {
-        workflowName = workflow;
-      } else {
-        workflowName = workflow.id;
-      }
-
-      const name = this.client.config.namespace + workflowName;
-
-      const opts = options || {};
-      const { sticky } = opts;
-
-      if (sticky && !this.worker.hasWorkflow(name)) {
-        throw new HatchetError(
-          `Cannot run with sticky: workflow ${name} is not registered on the worker`
-        );
-      }
-
-      const resp = {
-        workflowName: name,
-        input,
-        options: {
-          ...opts,
-          parentId: workflowRunId,
-          parentStepRunId: stepRunId,
-          childIndex: this.spawnIndex,
-          desiredWorkerId: sticky ? this.worker.id() : undefined,
-        },
-      };
-      this.spawnIndex += 1;
-      return resp;
-    });
-
-    try {
-      const batchSize = 2;
-      const batchPayloadLimit = 3.5 * 1024 * 1024;
-
-      let resp: WorkflowRunRef<P>[] = [];
-      for (let i = 0; i < workflowRuns.length; i += batchSize) {
-        const batch = workflowRuns.slice(i, i + batchSize);
-        const batchResp = await this.client.admin.runWorkflows<Q, P>(batch);
-        resp = resp.concat(batchResp);
-      }
-
-      const res: WorkflowRunRef<P>[] = [];
-      resp.forEach((ref, index) => {
-        const wf = workflows[index].workflow;
-        if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
-          ref._standalone_task_name = wf._standalone_task_name;
-        }
-        res.push(ref);
-      });
-
-      return resp;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
-    }
   }
 
   /**
@@ -514,62 +401,6 @@ export class V0Context<T, K = {}> {
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
     return this.spawnWorkflow(workflow, input, options);
-  }
-
-  /**
-   * Spawns a new workflow.
-   *
-   * @param workflow - The workflow to spawn (name, Workflow instance, or WorkflowV1 instance).
-   * @param input - The input data for the workflow.
-   * @param options - Additional options for spawning the workflow.
-   * @returns A reference to the spawned workflow run.
-   * @deprecated Use runChild or runNoWaitChild instead.
-   */
-  async spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
-    workflow: string | Workflow | WorkflowV1<Q, P> | TaskWorkflowDeclaration<Q, P>,
-    input: Q,
-    options?: ChildRunOpts
-  ): Promise<WorkflowRunRef<P>> {
-    const { workflowRunId, stepRunId } = this.action;
-
-    let workflowName: string = '';
-
-    if (typeof workflow === 'string') {
-      workflowName = workflow;
-    } else {
-      workflowName = workflow.id;
-    }
-
-    const name = this.client.config.namespace + workflowName;
-
-    const opts = options || {};
-    const { sticky } = opts;
-
-    if (sticky && !this.worker.hasWorkflow(name)) {
-      throw new HatchetError(
-        `cannot run with sticky: workflow ${name} is not registered on the worker`
-      );
-    }
-
-    try {
-      const resp = await this.client.admin.runWorkflow<Q, P>(name, input, {
-        parentId: workflowRunId,
-        parentStepRunId: stepRunId,
-        childIndex: this.spawnIndex,
-        desiredWorkerId: sticky ? this.worker.id() : undefined,
-        ...opts,
-      });
-
-      this.spawnIndex += 1;
-
-      if (workflow instanceof TaskWorkflowDeclaration) {
-        resp._standalone_task_name = workflow._standalone_task_name;
-      }
-
-      return resp;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
-    }
   }
 
   /**
@@ -624,7 +455,7 @@ export class V0Context<T, K = {}> {
   }
 }
 
-export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
+export class DurableContext<T, K = {}> extends Context<T, K> {
   waitKey: number = 0;
 
   /**
@@ -648,14 +479,14 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
-    await this.client.durableListener.registerDurableEvent({
+    await this.client._v0.durableListener.registerDurableEvent({
       taskId: this.action.stepRunId,
       signalKey: key,
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
 
-    const listener = this.client.durableListener.subscribe({
+    const listener = this.client._v0.durableListener.subscribe({
       taskId: this.action.stepRunId,
       signalKey: key,
     });
@@ -669,91 +500,4 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
     const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
     return res.CREATE;
   }
-}
-
-export type StepRunFunction<T, K> = (
-  ctx: V0Context<T, K>
-) => Promise<NextStep | void> | NextStep | void;
-
-/**
- * A step is a unit of work that can be run by a worker.
- * It is defined by a name, a function that returns the next step, and optional configuration.
- * @deprecated use hatchet.workflows.task factory instead
- */
-export interface CreateStep<T, K> extends z.infer<typeof CreateStepSchema> {
-  run: StepRunFunction<T, K>;
-}
-
-export function mapRateLimit(limits: CreateStep<any, any>['rate_limits']): CreateStepRateLimit[] {
-  if (!limits) return [];
-
-  return limits.map((l) => {
-    let key = l.staticKey;
-    const keyExpression = l.dynamicKey;
-
-    if (l.key !== undefined) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        'key is deprecated and will be removed in a future release, please use staticKey instead'
-      );
-      key = l.key;
-    }
-
-    if (keyExpression !== undefined) {
-      if (key !== undefined) {
-        throw new Error('Cannot have both static key and dynamic key set');
-      }
-      key = keyExpression;
-      if (!validateCelExpression(keyExpression)) {
-        throw new Error(`Invalid CEL expression: ${keyExpression}`);
-      }
-    }
-
-    if (key === undefined) {
-      throw new Error(`Invalid key`);
-    }
-
-    let units: number | undefined;
-    let unitsExpression: string | undefined;
-    if (typeof l.units === 'number') {
-      units = l.units;
-    } else {
-      if (!validateCelExpression(l.units)) {
-        throw new Error(`Invalid CEL expression: ${l.units}`);
-      }
-      unitsExpression = l.units;
-    }
-
-    let limitExpression: string | undefined;
-    if (l.limit !== undefined) {
-      if (typeof l.limit === 'number') {
-        limitExpression = `${l.limit}`;
-      } else {
-        if (!validateCelExpression(l.limit)) {
-          throw new Error(`Invalid CEL expression: ${l.limit}`);
-        }
-        limitExpression = l.limit;
-      }
-    }
-
-    if (keyExpression !== undefined && limitExpression === undefined) {
-      throw new Error('CEL based keys requires limit to be set');
-    }
-
-    return {
-      key,
-      keyExpr: keyExpression,
-      units,
-      unitsExpr: unitsExpression,
-      limitValuesExpr: limitExpression,
-      duration: l.duration,
-    };
-  });
-}
-
-// Helper function to validate CEL expressions
-function validateCelExpression(expr: string): boolean {
-  // This is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
-  // For now, we'll just return true to mimic the behavior.
-  return true;
 }

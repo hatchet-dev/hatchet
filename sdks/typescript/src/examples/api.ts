@@ -1,4 +1,4 @@
-import Hatchet, { Context } from '..';
+import Hatchet, { V0Context } from '..';
 import { CreateWorkflowVersionOpts } from '../protoc/workflows';
 
 type CustomUserData = {
@@ -51,7 +51,7 @@ async function main() {
 
   worker.nonDurable.registerAction(
     'slack:example',
-    async (ctx: Context<StepOneInput, CustomUserData>) => {
+    async (ctx: V0Context<StepOneInput, CustomUserData>) => {
       const setData = ctx.userData();
       console.log('executed step1!', setData);
       return { step1: 'step1' };

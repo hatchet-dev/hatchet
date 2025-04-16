@@ -2,7 +2,7 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context, DurableContext } from '@hatchet/step';
+import { V0Context, V0DurableContext } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
@@ -262,12 +262,16 @@ export class BaseWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts, _standaloneTaskName?: string): WorkflowRunRef<O> {
+  async runNoWait(
+    input: I,
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.name, input, options);
 
     if (_standaloneTaskName) {
       res._standalone_task_name = _standaloneTaskName;
@@ -320,7 +324,7 @@ export class BaseWorkflowDeclaration<
       let resp: WorkflowRunRef<O>[] = [];
       for (let i = 0; i < input.length; i += 500) {
         const batch = input.slice(i, i + 500);
-        const batchResp = await this.client._v0.admin.runWorkflows<I, O>(
+        const batchResp = await this.client.admin.runWorkflows<I, O>(
           batch.map((inp) => ({
             workflowName: this.definition.name,
             input: inp,
@@ -342,7 +346,7 @@ export class BaseWorkflowDeclaration<
       return Promise.all(res);
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.definition.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
 
     if (_standaloneTaskName) {
       res._standalone_task_name = _standaloneTaskName;
@@ -520,9 +524,9 @@ export class WorkflowDeclaration<
     Fn extends Name extends keyof O
       ? (
           input: I,
-          ctx: Context<I>
+          ctx: V0Context<I>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: Context<I>) => void,
+      : (input: I, ctx: V0Context<I>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -544,7 +548,7 @@ export class WorkflowDeclaration<
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as CreateWorkflowTaskOpts<I, TO>;
+      typedOptions = options as unknown as CreateWorkflowTaskOpts<I, TO>;
     }
 
     this.definition._tasks.push(typedOptions);
@@ -564,7 +568,7 @@ export class WorkflowDeclaration<
       | (Omit<CreateOnFailureTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
           fn: (
             input: I,
-            ctx: Context<I>
+            ctx: V0Context<I>
           ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
         })
       | TaskWorkflowDeclaration<any, any>
@@ -574,7 +578,7 @@ export class WorkflowDeclaration<
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
+      typedOptions = options as unknown as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
     }
 
     if (this.definition.onFailure) {
@@ -598,7 +602,7 @@ export class WorkflowDeclaration<
       | (Omit<CreateOnSuccessTaskOpts<I, TaskOutputType<O, Name, L>>, 'fn'> & {
           fn: (
             input: I,
-            ctx: Context<I>
+            ctx: V0Context<I>
           ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
         })
       | TaskWorkflowDeclaration<any, any>
@@ -608,7 +612,7 @@ export class WorkflowDeclaration<
     if (options instanceof TaskWorkflowDeclaration) {
       typedOptions = options.taskDef;
     } else {
-      typedOptions = options as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
+      typedOptions = options as unknown as CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
     }
 
     if (this.definition.onSuccess) {
@@ -633,9 +637,9 @@ export class WorkflowDeclaration<
     Fn extends Name extends keyof O
       ? (
           input: I,
-          ctx: DurableContext<I>
+          ctx: V0DurableContext<I>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I, ctx: DurableContext<I>) => void,
+      : (input: I, ctx: V0DurableContext<I>) => void,
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -685,7 +689,7 @@ export class TaskWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
+  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
@@ -748,7 +752,7 @@ export function CreateWorkflow<I extends InputType = UnknownInputType, O extends
  */
 export function CreateDurableTaskWorkflow<
   // Extract input and return types from the function, but ensure they extend JsonObject
-  Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
+  Fn extends (input: I, ctx: V0DurableContext<I>) => O | Promise<O>,
   I extends JsonObject = Parameters<Fn>[0],
   O extends JsonObject = ReturnType<Fn> extends Promise<infer P>
     ? P extends JsonObject
