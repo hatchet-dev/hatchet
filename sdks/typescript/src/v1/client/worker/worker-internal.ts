@@ -161,7 +161,7 @@ export class V1Worker {
   private registerActionsV1(workflow: WorkflowDefinition) {
     const newActions = workflow._tasks.reduce<ActionRegistry>((acc, task) => {
       acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-        task.fn(ctx.workflowInput(), ctx);
+        task.fn(ctx.input, ctx);
       return acc;
     }, {});
 
@@ -173,8 +173,7 @@ export class V1Worker {
 
     const onFailureAction = onFailureFn
       ? {
-          [onFailureTaskName(workflow)]: (ctx: Context<any, any>) =>
-            onFailureFn(ctx.workflowInput(), ctx),
+          [onFailureTaskName(workflow)]: (ctx: Context<any, any>) => onFailureFn(ctx.input, ctx),
         }
       : {};
 

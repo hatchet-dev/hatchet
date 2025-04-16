@@ -433,54 +433,6 @@ export class Context<T, K = {}> {
         return undefined;
     }
   }
-}
-
-export class DurableContext<T, K = {}> extends Context<T, K> {
-  waitKey: number = 0;
-
-  /**
-   * Pauses execution for the specified duration.
-   * Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
-   * @param duration - The duration to sleep for.
-   * @returns A promise that resolves when the sleep duration has elapsed.
-   */
-  async sleepFor(duration: Duration, readableDataKey?: string) {
-    return this.waitFor({ sleepFor: duration, readableDataKey });
-  }
-
-  /**
-   * Pauses execution until the specified conditions are met.
-   * Conditions are "global" meaning they will wait in real time regardless of transient failures like worker restarts.
-   * @param conditions - The conditions to wait for.
-   * @returns A promise that resolves with the event that satisfied the conditions.
-   */
-  async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
-    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
-
-    // eslint-disable-next-line no-plusplus
-    const key = `waitFor-${this.waitKey++}`;
-    await this.v1._v0.durableListener.registerDurableEvent({
-      taskId: this.action.stepRunId,
-      signalKey: key,
-      sleepConditions: pbConditions.sleepConditions,
-      userEventConditions: pbConditions.userEventConditions,
-    });
-
-    const listener = this.v1._v0.durableListener.subscribe({
-      taskId: this.action.stepRunId,
-      signalKey: key,
-    });
-
-    const event = await listener.get();
-
-    // Convert event.data from Uint8Array to string if needed
-    const eventData =
-      event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
-
-    const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
-    return res.CREATE;
-  }
-
   // FIXME: drop these at some point soon
 
   /**
@@ -649,5 +601,52 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     } catch (e: any) {
       throw new HatchetError(e.message);
     }
+  }
+}
+
+export class DurableContext<T, K = {}> extends Context<T, K> {
+  waitKey: number = 0;
+
+  /**
+   * Pauses execution for the specified duration.
+   * Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
+   * @param duration - The duration to sleep for.
+   * @returns A promise that resolves when the sleep duration has elapsed.
+   */
+  async sleepFor(duration: Duration, readableDataKey?: string) {
+    return this.waitFor({ sleepFor: duration, readableDataKey });
+  }
+
+  /**
+   * Pauses execution until the specified conditions are met.
+   * Conditions are "global" meaning they will wait in real time regardless of transient failures like worker restarts.
+   * @param conditions - The conditions to wait for.
+   * @returns A promise that resolves with the event that satisfied the conditions.
+   */
+  async waitFor(conditions: Conditions | Conditions[]): Promise<Record<string, any>> {
+    const pbConditions = conditionsToPb(Render(ConditionAction.CREATE, conditions));
+
+    // eslint-disable-next-line no-plusplus
+    const key = `waitFor-${this.waitKey++}`;
+    await this.v1._v0.durableListener.registerDurableEvent({
+      taskId: this.action.stepRunId,
+      signalKey: key,
+      sleepConditions: pbConditions.sleepConditions,
+      userEventConditions: pbConditions.userEventConditions,
+    });
+
+    const listener = this.v1._v0.durableListener.subscribe({
+      taskId: this.action.stepRunId,
+      signalKey: key,
+    });
+
+    const event = await listener.get();
+
+    // Convert event.data from Uint8Array to string if needed
+    const eventData =
+      event.data instanceof Uint8Array ? new TextDecoder().decode(event.data) : event.data;
+
+    const res = JSON.parse(eventData) as Record<string, Record<string, any>>;
+    return res.CREATE;
   }
 }
