@@ -94,14 +94,10 @@ export function DiffCodeEditor({
 }: CodeEditorProps & {
   originalValue: string;
 }) {
-  const { theme } = useTheme();
-
   const setEditorTheme = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
     monaco.editor.setTheme('pastels-on-dark');
   };
-
-  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
 
   return (
     <div
