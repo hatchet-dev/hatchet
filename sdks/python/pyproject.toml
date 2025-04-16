@@ -165,6 +165,7 @@ waits = "examples.waits.worker:main"
 durable = "examples.durable.worker:main"
 streaming = "examples.streaming.worker:main"
 lifespans = "examples.lifespans.worker:main"
+gendocs = "docs.generator.generate:main"
 
 [tool.pydoclint]
 style = 'sphinx'
@@ -173,4 +174,4 @@ arg-type-hints-in-docstring = false             # Automatically checked by mypy 
 check-return-types = false                      # Automatically checked by mypy and mkdocs
 
 [tool.poetry.plugins."mkdocs.plugins"]
-"markdown-export" = "docs.markdown_export:MarkdownExportPlugin"
+"markdown-export" = "docs.generator.markdown_export:MarkdownExportPlugin"

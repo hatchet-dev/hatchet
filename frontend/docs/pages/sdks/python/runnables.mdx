@@ -29,6 +29,7 @@ result = workflow.run(MyInput(name="World"))
 ```
 
 Workflows support various execution patterns including:
+
 - One-time execution with `run()` or `aio_run()`
 - Scheduled execution with `schedule()`
 - Cron-based recurring execution with `create_cron()`
@@ -44,58 +45,58 @@ A decorator to transform a function into a Hatchet task that runs as part of a w
 
 Parameters:
 
-| Name | Type | Description | Default |
-|---|---|---|---|
-| `name` | `str | None` | The name of the task. If not specified, defaults to the name of the function being wrapped by the | `None` |
-| `schedule_timeout` | `Duration` | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. | `DEFAULT_SCHEDULE_TIMEOUT` |
-| `execution_timeout` | `Duration` | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time. | `DEFAULT_EXECUTION_TIMEOUT` |
-| `parents` | `list[Task[TWorkflowInput, Any]]` | A list of tasks that are parents of the task. Note: Parents must be defined before their children. | `[]` |
-| `retries` | `int` | The number of times to retry the task before failing. | `0` |
-| `rate_limits` | `list[RateLimit]` | A list of rate limit configurations for the task. | `[]` |
-| `desired_worker_labels` | `dict[str, DesiredWorkerLabel]` | A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. | `{}` |
-| `backoff_factor` | `float | None` | The backoff factor for controlling exponential backoff in retries. | `None` |
-| `backoff_max_seconds` | `int | None` | The maximum number of seconds to allow retries with exponential backoff to continue. | `None` |
-| `concurrency` | `list[ConcurrencyExpression]` | A list of concurrency expressions for the task. | `[]` |
-| `wait_for` | `list[Condition | OrGroup]` | A list of conditions that must be met before the task can run. | `[]` |
-| `skip_if` | `list[Condition | OrGroup]` | A list of conditions that, if met, will cause the task to be skipped. | `[]` |
-| `cancel_if` | `list[Condition | OrGroup]` | A list of conditions that, if met, will cause the task to be canceled. | `[]` |
+| Name                    | Type                              | Description                                                                                                                                                                      | Default                                                                                           |
+| ----------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------ |
+| `name`                  | `str                              | None`                                                                                                                                                                            | The name of the task. If not specified, defaults to the name of the function being wrapped by the | `None` |
+| `schedule_timeout`      | `Duration`                        | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                     | `DEFAULT_SCHEDULE_TIMEOUT`                                                                        |
+| `execution_timeout`     | `Duration`                        | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                      | `DEFAULT_EXECUTION_TIMEOUT`                                                                       |
+| `parents`               | `list[Task[TWorkflowInput, Any]]` | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                               | `[]`                                                                                              |
+| `retries`               | `int`                             | The number of times to retry the task before failing.                                                                                                                            | `0`                                                                                               |
+| `rate_limits`           | `list[RateLimit]`                 | A list of rate limit configurations for the task.                                                                                                                                | `[]`                                                                                              |
+| `desired_worker_labels` | `dict[str, DesiredWorkerLabel]`   | A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. | `{}`                                                                                              |
+| `backoff_factor`        | `float                            | None`                                                                                                                                                                            | The backoff factor for controlling exponential backoff in retries.                                | `None` |
+| `backoff_max_seconds`   | `int                              | None`                                                                                                                                                                            | The maximum number of seconds to allow retries with exponential backoff to continue.              | `None` |
+| `concurrency`           | `list[ConcurrencyExpression]`     | A list of concurrency expressions for the task.                                                                                                                                  | `[]`                                                                                              |
+| `wait_for`              | `list[Condition                   | OrGroup]`                                                                                                                                                                        | A list of conditions that must be met before the task can run.                                    | `[]`   |
+| `skip_if`               | `list[Condition                   | OrGroup]`                                                                                                                                                                        | A list of conditions that, if met, will cause the task to be skipped.                             | `[]`   |
+| `cancel_if`             | `list[Condition                   | OrGroup]`                                                                                                                                                                        | A list of conditions that, if met, will cause the task to be canceled.                            | `[]`   |
 
 Returns:
 
-| Type | Description |
-|---|---|
+| Type                                                                          | Description                 |
+| ----------------------------------------------------------------------------- | --------------------------- |
 | `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a |
 
 #### `durable_task`
 
 A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.
 
-**IMPORTANT:** This decorator creates a *durable* task, which works using Hatchet's durable execution capabilities. This is an advanced feature of Hatchet.
+**IMPORTANT:** This decorator creates a _durable_ task, which works using Hatchet's durable execution capabilities. This is an advanced feature of Hatchet.
 
 See the Hatchet docs for more information on durable execution to decide if this is right for you.
 
 Parameters:
 
-| Name | Type | Description | Default |
-|---|---|---|---|
-| `name` | `str | None` | The name of the task. If not specified, defaults to the name of the function being wrapped by the | `None` |
-| `schedule_timeout` | `Duration` | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. | `DEFAULT_SCHEDULE_TIMEOUT` |
-| `execution_timeout` | `Duration` | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time. | `DEFAULT_EXECUTION_TIMEOUT` |
-| `parents` | `list[Task[TWorkflowInput, Any]]` | A list of tasks that are parents of the task. Note: Parents must be defined before their children. | `[]` |
-| `retries` | `int` | The number of times to retry the task before failing. | `0` |
-| `rate_limits` | `list[RateLimit]` | A list of rate limit configurations for the task. | `[]` |
-| `desired_worker_labels` | `dict[str, DesiredWorkerLabel]` | A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. | `{}` |
-| `backoff_factor` | `float | None` | The backoff factor for controlling exponential backoff in retries. | `None` |
-| `backoff_max_seconds` | `int | None` | The maximum number of seconds to allow retries with exponential backoff to continue. | `None` |
-| `concurrency` | `list[ConcurrencyExpression]` | A list of concurrency expressions for the task. | `[]` |
-| `wait_for` | `list[Condition | OrGroup]` | A list of conditions that must be met before the task can run. | `[]` |
-| `skip_if` | `list[Condition | OrGroup]` | A list of conditions that, if met, will cause the task to be skipped. | `[]` |
-| `cancel_if` | `list[Condition | OrGroup]` | A list of conditions that, if met, will cause the task to be canceled. | `[]` |
+| Name                    | Type                              | Description                                                                                                                                                                      | Default                                                                                           |
+| ----------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------ |
+| `name`                  | `str                              | None`                                                                                                                                                                            | The name of the task. If not specified, defaults to the name of the function being wrapped by the | `None` |
+| `schedule_timeout`      | `Duration`                        | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                     | `DEFAULT_SCHEDULE_TIMEOUT`                                                                        |
+| `execution_timeout`     | `Duration`                        | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                      | `DEFAULT_EXECUTION_TIMEOUT`                                                                       |
+| `parents`               | `list[Task[TWorkflowInput, Any]]` | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                               | `[]`                                                                                              |
+| `retries`               | `int`                             | The number of times to retry the task before failing.                                                                                                                            | `0`                                                                                               |
+| `rate_limits`           | `list[RateLimit]`                 | A list of rate limit configurations for the task.                                                                                                                                | `[]`                                                                                              |
+| `desired_worker_labels` | `dict[str, DesiredWorkerLabel]`   | A dictionary of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details. | `{}`                                                                                              |
+| `backoff_factor`        | `float                            | None`                                                                                                                                                                            | The backoff factor for controlling exponential backoff in retries.                                | `None` |
+| `backoff_max_seconds`   | `int                              | None`                                                                                                                                                                            | The maximum number of seconds to allow retries with exponential backoff to continue.              | `None` |
+| `concurrency`           | `list[ConcurrencyExpression]`     | A list of concurrency expressions for the task.                                                                                                                                  | `[]`                                                                                              |
+| `wait_for`              | `list[Condition                   | OrGroup]`                                                                                                                                                                        | A list of conditions that must be met before the task can run.                                    | `[]`   |
+| `skip_if`               | `list[Condition                   | OrGroup]`                                                                                                                                                                        | A list of conditions that, if met, will cause the task to be skipped.                             | `[]`   |
+| `cancel_if`             | `list[Condition                   | OrGroup]`                                                                                                                                                                        | A list of conditions that, if met, will cause the task to be canceled.                            | `[]`   |
 
 Returns:
 
-| Type | Description |
-|---|---|
+| Type                                                                                 | Description                 |
+| ------------------------------------------------------------------------------------ | --------------------------- |
 | `Callable[[Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]]` | A decorator which creates a |
 
 #### `on_failure_task`
@@ -104,21 +105,21 @@ A decorator to transform a function into a Hatchet on-failure task that runs as 
 
 Parameters:
 
-| Name | Type | Description | Default |
-|---|---|---|---|
-| `name` | `str | None` | The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the | `None` |
-| `schedule_timeout` | `Duration` | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. | `DEFAULT_SCHEDULE_TIMEOUT` |
-| `execution_timeout` | `Duration` | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time. | `DEFAULT_EXECUTION_TIMEOUT` |
-| `retries` | `int` | The number of times to retry the on-failure task before failing. | `0` |
-| `rate_limits` | `list[RateLimit]` | A list of rate limit configurations for the on-failure task. | `[]` |
-| `backoff_factor` | `float | None` | The backoff factor for controlling exponential backoff in retries. | `None` |
-| `backoff_max_seconds` | `int | None` | The maximum number of seconds to allow retries with exponential backoff to continue. | `None` |
-| `concurrency` | `list[ConcurrencyExpression]` | A list of concurrency expressions for the on-success task. | `[]` |
+| Name                  | Type                          | Description                                                                                                                  | Default                                                                                                      |
+| --------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
+| `name`                | `str                          | None`                                                                                                                        | The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the | `None` |
+| `schedule_timeout`    | `Duration`                    | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. | `DEFAULT_SCHEDULE_TIMEOUT`                                                                                   |
+| `execution_timeout`   | `Duration`                    | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.  | `DEFAULT_EXECUTION_TIMEOUT`                                                                                  |
+| `retries`             | `int`                         | The number of times to retry the on-failure task before failing.                                                             | `0`                                                                                                          |
+| `rate_limits`         | `list[RateLimit]`             | A list of rate limit configurations for the on-failure task.                                                                 | `[]`                                                                                                         |
+| `backoff_factor`      | `float                        | None`                                                                                                                        | The backoff factor for controlling exponential backoff in retries.                                           | `None` |
+| `backoff_max_seconds` | `int                          | None`                                                                                                                        | The maximum number of seconds to allow retries with exponential backoff to continue.                         | `None` |
+| `concurrency`         | `list[ConcurrencyExpression]` | A list of concurrency expressions for the on-success task.                                                                   | `[]`                                                                                                         |
 
 Returns:
 
-| Type | Description |
-|---|---|
+| Type                                                                          | Description                 |
+| ----------------------------------------------------------------------------- | --------------------------- |
 | `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a |
 
 #### `on_success_task`
@@ -127,21 +128,21 @@ A decorator to transform a function into a Hatchet on-success task that runs as 
 
 Parameters:
 
-| Name | Type | Description | Default |
-|---|---|---|---|
-| `name` | `str | None` | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the | `None` |
-| `schedule_timeout` | `Duration` | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. | `DEFAULT_SCHEDULE_TIMEOUT` |
-| `execution_timeout` | `Duration` | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time. | `DEFAULT_EXECUTION_TIMEOUT` |
-| `retries` | `int` | The number of times to retry the on-success task before failing | `0` |
-| `rate_limits` | `list[RateLimit]` | A list of rate limit configurations for the on-success task. | `[]` |
-| `backoff_factor` | `float | None` | The backoff factor for controlling exponential backoff in retries. | `None` |
-| `backoff_max_seconds` | `int | None` | The maximum number of seconds to allow retries with exponential backoff to continue. | `None` |
-| `concurrency` | `list[ConcurrencyExpression]` | A list of concurrency expressions for the on-success task. | `[]` |
+| Name                  | Type                          | Description                                                                                                                  | Default                                                                                                      |
+| --------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
+| `name`                | `str                          | None`                                                                                                                        | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the | `None` |
+| `schedule_timeout`    | `Duration`                    | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. | `DEFAULT_SCHEDULE_TIMEOUT`                                                                                   |
+| `execution_timeout`   | `Duration`                    | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.  | `DEFAULT_EXECUTION_TIMEOUT`                                                                                  |
+| `retries`             | `int`                         | The number of times to retry the on-success task before failing                                                              | `0`                                                                                                          |
+| `rate_limits`         | `list[RateLimit]`             | A list of rate limit configurations for the on-success task.                                                                 | `[]`                                                                                                         |
+| `backoff_factor`      | `float                        | None`                                                                                                                        | The backoff factor for controlling exponential backoff in retries.                                           | `None` |
+| `backoff_max_seconds` | `int                          | None`                                                                                                                        | The maximum number of seconds to allow retries with exponential backoff to continue.                         | `None` |
+| `concurrency`         | `list[ConcurrencyExpression]` | A list of concurrency expressions for the on-success task.                                                                   | `[]`                                                                                                         |
 
 Returns:
 
-| Type | Description |
-|---|---|
+| Type                                                                          | Description                              |
+| ----------------------------------------------------------------------------- | ---------------------------------------- |
 | `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
 
 #### `run`
@@ -152,15 +153,15 @@ This method triggers a workflow run, blocks until completion, and returns the fi
 
 Parameters:
 
-| Name | Type | Description | Default |
-|---|---|---|---|
-| `input` | `TWorkflowInput` | The input data for the workflow, must match the workflow's input type. | `cast(TWorkflowInput, EmptyModel())` |
-| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution like metadata and parent workflow ID. | `TriggerWorkflowOptions()` |
+| Name      | Type                     | Description                                                                     | Default                              |
+| --------- | ------------------------ | ------------------------------------------------------------------------------- | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow, must match the workflow's input type.          | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution like metadata and parent workflow ID. | `TriggerWorkflowOptions()`           |
 
 Returns:
 
-| Type | Description |
-|---|---|
+| Type             | Description                                                    |
+| ---------------- | -------------------------------------------------------------- |
 | `dict[str, Any]` | The result of the workflow execution as a dictionary. Example: |
 
 #### `aio_run`

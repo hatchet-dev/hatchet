@@ -9,6 +9,7 @@ Bases: `BaseModel`
 Schema for creating a workflow run triggered by a cron.
 
 Attributes:
+
 - `expression` (str): The cron expression defining the schedule.
 - `input` (dict): The input data for the cron workflow.
 - `additional_metadata` (dict[str, str]): Additional metadata associated with the cron trigger.
@@ -28,12 +29,15 @@ Attributes:
   Validates the cron expression to ensure it adheres to the expected format.
 
   Args:
+
   - `v` (str): The cron expression to validate.
 
   Raises:
+
   - `ValueError`: If the expression is invalid.
 
   Returns:
+
   - `str`: The validated cron expression.
 
 ### `CronClient`
@@ -57,9 +61,11 @@ Bases: `BaseRestClient`
   Synchronously retrieves a specific workflow cron trigger by ID.
 
   Args:
+
   - `cron_id` (str): The cron trigger ID or CronWorkflows instance to retrieve.
 
   Returns:
+
   - `CronWorkflows`: The requested cron workflow instance.
 
 - `aio_list`
@@ -69,6 +75,7 @@ Bases: `BaseRestClient`
   Synchronously retrieves a list of all workflow cron triggers matching the criteria.
 
   Args:
+
   - `offset` (int | None): The offset to start the list from.
   - `limit` (int | None): The maximum number of items to return.
   - `workflow_id` (str | None): The ID of the workflow to filter by.
@@ -77,6 +84,7 @@ Bases: `BaseRestClient`
   - `order_by_direction` (WorkflowRunOrderByDirection | None): The direction to order the list by.
 
   Returns:
+
   - `CronWorkflowsList`: A list of cron workflows.
 
 - `create`
@@ -84,6 +92,7 @@ Bases: `BaseRestClient`
   Asynchronously creates a new workflow cron trigger.
 
   Args:
+
   - `workflow_name` (str): The name of the workflow to trigger.
   - `cron_name` (str): The name of the cron trigger.
   - `expression` (str): The cron expression defining the schedule.
@@ -91,6 +100,7 @@ Bases: `BaseRestClient`
   - `additional_metadata` (dict[str, str]): Additional metadata associated with the cron trigger.
 
   Returns:
+
   - `CronWorkflows`: The created cron workflow instance.
 
 - `delete`
@@ -98,6 +108,7 @@ Bases: `BaseRestClient`
   Asynchronously deletes a workflow cron trigger.
 
   Args:
+
   - `cron_id` (str): The cron trigger ID or CronWorkflows instance to delete.
 
 - `get`
@@ -105,9 +116,11 @@ Bases: `BaseRestClient`
   Asynchronously retrieves a specific workflow cron trigger by ID.
 
   Args:
+
   - `cron_id` (str): The cron trigger ID or CronWorkflows instance to retrieve.
 
   Returns:
+
   - `CronWorkflows`: The requested cron workflow instance.
 
 - `list`
@@ -115,6 +128,7 @@ Bases: `BaseRestClient`
   Asynchronously retrieves a list of all workflow cron triggers matching the criteria.
 
   Args:
+
   - `offset` (int | None): The offset to start the list from.
   - `limit` (int | None): The maximum number of items to return.
   - `workflow_id` (str | None): The ID of the workflow to filter by.
@@ -123,4 +137,5 @@ Bases: `BaseRestClient`
   - `order_by_direction` (WorkflowRunOrderByDirection | None): The direction to order the list by.
 
   Returns:
+
   - `CronWorkflowsList`: A list of cron workflows.
