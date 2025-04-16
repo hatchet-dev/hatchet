@@ -1,0 +1,133 @@
+:root {
+    --md-default-bg-color: hsl(0 0% 100%);
+    --md-default-fg-color: hsl(222.2 84% 4.9%);
+    --md-typeset-color: var(--md-default-fg-color);
+
+    --md-primary-fg-color: hsl(222.2 47.4% 11.2%);
+    --md-primary-bg-color: hsl(210 40% 98%);
+    --md-accent-fg-color: hsl(210 40% 96.1%);
+    --md-accent-bg-color: hsl(222.2 47.4% 11.2%);
+    --md-code-bg-color: hsl(210 40% 96.1%);
+    --md-code-fg-color: hsl(222.2 47.4% 11.2%);
+    --md-typeset-a-color: hsl(221.2 83.2% 53.3%);
+    --md-typeset-mark-color: hsl(212 95% 68%);
+    --md-footer-bg-color: hsl(210 40% 98%);
+  }
+
+  [data-md-color-scheme="slate"] {
+    --md-default-bg-color: hsl(222.2 84% 4.9%);
+    --md-default-fg-color: hsl(210 40% 98%);
+    --md-typeset-color: var(--md-default-fg-color);
+
+    --md-primary-fg-color: hsl(210 40% 98%);
+    --md-primary-bg-color: hsl(222.2 47.4% 11.2%);
+    --md-accent-fg-color: hsl(217.2 32.6% 17.5%);
+    --md-accent-bg-color: hsl(210 40% 98%);
+    --md-code-bg-color: hsl(217.2 32.6% 17.5%);
+    --md-code-fg-color: hsl(210 40% 98%);
+    --md-typeset-a-color: hsl(221.2 83.2% 53.3%);
+    --md-typeset-mark-color: hsl(212 95% 68%);
+    --md-footer-bg-color: hsl(217.2 32.6% 17.5%);
+  }
+
+  /* Apply border and radius to cards/boxes */
+  .md-typeset .admonition,
+  .md-typeset details,
+  .md-typeset .md-typeset__table {
+    border-radius: 0.5rem;
+    border: 1px solid hsl(214.3 31.8% 91.4%);
+  }
+
+  [data-md-color-scheme="slate"] .md-typeset .admonition,
+  [data-md-color-scheme="slate"] .md-typeset details,
+  [data-md-color-scheme="slate"] .md-typeset .md-typeset__table {
+    border: 1px solid hsl(217.2 32.6% 17.5%);
+  }
+
+  /* Buttons and links */
+  .md-button,
+  .md-typeset a {
+    border-radius: 0.375rem;
+    transition: background 0.2s ease;
+  }
+
+  /* Override code block font size if needed */
+  .md-typeset code,
+  .md-typeset pre {
+    font-size: 0.875rem;
+  }
+
+  /* Fancy spark effect – optional */
+  .step-run-card {
+    position: relative;
+    overflow: hidden;
+    transform: scale(1);
+    transition: transform 0.25s ease;
+  }
+  .step-run-card.active {
+    transform: scale(1.05);
+  }
+  .spark {
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    rotate: 0deg;
+    overflow: hidden;
+    mask: linear-gradient(white, transparent 50%);
+    animation: flip 6s infinite steps(2, end);
+  }
+  @keyframes flip {
+    to {
+      rotate: 360deg;
+    }
+  }
+  .spark:before {
+    content: "";
+    position: absolute;
+    width: 200%;
+    aspect-ratio: 1;
+    inset: 0 auto auto 50%;
+    translate: -50% -15%;
+    transform: rotate(-90deg);
+    opacity: 1;
+    background: conic-gradient(from 0deg, transparent 0 340deg, white 360deg);
+    animation: rotate 3s linear infinite both;
+  }
+  @keyframes rotate {
+    to {
+      transform: rotate(90deg);
+    }
+  }
+
+  /* Typography tweaks */
+  .md-typeset h1,
+  .md-typeset h2,
+  .md-typeset h3 {
+    font-weight: 600;
+  }
+
+  .md-typeset p {
+    line-height: 1.75;
+  }
+
+  /* Light mode overrides */
+[data-md-color-scheme="default"] {
+    --md-primary-fg-color: hsl(222.2 47.4% 11.2%);
+    --md-primary-bg-color: hsl(0 0% 100%);
+    --md-accent-fg-color: hsl(210 40% 96.1%);
+    --md-accent-bg-color: hsl(222.2 47.4% 11.2%);
+    --md-default-bg-color: hsl(0 0% 100%);
+    --md-default-fg-color: hsl(222.2 84% 4.9%);
+    --md-typeset-color: hsl(222.2 84% 4.9%);
+  }
+
+  /* Dark mode overrides */
+  [data-md-color-scheme="slate"] {
+    --md-primary-fg-color: hsl(210 40% 98%);
+    --md-primary-bg-color: hsl(222.2 84% 4.9%);
+    --md-accent-fg-color: hsl(217.2 32.6% 17.5%);
+    --md-accent-bg-color: hsl(210 40% 98%);
+    --md-default-bg-color: hsl(222.2 84% 4.9%);
+    --md-default-fg-color: hsl(210 40% 98%);
+    --md-typeset-color: hsl(210 40% 98%);
+  }
