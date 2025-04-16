@@ -4,36 +4,36 @@ The Hatchet worker can be configured via environment variables and programmatic 
 
 ## Basic Configuration
 
-| Variable                     | Description                                    | Default Value |
-| ---------------------------- | ---------------------------------------------- | ------------- |
-| `HATCHET_CLIENT_TOKEN`       | Authentication token for the worker            |               |
-| `HATCHET_CLIENT_HOST_PORT`   | GRPC server host and port                      | * Inherited from token |
-| `HATCHET_CLIENT_API_URL` (TypeScript SDK)    | API server host and port                       | * Inherited from token |
-| `HATCHET_CLIENT_SERVER_URL` (Go SDK)     | API server host and port                       | * Inherited from token |
-| `HATCHET_CLIENT_NAMESPACE`   | Namespace prefix for the worker                | * Inherited from token |
+| Variable                                  | Description                         | Default Value           |
+| ----------------------------------------- | ----------------------------------- | ----------------------- |
+| `HATCHET_CLIENT_TOKEN`                    | Authentication token for the worker |                         |
+| `HATCHET_CLIENT_HOST_PORT`                | GRPC server host and port           | \* Inherited from token |
+| `HATCHET_CLIENT_API_URL` (TypeScript SDK) | API server host and port            | \* Inherited from token |
+| `HATCHET_CLIENT_SERVER_URL` (Go SDK)      | API server host and port            | \* Inherited from token |
+| `HATCHET_CLIENT_NAMESPACE`                | Namespace prefix for the worker     | \* Inherited from token |
 
 ## Worker Runtime Configuration
 
-| Variable                                     | Description                                    | Default Value |
-| -------------------------------------------- | ---------------------------------------------- | ------------- |
-| `name`               | Friendly name of the worker                    |               |
-| `slots`                | Maximum number of concurrent runs              | `100`         |
-| `durable_slots`        | Maximum number of concurrent durable tasks     | `1000`        |
+| Variable        | Description                                | Default Value |
+| --------------- | ------------------------------------------ | ------------- |
+| `name`          | Friendly name of the worker                |               |
+| `slots`         | Maximum number of concurrent runs          | `100`         |
+| `durable_slots` | Maximum number of concurrent durable tasks | `1000`        |
 
 ## TLS Configuration
 
-| Variable                             | Description                                    | Default Value |
-| ------------------------------------ | ---------------------------------------------- | ------------- |
-| `HATCHET_CLIENT_TLS_STRATEGY`        | TLS strategy (tls, mtls, none)                 | `tls`         |
-| `HATCHET_CLIENT_TLS_CERT_FILE`       | Path to TLS certificate file                   |               |
-| `HATCHET_CLIENT_TLS_KEY_FILE`        | Path to TLS key file                           |               |
-| `HATCHET_CLIENT_TLS_ROOT_CA_FILE`    | Path to TLS root CA file                       |               |
-| `HATCHET_CLIENT_TLS_SERVER_NAME`     | TLS server name                                |               |
+| Variable                          | Description                    | Default Value |
+| --------------------------------- | ------------------------------ | ------------- |
+| `HATCHET_CLIENT_TLS_STRATEGY`     | TLS strategy (tls, mtls, none) | `tls`         |
+| `HATCHET_CLIENT_TLS_CERT_FILE`    | Path to TLS certificate file   |               |
+| `HATCHET_CLIENT_TLS_KEY_FILE`     | Path to TLS key file           |               |
+| `HATCHET_CLIENT_TLS_ROOT_CA_FILE` | Path to TLS root CA file       |               |
+| `HATCHET_CLIENT_TLS_SERVER_NAME`  | TLS server name                |               |
 
 ## Logging Configuration
 
-| Variable                             | Description                                    | Default Value |
-| ------------------------------------ | ---------------------------------------------- | ------------- |
-| `HATCHET_CLIENT_LOG_LEVEL`           | Log level for the worker                       | `INFO`        |
+| Variable                                      | Description                                         | Default Value |
+| --------------------------------------------- | --------------------------------------------------- | ------------- |
+| `HATCHET_CLIENT_LOG_LEVEL`                    | Log level for the worker                            | `INFO`        |
 | `HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH` | Maximum gRPC message receive size (Python SDK only) | `4MB`         |
 | `HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH` | Maximum gRPC message send size (Python SDK only)    | `4MB`         |

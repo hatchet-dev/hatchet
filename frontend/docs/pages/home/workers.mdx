@@ -92,7 +92,10 @@ Declare a worker by calling the `worker` method on the Hatchet client. The `work
 And that's it! Once you run your script to start the worker, you'll see some logs like this, which tell you that your worker is running.
 
 <Callout type="info">
-  For self-hosted users, you may need to set other gRPC configuration options to ensure your worker can connect to the Hatchet engine. See the [Self-Hosting](../self-hosting/worker-configuration-options.mdx) docs for more information.
+  For self-hosted users, you may need to set other gRPC configuration options to
+  ensure your worker can connect to the Hatchet engine. See the
+  [Self-Hosting](../self-hosting/worker-configuration-options.mdx) docs for more
+  information.
 </Callout>
 
 ```
@@ -120,8 +123,6 @@ And that's it! Once you run your script to start the worker, you'll see some log
 Slots are the number of concurrent _task_ runs that a worker can execute, are are configured using the `slots` option on the worker. For instance, if you set `slots=5` on your worker, then your worker will be able to run five tasks concurrently before new tasks start needing to wait in the queue before being picked up. Increasing the number of `slots` on your worker, or the number of workers you run, will allow you to handle more concurrent work (and thus more throughput, in many cases).
 
 An important caveat is that slot-level concurrency is only helpful up to the point where the worker is not bottlenecked by another resource, such as CPU, memory, or network bandwidth. If your worker is bottlenecked by one of these resources, increasing the number of slots will not improve throughput.
-
-
 
 ## Best Practices for Managing Workers
 
