@@ -11,6 +11,7 @@ from openai.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
 )
+from docs.generator.shared import TMP_GEN_PATH
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -75,7 +76,7 @@ async def clean_markdown_with_openai(file_path: str) -> None:
         return None
 
     out_path = file_path.replace(
-        "docs/gen", "../../frontend/docs/pages/sdks/python"
+        TMP_GEN_PATH, "../../frontend/docs/pages/sdks/python"
     ).replace(".md", ".mdx")
 
     with open(out_path, "w", encoding="utf-8") as f:
@@ -143,12 +144,12 @@ def find_child_paths(prefix: str, docs: list[DocMetadata]) -> set[str]:
     }
 
 
-async def main() -> None:
-    rm_rf("docs/gen")
+async def run() -> None:
+    rm_rf(TMP_GEN_PATH)
 
     try:
         os.system("poetry run mkdocs build")
-        files = crawl_directory("docs/gen")
+        files = crawl_directory(TMP_GEN_PATH)
 
         await gather_max_concurrency(
             *[clean_markdown_with_openai(f) for f in files], max_concurrency=10
@@ -166,7 +167,7 @@ async def main() -> None:
             )
             out_path = (
                 prefix.replace(
-                    "docs/gen", "../../frontend/docs/pages/sdks/python"
+                    TMP_GEN_PATH, "../../frontend/docs/pages/sdks/python"
                 ).replace(".md", ".mdx")
                 + "/_meta.js"
             )
@@ -174,11 +175,16 @@ async def main() -> None:
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(meta)
 
+        os.chdir("../../frontend/docs")
+        os.system("pnpm lint:fix")
     finally:
         rm_rf("docs/site")
         rm_rf("site")
-        rm_rf("docs/gen")
+        rm_rf(TMP_GEN_PATH)
+
+def main() -> None:
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
