@@ -457,8 +457,7 @@ export class V0Context<T, K = {}> {
     });
 
     try {
-      const batchSize = 2;
-      const batchPayloadLimit = 3.5 * 1024 * 1024;
+      const batchSize = 100;
 
       let resp: WorkflowRunRef<P>[] = [];
       for (let i = 0; i < workflowRuns.length; i += batchSize) {
