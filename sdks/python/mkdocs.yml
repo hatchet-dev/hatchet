@@ -45,7 +45,7 @@ plugins:
           paths: [hatchet_sdk]
           options:
             show_source: false
-            heading_level: 3
+            heading_level: 2
             show_category_heading: true
             show_if_no_docstring: true
             show_signature_annotations: false
@@ -54,7 +54,7 @@ plugins:
             docstring_style: sphinx
             show_docstring_functions: false
             inherited_members: false
-            filters: ["!^_"]
+            filters: ["!^_", "!^features$"]
 
 markdown_extensions:
   - pymdownx.highlight
@@ -67,5 +67,12 @@ nav:
   - Home: index.md
   - SDK Reference:
     - Runnables: runnables.md
-    - Features: features.md
-    - Worker: worker.md
+    - Clients:
+        - Cron: clients/cron.md
+        - Logs: clients/logs.md
+        - Metrics: clients/metrics.md
+        - Rate Limits: clients/rate_limits.md
+        - Runs: clients/runs.md
+        - Scheduled: clients/scheduled.md
+        - Workers: clients/workers.md
+        - Workflows: clients/workflows.md
