@@ -11,4 +11,4 @@ echo "\nType checking with mypy"
 poetry run mypy --config-file=pyproject.toml
 
 echo "\nLinting documentation with pydoclint"
-poetry run pydoclint .
+poetry run pydoclint . --config pyproject.toml
