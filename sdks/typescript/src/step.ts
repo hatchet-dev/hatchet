@@ -2,6 +2,7 @@
 /* eslint-disable max-classes-per-file */
 import HatchetError from '@util/errors/hatchet-error';
 import * as z from 'zod';
+import { JsonObject } from '@bufbuild/protobuf';
 import { Workflow } from './workflow';
 import { Action } from './clients/dispatcher/action-listener';
 import { LogLevel } from './clients/event/event-client';
@@ -20,7 +21,7 @@ import { Conditions, Render } from './v1/conditions';
 import { Action as ConditionAction } from './protoc/v1/shared/condition';
 import { conditionsToPb } from './v1/conditions/transformer';
 import { Duration } from './v1/client/duration';
-import { JsonObject, JsonValue, OutputType } from './v1/types';
+import { JsonValue, OutputType } from './v1/types';
 import { V1Worker } from './v1/client/worker/worker-internal';
 import { V0Worker } from './clients/worker';
 import { LegacyHatchetClient } from './clients/hatchet-client';
@@ -132,7 +133,7 @@ export class V0Context<T, K = {}> {
   // @deprecated use ctx.abortController instead
   controller = new AbortController();
   action: Action;
-  client: LegacyHatchetClient;
+  v0: LegacyHatchetClient;
 
   worker: ContextWorker;
 
@@ -141,12 +142,12 @@ export class V0Context<T, K = {}> {
 
   spawnIndex: number = 0;
 
-  constructor(action: Action, client: LegacyHatchetClient, worker: V0Worker) {
+  constructor(action: Action, client: LegacyHatchetClient, worker: V0Worker | V1Worker) {
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;
       this.action = action;
-      this.client = client;
+      this.v0 = client;
       this.worker = new ContextWorker(worker);
       this.logger = client.config.logger(`Context Logger`, client.config.log_level);
 
@@ -326,7 +327,7 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    this.client.event.putLog(stepRunId, message, level);
+    this.v0.event.putLog(stepRunId, message, level);
   }
 
   /**
@@ -343,7 +344,7 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    await this.client.dispatcher.refreshTimeout(incrementBy, stepRunId);
+    await this.v0.dispatcher.refreshTimeout(incrementBy, stepRunId);
   }
 
   /**
@@ -352,7 +353,7 @@ export class V0Context<T, K = {}> {
    * @returns A promise that resolves when the slot has been released.
    */
   async releaseSlot(): Promise<void> {
-    await this.client.dispatcher.client.releaseSlot({
+    await this.v0.dispatcher.client.releaseSlot({
       stepRunId: this.action.stepRunId,
     });
   }
@@ -371,7 +372,7 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    await this.client.event.putStream(stepRunId, data);
+    await this.v0.event.putStream(stepRunId, data);
   }
 
   /**
@@ -430,7 +431,7 @@ export class V0Context<T, K = {}> {
         workflowName = workflow.id;
       }
 
-      const name = this.client.config.namespace + workflowName;
+      const name = this.v0.config.namespace + workflowName;
 
       const opts = options || {};
       const { sticky } = opts;
@@ -462,7 +463,7 @@ export class V0Context<T, K = {}> {
       let resp: WorkflowRunRef<P>[] = [];
       for (let i = 0; i < workflowRuns.length; i += batchSize) {
         const batch = workflowRuns.slice(i, i + batchSize);
-        const batchResp = await this.client.admin.runWorkflows<Q, P>(batch);
+        const batchResp = await this.v0.admin.runWorkflows<Q, P>(batch);
         resp = resp.concat(batchResp);
       }
 
@@ -539,7 +540,7 @@ export class V0Context<T, K = {}> {
       workflowName = workflow.id;
     }
 
-    const name = this.client.config.namespace + workflowName;
+    const name = this.v0.config.namespace + workflowName;
 
     const opts = options || {};
     const { sticky } = opts;
@@ -551,7 +552,7 @@ export class V0Context<T, K = {}> {
     }
 
     try {
-      const resp = await this.client.admin.runWorkflow<Q, P>(name, input, {
+      const resp = await this.v0.admin.runWorkflow<Q, P>(name, input, {
         parentId: workflowRunId,
         parentStepRunId: stepRunId,
         childIndex: this.spawnIndex,
@@ -647,14 +648,14 @@ export class V0DurableContext<T, K = {}> extends V0Context<T, K> {
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
-    await this.client.durableListener.registerDurableEvent({
+    await this.v0.durableListener.registerDurableEvent({
       taskId: this.action.stepRunId,
       signalKey: key,
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
 
-    const listener = this.client.durableListener.subscribe({
+    const listener = this.v0.durableListener.subscribe({
       taskId: this.action.stepRunId,
       signalKey: key,
     });

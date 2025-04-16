@@ -17,9 +17,9 @@ import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { CreateWorkflowTaskOpts } from '@hatchet/v1/task';
 import { OutputType } from '@hatchet/v1/types';
 import { Workflow } from '@hatchet/workflow';
-import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
+import { ContextWorker, V0Context } from '@hatchet/step';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -36,64 +36,13 @@ interface ContextData<T, K> {
   step_run_errors: Record<string, string>;
 }
 
-export class ContextWorker {
-  private worker: V1Worker;
-  constructor(worker: V1Worker) {
-    this.worker = worker;
-  }
-
-  /**
-   * Gets the ID of the worker.
-   * @returns The ID of the worker.
-   */
-  id() {
-    return this.worker.workerId;
-  }
-
-  /**
-   * Checks if the worker has a registered workflow.
-   * @param workflowName - The name of the workflow to check.
-   * @returns True if the workflow is registered, otherwise false.
-   */
-  hasWorkflow(workflowName: string) {
-    return !!this.worker.workflow_registry.find((workflow) =>
-      'id' in workflow ? workflow.id === workflowName : workflow.name === workflowName
-    );
-  }
-
-  /**
-   * Gets the current state of the worker labels.
-   * @returns The labels of the worker.
-   */
-  labels() {
-    return this.worker.labels;
-  }
-
-  /**
-   * Upserts the a set of labels on the worker.
-   * @param labels - The labels to upsert.
-   * @returns A promise that resolves when the labels have been upserted.
-   */
-  upsertLabels(labels: WorkerLabels) {
-    return this.worker.upsertLabels(labels);
-  }
-}
-
-export class Context<T, K = {}> {
+export class Context<T, K = {}> extends V0Context<T, K> {
   data: ContextData<T, K>;
-  _input: T;
+  input: T;
 
-  get input() {
-    return this._input;
-  }
-
-  workflowInput() {
-    return this.input;
-  }
-
-  private controller = new AbortController();
+  controller = new AbortController();
   action: Action;
-  client: HatchetClient;
+  v1: HatchetClient;
 
   worker: ContextWorker;
 
@@ -102,20 +51,22 @@ export class Context<T, K = {}> {
 
   spawnIndex: number = 0;
 
-  constructor(action: Action, client: HatchetClient, worker: V1Worker) {
+  constructor(action: Action, v1: HatchetClient, worker: V1Worker) {
+    super(action, v1._v0, worker);
+
     try {
       const data = parseJSON(action.actionPayload);
       this.data = data;
       this.action = action;
-      this.client = client;
+      this.v1 = v1;
       this.worker = new ContextWorker(worker);
-      this.logger = client.config.logger(`Context Logger`, client.config.log_level);
+      this.logger = v1.config.logger(`Context Logger`, v1.config.log_level);
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
-        this._input = data;
+        this.input = data;
       } else {
-        this._input = data.input;
+        this.input = data.input;
       }
 
       this.overridesData = data.overrides || {};
@@ -261,7 +212,7 @@ export class Context<T, K = {}> {
     }
 
     // FIXME: this is a hack to get around the fact that the log level is not typed
-    this.client.event.putLog(stepRunId, message, level as any);
+    this.v0.event.putLog(stepRunId, message, level as any);
   }
 
   /**
@@ -278,7 +229,7 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.client._v0.dispatcher.refreshTimeout(incrementBy, stepRunId);
+    await this.v0.dispatcher.refreshTimeout(incrementBy, stepRunId);
   }
 
   /**
@@ -287,7 +238,7 @@ export class Context<T, K = {}> {
    * @returns A promise that resolves when the slot has been released.
    */
   async releaseSlot(): Promise<void> {
-    await this.client._v0.dispatcher.client.releaseSlot({
+    await this.v0.dispatcher.client.releaseSlot({
       stepRunId: this.action.stepRunId,
     });
   }
@@ -306,7 +257,7 @@ export class Context<T, K = {}> {
       return;
     }
 
-    await this.client.event.putStream(stepRunId, data);
+    await this.v0.event.putStream(stepRunId, data);
   }
 
   private spawnOptions(workflow: string | Workflow | WorkflowV1<any, any>, options?: ChildRunOpts) {
@@ -342,30 +293,30 @@ export class Context<T, K = {}> {
     return { workflowName, opts: finalOpts };
   }
 
-  private spawnWorkflow<Q extends JsonObject, P extends JsonObject>(
+  private spawn<Q extends JsonObject, P extends JsonObject>(
     workflow: string | Workflow | WorkflowV1<Q, P>,
     input: Q,
     options?: ChildRunOpts
   ) {
     const { workflowName, opts } = this.spawnOptions(workflow, options);
-    return this.client.admin.runWorkflow<Q, P>(workflowName, input, opts);
+    return this.v0.admin.runWorkflow<Q, P>(workflowName, input, opts);
   }
 
-  private spawnWorkflows<Q extends JsonObject, P extends JsonObject>(
+  private spawnBulk<Q extends JsonObject, P extends JsonObject>(
     children: Array<{
       workflow: string | Workflow | WorkflowV1<Q, P>;
       input: Q;
       options?: ChildRunOpts;
     }>
   ) {
-    const workflows: Parameters<typeof this.client.admin.runWorkflows<Q, P>>[0] = children.map(
+    const workflows: Parameters<typeof this.v0.admin.runWorkflows<Q, P>>[0] = children.map(
       (child) => {
         const { workflowName, opts } = this.spawnOptions(child.workflow, child.options);
         return { workflowName, input: child.input, options: opts };
       }
     );
 
-    return this.client.admin.runWorkflows<Q, P>(workflows);
+    return this.v0.admin.runWorkflows<Q, P>(workflows);
   }
 
   /**
@@ -380,7 +331,7 @@ export class Context<T, K = {}> {
       options?: ChildRunOpts;
     }>
   ): Promise<WorkflowRunRef<P>[]> {
-    return this.spawnWorkflows<Q, P>(children);
+    return this.spawnBulk<Q, P>(children);
   }
 
   /**
@@ -508,14 +459,14 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     // eslint-disable-next-line no-plusplus
     const key = `waitFor-${this.waitKey++}`;
-    await this.client._v0.durableListener.registerDurableEvent({
+    await this.v0.durableListener.registerDurableEvent({
       taskId: this.action.stepRunId,
       signalKey: key,
       sleepConditions: pbConditions.sleepConditions,
       userEventConditions: pbConditions.userEventConditions,
     });
 
-    const listener = this.client._v0.durableListener.subscribe({
+    const listener = this.v0.durableListener.subscribe({
       taskId: this.action.stepRunId,
       signalKey: key,
     });
