@@ -33,7 +33,6 @@ theme:
     - navigation.indexes
     - content.code.copy
     - header.autohide
-    - navigation.footer
     - search.suggest
     - search.highlight
 
