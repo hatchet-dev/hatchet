@@ -452,3 +452,44 @@ a.autorefs-external:hover::after {
 .highlight .nt { color: hsl(var(--chart-2)); } /* Name.Tag */
 .highlight .nv { color: hsl(var(--foreground)); } /* Name.Variable */
 .highlight .w { color: hsl(var(--foreground)); } /* Text.Whitespace */
+
+.md-typeset .admonition.card,
+.md-typeset details.card {
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--card));
+}
+
+.md-typeset .card > .admonition-title,
+.md-typeset .card > summary {
+  background-color: transparent;
+  color: hsl(var(--card-foreground));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Search box improvements for light mode */
+[data-md-color-scheme="default"] .md-search__form,
+[data-md-color-scheme="default"] .md-search__form {
+  background-color: hsl(var(--muted));
+}
+
+[data-md-color-scheme="default"] .md-search__icon,
+[data-md-color-scheme="default"] .md-search__icon {
+  color: hsl(var(--muted-foreground));
+}
+
+[data-md-color-scheme="default"] .md-search__input::placeholder,
+[data-md-color-scheme="default"] .md-search__input::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Increase contrast of the search input text */
+[data-md-color-scheme="default"] .md-search__input,
+[data-md-color-scheme="default"] .md-search__input {
+  color: hsl(var(--foreground));
+}
+
+/* Improve visibility of the search icon when focused */
+[data-md-color-scheme="default"] .md-search__form:focus-within .md-search__icon,
+[data-md-color-scheme="default"] .md-search__form:focus-within .md-search__icon {
+  color: hsl(var(--foreground));
+}
