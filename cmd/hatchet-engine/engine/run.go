@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -31,6 +32,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Teardown struct {
@@ -39,6 +42,12 @@ type Teardown struct {
 }
 
 func init() {
+	// TODO: MAKE PORT CONFIGURABLE, ENV VAR PROTECTED, AND HANDLE SHUTDOWN
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(":2112", nil)
+	}()
+
 	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")

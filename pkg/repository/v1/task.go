@@ -1009,6 +1009,19 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 		return nil, false, err
 	}
 
+	if len(toTimeout) == 0 {
+		return &TimeoutTasksResponse{
+			FailTasksResponse: &FailTasksResponse{
+				FinalizedTaskResponse: &FinalizedTaskResponse{
+					ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+					InternalEvents: make([]InternalTaskEvent, 0),
+				},
+				RetriedTasks: make([]RetriedTask, 0),
+			},
+			TimeoutTasks: make([]*sqlcv1.ListTasksToTimeoutRow, 0),
+		}, false, nil
+	}
+
 	// parse into FailTaskOpts
 	failOpts := make([]FailTaskOpts, 0, len(toTimeout))
 
@@ -1065,6 +1078,16 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 	if err != nil {
 		return nil, false, err
+	}
+
+	if len(toReassign) == 0 {
+		return &FailTasksResponse{
+			FinalizedTaskResponse: &FinalizedTaskResponse{
+				ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+				InternalEvents: make([]InternalTaskEvent, 0),
+			},
+			RetriedTasks: make([]RetriedTask, 0),
+		}, false, nil
 	}
 
 	// parse into FailTaskOpts

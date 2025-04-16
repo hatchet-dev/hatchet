@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -125,6 +126,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case carrier = <-q.notifyQueueCh:
 		}
 
+		prometheus.QueueInvocations.Inc()
+
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
 		telemetry.WithAttributes(span, telemetry.AttributeKV{
@@ -206,6 +209,39 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
 					q.l.Warn().Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
+				}
+
+				if numFlushed > 0 {
+					now := time.Now()
+
+					for _, assignedItem := range ar.assigned {
+						prometheus.AssignedTasks.Inc()
+
+						qi := assignedItem.QueueItem
+
+						// we only track queue times if this is the first retry, because the TaskInsertedAt will
+						// match the time the first queue item was created. we should eventually write an InsertedAt
+						// column to the queue item table to track this better.
+						if qi.RetryCount != 0 || !qi.TaskInsertedAt.Valid {
+							continue
+						}
+
+						prometheus.QueuedToAssigned.Inc()
+
+						timeInQueue := now.Sub(qi.TaskInsertedAt.Time)
+
+						if timeInQueue > 0 {
+							prometheus.QueuedToAssignedTimeNanoseconds.Add(float64(timeInQueue))
+						}
+					}
+				}
+
+				for range ar.schedulingTimedOut {
+					prometheus.SchedulingTimedOut.Inc()
+				}
+
+				for range ar.rateLimited {
+					prometheus.RateLimited.Inc()
 				}
 			}(r)
 		}
