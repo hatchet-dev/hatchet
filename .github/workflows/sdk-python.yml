@@ -52,6 +52,9 @@ jobs:
       - name: Run Ruff
         run: poetry run ruff check .
 
+      - name: Run Pydoclint
+        run: poetry run pydoclint .
+
   test:
     runs-on: ubuntu-latest
     strategy:
