@@ -20,4 +20,3 @@ DROP INDEX IF EXISTS idx_v1_runs_olap_workflow_tenant;
 -- For v1_statuses_olap
 DROP INDEX IF EXISTS idx_v1_statuses_olap_tenant_workflow_inserted;
 DROP INDEX IF EXISTS idx_v1_statuses_olap_external_id_status;
-
