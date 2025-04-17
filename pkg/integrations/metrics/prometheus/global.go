@@ -78,8 +78,9 @@ var (
 		Help: "The total number of unique tasks that were queued and later got assigned to a worker",
 	})
 
-	QueuedToAssignedTime = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(QueuedToAssignedTimeSeconds),
-		Help: "The total time in seconds spent in the queue before being assigned to a worker",
+	QueuedToAssignedTimeBuckets = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    string(QueuedToAssignedTimeSeconds),
+		Help:    "Buckets of time in seconds spent in the queue before being assigned to a worker",
+		Buckets: []float64{0.01, 0.02, 0.05, 0.1, 0.5, 1, 2, 5, 15},
 	})
 )

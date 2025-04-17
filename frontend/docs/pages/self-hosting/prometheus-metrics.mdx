@@ -1,0 +1,92 @@
+## Prometheus Metrics for Hatchet
+
+This document provides an overview of the Prometheus metrics exposed by Hatchet, setup instructions for the metrics endpoint, and example PromQL queries to analyze them.
+
+### Setup
+
+To enable and configure the Prometheus metrics endpoint in your Hatchet server, set the following environment variables (bound to Viper keys as shown):
+
+- **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)
+
+  - Type: boolean
+  - Default: `false`
+  - Description: Enables or disables the Prometheus metrics HTTP server.
+
+- **`SERVER_PROMETHEUS_ADDRESS`** (`prometheus.address`)
+
+  - Type: string
+  - Default: `":9090"`
+  - Description: The network address and port to bind the Prometheus metrics server to.
+
+- **`SERVER_PROMETHEUS_PATH`** (`prometheus.path`)
+  - Type: string
+  - Default: `"/metrics"`
+  - Description: The HTTP path at which metrics will be exposed.
+
+**Example environment setup:**
+
+```bash
+export SERVER_PROMETHEUS_ENABLED=true
+export SERVER_PROMETHEUS_ADDRESS=":9200"
+export SERVER_PROMETHEUS_PATH="/custom-metrics"
+```
+
+Restart your Hatchet server after setting these variables to apply the changes.
+
+---
+
+### Metrics
+
+| Metric Name                          | Type      | Description                                                                       |
+| ------------------------------------ | --------- | --------------------------------------------------------------------------------- |
+| `hatchet_queue_invocations_total`    | Counter   | The total number of invocations of the queuer function                            |
+| `hatchet_created_tasks_total`        | Counter   | The total number of tasks created                                                 |
+| `hatchet_retried_tasks_total`        | Counter   | The total number of tasks retried                                                 |
+| `hatchet_succeeded_tasks_total`      | Counter   | The total number of tasks that succeeded                                          |
+| `hatchet_failed_tasks_total`         | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
+| `hatchet_skipped_tasks_total`        | Counter   | The total number of tasks that were skipped                                       |
+| `hatchet_cancelled_tasks_total`      | Counter   | The total number of tasks cancelled                                               |
+| `hatchet_assigned_tasks_total`       | Counter   | The total number of tasks assigned to a worker                                    |
+| `hatchet_scheduling_timed_out_total` | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
+| `hatchet_rate_limited_total`         | Counter   | The total number of tasks that were rate limited                                  |
+| `hatchet_queued_to_assigned_total`   | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
+| `hatchet_queued_to_assigned_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
+
+### Example PromQL Queries
+
+#### 1. Rate of calls to the queuer method
+
+```promql
+rate(hatchet_queue_invocations_total[5m])
+```
+
+#### 2. Average queue time in milliseconds
+
+```promql
+# Calculates average queue time over the past 5 minutes, converted to ms
+rate(hatchet_queued_to_assigned_seconds_sum[5m])
+  / rate(hatchet_queued_to_assigned_seconds_count[5m])
+  * 1e3
+```
+
+#### 3. Success and failure rates
+
+```promql
+rate(hatchet_succeeded_tasks_total[5m])
+rate(hatchet_failed_tasks_total[5m])
+```
+
+#### 4. Queue time distribution (histogram)
+
+```promql
+sum by (le) (
+  rate(hatchet_queued_to_assigned_seconds_bucket[5m])
+)
+```
+
+#### 5. Rate of tasks created vs. retried
+
+```promql
+rate(hatchet_created_tasks_total[5m])
+rate(hatchet_retried_tasks_total[5m])
+```

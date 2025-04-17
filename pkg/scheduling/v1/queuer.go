@@ -231,7 +231,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
 
 						if timeInQueueSeconds > 0 {
-							prometheus.QueuedToAssignedTime.Add(timeInQueueSeconds)
+							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
 						}
 					}
 				}
