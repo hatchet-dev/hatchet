@@ -62,7 +62,8 @@ pydoclint = "^0.6.6"
 trafilatura = "^2.0.0"
 markdownify = "^1.1.0"
 openai = "^1.75.0"
-griffe-pydantic = "^1.1.4"
+bs4 = "^0.0.2"
+types-beautifulsoup4 = "^4.12.0.20250204"
 
 [tool.poetry.extras]
 otel = [

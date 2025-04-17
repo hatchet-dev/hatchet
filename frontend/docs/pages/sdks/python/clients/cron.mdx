@@ -1,136 +1,157 @@
 # Cron Client
 
-## Classes
-
-### `CreateCronTriggerConfig`
-
-`pydantic-model`
-
-Bases: `BaseModel`
-
-Schema for creating a workflow run triggered by a cron.
-
-Attributes:
-expression (str): The cron expression defining the schedule.
-input (dict): The input data for the cron workflow.
-additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
-
-Fields:
-
-- (`expression` `str`)
-- (`input` `JSONSerializableMapping`)
-- (`additional_metadata` `JSONSerializableMapping`)
-
-Validators:
-
-#### Attributes
-
-`additional_metadata`
-
-`pydantic-field`
-
-`expression`
-
-`pydantic-field`
-
-`input`
-
-`pydantic-field`
-
-#### Functions
-
-`validate_cron_expression`
-
-`pydantic-validator`
-
-Validates the cron expression to ensure it adheres to the expected format.
-
-Args:
-v (str): The cron expression to validate.
-
-Raises:
-ValueError: If the expression is invalid.
-
-Returns:
-str: The validated cron expression.
-
-### `CronClient`
-
 Bases: `BaseRestClient`
 
-#### Functions
+The cron client is a client for managing cron workflows within Hatchet.
 
-`aio_create`
+## Functions
 
-`aio_delete`
+### `aio_create`
 
-`aio_get`
+Create a new workflow cron trigger.
 
-Synchronously retrieves a specific workflow cron trigger by ID.
+Parameters:
 
-Args:
-cron_id (str): The cron trigger ID or CronWorkflows instance to retrieve.
-
-Returns:
-CronWorkflows: The requested cron workflow instance.
-
-`aio_list`
-
-Synchronously retrieves a list of all workflow cron triggers matching the criteria.
-
-Args:
-offset (int | None): The offset to start the list from.
-limit (int | None): The maximum number of items to return.
-workflow_id (str | None): The ID of the workflow to filter by.
-additional_metadata (list[str] | None): Filter by additional metadata keys (e.g., ["key1:value1", "key2:value2"]).
-order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
-order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
+| Name                  | Type                      | Description                                           | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
+| `cron_name`           | `str`                     | The name of the cron trigger.                         | _required_ |
+| `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
+| `priority`            | `int \| None`             | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
-CronWorkflowsList: A list of cron workflows.
 
-`create`
+| Type            | Description                         |
+| --------------- | ----------------------------------- |
+| `CronWorkflows` | The created cron workflow instance. |
 
-Asynchronously creates a new workflow cron trigger.
+### `aio_delete`
 
-Args:
-workflow_name (str): The name of the workflow to trigger.
-cron_name (str): The name of the cron trigger.
-expression (str): The cron expression defining the schedule.
-input (dict): The input data for the cron workflow.
-additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
+Delete a workflow cron trigger.
 
-Returns:
-CronWorkflows: The created cron workflow instance.
+Parameters:
 
-`delete`
-
-Asynchronously deletes a workflow cron trigger.
-
-Args:
-cron_id (str): The cron trigger ID or CronWorkflows instance to delete.
-
-`get`
-
-Asynchronously retrieves a specific workflow cron trigger by ID.
-
-Args:
-cron_id (str): The cron trigger ID or CronWorkflows instance to retrieve.
+| Name      | Type  | Description                           | Default    |
+| --------- | ----- | ------------------------------------- | ---------- |
+| `cron_id` | `str` | The ID of the cron trigger to delete. | _required_ |
 
 Returns:
-CronWorkflows: The requested cron workflow instance.
 
-`list`
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
 
-Asynchronously retrieves a list of all workflow cron triggers matching the criteria.
+### `aio_get`
 
-Args:
-offset (int | None): The offset to start the list from.
-limit (int | None): The maximum number of items to return.
-workflow_id (str | None): The ID of the workflow to filter by.
-additional_metadata (list[str] | None): Filter by additional metadata keys (e.g., ["key1:value1", "key2:value2"]).
-order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
-order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
+Retrieve a specific workflow cron trigger by ID.
+
+Parameters:
+
+| Name      | Type  | Description                                                | Default    |
+| --------- | ----- | ---------------------------------------------------------- | ---------- |
+| `cron_id` | `str` | The cron trigger ID or CronWorkflows instance to retrieve. | _required_ |
 
 Returns:
-CronWorkflowsList: A list of cron workflows.
+
+| Type            | Description                           |
+| --------------- | ------------------------------------- |
+| `CronWorkflows` | The requested cron workflow instance. |
+
+### `aio_list`
+
+Retrieve a list of all workflow cron triggers matching the criteria.
+
+Parameters:
+
+| Name                  | Type                                  | Description                            | Default |
+| --------------------- | ------------------------------------- | -------------------------------------- | ------- |
+| `offset`              | `int \| None`                         | The offset to start the list from.     | `None`  |
+| `limit`               | `int \| None`                         | The maximum number of items to return. | `None`  |
+| `workflow_id`         | `str \| None`                         | The ID of the workflow to filter by.   | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`     | Filter by additional metadata keys.    | `None`  |
+| `order_by_field`      | `CronWorkflowsOrderByField \| None`   | The field to order the list by.        | `None`  |
+| `order_by_direction`  | `WorkflowRunOrderByDirection \| None` | The direction to order the list by.    | `None`  |
+
+Returns:
+
+| Type                | Description               |
+| ------------------- | ------------------------- |
+| `CronWorkflowsList` | A list of cron workflows. |
+
+### `create`
+
+Create a new workflow cron trigger.
+
+Parameters:
+
+| Name                  | Type                      | Description                                           | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
+| `cron_name`           | `str`                     | The name of the cron trigger.                         | _required_ |
+| `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
+| `priority`            | `int \| None`             | The priority of the cron workflow trigger.            | `None`     |
+
+Returns:
+
+| Type            | Description                         |
+| --------------- | ----------------------------------- |
+| `CronWorkflows` | The created cron workflow instance. |
+
+### `delete`
+
+Delete a workflow cron trigger.
+
+Parameters:
+
+| Name      | Type  | Description                           | Default    |
+| --------- | ----- | ------------------------------------- | ---------- |
+| `cron_id` | `str` | The ID of the cron trigger to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+### `get`
+
+Retrieve a specific workflow cron trigger by ID.
+
+Parameters:
+
+| Name      | Type  | Description                                                | Default    |
+| --------- | ----- | ---------------------------------------------------------- | ---------- |
+| `cron_id` | `str` | The cron trigger ID or CronWorkflows instance to retrieve. | _required_ |
+
+Returns:
+
+| Type            | Description                           |
+| --------------- | ------------------------------------- |
+| `CronWorkflows` | The requested cron workflow instance. |
+
+### `list`
+
+Retrieve a list of all workflow cron triggers matching the criteria.
+
+Parameters:
+
+| Name                  | Type                                  | Description                            | Default |
+| --------------------- | ------------------------------------- | -------------------------------------- | ------- |
+| `offset`              | `int \| None`                         | The offset to start the list from.     | `None`  |
+| `limit`               | `int \| None`                         | The maximum number of items to return. | `None`  |
+| `workflow_id`         | `str \| None`                         | The ID of the workflow to filter by.   | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`     | Filter by additional metadata keys.    | `None`  |
+| `order_by_field`      | `CronWorkflowsOrderByField \| None`   | The field to order the list by.        | `None`  |
+| `order_by_direction`  | `WorkflowRunOrderByDirection \| None` | The direction to order the list by.    | `None`  |
+
+Returns:
+
+| Type                | Description               |
+| ------------------- | ------------------------- |
+| `CronWorkflowsList` | A list of cron workflows. |
+
+Made with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)

@@ -1,3 +1,3 @@
 # Logs Client
 
-::: features.logs
+::: features.logs.LogsClient

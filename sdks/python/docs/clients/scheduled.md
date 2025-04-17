@@ -1,3 +1,3 @@
 # Scheduled Client
 
-::: features.scheduled
+::: features.scheduled.ScheduledClient

@@ -50,22 +50,13 @@ def crawl_directory(directory: str) -> list[str]:
 
 SYSTEM_PROMPT = """
 You're an SDK documentation expert working on improving the readability of Hatchet's Python SDK documentation. You will be given
-a markdown file, and your task is to clean it up and translate it to MDX so it can be used as a page on our Nextra documentation site.
+a markdown file, and your task is to fix any broken MDX so it can be used as a page on our Nextra documentation site.
 
 In your work, follow these instructions:
 
 1. Strip any unnecessary paragraph characters, but do not change any actual code, sentences, or content. You should keep the documentation as close to the original as possible, meaning that you should not generate new content, you should not consolidate existing content, you should not rearrange content, and so on.
 2. Return only the content. You should not enclode the markdown in backticks or any other formatting.
-3. You must ensure that the MDX you generate will build correctly using our build tool, Nextra, which means it must not have any invalid characters or anything else that would cause the build to crash. One such example would be to avoid this error `Could not parse expression with acorn`. Make sure you follow the MDX troubleshooting guide.
-4. If you encounter any typos or grammatical mistakes, you should fix them in the most minimal way possible, ensuring you do not change any of the meaning of the content itself.
-5. If you find any characters such as backticks that would look odd when displayed in e.g. a table cell, you should remove them. The goal is to make the documentation visually appealing, readable, and clean.
-6. Please remove the standalone `async` keyword that sometimes shows up on its own line. Any other `async` keyword should be left alone, but there should not be a line that only contains that keyword.
-7. You must ensure that MDX will render any tables correctly. There is an example of correct table formatting below:
-
-| Name      | Type                     | Description                                                                     | Default                              |
-| --------- | ------------------------ | ------------------------------------------------------------------------------- | ------------------------------------ |
-| `input`   | `TWorkflowInput`         | The input data for the workflow, must match the workflow's input type.          | `cast(TWorkflowInput, EmptyModel())` |
-| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution like metadata and parent workflow ID. | `TriggerWorkflowOptions()`           |
+3. You must ensure that MDX will render any tables correctly. One thing in particular to be on the lookout for is the use of the pipe `|` in type hints. For example, `int | None` is the Python type `Optional[int]` and should render in a single column.
 
 """
 
@@ -128,11 +119,17 @@ def generate_sub_meta_entry(child: str) -> str:
 
 def generate_meta_js(docs: list[DocMetadata], children: set[str]) -> str:
     prefix = docs[0].prefix
-
-    entries = "".join(
-        [generate_single_meta_entry(doc) for doc in docs]
-        + [generate_sub_meta_entry(child.replace(prefix, "")) for child in children]
+    subentries = [generate_single_meta_entry(doc) for doc in docs] + [
+        generate_sub_meta_entry(child.replace(prefix, "")) for child in children
+    ]
+    sorted_subentries = sorted(
+        subentries,
+        key=lambda x: (
+            "aaaaaaaa" if "index" in (key := x.split(":")[0].strip('"')) else key
+        ),
     )
+
+    entries = "".join(sorted_subentries)
 
     return f"export default {{{entries}}}"
 
@@ -191,8 +188,8 @@ async def run() -> None:
         os.chdir("../../frontend/docs")
         os.system("pnpm lint:fix")
     finally:
-        rm_rf("docs/site")
-        rm_rf("site")
+        # rm_rf("docs/site")
+        # rm_rf("site")
         rm_rf(TMP_GEN_PATH)
 
 

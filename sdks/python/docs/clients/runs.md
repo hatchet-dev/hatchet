@@ -1,3 +1,3 @@
 # Runs Client
 
-::: features.runs
+::: features.runs.RunsClient

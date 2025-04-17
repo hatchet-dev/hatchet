@@ -48,20 +48,19 @@ plugins:
         python:
           paths: [hatchet_sdk]
           options:
-            extensions:
-              - griffe_pydantic:
-                  schema: false
             show_source: false
-            heading_level: 4
+            heading_level: 2
             show_category_heading: true
             show_if_no_docstring: true
-            show_signature_annotations: false
             show_signature: false
             show_overloads: false
             docstring_style: sphinx
             show_docstring_functions: false
             inherited_members: false
             filters: ["!^_", "!^features$"]
+            show_signature_annotations: false
+            annotations_path: "brief"
+            docstring_section_style: "table"
 
 markdown_extensions:
   - pymdownx.highlight

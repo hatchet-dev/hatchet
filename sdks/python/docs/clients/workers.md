@@ -1,3 +1,3 @@
 # Workers Client
 
-::: features.workers
+::: features.workers.WorkersClient

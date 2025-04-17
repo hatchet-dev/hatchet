@@ -1,33 +1,33 @@
 export default {
-        "workflows": {
-            "title": "Workflows",
-        },
-
-        "scheduled": {
-            "title": "Scheduled",
+        "cron": {
+            "title": "Cron",
         },
 
         "logs": {
             "title": "Logs",
         },
 
-        "rate_limits": {
-            "title": "Rate Limits",
+        "metrics": {
+            "title": "Metrics",
         },
 
-        "workers": {
-            "title": "Workers",
+        "rate_limits": {
+            "title": "Rate Limits",
         },
 
         "runs": {
             "title": "Runs",
         },
 
-        "metrics": {
-            "title": "Metrics",
+        "scheduled": {
+            "title": "Scheduled",
         },
 
-        "cron": {
-            "title": "Cron",
+        "workers": {
+            "title": "Workers",
+        },
+
+        "workflows": {
+            "title": "Workflows",
         },
     }
