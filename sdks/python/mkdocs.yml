@@ -5,40 +5,6 @@ site_url: https://docs.onhatchet.run/sdks/python/
 use_directory_urls: false
 
 
-theme:
-  name: material
-  palette:
-    - media: "(prefers-color-scheme)"
-      toggle:
-        icon: material/brightness-auto
-        name: Switch to light mode
-
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      toggle:
-        icon: material/brightness-4
-        name: Switch to system preference
-
-  color_mode: auto
-  features:
-    - navigation.instant
-    - navigation.tracking
-    - navigation.expand
-    - navigation.indexes
-    - content.code.copy
-    - header.autohide
-    - search.suggest
-    - search.highlight
-
-extra_css:
-  - styles.css
-
 plugins:
   - search
   - markdown-export
@@ -73,17 +39,3 @@ markdown_extensions:
   - admonition
   - toc:
       permalink: true
-
-nav:
-  - Home: index.md
-  - SDK Reference:
-    - Runnables: runnables.md
-    - Clients:
-        - Cron: clients/cron.md
-        - Logs: clients/logs.md
-        - Metrics: clients/metrics.md
-        - Rate Limits: clients/rate_limits.md
-        - Runs: clients/runs.md
-        - Scheduled: clients/scheduled.md
-        - Workers: clients/workers.md
-        - Workflows: clients/workflows.md

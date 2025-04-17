@@ -169,7 +169,7 @@ waits = "examples.waits.worker:main"
 durable = "examples.durable.worker:main"
 streaming = "examples.streaming.worker:main"
 lifespans = "examples.lifespans.worker:main"
-gendocs = "docs.generator.generate:main"
+docs-gen = "docs.generator.generate:main"
 
 [tool.pydoclint]
 style = 'sphinx'
