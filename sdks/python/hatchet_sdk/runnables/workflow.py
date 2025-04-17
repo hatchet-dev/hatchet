@@ -271,6 +271,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
+
+        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
@@ -313,6 +315,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param input: The input data for the workflow.
         :param options: Additional options for workflow execution.
+
+        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
         """
 
         return await self.client._client.admin.aio_run_workflow(
@@ -404,6 +408,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
         :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+
         :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
         """
         return await self.client._client.admin.aio_run_workflows(
