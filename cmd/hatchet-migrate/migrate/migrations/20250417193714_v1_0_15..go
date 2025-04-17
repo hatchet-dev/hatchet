@@ -36,7 +36,7 @@ func createIndexOnPartitions(ctx context.Context, db *sql.DB, tableName string, 
 
 	// Step 1: Create an invalid index on the parent table
 	parentIndexQuery := fmt.Sprintf(
-		`CREATE INDEX %s ON ONLY %s %s`,
+		`CREATE INDEX IF NOT EXISTS %s ON ONLY %s %s`,
 		indexName,
 		tableName,
 		indexColumns,
@@ -61,7 +61,7 @@ func createIndexOnPartitions(ctx context.Context, db *sql.DB, tableName string, 
 		// Create the index on the partition (without CONCURRENTLY)
 		partitionIndexName := fmt.Sprintf("idx_%s_%s", partitionName, indexName)
 		createIndexQuery := fmt.Sprintf(
-			`CREATE INDEX %s ON %s %s`,
+			`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON ONLY %s %s`,
 			partitionIndexName,
 			partitionName,
 			indexColumns,
