@@ -3,11 +3,13 @@ import os
 from docs.generator.types import Document
 
 
-def crawl_directory(directory: str) -> list[Document]:
+def crawl_directory(directory: str, only_include: list[str]) -> list[Document]:
     return [
-        Document.from_path(os.path.join(root, filename))
+        d
         for root, _, filenames in os.walk(directory)
         for filename in filenames
+        if (d := Document.from_path(os.path.join(root, filename))).readable_source_path
+        in only_include
     ]
 
 
