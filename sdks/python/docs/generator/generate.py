@@ -29,7 +29,7 @@ def generate_sub_meta_entry(child: str) -> str:
     child = child.replace("/", "")
     return f"""
         "{child}": {{
-            "title": "{child.title()}",
+            "title": "{child.replace("-", " ").title()}",
             "theme": {{
                 "toc": true
             }},
