@@ -1,3 +1,3 @@
 # Metrics Client
 
-::: features.metrics
+::: features.metrics.MetricsClient

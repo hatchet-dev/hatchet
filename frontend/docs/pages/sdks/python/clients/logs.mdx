@@ -1,26 +1,45 @@
-Hatchet Python SDK
+Logs - Hatchet Python SDK
 
-## Logs
+[Skip to content](#logs-client)
 
-### Table of Contents
+# Logs Client
 
-- Logs
-- Classes
-  - LogsClient
-- Functions
+Bases: `BaseRestClient`
 
----
+The logs client is a client for interacting with Hatchet's logs API.
 
-### Logs Client
+## Functions
 
-#### Classes
+### `aio_list`
 
-- **LogsClient**
+List log lines for a given task run.
 
-  - Bases: `BaseRestClient`
+Parameters:
 
-#### Functions
+| Name          | Type  | Description                              | Default    |
+| ------------- | ----- | ---------------------------------------- | ---------- |
+| `task_run_id` | `str` | The ID of the task run to list logs for. | _required_ |
 
-- **aio_list**
+Returns:
 
-- **list**
+| Type            | Description                                     |
+| --------------- | ----------------------------------------------- |
+| `V1LogLineList` | A list of log lines for the specified task run. |
+
+### `list`
+
+List log lines for a given task run.
+
+Parameters:
+
+| Name          | Type  | Description                              | Default    |
+| ------------- | ----- | ---------------------------------------- | ---------- |
+| `task_run_id` | `str` | The ID of the task run to list logs for. | _required_ |
+
+Returns:
+
+| Type            | Description                                     |
+| --------------- | ----------------------------------------------- |
+| `V1LogLineList` | A list of log lines for the specified task run. |
+
+Made with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)

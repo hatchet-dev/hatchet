@@ -1,6 +1,7 @@
 import os
 
-import trafilatura
+from bs4 import BeautifulSoup
+from markdownify import markdownify
 from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.plugins import BasePlugin
 from mkdocs.structure.pages import Page
@@ -9,22 +10,52 @@ from docs.generator.shared import TMP_GEN_PATH
 
 
 class MarkdownExportPlugin(BasePlugin):  # type: ignore
+    def __init__(self) -> None:
+        super().__init__()
+        self.soup: BeautifulSoup
+
+    def _remove_async_tags(self) -> "MarkdownExportPlugin":
+        spans = self.soup.find_all("span", class_="doc doc-labels")
+
+        for span in spans:
+            if span.find(string="async") or (
+                span.text and "async" == span.get_text().strip()
+            ):
+                span.decompose()
+
+        return self
+
+    def _remove_hash_links(self) -> "MarkdownExportPlugin":
+        links = self.soup.find_all("a", class_="headerlink")
+        for link in links:
+            href = link["href"]
+            if href.startswith("#"):
+                link.decompose()
+
+        return self
+
+    def _remove_toc(self) -> "MarkdownExportPlugin":
+        tocs = self.soup.find_all("nav")
+        for toc in tocs:
+            toc.decompose()
+
+        return self
+
+    def _preprocess_html(self, content: str) -> str:
+        self.soup = BeautifulSoup(content, "html.parser")
+
+        self._remove_async_tags()._remove_hash_links()._remove_toc()
+
+        return str(self.soup)
+
     def on_post_page(
         self, output_content: str, page: Page, config: MkDocsConfig
     ) -> str:
-        md_content = trafilatura.extract(
-            output_content,
-            url=None,
-            output_format="markdown",
-            include_tables=True,
-            include_comments=False,
-            include_links=True,
-            include_formatting=True,
-            include_images=False,
-        )
+        content = self._preprocess_html(output_content)
+        md_content = markdownify(content, heading_style="ATX", wrap=False)
 
         if not md_content:
-            return output_content
+            return content
 
         dest = os.path.splitext(page.file.dest_path)[0] + ".md"
         out_path = os.path.join(TMP_GEN_PATH, dest)
@@ -33,4 +64,4 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(md_content)
 
-        return output_content
+        return content

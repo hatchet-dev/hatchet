@@ -1,3 +1,3 @@
 # Workflows Client
 
-::: features.workflows
+::: features.workflows.WorkflowsClient

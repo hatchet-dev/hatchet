@@ -1,69 +1,315 @@
 # Runs Client
 
-### Classes
-
-#### `BulkCancelReplayOpts`
-
-`pydantic-model`
-
-#### `RunFilter`
-
-`pydantic-model`
-
-Bases: `BaseModel`
-
-Fields:
-
-- `since`: `datetime`
-- `until`: `datetime | None`
-- `statuses`: `list[V1TaskStatus] | None`
-- `workflow_ids`: `list[str] | None`
-- `additional_metadata`: `dict[str, str] | None`
-
-#### `RunsClient`
-
 Bases: `BaseRestClient`
 
-##### Attributes
+The runs client is a client for interacting with task and workflow runs within Hatchet.
 
-- `workflow_run_event_listener = workflow_run_event_listener`
-  `instance-attribute`
+## Attributes
 
-- `workflow_run_listener = workflow_run_listener`
-  `instance-attribute`
+### `workflow_run_event_listener = workflow_run_event_listener` `instance-attribute`
 
-##### Functions
+### `workflow_run_listener = workflow_run_listener` `instance-attribute`
 
-- `aio_bulk_cancel`
+## Functions
 
-- `aio_bulk_replay`
+### `aio_bulk_cancel`
 
-- `aio_cancel`
+Cancel task or workflow runs in bulk, according to a set of filters.
 
-- `aio_create`
+Parameters:
 
-- `aio_get`
+| Name   | Type                   | Description                                         | Default    |
+| ------ | ---------------------- | --------------------------------------------------- | ---------- |
+| `opts` | `BulkCancelReplayOpts` | Options for bulk cancel, including filters and IDs. | _required_ |
 
-- `aio_get_result`
+Returns:
 
-- `aio_list`
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
 
-- `aio_replay`
+### `aio_bulk_replay`
 
-- `bulk_cancel`
+Replay task or workflow runs in bulk, according to a set of filters.
 
-- `bulk_replay`
+Parameters:
 
-- `cancel`
+| Name   | Type                   | Description                                         | Default    |
+| ------ | ---------------------- | --------------------------------------------------- | ---------- |
+| `opts` | `BulkCancelReplayOpts` | Options for bulk replay, including filters and IDs. | _required_ |
 
-- `create`
+Returns:
 
-- `get`
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
 
-- `get_result`
+### `aio_cancel`
 
-- `get_run_ref`
+Cancel a task or workflow run.
 
-- `list`
+Parameters:
 
-- `replay`
+| Name     | Type  | Description                                            | Default    |
+| -------- | ----- | ------------------------------------------------------ | ---------- |
+| `run_id` | `str` | The external ID of the task or workflow run to cancel. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+### `aio_create`
+
+Trigger a new workflow run.
+
+IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch.
+
+Parameters:
+
+| Name                  | Type                      | Description                                           | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the workflow run.                  | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the workflow run. | `{}`       |
+| `priority`            | `int \| None`             | The priority of the workflow run.                     | `None`     |
+
+Returns:
+
+| Type                   | Description                                |
+| ---------------------- | ------------------------------------------ |
+| `V1WorkflowRunDetails` | The details of the triggered workflow run. |
+
+### `aio_get`
+
+Get workflow run details for a given workflow run ID.
+
+Parameters:
+
+| Name              | Type  | Description                                         | Default    |
+| ----------------- | ----- | --------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type                   | Description                                             |
+| ---------------------- | ------------------------------------------------------- |
+| `V1WorkflowRunDetails` | Workflow run details for the specified workflow run ID. |
+
+### `aio_get_result`
+
+Get the result of a workflow run by its external ID.
+
+Parameters:
+
+| Name     | Type  | Description                                                     | Default    |
+| -------- | ----- | --------------------------------------------------------------- | ---------- |
+| `run_id` | `str` | The external ID of the workflow run to retrieve the result for. | _required_ |
+
+Returns:
+
+| Type                      | Description                     |
+| ------------------------- | ------------------------------- |
+| `JSONSerializableMapping` | The result of the workflow run. |
+
+### `aio_list`
+
+List task runs according to a set of filters.
+
+Parameters:
+
+| Name                      | Type                         | Description                                         | Default                      |
+| ------------------------- | ---------------------------- | --------------------------------------------------- | ---------------------------- |
+| `since`                   | `datetime`                   | The start time for filtering task runs.             | `now() - timedelta(hours=1)` |
+| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False`                      |
+| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`                       |
+| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`                       |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`                       |
+| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`                       |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`                       |
+| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`                       |
+| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`                       |
+| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`                       |
+
+Returns:
+
+| Type                | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `V1TaskSummaryList` | A list of task runs matching the specified filters. |
+
+### `aio_replay`
+
+Replay a task or workflow run.
+
+Parameters:
+
+| Name     | Type  | Description                                            | Default    |
+| -------- | ----- | ------------------------------------------------------ | ---------- |
+| `run_id` | `str` | The external ID of the task or workflow run to replay. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+### `bulk_cancel`
+
+Cancel task or workflow runs in bulk, according to a set of filters.
+
+Parameters:
+
+| Name   | Type                   | Description                                         | Default    |
+| ------ | ---------------------- | --------------------------------------------------- | ---------- |
+| `opts` | `BulkCancelReplayOpts` | Options for bulk cancel, including filters and IDs. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+### `bulk_replay`
+
+Replay task or workflow runs in bulk, according to a set of filters.
+
+Parameters:
+
+| Name   | Type                   | Description                                         | Default    |
+| ------ | ---------------------- | --------------------------------------------------- | ---------- |
+| `opts` | `BulkCancelReplayOpts` | Options for bulk replay, including filters and IDs. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+### `cancel`
+
+Cancel a task or workflow run.
+
+Parameters:
+
+| Name     | Type  | Description                                            | Default    |
+| -------- | ----- | ------------------------------------------------------ | ---------- |
+| `run_id` | `str` | The external ID of the task or workflow run to cancel. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+### `create`
+
+Trigger a new workflow run.
+
+IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch.
+
+Parameters:
+
+| Name                  | Type                      | Description                                           | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the workflow run.                  | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the workflow run. | `{}`       |
+| `priority`            | `int \| None`             | The priority of the workflow run.                     | `None`     |
+
+Returns:
+
+| Type                   | Description                                |
+| ---------------------- | ------------------------------------------ |
+| `V1WorkflowRunDetails` | The details of the triggered workflow run. |
+
+### `get`
+
+Get workflow run details for a given workflow run ID.
+
+Parameters:
+
+| Name              | Type  | Description                                         | Default    |
+| ----------------- | ----- | --------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type                   | Description                                             |
+| ---------------------- | ------------------------------------------------------- |
+| `V1WorkflowRunDetails` | Workflow run details for the specified workflow run ID. |
+
+### `get_result`
+
+Get the result of a workflow run by its external ID.
+
+Parameters:
+
+| Name     | Type  | Description                                                     | Default    |
+| -------- | ----- | --------------------------------------------------------------- | ---------- |
+| `run_id` | `str` | The external ID of the workflow run to retrieve the result for. | _required_ |
+
+Returns:
+
+| Type                      | Description                     |
+| ------------------------- | ------------------------------- |
+| `JSONSerializableMapping` | The result of the workflow run. |
+
+### `get_run_ref`
+
+Get a reference to a workflow run.
+
+Parameters:
+
+| Name              | Type  | Description                                       | Default    |
+| ----------------- | ----- | ------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to get a reference to. | _required_ |
+
+Returns:
+
+| Type             | Description                                |
+| ---------------- | ------------------------------------------ |
+| `WorkflowRunRef` | A reference to the specified workflow run. |
+
+### `list`
+
+List task runs according to a set of filters.
+
+Parameters:
+
+| Name                      | Type                         | Description                                         | Default                      |
+| ------------------------- | ---------------------------- | --------------------------------------------------- | ---------------------------- |
+| `since`                   | `datetime`                   | The start time for filtering task runs.             | `now() - timedelta(hours=1)` |
+| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False`                      |
+| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`                       |
+| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`                       |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`                       |
+| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`                       |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`                       |
+| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`                       |
+| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`                       |
+| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`                       |
+
+Returns:
+
+| Type                | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `V1TaskSummaryList` | A list of task runs matching the specified filters. |
+
+### `replay`
+
+Replay a task or workflow run.
+
+Parameters:
+
+| Name     | Type  | Description                                            | Default    |
+| -------- | ----- | ------------------------------------------------------ | ---------- |
+| `run_id` | `str` | The external ID of the task or workflow run to replay. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+Made with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)
