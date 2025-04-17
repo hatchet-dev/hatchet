@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var ErrDagParentNotFound = errors.New("dag parent not found")
@@ -308,6 +309,9 @@ type WorkflowEngineRepository interface {
 	// CreateWorkflowVersion creates a new workflow version for a given tenant. This will fail if there is
 	// not a parent workflow with the same name already in the database.
 	CreateWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+
+	// LockWorkflowVersion locks a workflow version for a given tenant.
+	LockWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*pgtype.UUID, error)
 
 	// CreateSchedules creates schedules for a given workflow version.
 	CreateSchedules(ctx context.Context, tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*dbsqlc.WorkflowTriggerScheduledRef, error)

@@ -564,6 +564,16 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 	return workflowVersion[0], nil
 }
 
+func (r *workflowEngineRepository) LockWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*pgtype.UUID, error) {
+	lockedWorkflowVersionId, err := r.queries.LockWorkflowVersion(ctx, r.pool, sqlchelpers.UUIDFromStr(workflowId))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &lockedWorkflowVersionId, nil
+}
+
 func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, tenantId string, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
