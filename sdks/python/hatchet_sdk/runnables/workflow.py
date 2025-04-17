@@ -195,6 +195,15 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         key: str | None = None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunTriggerConfig:
+        """
+        Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.
+
+        :param input: The input data for the workflow.
+        :param key: The key for the workflow run. This is used to identify the run in the bulk operation and for deduplication.
+        :param options: Additional options for the workflow run.
+
+        :returns: A `WorkflowRunTriggerConfig` object that can be used to trigger the workflow run, which you then pass into the `run_many` methods.
+        """
         return WorkflowRunTriggerConfig(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -256,6 +265,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
+        """
+        Synchronously trigger a workflow run without waiting for it to complete.
+        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        """
         return self.client._client.admin.run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -273,16 +289,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         This method triggers a workflow run, blocks until completion, and returns the final result.
 
         :param input: The input data for the workflow, must match the workflow's input type.
-
         :param options: Additional options for workflow execution like metadata and parent workflow ID.
 
         :returns: The result of the workflow execution as a dictionary.
-
-        Example:
-        ```python
-        result = my_workflow.run(MyInputModel(name="test"))
-        print(result)  # Final workflow output
-        ```
         """
 
         ref = self.client._client.admin.run_workflow(
@@ -298,6 +307,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
+        """
+        Asynchronously trigger a workflow run without waiting for it to complete.
+        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        """
+
         return await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -309,6 +326,16 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> dict[str, Any]:
+        """
+        Run the workflow asynchronously and wait for it to complete.
+
+        This method triggers a workflow run, blocks until completion, and returns the final result.
+
+        :param input: The input data for the workflow, must match the workflow's input type.
+        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+
+        :returns: The result of the workflow execution as a dictionary.
+        """
         ref = await self.client._client.admin.aio_run_workflow(
             workflow_name=self.config.name,
             input=self._serialize_input(input),
@@ -321,6 +348,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[dict[str, Any]]:
+        """
+        Run a workflow in bulk and wait for all runs to complete.
+        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of results for each workflow run.
+        """
         refs = self.client._client.admin.run_workflows(
             workflows=workflows,
         )
@@ -331,6 +365,13 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[dict[str, Any]]:
+        """
+        Run a workflow in bulk and wait for all runs to complete.
+        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of results for each workflow run.
+        """
         refs = await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
@@ -341,6 +382,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
+        """
+        Run a workflow in bulk without waiting for all runs to complete.
+
+        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
+        """
         return self.client._client.admin.run_workflows(
             workflows=workflows,
         )
@@ -349,6 +398,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
+        """
+        Run a workflow in bulk without waiting for all runs to complete.
+
+        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
+        """
         return await self.client._client.admin.aio_run_workflows(
             workflows=workflows,
         )
@@ -359,6 +416,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
+        """
+        Schedule a workflow to run at a specific time.
+
+        :param run_at: The time at which to schedule the workflow.
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        :returns: A `WorkflowVersion` object representing the scheduled workflow.
+        """
         return self.client._client.admin.schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
@@ -372,6 +437,14 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
+        """
+        Schedule a workflow to run at a specific time.
+
+        :param run_at: The time at which to schedule the workflow.
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        :returns: A `WorkflowVersion` object representing the scheduled workflow.
+        """
         return await self.client._client.admin.aio_schedule_workflow(
             name=self.config.name,
             schedules=cast(list[datetime | timestamp_pb2.Timestamp], [run_at]),
@@ -387,6 +460,17 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         additional_metadata: JSONSerializableMapping = {},
         priority: int | None = None,
     ) -> CronWorkflows:
+        """
+        Create a cron job for the workflow.
+
+        :param cron_name: The name of the cron job.
+        :param expression: The cron expression that defines the schedule for the cron job.
+        :param input: The input data for the workflow.
+        :param additional_metadata: Additional metadata for the cron job.
+        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+
+        :returns: A `CronWorkflows` object representing the created cron job.
+        """
         return self.client.cron.create(
             workflow_name=self.config.name,
             cron_name=cron_name,
@@ -404,6 +488,17 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         additional_metadata: JSONSerializableMapping = {},
         priority: int | None = None,
     ) -> CronWorkflows:
+        """
+        Create a cron job for the workflow.
+
+        :param cron_name: The name of the cron job.
+        :param expression: The cron expression that defines the schedule for the cron job.
+        :param input: The input data for the workflow.
+        :param additional_metadata: Additional metadata for the cron job.
+        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+
+        :returns: A `CronWorkflows` object representing the created cron job.
+        """
         return await self.client.cron.aio_create(
             workflow_name=self.config.name,
             cron_name=cron_name,

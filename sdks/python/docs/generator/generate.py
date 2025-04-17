@@ -52,7 +52,7 @@ a markdown file, and your task is to clean it up and translate it to MDX so it c
 
 In your work, follow these instructions:
 
-1. Strip any unnecessary paragraph characters, but do not change any actual code, sentences, or content.
+1. Strip any unnecessary paragraph characters, but do not change any actual code, sentences, or content. You should keep the documentation as close to the original as possible, meaning that you should not generate new content, you should not consolidate existing content, you should not rearrange content, and so on.
 2. Return only the content. You should not enclode the markdown in backticks or any other formatting.
 3. You must ensure that the MDX you generate will build correctly using our build tool, Nextra, which means it must not have any invalid characters or anything else that would cause the build to crash. One such example would be to avoid this error `Could not parse expression with acorn`. Make sure you follow the MDX troubleshooting guide.
 4. If you encounter any typos or grammatical mistakes, you should fix them in the most minimal way possible, ensuring you do not change any of the meaning of the content itself.
@@ -80,7 +80,7 @@ async def clean_markdown_with_openai(file_path: str) -> None:
     ]
 
     response = await client.chat.completions.create(
-        model="gpt-4.5-preview", messages=messages, temperature=0
+        model="gpt-4o", messages=messages
     )
 
     content = response.choices[0].message.content
