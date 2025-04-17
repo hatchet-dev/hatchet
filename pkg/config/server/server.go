@@ -61,6 +61,8 @@ type ServerConfigFile struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
+	Prometheus shared.PrometheusConfigFile `mapstructure:"prometheus" json:"prometheus,omitempty"`
+
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
 
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
@@ -492,6 +494,8 @@ type ServerConfig struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile
 
+	Prometheus shared.PrometheusConfigFile
+
 	Email email.EmailService
 
 	TenantAlerter *alerting.TenantAlertManager
@@ -703,6 +707,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
+
+	// prometheus options
+	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
+	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
+	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")
