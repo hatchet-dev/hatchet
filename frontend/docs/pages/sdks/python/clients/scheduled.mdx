@@ -22,13 +22,15 @@ Methods:
 Creates a new scheduled workflow run asynchronously.
 
 Args:
-workflow_name (str): The name of the scheduled workflow.
-trigger_at (datetime.datetime): The datetime when the run should be triggered.
-input (JSONSerializableMapping): The input data for the scheduled workflow.
-additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run as a key-value pair.
+
+- `workflow_name` (str): The name of the scheduled workflow.
+- `trigger_at` (datetime.datetime): The datetime when the run should be triggered.
+- `input` (JSONSerializableMapping): The input data for the scheduled workflow.
+- `additional_metadata` (JSONSerializableMapping): Additional metadata associated with the future run as a key-value pair.
 
 Returns:
-ScheduledWorkflows: The created scheduled workflow instance.
+
+- `ScheduledWorkflows`: The created scheduled workflow instance.
 
 ### `aio_delete`
 
@@ -37,71 +39,82 @@ ScheduledWorkflows: The created scheduled workflow instance.
 Retrieves a specific scheduled workflow by scheduled run trigger ID.
 
 Args:
-scheduled (str): The scheduled workflow trigger ID to retrieve.
+
+- `scheduled` (str): The scheduled workflow trigger ID to retrieve.
 
 Returns:
-ScheduledWorkflows: The requested scheduled workflow instance.
+
+- `ScheduledWorkflows`: The requested scheduled workflow instance.
 
 ### `aio_list`
 
 Retrieves a list of scheduled workflows based on provided filters.
 
 Args:
-offset (int \| None): The starting point for the list.
-limit (int \| None): The maximum number of items to return.
-workflow_id (str \| None): Filter by specific workflow ID.
-parent_workflow_run_id (str \| None): Filter by parent workflow run ID.
-statuses (list[ScheduledRunStatus] \| None): Filter by status.
-additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
-order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
-order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
+
+- `offset` (int | None): The starting point for the list.
+- `limit` (int | None): The maximum number of items to return.
+- `workflow_id` (str | None): Filter by specific workflow ID.
+- `parent_workflow_run_id` (str | None): Filter by parent workflow run ID.
+- `statuses` (list[ScheduledRunStatus] | None): Filter by status.
+- `additional_metadata` (Optional[List[dict[str, str]]]): Filter by additional metadata.
+- `order_by_field` (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
+- `order_by_direction` (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
 
 Returns:
-List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
+
+- `List[ScheduledWorkflows]`: A list of scheduled workflows matching the criteria.
 
 ### `create`
 
 Creates a new scheduled workflow run asynchronously.
 
 Args:
-workflow_name (str): The name of the scheduled workflow.
-trigger_at (datetime.datetime): The datetime when the run should be triggered.
-input (JSONSerializableMapping): The input data for the scheduled workflow.
-additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run.
+
+- `workflow_name` (str): The name of the scheduled workflow.
+- `trigger_at` (datetime.datetime): The datetime when the run should be triggered.
+- `input` (JSONSerializableMapping): The input data for the scheduled workflow.
+- `additional_metadata` (JSONSerializableMapping): Additional metadata associated with the future run.
 
 Returns:
-ScheduledWorkflows: The created scheduled workflow instance.
+
+- `ScheduledWorkflows`: The created scheduled workflow instance.
 
 ### `delete`
 
 Deletes a scheduled workflow run.
 
 Args:
-scheduled_id (str): The scheduled workflow trigger ID to delete.
+
+- `scheduled_id` (str): The scheduled workflow trigger ID to delete.
 
 ### `get`
 
 Retrieves a specific scheduled workflow by scheduled run trigger ID.
 
 Args:
-scheduled (str): The scheduled workflow trigger ID to retrieve.
+
+- `scheduled` (str): The scheduled workflow trigger ID to retrieve.
 
 Returns:
-ScheduledWorkflows: The requested scheduled workflow instance.
+
+- `ScheduledWorkflows`: The requested scheduled workflow instance.
 
 ### `list`
 
 Retrieves a list of scheduled workflows based on provided filters.
 
 Args:
-offset (int \| None): The starting point for the list.
-limit (int \| None): The maximum number of items to return.
-workflow_id (str \| None): Filter by specific workflow ID.
-parent_workflow_run_id (str \| None): Filter by parent workflow run ID.
-statuses (list[ScheduledRunStatus] \| None): Filter by status.
-additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
-order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
-order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
+
+- `offset` (int | None): The starting point for the list.
+- `limit` (int | None): The maximum number of items to return.
+- `workflow_id` (str | None): Filter by specific workflow ID.
+- `parent_workflow_run_id` (str | None): Filter by parent workflow run ID.
+- `statuses` (list[ScheduledRunStatus] | None): Filter by status.
+- `additional_metadata` (Optional[List[dict[str, str]]]): Filter by additional metadata.
+- `order_by_field` (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
+- `order_by_direction` (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
 
 Returns:
-List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
+
+- `List[ScheduledWorkflows]`: A list of scheduled workflows matching the criteria.

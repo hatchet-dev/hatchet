@@ -14,7 +14,8 @@ async def clean_markdown_with_openai(document: Document) -> None:
     with open(document.source_path, "r", encoding="utf-8") as f:
         original_md = f.read()
 
-    content = await parse_markdown(original_markdown=original_md)
+    # content = await parse_markdown(original_markdown=original_md)
+    content = "foo"
 
     if not content:
         return None
@@ -41,11 +42,14 @@ def generate_meta_js(docs: list[Document], children: set[str]) -> str:
         generate_sub_meta_entry(child.replace(prefix, "")) for child in children
     ]
 
+    for s in subentries:
+        print(s.strip().split(":")[0].strip('"').lower())
+
     sorted_subentries = sorted(
         subentries,
         key=lambda x: (
             "aaaaaaaa"
-            if "index" == (key := x.strip().split(":")[0].strip('"').lower())
+            if "introduction" == (key := x.strip().split(":")[0].strip('"').lower())
             else key
         ),
     )

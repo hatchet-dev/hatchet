@@ -20,6 +20,7 @@ In your work, follow these instructions:
 1. Strip any unnecessary paragraph characters, but do not change any actual code, sentences, or content. You should keep the documentation as close to the original as possible, meaning that you should not generate new content, you should not consolidate existing content, you should not rearrange content, and so on.
 2. Return only the content. You should not enclode the markdown in backticks or any other formatting.
 3. You must ensure that MDX will render any tables correctly. One thing in particular to be on the lookout for is the use of the pipe `|` in type hints. For example, `int | None` is the Python type `Optional[int]` and should render in a single column.
+4. All code blocks should be formatted as `python`.
 """
 
 
