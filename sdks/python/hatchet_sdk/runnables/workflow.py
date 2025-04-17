@@ -542,7 +542,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         cancel_if: list[Condition | OrGroup] = [],
     ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
         """
-        A decorator to transform a function into a Hatchet task that run as part of a workflow.
+        A decorator to transform a function into a Hatchet task that runs as part of a workflow.
 
         :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 

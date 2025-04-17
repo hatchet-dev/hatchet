@@ -6,7 +6,6 @@ use_directory_urls: false
 
 
 plugins:
-  - search
   - markdown-export
   - mkdocstrings:
       default_handler: python
