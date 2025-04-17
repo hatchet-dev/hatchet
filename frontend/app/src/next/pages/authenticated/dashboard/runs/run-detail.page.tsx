@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { AlertCircle } from 'lucide-react';
 import {
@@ -9,19 +9,16 @@ import {
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { useEffect, useMemo, useCallback, useState } from 'react';
-import { RunDataCard } from '@/next/components/runs/run-output-card';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { RunChildrenCardRoot } from '@/next/components/runs/run-children';
-import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
 import { MdOutlineReplay } from 'react-icons/md';
 import { MdOutlineCancel } from 'react-icons/md';
 import WorkflowRunVisualizer from '@/next/components/runs/run-dag/dag-run-visualizer';
 import { SplitButton } from '@/next/components/ui/split-button';
-import BasicLayout from '@/next/components/layouts/basic.layout';
+import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import {
   HeadlineActionItem,
   HeadlineActions,
@@ -37,12 +34,22 @@ import { Duration } from '@/next/components/ui/duration';
 import { V1TaskStatus } from '@/next/lib/api/generated/data-contracts';
 import { ROUTES } from '@/next/lib/routes';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from '@/components/v1/ui/tabs';
+import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
+import { FilterProvider } from '@/next/hooks/use-filters';
+import { RunDetailSheet } from './run-detail-sheet';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
     workflowRunId: string;
     taskId: string;
   }>();
+  const navigate = useNavigate();
   const { tenant } = useTenant();
   const { data, isLoading, error, cancel, replay } = useRunDetail(
     workflowRunId || '',
@@ -56,14 +63,24 @@ export default function RunDetailPage() {
 
   const workflow = useMemo(() => data?.run, [data]);
   const tasks = useMemo(() => data?.tasks, [data]);
-  const logs = useMemo(() => data?.taskEvents, [data]);
 
-  const task = useMemo(() => {
+  const selectedTask = useMemo(() => {
     if (taskId) {
       return tasks?.find((t) => t.taskExternalId === taskId);
     }
     return tasks?.[0];
   }, [tasks, taskId]);
+
+  const handleTaskSelect = useCallback(
+    (taskId: string) => {
+      navigate(ROUTES.runs.taskDetail(workflowRunId!, taskId));
+    },
+    [navigate, workflowRunId],
+  );
+
+  const handleCloseSheet = useCallback(() => {
+    navigate(ROUTES.runs.detail(workflowRunId!));
+  }, [navigate, workflowRunId]);
 
   useEffect(() => {
     if (!workflow) {
@@ -72,26 +89,27 @@ export default function RunDetailPage() {
 
     const breadcrumbs = [];
 
-    if (parentData && parentData?.run) {
-      const parentUrl = ROUTES.runs.parent(workflow);
-      if (parentUrl) {
-        breadcrumbs.push({
-          title: getFriendlyWorkflowRunId(parentData.run) || '',
-          label: <RunId wfRun={parentData.run} />,
-          url: parentUrl,
-          icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-          alwaysShowIcon: true,
-        });
-      }
+    if (parentData) {
+      const parentUrl = ROUTES.runs.detail(parentData.run.metadata.id);
+      breadcrumbs.push({
+        title: getFriendlyWorkflowRunId(parentData.run) || '',
+        label: <RunId wfRun={parentData.run} />,
+        url: parentUrl,
+        icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
+        alwaysShowIcon: true,
+      });
     }
 
     breadcrumbs.push({
       title: getFriendlyWorkflowRunId(workflow) || '',
       label: <RunId wfRun={workflow} />,
       url:
-        task?.metadata.id === workflow?.metadata.id
+        selectedTask?.metadata.id === workflow?.metadata.id
           ? ROUTES.runs.detail(workflow.metadata.id)
-          : ROUTES.runs.taskDetail(workflow.metadata.id, task!.taskExternalId),
+          : ROUTES.runs.taskDetail(
+              workflow.metadata.id,
+              selectedTask?.taskExternalId || '',
+            ),
       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
       alwaysShowIcon: true,
     });
@@ -109,7 +127,7 @@ export default function RunDetailPage() {
     workflowRunId,
     setBreadcrumbs,
     data?.run,
-    task,
+    selectedTask,
   ]);
 
   const canCancel = useMemo(() => {
@@ -124,11 +142,19 @@ export default function RunDetailPage() {
   }, [tasks]);
 
   const canCancelRunning = useMemo(() => {
-    return tasks && tasks.some((t) => t.status === V1TaskStatus.RUNNING);
+    return (
+      tasks &&
+      tasks.length > 0 &&
+      tasks.some((t) => t.status === V1TaskStatus.RUNNING)
+    );
   }, [tasks]);
 
   const canCancelQueued = useMemo(() => {
-    return tasks && tasks.some((t) => t.status === V1TaskStatus.QUEUED);
+    return (
+      tasks &&
+      tasks.length > 0 &&
+      tasks.some((t) => t.status === V1TaskStatus.QUEUED)
+    );
   }, [tasks]);
 
   const cancelRunningTasks = useMemo(() => {
@@ -285,7 +311,16 @@ export default function RunDetailPage() {
   };
 
   return (
-    <BasicLayout>
+    <SheetViewLayout
+      sheet={
+        <RunDetailSheet
+          isOpen={!!taskId}
+          onClose={handleCloseSheet}
+          workflow={workflow}
+          selectedTask={selectedTask}
+        />
+      }
+    >
       <Headline>
         <PageTitle description={<Timing />}>
           <h1 className="text-2xl font-bold truncate flex items-center gap-2">
@@ -375,85 +410,55 @@ export default function RunDetailPage() {
 
       {workflowRunId && (
         <div className="w-full overflow-x-auto">
-          <WorkflowRunVisualizer workflowRunId={workflowRunId} />
+          <WorkflowRunVisualizer
+            workflowRunId={workflowRunId}
+            onTaskSelect={handleTaskSelect}
+          />
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4">
-        <RunChildrenCardRoot workflow={workflow} parentRun={parentData?.run} />
+        <RunChildrenCardRoot
+          workflow={workflow}
+          parentRun={parentData?.run}
+          onTaskSelect={handleTaskSelect}
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        <RunDataCard
-          title="Logs"
-          output={logs}
-          status={workflow.status}
-          variant="output"
-          collapsed
-        />
-
-        <RunDataCard
-          title="Input"
-          output={(workflow.input as { input: object }).input}
-          status={workflow.status}
-          variant="input"
-        />
-        {tasks
-          ?.sort(
-            (a, b) =>
-              new Date(b.startedAt || '').getTime() -
-              new Date(a.startedAt || '').getTime(),
-          )
-          .map((task) => (
-            <RunDataCard
-              key={task.displayName}
-              title={task.displayName}
-              description={
-                task.errorMessage
-                  ? 'The task failed to complete with the following error'
-                  : 'The task completed successfully with output'
-              }
-              output={task.output}
-              error={task.errorMessage}
-              status={task.status}
-              variant="output"
-            />
-          ))}
-        <RunDataCard
-          title="Metadata"
-          output={{
-            taskRunId: task?.metadata.id,
-            workflowRunId: workflow.metadata.id,
-            additional: workflow.additionalMetadata,
-          }}
-          status={workflow.status}
-          variant="metadata"
-          collapsed
-          actions={
-            <div className="flex items-center gap-2">
-              <DocsButton doc={docs.home['additional-metadata']} size="icon" />
-            </div>
-          }
-        />
-        <RunDataCard
-          title="Configuration"
-          output={{
-            todo: 'TODO',
-          }}
-          status={workflow.status}
-          variant="metadata"
-          collapsed
-        />
+      <div className="grid grid-cols-1 gap-4 mt-8">
+        <Tabs defaultValue="activity" className="w-full">
+          <TabsList layout="underlined" className="w-full">
+            <TabsTrigger variant="underlined" value="activity">
+              Activity
+            </TabsTrigger>
+            <TabsTrigger variant="underlined" value="config">
+              Config
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="activity" className="mt-4">
+            <FilterProvider>
+              <RunEventLog
+                workflow={workflow}
+                onTaskSelect={(taskId, options) => {
+                  navigate(
+                    ROUTES.runs.taskDetail(workflowRunId!, taskId, options),
+                  );
+                }}
+              />
+            </FilterProvider>
+          </TabsContent>
+          <TabsContent value="config" className="mt-4">
+            TODO
+          </TabsContent>
+        </Tabs>
       </div>
 
       <TriggerRunModal
         show={showTriggerModal}
         onClose={() => setShowTriggerModal(false)}
-        defaultInput={JSON.stringify((workflow.input as any).input, null, 2)}
-        defaultAddlMeta={JSON.stringify(workflow.additionalMetadata, null, 2)}
         defaultWorkflowId={workflow.workflowId}
         defaultRunId={workflow.metadata.id}
       />
-    </BasicLayout>
+    </SheetViewLayout>
   );
 }

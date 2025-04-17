@@ -1,5 +1,3 @@
-import { useParams, Link } from 'react-router-dom';
-import useWorkers from '@/next/hooks/use-workers';
 import {
   Card,
   CardContent,
@@ -10,23 +8,21 @@ import {
 import { Button } from '@/next/components/ui/button';
 import { Separator } from '@/next/components/ui/separator';
 import {
-  ChevronLeft,
   Play,
   Pause,
-  StopCircle,
-  RefreshCw,
-  Clock,
   Server,
   Box,
   Activity,
   HardDrive,
   Cpu,
+  Clock,
 } from 'lucide-react';
-import { WorkerStatusBadge } from './components/worker-status-badge';
-import { ROUTES } from '@/next/lib/routes';
+import { WorkerStatusBadge } from './worker-status-badge';
+import { Time } from '@/next/components/ui/time';
+import useWorkers from '@/next/hooks/use-workers';
 
 // Extending Worker type with additional properties that may exist
-interface WorkerDetails {
+interface IWorkerDetails {
   language?: string;
   languageVersion?: string;
   os?: string;
@@ -35,26 +31,36 @@ interface WorkerDetails {
   runtimeExtra?: string;
 }
 
-export default function WorkerDetailPage() {
-  const { serviceName = '', workerId = '' } = useParams<{
-    serviceName: string;
-    workerId: string;
-  }>();
-  const decodedServiceName = decodeURIComponent(serviceName);
+interface WorkerDetailsProps {
+  worker?: any;
+  workerId?: string;
+  showActions?: boolean;
+}
 
-  const {
-    data: workers = [],
-    isLoading,
-    update,
-  } = useWorkers({
+export function WorkerDetails({
+  worker: providedWorker,
+  workerId,
+  showActions = true,
+}: WorkerDetailsProps) {
+  const { data: workers = [], update } = useWorkers({
     initialPagination: { currentPage: 1, pageSize: 100 },
-    refetchInterval: 5000, // Ensure real-time updates
+    refetchInterval: 5000,
   });
 
-  // Find the specific worker
-  const worker = workers.find((w) => w.metadata.id === workerId);
+  // Find the worker if only ID is provided
+  const worker =
+    providedWorker || workers.find((w) => w.metadata.id === workerId);
+
+  if (!worker) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        Worker not found
+      </div>
+    );
+  }
+
   // Cast worker to include additional properties
-  const workerDetails = worker as unknown as typeof worker & WorkerDetails;
+  const workerDetails = worker as unknown as typeof worker & IWorkerDetails;
 
   // Status management
   const handlePauseWorker = async () => {
@@ -87,31 +93,6 @@ export default function WorkerDetailPage() {
     }
   };
 
-  const handleStopWorker = async () => {
-    if (!worker) {
-      return;
-    }
-
-    try {
-      await update.mutateAsync({
-        workerId: worker.metadata.id,
-        // In a real implementation, we might use a different API call to terminate the worker
-        // For now, we're just using isPaused as that's what's supported by the API
-        data: { isPaused: true },
-      });
-    } catch (error) {
-      console.error('Failed to stop worker:', error);
-    }
-  };
-
-  // Helper function to format dates
-  const formatDate = (dateString?: string) => {
-    if (!dateString) {
-      return 'Never';
-    }
-    return new Date(dateString).toLocaleString();
-  };
-
   // Calculate time since last heartbeat
   const getTimeSinceLastHeartbeat = () => {
     if (!worker?.lastHeartbeatAt) {
@@ -140,120 +121,53 @@ export default function WorkerDetailPage() {
     return `${diffSeconds} second${diffSeconds !== 1 ? 's' : ''} ago`;
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96">
-        <RefreshCw className="h-10 w-10 animate-spin mb-4 text-primary" />
-        <p className="text-lg">Loading worker details...</p>
-      </div>
-    );
-  }
-
-  if (!worker) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="flex items-center mb-4">
-          <Link
-            to={ROUTES.services.detail(encodeURIComponent(decodedServiceName))}
-            className="mr-2"
-          >
-            <Button variant="ghost" size="sm">
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Back to Service
-            </Button>
-          </Link>
-        </div>
-        <div className="p-6 bg-background rounded-lg border shadow-sm">
-          <h1 className="text-2xl font-bold mb-2">Worker Not Found</h1>
-          <p className="text-muted-foreground mb-4">
-            The worker you are looking for could not be found.
-          </p>
-          <div>
-            <p>Worker ID: {workerId}</p>
-            <p>Service: {decodedServiceName}</p>
-          </div>
-          <div className="mt-6">
-            <Button asChild>
-              <Link
-                to={ROUTES.services.detail(
-                  encodeURIComponent(decodedServiceName),
-                )}
-              >
-                Return to Service
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className="flex items-center mb-4">
-        <Link
-          to={ROUTES.services.detail(encodeURIComponent(decodedServiceName))}
-          className="mr-2"
-        >
-          <Button variant="ghost" size="sm">
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Back to Service
-          </Button>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="flex flex-1 flex-col gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Main worker info */}
-        <Card className="md:col-span-2">
+        <Card>
           <CardHeader>
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle className="flex items-center">
                   {worker.name}
-                  <span className="ml-2">
-                    <WorkerStatusBadge
-                      status={worker.status}
-                      variant="outline"
-                    />
-                  </span>
                 </CardTitle>
                 <CardDescription>
                   Worker ID: {worker.metadata.id}
                 </CardDescription>
               </div>
-              <div className="flex gap-2">
-                <div className="flex items-center gap-2">
-                  <WorkerStatusBadge status={worker.status} variant="outline" />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handlePauseWorker()}
-                    disabled={worker.status === 'PAUSED'}
-                  >
-                    <Pause className="h-4 w-4 mr-1" />
-                    Pause
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleResumeWorker()}
-                    disabled={worker.status === 'ACTIVE'}
-                  >
-                    <Play className="h-4 w-4 mr-1" />
-                    Resume
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-red-600"
-                    onClick={() => handleStopWorker()}
-                    disabled={worker.status === 'INACTIVE'}
-                  >
-                    <StopCircle className="h-4 w-4 mr-1" />
-                    Stop
-                  </Button>
+              {showActions && (
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    <WorkerStatusBadge
+                      status={worker.status}
+                      variant="outline"
+                    />
+                    {worker.status === 'ACTIVE' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Pause assigning new tasks"
+                        onClick={() => handlePauseWorker()}
+                      >
+                        <Pause className="h-4 w-4 mr-1" />
+                        <span className="sr-only">Pause</span>
+                      </Button>
+                    )}
+                    {worker.status === 'PAUSED' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Resume assigning new tasks"
+                        onClick={() => handleResumeWorker()}
+                      >
+                        <Play className="h-4 w-4 mr-1" />
+                        <span className="sr-only">Resume</span>
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -275,7 +189,10 @@ export default function WorkerDetailPage() {
                         Last Heartbeat
                       </p>
                       <p className="font-medium">
-                        {formatDate(worker.lastHeartbeatAt)}
+                        <Time
+                          date={worker.lastHeartbeatAt}
+                          variant="timeSince"
+                        />
                       </p>
                     </div>
                   </div>
@@ -286,7 +203,10 @@ export default function WorkerDetailPage() {
                         Created At
                       </p>
                       <p className="font-medium">
-                        {formatDate(worker.metadata.createdAt)}
+                        <Time
+                          date={worker.metadata.createdAt}
+                          variant="timeSince"
+                        />
                       </p>
                     </div>
                   </div>
@@ -379,19 +299,28 @@ export default function WorkerDetailPage() {
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Created</span>
                     <span className="text-sm">
-                      {formatDate(worker.metadata.createdAt)}
+                      <Time
+                        date={worker.metadata.createdAt}
+                        variant="timeSince"
+                      />
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Last Updated</span>
                     <span className="text-sm">
-                      {formatDate(worker.metadata.updatedAt)}
+                      <Time
+                        date={worker.metadata.updatedAt}
+                        variant="timeSince"
+                      />
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Last Connected</span>
                     <span className="text-sm">
-                      {formatDate(workerDetails.lastListenerEstablished)}
+                      <Time
+                        date={workerDetails.lastListenerEstablished}
+                        variant="timeSince"
+                      />
                     </span>
                   </div>
                 </div>
@@ -409,7 +338,7 @@ export default function WorkerDetailPage() {
         </Card>
 
         {/* Recent tasks card */}
-        <Card className="md:col-span-3">
+        <Card>
           <CardHeader>
             <CardTitle>Recent Tasks</CardTitle>
             <CardDescription>Tasks executed by this worker</CardDescription>

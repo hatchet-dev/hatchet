@@ -31,8 +31,14 @@ export const ROUTES = {
   runs: {
     list: `${FB.runs}`,
     detail: (runId: string) => `${FB.runs}/${runId}`,
-    taskDetail: (runId: string, taskId: string) =>
-      `${FB.runs}/${runId}/${taskId}`,
+    taskDetail: (
+      runId: string,
+      taskId: string,
+      options?: { task_tab?: string },
+    ) =>
+      `${FB.runs}/${runId}/${taskId}${
+        options ? `?${new URLSearchParams(options).toString()}` : ''
+      }`,
     parent: (run: V1WorkflowRun) =>
       run.parentTaskExternalId
         ? `${FB.runs}/${run.parentTaskExternalId}`

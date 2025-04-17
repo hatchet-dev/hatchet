@@ -27,6 +27,8 @@ import {
   FilterGroup,
   FilterSelect,
 } from '@/next/components/ui/filters/filters';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 interface WorkerTableProps {
   serviceName: string;
@@ -67,6 +69,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const { filters, setFilter } = useFilters<WorkerFilters>();
   const filterStatus = filters.status || 'active';
+  const navigate = useNavigate();
 
   const {
     data: workers = [],
@@ -181,6 +184,12 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
     setSelectedWorkers([]);
   };
 
+  const handleWorkerClick = (workerId: string) => {
+    navigate(
+      ROUTES.services.workerDetail(encodeURIComponent(serviceName), workerId),
+    );
+  };
+
   const statusOptions = [
     { label: 'All Workers', value: 'all', count: workerCounts.all },
     { label: 'Active', value: 'active', count: workerCounts.active },
@@ -289,7 +298,12 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
                     </div>
                   </TableCell>
                   <TableCell className="font-medium">
-                    <WorkerId worker={worker} />
+                    <button
+                      onClick={() => handleWorkerClick(worker.metadata.id)}
+                      className="hover:underline text-left"
+                    >
+                      <WorkerId worker={worker} />
+                    </button>
                   </TableCell>
                   <TableCell>
                     <WorkerStatusBadge

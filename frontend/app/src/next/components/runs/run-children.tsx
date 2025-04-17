@@ -10,6 +10,9 @@ import { ChevronRight } from 'lucide-react';
 import { cn } from '@/next/lib/utils';
 import { RunsBadge } from './runs-badge';
 import { HiMiniArrowTurnLeftUp } from 'react-icons/hi2';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
+
 const MAX_CHILDREN = 10;
 const MAX_DEPTH = 2;
 
@@ -21,6 +24,7 @@ interface RunRowProps {
   isExpanded?: boolean;
   toggleChildren?: () => void;
   parentRun?: V1WorkflowRun;
+  onClick?: () => void;
 }
 
 function HighlightGroup({ children }: PropsWithChildren) {
@@ -35,11 +39,21 @@ function RunRow({
   isExpanded,
   toggleChildren,
   parentRun,
+  onClick,
 }: RunRowProps) {
   return (
-    <div className="grid grid-cols-[200px,1fr] items-center">
+    <div
+      className={cn(
+        'grid grid-cols-[200px,1fr] items-center',
+        isTitle && 'cursor-pointer',
+      )}
+      onClick={onClick}
+    >
       <div
-        className="text-sm text-muted-foreground truncate overflow-hidden whitespace-nowrap flex items-center gap-2"
+        className={cn(
+          'text-sm text-muted-foreground truncate overflow-hidden whitespace-nowrap flex items-center gap-2',
+          isTitle && 'cursor-pointer',
+        )}
         style={{
           paddingLeft: `${depth * 15}px`,
         }}
@@ -49,7 +63,10 @@ function RunRow({
             variant="ghost"
             size="icon"
             className="w-4 h-4"
-            onClick={toggleChildren}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleChildren?.();
+            }}
           >
             <ChevronRight
               className={cn('w-2 h-2', isExpanded ? 'rotate-90' : 'rotate-0')}
@@ -60,7 +77,7 @@ function RunRow({
         {run?.numSpawnedChildren}
         {isTitle ? (
           parentRun ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 cursor-pointer">
               <HiMiniArrowTurnLeftUp className="w-4 h-4" />
               <RunId wfRun={parentRun} />
             </div>
@@ -89,6 +106,7 @@ interface RunRowWithChildrenProps {
   depth: number;
   expandedIds: Set<string>;
   toggleExpanded: (id: string) => void;
+  onTaskSelect?: (taskId: string) => void;
 }
 
 function RunRowWithChildren({
@@ -96,7 +114,10 @@ function RunRowWithChildren({
   depth,
   expandedIds,
   toggleExpanded,
+  onTaskSelect,
 }: RunRowWithChildrenProps) {
+  const navigate = useNavigate();
+
   const { data: childrenData } = useRuns({
     refetchInterval: 3000,
     filters: {
@@ -116,6 +137,13 @@ function RunRowWithChildren({
         hasChildren={hasActualChildren}
         isExpanded={isExpanded}
         toggleChildren={() => toggleExpanded(run.metadata.id)}
+        onClick={() => {
+          if (depth == 0) {
+            onTaskSelect?.(run.metadata.id);
+          } else {
+            navigate(ROUTES.runs.detail(run.metadata.id));
+          }
+        }}
       />
       {isExpanded && hasActualChildren && (
         <RunsProvider>
@@ -124,6 +152,7 @@ function RunRowWithChildren({
             depth={depth}
             expandedIds={expandedIds}
             toggleExpanded={toggleExpanded}
+            onTaskSelect={onTaskSelect}
           />
         </RunsProvider>
       )}
@@ -136,6 +165,7 @@ interface ChildrenListProps {
   depth: number;
   expandedIds: Set<string>;
   toggleExpanded: (id: string) => void;
+  onTaskSelect?: (taskId: string) => void;
 }
 
 function ChildrenList({
@@ -143,6 +173,7 @@ function ChildrenList({
   depth,
   expandedIds,
   toggleExpanded,
+  onTaskSelect,
 }: ChildrenListProps) {
   const { data } = useRuns({
     refetchInterval: 3000,
@@ -181,6 +212,7 @@ function ChildrenList({
             depth={depth + 1}
             expandedIds={expandedIds}
             toggleExpanded={toggleExpanded}
+            onTaskSelect={onTaskSelect}
           />
         ))}
       {numHidden > 0 && (
@@ -198,11 +230,13 @@ function ChildrenList({
 interface RunChildrenCardProps {
   workflow: V1WorkflowRun;
   parentRun?: V1WorkflowRun;
+  onTaskSelect?: (taskId: string) => void;
 }
 
 export function RunChildrenCardRoot({
   workflow,
   parentRun,
+  onTaskSelect,
 }: RunChildrenCardProps) {
   const { data } = useRunDetail(workflow.metadata.id, 1000);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -230,7 +264,12 @@ export function RunChildrenCardRoot({
       <RunsProvider>
         <div className="flex flex-col gap-0">
           <HighlightGroup>
-            <RunRow isTitle depth={0} parentRun={parentRun} />
+            <RunRow
+              isTitle
+              depth={0}
+              parentRun={parentRun}
+              onClick={() => onTaskSelect?.(workflow.metadata.id)}
+            />
           </HighlightGroup>
           {data.tasks.map((task) => (
             <RunRowWithChildren
@@ -239,6 +278,7 @@ export function RunChildrenCardRoot({
               depth={0}
               expandedIds={expandedIds}
               toggleExpanded={toggleExpanded}
+              onTaskSelect={onTaskSelect}
             />
           ))}
         </div>

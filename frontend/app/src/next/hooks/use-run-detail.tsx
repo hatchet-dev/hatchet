@@ -29,24 +29,50 @@ export function useRunDetail(runId: string, defaultRefetchInterval?: number) {
     refetchInterval: refetchInterval,
   });
 
-  const taskEvents = useQuery({
-    queryKey: ['task-events:get', runId],
+  const activity = useQuery({
+    queryKey: ['task-events:get', runId, runDetails.data?.tasks],
     queryFn: async () => {
-      const events = (
-        await api.v1TaskEventList(runId, {
-          limit: 50,
-          offset: 0,
-        })
-      ).data;
+      if (runId == '00000000-0000-0000-0000-000000000000') {
+        return;
+      }
 
-      return events;
+      const tasks = runDetails.data?.tasks || [];
+
+      const logPromises = tasks.map(async (task) =>
+        ((await api.v1LogLineList(task.metadata.id)).data?.rows || []).map(
+          (log) => ({
+            ...log,
+            taskId: task.metadata.id,
+          }),
+        ),
+      );
+
+      const eventPromises = tasks.map(
+        async (task) =>
+          (
+            await api.v1TaskEventList(task.metadata.id, {
+              limit: 50,
+              offset: 0,
+            })
+          ).data?.rows || [],
+      );
+
+      const [logs, events] = await Promise.all([
+        Promise.all(logPromises),
+        Promise.all(eventPromises),
+      ]);
+
+      const mergedLogs = logs.flat();
+      const mergedEvents = events.flat();
+
+      return { events: mergedEvents, logs: mergedLogs };
     },
     refetchInterval: refetchInterval,
   });
 
   return {
     ...runDetails,
-    taskEvents,
+    activity: activity.data,
     cancel,
     replay,
   };

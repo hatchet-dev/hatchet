@@ -111,7 +111,7 @@ export default function DashboardLayout() {
                   </div>
                 </header>
               </div>
-              <main className="flex flex-1 flex-col gap-4 p-4 overflow-auto">
+              <main className="flex flex-1 flex-col gap-4 overflow-auto">
                 {!isLoading && !tenant && <Unauthorized />}
                 {!isLoading && tenant && <Outlet />}
               </main>

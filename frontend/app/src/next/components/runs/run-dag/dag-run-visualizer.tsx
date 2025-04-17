@@ -27,11 +27,12 @@ const edgeTypes = {
 
 interface WorkflowRunVisualizerProps {
   workflowRunId: string;
-  selectedTaskRunId?: string;
+  onTaskSelect?: (taskId: string) => void;
 }
 
 const WorkflowRunVisualizer = ({
   workflowRunId,
+  onTaskSelect,
 }: WorkflowRunVisualizerProps) => {
   const { theme } = useTheme();
   const navigate = useNavigate();
@@ -42,9 +43,13 @@ const WorkflowRunVisualizer = ({
 
   const setSelectedTaskRunId = useCallback(
     (taskRunId: string) => {
-      navigate(ROUTES.runs.taskDetail(workflowRunId, taskRunId));
+      if (onTaskSelect) {
+        onTaskSelect(taskRunId);
+      } else {
+        navigate(ROUTES.runs.taskDetail(workflowRunId, taskRunId));
+      }
     },
-    [navigate, workflowRunId],
+    [navigate, workflowRunId, onTaskSelect],
   );
 
   const edges: Edge[] = useMemo(
