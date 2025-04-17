@@ -2,14 +2,14 @@
 /* eslint-disable no-underscore-dangle */
 import {
   ClientConfig,
-  InternalHatchetClient,
-  HatchetClientOptions,
   ClientConfigSchema,
+  HatchetClientOptions,
+  LegacyHatchetClient,
 } from '@hatchet/clients/hatchet-client';
 import { AxiosRequestConfig } from 'axios';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
-import { DurableContext } from '@hatchet/step';
+import { V0DurableContext } from '@hatchet/step';
 import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
@@ -27,13 +27,14 @@ import {
   CreateDurableTaskWorkflowOpts,
 } from '../declaration';
 import { IHatchetClient } from './client.interface';
-import { CreateWorkerOpts, Worker } from './worker';
+import { CreateWorkerOpts, Worker } from './worker/worker';
 import { MetricsClient } from './features/metrics';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { RunsClient } from './features/runs';
 import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
 import { RatelimitsClient } from './features';
+import { AdminClient } from './admin';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -41,7 +42,7 @@ import { RatelimitsClient } from './features';
  */
 export class HatchetClient implements IHatchetClient {
   /** The underlying v0 client instance */
-  _v0: InternalHatchetClient;
+  _v0: LegacyHatchetClient;
   _api: Api;
 
   /**
@@ -89,15 +90,19 @@ export class HatchetClient implements IHatchetClient {
         logger: logConstructor,
       };
 
+      // FIXME: Remove this once we have a proper namespace validation
       if (clientConfig.namespace) {
         clientConfig.namespace = clientConfig.namespace.endsWith('_')
           ? clientConfig.namespace.slice(0, -1)
           : clientConfig.namespace;
       }
 
+      this._config = clientConfig;
+
       this.tenantId = clientConfig.tenant_id;
       this._api = api(clientConfig.api_url, clientConfig.token, axiosConfig);
-      this._v0 = new InternalHatchetClient(clientConfig, options, axiosConfig, this.runs);
+
+      this._v0 = new LegacyHatchetClient(clientConfig, options, axiosConfig, this.runs);
     } catch (e) {
       if (e instanceof z.ZodError) {
         throw new Error(`Invalid client config: ${e.message}`);
@@ -119,6 +124,12 @@ export class HatchetClient implements IHatchetClient {
     axiosConfig?: AxiosRequestConfig
   ): HatchetClient {
     return new HatchetClient(config, options, axiosConfig);
+  }
+
+  private _config: ClientConfig;
+
+  get config() {
+    return this._config;
   }
 
   /**
@@ -195,7 +206,7 @@ export class HatchetClient implements IHatchetClient {
    * @returns A TaskWorkflowDeclaration instance with inferred types
    */
   durableTask<
-    Fn extends (input: I, ctx: DurableContext<I>) => O | Promise<O>,
+    Fn extends (input: I, ctx: V0DurableContext<I>) => O | Promise<O>,
     I extends InputType = Parameters<Fn>[0],
     O extends OutputType = ReturnType<Fn> extends Promise<infer P>
       ? P extends OutputType
@@ -226,11 +237,11 @@ export class HatchetClient implements IHatchetClient {
    * @param options - Configuration options for the workflow run
    * @returns A WorkflowRunRef containing the run ID and methods to interact with the run
    */
-  runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
+  async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
     workflow: BaseWorkflowDeclaration<I, O> | string | V0Workflow,
     input: I,
     options: RunOpts
-  ): WorkflowRunRef<O> {
+  ): Promise<WorkflowRunRef<O>> {
     let name: string;
     if (typeof workflow === 'string') {
       name = workflow;
@@ -240,7 +251,7 @@ export class HatchetClient implements IHatchetClient {
       throw new Error('unable to identify workflow');
     }
 
-    return this._v0.admin.runWorkflow<I, O>(name, input, options);
+    return this.admin.runWorkflow<I, O>(name, input, options);
   }
 
   /**
@@ -275,7 +286,7 @@ export class HatchetClient implements IHatchetClient {
     input: I,
     options: RunOpts = {}
   ): Promise<O> {
-    const run = this.runNoWait<I, O>(workflow, input, options);
+    const run = await this.runNoWait<I, O>(workflow, input, options);
     return run.output as Promise<O>;
   }
 
@@ -412,11 +423,17 @@ export class HatchetClient implements IHatchetClient {
     return this._api;
   }
 
+  _admin: AdminClient | undefined;
+
   /**
-   * @deprecated use workflow.run, client.run, or client.* feature methods instead
+   * Get the admin client for creating and managing workflows
+   * @returns A admin client instance
    */
   get admin() {
-    return this._v0.admin;
+    if (!this._admin) {
+      this._admin = new AdminClient(this._v0.config, this.api, this.runs);
+    }
+    return this._admin;
   }
 
   /**

@@ -1,11 +1,11 @@
 /* eslint-disable no-underscore-dangle */
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
-import { InternalHatchetClient } from '@hatchet/clients/hatchet-client';
-import { V0Worker } from '@clients/worker';
+import { LegacyHatchetClient } from '@hatchet/clients/hatchet-client';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { WebhookWorkerCreateRequest } from '@hatchet/clients/rest/generated/data-contracts';
-import { BaseWorkflowDeclaration } from '../declaration';
-import { HatchetClient } from '..';
+import { BaseWorkflowDeclaration } from '../../declaration';
+import { HatchetClient } from '../..';
+import { V1Worker } from './worker-internal';
 
 const DEFAULT_DURABLE_SLOTS = 1_000;
 
@@ -36,11 +36,11 @@ export class Worker {
   config: CreateWorkerOpts;
   name: string;
   _v1: HatchetClient;
-  _v0: InternalHatchetClient;
+  _v0: LegacyHatchetClient;
 
   /** Internal reference to the underlying V0 worker implementation */
-  nonDurable: V0Worker;
-  durable?: V0Worker;
+  nonDurable: V1Worker;
+  durable?: V1Worker;
 
   /**
    * Creates a new HatchetWorker instance
@@ -48,8 +48,8 @@ export class Worker {
    */
   constructor(
     v1: HatchetClient,
-    v0: InternalHatchetClient,
-    nonDurable: V0Worker,
+    v0: LegacyHatchetClient,
+    nonDurable: V1Worker,
     config: CreateWorkerOpts,
     name: string
   ) {
@@ -68,15 +68,18 @@ export class Worker {
    */
   static async create(
     v1: HatchetClient,
-    v0: InternalHatchetClient,
+    v0: LegacyHatchetClient,
     name: string,
     options: CreateWorkerOpts
   ) {
-    const v0worker = await v0.worker(name, {
+    const opts = {
+      name,
       ...options,
       maxRuns: options.slots || options.maxRuns,
-    });
-    const worker = new Worker(v1, v0, v0worker, options, name);
+    };
+
+    const internalWorker = new V1Worker(v1, opts);
+    const worker = new Worker(v1, v0, internalWorker, options, name);
     await worker.registerWorkflows(options.workflows);
     return worker;
   }
@@ -95,10 +98,14 @@ export class Worker {
 
           if (wf.definition._durableTasks.length > 0) {
             if (!this.durable) {
-              this.durable = await this._v0.worker(`${this.name}-durable`, {
+              const opts = {
+                name: `${this.name}-durable`,
                 ...this.config,
                 maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
-              });
+              };
+
+              this.durable = new V1Worker(this._v1, opts);
+              await this.durable.registerWorkflowV1(wf);
             }
             this.durable.registerDurableActionsV1(wf.definition);
           }

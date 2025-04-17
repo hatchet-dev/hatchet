@@ -3,20 +3,14 @@ import { ConfigLoader } from '@util/config-loader';
 import { EventClient } from '@clients/event/event-client';
 import { DispatcherClient } from '@clients/dispatcher/dispatcher-client';
 import { AdminClient } from '@clients/admin/admin-client';
-import {
-  CallOptions,
-  ChannelCredentials,
-  ClientMiddlewareCall,
-  createChannel,
-  createClientFactory,
-  Metadata,
-} from 'nice-grpc';
+import { ChannelCredentials, createClientFactory } from 'nice-grpc';
 import { Workflow as V0Workflow } from '@hatchet/workflow';
 import { V0Worker, WorkerOpts } from '@clients/worker';
 import { AxiosRequestConfig } from 'axios';
 import { Logger } from '@util/logger';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { RunsClient } from '@hatchet/v1';
+import { addTokenMiddleware, channelFactory } from '@hatchet/util/grpc-helpers';
 import { ClientConfig, ClientConfigSchema } from './client-config';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
 import { Api } from '../rest/generated/Api';
@@ -30,41 +24,7 @@ export interface HatchetClientOptions {
   credentials?: ChannelCredentials;
 }
 
-export const channelFactory = (config: ClientConfig, credentials: ChannelCredentials) =>
-  createChannel(config.host_port, credentials, {
-    'grpc.ssl_target_name_override': config.tls_config.server_name,
-    'grpc.keepalive_timeout_ms': 60 * 1000,
-    'grpc.client_idle_timeout_ms': 60 * 1000,
-    // Send keepalive pings every 10 seconds, default is 2 hours.
-    'grpc.keepalive_time_ms': 10 * 1000,
-    // Allow keepalive pings when there are no gRPC calls.
-    'grpc.keepalive_permit_without_calls': 1,
-  });
-
-export const addTokenMiddleware = (token: string) =>
-  async function* _<Request, Response>(
-    call: ClientMiddlewareCall<Request, Response>,
-    options: CallOptions
-  ) {
-    const optionsWithAuth: CallOptions = {
-      ...options,
-      metadata: new Metadata({ authorization: `bearer ${token}` }),
-    };
-
-    if (!call.responseStream) {
-      const response = yield* call.next(call.request, optionsWithAuth);
-
-      return response;
-    }
-
-    for await (const response of call.next(call.request, optionsWithAuth)) {
-      yield response;
-    }
-
-    return undefined;
-  };
-
-export class InternalHatchetClient {
+export class LegacyHatchetClient {
   config: ClientConfig;
   credentials: ChannelCredentials;
   event: EventClient;
@@ -170,8 +130,8 @@ export class InternalHatchetClient {
     config?: Partial<ClientConfig>,
     options?: HatchetClientOptions,
     axiosConfig?: AxiosRequestConfig
-  ): InternalHatchetClient {
-    return new InternalHatchetClient(config, options, axiosConfig);
+  ): LegacyHatchetClient {
+    return new LegacyHatchetClient(config, options, axiosConfig);
   }
 
   // @deprecated

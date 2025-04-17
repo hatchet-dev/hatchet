@@ -3,7 +3,7 @@
 // in tsconfig.json to hide the errors (but fail on build)
 
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { Context } from '@hatchet/step';
+import { Context } from '@hatchet/v1/client/worker/context';
 import {
   CreateTaskWorkflowOpts,
   HatchetClient,

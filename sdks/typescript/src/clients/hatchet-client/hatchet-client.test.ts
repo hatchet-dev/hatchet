@@ -1,5 +1,5 @@
 import { ChannelCredentials, createChannel, createClientFactory } from 'nice-grpc';
-import { InternalHatchetClient } from './hatchet-client';
+import { LegacyHatchetClient } from './hatchet-client';
 
 export const mockChannel = createChannel('localhost:50051');
 export const mockFactory = createClientFactory();
@@ -11,7 +11,7 @@ describe('Client', () => {
   });
 
   it('should load from environment variables', () => {
-    const hatchet = new InternalHatchetClient(
+    const hatchet = new LegacyHatchetClient(
       {
         token:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
@@ -54,7 +54,7 @@ describe('Client', () => {
   it('should throw an error if the config param is invalid', () => {
     expect(
       () =>
-        new InternalHatchetClient({
+        new LegacyHatchetClient({
           host_port: 'HOST_PORT',
           tls_config: {
             tls_strategy: 'tls',
@@ -69,7 +69,7 @@ describe('Client', () => {
   });
 
   it('should favor config param over yaml over env vars ', () => {
-    const hatchet = new InternalHatchetClient(
+    const hatchet = new LegacyHatchetClient(
       {
         tls_config: {
           cert_file: 'TLS_CERT_FILE',
@@ -106,10 +106,10 @@ describe('Client', () => {
   });
 
   describe('Worker', () => {
-    let hatchet: InternalHatchetClient;
+    let hatchet: LegacyHatchetClient;
 
     beforeEach(() => {
-      hatchet = new InternalHatchetClient(
+      hatchet = new LegacyHatchetClient(
         {
           token:
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',
