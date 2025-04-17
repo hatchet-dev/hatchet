@@ -61,6 +61,11 @@ plugins:
             show_signature_annotations: false
             annotations_path: "brief"
             docstring_section_style: "table"
+            show_docstring_attributes: false
+            summary:
+              attributes: false
+              functions: true
+              modules: false
 
 markdown_extensions:
   - pymdownx.highlight
