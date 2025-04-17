@@ -8,7 +8,8 @@ def crawl_directory(directory: str, only_include: list[str]) -> list[Document]:
         d
         for root, _, filenames in os.walk(directory)
         for filename in filenames
-        if (d := Document.from_path(os.path.join(root, filename))).readable_source_path
+        if not only_include
+        or (d := Document.from_path(os.path.join(root, filename))).readable_source_path
         in only_include
     ]
 
