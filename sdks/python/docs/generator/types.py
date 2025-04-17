@@ -45,6 +45,9 @@ class Document(BaseModel):
             meta_js_entry=f"""
                 "{basename}": {{
                     "title": "{title}",
+                    "theme": {{
+                        "toc": true,
+                    }}
                 }},
             """,
             source_path=path,
