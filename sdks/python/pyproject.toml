@@ -62,6 +62,7 @@ pydoclint = "^0.6.6"
 trafilatura = "^2.0.0"
 markdownify = "^1.1.0"
 openai = "^1.75.0"
+griffe-pydantic = "^1.1.4"
 
 [tool.poetry.extras]
 otel = [

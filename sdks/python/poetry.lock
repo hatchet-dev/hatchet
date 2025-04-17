@@ -754,6 +754,21 @@ files = [
 colorama = ">=0.4"
 
 [[package]]
+name = "griffe-pydantic"
+version = "1.1.4"
+description = "Griffe extension for Pydantic."
+optional = false
+python-versions = ">=3.9"
+groups = ["docs"]
+files = [
+    {file = "griffe_pydantic-1.1.4-py3-none-any.whl", hash = "sha256:a4b9933579e14a8296cae90e71dace2742d91cb6792e5cd583047a6079f94e78"},
+    {file = "griffe_pydantic-1.1.4.tar.gz", hash = "sha256:3ce97cedb2c15b696e0c1c4bb901411f5b83b8e4d57b1fc0f2becde678ab4870"},
+]
+
+[package.dependencies]
+griffe = ">=1.6.3"
+
+[[package]]
 name = "grpc-stubs"
 version = "1.53.0.5"
 description = "Mypy stubs for gRPC"
@@ -3429,4 +3444,4 @@ otel = ["opentelemetry-api", "opentelemetry-distro", "opentelemetry-exporter-otl
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "510f321e490a54dd16cde246a424aa5baa5ed17f8d6395ec5fefddade948270d"
+content-hash = "71c8051884633be779fd2d199fea672ebdd43ca99aa9db82eb78293c8a15de6d"

@@ -59,7 +59,8 @@ In your work, follow these instructions:
 3. You must ensure that the MDX you generate will build correctly using our build tool, Nextra, which means it must not have any invalid characters or anything else that would cause the build to crash. One such example would be to avoid this error `Could not parse expression with acorn`. Make sure you follow the MDX troubleshooting guide.
 4. If you encounter any typos or grammatical mistakes, you should fix them in the most minimal way possible, ensuring you do not change any of the meaning of the content itself.
 5. If you find any characters such as backticks that would look odd when displayed in e.g. a table cell, you should remove them. The goal is to make the documentation visually appealing, readable, and clean.
-6. You must ensure that MDX will render any tables correctly. There is an example of correct table formatting below:
+6. Please remove the standalone `async` keyword that sometimes shows up on its own line. Any other `async` keyword should be left alone, but there should not be a line that only contains that keyword.
+7. You must ensure that MDX will render any tables correctly. There is an example of correct table formatting below:
 
 | Name      | Type                     | Description                                                                     | Default                              |
 | --------- | ------------------------ | ------------------------------------------------------------------------------- | ------------------------------------ |
@@ -71,8 +72,6 @@ In your work, follow these instructions:
 
 async def clean_markdown_with_openai(file_path: str) -> None:
     print("Generating mdx for", file_path)
-    if "runnables" not in file_path:
-        return None
 
     with open(file_path, "r", encoding="utf-8") as f:
         original_md = f.read()

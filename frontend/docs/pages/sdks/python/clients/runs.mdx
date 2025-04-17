@@ -1,73 +1,69 @@
 # Runs Client
 
-## Classes
+### Classes
 
-### BulkCancelReplayOpts
+#### `BulkCancelReplayOpts`
 
-### RunFilter
+`pydantic-model`
 
-### RunsClient
+#### `RunFilter`
 
-Bases: BaseRestClient
+`pydantic-model`
 
-#### Attributes
+Bases: `BaseModel`
 
-`workflow_run_event_listener = workflow_run_event_listener`
+Fields:
 
-`instance-attribute`
+- `since`: `datetime`
+- `until`: `datetime | None`
+- `statuses`: `list[V1TaskStatus] | None`
+- `workflow_ids`: `list[str] | None`
+- `additional_metadata`: `dict[str, str] | None`
 
-`workflow_run_listener = workflow_run_listener`
+#### `RunsClient`
 
-`instance-attribute`
+Bases: `BaseRestClient`
 
-#### Functions
+##### Attributes
 
-`aio_bulk_cancel`
+- `workflow_run_event_listener = workflow_run_event_listener`
+  `instance-attribute`
 
-`async`
+- `workflow_run_listener = workflow_run_listener`
+  `instance-attribute`
 
-`aio_bulk_replay`
+##### Functions
 
-`async`
+- `aio_bulk_cancel`
 
-`aio_cancel`
+- `aio_bulk_replay`
 
-`async`
+- `aio_cancel`
 
-`aio_create`
+- `aio_create`
 
-`async`
+- `aio_get`
 
-`aio_get`
+- `aio_get_result`
 
-`async`
+- `aio_list`
 
-`aio_get_result`
+- `aio_replay`
 
-`async`
+- `bulk_cancel`
 
-`aio_list`
+- `bulk_replay`
 
-`async`
+- `cancel`
 
-`aio_replay`
+- `create`
 
-`async`
+- `get`
 
-`bulk_cancel`
+- `get_result`
 
-`bulk_replay`
+- `get_run_ref`
 
-`cancel`
+- `list`
 
-`create`
-
-`get`
-
-`get_result`
-
-`get_run_ref`
-
-`list`
-
-`replay`
+- `replay`
