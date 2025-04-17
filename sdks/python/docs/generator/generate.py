@@ -79,7 +79,6 @@ async def run(selections: list[str]) -> None:
     try:
         os.system("poetry run mkdocs build")
         documents = crawl_directory(TMP_GEN_PATH, selections)
-        print("\n\nDocuments found:", documents)
 
         await gather_max_concurrency(
             *[clean_markdown_with_openai(d) for d in documents], max_concurrency=10
