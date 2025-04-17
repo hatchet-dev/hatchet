@@ -61,9 +61,7 @@ tasks:
       - docker compose down
   recreate-db-from-scratch:
     cmds:
-      - docker compose down
-      - docker volume rm oss_hatchet_postgres_data
-      - docker volume rm oss_hatchet_rabbitmq_data
+      - docker compose down -v
       - docker compose up -d
       - task: setup
       - task: init-dev-env
