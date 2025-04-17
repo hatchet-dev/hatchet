@@ -236,12 +236,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		}
 	} else {
 
-		// Lock the previous workflow version to prevent concurrent version creation
-		_, err := a.repo.Workflow().LockWorkflowVersion(ctx, tenantId, sqlchelpers.UUIDToStr(currWorkflow.ID))
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("failed to lock previous workflow version: %w", err)
-		}
-
 		oldWorkflowVersion, err = a.repo.Workflow().GetLatestWorkflowVersion(
 			ctx,
 			tenantId,
