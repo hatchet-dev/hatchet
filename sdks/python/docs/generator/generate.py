@@ -107,7 +107,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    selections = cast(list[str], args.select)
+    selections = cast(list[str], args.select or [])
 
     asyncio.run(run(selections))
 
