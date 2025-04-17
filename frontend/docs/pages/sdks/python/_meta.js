@@ -6,15 +6,8 @@ export default {
     },
   },
 
-  clients: {
-    title: "Clients",
-    theme: {
-      toc: true,
-    },
-  },
-
-  index: {
-    title: "Introduction",
+  "feature-clients": {
+    title: "Feature Clients",
     theme: {
       toc: true,
     },
