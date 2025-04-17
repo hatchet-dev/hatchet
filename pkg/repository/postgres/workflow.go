@@ -923,19 +923,21 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		return "", fmt.Errorf("failed to lock previous workflow version: %w", err)
 	}
 
-	// get the latest workflow version and if they are not the same, return an error
-	latestWorkflowVersion, err := r.GetLatestWorkflowVersion(
-		ctx,
-		sqlchelpers.UUIDToStr(tenantId),
-		sqlchelpers.UUIDToStr(workflowId),
-	)
+	if oldWorkflowVersion != nil {
+		// get the latest workflow version and if they are not the same, return an error
+		latestWorkflowVersion, err := r.GetLatestWorkflowVersion(
+			ctx,
+			sqlchelpers.UUIDToStr(tenantId),
+			sqlchelpers.UUIDToStr(workflowId),
+		)
 
-	if err != nil {
-		return "", err
-	}
+		if err != nil {
+			return "", err
+		}
 
-	if latestWorkflowVersion != nil && latestWorkflowVersion.WorkflowVersion.ID.String() != workflowVersionId {
-		return "", fmt.Errorf("workflow version %s already exists, race condition detected -- upgrade to v1 engine to avoid this issue", workflowVersionId)
+		if latestWorkflowVersion != nil && latestWorkflowVersion.WorkflowVersion.ID.String() != oldWorkflowVersion.WorkflowVersion.ID.String() {
+			return "", fmt.Errorf("workflow version %s already exists, race condition detected -- upgrade to v1 engine to avoid this issue", workflowVersionId)
+		}
 	}
 
 	var version pgtype.Text
