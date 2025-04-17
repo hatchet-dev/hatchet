@@ -1,153 +1,136 @@
 # Cron Client
 
-#### Classes
+## Classes
 
-##### CreateCronTriggerConfig
+### `CreateCronTriggerConfig`
+
+`pydantic-model`
 
 Bases: `BaseModel`
 
 Schema for creating a workflow run triggered by a cron.
 
 Attributes:
+expression (str): The cron expression defining the schedule.
+input (dict): The input data for the cron workflow.
+additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
 
-- expression (str): The cron expression defining the schedule.
-- input (dict): The input data for the cron workflow.
-- additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
+Fields:
 
-###### Attributes
+- (`expression` `str`)
+- (`input` `JSONSerializableMapping`)
+- (`additional_metadata` `JSONSerializableMapping`)
 
-`additional_metadata = Field(default_factory=dict)`
+Validators:
 
-`class-attribute`
+#### Attributes
 
-`instance-attribute`
+`additional_metadata`
+
+`pydantic-field`
 
 `expression`
 
-`instance-attribute`
+`pydantic-field`
 
-`input = Field(default_factory=dict)`
+`input`
 
-`class-attribute`
+`pydantic-field`
 
-`instance-attribute`
-
-###### Functions
+#### Functions
 
 `validate_cron_expression`
 
-`classmethod`
+`pydantic-validator`
 
 Validates the cron expression to ensure it adheres to the expected format.
 
 Args:
-
-- v (str): The cron expression to validate.
+v (str): The cron expression to validate.
 
 Raises:
-
-- ValueError: If the expression is invalid.
+ValueError: If the expression is invalid.
 
 Returns:
+str: The validated cron expression.
 
-- str: The validated cron expression.
-
-##### CronClient
+### `CronClient`
 
 Bases: `BaseRestClient`
 
-###### Functions
+#### Functions
 
 `aio_create`
 
-`async`
-
 `aio_delete`
 
-`async`
-
 `aio_get`
-
-`async`
 
 Synchronously retrieves a specific workflow cron trigger by ID.
 
 Args:
-
-- cron_id (str): The cron trigger ID or CronWorkflows instance to retrieve.
+cron_id (str): The cron trigger ID or CronWorkflows instance to retrieve.
 
 Returns:
-
-- CronWorkflows: The requested cron workflow instance.
+CronWorkflows: The requested cron workflow instance.
 
 `aio_list`
-
-`async`
 
 Synchronously retrieves a list of all workflow cron triggers matching the criteria.
 
 Args:
-
-- offset (int | None): The offset to start the list from.
-- limit (int | None): The maximum number of items to return.
-- workflow_id (str | None): The ID of the workflow to filter by.
-- additional_metadata (list[str] | None): Filter by additional metadata keys (e.g. ["key1:value1", "key2:value2"]).
-- order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
-- order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
+offset (int | None): The offset to start the list from.
+limit (int | None): The maximum number of items to return.
+workflow_id (str | None): The ID of the workflow to filter by.
+additional_metadata (list[str] | None): Filter by additional metadata keys (e.g., ["key1:value1", "key2:value2"]).
+order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
+order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
 
 Returns:
-
-- CronWorkflowsList: A list of cron workflows.
+CronWorkflowsList: A list of cron workflows.
 
 `create`
 
 Asynchronously creates a new workflow cron trigger.
 
 Args:
-
-- workflow_name (str): The name of the workflow to trigger.
-- cron_name (str): The name of the cron trigger.
-- expression (str): The cron expression defining the schedule.
-- input (dict): The input data for the cron workflow.
-- additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
+workflow_name (str): The name of the workflow to trigger.
+cron_name (str): The name of the cron trigger.
+expression (str): The cron expression defining the schedule.
+input (dict): The input data for the cron workflow.
+additional_metadata (dict[str, str]): Additional metadata associated with the cron trigger.
 
 Returns:
-
-- CronWorkflows: The created cron workflow instance.
+CronWorkflows: The created cron workflow instance.
 
 `delete`
 
 Asynchronously deletes a workflow cron trigger.
 
 Args:
-
-- cron_id (str): The cron trigger ID or CronWorkflows instance to delete.
+cron_id (str): The cron trigger ID or CronWorkflows instance to delete.
 
 `get`
 
 Asynchronously retrieves a specific workflow cron trigger by ID.
 
 Args:
-
-- cron_id (str): The cron trigger ID or CronWorkflows instance to retrieve.
+cron_id (str): The cron trigger ID or CronWorkflows instance to retrieve.
 
 Returns:
-
-- CronWorkflows: The requested cron workflow instance.
+CronWorkflows: The requested cron workflow instance.
 
 `list`
 
 Asynchronously retrieves a list of all workflow cron triggers matching the criteria.
 
 Args:
-
-- offset (int | None): The offset to start the list from.
-- limit (int | None): The maximum number of items to return.
-- workflow_id (str | None): The ID of the workflow to filter by.
-- additional_metadata (list[str] | None): Filter by additional metadata keys (e.g. ["key1:value1", "key2:value2"]).
-- order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
-- order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
+offset (int | None): The offset to start the list from.
+limit (int | None): The maximum number of items to return.
+workflow_id (str | None): The ID of the workflow to filter by.
+additional_metadata (list[str] | None): Filter by additional metadata keys (e.g., ["key1:value1", "key2:value2"]).
+order_by_field (CronWorkflowsOrderByField | None): The field to order the list by.
+order_by_direction (WorkflowRunOrderByDirection | None): The direction to order the list by.
 
 Returns:
-
-- CronWorkflowsList: A list of cron workflows.
+CronWorkflowsList: A list of cron workflows.

@@ -48,6 +48,9 @@ plugins:
         python:
           paths: [hatchet_sdk]
           options:
+            extensions:
+              - griffe_pydantic:
+                  schema: false
             show_source: false
             heading_level: 4
             show_category_heading: true
