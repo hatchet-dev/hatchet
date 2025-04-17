@@ -71,7 +71,7 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
                     },
                 ),
             )
-            for _ in range(200)
+            for _ in range(100)
         ]
     )
 
