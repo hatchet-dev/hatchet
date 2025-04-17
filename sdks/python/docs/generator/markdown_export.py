@@ -70,10 +70,26 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
         return self
 
+    def _remove_title(self) -> "MarkdownExportPlugin":
+        title = self.soup.find("h1", class_="title")
+
+        if title and isinstance(title, Tag):
+            title.decompose()
+
+        return self
+
     def _preprocess_html(self, content: str) -> str:
         self.soup = BeautifulSoup(content, "html.parser")
 
-        self._remove_async_tags()._remove_hash_links()._remove_toc()._remove_footer()._remove_keyboard_shortcuts_modal()._remove_navbar()
+        (
+            self._remove_async_tags()
+            ._remove_hash_links()
+            ._remove_toc()
+            ._remove_footer()
+            ._remove_keyboard_shortcuts_modal()
+            ._remove_navbar()
+            ._remove_title()
+        )
 
         return str(self.soup)
 

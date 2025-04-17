@@ -18,6 +18,8 @@ class Document(BaseModel):
     mdx_output_path: str
     mdx_output_meta_js_path: str
 
+    is_index: bool
+
     directory: str
     basename: str
 
@@ -29,9 +31,16 @@ class Document(BaseModel):
         # example path /tmp/hatchet-python/docs/gen/runnables.md
 
         basename = os.path.splitext(os.path.basename(path))[0]
-        title = re.sub(
-            "[^0-9a-zA-Z ]+", "", basename.replace("_", " ").replace("-", " ")
-        ).title()
+
+        is_index = basename == "index"
+
+        title = (
+            "Introduction"
+            if is_index
+            else re.sub(
+                "[^0-9a-zA-Z ]+", "", basename.replace("_", " ").replace("-", " ")
+            ).title()
+        )
 
         mdx_out_path = path.replace(
             TMP_GEN_PATH, "../../frontend/docs/pages/sdks/python"
@@ -54,4 +63,5 @@ class Document(BaseModel):
             readable_source_path=path.replace(TMP_GEN_PATH, "")[1:],
             mdx_output_path=mdx_out_path.replace(".md", ".mdx"),
             mdx_output_meta_js_path=mdx_out_dir + "/_meta.js",
+            is_index=basename == "index",
         )

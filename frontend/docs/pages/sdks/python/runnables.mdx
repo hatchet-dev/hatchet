@@ -42,7 +42,7 @@ Methods:
 | Name                   | Description                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `task`                 | A decorator to transform a function into a Hatchet task that runs as part of a workflow.                                                         |
-| `durable_task`         | A decorator to transform a function into a durable Hatchet task that run as part of a workflow.                                                  |
+| `durable_task`         | A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.                                                 |
 | `on_failure_task`      | A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.     |
 | `on_success_task`      | A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed. |
 | `run`                  | Run the workflow synchronously and wait for it to complete.                                                                                      |
@@ -90,7 +90,7 @@ Returns:
 
 ### `durable_task`
 
-A decorator to transform a function into a durable Hatchet task that run as part of a workflow.
+A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.
 
 **IMPORTANT:** This decorator creates a _durable_ task, which works using Hatchet's durable execution capabilities. This is an advanced feature of Hatchet.
 
@@ -154,7 +154,7 @@ Parameters:
 | `name`                | `str \| None`                 | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator. | `None`                      |
 | `schedule_timeout`    | `Duration`                    | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.              | `DEFAULT_SCHEDULE_TIMEOUT`  |
 | `execution_timeout`   | `Duration`                    | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.               | `DEFAULT_EXECUTION_TIMEOUT` |
-| `retries`             | `int`                         | The number of times to retry the on-success task before failing                                                                           | `0`                         |
+| `retries`             | `int`                         | The number of times to retry the on-success task before failing.                                                                          | `0`                         |
 | `rate_limits`         | `list[RateLimit]`             | A list of rate limit configurations for the on-success task.                                                                              | `[]`                        |
 | `backoff_factor`      | `float \| None`               | The backoff factor for controlling exponential backoff in retries.                                                                        | `None`                      |
 | `backoff_max_seconds` | `int \| None`                 | The maximum number of seconds to allow retries with exponential backoff to continue.                                                      | `None`                      |
@@ -272,7 +272,9 @@ Returns:
 
 ### `run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -288,7 +290,9 @@ Returns:
 
 ### `aio_run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
