@@ -46,28 +46,41 @@ def crawl_directory(directory: str) -> list[str]:
         for filename in filenames
     ]
 
+SYSTEM_PROMPT = """
+You're an SDK documentation expert working on improving the readability of Hatchet's Python SDK documentation. You will be given
+a markdown file, and your task is to clean it up and translate it to MDX so it can be used as a page on our Nextra documentation site.
+
+In your work, follow these instructions:
+
+1. Strip any unnecessary paragraph characters, but do not change any actual code, sentences, or content.
+2. Return only the content. You should not enclode the markdown in backticks or any other formatting.
+3. You must ensure that the MDX you generate will build correctly using our build tool, Nextra, which means it must not have any invalid characters or anything else that would cause the build to crash. One such example would be to avoid this error `Could not parse expression with acorn`. Make sure you follow the MDX troubleshooting guide.
+4. If you encounter any typos or grammatical mistakes, you should fix them in the most minimal way possible, ensuring you do not change any of the meaning of the content itself.
+5. If you find any characters such as backticks that would look odd when displayed in e.g. a table cell, you should remove them. The goal is to make the documentation visually appealing, readable, and clean.
+6. You must ensure that MDX will render any tables correctly. There is an example of correct table formatting below:
+
+| Name      | Type                     | Description                                                                     | Default                              |
+| --------- | ------------------------ | ------------------------------------------------------------------------------- | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow, must match the workflow's input type.          | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution like metadata and parent workflow ID. | `TriggerWorkflowOptions()`           |
+
+"""
 
 async def clean_markdown_with_openai(file_path: str) -> None:
     print("Generating mdx for", file_path)
+    if "runnables" not in file_path:
+        return None
 
     with open(file_path, "r", encoding="utf-8") as f:
         original_md = f.read()
 
-    system_prompt = (
-        "Clean up this markdown file to make it correct and more readable and using via mdx. "
-        "Strip any unnecessary paragraph characters, but do not change any actual code, sentences, or content:"
-        "Return only the content. You should not enclode the markdown in backticks or any other formatting. "
-        "You must ensure that the MDX you generate will build correctly using our build tool: Nextra, which means "
-        "it must not have any invalid characters or anything else that would cause the build to crash. "
-        "One such example would be to avoid this error `Could not parse expression with acorn`. Make sure you follow the MDX troubleshooting guide."
-    )
     messages: list[ChatCompletionMessageParam] = [
-        ChatCompletionSystemMessageParam(content=system_prompt, role="system"),
+        ChatCompletionSystemMessageParam(content=SYSTEM_PROMPT, role="system"),
         ChatCompletionUserMessageParam(content=original_md, role="user"),
     ]
 
     response = await client.chat.completions.create(
-        model="gpt-4o", messages=messages, temperature=0
+        model="gpt-4.5-preview", messages=messages, temperature=0
     )
 
     content = response.choices[0].message.content
