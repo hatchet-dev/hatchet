@@ -4,6 +4,7 @@ import trafilatura
 from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.plugins import BasePlugin
 from mkdocs.structure.pages import Page
+
 from docs.generator.shared import TMP_GEN_PATH
 
 
@@ -24,7 +25,6 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
         if not md_content:
             return output_content
-
 
         dest = os.path.splitext(page.file.dest_path)[0] + ".md"
         out_path = os.path.join(TMP_GEN_PATH, dest)

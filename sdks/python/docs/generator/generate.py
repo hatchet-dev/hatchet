@@ -11,6 +11,7 @@ from openai.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
 )
+
 from docs.generator.shared import TMP_GEN_PATH
 
 T = TypeVar("T")
@@ -46,6 +47,7 @@ def crawl_directory(directory: str) -> list[str]:
         for filename in filenames
     ]
 
+
 SYSTEM_PROMPT = """
 You're an SDK documentation expert working on improving the readability of Hatchet's Python SDK documentation. You will be given
 a markdown file, and your task is to clean it up and translate it to MDX so it can be used as a page on our Nextra documentation site.
@@ -66,6 +68,7 @@ In your work, follow these instructions:
 
 """
 
+
 async def clean_markdown_with_openai(file_path: str) -> None:
     print("Generating mdx for", file_path)
     if "runnables" not in file_path:
@@ -79,9 +82,7 @@ async def clean_markdown_with_openai(file_path: str) -> None:
         ChatCompletionUserMessageParam(content=original_md, role="user"),
     ]
 
-    response = await client.chat.completions.create(
-        model="gpt-4o", messages=messages
-    )
+    response = await client.chat.completions.create(model="gpt-4o", messages=messages)
 
     content = response.choices[0].message.content
 
@@ -194,6 +195,7 @@ async def run() -> None:
         rm_rf("docs/site")
         rm_rf("site")
         rm_rf(TMP_GEN_PATH)
+
 
 def main() -> None:
     asyncio.run(run())
