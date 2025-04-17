@@ -70,6 +70,9 @@ tasks:
   set-etc-hosts:
     cmds:
       - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
+  empty-migration:
+    cmds:
+      - goose -dir cmd/hatchet-migrate/migrate/migrations/ create {{.CLI_ARGS | default "empty_migration"}} sql
   migrate:
     cmds:
       - task: generate-sqlc
