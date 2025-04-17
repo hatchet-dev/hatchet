@@ -14,7 +14,11 @@ export const GO = {
   path: "examples/v1/workflows/concurrency-rr.go",
 };
 
-export const getStaticProps = ({}) => getSnippets([TS, PY, GO]);
+export const MultiplePY = {
+  path: "examples/concurrency_workflow_level/worker.py",
+};
+
+export const getStaticProps = ({}) => getSnippets([TS, PY, GO, MultiplePY]);
 
 # Concurrency Control in Hatchet Tasks
 
@@ -121,3 +125,19 @@ The `CANCEL_NEWEST` strategy is particularly useful in scenarios where:
 
 - You want to allow in progress runs to complete before starting new work.
 - You have long-running task instances and want to avoid one group's instances monopolizing the available slots.
+
+## Multiple concurrency strategies
+
+You can also combine multiple concurrency strategies to create a more complex concurrency control system. For example, you can use one group key to represent a specific team, and another group to represent a specific resource in that team, giving you more control over the rate at which tasks are executed.
+
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
+  <Tabs.Tab>
+    <GithubSnippet src={MultiplePY} target="Multiple Concurrency Keys" />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <GithubSnippet src={TS} target="Multiple Concurrency Keys" />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <GithubSnippet src={GO} target="Multiple Concurrency Keys" />
+  </Tabs.Tab>
+</UniversalTabs>

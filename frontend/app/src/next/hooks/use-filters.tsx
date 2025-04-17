@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useStateAdapter } from '../lib/utils/storage-adapter';
 
 export interface FilterManager<T> {
   filters: T;
@@ -20,6 +21,10 @@ const FilterContext = React.createContext<FilterContextType<any> | undefined>(
   undefined,
 );
 
+/**
+ * Hook to access the current filter state and filter management functions
+ * @returns FilterManager instance with filter management functions
+ */
 export function useFilters<T>() {
   const context = React.useContext<FilterContextType<T> | undefined>(
     FilterContext,
@@ -31,35 +36,63 @@ export function useFilters<T>() {
   return context as FilterManager<T>;
 }
 
+// Storage type for filters - either in-memory state or URL query parameters
+type FilterType = 'state' | 'query';
+
 interface FilterProviderProps<T extends Record<string, any>> {
   children: React.ReactNode;
   initialFilters?: T;
+  /**
+   * Storage type for filters:
+   * - 'query': Store filters in URL query parameters (default)
+   * - 'state': Store filters in component state
+   */
+  type?: FilterType;
 }
 
+/**
+ * Provider component that manages filter state
+ * @param props.children - React children
+ * @param props.initialFilters - Initial filter values
+ * @param props.type - Storage type ('query' or 'state')
+ */
 export function FilterProvider<T extends Record<string, any>>({
   children,
   initialFilters = {} as T,
+  type = 'query',
 }: FilterProviderProps<T>) {
-  const [filters, setFilters] = React.useState<T>(initialFilters);
+  // Initialize the storage with default values and a prefix to avoid collisions
+  const state = useStateAdapter<T>(initialFilters, {
+    type,
+    prefix: 'filter_',
+  });
 
-  const setFilter = React.useCallback((key: keyof T, value: T[keyof T]) => {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  }, []);
+  // Get current filters from the storage adapter
+  const filters = state.getValues();
 
-  const clearFilter = React.useCallback((key: keyof T) => {
-    setFilters((prev) => {
-      const newFilters = { ...prev };
-      delete newFilters[key];
-      return newFilters;
-    });
-  }, []);
+  // Set a single filter value
+  const setFilter = React.useCallback(
+    (key: keyof T, value: T[keyof T]) => {
+      state.setValue(key as string, value);
+    },
+    [state],
+  );
 
+  // Clear a single filter
+  const clearFilter = React.useCallback(
+    (key: keyof T) => {
+      state.setValue(key as string, undefined as any);
+    },
+    [state],
+  );
+
+  // Clear all filters
   const clearAllFilters = React.useCallback(() => {
-    setFilters({} as T);
-  }, []);
+    const currentFilters = state.getValues();
+    Object.keys(currentFilters).forEach((key) => {
+      state.setValue(key, undefined as any);
+    });
+  }, [state]);
 
   const value = React.useMemo(
     () => ({

@@ -651,7 +651,7 @@ func (t *MessageQueueImpl) subscribe(
 					retryCount = 0
 				}
 
-				t.l.Error().Msgf("could not run inner loop: %v", err)
+				t.l.Error().Msgf("could not run inner loop (retry count %d): %v", retryCount, err)
 				queueutils.SleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retryCount)
 				lastRetry = time.Now()
 				retryCount++

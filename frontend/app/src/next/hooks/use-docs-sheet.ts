@@ -17,6 +17,7 @@ export interface DocsSheet {
 export interface DocsContextValue {
   sheet: DocsSheet;
   open: (doc: DocRef) => void;
+  toggle: (doc: DocRef) => void;
   close: () => void;
 }
 
@@ -33,6 +34,7 @@ export function useDocs() {
   }
   return {
     open: context.open,
+    toggle: context.toggle,
     close: context.close,
     sheet: context.sheet,
   };
@@ -61,9 +63,18 @@ export function useDocsState(): DocsContextValue {
     }));
   };
 
+  const toggleSheet = (doc: DocRef) => {
+    if (sheet.isOpen) {
+      closeSheet();
+    } else {
+      openSheet(doc);
+    }
+  };
+
   return {
     sheet,
     open: openSheet,
+    toggle: toggleSheet,
     close: closeSheet,
   };
 }
