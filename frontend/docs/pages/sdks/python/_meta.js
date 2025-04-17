@@ -1,13 +1,13 @@
 export default {
-  clients: {
-    title: "Clients",
+  index: {
+    title: "Introduction",
     theme: {
       toc: true,
     },
   },
 
-  index: {
-    title: "Introduction",
+  clients: {
+    title: "Clients",
     theme: {
       toc: true,
     },
