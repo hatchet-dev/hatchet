@@ -89,8 +89,8 @@ async def run() -> None:
         os.chdir("../../frontend/docs")
         os.system("pnpm lint:fix")
     finally:
-        # rm_rf("docs/site")
-        # rm_rf("site")
+        rm_rf("docs/site")
+        rm_rf("site")
         rm_rf(TMP_GEN_PATH)
 
 
