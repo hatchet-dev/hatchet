@@ -78,6 +78,14 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
         return self
 
+    def _remove_property_tags(self) -> "MarkdownExportPlugin":
+        property_tags = self.soup.find_all("code", string="property")
+
+        for tag in property_tags:
+            tag.decompose()
+
+        return self
+
     def _preprocess_html(self, content: str) -> str:
         self.soup = BeautifulSoup(content, "html.parser")
 
@@ -89,6 +97,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
             ._remove_keyboard_shortcuts_modal()
             ._remove_navbar()
             ._remove_title()
+            ._remove_property_tags()
         )
 
         return str(self.soup)

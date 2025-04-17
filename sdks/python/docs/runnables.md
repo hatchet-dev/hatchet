@@ -1,5 +1,10 @@
 # Runnables
 
+`Runnables` in the Hatchet SDK are things that can be run, namely tasks and workflows. The two main types of runnables you'll encounter are:
+
+* `Workflow`, which lets you define tasks and call all of the run, schedule, etc. methods
+* `Standalone`, which is a single task that's returned by `hatchet.task` and can be run, scheduled, etc.
+
 ## Workflow
 
 ::: runnables.workflow.Workflow

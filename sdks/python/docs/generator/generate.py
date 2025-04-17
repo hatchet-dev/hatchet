@@ -43,11 +43,7 @@ def generate_meta_js(docs: list[Document], children: set[str]) -> str:
 
     sorted_subentries = sorted(
         subentries,
-        key=lambda x: (
-            "aaaaaaaa"
-            if "index" == (key := x.strip().split(":")[0].strip('"').lower())
-            else key
-        ),
+        key=lambda x: x.strip().split(":")[0].strip('"').lower(),
     )
 
     entries = "".join(sorted_subentries)
