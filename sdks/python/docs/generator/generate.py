@@ -30,7 +30,7 @@ def generate_sub_meta_entry(child: str) -> str:
             "title": "{child.title()}",
             "theme": {{
                 "toc": true
-            }}
+            }},
         }},
     """
 
@@ -40,11 +40,12 @@ def generate_meta_js(docs: list[Document], children: set[str]) -> str:
     subentries = [doc.meta_js_entry for doc in docs] + [
         generate_sub_meta_entry(child.replace(prefix, "")) for child in children
     ]
+
     sorted_subentries = sorted(
         subentries,
         key=lambda x: (
             "aaaaaaaa"
-            if "index" in (key := x.split(":")[0].strip('"').lower())
+            if "index" == (key := x.strip().split(":")[0].strip('"').lower())
             else key
         ),
     )
@@ -84,7 +85,6 @@ async def run() -> None:
 
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(meta)
-
 
         os.chdir("../../frontend/docs")
         os.system("pnpm lint:fix")

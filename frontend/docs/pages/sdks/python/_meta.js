@@ -1,6 +1,9 @@
 export default {
-  runnables: {
-    title: "Runnables",
+  index: {
+    title: "Index",
+    theme: {
+      toc: true,
+    },
   },
 
   clients: {
@@ -10,7 +13,10 @@ export default {
     },
   },
 
-  index: {
-    title: "Index",
+  runnables: {
+    title: "Runnables",
+    theme: {
+      toc: true,
+    },
   },
 };
