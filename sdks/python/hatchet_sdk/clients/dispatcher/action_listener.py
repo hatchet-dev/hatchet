@@ -7,7 +7,6 @@ from typing import Any, AsyncGenerator, cast
 
 import grpc
 import grpc.aio
-from grpc._cython import cygrpc  # type: ignore[attr-defined]
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
@@ -267,7 +266,6 @@ class ActionListener:
                     await self.interrupt.wait()
 
                     if not t.done():
-                        # print a warning
                         logger.warning(
                             "Interrupted read_with_interrupt task of action listener"
                         )
@@ -277,9 +275,10 @@ class ActionListener:
 
                         break
 
-                    assigned_action, _ = t.result()
+                    assigned_action, _, is_eof = t.result()
 
-                    if assigned_action is cygrpc.EOF:
+                    if is_eof:
+                        logger.debug("Handling EOF in Action Listener")
                         self.retries = self.retries + 1
                         break
 

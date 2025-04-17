@@ -157,8 +157,7 @@ message ScheduleWorkflowRequest {
     optional string additional_metadata = 8;
 
     // (optional) the priority of the workflow
-    int32 priority = 9;
-
+    optional int32 priority = 9;
 }
 
 // ScheduledWorkflow represents a scheduled workflow.

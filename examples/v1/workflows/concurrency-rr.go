@@ -13,8 +13,9 @@ import (
 )
 
 type ConcurrencyInput struct {
-	Message  string
-	GroupKey string
+	Message string
+	Tier    string
+	Account string
 }
 
 type TransformedOutput struct {
@@ -22,16 +23,52 @@ type TransformedOutput struct {
 }
 
 func ConcurrencyRoundRobin(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ConcurrencyInput, TransformedOutput] {
+	// ❓ Concurrency Strategy With Key
+	var maxRuns int32 = 1
 	strategy := types.GroupRoundRobin
 
-	// ❓ Concurrency Strategy With Key
 	concurrency := factory.NewTask(
 		create.StandaloneTask{
 			Name: "simple-concurrency",
 			Concurrency: []*types.Concurrency{
 				{
 					Expression:    "input.GroupKey",
-					MaxRuns:       &[]int32{1}[0],
+					MaxRuns:       &maxRuns,
+					LimitStrategy: &strategy,
+				},
+			},
+		}, func(ctx worker.HatchetContext, input ConcurrencyInput) (*TransformedOutput, error) {
+			// Random sleep between 200ms and 1000ms
+			time.Sleep(time.Duration(200+rand.Intn(800)) * time.Millisecond)
+
+			return &TransformedOutput{
+				TransformedMessage: input.Message,
+			}, nil
+		},
+		hatchet,
+	)
+	// !!
+
+	return concurrency
+}
+
+func MultipleConcurrencyKeys(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ConcurrencyInput, TransformedOutput] {
+	// ❓ Multiple Concurrency Keys
+	strategy := types.GroupRoundRobin
+	var maxRuns int32 = 20
+
+	concurrency := factory.NewTask(
+		create.StandaloneTask{
+			Name: "simple-concurrency",
+			Concurrency: []*types.Concurrency{
+				{
+					Expression:    "input.Tier",
+					MaxRuns:       &maxRuns,
+					LimitStrategy: &strategy,
+				},
+				{
+					Expression:    "input.Account",
+					MaxRuns:       &maxRuns,
 					LimitStrategy: &strategy,
 				},
 			},

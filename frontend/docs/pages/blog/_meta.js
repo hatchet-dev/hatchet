@@ -1,4 +1,7 @@
 export default {
+  "task-queue-modern-python": {
+    "title": "A task queue for modern Python applications"
+  },
   "postgres-events-table": {
     "title": "Use Postgres for your events table"
   },
@@ -6,9 +9,10 @@ export default {
     "title": "Why we moved off Prisma"
   },
   "problems-with-celery": {
-    "title": "The problems with Celery"
+    "title": "The problems with Celery",
+    "display": "hidden",
   },
   "multi-tenant-queues": {
     "title": "An unfair advantage: multi-tenant queues in Postgres"
-  }
+  },
 }

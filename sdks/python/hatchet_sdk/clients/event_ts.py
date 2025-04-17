@@ -4,6 +4,8 @@ from typing import Callable, TypeVar, cast, overload
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
 
+from hatchet_sdk.logger import logger
+
 
 class ThreadSafeEvent(asyncio.Event):
     """
@@ -32,7 +34,7 @@ async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str],
-) -> tuple[TResponse, str]: ...
+) -> tuple[TResponse, str, bool]: ...
 
 
 @overload
@@ -40,22 +42,23 @@ async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: None = None,
-) -> tuple[TResponse, None]: ...
+) -> tuple[TResponse, None, bool]: ...
 
 
 async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str] | None = None,
-) -> tuple[TResponse, str | None]:
+) -> tuple[TResponse, str | None, bool]:
     try:
         result = cast(TResponse, await listener.read())
 
         if result is cygrpc.EOF:
-            raise ValueError("Unexpected EOF")
+            logger.warning("Received EOF from engine")
+            return cast(TResponse, None), None, True
 
         key = key_generator(result) if key_generator else None
 
-        return result, key
+        return result, key, False
     finally:
         interrupt.set()

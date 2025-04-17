@@ -91,7 +91,7 @@ type CreateWorkflowSchedulesOpts struct {
 	Input              []byte
 	AdditionalMetadata []byte
 
-	Priority *int32 `validate:"omitempty,min=1,max=3"`
+	Priority *int32 `validate:"omitnil,min=1,max=3"`
 }
 
 type CreateScheduledWorkflowRunForWorkflowOpts struct {

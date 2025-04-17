@@ -1,12 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"time"
 
 	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
@@ -82,9 +82,9 @@ func main() {
 		panic(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
 
-	err = worker.StartBlocking(ctx)
+	err = worker.StartBlocking(interruptCtx)
 
 	if err != nil {
 		panic(err)

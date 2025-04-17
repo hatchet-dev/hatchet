@@ -48,7 +48,7 @@ type TenantContextPresent = {
   tenant: Tenant;
   tenantId: string;
   setTenant: (tenant: Tenant) => void;
-  billing: BillingContext;
+  billing?: BillingContext;
   can: Can;
 };
 
@@ -209,14 +209,23 @@ export function useTenant(): TenantContext {
     return (billingState.data?.paymentMethods?.length || 0) > 0;
   }, [billingState.data?.paymentMethods]);
 
-  const billingContext: BillingContext = useMemo(() => {
+  const billingContext: BillingContext | undefined = useMemo(() => {
+    if (!cloudMeta?.data.canBill) {
+      return;
+    }
+
     return {
       state: billingState.data,
       setPollBilling,
       plan: subscriptionPlan,
       hasPaymentMethods,
     };
-  }, [billingState.data, setPollBilling, subscriptionPlan, hasPaymentMethods]);
+  }, [
+    cloudMeta?.data.canBill,
+    billingState.data,
+    subscriptionPlan,
+    hasPaymentMethods,
+  ]);
 
   const can = useCallback(
     (evalFn: Evaluate) => {
