@@ -16,6 +16,7 @@ class Document(BaseModel):
     source_path: str
     readable_source_path: str
     mdx_output_path: str
+    mdx_output_meta_js_path: str
 
     directory: str
     basename: str
@@ -27,14 +28,20 @@ class Document(BaseModel):
     def from_path(path: str) -> "Document":
         # example path /tmp/hatchet-python/docs/gen/runnables.md
 
-        basename = os.path.basename(path)
+        basename = os.path.splitext(os.path.basename(path))[0]
         title = re.sub(
             "[^0-9a-zA-Z ]+", "", basename.replace("_", " ").replace("-", " ")
         ).title()
 
+        mdx_out_path = path.replace(
+            TMP_GEN_PATH, "../../frontend/docs/pages/sdks/python"
+        )
+        mdx_out_dir = os.path.dirname(mdx_out_path)
+
         return Document(
             directory=os.path.dirname(path).replace(TMP_GEN_PATH, ""),
             basename=basename,
+            title=title,
             meta_js_entry=f"""
                 "{basename}": {{
                     "title": "{title}",
@@ -42,7 +49,6 @@ class Document(BaseModel):
             """,
             source_path=path,
             readable_source_path=path.replace(TMP_GEN_PATH, "")[1:],
-            mdx_output_path=path.replace(
-                TMP_GEN_PATH, "../../frontend/docs/pages/sdks/python"
-            ).replace(".md", ".mdx"),
+            mdx_output_path=mdx_out_path.replace(".md", ".mdx"),
+            mdx_output_meta_js_path=mdx_out_dir + "/_meta.js",
         )

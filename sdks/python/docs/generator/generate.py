@@ -1,11 +1,8 @@
-import argparse
 import asyncio
 import os
-from typing import cast
 
-from docs.generator.llm import client
+from docs.generator.llm import parse_markdown
 from docs.generator.paths import crawl_directory, find_child_paths
-from docs.generator.prompts import create_prompt_messages
 from docs.generator.shared import TMP_GEN_PATH
 from docs.generator.types import Document
 from docs.generator.utils import gather_max_concurrency, rm_rf
@@ -17,11 +14,7 @@ async def clean_markdown_with_openai(document: Document) -> None:
     with open(document.source_path, "r", encoding="utf-8") as f:
         original_md = f.read()
 
-    response = await client.chat.completions.create(
-        model="gpt-4o", messages=create_prompt_messages(original_md)
-    )
-
-    content = response.choices[0].message.content
+    content = await parse_markdown(original_markdown=original_md)
 
     if not content:
         return None
@@ -35,6 +28,9 @@ def generate_sub_meta_entry(child: str) -> str:
     return f"""
         "{child}": {{
             "title": "{child.title()}",
+            "theme": {{
+                "toc": true
+            }}
         }},
     """
 
@@ -58,34 +54,37 @@ def generate_meta_js(docs: list[Document], children: set[str]) -> str:
     return f"export default {{{entries}}}"
 
 
-async def run(paths: list[str], include_all: bool) -> None:
+async def run() -> None:
     rm_rf(TMP_GEN_PATH)
 
     try:
         os.system("poetry run mkdocs build")
-        documents = crawl_directory(TMP_GEN_PATH, include_all, paths)
+        documents = crawl_directory(TMP_GEN_PATH)
 
         await gather_max_concurrency(
             *[clean_markdown_with_openai(d) for d in documents], max_concurrency=10
         )
 
-        directories = {d.directory for d in documents}
+        meta_js_out_paths = {d.mdx_output_meta_js_path for d in documents}
 
-        for directory in directories:
+        for path in meta_js_out_paths:
+            relevant_documents = [
+                d for d in documents if d.mdx_output_meta_js_path == path
+            ]
+
+            exemplar = relevant_documents[0]
+
+            directory = exemplar.directory
+
             children = find_child_paths(directory, documents)
 
-            meta = generate_meta_js(
-                [d for d in documents if d.directory == directory], children
-            )
-            out_path = (
-                directory.replace(
-                    TMP_GEN_PATH, "../../frontend/docs/pages/sdks/python"
-                ).replace(".md", ".mdx")
-                + "/_meta.js"
-            )
+            meta = generate_meta_js(relevant_documents, children)
+
+            out_path = exemplar.mdx_output_meta_js_path
 
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(meta)
+
 
         os.chdir("../../frontend/docs")
         os.system("pnpm lint:fix")
@@ -96,21 +95,7 @@ async def run(paths: list[str], include_all: bool) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--all", action="store_true", help="Generate docs for all files")
-    group.add_argument(
-        "paths",
-        nargs="*",
-        help="Paths to specific files to generate docs for (e.g., runnables.md)",
-    )
-
-    args = parser.parse_args()
-
-    paths = cast(list[str], args.paths)
-    include_all = cast(bool, args.all)
-
-    asyncio.run(run(paths, include_all))
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
