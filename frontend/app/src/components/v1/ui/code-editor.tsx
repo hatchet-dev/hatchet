@@ -5,7 +5,7 @@ import 'monaco-themes/themes/Pastels on Dark.json';
 import { useTheme } from '@/components/theme-provider';
 
 interface CodeEditorProps {
-  code: string;
+  code?: string;
   setCode?: (code: string | undefined) => void;
   language: string;
   className?: string;
@@ -17,7 +17,7 @@ interface CodeEditorProps {
 }
 
 export function CodeEditor({
-  code,
+  code = '',
   setCode,
   language,
   className,
@@ -46,7 +46,7 @@ export function CodeEditor({
       <Editor
         beforeMount={setEditorTheme}
         language={language}
-        value={code}
+        value={code || ''}
         onChange={setCode}
         width={width || '100%'}
         height={height || '400px'}
@@ -74,7 +74,7 @@ export function CodeEditor({
       {copy && (
         <CopyToClipboard
           className="absolute top-2 right-2"
-          text={code.trim()}
+          text={code?.trim() || ''}
         />
       )}
     </div>
@@ -82,21 +82,20 @@ export function CodeEditor({
 }
 
 export function DiffCodeEditor({
-  code,
+  code = '',
   setCode,
   language,
   className,
   height,
   width,
   copy,
-  originalValue,
+  originalValue = '',
   wrapLines = true,
 }: CodeEditorProps & {
   originalValue: string;
 }) {
   const setEditorTheme = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
-
     monaco.editor.setTheme('pastels-on-dark');
   };
 
@@ -114,7 +113,7 @@ export function DiffCodeEditor({
         height={height || '400px'}
         theme="pastels-on-dark"
         original={originalValue}
-        modified={code}
+        modified={code || ''}
         options={{
           minimap: { enabled: false },
           wordWrap: wrapLines ? 'on' : 'off',
@@ -132,7 +131,7 @@ export function DiffCodeEditor({
       {copy && (
         <CopyToClipboard
           className="absolute top-2 right-2"
-          text={code.trim()}
+          text={code?.trim() || ''}
         />
       )}
     </div>

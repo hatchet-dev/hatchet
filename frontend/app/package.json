@@ -21,6 +21,7 @@
     "@lukemorales/query-key-factory": "^1.3.4",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-accordion": "^1.2.3",
+    "@radix-ui/react-alert-dialog": "^1.1.7",
     "@radix-ui/react-avatar": "^1.1.3",
     "@radix-ui/react-checkbox": "^1.1.4",
     "@radix-ui/react-collapsible": "^1.1.3",
@@ -88,6 +89,7 @@
     "react-syntax-highlighter": "^15.6.1",
     "reactflow": "^11.11.4",
     "recharts": "^2.15.1",
+    "shiki": "^3.2.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "timeago-react": "^3.0.7",
@@ -120,6 +122,7 @@
     "prettier": "^3.5.3",
     "swagger-typescript-api": "^13.0.28",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vite": "^6.2.4",
     "vite-plugin-eslint": "^1.8.1"

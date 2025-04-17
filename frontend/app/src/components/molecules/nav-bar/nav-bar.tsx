@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api, { TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
@@ -32,6 +32,7 @@ import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
 import { Banner, BannerProps } from './banner';
+import { GrUpgrade } from 'react-icons/gr';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -114,6 +115,25 @@ function AccountDropdown({ user }: MainNavProps) {
     onError: handleApiError,
   });
 
+  useEffect(() => {
+    // FIXME remove this once we have a proper upgrade path
+    const upgrade = () => {
+      localStorage.setItem('next-ui', 'true');
+      window.location.href = '/next';
+    };
+
+    // Attach upgrade function to window object
+    (window as any).upgrade = upgrade;
+
+    return () => {
+      delete (window as any).upgrade;
+    };
+  }, []);
+
+  const canUpgrade = useMemo(() => {
+    return localStorage.getItem('next-ui') != undefined;
+  }, []);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -148,6 +168,17 @@ function AccountDropdown({ user }: MainNavProps) {
               View Legacy V0 Data
             </DropdownMenuItem>
           )}
+        {canUpgrade && (
+          <DropdownMenuItem
+            onClick={() => {
+              localStorage.setItem('next-ui', 'true');
+              window.location.href = '/next';
+            }}
+          >
+            <GrUpgrade className="mr-2 h-4 w-4" />
+            Switch to Next UI
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => toggleTheme()}>
           Toggle Theme
@@ -172,7 +203,6 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
   const { tenant } = useTenant();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
 
   const versionedRoutes = useMemo(
     () =>
@@ -213,7 +243,7 @@ export default function MainNav({ user, setHasBanner }: MainNavProps) {
     }
 
     return;
-  }, [navigate, params, pathname, tenantVersion, versionedRoutes]);
+  }, [navigate, pathname, tenantVersion, versionedRoutes]);
 
   useEffect(() => {
     if (!setHasBanner) {
