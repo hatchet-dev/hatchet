@@ -1,7 +1,10 @@
 export default {
   "home": {
     "title": "User Guide",
-    "type": "page"
+    "type": "page",
+    "theme": {
+      "toc": false,
+    }
   },
   "_setup": {
     "display": "hidden"
@@ -29,11 +32,17 @@ export default {
     "golang": {
       "title": "Golang ↗",
       "href": "/sdks/go-sdk"
+    },
+    "theme": {
+      "toc": false,
     }
   },
   "self-hosting": {
     "title": "Self Hosting",
-    "type": "page"
+    "type": "page",
+    "theme": {
+      "toc": false,
+    }
   },
   "blog": {
     "title": "Blog",
@@ -42,7 +51,10 @@ export default {
   "contributing": {
     "title": "Contributing",
     "type": "page",
-    "display": "hidden"
+    "display": "hidden",
+    "theme": {
+      "toc": false,
+    }
   },
   "sdks": {
     "title": "SDK Reference",
