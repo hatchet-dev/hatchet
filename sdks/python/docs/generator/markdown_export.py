@@ -1,6 +1,6 @@
 import os
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify  # type: ignore[import-untyped]
 from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.plugins import BasePlugin
@@ -41,10 +41,17 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
         return self
 
+    def _remove_footer(self) -> "MarkdownExportPlugin":
+        footer = self.soup.find("footer")
+        if footer and isinstance(footer, Tag):
+            footer.decompose()
+
+        return self
+
     def _preprocess_html(self, content: str) -> str:
         self.soup = BeautifulSoup(content, "html.parser")
 
-        self._remove_async_tags()._remove_hash_links()._remove_toc()
+        self._remove_async_tags()._remove_hash_links()._remove_toc()._remove_footer()
 
         return str(self.soup)
 
