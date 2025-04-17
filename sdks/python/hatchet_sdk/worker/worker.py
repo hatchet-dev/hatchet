@@ -11,7 +11,7 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, AsyncGenerator, Callable, TypeVar
+from typing import Any, AsyncGenerator, Callable, TypeVar, Union
 from warnings import warn
 
 from aiohttp import web
@@ -60,7 +60,7 @@ class HealthCheckResponse(BaseModel):
     name: str
     slots: int
     actions: list[str]
-    labels: dict[str, str | int]
+    labels: dict[str, Union[str, int]]
     python_version: str
 
 
@@ -88,7 +88,7 @@ class Worker:
         config: ClientConfig,
         slots: int,
         durable_slots: int,
-        labels: dict[str, str | int] = {},
+        labels: dict[str, Union[str, int]] = {},
         debug: bool = False,
         owned_loop: bool = True,
         handle_kill: bool = True,

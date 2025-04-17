@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Callable, Type, cast, overload
+from typing import Any, Callable, Type, Union, cast, overload
 
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
@@ -41,7 +41,7 @@ class Hatchet:
     Main client for interacting with the Hatchet SDK.
 
     This class provides access to various client interfaces and utility methods
-    for working with Hatchet workers, workflows, and steps.
+    for working with Hatchet workers, workflows, tasks, and our various feature clients.
     """
 
     def __init__(
@@ -60,36 +60,59 @@ class Hatchet:
     @property
     def cron(self) -> CronClient:
         """
-        The cron client for scheduling tasks to run at specific times or intervals.
+        The cron client is a client for managing cron workflows within Hatchet.
         """
         return self._client.cron
 
     @property
     def logs(self) -> LogsClient:
+        """
+        The logs client is a client for interacting with Hatchet's logs API.
+        """
         return self._client.logs
 
     @property
     def metrics(self) -> MetricsClient:
+        """
+        The metrics client is a client for reading metrics out of Hatchet's metrics API.
+        """
         return self._client.metrics
 
     @property
     def rate_limits(self) -> RateLimitsClient:
+        """
+        The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
+        """
         return self._client.rate_limits
 
     @property
     def runs(self) -> RunsClient:
+        """
+        The runs client is a client for interacting with task and workflow runs within Hatchet.
+        """
         return self._client.runs
 
     @property
     def scheduled(self) -> ScheduledClient:
+        """
+        The scheduled client is a client for managing scheduled workflows within Hatchet.
+        """
         return self._client.scheduled
 
     @property
     def workers(self) -> WorkersClient:
+        """
+        The workers client is a client for managing workers programmatically within Hatchet.
+        """
         return self._client.workers
 
     @property
     def workflows(self) -> WorkflowsClient:
+        """
+        The workflows client is a client for managing workflows programmatically within Hatchet.
+
+        Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
+        """
         return self._client.workflows
 
     @property
@@ -98,6 +121,9 @@ class Hatchet:
 
     @property
     def event(self) -> EventClient:
+        """
+        The event client, which you can use to push events to Hatchet.
+        """
         return self._client.event
 
     @property
@@ -110,10 +136,16 @@ class Hatchet:
 
     @property
     def tenant_id(self) -> str:
+        """
+        The tenant id you're operating in.
+        """
         return self._client.config.tenant_id
 
     @property
     def namespace(self) -> str:
+        """
+        The current namespace you're interacting with.
+        """
         return self._client.config.namespace
 
     def worker(
@@ -121,7 +153,7 @@ class Hatchet:
         name: str,
         slots: int = 100,
         durable_slots: int = 1_000,
-        labels: dict[str, str | int] = {},
+        labels: dict[str, Union[str, int]] = {},
         workflows: list[BaseWorkflow[Any]] = [],
         lifespan: LifespanFn | None = None,
     ) -> Worker:
