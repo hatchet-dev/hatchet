@@ -1,13 +1,16 @@
 export default {
-        "clients": {
-            "title": "Clients",
-        },
+  runnables: {
+    title: "Runnables",
+  },
 
-        "runnables": {
-            "title": "Runnables",
-        },
+  clients: {
+    title: "Clients",
+    theme: {
+      toc: true,
+    },
+  },
 
-        "index": {
-            "title": "Index",
-        },
-    }
+  index: {
+    title: "Index",
+  },
+};
