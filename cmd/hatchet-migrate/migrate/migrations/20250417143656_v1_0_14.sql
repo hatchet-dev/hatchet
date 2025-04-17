@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 WITH all_crons AS (
     -- Get all API cron triggers for a specific tenant
-    SELECT 
+    SELECT
         t."id" AS trigger_parent_id,
         t."workflowVersionId",
         c."id" AS cron_id,
@@ -46,7 +46,7 @@ latest_triggers AS (
 ),
 crons_to_update AS (
     -- Identify cron triggers that need to be updated (not on latest version)
-    SELECT 
+    SELECT
         ac.cron_id,
         ac.trigger_parent_id AS current_parent_id,
         lt.latest_trigger_id AS target_parent_id,
@@ -63,10 +63,10 @@ crons_to_update AS (
     WHERE wi."order" < lv.latest_order -- Only include crons not on the latest version
 ),
 conflicting_records AS (
-    SELECT 
+    SELECT
         ctu.cron_id
     FROM crons_to_update ctu
-    JOIN "WorkflowTriggerCronRef" wcr ON 
+    JOIN "WorkflowTriggerCronRef" wcr ON
         wcr."parentId" = ctu.target_parent_id AND
         wcr."cron" = ctu.cron AND
         wcr."name" = ctu.cron_name
@@ -86,7 +86,7 @@ WHERE "WorkflowTriggerCronRef"."id" = ctu.cron_id;
 
 WITH all_scheduled AS (
     -- Get all scheduled triggers
-    SELECT 
+    SELECT
         t."id" AS trigger_parent_id,
         t."workflowVersionId",
         s."id" AS scheduled_id,
@@ -137,7 +137,7 @@ latest_triggers AS (
 ),
 scheduled_to_update AS (
     -- Identify scheduled triggers that need to be updated (not on latest version)
-    SELECT 
+    SELECT
         als.scheduled_id,
         als.trigger_parent_id AS current_parent_id,
         lt.latest_trigger_id AS target_parent_id,
@@ -163,10 +163,10 @@ scheduled_to_update AS (
 ),
 conflicting_records AS (
     -- Identify records that would cause conflicts with the unique constraint
-    SELECT 
+    SELECT
         stu.scheduled_id
     FROM scheduled_to_update stu
-    JOIN "WorkflowTriggerScheduledRef" wsr ON 
+    JOIN "WorkflowTriggerScheduledRef" wsr ON
         wsr."parentId" = stu.target_parent_id AND
         wsr."parentStepRunId" = stu."parentStepRunId" AND
         wsr."childKey" = stu."childKey"
