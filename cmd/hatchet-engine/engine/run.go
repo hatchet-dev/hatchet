@@ -29,7 +29,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/rs/zerolog"
 
 	"golang.org/x/sync/errgroup"
 
@@ -42,12 +44,6 @@ type Teardown struct {
 }
 
 func init() {
-	// TODO: MAKE PORT CONFIGURABLE, ENV VAR PROTECTED, AND HANDLE SHUTDOWN
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		http.ListenAndServe(":2112", nil)
-	}()
-
 	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
@@ -93,6 +89,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 			return serverCleanup()
 		},
 	})
+
 	teardown = append(teardown, Teardown{
 		Name: "database",
 		Fn: func() error {
@@ -144,13 +141,17 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
+	teardown := []Teardown{}
+
+	if sc.Prometheus.Enabled {
+		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
+	}
+
 	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
 	}
-
-	teardown := []Teardown{}
 
 	teardown = append(teardown, Teardown{
 		Name: "partitioner",
@@ -618,13 +619,17 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
+	teardown := []Teardown{}
+
+	if sc.Prometheus.Enabled {
+		teardown = append(teardown, startPrometheus(l, sc.Prometheus))
+	}
+
 	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
 	}
-
-	teardown := []Teardown{}
 
 	teardown = append(teardown, Teardown{
 		Name: "partitioner",
@@ -1084,4 +1089,37 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	return teardown, nil
+}
+
+func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown {
+	mux := http.NewServeMux()
+	mux.Handle(c.Path, promhttp.Handler())
+
+	srv := &http.Server{
+		Addr:    c.Address,
+		Handler: mux,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			l.Error().Err(err).Msg("failed to start prometheus server")
+		}
+	}()
+
+	l.Info().Msgf("Prometheus server started on %s", c.Address)
+
+	return Teardown{
+		Name: "prometheus",
+		Fn: func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if err := srv.Shutdown(ctx); err != nil {
+				return fmt.Errorf("failed to shutdown prometheus server: %w", err)
+			}
+
+			l.Info().Msg("Prometheus server shutdown gracefully")
+			return nil
+		},
+	}
 }

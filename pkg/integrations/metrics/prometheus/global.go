@@ -8,78 +8,78 @@ import (
 type GlobalHatchetMetric string
 
 const (
-	QueueInvocationsCount                GlobalHatchetMetric = "queue_invocations"
-	CreatedTasksCount                    GlobalHatchetMetric = "created_tasks_count"
-	RetriedTasksCount                    GlobalHatchetMetric = "retried_tasks_count"
-	SucceededTasksCount                  GlobalHatchetMetric = "succeeded_tasks_count"
-	FailedTasksCount                     GlobalHatchetMetric = "failed_tasks_count"
-	SkippedTasksCount                    GlobalHatchetMetric = "skipped_tasks_count"
-	CancelledTasksCount                  GlobalHatchetMetric = "cancelled_tasks_count"
-	AssignedTasksCount                   GlobalHatchetMetric = "assigned_tasks_count"
-	SchedulingTimedOutCount              GlobalHatchetMetric = "scheduling_timed_out_count"
-	RateLimitedCount                     GlobalHatchetMetric = "rate_limited_count"
-	QueuedToAssignedCount                GlobalHatchetMetric = "queued_to_assigned_count"
-	QueuedToAssignedTimeNanosecondsCount GlobalHatchetMetric = "queued_to_assigned_nanoseconds_count"
+	QueueInvocationsTotal       GlobalHatchetMetric = "hatchet_queue_invocations_total"
+	CreatedTasksTotal           GlobalHatchetMetric = "hatchet_created_tasks_total"
+	RetriedTasksTotal           GlobalHatchetMetric = "hatchet_retried_tasks_total"
+	SucceededTasksTotal         GlobalHatchetMetric = "hatchet_succeeded_tasks_total"
+	FailedTasksTotal            GlobalHatchetMetric = "hatchet_failed_tasks_total"
+	SkippedTasksTotal           GlobalHatchetMetric = "hatchet_skipped_tasks_total"
+	CancelledTasksTotal         GlobalHatchetMetric = "hatchet_cancelled_tasks_total"
+	AssignedTasksTotal          GlobalHatchetMetric = "hatchet_assigned_tasks_total"
+	SchedulingTimedOutTotal     GlobalHatchetMetric = "hatchet_scheduling_timed_out_total"
+	RateLimitedTotal            GlobalHatchetMetric = "hatchet_rate_limited_total"
+	QueuedToAssignedTotal       GlobalHatchetMetric = "hatchet_queued_to_assigned_total"
+	QueuedToAssignedTimeSeconds GlobalHatchetMetric = "hatchet_queued_to_assigned_seconds"
 )
 
 var (
 	QueueInvocations = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(QueueInvocationsCount),
+		Name: string(QueueInvocationsTotal),
 		Help: "The total number of invocations of the queuer function",
 	})
 
 	CreatedTasks = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(CreatedTasksCount),
+		Name: string(CreatedTasksTotal),
 		Help: "The total number of tasks created",
 	})
 
 	RetriedTasks = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(RetriedTasksCount),
+		Name: string(RetriedTasksTotal),
 		Help: "The total number of tasks retried",
 	})
 
 	SucceededTasks = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(SucceededTasksCount),
+		Name: string(SucceededTasksTotal),
 		Help: "The total number of tasks that succeeded",
 	})
 
 	FailedTasks = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(FailedTasksCount),
+		Name: string(FailedTasksTotal),
 		Help: "The total number of tasks that failed (in a final state, not including retries)",
 	})
 
 	SkippedTasks = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(SkippedTasksCount),
+		Name: string(SkippedTasksTotal),
 		Help: "The total number of tasks that were skipped",
 	})
 
 	CancelledTasks = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(CancelledTasksCount),
+		Name: string(CancelledTasksTotal),
 		Help: "The total number of tasks cancelled",
 	})
 
 	AssignedTasks = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(AssignedTasksCount),
+		Name: string(AssignedTasksTotal),
 		Help: "The total number of tasks assigned to a worker",
 	})
 
 	SchedulingTimedOut = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(SchedulingTimedOutCount),
+		Name: string(SchedulingTimedOutTotal),
 		Help: "The total number of tasks that timed out while waiting to be scheduled",
 	})
 
 	RateLimited = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(RateLimitedCount),
+		Name: string(RateLimitedTotal),
 		Help: "The total number of tasks that were rate limited",
 	})
 
 	QueuedToAssigned = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(QueuedToAssignedCount),
+		Name: string(QueuedToAssignedTotal),
 		Help: "The total number of unique tasks that were queued and later got assigned to a worker",
 	})
 
-	QueuedToAssignedTimeNanoseconds = promauto.NewCounter(prometheus.CounterOpts{
-		Name: string(QueuedToAssignedTimeNanosecondsCount),
-		Help: "The total time in nanoseconds spent in the queue before being assigned to a worker",
+	QueuedToAssignedTime = promauto.NewCounter(prometheus.CounterOpts{
+		Name: string(QueuedToAssignedTimeSeconds),
+		Help: "The total time in seconds spent in the queue before being assigned to a worker",
 	})
 )

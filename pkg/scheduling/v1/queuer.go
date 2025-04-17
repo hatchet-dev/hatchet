@@ -228,10 +228,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 						prometheus.QueuedToAssigned.Inc()
 
-						timeInQueue := now.Sub(qi.TaskInsertedAt.Time)
+						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
 
-						if timeInQueue > 0 {
-							prometheus.QueuedToAssignedTimeNanoseconds.Add(float64(timeInQueue))
+						if timeInQueueSeconds > 0 {
+							prometheus.QueuedToAssignedTime.Add(timeInQueueSeconds)
 						}
 					}
 				}
