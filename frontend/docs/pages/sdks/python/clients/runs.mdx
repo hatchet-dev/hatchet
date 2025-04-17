@@ -4,6 +4,28 @@ Bases: `BaseRestClient`
 
 The runs client is a client for interacting with task and workflow runs within Hatchet.
 
+Methods:
+
+| Name              | Description                                                          |
+| ----------------- | -------------------------------------------------------------------- |
+| `aio_bulk_cancel` | Cancel task or workflow runs in bulk, according to a set of filters. |
+| `aio_bulk_replay` | Replay task or workflow runs in bulk, according to a set of filters. |
+| `aio_cancel`      | Cancel a task or workflow run.                                       |
+| `aio_create`      | Trigger a new workflow run.                                          |
+| `aio_get`         | Get workflow run details for a given workflow run ID.                |
+| `aio_get_result`  | Get the result of a workflow run by its external ID.                 |
+| `aio_list`        | List task runs according to a set of filters.                        |
+| `aio_replay`      | Replay a task or workflow run.                                       |
+| `bulk_cancel`     | Cancel task or workflow runs in bulk, according to a set of filters. |
+| `bulk_replay`     | Replay task or workflow runs in bulk, according to a set of filters. |
+| `cancel`          | Cancel a task or workflow run.                                       |
+| `create`          | Trigger a new workflow run.                                          |
+| `get`             | Get workflow run details for a given workflow run ID.                |
+| `get_result`      | Get the result of a workflow run by its external ID.                 |
+| `get_run_ref`     | Get a reference to a workflow run.                                   |
+| `list`            | List task runs according to a set of filters.                        |
+| `replay`          | Replay a task or workflow run.                                       |
+
 ## Attributes
 
 ### `workflow_run_event_listener = workflow_run_event_listener` `instance-attribute`

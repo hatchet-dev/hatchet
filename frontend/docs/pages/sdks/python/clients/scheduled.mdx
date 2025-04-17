@@ -2,6 +2,19 @@
 
 Bases: `BaseRestClient`
 
+Methods:
+
+| Name         | Description                                                          |
+| ------------ | -------------------------------------------------------------------- |
+| `aio_create` | Creates a new scheduled workflow run asynchronously.                 |
+| `aio_delete` |                                                                      |
+| `aio_get`    | Retrieves a specific scheduled workflow by scheduled run trigger ID. |
+| `aio_list`   | Retrieves a list of scheduled workflows based on provided filters.   |
+| `create`     | Creates a new scheduled workflow run asynchronously.                 |
+| `delete`     | Deletes a scheduled workflow run.                                    |
+| `get`        | Retrieves a specific scheduled workflow by scheduled run trigger ID. |
+| `list`       | Retrieves a list of scheduled workflows based on provided filters.   |
+
 ## Functions
 
 ### `aio_create`
@@ -34,14 +47,14 @@ ScheduledWorkflows: The requested scheduled workflow instance.
 Retrieves a list of scheduled workflows based on provided filters.
 
 Args:
-offset (int, optional): The starting point for the list.
-limit (int, optional): The maximum number of items to return.
-workflow_id (str, optional): Filter by specific workflow ID.
-parent_workflow_run_id (str, optional): Filter by parent workflow run ID.
-statuses (list[ScheduledRunStatus], optional): Filter by status.
-additional_metadata (Optional[List[dict[str, str]]], optional): Filter by additional metadata.
-order_by_field (Optional[ScheduledWorkflowsOrderByField], optional): Field to order the results by.
-order_by_direction (Optional[WorkflowRunOrderByDirection], optional): Direction to order the results.
+offset (int \| None): The starting point for the list.
+limit (int \| None): The maximum number of items to return.
+workflow_id (str \| None): Filter by specific workflow ID.
+parent_workflow_run_id (str \| None): Filter by parent workflow run ID.
+statuses (list[ScheduledRunStatus] \| None): Filter by status.
+additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
+order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
+order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
 
 Returns:
 List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
@@ -81,16 +94,14 @@ ScheduledWorkflows: The requested scheduled workflow instance.
 Retrieves a list of scheduled workflows based on provided filters.
 
 Args:
-offset (int, optional): The starting point for the list.
-limit (int, optional): The maximum number of items to return.
-workflow_id (str, optional): Filter by specific workflow ID.
-parent_workflow_run_id (str, optional): Filter by parent workflow run ID.
-statuses (list[ScheduledRunStatus], optional): Filter by status.
-additional_metadata (Optional[List[dict[str, str]]], optional): Filter by additional metadata.
-order_by_field (Optional[ScheduledWorkflowsOrderByField], optional): Field to order the results by.
-order_by_direction (Optional[WorkflowRunOrderByDirection], optional): Direction to order the results.
+offset (int \| None): The starting point for the list.
+limit (int \| None): The maximum number of items to return.
+workflow_id (str \| None): Filter by specific workflow ID.
+parent_workflow_run_id (str \| None): Filter by parent workflow run ID.
+statuses (list[ScheduledRunStatus] \| None): Filter by status.
+additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
+order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
+order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
 
 Returns:
 List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
-
-Made with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)

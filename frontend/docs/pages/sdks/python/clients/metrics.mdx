@@ -4,6 +4,17 @@ Bases: `BaseRestClient`
 
 The metrics client is a client for reading metrics out of Hatchet's metrics API.
 
+Methods:
+
+| Name                       | Description                                                               |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `aio_get_queue_metrics`    | Retrieve queue metrics for a set of workflow ids and additional metadata. |
+| `aio_get_task_metrics`     | Retrieve queue metrics                                                    |
+| `aio_get_workflow_metrics` | Retrieve workflow metrics for a given workflow ID.                        |
+| `get_queue_metrics`        | Retrieve queue metrics for a set of workflow ids and additional metadata. |
+| `get_task_metrics`         | Retrieve queue metrics                                                    |
+| `get_workflow_metrics`     | Retrieve workflow metrics for a given workflow ID.                        |
+
 ## Functions
 
 ### `aio_get_queue_metrics`
