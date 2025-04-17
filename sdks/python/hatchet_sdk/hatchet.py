@@ -42,14 +42,6 @@ class Hatchet:
 
     This class provides access to various client interfaces and utility methods
     for working with Hatchet workers, workflows, and steps.
-
-    Attributes:
-        cron (CronClient): Interface for cron trigger operations.
-
-        admin (AdminClient): Interface for administrative operations.
-        dispatcher (DispatcherClient): Interface for dispatching operations.
-        event (EventClient): Interface for event-related operations.
-        rest (RestApi): Interface for REST API operations.
     """
 
     def __init__(
@@ -67,6 +59,9 @@ class Hatchet:
 
     @property
     def cron(self) -> CronClient:
+        """
+        The cron client for scheduling tasks to run at specific times or intervals.
+        """
         return self._client.cron
 
     @property
@@ -116,6 +111,10 @@ class Hatchet:
     @property
     def tenant_id(self) -> str:
         return self._client.config.tenant_id
+
+    @property
+    def namespace(self) -> str:
+        return self._client.config.namespace
 
     def worker(
         self,

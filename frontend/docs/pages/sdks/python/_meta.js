@@ -1,6 +1,6 @@
 export default {
-  index: {
-    title: "Introduction",
+  client: {
+    title: "Client",
     theme: {
       toc: true,
     },
@@ -8,6 +8,13 @@ export default {
 
   clients: {
     title: "Clients",
+    theme: {
+      toc: true,
+    },
+  },
+
+  index: {
+    title: "Introduction",
     theme: {
       toc: true,
     },

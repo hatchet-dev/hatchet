@@ -43,7 +43,7 @@ export default {
     items: {
       python: {
         title: "Python",
-        href: "/sdks/python",
+        href: "/sdks/python/client",
         type: "page",
       },
     },
