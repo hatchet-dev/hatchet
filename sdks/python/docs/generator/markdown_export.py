@@ -48,10 +48,32 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
         return self
 
+    def _remove_navbar(self) -> "MarkdownExportPlugin":
+        navbar = self.soup.find("div", class_="navbar")
+        if navbar and isinstance(navbar, Tag):
+            navbar.decompose()
+
+        navbar_header = self.soup.find("div", class_="navbar-header")
+        if navbar_header and isinstance(navbar_header, Tag):
+            navbar_header.decompose()
+        navbar_collapse = self.soup.find("div", class_="navbar-collapse")
+        if navbar_collapse and isinstance(navbar_collapse, Tag):
+            navbar_collapse.decompose()
+
+        return self
+
+    def _remove_keyboard_shortcuts_modal(self) -> "MarkdownExportPlugin":
+        modal = self.soup.find("div", id="mkdocs_keyboard_modal")
+
+        if modal and isinstance(modal, Tag):
+            modal.decompose()
+
+        return self
+
     def _preprocess_html(self, content: str) -> str:
         self.soup = BeautifulSoup(content, "html.parser")
 
-        self._remove_async_tags()._remove_hash_links()._remove_toc()._remove_footer()
+        self._remove_async_tags()._remove_hash_links()._remove_toc()._remove_footer()._remove_keyboard_shortcuts_modal()._remove_navbar()
 
         return str(self.soup)
 

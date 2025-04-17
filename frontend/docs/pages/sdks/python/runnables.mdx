@@ -10,7 +10,7 @@ Workflows in Hatchet represent coordinated units of work that can be triggered, 
 
 Example:
 
-```
+```python
 from pydantic import BaseModel
 from hatchet_sdk import Hatchet
 
@@ -26,7 +26,6 @@ def greet(input, ctx):
 
 # Run the workflow
 result = workflow.run(MyInput(name="World"))
-
 ```
 
 Workflows support various execution patterns including:
@@ -41,8 +40,8 @@ Methods:
 
 | Name | Description |
 | --- | --- |
-| `task` | A decorator to transform a function into a Hatchet task that runs as part of a workflow. |
-| `durable_task` | A decorator to transform a function into a durable Hatchet task that runs as part of a workflow. |
+| `task` | A decorator to transform a function into a Hatchet task that run as part of a workflow. |
+| `durable_task` | A decorator to transform a function into a durable Hatchet task that run as part of a workflow. |
 | `on_failure_task` | A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail. |
 | `on_success_task` | A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed. |
 | `run` | Run the workflow synchronously and wait for it to complete. |
@@ -62,7 +61,7 @@ Methods:
 
 ### `task`
 
-A decorator to transform a function into a Hatchet task that runs as part of a workflow.
+A decorator to transform a function into a Hatchet task that run as part of a workflow.
 
 Parameters:
 
@@ -90,7 +89,7 @@ Returns:
 
 ### `durable_task`
 
-A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.
+A decorator to transform a function into a durable Hatchet task that run as part of a workflow.
 
 **IMPORTANT:** This decorator creates a *durable* task, which works using Hatchet's durable execution capabilities. This is an advanced feature of Hatchet.
 
