@@ -130,18 +130,24 @@ class PooledListener(Generic[R, T, L], ABC):
                                 await asyncio.sleep(DEFAULT_LISTENER_RETRY_INTERVAL)
                                 break
 
-                            event, key, is_eof = t.result()
+                            result = t.result()
 
-                            if is_eof:
+                            if result.is_eof:
                                 logger.debug(
                                     f"Handling EOF in Pooled Listener {self.__class__.__name__}"
                                 )
                                 break
 
-                            subscriptions = self.to_subscriptions.get(key, [])
+                            if not result.key:
+                                logger.warning(
+                                    "Received a message with no key. This should not happen."
+                                )
+                                continue
+
+                            subscriptions = self.to_subscriptions.get(result.key, [])
 
                             for subscription_id in subscriptions:
-                                await self.events[subscription_id].put(event)
+                                await self.events[subscription_id].put(result.result)
 
                     except grpc.RpcError as e:
                         logger.debug(f"grpc error in listener: {e}")

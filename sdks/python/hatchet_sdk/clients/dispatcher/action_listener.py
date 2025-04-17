@@ -275,9 +275,9 @@ class ActionListener:
 
                         break
 
-                    assigned_action, _, is_eof = t.result()
+                    assigned_action = t.result()
 
-                    if is_eof:
+                    if assigned_action.is_eof:
                         logger.debug("Handling EOF in Action Listener")
                         self.retries = self.retries + 1
                         break
@@ -287,9 +287,9 @@ class ActionListener:
                     try:
                         action_payload = (
                             ActionPayload()
-                            if not assigned_action.actionPayload
+                            if not assigned_action.result.actionPayload
                             else ActionPayload.model_validate_json(
-                                assigned_action.actionPayload
+                                assigned_action.result.actionPayload
                             )
                         )
                     except (ValueError, json.JSONDecodeError) as e:
@@ -298,30 +298,30 @@ class ActionListener:
                         action_payload = ActionPayload()
 
                     action = Action(
-                        tenant_id=assigned_action.tenantId,
+                        tenant_id=assigned_action.result.tenantId,
                         worker_id=self.worker_id,
-                        workflow_run_id=assigned_action.workflowRunId,
-                        get_group_key_run_id=assigned_action.getGroupKeyRunId,
-                        job_id=assigned_action.jobId,
-                        job_name=assigned_action.jobName,
-                        job_run_id=assigned_action.jobRunId,
-                        step_id=assigned_action.stepId,
-                        step_run_id=assigned_action.stepRunId,
-                        action_id=assigned_action.actionId,
+                        workflow_run_id=assigned_action.result.workflowRunId,
+                        get_group_key_run_id=assigned_action.result.getGroupKeyRunId,
+                        job_id=assigned_action.result.jobId,
+                        job_name=assigned_action.result.jobName,
+                        job_run_id=assigned_action.result.jobRunId,
+                        step_id=assigned_action.result.stepId,
+                        step_run_id=assigned_action.result.stepRunId,
+                        action_id=assigned_action.result.actionId,
                         action_payload=action_payload,
                         action_type=convert_proto_enum_to_python(
-                            assigned_action.actionType,
+                            assigned_action.result.actionType,
                             ActionType,
                             ActionTypeProto,
                         ),
-                        retry_count=assigned_action.retryCount,
+                        retry_count=assigned_action.result.retryCount,
                         additional_metadata=parse_additional_metadata(
-                            assigned_action.additional_metadata
+                            assigned_action.result.additional_metadata
                         ),
-                        child_workflow_index=assigned_action.child_workflow_index,
-                        child_workflow_key=assigned_action.child_workflow_key,
-                        parent_workflow_run_id=assigned_action.parent_workflow_run_id,
-                        priority=assigned_action.priority,
+                        child_workflow_index=assigned_action.result.child_workflow_index,
+                        child_workflow_key=assigned_action.result.child_workflow_key,
+                        parent_workflow_run_id=assigned_action.result.parent_workflow_run_id,
+                        priority=assigned_action.result.priority,
                     )
 
                     yield action
