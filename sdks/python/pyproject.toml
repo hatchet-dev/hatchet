@@ -101,7 +101,7 @@ known_third_party = [
 extend_skip = ["hatchet_sdk/contracts/", "hatchet_sdk/v0/contracts/"]
 
 [tool.black]
-extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/)"
+extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"
 
 [tool.mypy]
 files = ["."]
@@ -114,6 +114,7 @@ exclude = [
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
     "hatchet_sdk/v0/*",
+    "site/*",
 ]
 strict = true
 enable_error_code = [
@@ -133,6 +134,7 @@ exclude = [
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
     "hatchet_sdk/v0/*",
+    "site/*",
 ]
 target-version = "py310"
 
@@ -171,9 +173,9 @@ gendocs = "docs.generator.generate:main"
 
 [tool.pydoclint]
 style = 'sphinx'
-exclude = 'v0|clients/rest/*|contracts/*|.venv'
-arg-type-hints-in-docstring = false             # Automatically checked by mypy and mkdocs
-check-return-types = false                      # Automatically checked by mypy and mkdocs
+exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*'
+arg-type-hints-in-docstring = false                    # Automatically checked by mypy and mkdocs
+check-return-types = false                             # Automatically checked by mypy and mkdocs
 
 [tool.poetry.plugins."mkdocs.plugins"]
 "markdown-export" = "docs.generator.markdown_export:MarkdownExportPlugin"

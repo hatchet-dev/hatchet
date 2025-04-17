@@ -1,7 +1,7 @@
 import os
 
 from bs4 import BeautifulSoup
-from markdownify import markdownify
+from markdownify import markdownify  # type: ignore[import-untyped]
 from mkdocs.config.defaults import MkDocsConfig
 from mkdocs.plugins import BasePlugin
 from mkdocs.structure.pages import Page
