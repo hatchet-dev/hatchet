@@ -7,12 +7,15 @@ Duration = timedelta | str
 
 
 def timedelta_to_expr(td: Duration) -> str:
-    ## IMPORTANT: We only support hours, minutes, and seconds on the engine
     if isinstance(td, str):
         return td
 
-    seconds = td.seconds
+    ## `total_seconds` gives the entire duration,
+    ## while `seconds` gives the seconds component of the timedelta
+    ## e.g. 1 day and 1 second would give 86401 total seconds but 1 second
+    seconds = int(td.total_seconds())
 
+    ## IMPORTANT: We only support hours, minutes, and seconds on the engine
     if seconds % HOUR == 0:
         return f"{seconds // HOUR}h"
     elif seconds % MINUTE == 0:
