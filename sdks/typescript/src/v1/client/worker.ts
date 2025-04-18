@@ -101,12 +101,10 @@ export class Worker {
           }
           this.durable.registerDurableActionsV1(wf.definition);
         }
-
-        return;
+      } else {
+        // fallback to v0 client for backwards compatibility
+        await this.nonDurable.registerWorkflow(wf);
       }
-
-      // fallback to v0 client for backwards compatibility
-      await this.nonDurable.registerWorkflow(wf);
     }
   }
 
