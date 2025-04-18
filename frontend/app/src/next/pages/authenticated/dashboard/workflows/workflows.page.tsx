@@ -15,7 +15,7 @@ const WorkflowCard: React.FC<{ data: Workflow }> = ({ data }) => (
     <div className="px-4 py-5 sm:p-6">
       <div className="flex flex-row justify-between items-center">
         <h3 className="text-lg leading-6 font-medium text-foreground">
-          <Link to={`/next/tasks/${data.metadata?.id}`}>{data.name}</Link>
+          <Link to={`/next/workflows/${data.metadata?.id}`}>{data.name}</Link>
         </h3>
         {data.isPaused ? (
           <Badge variant="default">Paused</Badge>
@@ -29,7 +29,7 @@ const WorkflowCard: React.FC<{ data: Workflow }> = ({ data }) => (
     </div>
     <div className="px-4 py-4 sm:px-6">
       <div className="text-sm text-background-secondary">
-        <Link to={`/next/tasks/${data.metadata?.id}`}>
+        <Link to={`/next/workflows/${data.metadata?.id}`}>
           <Button>View Workflow</Button>
         </Link>
       </div>
@@ -37,7 +37,7 @@ const WorkflowCard: React.FC<{ data: Workflow }> = ({ data }) => (
   </div>
 );
 
-export default function TasksPage() {
+export default function WorkflowsPage() {
   const { data, isLoading, invalidate } = useWorkflows();
   const [rotate, setRotate] = useState(false);
 
