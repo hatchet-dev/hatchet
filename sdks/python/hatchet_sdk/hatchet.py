@@ -561,6 +561,7 @@ class Hatchet:
                 concurrency=concurrency,
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
+                default_priority=default_priority,
             ),
             self,
         )
