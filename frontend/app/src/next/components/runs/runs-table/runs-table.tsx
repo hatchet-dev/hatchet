@@ -58,7 +58,7 @@ export function RunsTable() {
 
   return (
     <div className="flex flex-col gap-4">
-      <FilterGroup>
+      <FilterGroup className="flex flex-row items-center">
         <FilterSelect<RunsFilters, V1TaskStatus[]>
           name="statuses"
           value={filters.statuses}

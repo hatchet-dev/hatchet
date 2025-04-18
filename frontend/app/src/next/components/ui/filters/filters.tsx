@@ -281,7 +281,7 @@ export function FilterKeyValue<T>({
   }, [options, key, existingKeys]);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
       <div className="flex flex-wrap gap-2">
         {currentFilters.map((filter, index) => {
           const [key, value] = filter.split(':');
