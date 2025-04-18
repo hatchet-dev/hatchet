@@ -399,6 +399,7 @@ class Hatchet:
                 on_crons=on_crons,
                 sticky=sticky,
                 concurrency=concurrency,
+                default_priority=default_priority,
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
             ),
@@ -560,6 +561,7 @@ class Hatchet:
                 concurrency=concurrency,
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
+                default_priority=default_priority,
             ),
             self,
         )
