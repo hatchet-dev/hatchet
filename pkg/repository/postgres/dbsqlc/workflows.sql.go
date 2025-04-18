@@ -1992,6 +1992,27 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 	return items, nil
 }
 
+const lockWorkflowVersion = `-- name: LockWorkflowVersion :one
+SELECT
+    "id"
+FROM
+    "WorkflowVersion"
+WHERE
+    "workflowId" = $1::uuid AND
+    "deletedAt" IS NULL
+ORDER BY
+    "order" DESC
+LIMIT 1
+FOR UPDATE
+`
+
+func (q *Queries) LockWorkflowVersion(ctx context.Context, db DBTX, workflowid pgtype.UUID) (pgtype.UUID, error) {
+	row := db.QueryRow(ctx, lockWorkflowVersion, workflowid)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const moveCronTriggerToNewWorkflowTriggers = `-- name: MoveCronTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
     SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
