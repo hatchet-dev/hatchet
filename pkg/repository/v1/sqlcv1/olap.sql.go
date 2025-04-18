@@ -1479,7 +1479,8 @@ WITH runs AS (
         MIN(e.inserted_at)::timestamptz AS created_at,
         MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
-        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
+        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata,
+        MAX(output::TEXT) FILTER (WHERE e.readable_status = 'COMPLETED')::JSONB AS output
     FROM
         relevant_events e
     JOIN max_retry_counts mrc ON (e.task_id, e.retry_count) = (mrc.task_id, mrc.max_retry_count)
@@ -1500,7 +1501,8 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    m.task_metadata
+    m.task_metadata,
+    m.output
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
@@ -1527,6 +1529,7 @@ type ReadWorkflowRunByExternalIdRow struct {
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	TaskMetadata         []byte               `json:"task_metadata"`
+	Output               []byte               `json:"output"`
 }
 
 func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, workflowrunexternalid pgtype.UUID) (*ReadWorkflowRunByExternalIdRow, error) {
@@ -1552,6 +1555,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.FinishedAt,
 		&i.ErrorMessage,
 		&i.TaskMetadata,
+		&i.Output,
 	)
 	return &i, err
 }
