@@ -1,0 +1,172 @@
+# Scheduled Client
+
+Bases: `BaseRestClient`
+
+The scheduled client is a client for managing scheduled workflows within Hatchet.
+
+Methods:
+
+| Name         | Description                                                          |
+| ------------ | -------------------------------------------------------------------- |
+| `aio_create` | Creates a new scheduled workflow run.                                |
+| `aio_delete` | Deletes a scheduled workflow run by its ID.                          |
+| `aio_get`    | Retrieves a specific scheduled workflow by scheduled run trigger ID. |
+| `aio_list`   | Retrieves a list of scheduled workflows based on provided filters.   |
+| `create`     | Creates a new scheduled workflow run.                                |
+| `delete`     | Deletes a scheduled workflow run by its ID.                          |
+| `get`        | Retrieves a specific scheduled workflow by scheduled run trigger ID. |
+| `list`       | Retrieves a list of scheduled workflows based on provided filters.   |
+
+### Functions
+
+#### `aio_create`
+
+Creates a new scheduled workflow run.
+
+IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](../../../sdks/python/runnables#workflow).
+
+Parameters:
+
+| Name                  | Type                      | Description                                                             | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to schedule.                                   | _required_ |
+| `trigger_at`          | `datetime`                | The datetime when the run should be triggered.                          | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the scheduled workflow.                              | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the future run as a key-value pair. | _required_ |
+
+Returns:
+
+| Type                 | Description                              |
+| -------------------- | ---------------------------------------- |
+| `ScheduledWorkflows` | The created scheduled workflow instance. |
+
+#### `aio_delete`
+
+Deletes a scheduled workflow run by its ID.
+
+Parameters:
+
+| Name           | Type  | Description                                     | Default    |
+| -------------- | ----- | ----------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The ID of the scheduled workflow run to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `aio_get`
+
+Retrieves a specific scheduled workflow by scheduled run trigger ID.
+
+Parameters:
+
+| Name           | Type  | Description                                    | Default    |
+| -------------- | ----- | ---------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The scheduled workflow trigger ID to retrieve. | _required_ |
+
+Returns:
+
+| Type                 | Description                                |
+| -------------------- | ------------------------------------------ |
+| `ScheduledWorkflows` | The requested scheduled workflow instance. |
+
+#### `aio_list`
+
+Retrieves a list of scheduled workflows based on provided filters.
+
+Parameters:
+
+| Name                     | Type                                       | Description                                          | Default |
+| ------------------------ | ------------------------------------------ | ---------------------------------------------------- | ------- |
+| `offset`                 | `int \| None`                              | The offset to use in pagination.                     | `None`  |
+| `limit`                  | `int \| None`                              | The maximum number of scheduled workflows to return. | `None`  |
+| `workflow_id`            | `str \| None`                              | The ID of the workflow to filter by.                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                              | The ID of the parent workflow run to filter by.      | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None`         | A list of statuses to filter by.                     | `None`  |
+| `additional_metadata`    | `Optional[JSONSerializableMapping]`        | Additional metadata to filter by.                    | `None`  |
+| `order_by_field`         | `Optional[ScheduledWorkflowsOrderByField]` | The field to order the results by.                   | `None`  |
+| `order_by_direction`     | `Optional[WorkflowRunOrderByDirection]`    | The direction to order the results by.               | `None`  |
+
+Returns:
+
+| Type                     | Description                                                  |
+| ------------------------ | ------------------------------------------------------------ |
+| `ScheduledWorkflowsList` | A list of scheduled workflows matching the provided filters. |
+
+#### `create`
+
+Creates a new scheduled workflow run.
+
+IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](../../../sdks/python/runnables#workflow).
+
+Parameters:
+
+| Name                  | Type                      | Description                                                             | Default    |
+| --------------------- | ------------------------- | ----------------------------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                     | The name of the workflow to schedule.                                   | _required_ |
+| `trigger_at`          | `datetime`                | The datetime when the run should be triggered.                          | _required_ |
+| `input`               | `JSONSerializableMapping` | The input data for the scheduled workflow.                              | _required_ |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the future run as a key-value pair. | _required_ |
+
+Returns:
+
+| Type                 | Description                              |
+| -------------------- | ---------------------------------------- |
+| `ScheduledWorkflows` | The created scheduled workflow instance. |
+
+#### `delete`
+
+Deletes a scheduled workflow run by its ID.
+
+Parameters:
+
+| Name           | Type  | Description                                     | Default    |
+| -------------- | ----- | ----------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The ID of the scheduled workflow run to delete. | _required_ |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `get`
+
+Retrieves a specific scheduled workflow by scheduled run trigger ID.
+
+Parameters:
+
+| Name           | Type  | Description                                    | Default    |
+| -------------- | ----- | ---------------------------------------------- | ---------- |
+| `scheduled_id` | `str` | The scheduled workflow trigger ID to retrieve. | _required_ |
+
+Returns:
+
+| Type                 | Description                                |
+| -------------------- | ------------------------------------------ |
+| `ScheduledWorkflows` | The requested scheduled workflow instance. |
+
+#### `list`
+
+Retrieves a list of scheduled workflows based on provided filters.
+
+Parameters:
+
+| Name                     | Type                                       | Description                                          | Default |
+| ------------------------ | ------------------------------------------ | ---------------------------------------------------- | ------- |
+| `offset`                 | `int \| None`                              | The offset to use in pagination.                     | `None`  |
+| `limit`                  | `int \| None`                              | The maximum number of scheduled workflows to return. | `None`  |
+| `workflow_id`            | `str \| None`                              | The ID of the workflow to filter by.                 | `None`  |
+| `parent_workflow_run_id` | `str \| None`                              | The ID of the parent workflow run to filter by.      | `None`  |
+| `statuses`               | `list[ScheduledRunStatus] \| None`         | A list of statuses to filter by.                     | `None`  |
+| `additional_metadata`    | `Optional[JSONSerializableMapping]`        | Additional metadata to filter by.                    | `None`  |
+| `order_by_field`         | `Optional[ScheduledWorkflowsOrderByField]` | The field to order the results by.                   | `None`  |
+| `order_by_direction`     | `Optional[WorkflowRunOrderByDirection]`    | The direction to order the results by.               | `None`  |
+
+Returns:
+
+| Type                     | Description                                                  |
+| ------------------------ | ------------------------------------------------------------ |
+| `ScheduledWorkflowsList` | A list of scheduled workflows matching the provided filters. |

@@ -1,0 +1,108 @@
+# Metrics Client
+
+Bases: `BaseRestClient`
+
+The metrics client is a client for reading metrics out of Hatchet's metrics API.
+
+Methods:
+
+| Name                       | Description                                                               |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `aio_get_queue_metrics`    | Retrieve queue metrics for a set of workflow ids and additional metadata. |
+| `aio_get_task_metrics`     | Retrieve queue metrics                                                    |
+| `aio_get_workflow_metrics` | Retrieve workflow metrics for a given workflow ID.                        |
+| `get_queue_metrics`        | Retrieve queue metrics for a set of workflow ids and additional metadata. |
+| `get_task_metrics`         | Retrieve queue metrics                                                    |
+| `get_workflow_metrics`     | Retrieve workflow metrics for a given workflow ID.                        |
+
+### Functions
+
+#### `aio_get_queue_metrics`
+
+Retrieve queue metrics for a set of workflow ids and additional metadata.
+
+Parameters:
+
+| Name                  | Type                              | Description                                     | Default |
+| --------------------- | --------------------------------- | ----------------------------------------------- | ------- |
+| `workflow_ids`        | `list[str] \| None`               | A list of workflow IDs to retrieve metrics for. | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to filter the metrics by.   | `None`  |
+
+Returns:
+
+| Type                 | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `TenantQueueMetrics` | Workflow metrics for the specified workflow IDs. |
+
+#### `aio_get_task_metrics`
+
+Retrieve queue metrics
+
+Returns:
+
+| Type                        | Description                           |
+| --------------------------- | ------------------------------------- |
+| `TenantStepRunQueueMetrics` | Step run queue metrics for the tenant |
+
+#### `aio_get_workflow_metrics`
+
+Retrieve workflow metrics for a given workflow ID.
+
+Parameters:
+
+| Name          | Type                        | Description                                     | Default    |
+| ------------- | --------------------------- | ----------------------------------------------- | ---------- |
+| `workflow_id` | `str`                       | The ID of the workflow to retrieve metrics for. | _required_ |
+| `status`      | `WorkflowRunStatus \| None` | The status of the workflow run to filter by.    | `None`     |
+| `group_key`   | `str \| None`               | The key to group the metrics by.                | `None`     |
+
+Returns:
+
+| Type              | Description                                     |
+| ----------------- | ----------------------------------------------- |
+| `WorkflowMetrics` | Workflow metrics for the specified workflow ID. |
+
+#### `get_queue_metrics`
+
+Retrieve queue metrics for a set of workflow ids and additional metadata.
+
+Parameters:
+
+| Name                  | Type                              | Description                                     | Default |
+| --------------------- | --------------------------------- | ----------------------------------------------- | ------- |
+| `workflow_ids`        | `list[str] \| None`               | A list of workflow IDs to retrieve metrics for. | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to filter the metrics by.   | `None`  |
+
+Returns:
+
+| Type                 | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `TenantQueueMetrics` | Workflow metrics for the specified workflow IDs. |
+
+#### `get_task_metrics`
+
+Retrieve queue metrics
+
+Returns:
+
+| Type                        | Description                           |
+| --------------------------- | ------------------------------------- |
+| `TenantStepRunQueueMetrics` | Step run queue metrics for the tenant |
+
+#### `get_workflow_metrics`
+
+Retrieve workflow metrics for a given workflow ID.
+
+Parameters:
+
+| Name          | Type                        | Description                                     | Default    |
+| ------------- | --------------------------- | ----------------------------------------------- | ---------- |
+| `workflow_id` | `str`                       | The ID of the workflow to retrieve metrics for. | _required_ |
+| `status`      | `WorkflowRunStatus \| None` | The status of the workflow run to filter by.    | `None`     |
+| `group_key`   | `str \| None`               | The key to group the metrics by.                | `None`     |
+
+Returns:
+
+| Type              | Description                                     |
+| ----------------- | ----------------------------------------------- |
+| `WorkflowMetrics` | Workflow metrics for the specified workflow ID. |
