@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -13,7 +14,12 @@ import (
 )
 
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
+	if err != nil {
+		return nil, err
+	}
 
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
@@ -26,7 +32,12 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 }
 
 func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	worker := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
+	populator := populator.FromContext(ctx)
+
+	worker, err := populator.GetWorker()
+	if err != nil {
+		return nil, err
+	}
 
 	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
@@ -81,7 +92,12 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 }
 
 func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	workerV0 := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
+	populator := populator.FromContext(ctx)
+
+	workerV0, err := populator.GetWorker()
+	if err != nil {
+		return nil, err
+	}
 
 	worker, err := t.config.V1.Workers().GetWorkerById(sqlchelpers.UUIDToStr(workerV0.Worker.ID))
 

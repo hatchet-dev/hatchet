@@ -1038,6 +1038,109 @@ func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, id 
 	return err
 }
 
+const getCronWorkflowById = `-- name: GetCronWorkflowById :one
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = $1::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    latest_versions."workflowVersionId",
+    w."name" as "workflowName",
+    w."id" as "workflowId",
+    w."tenantId",
+    t."id" as "triggerId",
+    c."id" as "cronId",
+    t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
+    c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata", c."createdAt", c."deletedAt", c."updatedAt", c.name, c.id, c.method, c.priority
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = $1::uuid
+    AND ($2::uuid IS NULL OR c."id" = $2::uuid)
+`
+
+type GetCronWorkflowByIdParams struct {
+	Tenantid      pgtype.UUID `json:"tenantid"`
+	Crontriggerid pgtype.UUID `json:"crontriggerid"`
+}
+
+type GetCronWorkflowByIdRow struct {
+	WorkflowVersionId   pgtype.UUID                   `json:"workflowVersionId"`
+	WorkflowName        string                        `json:"workflowName"`
+	WorkflowId          pgtype.UUID                   `json:"workflowId"`
+	TenantId            pgtype.UUID                   `json:"tenantId"`
+	TriggerId           pgtype.UUID                   `json:"triggerId"`
+	CronId              pgtype.UUID                   `json:"cronId"`
+	ID                  pgtype.UUID                   `json:"id"`
+	CreatedAt           pgtype.Timestamp              `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamp              `json:"updatedAt"`
+	DeletedAt           pgtype.Timestamp              `json:"deletedAt"`
+	WorkflowVersionId_2 pgtype.UUID                   `json:"workflowVersionId_2"`
+	TenantId_2          pgtype.UUID                   `json:"tenantId_2"`
+	ParentId            pgtype.UUID                   `json:"parentId"`
+	Cron                string                        `json:"cron"`
+	TickerId            pgtype.UUID                   `json:"tickerId"`
+	Input               []byte                        `json:"input"`
+	Enabled             bool                          `json:"enabled"`
+	AdditionalMetadata  []byte                        `json:"additionalMetadata"`
+	CreatedAt_2         pgtype.Timestamp              `json:"createdAt_2"`
+	DeletedAt_2         pgtype.Timestamp              `json:"deletedAt_2"`
+	UpdatedAt_2         pgtype.Timestamp              `json:"updatedAt_2"`
+	Name                pgtype.Text                   `json:"name"`
+	ID_2                pgtype.UUID                   `json:"id_2"`
+	Method              WorkflowTriggerCronRefMethods `json:"method"`
+	Priority            int32                         `json:"priority"`
+}
+
+func (q *Queries) GetCronWorkflowById(ctx context.Context, db DBTX, arg GetCronWorkflowByIdParams) (*GetCronWorkflowByIdRow, error) {
+	row := db.QueryRow(ctx, getCronWorkflowById, arg.Tenantid, arg.Crontriggerid)
+	var i GetCronWorkflowByIdRow
+	err := row.Scan(
+		&i.WorkflowVersionId,
+		&i.WorkflowName,
+		&i.WorkflowId,
+		&i.TenantId,
+		&i.TriggerId,
+		&i.CronId,
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.WorkflowVersionId_2,
+		&i.TenantId_2,
+		&i.ParentId,
+		&i.Cron,
+		&i.TickerId,
+		&i.Input,
+		&i.Enabled,
+		&i.AdditionalMetadata,
+		&i.CreatedAt_2,
+		&i.DeletedAt_2,
+		&i.UpdatedAt_2,
+		&i.Name,
+		&i.ID_2,
+		&i.Method,
+		&i.Priority,
+	)
+	return &i, err
+}
+
 const getLatestWorkflowVersionForWorkflows = `-- name: GetLatestWorkflowVersionForWorkflows :many
 WITH latest_versions AS (
     SELECT DISTINCT ON (workflowVersions."workflowId")

@@ -7,15 +7,18 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 func (t *TasksService) V1TaskGetPointMetrics(ctx echo.Context, request gen.V1TaskGetPointMetricsRequestObject) (gen.V1TaskGetPointMetricsResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant, err := populator.FromContext(ctx).GetTenant()
+	if err != nil {
+		return nil, err
+	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// 24 hours ago, rounded to the nearest minute

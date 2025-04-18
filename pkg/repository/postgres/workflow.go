@@ -346,23 +346,18 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 	return cronWorkflows, count, nil
 }
 
-func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error) {
-	listOpts := dbsqlc.ListCronWorkflowsParams{
-		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.GetCronWorkflowByIdRow, error) {
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	cronWorkflow, err := w.queries.GetCronWorkflowById(ctx, w.pool, dbsqlc.GetCronWorkflowByIdParams{
+		Tenantid:      pgTenantId,
 		Crontriggerid: sqlchelpers.UUIDFromStr(cronWorkflowId),
-	}
-
-	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(cronWorkflows) == 0 {
-		return nil, fmt.Errorf("cron workflow not found")
-	}
-
-	return cronWorkflows[0], nil
+	return cronWorkflow, nil
 }
 
 func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id string) error {

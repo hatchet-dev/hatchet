@@ -3,17 +3,25 @@ package webhookworker
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (i *WebhookWorkersService) WebhookDelete(ctx echo.Context, request gen.WebhookDeleteRequestObject) (gen.WebhookDeleteResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	webhook := ctx.Get("webhook").(*dbsqlc.WebhookWorker)
+	populator := populator.FromContext(ctx)
 
-	err := i.config.EngineRepository.WebhookWorker().SoftDeleteWebhookWorker(ctx.Request().Context(), sqlchelpers.UUIDToStr(webhook.ID), tenantId)
+	tenant, err := populator.GetTenant()
+	if err != nil {
+		return nil, err
+	}
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	webhook, err := populator.GetWebhookWorker()
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.config.EngineRepository.WebhookWorker().SoftDeleteWebhookWorker(ctx.Request().Context(), sqlchelpers.UUIDToStr(webhook.ID), tenantId)
 	if err != nil {
 		return nil, err
 	}

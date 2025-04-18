@@ -7,16 +7,21 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateRequestObject) (gen.TenantCreateResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
+	populator := populator.FromContext(ctx)
+
+	user, err := populator.GetUser()
+	if err != nil {
+		return nil, err
+	}
 
 	if !t.config.Runtime.AllowCreateTenant {
 		return gen.TenantCreate400JSONResponse(
@@ -32,7 +37,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// determine if a tenant with the slug already exists
-	_, err := t.config.APIRepository.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
+	_, err = t.config.APIRepository.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err

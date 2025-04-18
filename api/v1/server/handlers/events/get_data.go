@@ -3,12 +3,15 @@ package events
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func (t *EventService) EventDataGet(ctx echo.Context, request gen.EventDataGetRequestObject) (gen.EventDataGetResponseObject, error) {
-	event := ctx.Get("event").(*dbsqlc.Event)
+	event, err := populator.FromContext(ctx).GetEvent()
+	if err != nil {
+		return nil, err
+	}
 
 	var dataStr string
 

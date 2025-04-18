@@ -3,6 +3,7 @@ package tenants
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -12,9 +13,16 @@ import (
 )
 
 func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantInviteUpdateRequestObject) (gen.TenantInviteUpdateResponseObject, error) {
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
-	invite := ctx.Get("tenant-invite").(*dbsqlc.TenantInviteLink)
+	populator := populator.FromContext(ctx)
 
+	tenantMember, err := populator.GetTenantMember()
+	if err != nil {
+		return nil, err
+	}
+	invite, err := populator.GetTenantInvite()
+	if err != nil {
+		return nil, err
+	}
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
@@ -35,7 +43,7 @@ func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantI
 	}
 
 	// update the invite
-	invite, err := t.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
+	invite, err = t.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
 
 	if err != nil {
 		return nil, err

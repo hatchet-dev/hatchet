@@ -3,17 +3,18 @@ package workflows
 import (
 	"github.com/labstack/echo/v4"
 
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func (t *WorkflowService) WorkflowScheduledGet(ctx echo.Context, request gen.WorkflowScheduledGetRequestObject) (gen.WorkflowScheduledGetResponseObject, error) {
-	scheduled := ctx.Get("scheduled").(*dbsqlc.ListScheduledWorkflowsRow)
+	// First check if scheduled object exists in context
+	populator := populator.FromContext(ctx)
 
-	if scheduled == nil {
-		return gen.WorkflowScheduledGet404JSONResponse(apierrors.NewAPIErrors("Scheduled workflow not found.")), nil
+	scheduled, err := populator.GetScheduledWorkflow()
+	if err != nil {
+		return nil, err
 	}
 
 	return gen.WorkflowScheduledGet200JSONResponse(

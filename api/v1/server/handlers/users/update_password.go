@@ -5,17 +5,22 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdatePasswordRequestObject) (gen.UserUpdatePasswordResponseObject, error) {
 	// determine if the user exists before attempting to write the user
-	existingUser := ctx.Get("user").(*dbsqlc.User)
+	populator := populator.FromContext(ctx)
+
+	existingUser, err := populator.GetUser()
+	if err != nil {
+		return nil, err
+	}
 
 	if !u.config.Runtime.AllowChangePassword {
 		return gen.UserUpdatePassword405JSONResponse(

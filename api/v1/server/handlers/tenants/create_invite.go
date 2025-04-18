@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -16,10 +17,21 @@ import (
 )
 
 func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantInviteCreateRequestObject) (gen.TenantInviteCreateResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	populator := populator.FromContext(ctx)
+
+	user, err := populator.GetUser()
+	if err != nil {
+		return nil, err
+	}
+	tenant, err := populator.GetTenant()
+	if err != nil {
+		return nil, err
+	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
+	tenantMember, err := populator.GetTenantMember()
+	if err != nil {
+		return nil, err
+	}
 	if !t.config.Runtime.AllowInvites {
 		t.config.Logger.Warn().Msg("tenant invites are disabled")
 		return gen.TenantInviteCreate400JSONResponse(

@@ -4,15 +4,16 @@ import (
 	"github.com/labstack/echo/v4"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRequestObject) (gen.V1TaskReplayResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-
-	var err error
+	tenant, err := populator.FromContext(ctx).GetTenant()
+	if err != nil {
+		return nil, err
+	}
 
 	grpcReq := &contracts.ReplayTasksRequest{}
 

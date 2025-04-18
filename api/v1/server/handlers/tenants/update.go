@@ -3,6 +3,7 @@ package tenants
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -11,7 +12,10 @@ import (
 )
 
 func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateRequestObject) (gen.TenantUpdateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant, err := populator.FromContext(ctx).GetTenant()
+	if err != nil {
+		return nil, err
+	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// validate the request
@@ -60,7 +64,7 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 	}
 
 	// update the tenant
-	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
+	tenant, err = t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
 
 	if err != nil {
 		return nil, err

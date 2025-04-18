@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -15,14 +16,21 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
+	if err != nil {
+		return nil, err
+	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
+	workflow, err := populator.GetWorkflow()
+	if err != nil {
+		return nil, err
+	}
 
 	var workflowVersionId string
 

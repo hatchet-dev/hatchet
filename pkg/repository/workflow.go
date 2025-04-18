@@ -291,7 +291,7 @@ type WorkflowAPIRepository interface {
 	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)
 
 	// GetCronWorkflow gets a cron workflow run
-	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error)
+	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.GetCronWorkflowByIdRow, error)
 
 	// DeleteCronWorkflow deletes a cron workflow run
 	DeleteCronWorkflow(ctx context.Context, tenantId, id string) error
