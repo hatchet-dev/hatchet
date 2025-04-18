@@ -401,6 +401,20 @@ func FromContext(c echo.Context) *PopulateGetter {
 	}
 }
 
+func (p *PopulateGetter) GetTenant() (*dbsqlc.Tenant, error) {
+	tenantValue := p.c.Get("tenant")
+	if tenantValue == nil {
+		return nil, ErrNotFound
+	}
+
+	tenant, ok := tenantValue.(*dbsqlc.Tenant)
+	if !ok || tenant == nil {
+		return nil, ErrNotFound
+	}
+
+	return tenant, nil
+}
+
 func (p *PopulateGetter) GetCronWorkflow() (*dbsqlc.GetCronWorkflowByIdRow, error) {
 	cronValue := p.c.Get("cron-workflow")
 	if cronValue == nil {

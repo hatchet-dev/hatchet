@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"golang.org/x/exp/rand"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -27,7 +28,10 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 		return gen.MonitoringPostRunProbe403JSONResponse{}, nil
 	}
 
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant, err := populator.FromContext(ctx).GetTenant()
+	if err != nil {
+		return nil, err
+	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if !slices.Contains[[]string](m.permittedTenants, tenantId) {
