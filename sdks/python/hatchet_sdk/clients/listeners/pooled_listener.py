@@ -134,18 +134,18 @@ class PooledListener(Generic[R, T, L], ABC):
                                 await asyncio.sleep(DEFAULT_LISTENER_RETRY_INTERVAL)
                                 break
 
-                            result = t.result()
+                            event = t.result()
 
-                            if isinstance(result, UnexpectedEOF):
+                            if isinstance(event, UnexpectedEOF):
                                 logger.debug(
                                     f"Handling EOF in Pooled Listener {self.__class__.__name__}"
                                 )
                                 break
 
-                            subscriptions = self.to_subscriptions.get(result.key, [])
+                            subscriptions = self.to_subscriptions.get(event.key, [])
 
                             for subscription_id in subscriptions:
-                                await self.events[subscription_id].put(result.result)
+                                await self.events[subscription_id].put(event.data)
 
                     except grpc.RpcError as e:
                         logger.debug(f"grpc error in listener: {e}")

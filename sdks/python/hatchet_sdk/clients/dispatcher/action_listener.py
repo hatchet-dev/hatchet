@@ -291,9 +291,9 @@ class ActionListener:
                     try:
                         action_payload = (
                             ActionPayload()
-                            if not assigned_action.result.actionPayload
+                            if not assigned_action.data.actionPayload
                             else ActionPayload.model_validate_json(
-                                assigned_action.result.actionPayload
+                                assigned_action.data.actionPayload
                             )
                         )
                     except (ValueError, json.JSONDecodeError) as e:
@@ -302,30 +302,30 @@ class ActionListener:
                         action_payload = ActionPayload()
 
                     action = Action(
-                        tenant_id=assigned_action.result.tenantId,
+                        tenant_id=assigned_action.data.tenantId,
                         worker_id=self.worker_id,
-                        workflow_run_id=assigned_action.result.workflowRunId,
-                        get_group_key_run_id=assigned_action.result.getGroupKeyRunId,
-                        job_id=assigned_action.result.jobId,
-                        job_name=assigned_action.result.jobName,
-                        job_run_id=assigned_action.result.jobRunId,
-                        step_id=assigned_action.result.stepId,
-                        step_run_id=assigned_action.result.stepRunId,
-                        action_id=assigned_action.result.actionId,
+                        workflow_run_id=assigned_action.data.workflowRunId,
+                        get_group_key_run_id=assigned_action.data.getGroupKeyRunId,
+                        job_id=assigned_action.data.jobId,
+                        job_name=assigned_action.data.jobName,
+                        job_run_id=assigned_action.data.jobRunId,
+                        step_id=assigned_action.data.stepId,
+                        step_run_id=assigned_action.data.stepRunId,
+                        action_id=assigned_action.data.actionId,
                         action_payload=action_payload,
                         action_type=convert_proto_enum_to_python(
-                            assigned_action.result.actionType,
+                            assigned_action.data.actionType,
                             ActionType,
                             ActionTypeProto,
                         ),
-                        retry_count=assigned_action.result.retryCount,
+                        retry_count=assigned_action.data.retryCount,
                         additional_metadata=parse_additional_metadata(
-                            assigned_action.result.additional_metadata
+                            assigned_action.data.additional_metadata
                         ),
-                        child_workflow_index=assigned_action.result.child_workflow_index,
-                        child_workflow_key=assigned_action.result.child_workflow_key,
-                        parent_workflow_run_id=assigned_action.result.parent_workflow_run_id,
-                        priority=assigned_action.result.priority,
+                        child_workflow_index=assigned_action.data.child_workflow_index,
+                        child_workflow_key=assigned_action.data.child_workflow_key,
+                        parent_workflow_run_id=assigned_action.data.parent_workflow_run_id,
+                        priority=assigned_action.data.priority,
                     )
 
                     yield action

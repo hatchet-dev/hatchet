@@ -30,8 +30,8 @@ TResponse = TypeVar("TResponse")
 
 
 class ReadWithInterruptResult(Generic[TResponse]):
-    def __init__(self, result: TResponse, key: str):
-        self.result = result
+    def __init__(self, data: TResponse, key: str):
+        self.data = data
         self.key = key
 
 
@@ -70,6 +70,6 @@ async def read_with_interrupt(
 
         key = key_generator(result) if key_generator else ""
 
-        return ReadWithInterruptResult(result=result, key=key)
+        return ReadWithInterruptResult(data=result, key=key)
     finally:
         interrupt.set()
