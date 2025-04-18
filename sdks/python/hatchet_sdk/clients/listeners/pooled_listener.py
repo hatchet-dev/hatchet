@@ -6,7 +6,11 @@ from typing import Generic, Literal, TypeVar
 import grpc
 import grpc.aio
 
-from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.clients.event_ts import (
+    ThreadSafeEvent,
+    UnexpectedEOF,
+    read_with_interrupt,
+)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
@@ -132,17 +136,11 @@ class PooledListener(Generic[R, T, L], ABC):
 
                             result = t.result()
 
-                            if result.is_eof:
+                            if isinstance(result, UnexpectedEOF):
                                 logger.debug(
                                     f"Handling EOF in Pooled Listener {self.__class__.__name__}"
                                 )
                                 break
-
-                            if not result.key:
-                                logger.warning(
-                                    "Received a message with no key. This should not happen."
-                                )
-                                continue
 
                             subscriptions = self.to_subscriptions.get(result.key, [])
 

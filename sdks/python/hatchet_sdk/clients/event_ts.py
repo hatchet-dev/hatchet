@@ -30,10 +30,14 @@ TResponse = TypeVar("TResponse")
 
 
 class ReadWithInterruptResult(Generic[TResponse]):
-    def __init__(self, result: TResponse, key: str | None, is_eof: bool):
+    def __init__(self, result: TResponse, key: str):
         self.result = result
         self.key = key
-        self.is_eof = is_eof
+
+
+class UnexpectedEOF:
+    def __init__(self) -> None:
+        pass
 
 
 @overload
@@ -41,7 +45,7 @@ async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str],
-) -> ReadWithInterruptResult[TResponse]: ...
+) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF: ...
 
 
 @overload
@@ -49,25 +53,23 @@ async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: None = None,
-) -> ReadWithInterruptResult[TResponse]: ...
+) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF: ...
 
 
 async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str] | None = None,
-) -> ReadWithInterruptResult[TResponse]:
+) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF:
     try:
         result = cast(TResponse, await listener.read())
 
         if result is cygrpc.EOF:
             logger.warning("Received EOF from engine")
-            return ReadWithInterruptResult(
-                result=cast(TResponse, None), key=None, is_eof=True
-            )
+            return UnexpectedEOF()
 
-        key = key_generator(result) if key_generator else None
+        key = key_generator(result) if key_generator else ""
 
-        return ReadWithInterruptResult(result=result, key=key, is_eof=False)
+        return ReadWithInterruptResult(result=result, key=key)
     finally:
         interrupt.set()
