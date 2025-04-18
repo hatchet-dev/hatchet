@@ -92,6 +92,8 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
         links = self.soup.find_all("a")
         page_depth = self.page_source_path.count("/")
 
+        ## Using the depth + 2 here because the links are relative to the root of
+        ## the SDK docs subdir, which sits at `/sdks/python` (two levels below the root)
         dirs_up_prefix = "../" * (page_depth + 2)
 
         for link in links:
