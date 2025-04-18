@@ -18,9 +18,9 @@ const WorkflowCard: React.FC<{ data: Workflow }> = ({ data }) => (
           <Link to={`/next/workflows/${data.metadata?.id}`}>{data.name}</Link>
         </h3>
         {data.isPaused ? (
-          <Badge variant="default">Paused</Badge>
+          <Badge variant="default">Paused</Badge> // TODO: This should be `inProgress`
         ) : (
-          <Badge variant="outline">Active</Badge>
+          <Badge variant="outline">Active</Badge> // TODO: This should be `successful`
         )}
       </div>
       <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
