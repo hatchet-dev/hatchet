@@ -295,13 +295,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("cron-workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		scheduled, err := config.APIRepository.Workflow().GetCronWorkflow(context.Background(), parentId, id)
+		cron, err := config.APIRepository.Workflow().GetCronWorkflow(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
+		return cron, sqlchelpers.UUIDToStr(cron.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

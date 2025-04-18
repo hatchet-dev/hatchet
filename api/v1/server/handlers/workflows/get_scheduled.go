@@ -10,10 +10,15 @@ import (
 )
 
 func (t *WorkflowService) WorkflowScheduledGet(ctx echo.Context, request gen.WorkflowScheduledGetRequestObject) (gen.WorkflowScheduledGetResponseObject, error) {
-	scheduled := ctx.Get("scheduled").(*dbsqlc.ListScheduledWorkflowsRow)
-
-	if scheduled == nil {
+	// First check if scheduled object exists in context
+	scheduledObj := ctx.Get("scheduled")
+	if scheduledObj == nil {
 		return gen.WorkflowScheduledGet404JSONResponse(apierrors.NewAPIErrors("Scheduled workflow not found.")), nil
+	}
+
+	scheduled, ok := scheduledObj.(*dbsqlc.ListScheduledWorkflowsRow)
+	if !ok {
+		return nil, echo.NewHTTPError(500, "Invalid scheduled workflow type in context")
 	}
 
 	return gen.WorkflowScheduledGet200JSONResponse(

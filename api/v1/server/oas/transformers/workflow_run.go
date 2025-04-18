@@ -549,6 +549,43 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 	return res
 }
 
+func ToCronWorkflowDetailsFromSQLC(cron *dbsqlc.GetCronWorkflowByIdRow) *gen.CronWorkflows {
+	var additionalMetadata map[string]interface{}
+
+	if cron.AdditionalMetadata != nil {
+		err := json.Unmarshal(cron.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return nil
+		}
+	}
+
+	var input map[string]interface{}
+
+	if cron.Input != nil {
+		err := json.Unmarshal(cron.Input, &input)
+		if err != nil {
+			return nil
+		}
+	}
+
+	res := &gen.CronWorkflows{
+		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(cron.ID_2), cron.CreatedAt_2.Time, cron.UpdatedAt_2.Time),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(cron.WorkflowVersionId),
+		WorkflowId:         sqlchelpers.UUIDToStr(cron.WorkflowId),
+		WorkflowName:       cron.WorkflowName,
+		TenantId:           sqlchelpers.UUIDToStr(cron.TenantId),
+		Cron:               cron.Cron,
+		AdditionalMetadata: &additionalMetadata,
+		Name:               &cron.Name.String,
+		Enabled:            cron.Enabled,
+		Method:             gen.CronWorkflowsMethod(cron.Method),
+		Priority:           &cron.Priority,
+		Input:              &input,
+	}
+
+	return res
+}
+
 func ToCronWorkflowsFromSQLC(cron *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflows {
 	var additionalMetadata map[string]interface{}
 
