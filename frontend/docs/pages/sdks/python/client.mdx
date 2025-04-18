@@ -1,8 +1,14 @@
-# The Hatchet Python Client
+# Hatchet Python SDK Reference
 
-Main client for interacting with the Hatchet SDK. This class provides access to various client interfaces and utility methods for working with Hatchet workers, workflows, tasks, and our various feature clients.
+This is the Python SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](../../home) for an introduction to getting your first tasks running.
 
-## Methods
+## The Hatchet Python Client
+
+Main client for interacting with the Hatchet SDK.
+
+This class provides access to various client interfaces and utility methods for working with Hatchet workers, workflows, tasks, and our various feature clients.
+
+### Methods
 
 | Name           | Description                                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -47,7 +53,9 @@ The workers client is a client for managing workers programmatically within Hatc
 
 ### `workflows`
 
-The workflows client is a client for managing workflows programmatically within Hatchet. Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
+The workflows client is a client for managing workflows programmatically within Hatchet.
+
+Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
 
 ### `tenant_id`
 
@@ -68,7 +76,7 @@ Parameters:
 | Name            | Type                         | Description                                                                                                                                                  | Default    |
 | --------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
 | `name`          | `str`                        | The name of the worker.                                                                                                                                      | _required_ |
-| `slots`         | `int`                        | The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time                           | `100`      |
+| `slots`         | `int`                        | The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time.                          | `100`      |
 | `durable_slots` | `int`                        | The number of durable workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time that are durable. | `1000`     |
 | `labels`        | `dict[str, Union[str, int]]` | A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.                                               | `{}`       |
 | `workflows`     | `list[BaseWorkflow[Any]]`    | A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.                | `[]`       |
@@ -89,12 +97,12 @@ Parameters:
 | Name               | Type                                                           | Description                                                                                                                                                                                                                                                                       | Default          |
 | ------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `name`             | `str`                                                          | The name of the workflow.                                                                                                                                                                                                                                                         | _required_       |
-| `description`      | `str \| None`                                                  | A description for the workflow                                                                                                                                                                                                                                                    | `None`           |
+| `description`      | `str \| None`                                                  | A description for the workflow.                                                                                                                                                                                                                                                   | `None`           |
 | `input_validator`  | `Type[TWorkflowInput] \| None`                                 | A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`. | `None`           |
 | `on_events`        | `list[str]`                                                    | A list of event triggers for the workflow - events which cause the workflow to be run.                                                                                                                                                                                            | `[]`             |
 | `on_crons`         | `list[str]`                                                    | A list of cron triggers for the workflow.                                                                                                                                                                                                                                         | `[]`             |
-| `version`          | `str \| None`                                                  | A version for the workflow                                                                                                                                                                                                                                                        | `None`           |
-| `sticky`           | `StickyStrategy \| None`                                       | A sticky strategy for the workflow                                                                                                                                                                                                                                                | `None`           |
+| `version`          | `str \| None`                                                  | A version for the workflow.                                                                                                                                                                                                                                                       | `None`           |
+| `sticky`           | `StickyStrategy \| None`                                       | A sticky strategy for the workflow.                                                                                                                                                                                                                                               | `None`           |
 | `default_priority` | `int`                                                          | The priority of the workflow. Higher values will cause this workflow to have priority in scheduling over other, lower priority ones.                                                                                                                                              | `1`              |
 | `concurrency`      | `ConcurrencyExpression \| list[ConcurrencyExpression] \| None` | A concurrency object controlling the concurrency settings for this workflow.                                                                                                                                                                                                      | `None`           |
 | `task_defaults`    | `TaskDefaults`                                                 | A `TaskDefaults` object controlling the default task settings for this workflow.                                                                                                                                                                                                  | `TaskDefaults()` |

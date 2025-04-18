@@ -1,4 +1,5 @@
 import os
+from typing import cast
 
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify  # type: ignore[import-untyped]
@@ -13,6 +14,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
     def __init__(self) -> None:
         super().__init__()
         self.soup: BeautifulSoup
+        self.page_source_path: str
 
     def _remove_async_tags(self) -> "MarkdownExportPlugin":
         spans = self.soup.find_all("span", class_="doc doc-labels")
@@ -28,7 +30,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
     def _remove_hash_links(self) -> "MarkdownExportPlugin":
         links = self.soup.find_all("a", class_="headerlink")
         for link in links:
-            href = link["href"]
+            href = cast(str, link["href"])
             if href.startswith("#"):
                 link.decompose()
 
@@ -86,6 +88,25 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
         return self
 
+    def _interpolate_docs_links(self) -> "MarkdownExportPlugin":
+        links = self.soup.find_all("a")
+        page_depth = self.page_source_path.count("/")
+
+        dirs_up_prefix = "../" * (page_depth + 2)
+
+        for link in links:
+            href = link.get("href")
+
+            if not href:
+                continue
+
+            href = cast(str, link["href"])
+
+            if href.startswith("https://docs.hatchet.run/"):
+                link["href"] = href.replace("https://docs.hatchet.run/", dirs_up_prefix)
+
+        return self
+
     def _preprocess_html(self, content: str) -> str:
         self.soup = BeautifulSoup(content, "html.parser")
 
@@ -98,6 +119,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
             ._remove_navbar()
             ._remove_title()
             ._remove_property_tags()
+            ._interpolate_docs_links()
         )
 
         return str(self.soup)
@@ -105,6 +127,8 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
     def on_post_page(
         self, output_content: str, page: Page, config: MkDocsConfig
     ) -> str:
+        self.page_source_path = page.file.src_uri
+
         content = self._preprocess_html(output_content)
         md_content = markdownify(content, heading_style="ATX", wrap=False)
 

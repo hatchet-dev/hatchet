@@ -47,7 +47,7 @@ class ScheduledClient(BaseRestClient):
         """
         Creates a new scheduled workflow run.
 
-        IMPORTANT: This method is an escape hatch, and should only be used in cases where you are unable to use the (preferred) `schedule` methods on the `Task` and `Workflow` classes.
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
 
         :param workflow_name: The name of the workflow to schedule.
         :param trigger_at: The datetime when the run should be triggered.
@@ -77,7 +77,7 @@ class ScheduledClient(BaseRestClient):
         """
         Creates a new scheduled workflow run.
 
-        IMPORTANT: This method is an escape hatch, and should only be used in cases where you are unable to use the (preferred) `schedule` methods on the `Task` and `Workflow` classes.
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
 
         :param workflow_name: The name of the workflow to schedule.
         :param trigger_at: The datetime when the run should be triggered.

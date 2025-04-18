@@ -1,7 +1,7 @@
 site_name: Hatchet Python SDK
 site_description: Documentation for the Hatchet SDK
 repo_url: https://github.com/hatchet-dev/hatchet
-site_url: https://docs.onhatchet.run/sdks/python/
+site_url: https://docs.hatchet.run/sdks/python/
 use_directory_urls: false
 
 

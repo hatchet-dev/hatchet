@@ -1,4 +1,8 @@
-# The Hatchet Python Client
+# Hatchet Python SDK Reference
+
+This is the Python SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](https://docs.hatchet.run/home) for an introduction for getting your first tasks running
+
+## The Hatchet Python Client
 
 ::: hatchet.Hatchet
     options:

@@ -228,7 +228,7 @@ class RunsClient(BaseRestClient):
         """
         Trigger a new workflow run.
 
-        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch.
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
 
         :param workflow_name: The name of the workflow to trigger.
         :param input: The input data for the workflow run.
@@ -258,7 +258,7 @@ class RunsClient(BaseRestClient):
         """
         Trigger a new workflow run.
 
-        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch.
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
 
         :param workflow_name: The name of the workflow to trigger.
         :param input: The input data for the workflow run.
