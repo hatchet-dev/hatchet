@@ -63,9 +63,9 @@ Methods:
 | `create_cron`          | Create a cron job for the workflow.                                                                                                              |
 | `aio_create_cron`      | Create a cron job for the workflow.                                                                                                              |
 
-## Functions
+### Functions
 
-### `task`
+#### `task`
 
 A decorator to transform a function into a Hatchet task that runs as part of a workflow.
 
@@ -93,7 +93,7 @@ Returns:
 | ----------------------------------------------------------------------------- | ------------------------------------------ |
 | `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
-### `durable_task`
+#### `durable_task`
 
 A decorator to transform a function into a durable Hatchet task that run as part of a workflow.
 
@@ -125,7 +125,7 @@ Returns:
 | ------------------------------------------------------------------------------------ | ------------------------------------------ |
 | `Callable[[Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
-### `on_failure_task`
+#### `on_failure_task`
 
 A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.
 
@@ -148,7 +148,7 @@ Returns:
 | ----------------------------------------------------------------------------- | ------------------------------------------ |
 | `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
-### `on_success_task`
+#### `on_success_task`
 
 A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed.
 
@@ -159,7 +159,7 @@ Parameters:
 | `name`                | `str \| None`                 | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator. | `None`                      |
 | `schedule_timeout`    | `Duration`                    | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.              | `DEFAULT_SCHEDULE_TIMEOUT`  |
 | `execution_timeout`   | `Duration`                    | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.               | `DEFAULT_EXECUTION_TIMEOUT` |
-| `retries`             | `int`                         | The number of times to retry the on-success task before failing.                                                                          | `0`                         |
+| `retries`             | `int`                         | The number of times to retry the on-success task before failing                                                                           | `0`                         |
 | `rate_limits`         | `list[RateLimit]`             | A list of rate limit configurations for the on-success task.                                                                              | `[]`                        |
 | `backoff_factor`      | `float \| None`               | The backoff factor for controlling exponential backoff in retries.                                                                        | `None`                      |
 | `backoff_max_seconds` | `int \| None`                 | The maximum number of seconds to allow retries with exponential backoff to continue.                                                      | `None`                      |
@@ -167,11 +167,11 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                              |
-| ----------------------------------------------------------------------------- | ---------------------------------------- |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
+| Type                                                                          | Description                                |
+| ----------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
-### `run`
+#### `run`
 
 Run the workflow synchronously and wait for it to complete.
 
@@ -190,7 +190,7 @@ Returns:
 | ---------------- | ----------------------------------------------------- |
 | `dict[str, Any]` | The result of the workflow execution as a dictionary. |
 
-### `aio_run`
+#### `aio_run`
 
 Run the workflow asynchronously and wait for it to complete.
 
@@ -209,7 +209,7 @@ Returns:
 | ---------------- | ----------------------------------------------------- |
 | `dict[str, Any]` | The result of the workflow execution as a dictionary. |
 
-### `run_no_wait`
+#### `run_no_wait`
 
 Synchronously trigger a workflow run without waiting for it to complete. This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
 
@@ -226,7 +226,7 @@ Returns:
 | ---------------- | ------------------------------------------------------------------------- |
 | `WorkflowRunRef` | A `WorkflowRunRef` object representing the reference to the workflow run. |
 
-### `aio_run_no_wait`
+#### `aio_run_no_wait`
 
 Asynchronously trigger a workflow run without waiting for it to complete. This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
 
@@ -243,7 +243,7 @@ Returns:
 | ---------------- | ------------------------------------------------------------------------- |
 | `WorkflowRunRef` | A `WorkflowRunRef` object representing the reference to the workflow run. |
 
-### `run_many`
+#### `run_many`
 
 Run a workflow in bulk and wait for all runs to complete. This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
@@ -259,7 +259,7 @@ Returns:
 | ---------------------- | ---------------------------------------- |
 | `list[dict[str, Any]]` | A list of results for each workflow run. |
 
-### `aio_run_many`
+#### `aio_run_many`
 
 Run a workflow in bulk and wait for all runs to complete. This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
 
@@ -275,7 +275,7 @@ Returns:
 | ---------------------- | ---------------------------------------- |
 | `list[dict[str, Any]]` | A list of results for each workflow run. |
 
-### `run_many_no_wait`
+#### `run_many_no_wait`
 
 Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
@@ -291,7 +291,7 @@ Returns:
 | ---------------------- | ------------------------------------------------------------------------------------ |
 | `list[WorkflowRunRef]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
 
-### `aio_run_many_no_wait`
+#### `aio_run_many_no_wait`
 
 Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
@@ -307,7 +307,7 @@ Returns:
 | ---------------------- | ------------------------------------------------------------------------------------ |
 | `list[WorkflowRunRef]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
 
-### `schedule`
+#### `schedule`
 
 Schedule a workflow to run at a specific time.
 
@@ -325,7 +325,7 @@ Returns:
 | ----------------- | --------------------------------------------------------------- |
 | `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
 
-### `aio_schedule`
+#### `aio_schedule`
 
 Schedule a workflow to run at a specific time.
 
@@ -343,7 +343,7 @@ Returns:
 | ----------------- | --------------------------------------------------------------- |
 | `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
 
-### `create_cron`
+#### `create_cron`
 
 Create a cron job for the workflow.
 
@@ -363,7 +363,7 @@ Returns:
 | --------------- | ----------------------------------------------------------- |
 | `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
 
-### `aio_create_cron`
+#### `aio_create_cron`
 
 Create a cron job for the workflow.
 
@@ -403,3 +403,217 @@ Methods:
 | `aio_schedule`         | Schedule a workflow to run at a specific time.                            |
 | `create_cron`          | Create a cron job for the workflow.                                       |
 | `aio_create_cron`      | Create a cron job for the workflow.                                       |
+
+### Functions
+
+#### `run`
+
+Synchronously trigger a workflow run without waiting for it to complete. This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+
+Parameters:
+
+| Name      | Type                     | Description                                | Default                              |
+| --------- | ------------------------ | ------------------------------------------ | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow.           | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution. | `TriggerWorkflowOptions()`           |
+
+Returns:
+
+| Type | Description                                                               |
+| ---- | ------------------------------------------------------------------------- |
+| `R`  | A `WorkflowRunRef` object representing the reference to the workflow run. |
+
+#### `aio_run`
+
+Run the workflow asynchronously and wait for it to complete.
+
+This method triggers a workflow run, blocks until completion, and returns the final result.
+
+Parameters:
+
+| Name      | Type                     | Description                                                                     | Default                              |
+| --------- | ------------------------ | ------------------------------------------------------------------------------- | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow, must match the workflow's input type.          | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution like metadata and parent workflow ID. | `TriggerWorkflowOptions()`           |
+
+Returns:
+
+| Type | Description                                           |
+| ---- | ----------------------------------------------------- |
+| `R`  | The result of the workflow execution as a dictionary. |
+
+#### `run_no_wait`
+
+Run the workflow synchronously and wait for it to complete.
+
+This method triggers a workflow run, blocks until completion, and returns the final result.
+
+Parameters:
+
+| Name      | Type                     | Description                                                                     | Default                              |
+| --------- | ------------------------ | ------------------------------------------------------------------------------- | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow, must match the workflow's input type.          | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution like metadata and parent workflow ID. | `TriggerWorkflowOptions()`           |
+
+Returns:
+
+| Type                            | Description                                           |
+| ------------------------------- | ----------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | The result of the workflow execution as a dictionary. |
+
+#### `aio_run_no_wait`
+
+Asynchronously trigger a workflow run without waiting for it to complete. This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+
+Parameters:
+
+| Name      | Type                     | Description                                | Default                              |
+| --------- | ------------------------ | ------------------------------------------ | ------------------------------------ |
+| `input`   | `TWorkflowInput`         | The input data for the workflow.           | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `TriggerWorkflowOptions` | Additional options for workflow execution. | `TriggerWorkflowOptions()`           |
+
+Returns:
+
+| Type                            | Description                                                               |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| `TaskRunRef[TWorkflowInput, R]` | A `WorkflowRunRef` object representing the reference to the workflow run. |
+
+#### `run_many`
+
+Run a workflow in bulk and wait for all runs to complete. This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+
+Parameters:
+
+| Name        | Type                             | Description                                                                                     | Default    |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+
+Returns:
+
+| Type      | Description                              |
+| --------- | ---------------------------------------- |
+| `list[R]` | A list of results for each workflow run. |
+
+#### `aio_run_many`
+
+Run a workflow in bulk and wait for all runs to complete. This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+
+Parameters:
+
+| Name        | Type                             | Description                                                                                     | Default    |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+
+Returns:
+
+| Type      | Description                              |
+| --------- | ---------------------------------------- |
+| `list[R]` | A list of results for each workflow run. |
+
+#### `run_many_no_wait`
+
+Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+
+Parameters:
+
+| Name        | Type                             | Description                                                                                     | Default    |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+
+Returns:
+
+| Type                                  | Description                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `list[TaskRunRef[TWorkflowInput, R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
+
+#### `aio_run_many_no_wait`
+
+Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+
+Parameters:
+
+| Name        | Type                             | Description                                                                                     | Default    |
+| ----------- | -------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| `workflows` | `list[WorkflowRunTriggerConfig]` | A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered. | _required_ |
+
+Returns:
+
+| Type                                  | Description                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `list[TaskRunRef[TWorkflowInput, R]]` | A list of `WorkflowRunRef` objects, each representing a reference to a workflow run. |
+
+#### `schedule`
+
+Schedule a workflow to run at a specific time.
+
+Parameters:
+
+| Name      | Type                             | Description                                 | Default                              |
+| --------- | -------------------------------- | ------------------------------------------- | ------------------------------------ |
+| `run_at`  | `datetime`                       | The time at which to schedule the workflow. | _required_                           |
+| `input`   | `TWorkflowInput`                 | The input data for the workflow.            | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `ScheduleTriggerWorkflowOptions` | Additional options for workflow execution.  | `ScheduleTriggerWorkflowOptions()`   |
+
+Returns:
+
+| Type              | Description                                                     |
+| ----------------- | --------------------------------------------------------------- |
+| `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
+
+#### `aio_schedule`
+
+Schedule a workflow to run at a specific time.
+
+Parameters:
+
+| Name      | Type                             | Description                                 | Default                              |
+| --------- | -------------------------------- | ------------------------------------------- | ------------------------------------ |
+| `run_at`  | `datetime`                       | The time at which to schedule the workflow. | _required_                           |
+| `input`   | `TWorkflowInput`                 | The input data for the workflow.            | `cast(TWorkflowInput, EmptyModel())` |
+| `options` | `ScheduleTriggerWorkflowOptions` | Additional options for workflow execution.  | `ScheduleTriggerWorkflowOptions()`   |
+
+Returns:
+
+| Type              | Description                                                     |
+| ----------------- | --------------------------------------------------------------- |
+| `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
+
+#### `create_cron`
+
+Create a cron job for the workflow.
+
+Parameters:
+
+| Name                  | Type                      | Description                                                       | Default                              |
+| --------------------- | ------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| `cron_name`           | `str`                     | The name of the cron job.                                         | _required_                           |
+| `expression`          | `str`                     | The cron expression that defines the schedule for the cron job.   | _required_                           |
+| `input`               | `TWorkflowInput`          | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata for the cron job.                             | `{}`                                 |
+| `priority`            | `int \| None`             | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
+
+Returns:
+
+| Type            | Description                                                 |
+| --------------- | ----------------------------------------------------------- |
+| `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
+
+#### `aio_create_cron`
+
+Create a cron job for the workflow.
+
+Parameters:
+
+| Name                  | Type                      | Description                                                       | Default                              |
+| --------------------- | ------------------------- | ----------------------------------------------------------------- | ------------------------------------ |
+| `cron_name`           | `str`                     | The name of the cron job.                                         | _required_                           |
+| `expression`          | `str`                     | The cron expression that defines the schedule for the cron job.   | _required_                           |
+| `input`               | `TWorkflowInput`          | The input data for the workflow.                                  | `cast(TWorkflowInput, EmptyModel())` |
+| `additional_metadata` | `JSONSerializableMapping` | Additional metadata for the cron job.                             | `{}`                                 |
+| `priority`            | `int \| None`             | The priority of the cron job. Must be between 1 and 3, inclusive. | `None`                               |
+
+Returns:
+
+| Type            | Description                                                 |
+| --------------- | ----------------------------------------------------------- |
+| `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |

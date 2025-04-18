@@ -26,25 +26,9 @@ Methods:
 | `aio_get_result`  | Get the result of a workflow run by its external ID.                 |
 | `get_run_ref`     | Get a reference to a workflow run.                                   |
 
-## Functions
+### Functions
 
-### `get`
-
-Get workflow run details for a given workflow run ID.
-
-Parameters:
-
-| Name              | Type  | Description                                         | Default    |
-| ----------------- | ----- | --------------------------------------------------- | ---------- |
-| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
-
-Returns:
-
-| Type                   | Description                                             |
-| ---------------------- | ------------------------------------------------------- |
-| `V1WorkflowRunDetails` | Workflow run details for the specified workflow run ID. |
-
-### `aio_get`
+#### `get`
 
 Get workflow run details for a given workflow run ID.
 
@@ -60,7 +44,23 @@ Returns:
 | ---------------------- | ------------------------------------------------------- |
 | `V1WorkflowRunDetails` | Workflow run details for the specified workflow run ID. |
 
-### `list`
+#### `aio_get`
+
+Get workflow run details for a given workflow run ID.
+
+Parameters:
+
+| Name              | Type  | Description                                         | Default    |
+| ----------------- | ----- | --------------------------------------------------- | ---------- |
+| `workflow_run_id` | `str` | The ID of the workflow run to retrieve details for. | _required_ |
+
+Returns:
+
+| Type                   | Description                                             |
+| ---------------------- | ------------------------------------------------------- |
+| `V1WorkflowRunDetails` | Workflow run details for the specified workflow run ID. |
+
+#### `list`
 
 List task runs according to a set of filters.
 
@@ -85,7 +85,7 @@ Returns:
 | ------------------- | --------------------------------------------------- |
 | `V1TaskSummaryList` | A list of task runs matching the specified filters. |
 
-### `aio_list`
+#### `aio_list`
 
 List task runs according to a set of filters.
 
@@ -110,7 +110,7 @@ Returns:
 | ------------------- | --------------------------------------------------- |
 | `V1TaskSummaryList` | A list of task runs matching the specified filters. |
 
-### `create`
+#### `create`
 
 Trigger a new workflow run.
 
@@ -131,7 +131,7 @@ Returns:
 | ---------------------- | ------------------------------------------ |
 | `V1WorkflowRunDetails` | The details of the triggered workflow run. |
 
-### `aio_create`
+#### `aio_create`
 
 Trigger a new workflow run.
 
@@ -152,7 +152,7 @@ Returns:
 | ---------------------- | ------------------------------------------ |
 | `V1WorkflowRunDetails` | The details of the triggered workflow run. |
 
-### `replay`
+#### `replay`
 
 Replay a task or workflow run.
 
@@ -168,7 +168,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `aio_replay`
+#### `aio_replay`
 
 Replay a task or workflow run.
 
@@ -184,7 +184,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `bulk_replay`
+#### `bulk_replay`
 
 Replay task or workflow runs in bulk, according to a set of filters.
 
@@ -200,7 +200,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `aio_bulk_replay`
+#### `aio_bulk_replay`
 
 Replay task or workflow runs in bulk, according to a set of filters.
 
@@ -216,7 +216,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `cancel`
+#### `cancel`
 
 Cancel a task or workflow run.
 
@@ -232,7 +232,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `aio_cancel`
+#### `aio_cancel`
 
 Cancel a task or workflow run.
 
@@ -248,7 +248,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `bulk_cancel`
+#### `bulk_cancel`
 
 Cancel task or workflow runs in bulk, according to a set of filters.
 
@@ -264,7 +264,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `aio_bulk_cancel`
+#### `aio_bulk_cancel`
 
 Cancel task or workflow runs in bulk, according to a set of filters.
 
@@ -280,7 +280,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-### `get_result`
+#### `get_result`
 
 Get the result of a workflow run by its external ID.
 
@@ -296,7 +296,7 @@ Returns:
 | ------------------------- | ------------------------------- |
 | `JSONSerializableMapping` | The result of the workflow run. |
 
-### `aio_get_result`
+#### `aio_get_result`
 
 Get the result of a workflow run by its external ID.
 
@@ -312,7 +312,7 @@ Returns:
 | ------------------------- | ------------------------------- |
 | `JSONSerializableMapping` | The result of the workflow run. |
 
-### `get_run_ref`
+#### `get_run_ref`
 
 Get a reference to a workflow run.
 

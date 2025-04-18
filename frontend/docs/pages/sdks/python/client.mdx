@@ -1,6 +1,6 @@
 # Hatchet Python SDK Reference
 
-This is the Python SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](../../home) for an introduction to getting your first tasks running.
+This is the Python SDK reference, documenting methods available for interacting with Hatchet resources. Check out the [user guide](../../home) for an introduction for getting your first tasks running.
 
 ## The Hatchet Python Client
 
@@ -8,7 +8,7 @@ Main client for interacting with the Hatchet SDK.
 
 This class provides access to various client interfaces and utility methods for working with Hatchet workers, workflows, tasks, and our various feature clients.
 
-### Methods
+Methods:
 
 | Name           | Description                                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -17,57 +17,57 @@ This class provides access to various client interfaces and utility methods for 
 | `task`         | A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.           |
 | `durable_task` | A decorator to transform a function into a standalone Hatchet _durable_ task that runs as part of a workflow. |
 
-## Attributes
+### Attributes
 
-### `cron`
+#### `cron`
 
 The cron client is a client for managing cron workflows within Hatchet.
 
-### `event`
+#### `event`
 
 The event client, which you can use to push events to Hatchet.
 
-### `logs`
+#### `logs`
 
 The logs client is a client for interacting with Hatchet's logs API.
 
-### `metrics`
+#### `metrics`
 
 The metrics client is a client for reading metrics out of Hatchet's metrics API.
 
-### `rate_limits`
+#### `rate_limits`
 
 The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
 
-### `runs`
+#### `runs`
 
 The runs client is a client for interacting with task and workflow runs within Hatchet.
 
-### `scheduled`
+#### `scheduled`
 
 The scheduled client is a client for managing scheduled workflows within Hatchet.
 
-### `workers`
+#### `workers`
 
 The workers client is a client for managing workers programmatically within Hatchet.
 
-### `workflows`
+#### `workflows`
 
 The workflows client is a client for managing workflows programmatically within Hatchet.
 
 Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
 
-### `tenant_id`
+#### `tenant_id`
 
 The tenant id you're operating in.
 
-### `namespace`
+#### `namespace`
 
 The current namespace you're interacting with.
 
-## Functions
+### Functions
 
-### `worker`
+#### `worker`
 
 Create a Hatchet worker on which to run workflows.
 
@@ -76,7 +76,7 @@ Parameters:
 | Name            | Type                         | Description                                                                                                                                                  | Default    |
 | --------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
 | `name`          | `str`                        | The name of the worker.                                                                                                                                      | _required_ |
-| `slots`         | `int`                        | The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time.                          | `100`      |
+| `slots`         | `int`                        | The number of workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time                           | `100`      |
 | `durable_slots` | `int`                        | The number of durable workflow slots on the worker. In other words, the number of concurrent tasks the worker can run at any point in time that are durable. | `1000`     |
 | `labels`        | `dict[str, Union[str, int]]` | A dictionary of labels to assign to the worker. For more details, view examples on affinity and worker labels.                                               | `{}`       |
 | `workflows`     | `list[BaseWorkflow[Any]]`    | A list of workflows to register on the worker, as a shorthand for calling `register_workflow` on each or `register_workflows` on all of them.                | `[]`       |
@@ -88,7 +88,7 @@ Returns:
 | -------- | -------------------------------------------------------------------------------------------------------------- |
 | `Worker` | The created `Worker` object, which exposes an instance method `start` which can be called to start the worker. |
 
-### `workflow`
+#### `workflow`
 
 Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
 
@@ -97,12 +97,12 @@ Parameters:
 | Name               | Type                                                           | Description                                                                                                                                                                                                                                                                       | Default          |
 | ------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `name`             | `str`                                                          | The name of the workflow.                                                                                                                                                                                                                                                         | _required_       |
-| `description`      | `str \| None`                                                  | A description for the workflow.                                                                                                                                                                                                                                                   | `None`           |
+| `description`      | `str \| None`                                                  | A description for the workflow                                                                                                                                                                                                                                                    | `None`           |
 | `input_validator`  | `Type[TWorkflowInput] \| None`                                 | A Pydantic model to use as a validator for the `input` to the tasks in the workflow. If no validator is provided, defaults to an `EmptyModel` under the hood. The `EmptyModel` is a Pydantic model with no fields specified, and with the `extra` config option set to `"allow"`. | `None`           |
 | `on_events`        | `list[str]`                                                    | A list of event triggers for the workflow - events which cause the workflow to be run.                                                                                                                                                                                            | `[]`             |
 | `on_crons`         | `list[str]`                                                    | A list of cron triggers for the workflow.                                                                                                                                                                                                                                         | `[]`             |
-| `version`          | `str \| None`                                                  | A version for the workflow.                                                                                                                                                                                                                                                       | `None`           |
-| `sticky`           | `StickyStrategy \| None`                                       | A sticky strategy for the workflow.                                                                                                                                                                                                                                               | `None`           |
+| `version`          | `str \| None`                                                  | A version for the workflow                                                                                                                                                                                                                                                        | `None`           |
+| `sticky`           | `StickyStrategy \| None`                                       | A sticky strategy for the workflow                                                                                                                                                                                                                                                | `None`           |
 | `default_priority` | `int`                                                          | The priority of the workflow. Higher values will cause this workflow to have priority in scheduling over other, lower priority ones.                                                                                                                                              | `1`              |
 | `concurrency`      | `ConcurrencyExpression \| list[ConcurrencyExpression] \| None` | A concurrency object controlling the concurrency settings for this workflow.                                                                                                                                                                                                      | `None`           |
 | `task_defaults`    | `TaskDefaults`                                                 | A `TaskDefaults` object controlling the default task settings for this workflow.                                                                                                                                                                                                  | `TaskDefaults()` |
@@ -113,7 +113,7 @@ Returns:
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `Workflow[EmptyModel] \| Workflow[TWorkflowInput]` | The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on. |
 
-### `task`
+#### `task`
 
 A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.
 
@@ -144,7 +144,7 @@ Returns:
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]] \| Callable[[Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]]` | A decorator which creates a `Standalone` task object. |
 
-### `durable_task`
+#### `durable_task`
 
 A decorator to transform a function into a standalone Hatchet _durable_ task that runs as part of a workflow.
 
