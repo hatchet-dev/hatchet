@@ -11,8 +11,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 // Populator provides methods to access and populate resources.
@@ -415,6 +418,34 @@ func (p *PopulateGetter) GetTenant() (*dbsqlc.Tenant, error) {
 	return tenant, nil
 }
 
+func (p *PopulateGetter) GetUser() (*dbsqlc.User, error) {
+	userValue := p.c.Get("user")
+	if userValue == nil {
+		return nil, ErrNotFound
+	}
+
+	user, ok := userValue.(*dbsqlc.User)
+	if !ok || user == nil {
+		return nil, ErrNotFound
+	}
+
+	return user, nil
+}
+
+func (p *PopulateGetter) GetTenantMember() (*dbsqlc.PopulateTenantMembersRow, error) {
+	tenantMemberValue := p.c.Get("tenant-member")
+	if tenantMemberValue == nil {
+		return nil, ErrNotFound
+	}
+
+	tenantMember, ok := tenantMemberValue.(*dbsqlc.PopulateTenantMembersRow)
+	if !ok || tenantMember == nil {
+		return nil, ErrNotFound
+	}
+
+	return tenantMember, nil
+}
+
 func (p *PopulateGetter) GetCronWorkflow() (*dbsqlc.GetCronWorkflowByIdRow, error) {
 	cronValue := p.c.Get("cron-workflow")
 	if cronValue == nil {
@@ -427,4 +458,200 @@ func (p *PopulateGetter) GetCronWorkflow() (*dbsqlc.GetCronWorkflowByIdRow, erro
 	}
 
 	return cron, nil
+}
+
+func (p *PopulateGetter) GetWorkflow() (*dbsqlc.GetWorkflowByIdRow, error) {
+	workflowValue := p.c.Get("workflow")
+	if workflowValue == nil {
+		return nil, ErrNotFound
+	}
+
+	workflow, ok := workflowValue.(*dbsqlc.GetWorkflowByIdRow)
+	if !ok || workflow == nil {
+		return nil, ErrNotFound
+	}
+
+	return workflow, nil
+}
+
+func (p *PopulateGetter) GetAPIToken() (*dbsqlc.APIToken, error) {
+	apiTokenValue := p.c.Get("api-token")
+	if apiTokenValue == nil {
+		return nil, ErrNotFound
+	}
+
+	apiToken, ok := apiTokenValue.(*dbsqlc.APIToken)
+	if !ok || apiToken == nil {
+		return nil, ErrNotFound
+	}
+
+	return apiToken, nil
+}
+
+func (p *PopulateGetter) GetEvent() (*dbsqlc.Event, error) {
+	eventValue := p.c.Get("event")
+	if eventValue == nil {
+		return nil, ErrNotFound
+	}
+
+	event, ok := eventValue.(*dbsqlc.Event)
+	if !ok || event == nil {
+		return nil, ErrNotFound
+	}
+
+	return event, nil
+}
+
+func (p *PopulateGetter) GetSNSIntegration() (*dbsqlc.SNSIntegration, error) {
+	snsIntegrationValue := p.c.Get("sns-integration")
+	if snsIntegrationValue == nil {
+		return nil, ErrNotFound
+	}
+
+	snsIntegration, ok := snsIntegrationValue.(*dbsqlc.SNSIntegration)
+	if !ok || snsIntegration == nil {
+		return nil, ErrNotFound
+	}
+
+	return snsIntegration, nil
+}
+
+func (p *PopulateGetter) GetStepRun() (*repository.GetStepRunFull, error) {
+	stepRunValue := p.c.Get("step-run")
+	if stepRunValue == nil {
+		return nil, ErrNotFound
+	}
+
+	stepRun, ok := stepRunValue.(*repository.GetStepRunFull)
+	if !ok || stepRun == nil {
+		return nil, ErrNotFound
+	}
+
+	return stepRun, nil
+}
+
+func (p *PopulateGetter) GetSlackWebhook() (*dbsqlc.SlackAppWebhook, error) {
+	slackWebhookValue := p.c.Get("slack-webhook")
+	if slackWebhookValue == nil {
+		return nil, ErrNotFound
+	}
+
+	slackWebhook, ok := slackWebhookValue.(*dbsqlc.SlackAppWebhook)
+	if !ok || slackWebhook == nil {
+		return nil, ErrNotFound
+	}
+
+	return slackWebhook, nil
+}
+
+func (p *PopulateGetter) GetTenantInvite() (*dbsqlc.TenantInviteLink, error) {
+	tenantInviteValue := p.c.Get("tenant-invite")
+	if tenantInviteValue == nil {
+		return nil, ErrNotFound
+	}
+
+	tenantInvite, ok := tenantInviteValue.(*dbsqlc.TenantInviteLink)
+	if !ok || tenantInvite == nil {
+		return nil, ErrNotFound
+	}
+
+	return tenantInvite, nil
+}
+
+func (p *PopulateGetter) GetAlertEmailGroup() (*dbsqlc.TenantAlertEmailGroup, error) {
+	alertGroupValue := p.c.Get("alert-email-group")
+	if alertGroupValue == nil {
+		return nil, ErrNotFound
+	}
+
+	alertGroup, ok := alertGroupValue.(*dbsqlc.TenantAlertEmailGroup)
+	if !ok || alertGroup == nil {
+		return nil, ErrNotFound
+	}
+
+	return alertGroup, nil
+}
+
+func (p *PopulateGetter) GetWorkflowRun() (*dbsqlc.GetWorkflowRunByIdRow, error) {
+	workflowRunValue := p.c.Get("workflow-run")
+	if workflowRunValue == nil {
+		return nil, ErrNotFound
+	}
+
+	workflowRun, ok := workflowRunValue.(*dbsqlc.GetWorkflowRunByIdRow)
+	if !ok || workflowRun == nil {
+		return nil, ErrNotFound
+	}
+
+	return workflowRun, nil
+}
+
+func (p *PopulateGetter) GetScheduledWorkflow() (*dbsqlc.ListScheduledWorkflowsRow, error) {
+	scheduledValue := p.c.Get("scheduled-workflow-run")
+	if scheduledValue == nil {
+		return nil, ErrNotFound
+	}
+
+	scheduled, ok := scheduledValue.(*dbsqlc.ListScheduledWorkflowsRow)
+	if !ok || scheduled == nil {
+		return nil, ErrNotFound
+	}
+
+	return scheduled, nil
+}
+
+func (p *PopulateGetter) GetWorker() (*dbsqlc.GetWorkerByIdRow, error) {
+	workerValue := p.c.Get("worker")
+	if workerValue == nil {
+		return nil, ErrNotFound
+	}
+
+	worker, ok := workerValue.(*dbsqlc.GetWorkerByIdRow)
+	if !ok || worker == nil {
+		return nil, ErrNotFound
+	}
+
+	return worker, nil
+}
+
+func (p *PopulateGetter) GetWebhookWorker() (*dbsqlc.WebhookWorker, error) {
+	webhookValue := p.c.Get("webhook")
+	if webhookValue == nil {
+		return nil, ErrNotFound
+	}
+
+	webhook, ok := webhookValue.(*dbsqlc.WebhookWorker)
+	if !ok || webhook == nil {
+		return nil, ErrNotFound
+	}
+
+	return webhook, nil
+}
+
+func (p *PopulateGetter) GetTask() (*sqlcv1.V1TasksOlap, error) {
+	taskValue := p.c.Get("task")
+	if taskValue == nil {
+		return nil, ErrNotFound
+	}
+
+	task, ok := taskValue.(*sqlcv1.V1TasksOlap)
+	if !ok || task == nil {
+		return nil, ErrNotFound
+	}
+
+	return task, nil
+}
+
+func (p *PopulateGetter) GetV1WorkflowRun() (*v1.V1WorkflowRunPopulator, error) {
+	workflowRunValue := p.c.Get("v1-workflow-run")
+	if workflowRunValue == nil {
+		return nil, ErrNotFound
+	}
+
+	workflowRun, ok := workflowRunValue.(*v1.V1WorkflowRunPopulator)
+	if !ok || workflowRun == nil {
+		return nil, ErrNotFound
+	}
+
+	return workflowRun, nil
 }

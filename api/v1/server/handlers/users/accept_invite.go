@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -15,7 +16,12 @@ import (
 )
 
 func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInviteAcceptRequestObject) (gen.TenantInviteAcceptResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
+	populator := populator.FromContext(ctx)
+
+	user, err := populator.GetUser()
+	if err != nil {
+		return nil, err
+	}
 	userId := sqlchelpers.UUIDToStr(user.ID)
 
 	// validate the request

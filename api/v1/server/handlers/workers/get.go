@@ -14,7 +14,9 @@ import (
 )
 
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +32,12 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 }
 
 func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	worker := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
+	populator := populator.FromContext(ctx)
+
+	worker, err := populator.GetWorker()
+	if err != nil {
+		return nil, err
+	}
 
 	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
@@ -85,7 +92,12 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 }
 
 func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
-	workerV0 := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
+	populator := populator.FromContext(ctx)
+
+	workerV0, err := populator.GetWorker()
+	if err != nil {
+		return nil, err
+	}
 
 	worker, err := t.config.V1.Workers().GetWorkerById(sqlchelpers.UUIDToStr(workerV0.Worker.ID))
 

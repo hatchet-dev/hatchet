@@ -7,18 +7,23 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
 func (t *TasksService) V1LogLineList(ctx echo.Context, request gen.V1LogLineListRequestObject) (gen.V1LogLineListResponseObject, error) {
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
+
+	task, err := populator.GetTask()
+	if err != nil {
+		return nil, err
+	}
 
 	logLines, err := t.config.V1.Logs().ListLogLines(ctx.Request().Context(), tenantId, task.ID, task.InsertedAt, &v1.ListLogsOpts{})
 

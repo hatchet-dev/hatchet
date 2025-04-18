@@ -11,17 +11,21 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
+	workflow, err := populator.GetWorkflow()
+	if err != nil {
+		return nil, err
+	}
 
 	var workflowVersionId string
 

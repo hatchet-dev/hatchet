@@ -16,12 +16,17 @@ import (
 )
 
 func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V1WorkflowRunGetRequestObject) (gen.V1WorkflowRunGetResponseObject, error) {
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
+	rawWorkflowRun, err := populator.GetV1WorkflowRun()
+	if err != nil {
+		return nil, err
+	}
 
 	requestContext := ctx.Request().Context()
 

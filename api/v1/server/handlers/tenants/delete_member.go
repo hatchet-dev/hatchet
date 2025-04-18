@@ -11,12 +11,17 @@ import (
 )
 
 func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantMemberDeleteRequestObject) (gen.TenantMemberDeleteResponseObject, error) {
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
+	tenantMember, err := populator.GetTenantMember()
+	if err != nil {
+		return nil, err
+	}
 
 	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER {
 		return gen.TenantMemberDelete403JSONResponse(

@@ -3,14 +3,19 @@ package workflows
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowRunGetRequestObject) (gen.WorkflowRunGetResponseObject, error) {
-	run := ctx.Get("workflow-run").(*dbsqlc.GetWorkflowRunByIdRow)
+	populator := populator.FromContext(ctx)
+
+	run, err := populator.GetWorkflowRun()
+	if err != nil {
+		return nil, err
+	}
 
 	jobs, err := t.config.APIRepository.JobRun().ListJobRunByWorkflowRunId(
 		ctx.Request().Context(),

@@ -14,12 +14,17 @@ import (
 )
 
 func (t *LogService) LogLineList(ctx echo.Context, request gen.LogLineListRequestObject) (gen.LogLineListResponseObject, error) {
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
+	stepRun, err := populator.GetStepRun()
+	if err != nil {
+		return nil, err
+	}
 
 	limit := 1000
 	offset := 0

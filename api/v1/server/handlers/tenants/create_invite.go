@@ -17,13 +17,21 @@ import (
 )
 
 func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantInviteCreateRequestObject) (gen.TenantInviteCreateResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	user, err := populator.GetUser()
+	if err != nil {
+		return nil, err
+	}
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
+	tenantMember, err := populator.GetTenantMember()
+	if err != nil {
+		return nil, err
+	}
 	if !t.config.Runtime.AllowInvites {
 		t.config.Logger.Warn().Msg("tenant invites are disabled")
 		return gen.TenantInviteCreate400JSONResponse(

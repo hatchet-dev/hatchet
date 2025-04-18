@@ -20,12 +20,17 @@ import (
 )
 
 func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRunUpdateRerunRequestObject) (gen.StepRunUpdateRerunResponseObject, error) {
-	tenant, err := populator.FromContext(ctx).GetTenant()
+	populator := populator.FromContext(ctx)
+
+	tenant, err := populator.GetTenant()
 	if err != nil {
 		return nil, err
 	}
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
+	stepRun, err := populator.GetStepRun()
+	if err != nil {
+		return nil, err
+	}
 
 	// preflight check to verify step run status and worker availability
 	err = t.config.EngineRepository.StepRun().PreflightCheckReplayStepRun(
