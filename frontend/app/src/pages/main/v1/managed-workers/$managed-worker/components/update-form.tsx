@@ -16,7 +16,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Label } from '@/components/v1/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Input } from '@/components/v1/ui/input';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
 import {
   getRepoName,
   getRepoOwner,
@@ -139,7 +138,7 @@ export default function UpdateWorkerForm({
           },
         ],
       },
-      envVars: managedWorker.envVars,
+      // envVars: managedWorker.envVars,
       isIac: managedWorker.isIac,
       runtimeConfig:
         !managedWorker.isIac && managedWorker.runtimeConfigs?.length == 1
@@ -212,9 +211,9 @@ export default function UpdateWorkerForm({
     ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
   });
 
-  const [envVars, setEnvVars] = useState<KeyValueType[]>(
-    envVarsRecordToKeyValueType(managedWorker.envVars),
-  );
+  // const [envVars, setEnvVars] = useState<KeyValueType[]>(
+  //   envVarsRecordToKeyValueType(managedWorker.envVars),
+  // );
 
   const [isIac, setIsIac] = useState(managedWorker.isIac);
   const [scalingType, setScalingType] = useState<ScalingType>(
@@ -564,7 +563,7 @@ export default function UpdateWorkerForm({
                 Configure the runtime settings for this service.
               </div>
               <Label>Environment Variables</Label>
-              <EnvGroupArray
+              {/* <EnvGroupArray
                 values={envVars}
                 setValues={(value) => {
                   setEnvVars(value);
@@ -576,7 +575,7 @@ export default function UpdateWorkerForm({
                     }, {}),
                   );
                 }}
-              />
+              /> */}
               {envVarsError && (
                 <div className="text-sm text-red-500">{envVarsError}</div>
               )}
@@ -1007,16 +1006,4 @@ export default function UpdateWorkerForm({
       </div>
     </>
   );
-}
-
-function envVarsRecordToKeyValueType(
-  envVars: Record<string, string>,
-): KeyValueType[] {
-  return Object.entries(envVars).map(([key, value]) => ({
-    key,
-    value,
-    hidden: false,
-    locked: false,
-    deleted: false,
-  }));
 }

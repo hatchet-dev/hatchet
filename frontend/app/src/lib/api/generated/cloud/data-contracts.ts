@@ -230,6 +230,7 @@ export interface ManagedWorkerBuildConfig {
 export interface ManagedWorkerSecret {
   key: string;
   id: string;
+  hint: string;
 }
 
 export interface CreateManagedWorkerSecretRequest {
