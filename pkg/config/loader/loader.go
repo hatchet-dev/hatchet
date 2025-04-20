@@ -486,7 +486,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		})
 	}
 
-	encryptionSvc, err := loadEncryptionSvc(cf)
+	encryptionSvc, err := LoadEncryptionSvc(cf)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load encryption service: %w", err)
@@ -618,7 +618,7 @@ func getStrArr(v string) []string {
 	return strings.Split(v, " ")
 }
 
-func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
+func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
 	var err error
 
 	hasLocalMasterKeyset := cf.Encryption.MasterKeyset != "" || cf.Encryption.MasterKeysetFile != ""
