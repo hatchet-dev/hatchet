@@ -29,7 +29,7 @@ const SplitButton = React.forwardRef<HTMLButtonElement, SplitButtonProps>(
               variant={props.variant}
               size={props.size}
               disabled={props.disabled}
-              className="rounded-l-none border-l px-0"
+              className="rounded-l-none px-1"
             >
               <ChevronDown className="h-3 w-3" />
               <span className="sr-only">More options</span>

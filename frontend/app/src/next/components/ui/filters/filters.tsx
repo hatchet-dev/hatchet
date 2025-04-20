@@ -3,7 +3,7 @@ import { cn } from '@/next/lib/utils';
 import { Input } from '@/next/components/ui/input';
 import { useFilters } from '@/next/hooks/use-filters';
 import { Badge } from '@/next/components/ui/badge';
-import { Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/next/components/ui/button';
 import {
   Command,
@@ -19,6 +19,7 @@ import {
 } from '@/next/components/ui/popover';
 import useDefinitions from '@/next/hooks/use-definitions';
 import { useMemo } from 'react';
+import { PlusCircledIcon } from '@radix-ui/react-icons';
 
 interface FiltersProps {
   children?: React.ReactNode;
@@ -36,7 +37,7 @@ export function FilterGroup({ className, children, ...props }: FiltersProps) {
     <div
       role="filters"
       aria-label="filters"
-      className={cn('flex w-full items-center gap-2', className)}
+      className={cn('flex w-full items-center gap-2 md:gap-6', className)}
       {...props}
     >
       {children}
@@ -69,7 +70,7 @@ export function FilterText<T>({
         )
       }
       placeholder={placeholder}
-      className={cn('w-full', className)}
+      className={cn('flex-grow h-8 rounded-md px-3 text-xs', className)}
     />
   );
 }
@@ -130,10 +131,12 @@ export function FilterSelect<T, A>({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size="sm"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className="w-fit min-w-fit gap-2"
         >
+          <PlusCircledIcon className="h-4 w-4" />
           <div className="flex flex-wrap gap-1">
             {selectedOptions.length > 0 ? (
               selectedOptions.map((option, index) => (
@@ -142,13 +145,12 @@ export function FilterSelect<T, A>({
                 </Badge>
               ))
             ) : (
-              <span className="text-muted-foreground">{placeholder}</span>
+              <span className="text-foreground">{placeholder}</span>
             )}
           </div>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
+      <PopoverContent className="w-full p-0" side="bottom" align="start">
         <Command>
           <CommandInput placeholder={placeholder} />
           <CommandEmpty>No results found.</CommandEmpty>
@@ -282,33 +284,36 @@ export function FilterKeyValue<T>({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-2">
-        {currentFilters.map((filter, index) => {
-          const [key, value] = filter.split(':');
-          return (
-            <Badge
-              key={index}
-              variant="secondary"
-              className="flex items-center gap-1"
-            >
-              <span>{key === value ? value : `${key}: ${value}`}</span>
-              <button
-                onClick={() => handleRemoveFilter(index)}
-                className="ml-1 hover:text-destructive"
+      {currentFilters.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {currentFilters.map((filter, index) => {
+            const [key, value] = filter.split(':');
+            return (
+              <Badge
+                key={index}
+                variant="secondary"
+                className="flex items-center gap-1"
               >
-                ×
-              </button>
-            </Badge>
-          );
-        })}
-      </div>
+                <span>{key === value ? value : `${key}: ${value}`}</span>
+                <button
+                  onClick={() => handleRemoveFilter(index)}
+                  className="ml-1 hover:brightness-75"
+                >
+                  ×
+                </button>
+              </Badge>
+            );
+          })}
+        </div>
+      )}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className="w-full justify-start text-muted-foreground"
+            size="sm"
+            className="w-full justify-start text-foreground gap-2"
           >
-            <Plus className="h-4 w-4 mr-2" />
+            <PlusCircledIcon className="h-4 w-4" />
             {placeholder}
           </Button>
         </PopoverTrigger>

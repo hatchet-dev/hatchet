@@ -26,6 +26,8 @@ type RunQuery = Parameters<typeof api.v1WorkflowRunList>[1];
 
 // Types for filters and pagination
 export interface RunsFilters {
+  createdAfter?: string;
+  createdBefore?: string;
   statuses?: V1TaskStatus[];
   additional_metadata?: string[];
   workflows_ids?: string[];
@@ -83,12 +85,20 @@ export function useRuns({
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
+      // TODO: createdAfter should always be set, and rename this
+      const since =
+        filters.createdAfter ||
+        new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
+      const until =
+        filters.createdBefore ||
+        new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+
       // Convert pagination and filters to API query format
       const query: RunQuery = {
         offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
         limit: pagination.pageSize,
-        since: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        until: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
+        since: since,
+        until: until,
         ...filters,
         only_tasks: !!filters.only_tasks,
       };
@@ -109,12 +119,20 @@ export function useRuns({
         return [] as V1TaskRunMetrics;
       }
 
+      // TODO: createdAfter should always be set, and rename this
+      const since =
+        filters.createdAfter ||
+        new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
+      const until =
+        filters.createdBefore ||
+        new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+
       // Convert pagination and filters to API query format
       const query: RunQuery = {
         offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
         limit: pagination.pageSize,
-        since: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        until: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
+        since: since,
+        until: until,
         ...filters,
         only_tasks: !!filters.only_tasks,
       };

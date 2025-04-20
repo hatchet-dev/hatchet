@@ -337,7 +337,7 @@ export default function RunDetailPage() {
                   : 'Cannot cancel the run because it is not running or queued'
               }
               variant="outline"
-              size="icon"
+              size="sm"
               disabled={!canCancel || cancel.isPending}
               onClick={async () => cancel.mutateAsync({ tasks: tasks || [] })}
               dropdownItems={[
@@ -356,7 +356,7 @@ export default function RunDetailPage() {
               ]}
             >
               <MdOutlineCancel className="h-4 w-4" />
-              <span className="sr-only">Cancel</span>
+              Cancel
             </SplitButton>
           </HeadlineActionItem>
           <HeadlineActionItem>
@@ -367,7 +367,7 @@ export default function RunDetailPage() {
                   : 'Cannot replay the run because there are no tasks'
               }
               variant="outline"
-              size="icon"
+              size="sm"
               disabled={!canReplay || replay.isPending}
               onClick={async () => replay.mutateAsync({ tasks: tasks || [] })}
               dropdownItems={[
@@ -402,7 +402,7 @@ export default function RunDetailPage() {
               ]}
             >
               <MdOutlineReplay className="h-4 w-4" />
-              <span className="sr-only">Replay</span>
+              Replay
             </SplitButton>
           </HeadlineActionItem>
         </HeadlineActions>

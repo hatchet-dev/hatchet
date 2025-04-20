@@ -191,6 +191,12 @@ getTaskStatusMetrics:
         schema:
           type: string
           format: date-time
+      - description: The end time to get metrics for
+        in: query
+        name: until
+        schema:
+          type: string
+          format: date-time
       - description: The workflow id to find runs for
         in: query
         name: workflow_ids

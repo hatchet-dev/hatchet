@@ -39,8 +39,8 @@ export default function DashboardLayout() {
           <AppSidebar>
             <div className="flex flex-col h-screen">
               <div className="sticky top-0 z-50 w-full bg-background mt-3">
-                <header className="flex h-16 items-center gap-2 border-b">
-                  <div className="flex w-full items-center justify-between px-4">
+                <header className="flex h-16 items-center gap-2 border-b px-4 md:px-8 lg:px-12">
+                  <div className="flex w-full items-center justify-between">
                     <div className="flex items-center gap-2">
                       {isMobile && (
                         <>

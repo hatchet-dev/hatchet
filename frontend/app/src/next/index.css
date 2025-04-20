@@ -139,7 +139,7 @@ body {
 }
 
 .spark:before {
-  content: "";
+  content: '';
   position: absolute;
   width: 200%;
   aspect-ratio: 1;
@@ -172,8 +172,6 @@ body {
   z-index: 1;
   color: rgb(203 213 225);
 }
-
-
 
 /* rjsf JSON Schema Form style hack */
 .rjsf {
@@ -255,7 +253,7 @@ body {
   @apply bg-primary text-primary-foreground hover:bg-primary/90;
 }
 
-.rjsf textarea{
+.rjsf textarea {
   @apply flex h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
 }
 /* END rjsf JSON Schema Form style hack */
@@ -267,4 +265,25 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.shiki {
+  padding: 15px !important;
+  border-radius: 10px !important;
+  background-color: #ccc;
+  font-size: 0.8rem;
+}
+
+html.dark .nextra-code-block pre,
+.dark .shiki {
+  background-color: transparent !important;
+}
+
+pre.shiki {
+  overflow-x: auto;
+}
+
+/* High contrast mode */
+.contrast-more .shiki {
+  filter: contrast(1.5);
 }

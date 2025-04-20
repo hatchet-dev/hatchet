@@ -54,8 +54,47 @@ export const columns: ColumnDef<V1TaskSummary>[] = [
       <DataTableColumnHeader column={column} title="Run ID" />
     ),
     cell: ({ row }) => <RunId taskRun={row.original} />,
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: false,
+  },
+  {
+    accessorKey: 'workflowName',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Definition" />
+    ),
+    cell: ({ row }) => <div>{row.getValue('workflowName')}</div>,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'createdAt',
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title="Created"
+        orderBy={WorkflowRunOrderByField.CreatedAt}
+      />
+    ),
+    cell: ({ row }) => (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Time date={row.getValue('createdAt')} variant="timeSince" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="bg-muted">
+            <Time
+              date={row.getValue('createdAt')}
+              variant="timestamp"
+              className="font-mono text-foreground"
+            />
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    ),
+    enableSorting: false,
+    enableHiding: true,
   },
   {
     accessorKey: 'startedAt',
@@ -76,58 +115,22 @@ export const columns: ColumnDef<V1TaskSummary>[] = [
           <Tooltip>
             <TooltipTrigger asChild>
               <span>
-                <Time
-                  date={startedAt}
-                  variant="compact"
-                  className="font-mono text-xs text-muted-foreground whitespace-nowrap"
-                  asChild
-                />
+                <Time date={startedAt} variant="timeSince" />
               </span>
             </TooltipTrigger>
-            <TooltipContent>
-              <Time date={startedAt} variant="timeSince" asChild />
+            <TooltipContent className="bg-muted">
+              <Time
+                date={startedAt}
+                variant="timestamp"
+                asChild
+                className="font-mono text-foreground"
+              />
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       );
     },
-    enableSorting: true,
-    enableHiding: true,
-  },
-
-  {
-    accessorKey: 'workflowName',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Workflow" />
-    ),
-    cell: ({ row }) => <div>{row.getValue('workflowName')}</div>,
-    enableSorting: true,
-    enableHiding: true,
-  },
-  {
-    accessorKey: 'createdAt',
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Created"
-        orderBy={WorkflowRunOrderByField.CreatedAt}
-      />
-    ),
-    cell: ({ row }) => (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Time date={row.getValue('createdAt')} variant="timeSince" />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <Time date={row.getValue('createdAt')} variant="timestamp" />
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    ),
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: true,
   },
   {

@@ -18,16 +18,13 @@ import {
 import { V1TaskStatus } from '@/next/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
-import { Plus } from 'lucide-react';
-import { Button } from '@/next/components/ui/button';
 import { RunsMetricsView } from '../runs-metrics/runs-metrics';
-import { useMemo, useState } from 'react';
-import { TriggerRunModal } from '../trigger-run-modal';
+import { useMemo } from 'react';
 
 export function RunsTable() {
   const { filters } = useFilters<RunsFilters>();
   const pagination = usePagination();
-  const [showTriggerModal, setShowTriggerModal] = useState(false);
+
   const {
     data: runs,
     metrics,
@@ -57,7 +54,8 @@ export function RunsTable() {
   }, [runs]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 mt-4">
+      <RunsMetricsView metrics={metrics} />
       <FilterGroup>
         <FilterSelect<RunsFilters, V1TaskStatus[]>
           name="statuses"
@@ -72,6 +70,11 @@ export function RunsTable() {
             { label: 'Queued', value: V1TaskStatus.QUEUED },
           ]}
         />
+        <FilterTaskSelect<RunsFilters>
+          name="workflows_ids"
+          placeholder="Name"
+          multi
+        />
         <FilterSelect<RunsFilters, boolean>
           name="is_root_task"
           value={filters.is_root_task}
@@ -81,24 +84,12 @@ export function RunsTable() {
             { label: 'No', value: false },
           ]}
         />
-        <FilterTaskSelect<RunsFilters>
-          name="workflows_ids"
-          placeholder="Task Name"
-          multi
-        />
         <FilterKeyValue<RunsFilters>
           name="additional_metadata"
-          placeholder="Additional Metadata"
+          placeholder="Metadata"
           options={additionalMetaOpts}
         />
       </FilterGroup>
-      <div className="flex justify-between items-center">
-        <RunsMetricsView metrics={metrics} />
-        <Button onClick={() => setShowTriggerModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Trigger Run
-        </Button>
-      </div>
       <DataTable
         columns={columns}
         data={runs || []}
@@ -120,10 +111,6 @@ export function RunsTable() {
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>
-      <TriggerRunModal
-        show={showTriggerModal}
-        onClose={() => setShowTriggerModal(false)}
-      />
     </div>
   );
 }

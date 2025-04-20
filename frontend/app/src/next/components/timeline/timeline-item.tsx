@@ -192,7 +192,7 @@ export function TimelineItem({ item, onClick }: TimelineItemProps) {
 }
 
 function RunBar({ status }: { status: V1TaskStatus }) {
-  const statusColorClass = RunStatusConfigs[status].colors;
+  const statusColorClass = RunStatusConfigs[status].primary;
 
   return (
     <div className="flex flex-row items-center h-full rounded-md overflow-hidden">
