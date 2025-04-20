@@ -5,7 +5,7 @@ import { simple } from './tasks/simple';
 async function main() {
   const worker = await hatchet.worker('simple-worker', {
     // 👀 Declare the workflows that the worker can execute
-    workflows: [simple],
+    workflows: [simple].map((task) => task(hatchet)),
     // 👀 Declare the number of concurrent task runs the worker can accept
     slots: 100,
   });

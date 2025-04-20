@@ -1,19 +1,20 @@
 // ❓ Declaring a Task
-import { hatchet } from '../hatchet-client';
+import { HatchetClient } from '@hatchet-dev/typescript-sdk';
 
 // (optional) Define the input type for the workflow
 export type SimpleInput = {
   Message: string;
 };
 
-export const simple = hatchet.task({
-  name: 'simple',
-  fn: (input: SimpleInput) => {
-    return {
-      TransformedMessage: input.Message.toLowerCase(),
-    };
-  },
-});
+export const simple = (client: HatchetClient) =>
+  client.task({
+    name: 'simple',
+    fn: (input: SimpleInput) => {
+      return {
+        TransformedMessage: input.Message.toLowerCase(),
+      };
+    },
+  });
 
 // !!
 
