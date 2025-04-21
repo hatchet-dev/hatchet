@@ -19,6 +19,7 @@ const GetWorkflowChart = ({ refetchInterval }: WorkflowChartProps) => {
   invariant(tenant, 'Tenant is required'); // TODO: REMOVE
 
   const workflowRunEventsMetricsQuery = useQuery({
+    // TODO: use a hook.
     ...queries.v1TaskRuns.pointMetrics(tenant?.metadata.id, {
       createdAfter: filters.createdAfter,
       finishedBefore: filters.createdBefore, // TODO: THIS ISN'T CORRECT
