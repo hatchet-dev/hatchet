@@ -5,6 +5,7 @@ import {
   V1TaskSummary,
   V1TaskStatus,
   WorkflowRunOrderByField,
+  V1WorkflowType,
 } from '@/lib/api';
 import { Time } from '@/next/components/ui/time';
 import {
@@ -14,13 +15,14 @@ import {
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
 import { DataTableColumnHeader } from './data-table-column-header';
-import { DataTableRowActions } from './data-table-row-actions';
 import { RunId } from '../run-id';
 import { RunsBadge } from '../runs-badge';
 import { Duration } from '@/next/components/ui/duration';
 import { AdditionalMetadata } from '@/next/components/ui/additional-meta';
 import { useFilters } from '@/next/hooks/use-filters';
 import { RunsFilters } from '@/next/hooks/use-runs';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 export const statusOptions = [
   { label: 'Pending', value: 'PENDING' },
@@ -55,14 +57,45 @@ export const columns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Run ID" />
     ),
-    cell: ({ row }) => (
-      <RunId
-        taskRun={row.original}
-        onClick={() => {
-          rowClicked(row.original);
-        }}
-      />
-    ),
+    cell: ({ row }) => {
+      const url =
+        row.original.type === V1WorkflowType.TASK
+          ? undefined
+          : ROUTES.runs.detail(row.original.taskExternalId || '');
+
+      return (
+        <div className="flex items-center gap-2">
+          <RunId
+            taskRun={row.original}
+            onClick={() => {
+              rowClicked(row.original);
+            }}
+          />
+          {url && (
+            <Link
+              to={url}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </Link>
+          )}
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -174,15 +207,6 @@ export const columns = (
     },
     enableSorting: false,
     enableHiding: true,
-  },
-  {
-    id: 'actions',
-    cell: ({ row }) => (
-      <div className="flex items-center justify-end h-full">
-        <DataTableRowActions row={row} />
-      </div>
-    ),
-    enableHiding: false,
   },
 ];
 

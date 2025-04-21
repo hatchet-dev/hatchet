@@ -123,6 +123,7 @@ export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
         emptyState={emptyState}
         isLoading={isLoading}
         selectedTaskId={selectedTaskId}
+        rowClicked={rowClicked}
       />
       <Pagination className="p-2 justify-between flex flex-row">
         <PageSizeSelector />

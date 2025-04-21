@@ -22,6 +22,9 @@ import {
   TableRow,
 } from '@/next/components/ui/table';
 import { cn } from '@/next/lib/utils';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
+import { V1WorkflowType } from '@/lib/api';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -29,6 +32,7 @@ interface DataTableProps<TData, TValue> {
   emptyState?: React.ReactNode;
   isLoading?: boolean;
   selectedTaskId?: string;
+  rowClicked?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -37,7 +41,9 @@ export function DataTable<TData, TValue>({
   emptyState,
   isLoading,
   selectedTaskId,
+  rowClicked,
 }: DataTableProps<TData, TValue>) {
+  const navigate = useNavigate();
   // Client-side state
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -88,8 +94,28 @@ export function DataTable<TData, TValue>({
     return table.getRowModel().rows.map((row) => {
       const isSelected =
         selectedTaskId === (row.original as any).taskExternalId;
+
+      const handleClick = () => {
+        if (rowClicked) {
+          rowClicked(row.original);
+        }
+      };
+
+      const handleDoubleClick = () => {
+        const task = row.original as any;
+        if (task.type !== V1WorkflowType.TASK) {
+          navigate(ROUTES.runs.detail(task.taskExternalId || ''));
+        }
+      };
+
       return (
-        <TableRow key={row.id} data-state={isSelected ? 'selected' : undefined}>
+        <TableRow
+          key={row.id}
+          data-state={isSelected ? 'selected' : undefined}
+          className="group cursor-pointer"
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+        >
           {row.getVisibleCells().map((cell) => (
             <TableCell
               key={cell.id}
@@ -107,6 +133,8 @@ export function DataTable<TData, TValue>({
     emptyState,
     selectedTaskId,
     columns.length,
+    rowClicked,
+    navigate,
   ]);
 
   return (
