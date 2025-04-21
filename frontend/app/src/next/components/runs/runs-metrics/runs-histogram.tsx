@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { DataPoint } from '@/next/components/ui/charts/zoomable';
 import { ZoomableChart } from '@/next/components/ui/charts/zoomable';
-import { queries } from '@/next/lib/api/queries';
 import { RunsFilters } from '@/next/hooks/use-runs';
 import { useFilters } from '@/next/hooks/use-filters';
 import useTenant from '@/next/hooks/use-tenant';
 import invariant from 'tiny-invariant';
+import { queries } from '@/lib/api/queries';
 
 interface WorkflowChartProps {
   refetchInterval?: number;

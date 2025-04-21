@@ -3,7 +3,7 @@ import { MembersProvider } from '@/next/hooks/use-members';
 import { MembersTable } from '@/next/components/members/members-table';
 import { Button } from '@/next/components/ui/button';
 import { Separator } from '@/next/components/ui/separator';
-import { TenantMemberRole } from '@/next/lib/api/generated/data-contracts';
+import { TenantMemberRole } from '@/lib/api/generated/data-contracts';
 import { UserPlus, Lock } from 'lucide-react';
 import { Dialog } from '@/next/components/ui/dialog';
 import useCan from '@/next/hooks/use-can';

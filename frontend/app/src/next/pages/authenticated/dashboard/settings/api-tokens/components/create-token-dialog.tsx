@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Input } from '@/next/components/ui/input';
 import { Button } from '@/next/components/ui/button';
 import { Label } from '@/next/components/ui/label';
-import { CreateAPITokenResponse } from '@/next/lib/api';
+import { CreateAPITokenResponse } from '@/lib/api';
 import {
   DialogContent,
   DialogDescription,

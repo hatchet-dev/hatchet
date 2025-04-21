@@ -1,4 +1,4 @@
-import { cloudApi } from '@/next/lib/api/api';
+import { cloudApi } from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
 
 export default function useCloudFeatureFlags(tenantId: string) {

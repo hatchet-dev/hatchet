@@ -165,8 +165,21 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 
 	workflowName := opts.Name
 
-	if ns := v0.Namespace(); ns != "" && !strings.HasPrefix(opts.Name, ns) {
+	ns := v0.Namespace()
+
+	if ns != "" && !strings.HasPrefix(opts.Name, ns) {
 		workflowName = fmt.Sprintf("%s%s", ns, workflowName)
+	}
+
+	onEvents := opts.OnEvents
+
+	if ns != "" && len(onEvents) > 0 {
+		// Prefix the events with the namespace
+		onEvents = make([]string, len(opts.OnEvents))
+
+		for i, event := range opts.OnEvents {
+			onEvents[i] = fmt.Sprintf("%s%s", ns, event)
+		}
 	}
 
 	wf := &workflowDeclarationImpl[I, O]{
@@ -176,7 +189,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		metrics:     metrics,
 		workflows:   workflows,
 		Name:        workflowName,
-		OnEvents:    opts.OnEvents,
+		OnEvents:    onEvents,
 		OnCron:      opts.OnCron,
 		Concurrency: opts.Concurrency,
 		// OnFailureTask:    opts.OnFailureTask, // TODO: add this back in

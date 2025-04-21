@@ -1,4 +1,4 @@
-import { APIToken } from '@/next/lib/api';
+import { APIToken } from '@/lib/api';
 import { DestructiveDialog } from '@/next/components/ui/dialog/destructive-dialog';
 import { Code } from '@/next/components/ui/code';
 import useApiTokens from '@/next/hooks/use-api-tokens';

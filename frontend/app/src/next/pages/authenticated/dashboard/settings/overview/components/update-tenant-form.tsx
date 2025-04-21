@@ -5,7 +5,7 @@ import { Label } from '@/next/components/ui/label';
 import {
   Tenant,
   UpdateTenantRequest,
-} from '@/next/lib/api/generated/data-contracts';
+} from '@/lib/api/generated/data-contracts';
 
 interface UpdateTenantFormProps {
   tenant: Tenant;

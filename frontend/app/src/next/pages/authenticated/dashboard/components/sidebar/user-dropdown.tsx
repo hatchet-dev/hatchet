@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback } from '@/next/components/ui/avatar';
 import useUser from '@/next/hooks/use-user';
 import useTenant from '@/next/hooks/use-tenant';
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { Tenant } from '@/next/lib/api';
+import { Tenant } from '@/lib/api';
 
 interface UserBlockProps {
   variant?: 'default' | 'compact';

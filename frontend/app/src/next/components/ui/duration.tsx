@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
 import { formatDuration } from '@/next/components/runs/run-id';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import { isValidTimestamp } from './time';
 const durationVariants = cva('text-sm', {
   variants: {

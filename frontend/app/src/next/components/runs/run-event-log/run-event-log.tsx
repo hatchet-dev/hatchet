@@ -7,7 +7,7 @@ import {
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { cn } from '@/next/lib/utils';
 import { RunStatusConfigs } from '../runs-badge';
-import { WorkflowRunStatus } from '@/next/lib/api';
+import { WorkflowRunStatus } from '@/lib/api';
 import {
   CheckCircle2,
   PlayCircle,

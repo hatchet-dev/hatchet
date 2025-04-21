@@ -15,9 +15,9 @@ import docs from '@/next/docs-meta-data';
 import { FilterProvider } from '@/next/hooks/use-filters';
 import { PaginationProvider } from '@/next/hooks/use-pagination';
 import { RunsProvider } from '@/next/hooks/use-runs';
-import { V1TaskStatus } from '@/next/lib/api';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
+import { V1TaskStatus } from '@/lib/api';
 
 export default function RunsPage() {
   const [showTriggerModal, setShowTriggerModal] = useState(false);

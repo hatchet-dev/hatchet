@@ -6,7 +6,7 @@ import {
   useCallback,
   useMemo,
 } from 'react';
-import { V1WorkflowRun } from '@/next/lib/api';
+import { V1WorkflowRun } from '@/lib/api';
 interface TimelineContextState {
   earliest: number;
   latest: number | undefined;

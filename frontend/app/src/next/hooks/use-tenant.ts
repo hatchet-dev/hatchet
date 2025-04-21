@@ -3,8 +3,8 @@ import {
   TenantMember,
   CreateTenantRequest,
   UpdateTenantRequest,
-} from '@/next/lib/api';
-import api from '@/next/lib/api/api';
+} from '@/lib/api';
+import api from '@/lib/api/api';
 import useUser from './use-user';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';

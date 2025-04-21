@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Worker } from '@/next/lib/api/generated/data-contracts';
+import { Worker } from '@/lib/api/generated/data-contracts';
 import useWorkers from '@/next/hooks/use-workers';
 
 interface WorkerIdProps {

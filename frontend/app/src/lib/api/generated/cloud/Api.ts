@@ -40,7 +40,9 @@ import {
 } from "./data-contracts";
 import { ContentType, HttpClient, RequestParams } from "./http-client";
 
-export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
+export class Api<
+  SecurityDataType = unknown,
+> extends HttpClient<SecurityDataType> {
   /**
    * @description Gets metadata for the Hatchet instance
    *
@@ -262,7 +264,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/tenants/{tenant}/managed-worker
    * @secure
    */
-  managedWorkerCreate = (tenant: string, data: CreateManagedWorkerRequest, params: RequestParams = {}) =>
+  managedWorkerCreate = (
+    tenant: string,
+    data: CreateManagedWorkerRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker`,
       method: "POST",
@@ -338,7 +344,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/managed-worker/{managed-worker}
    * @secure
    */
-  managedWorkerUpdate = (managedWorker: string, data: UpdateManagedWorkerRequest, params: RequestParams = {}) =>
+  managedWorkerUpdate = (
+    managedWorker: string,
+    data: UpdateManagedWorkerRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
       method: "POST",
@@ -374,7 +384,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/infra-as-code/{infra-as-code-request}
    * @secure
    */
-  infraAsCodeCreate = (infraAsCodeRequest: string, data: InfraAsCodeRequest, params: RequestParams = {}) =>
+  infraAsCodeCreate = (
+    infraAsCodeRequest: string,
+    data: InfraAsCodeRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/infra-as-code/${infraAsCodeRequest}`,
       method: "POST",
@@ -392,7 +406,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/runtime-config/{runtime-config}/actions
    * @secure
    */
-  runtimeConfigListActions = (runtimeConfig: string, params: RequestParams = {}) =>
+  runtimeConfigListActions = (
+    runtimeConfig: string,
+    params: RequestParams = {},
+  ) =>
     this.request<RuntimeConfigActionsResponse, APIErrors>({
       path: `/api/v1/cloud/runtime-config/${runtimeConfig}/actions`,
       method: "GET",
@@ -570,7 +587,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/instances
    * @secure
    */
-  managedWorkerInstancesList = (managedWorker: string, params: RequestParams = {}) =>
+  managedWorkerInstancesList = (
+    managedWorker: string,
+    params: RequestParams = {},
+  ) =>
     this.request<InstanceList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/instances`,
       method: "GET",
@@ -621,7 +641,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/events
    * @secure
    */
-  managedWorkerEventsList = (managedWorker: string, params: RequestParams = {}) =>
+  managedWorkerEventsList = (
+    managedWorker: string,
+    params: RequestParams = {},
+  ) =>
     this.request<ManagedWorkerEventList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/events`,
       method: "GET",
@@ -669,7 +692,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
    * @secure
    */
-  subscriptionUpsert = (tenant: string, data: UpdateTenantSubscription, params: RequestParams = {}) =>
+  subscriptionUpsert = (
+    tenant: string,
+    data: UpdateTenantSubscription,
+    params: RequestParams = {},
+  ) =>
     this.request<TenantSubscription, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/subscription`,
       method: "PATCH",
@@ -711,7 +738,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/tenants/{tenant}/logs
    * @secure
    */
-  logCreate = (tenant: string, data: VectorPushRequest, params: RequestParams = {}) =>
+  logCreate = (
+    tenant: string,
+    data: VectorPushRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/logs`,
       method: "POST",

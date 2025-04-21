@@ -1,4 +1,4 @@
-import { V1TaskSummary, V1WorkflowRun, V1WorkflowType } from '@/next/lib/api';
+import { V1TaskSummary, V1WorkflowRun, V1WorkflowType } from '@/lib/api';
 import { Duration } from 'date-fns';
 import {
   Tooltip,

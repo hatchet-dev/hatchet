@@ -4,7 +4,7 @@ import {
   createElement,
   PropsWithChildren,
 } from 'react';
-import api from '../lib/api';
+import api from '@/lib/api';
 import {
   V1TaskSummary,
   V1TaskSummaryList,
@@ -12,7 +12,7 @@ import {
   V1WorkflowRunDetails,
   V1TaskStatus,
   V1TaskRunMetrics,
-} from '../lib/api/generated/data-contracts';
+} from '@/lib/api/generated/data-contracts';
 import {
   useQuery,
   useMutation,

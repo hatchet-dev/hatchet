@@ -1,0 +1,122 @@
+# Workflows Client
+
+Bases: `BaseRestClient`
+
+The workflows client is a client for managing workflows programmatically within Hatchet.
+
+Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
+
+Methods:
+
+| Name              | Description                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `aio_get`         | Get a workflow by its ID.                                                                     |
+| `aio_get_version` | Get a workflow version by the workflow ID and an optional version.                            |
+| `aio_list`        | List all workflows in the tenant determined by the client config that match optional filters. |
+| `get`             | Get a workflow by its ID.                                                                     |
+| `get_version`     | Get a workflow version by the workflow ID and an optional version.                            |
+| `list`            | List all workflows in the tenant determined by the client config that match optional filters. |
+
+### Functions
+
+#### `aio_get`
+
+Get a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                         | Default    |
+| ------------- | ----- | ----------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to retrieve. | _required_ |
+
+Returns:
+
+| Type       | Description   |
+| ---------- | ------------- |
+| `Workflow` | The workflow. |
+
+#### `aio_get_version`
+
+Get a workflow version by the workflow ID and an optional version.
+
+Parameters:
+
+| Name          | Type          | Description                                                                       | Default    |
+| ------------- | ------------- | --------------------------------------------------------------------------------- | ---------- |
+| `workflow_id` | `str`         | The ID of the workflow to retrieve the version for.                               | _required_ |
+| `version`     | `str \| None` | The version of the workflow to retrieve. If None, the latest version is returned. | `None`     |
+
+Returns:
+
+| Type              | Description           |
+| ----------------- | --------------------- |
+| `WorkflowVersion` | The workflow version. |
+
+#### `aio_list`
+
+List all workflows in the tenant determined by the client config that match optional filters.
+
+Parameters:
+
+| Name            | Type          | Description                            | Default |
+| --------------- | ------------- | -------------------------------------- | ------- |
+| `workflow_name` | `str \| None` | The name of the workflow to filter by. | `None`  |
+| `limit`         | `int \| None` | The maximum number of items to return. | `None`  |
+| `offset`        | `int \| None` | The offset to start the list from.     | `None`  |
+
+Returns:
+
+| Type           | Description          |
+| -------------- | -------------------- |
+| `WorkflowList` | A list of workflows. |
+
+#### `get`
+
+Get a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                         | Default    |
+| ------------- | ----- | ----------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to retrieve. | _required_ |
+
+Returns:
+
+| Type       | Description   |
+| ---------- | ------------- |
+| `Workflow` | The workflow. |
+
+#### `get_version`
+
+Get a workflow version by the workflow ID and an optional version.
+
+Parameters:
+
+| Name          | Type          | Description                                                                       | Default    |
+| ------------- | ------------- | --------------------------------------------------------------------------------- | ---------- |
+| `workflow_id` | `str`         | The ID of the workflow to retrieve the version for.                               | _required_ |
+| `version`     | `str \| None` | The version of the workflow to retrieve. If None, the latest version is returned. | `None`     |
+
+Returns:
+
+| Type              | Description           |
+| ----------------- | --------------------- |
+| `WorkflowVersion` | The workflow version. |
+
+#### `list`
+
+List all workflows in the tenant determined by the client config that match optional filters.
+
+Parameters:
+
+| Name            | Type          | Description                            | Default |
+| --------------- | ------------- | -------------------------------------- | ------- |
+| `workflow_name` | `str \| None` | The name of the workflow to filter by. | `None`  |
+| `limit`         | `int \| None` | The maximum number of items to return. | `None`  |
+| `offset`        | `int \| None` | The offset to start the list from.     | `None`  |
+
+Returns:
+
+| Type           | Description          |
+| -------------- | -------------------- |
+| `WorkflowList` | A list of workflows. |

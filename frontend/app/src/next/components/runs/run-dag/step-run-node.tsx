@@ -1,4 +1,4 @@
-import { V1TaskStatus, V1TaskSummary } from '@/next/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { cn } from '@/next/lib/utils';
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';

@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/next/components/ui/dialog';
-import { ScheduledWorkflows, WorkflowRunStatus } from '@/next/lib/api';
+import { ScheduledWorkflows, WorkflowRunStatus } from '@/lib/api';
 
 interface EditScheduledRunDialogProps {
   editingRun: ScheduledWorkflows | null;

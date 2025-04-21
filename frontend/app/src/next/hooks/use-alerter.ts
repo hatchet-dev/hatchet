@@ -1,4 +1,4 @@
-import { TenantInvite } from '@/next/lib/api';
+import { TenantInvite } from '@/lib/api';
 import useUser from './use-user';
 import { useMemo } from 'react';
 
