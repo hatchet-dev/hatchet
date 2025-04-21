@@ -2,7 +2,10 @@ import { DateTimePicker } from '@/components/molecules/time-picker/date-time-pic
 import { cn } from '@/next/lib/utils';
 import { Button } from '@/next/components/ui/button';
 import { startOfMinute } from 'date-fns';
-import { TIME_PRESETS, useTimeFilters } from '@/next/hooks/utils/use-time-filters';
+import {
+  TIME_PRESETS,
+  useTimeFilters,
+} from '@/next/hooks/utils/use-time-filters';
 
 interface TimeFilterProps {
   startField?: string;
@@ -10,37 +13,74 @@ interface TimeFilterProps {
   className?: string;
 }
 
-export function TimeFilter({
-  startField = 'createdAfter',
-  endField = 'createdBefore',
+interface FiltersProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+export function TimeFilterGroup({
   className,
-}: TimeFilterProps) {
-  const { filters, setFilters, activePreset, handleTimeFilterChange } =
-    useTimeFilters({
-      startField,
-      endField,
-    });
+  children,
+  ...props
+}: FiltersProps) {
+  return (
+    <div
+      role="filters"
+      aria-label="filters"
+      className={cn('flex w-full items-center gap-2 md:gap-6', className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
 
-  const startDate = filters[startField]
-    ? new Date(filters[startField] as string)
+export function TogglePause() {
+  const { pause, resume, isPaused } = useTimeFilters();
+
+  return (
+    <Button
+      variant={isPaused ? 'default' : 'outline'}
+      size="sm"
+      className="h-8 px-2 text-xs"
+      onClick={() => {
+        if (isPaused) {
+          resume();
+        } else {
+          pause();
+        }
+      }}
+    >
+      {isPaused ? 'Resume' : 'Pause'}
+    </Button>
+  );
+}
+
+export function TimeFilter({ className }: TimeFilterProps) {
+  const {
+    filters,
+    setTimeFilter,
+    activePreset,
+    handleTimeFilterChange,
+    handleClearTimeFilters,
+  } = useTimeFilters();
+
+  const startDate = filters.startTime
+    ? new Date(filters.startTime as string)
     : undefined;
-  const endDate = filters[endField]
-    ? new Date(filters[endField] as string)
+  const endDate = filters.endTime
+    ? new Date(filters.endTime as string)
     : undefined;
 
-  const handleDateChange = (date: Date | undefined, field: string) => {
+  const handleDateChange = (date: Date | undefined) => {
     if (date) {
       const roundedDate = startOfMinute(date);
-      setFilters({
-        ...filters,
-        [field]: roundedDate.toISOString(),
+      setTimeFilter({
+        startTime: roundedDate.toISOString(),
+        endTime: undefined,
       });
-      handleTimeFilterChange(null); // Clear preset when manually selecting dates
     } else {
-      setFilters({
-        ...filters,
-        [field]: undefined,
-      });
+      handleClearTimeFilters();
     }
   };
 
@@ -64,12 +104,12 @@ export function TimeFilter({
       <div className="flex items-center gap-4">
         <DateTimePicker
           date={startDate}
-          setDate={(date) => handleDateChange(date, startField)}
+          setDate={(date) => handleDateChange(date)}
           label="Start Time"
         />
         <DateTimePicker
           date={endDate}
-          setDate={(date) => handleDateChange(date, endField)}
+          setDate={(date) => handleDateChange(date)}
           label="End Time"
         />
       </div>

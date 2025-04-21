@@ -1,11 +1,10 @@
-import { ClearFiltersButton, FilterGroup } from './filters';
-import { TimeFilter } from './time-filter';
+import { TimeFilter, TimeFilterGroup, TogglePause } from './time-filter';
 
-export function TimeFilterGroup() {
+export function TimeFilters() {
   return (
-    <FilterGroup>
+    <TimeFilterGroup>
       <TimeFilter />
-      <ClearFiltersButton />
-    </FilterGroup>
+      <TogglePause />
+    </TimeFilterGroup>
   );
 }

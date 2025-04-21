@@ -18,7 +18,7 @@ import { V1TaskSummary } from '@/lib/api';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import { RunDetailSheet } from './run-detail-sheet';
 import { ROUTES } from '@/next/lib/routes';
-import { TimeFilterGroup } from '@/next/components/ui/filters/time-filter-group';
+import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { RunDetailProvider } from '@/next/hooks/use-run-detail';
 export interface RunsPageSheetProps {
   workflowRunId: string;
@@ -78,7 +78,7 @@ export default function RunsPage() {
       </Headline>
       <Separator className="my-4" />
       <RunsProvider>
-        <TimeFilterGroup />
+        <TimeFilters />
         <GetWorkflowChart />
         <RunsTable
           rowClicked={handleRowClick}

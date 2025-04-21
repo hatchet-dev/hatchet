@@ -125,7 +125,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
   const filters = useFilters<RunsFilters>();
   const pagination = usePagination();
   const timeRange = useTimeFilters();
-  const refetchInterval = 1000 * 60 * 5;
+  const refetchInterval = 1000 * 5; // 5 seconds
 
   const listRunsQuery = useQuery({
     queryKey: [
@@ -142,10 +142,10 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       }
 
       const since =
-        timeRange.filters.createdAfter ||
+        timeRange.filters.startTime ||
         new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
       const until =
-        timeRange.filters.createdBefore ||
+        timeRange.filters.endTime ||
         new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
       const query = {
@@ -172,10 +172,10 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       }
 
       const since =
-        timeRange.filters.createdAfter ||
+        timeRange.filters.startTime ||
         new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
       const until =
-        timeRange.filters.createdBefore ||
+        timeRange.filters.endTime ||
         new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
       const query = {
@@ -208,8 +208,8 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
       const res = (
         await api.v1TaskGetPointMetrics(tenant.metadata.id, {
-          createdAfter: timeRange.filters.createdAfter,
-          finishedBefore: timeRange.filters.createdBefore, // TODO: THIS ISN'T CORRECT
+          createdAfter: timeRange.filters.startTime,
+          finishedBefore: timeRange.filters.endTime, // TODO: THIS ISN'T CORRECT
         })
       ).data;
 

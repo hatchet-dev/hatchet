@@ -13,6 +13,13 @@ export const TIME_PRESETS = {
 
 type TimePreset = keyof typeof TIME_PRESETS;
 
+interface CustomTimeRange {
+  startTime: string;
+  endTime?: string;
+}
+
+type TimeFilterInput = TimePreset | CustomTimeRange;
+
 interface TimeFilterOptions {
   startField?: string;
   endField?: string;
@@ -26,7 +33,7 @@ interface TimeFilterState {
 
 interface TimeFilterContextType {
   state: TimeFilterState;
-  setTimeFilter: (startTime?: string, endTime?: string) => void;
+  setTimeFilter: (input: TimeFilterInput) => void;
   setActivePreset: (preset: TimePreset | null) => void;
   clearTimeFilters: () => void;
 }
@@ -35,8 +42,7 @@ const TimeFilterContext = React.createContext<
   TimeFilterContextType | undefined
 >(undefined);
 
-export function useTimeFilters(options: TimeFilterOptions = {}) {
-  const { startField = 'createdAfter', endField = 'createdBefore' } = options;
+export function useTimeFilters() {
   const context = React.useContext(TimeFilterContext);
 
   if (!context) {
@@ -47,9 +53,13 @@ export function useTimeFilters(options: TimeFilterOptions = {}) {
 
   const handleTimeFilterChange = React.useCallback(
     (preset: TimePreset | null) => {
-      setActivePreset(preset);
+      if (preset) {
+        setTimeFilter(preset);
+      } else {
+        setActivePreset(null);
+      }
     },
-    [setActivePreset],
+    [setTimeFilter, setActivePreset],
   );
 
   return {
@@ -57,12 +67,23 @@ export function useTimeFilters(options: TimeFilterOptions = {}) {
     handleTimeFilterChange,
     handleClearTimeFilters: clearTimeFilters,
     filters: {
-      [startField]: state.startTime,
-      [endField]: state.endTime,
+      startTime: state.startTime,
+      endTime: state.endTime,
     },
-    setFilters: (filters: Partial<Record<string, string | undefined>>) => {
-      setTimeFilter(filters[startField], filters[endField]);
+    setTimeFilter,
+    pause: () => {
+      setTimeFilter({
+        startTime: state.startTime!,
+        endTime: new Date().toISOString(),
+      });
     },
+    resume: () => {
+      setTimeFilter({
+        startTime: state.startTime!,
+        endTime: undefined,
+      });
+    },
+    isPaused: state.endTime !== undefined,
   };
 }
 
@@ -143,16 +164,27 @@ export function TimeFilterProvider({ children }: TimeFilterProviderProps) {
     return clearUpdateInterval;
   }, [state.activePreset, clearUpdateInterval]);
 
-  const setTimeFilter = React.useCallback(
-    (startTime?: string, endTime?: string) => {
+  const setTimeFilter = React.useCallback((input: TimeFilterInput) => {
+    if (typeof input === 'string') {
+      // Handle preset
+      const now = startOfMinute(new Date());
+      const startTime = TIME_PRESETS[input](now);
       setState((prev) => ({
         ...prev,
-        startTime,
-        endTime,
+        startTime: startTime.toISOString(),
+        endTime: undefined,
+        activePreset: input,
       }));
-    },
-    [],
-  );
+    } else {
+      // Handle custom time range
+      setState((prev) => ({
+        ...prev,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        activePreset: null,
+      }));
+    }
+  }, []);
 
   const setActivePreset = React.useCallback(
     (preset: TimePreset | null) => {
