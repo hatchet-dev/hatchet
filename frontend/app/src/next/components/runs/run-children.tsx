@@ -228,7 +228,7 @@ export function RunChildrenCardRoot({
   parentRun,
   onTaskSelect,
 }: RunChildrenCardProps) {
-  const { data } = useRunDetail(workflow.metadata.id, 1000);
+  const { data } = useRunDetail();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const run = data?.run;

@@ -11,7 +11,7 @@ import dagre from 'dagre';
 import { useTheme } from '@/next/components/theme-provider';
 import stepRunNode, { NodeData } from './step-run-node';
 import { V1TaskStatus } from '@/lib/api';
-import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 const connectionLineStyleDark = { stroke: '#fff' };
@@ -30,13 +30,27 @@ interface WorkflowRunVisualizerProps {
   onTaskSelect?: (taskId: string) => void;
 }
 
-const WorkflowRunVisualizer = ({
+export function WorkflowRunVisualizer({
   workflowRunId,
   onTaskSelect,
-}: WorkflowRunVisualizerProps) => {
+}: WorkflowRunVisualizerProps) {
+  return (
+    <RunDetailProvider runId={workflowRunId}>
+      <WorkflowRunVisualizerContent
+        onTaskSelect={onTaskSelect}
+        workflowRunId={workflowRunId}
+      />
+    </RunDetailProvider>
+  );
+}
+
+function WorkflowRunVisualizerContent({
+  workflowRunId,
+  onTaskSelect,
+}: WorkflowRunVisualizerProps) {
   const { theme } = useTheme();
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useRunDetail(workflowRunId);
+  const { data, isLoading, error } = useRunDetail();
 
   const shape = useMemo(() => data?.shape || [], [data]);
   const taskRuns = useMemo(() => data?.tasks || [], [data]);
@@ -165,7 +179,7 @@ const WorkflowRunVisualizer = ({
 
   if (
     isLoading ||
-    isError ||
+    error ||
     layoutedNodes.length === 0 ||
     layoutedEdges.length === 0
   ) {
@@ -198,6 +212,6 @@ const WorkflowRunVisualizer = ({
       />
     </div>
   );
-};
+}
 
 export default WorkflowRunVisualizer;

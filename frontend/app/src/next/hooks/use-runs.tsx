@@ -6,11 +6,13 @@ import {
   V1WorkflowRunDetails,
   V1TaskStatus,
   V1TaskRunMetrics,
+  V1TaskPointMetrics,
 } from '@/lib/api/generated/data-contracts';
 import {
   useQuery,
   useMutation,
   UseMutationResult,
+  UseQueryResult,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
@@ -79,7 +81,8 @@ interface RunsState {
   refetch: () => Promise<unknown>;
   filters: ReturnType<typeof useFilters<RunsFilters>>;
   pagination: ReturnType<typeof usePagination>;
-  timeFilter: ReturnType<typeof useTimeFilters>;
+  timeRange: ReturnType<typeof useTimeFilters>;
+  histogram: UseQueryResult<V1TaskPointMetrics, Error>;
 }
 
 interface RunsProviderProps {
@@ -121,14 +124,15 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
   const filters = useFilters<RunsFilters>();
   const pagination = usePagination();
-  const timeFilter = useTimeFilters();
+  const timeRange = useTimeFilters();
+  const refetchInterval = 1000 * 60 * 5;
 
   const listRunsQuery = useQuery({
     queryKey: [
       'v1:workflow-run:list',
       tenant,
       filters.filters,
-      timeFilter.filters,
+      timeRange.filters,
       pagination,
     ],
     queryFn: async () => {
@@ -138,10 +142,10 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       }
 
       const since =
-        timeFilter.filters.createdAfter ||
+        timeRange.filters.createdAfter ||
         new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
       const until =
-        timeFilter.filters.createdBefore ||
+        timeRange.filters.createdBefore ||
         new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
       const query = {
@@ -157,6 +161,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       pagination.setNumPages(res.pagination?.num_pages || 1);
       return res;
     },
+    refetchInterval,
   });
 
   const metricsRunsQuery = useQuery({
@@ -167,10 +172,10 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       }
 
       const since =
-        timeFilter.filters.createdAfter ||
+        timeRange.filters.createdAfter ||
         new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
       const until =
-        timeFilter.filters.createdBefore ||
+        timeRange.filters.createdBefore ||
         new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
       const query = {
@@ -191,6 +196,28 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
       return res;
     },
+    refetchInterval,
+  });
+
+  const histogramQuery = useQuery({
+    queryKey: ['v1:workflow-run:metrics', tenant, timeRange.filters],
+    queryFn: async () => {
+      if (!tenant) {
+        return [] as V1TaskPointMetrics;
+      }
+
+      const res = (
+        await api.v1TaskGetPointMetrics(tenant.metadata.id, {
+          createdAfter: timeRange.filters.createdAfter,
+          finishedBefore: timeRange.filters.createdBefore, // TODO: THIS ISN'T CORRECT
+        })
+      ).data;
+
+      return res;
+    },
+    placeholderData: (prev: any) => prev,
+    enabled: !!tenant?.metadata.id,
+    refetchInterval,
   });
 
   const createRunMutation = useMutation({
@@ -262,8 +289,12 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
   });
 
   const refetch = useCallback(async () => {
-    return Promise.all([listRunsQuery.refetch(), metricsRunsQuery.refetch()]);
-  }, [listRunsQuery, metricsRunsQuery]);
+    return Promise.all([
+      listRunsQuery.refetch(),
+      metricsRunsQuery.refetch(),
+      histogramQuery.refetch(),
+    ]);
+  }, [listRunsQuery, metricsRunsQuery, histogramQuery]);
 
   const value = useMemo(
     () => ({
@@ -280,7 +311,8 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       refetch,
       filters,
       pagination,
-      timeFilter,
+      timeRange,
+      histogram: histogramQuery,
     }),
     [
       listRunsQuery.data,
@@ -294,7 +326,8 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       refetch,
       filters,
       pagination,
-      timeFilter,
+      timeRange,
+      histogramQuery,
     ],
   );
 

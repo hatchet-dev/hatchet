@@ -14,7 +14,7 @@ import {
 } from '@/next/components/ui/tooltip';
 import { intervalToDuration } from 'date-fns';
 import { Code } from '@/next/components/ui/code';
-import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { Skeleton } from '../ui/skeleton';
 import { RunsBadge } from './runs-badge';
 
@@ -23,7 +23,15 @@ export interface RunDetailsCardProps {
 }
 
 export function RunDetailsCard({ runId }: RunDetailsCardProps) {
-  const { data, isLoading, error } = useRunDetail(runId || '');
+  return (
+    <RunDetailProvider runId={runId}>
+      <RunDetailsCardContent />
+    </RunDetailProvider>
+  );
+}
+
+function RunDetailsCardContent() {
+  const { data, isLoading, error } = useRunDetail();
 
   const run = data?.run;
 
