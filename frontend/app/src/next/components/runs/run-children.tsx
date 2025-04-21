@@ -82,7 +82,7 @@ function RunRow({
               <RunId wfRun={parentRun} />
             </div>
           ) : (
-            <>TODO TRIGGERED BY DETAILS</>
+            <></>
           )
         ) : run ? (
           <>

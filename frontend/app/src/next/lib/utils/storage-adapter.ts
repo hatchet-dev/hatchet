@@ -5,6 +5,7 @@ import { useSearchParams as useRouterSearchParams } from 'react-router-dom';
 export interface StorageAdapter<T = any> {
   getValue<K extends keyof T>(key: string, defaultValue: T[K]): T[K];
   setValue<K extends keyof T>(key: string, value: T[K]): void;
+  setValues(values: Partial<T>): void;
   getValues(): T;
 }
 
@@ -34,6 +35,10 @@ class StateAdapter<T extends Record<string, any>> implements StorageAdapter<T> {
           [key]: value,
         }) as T,
     );
+  }
+
+  setValues(values: Partial<T>): void {
+    this.setState((prev) => ({ ...prev, ...values }) as T);
   }
 
   getValues(): T {
@@ -103,6 +108,28 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
       } else {
         // For primitives, convert to string
         newParams.set(paramKey, String(value));
+      }
+
+      return newParams;
+    });
+  }
+
+  setValues(values: Partial<T>): void {
+    this.setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev);
+
+      for (const [key, value] of Object.entries(values)) {
+        const paramKey = this.prefix ? `${this.prefix}${key}` : key;
+
+        if (value === undefined || value === null) {
+          newParams.delete(paramKey);
+        } else if (typeof value === 'object') {
+          // Convert objects to JSON strings
+          newParams.set(paramKey, JSON.stringify(value));
+        } else {
+          // For primitives, convert to string
+          newParams.set(paramKey, String(value));
+        }
       }
 
       return newParams;

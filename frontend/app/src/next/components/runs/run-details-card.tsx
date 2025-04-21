@@ -93,7 +93,7 @@ export function RunDetailsCard({ runId }: RunDetailsCardProps) {
                       />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent className="bg-muted">
                     <Time date={run.createdAt} variant="timestamp" />
                   </TooltipContent>
                 </Tooltip>
@@ -120,7 +120,7 @@ export function RunDetailsCard({ runId }: RunDetailsCardProps) {
                       />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent className="bg-muted">
                     <Time date={run.startedAt} variant="timestamp" />
                   </TooltipContent>
                 </Tooltip>

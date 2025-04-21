@@ -1,8 +1,4 @@
-import {
-  V1TaskRunMetric,
-  V1TaskRunMetrics,
-  V1TaskStatus,
-} from '@/lib/api';
+import { V1TaskRunMetric, V1TaskRunMetrics, V1TaskStatus } from '@/lib/api';
 import { RunsBadge } from '../runs-badge';
 import { percent } from '@/next/lib/utils/percent';
 

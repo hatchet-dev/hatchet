@@ -17,7 +17,7 @@ const CodeStyleRender = ({
   const { theme } = useTheme();
 
   const themeName = useMemo(() => {
-    return theme === 'dark' ? 'github-dark' : 'github-light';
+    return theme === 'dark' ? 'houston' : 'github-light';
   }, [theme]);
 
   useEffect(() => {

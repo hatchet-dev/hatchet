@@ -1,10 +1,6 @@
 import { BillingHook } from '@/next/hooks/use-billing';
 import { APICloudMetadata } from '@/lib/api/generated/cloud/data-contracts';
-import {
-  Tenant,
-  TenantMember,
-  User,
-} from '@/lib/api/generated/data-contracts';
+import { Tenant, TenantMember, User } from '@/lib/api/generated/data-contracts';
 
 export type EvaluateContext = {
   user?: User;

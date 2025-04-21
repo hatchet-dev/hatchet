@@ -5,7 +5,7 @@ export default function BasicLayout({
 }) {
   return (
     <div className="flex-grow h-full w-full">
-      <div className="px-4 py-8">{children}</div>
+      <div className="p-4 md:p-8 lg:p-12">{children}</div>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export function RunDetailSheet({
       onClose={onClose}
       title={
         selectedTask ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-row items-center justify-between gap-2">
             <span>Task Details</span>
             <RunId taskRun={selectedTask} />
           </div>
