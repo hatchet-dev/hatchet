@@ -48,6 +48,7 @@ import {
   managedCompute,
 } from '@/lib/can/features/managed-compute';
 import { useTenant } from '@/lib/atoms';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
@@ -74,7 +75,22 @@ const updateManagedWorkerSchema = z.object({
     })
     .optional(),
   isIac: z.boolean().default(false).optional(),
-  envVars: z.record(z.string()).optional(),
+  secrets: z.object({
+    add: z.array(
+      z.object({
+        key: z.string(),
+        value: z.string(),
+      }),
+    ),
+    update: z.array(
+      z.object({
+        id: z.string(),
+        key: z.string(),
+        value: z.string(),
+      }),
+    ),
+    delete: z.array(z.string()),
+  }),
   runtimeConfig: z
     .object({
       numReplicas: z.number().min(0).max(16).optional(),
@@ -138,7 +154,11 @@ export default function UpdateWorkerForm({
           },
         ],
       },
-      // envVars: managedWorker.envVars,
+      secrets: {
+        add: [],
+        update: [],
+        delete: [],
+      },
       isIac: managedWorker.isIac,
       runtimeConfig:
         !managedWorker.isIac && managedWorker.runtimeConfigs?.length == 1
@@ -211,9 +231,17 @@ export default function UpdateWorkerForm({
     ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
   });
 
-  // const [envVars, setEnvVars] = useState<KeyValueType[]>(
-  //   envVarsRecordToKeyValueType(managedWorker.envVars),
-  // );
+  const [secrets, setSecrets] = useState<KeyValueType[]>(
+    managedWorker.directSecrets?.map((secret) => ({
+      key: secret.key,
+      value: secret.hint || '',
+      hidden: false,
+      locked: false,
+      deleted: false,
+      id: secret.id,
+      hint: secret.hint,
+    })) || [],
+  );
 
   const [isIac, setIsIac] = useState(managedWorker.isIac);
   const [scalingType, setScalingType] = useState<ScalingType>(
@@ -233,8 +261,8 @@ export default function UpdateWorkerForm({
   const numReplicasError =
     errors.runtimeConfig?.numReplicas?.message?.toString() ||
     fieldErrors?.numReplicas;
-  const envVarsError =
-    errors.envVars?.message?.toString() || fieldErrors?.envVars;
+  const secretsError =
+    errors.secrets?.add?.message?.toString() || fieldErrors?.secrets;
   const cpuKindError =
     errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
   const cpusError =
@@ -323,6 +351,33 @@ export default function UpdateWorkerForm({
 
     return can(managedCompute.selectCompute(computeType));
   }, [can, machineType]);
+
+  // Update form values when secrets change
+  useEffect(() => {
+    // Split secrets into add/update/delete
+    const toAdd = secrets.filter((s) => !s.id && !s.deleted);
+    const toUpdate = secrets.filter((s) => s.id && !s.deleted);
+    const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
+
+    setValue(
+      'secrets.add',
+      toAdd.map((s) => ({
+        key: s.key,
+        value: s.value,
+      })),
+    );
+
+    setValue(
+      'secrets.update',
+      toUpdate.map((s) => ({
+        id: s.id!,
+        key: s.key,
+        value: s.value,
+      })),
+    );
+
+    setValue('secrets.delete', toDelete);
+  }, [secrets, setValue]);
 
   // if there are no github accounts linked, ask the user to link one
   if (
@@ -563,21 +618,22 @@ export default function UpdateWorkerForm({
                 Configure the runtime settings for this service.
               </div>
               <Label>Environment Variables</Label>
-              {/* <EnvGroupArray
-                values={envVars}
-                setValues={(value) => {
-                  setEnvVars(value);
-                  setValue(
-                    'envVars',
-                    value.reduce<Record<string, string>>((acc, item) => {
-                      acc[item.key] = item.value;
-                      return acc;
-                    }, {}),
-                  );
+              <EnvGroupArray
+                values={secrets}
+                setValues={setSecrets}
+                onUpdate={(updatedSecrets) => {
+                  // Update the secrets state with the new values
+                  setSecrets((prev) => {
+                    const newSecrets = prev.map((s) => {
+                      const updated = updatedSecrets.find((u) => u.id === s.id);
+                      return updated ? { ...s, ...updated } : s;
+                    });
+                    return newSecrets;
+                  });
                 }}
-              /> */}
-              {envVarsError && (
-                <div className="text-sm text-red-500">{envVarsError}</div>
+              />
+              {secretsError && (
+                <div className="text-sm text-red-500">{secretsError}</div>
               )}
               <Label>Machine Configuration Method</Label>
               <Tabs

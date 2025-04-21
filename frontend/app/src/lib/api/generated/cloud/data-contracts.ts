@@ -261,6 +261,8 @@ export interface UpdateManagedWorkerSecretRequest {
      * @maxLength 36
      */
     id: string;
+    /** @minLength 1 */
+    key: string;
     value: string;
   }[];
 }
