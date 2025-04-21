@@ -23,7 +23,7 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
-	github.com/posthog/posthog-go v1.4.7
+	github.com/posthog/posthog-go v1.4.10
 	github.com/pressly/goose/v3 v3.24.2
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.9.1
@@ -148,7 +148,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.22.0
 	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/robfig/cron/v3 v3.0.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.34.0
 	github.com/slack-go/slack v0.16.0
 	github.com/spf13/afero v1.12.0 // indirect
