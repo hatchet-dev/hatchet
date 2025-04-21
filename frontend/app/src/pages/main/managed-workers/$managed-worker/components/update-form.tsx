@@ -375,7 +375,7 @@ export default function UpdateWorkerForm({
   useEffect(() => {
     // Split secrets into add/update/delete
     const toAdd = secrets.filter((s) => !s.id && !s.deleted);
-    const toUpdate = secrets.filter((s) => s.id && !s.deleted);
+    const toUpdate = secrets.filter((s) => s.id && !s.deleted && s.isEditing);
     const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
 
     setValue(
