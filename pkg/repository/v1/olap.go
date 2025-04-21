@@ -67,7 +67,8 @@ type ListWorkflowRunOpts struct {
 }
 
 type ReadTaskRunMetricsOpts struct {
-	CreatedAfter time.Time
+	CreatedAfter  time.Time
+	CreatedBefore *time.Time
 
 	WorkflowIds []uuid.UUID
 
