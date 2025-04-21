@@ -82,9 +82,9 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Tasks & Workflows',
-            url: ROUTES.tasks.list,
+            url: ROUTES.workflows.list,
             icon: Code,
-            isActive: isActive(ROUTES.tasks.list),
+            isActive: isActive(ROUTES.workflows.list),
           },
           {
             title: 'Worker Services',

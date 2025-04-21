@@ -84,6 +84,11 @@ export function RunsTable() {
             { label: 'No', value: false },
           ]}
         />
+        <FilterTaskSelect<RunsFilters>
+          name="workflow_ids"
+          placeholder="Task Name"
+          multi
+        />
         <FilterKeyValue<RunsFilters>
           name="additional_metadata"
           placeholder="Metadata"

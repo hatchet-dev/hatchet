@@ -9,7 +9,7 @@ export const FEATURES_BASE_PATH = {
   runs: BASE_PATH + '/runs',
   scheduled: BASE_PATH + '/scheduled',
   crons: BASE_PATH + '/crons',
-  tasks: BASE_PATH + '/tasks',
+  workflows: BASE_PATH + '/workflows',
   services: BASE_PATH + '/services',
   rateLimits: BASE_PATH + '/rate-limits',
   settings: BASE_PATH + '/settings',
@@ -50,8 +50,9 @@ export const ROUTES = {
   crons: {
     list: `${FB.crons}`,
   },
-  tasks: {
-    list: `${FB.tasks}`,
+  workflows: {
+    list: `${FB.workflows}`,
+    detail: (workflowId: string) => `${FB.workflows}/${workflowId}`,
   },
   services: {
     list: `${FB.services}`,

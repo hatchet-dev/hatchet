@@ -30,7 +30,7 @@ export interface RunsFilters {
   createdBefore?: string;
   statuses?: V1TaskStatus[];
   additional_metadata?: string[];
-  workflows_ids?: string[];
+  workflow_ids?: string[];
   worker_id?: string;
   only_tasks?: boolean;
   parent_task_external_id?: string;
@@ -77,6 +77,8 @@ export function useRuns({
 }: RunsProviderProps) {
   const { tenant } = useTenant();
 
+  console.log('Filters from inside useRuns', filters);
+
   const listRunsQuery = useQuery({
     queryKey: ['v1:workflow-run:list', tenant, filters, pagination],
     queryFn: async () => {
@@ -102,6 +104,8 @@ export function useRuns({
         ...filters,
         only_tasks: !!filters.only_tasks,
       };
+
+      console.log('Query params passed to api', query);
 
       const res = (await api.v1WorkflowRunList(tenant.metadata.id, query)).data;
 
@@ -140,7 +144,7 @@ export function useRuns({
       const res = (
         await api.v1TaskListStatusMetrics(tenant.metadata.id, {
           ...query,
-          workflow_ids: filters.workflows_ids,
+          workflow_ids: filters.workflow_ids,
         })
       ).data;
 
@@ -261,6 +265,12 @@ export function RunsProvider({
     refetchInterval,
     ...props,
   });
+
+  console.log(
+    'Filter from props to runs provider',
+    props.filters,
+    runsState.data,
+  );
 
   return createElement(
     RunsContext.Provider,

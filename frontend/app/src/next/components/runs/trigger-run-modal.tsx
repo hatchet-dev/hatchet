@@ -55,7 +55,7 @@ export function TriggerRunModal({
       pageSize: 5,
     },
     filters: {
-      workflows_ids: selectedWorkflowId ? [selectedWorkflowId] : undefined,
+      workflow_ids: selectedWorkflowId ? [selectedWorkflowId] : undefined,
     },
   });
 
