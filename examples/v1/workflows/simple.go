@@ -84,8 +84,6 @@ func ParentTask(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInp
 			Name: "parent-task",
 		}, func(ctx worker.HatchetContext, input SimpleInput) (*SimpleResult, error) {
 
-			simple.RunAsChild(ctx, SimpleInput{Message: input.Message})
-
 			// Run the child task
 			child, err := workflow.RunChildWorkflow(ctx, simple, SimpleInput{Message: input.Message})
 			if err != nil {
