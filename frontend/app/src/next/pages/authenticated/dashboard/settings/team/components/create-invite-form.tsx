@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/next/components/ui/dialog';
-import { TenantMemberRole } from '@/next/lib/api/generated/data-contracts';
+import { TenantMemberRole } from '@/lib/api/generated/data-contracts';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import useMembers from '@/next/hooks/use-members';
 import { SendIcon } from 'lucide-react';

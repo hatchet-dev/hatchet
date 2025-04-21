@@ -31,7 +31,7 @@ import { Tooltip } from '@/next/components/ui/tooltip';
 import { TooltipProvider } from '@/next/components/ui/tooltip';
 import { Time } from '@/next/components/ui/time';
 import { Duration } from '@/next/components/ui/duration';
-import { V1TaskStatus } from '@/next/lib/api/generated/data-contracts';
+import { V1TaskStatus } from '@/lib/api/generated/data-contracts';
 import { ROUTES } from '@/next/lib/routes';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 import {

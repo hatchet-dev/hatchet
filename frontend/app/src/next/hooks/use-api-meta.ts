@@ -1,5 +1,5 @@
-import api from '@/next/lib/api';
-import { cloudApi } from '@/next/lib/api/api';
+import api from '@/lib/api';
+import { cloudApi } from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 

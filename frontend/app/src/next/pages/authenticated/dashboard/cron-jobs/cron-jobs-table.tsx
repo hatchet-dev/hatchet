@@ -33,7 +33,7 @@ import {
 import { Time } from '@/next/components/ui/time';
 import { DestructiveDialog } from '@/next/components/ui/dialog/destructive-dialog';
 import { useMemo, useState } from 'react';
-import { CronWorkflows } from '@/next/lib/api';
+import { CronWorkflows } from '@/lib/api';
 import cronstrue from 'cronstrue';
 import { useFilters } from '@/next/hooks/use-filters';
 import {

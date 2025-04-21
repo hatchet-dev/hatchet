@@ -3,7 +3,7 @@ import api, {
   CreateAPITokenRequest,
   CreateAPITokenResponse,
   ListAPITokensResponse,
-} from '@/next/lib/api';
+} from '@/lib/api';
 import {
   useMutation,
   UseMutationResult,

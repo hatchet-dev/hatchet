@@ -1,5 +1,5 @@
 import { Badge, BadgeProps } from '@/next/components/ui/badge';
-import { V1TaskStatus, WorkflowRunStatus } from '@/next/lib/api';
+import { V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
 import { cn } from '@/next/lib/utils';
 
 interface RunsBadgeProps extends BadgeProps {

@@ -13,7 +13,7 @@ import { TimePicker } from '@/next/components/ui/time-picker';
 import useDefinitions from '@/next/hooks/use-definitions';
 import { useNavigate } from 'react-router-dom';
 import { useState, useMemo, useEffect } from 'react';
-import { Workflow } from '@/next/lib/api';
+import { Workflow } from '@/lib/api';
 import { useRuns } from '@/next/hooks/use-runs';
 import useCrons from '@/next/hooks/use-crons';
 import useSchedules from '@/next/hooks/use-schedules';

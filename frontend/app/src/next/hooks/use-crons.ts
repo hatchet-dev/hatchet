@@ -2,7 +2,7 @@ import api, {
   CronWorkflows,
   CreateCronWorkflowTriggerRequest,
   CronWorkflowsList,
-} from '@/next/lib/api';
+} from '@/lib/api';
 import {
   useMutation,
   UseMutationResult,

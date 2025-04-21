@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { DataPoint } from '@/next/components/ui/charts/zoomable';
 import { ZoomableChart } from '@/next/components/ui/charts/zoomable';
-import { queries } from '@/next/lib/api/queries';
+import { queries } from '@/lib/api/queries';
 
 interface WorkflowChartProps {
   tenantId: string;

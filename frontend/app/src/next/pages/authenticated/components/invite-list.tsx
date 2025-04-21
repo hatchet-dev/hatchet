@@ -1,8 +1,8 @@
 import { Button } from '@/next/components/ui/button';
-import { TenantInvite, TenantMemberRole } from '@/next/lib/api';
+import { TenantInvite, TenantMemberRole } from '@/lib/api';
 import { useState } from 'react';
 import { formatDistance } from 'date-fns';
-import api from '@/next/lib/api';
+import api from '@/lib/api';
 import { useMutation } from '@tanstack/react-query';
 import {
   Alert,

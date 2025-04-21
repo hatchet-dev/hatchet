@@ -3,7 +3,7 @@ import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { FilterProvider } from '@/next/hooks/use-filters';
 import { PaginationProvider } from '@/next/hooks/use-pagination';
 import { RunsProvider } from '@/next/hooks/use-runs';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 
 export default function RunsPage() {
   return (

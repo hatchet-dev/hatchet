@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
-import { WorkflowRunOrderByField } from '@/next/lib/api';
+import { WorkflowRunOrderByField } from '@/lib/api';
 
 interface DataTableColumnHeaderProps<TData, TValue>
   extends React.HTMLAttributes<HTMLDivElement> {

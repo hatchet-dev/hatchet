@@ -1,10 +1,10 @@
-import { cloudApi } from '@/next/lib/api/api';
+import { cloudApi } from '@/lib/api/api';
 import {
   ManagedWorker,
   ManagedWorkerList,
   CreateManagedWorkerRequest,
   UpdateManagedWorkerRequest,
-} from '@/next/lib/api/generated/cloud/data-contracts';
+} from '@/lib/api/generated/cloud/data-contracts';
 import {
   useMutation,
   UseMutationResult,

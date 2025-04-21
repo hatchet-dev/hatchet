@@ -1,8 +1,8 @@
-import { TenantBillingState } from '@/next/lib/api/generated/cloud/data-contracts';
+import { TenantBillingState } from '@/lib/api/generated/cloud/data-contracts';
 import { useQuery } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import useApiMeta from './use-api-meta';
-import { cloudApi } from '@/next/lib/api/api';
+import { cloudApi } from '@/lib/api/api';
 import { useMemo } from 'react';
 
 type Plan = 'free' | 'starter' | 'growth';

@@ -1,4 +1,4 @@
-import api, { RateLimit as ApiRateLimit, RateLimit } from '@/next/lib/api';
+import api, { RateLimit as ApiRateLimit, RateLimit } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import { PaginationManager, PaginationManagerNoOp } from './use-pagination';

@@ -1,7 +1,7 @@
 import {
   TenantInvite,
   TenantMemberRole,
-} from '@/next/lib/api/generated/data-contracts';
+} from '@/lib/api/generated/data-contracts';
 import {
   Table,
   TableBody,

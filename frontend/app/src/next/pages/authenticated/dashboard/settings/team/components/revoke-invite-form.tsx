@@ -8,11 +8,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/next/components/ui/alert-dialog';
-import { TenantInvite } from '@/next/lib/api/generated/data-contracts';
+import { TenantInvite } from '@/lib/api/generated/data-contracts';
 import useMembers from '@/next/hooks/use-members';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import api from '@/next/lib/api';
+import api from '@/lib/api';
 import useTenant from '@/next/hooks/use-tenant';
 import { Button } from '@/next/components/ui/button';
 

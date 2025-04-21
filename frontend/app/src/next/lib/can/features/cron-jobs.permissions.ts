@@ -1,5 +1,5 @@
 import { PermissionSet, RejectReason } from '@/next/lib/can';
-import { TenantMemberRole } from '@/next/lib/api';
+import { TenantMemberRole } from '@/lib/api';
 import { RANK } from '@/next/lib/can/features/members.permissions';
 
 export const cronJobs: PermissionSet = {

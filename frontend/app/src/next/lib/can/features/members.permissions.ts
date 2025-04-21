@@ -1,5 +1,5 @@
 import { PermissionSet, RejectReason } from '@/next/lib/can';
-import { TenantMember, TenantMemberRole } from '@/next/lib/api';
+import { TenantMember, TenantMemberRole } from '@/lib/api';
 
 export const RANK: Record<TenantMemberRole, number> = {
   [TenantMemberRole.MEMBER]: 0,

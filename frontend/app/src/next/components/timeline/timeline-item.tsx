@@ -1,6 +1,6 @@
 import { intervalToDuration, Duration } from 'date-fns';
 import { TimelineItemProps } from './types';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import useTimeline from '@/next/hooks/use-timeline-context';
 import { cn } from '@/next/lib/utils';
 import {

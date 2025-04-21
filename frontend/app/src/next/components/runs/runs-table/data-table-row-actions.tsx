@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
-import { V1TaskSummary, V1TaskStatus } from '@/next/lib/api';
+import { V1TaskSummary, V1TaskStatus } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 

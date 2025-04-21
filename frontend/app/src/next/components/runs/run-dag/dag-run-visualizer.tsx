@@ -10,7 +10,7 @@ import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { useTheme } from '@/next/components/theme-provider';
 import stepRunNode, { NodeData } from './step-run-node';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';

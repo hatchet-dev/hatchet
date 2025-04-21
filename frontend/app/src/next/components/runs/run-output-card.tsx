@@ -6,7 +6,7 @@ import {
   CardDescription,
 } from '@/next/components/ui/card';
 import { Code } from '@/next/components/ui/code';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import { RunsBadge } from './runs-badge';
 import { cn } from '@/next/lib/utils';
 import {

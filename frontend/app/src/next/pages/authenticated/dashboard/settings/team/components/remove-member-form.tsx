@@ -1,4 +1,4 @@
-import { TenantMember } from '@/next/lib/api/generated/data-contracts';
+import { TenantMember } from '@/lib/api/generated/data-contracts';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,7 +11,7 @@ import {
 } from '@/next/components/ui/alert-dialog';
 import { Button } from '@/next/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
-import api from '@/next/lib/api';
+import api from '@/lib/api';
 import useTenant from '@/next/hooks/use-tenant';
 import { useState } from 'react';
 import useCan from '@/next/hooks/use-can';

@@ -5,7 +5,7 @@ import {
   V1TaskSummary,
   V1TaskStatus,
   WorkflowRunOrderByField,
-} from '@/next/lib/api';
+} from '@/lib/api';
 import { Time } from '@/next/components/ui/time';
 import {
   Tooltip,

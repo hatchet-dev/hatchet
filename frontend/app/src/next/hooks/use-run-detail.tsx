@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import api from '@/next/lib/api';
+import api from '@/lib/api';
 import { useState } from 'react';
 import { useRuns } from '@/next/hooks/use-runs';
 

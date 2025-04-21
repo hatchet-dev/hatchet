@@ -15,7 +15,7 @@ import {
   FilterTaskSelect,
   FilterKeyValue,
 } from '@/next/components/ui/filters/filters';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
 import { Plus } from 'lucide-react';
