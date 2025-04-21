@@ -6,7 +6,11 @@ from typing import Generic, Literal, TypeVar
 import grpc
 import grpc.aio
 
-from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.clients.event_ts import (
+    ThreadSafeEvent,
+    UnexpectedEOF,
+    read_with_interrupt,
+)
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
@@ -130,18 +134,18 @@ class PooledListener(Generic[R, T, L], ABC):
                                 await asyncio.sleep(DEFAULT_LISTENER_RETRY_INTERVAL)
                                 break
 
-                            event, key, is_eof = t.result()
+                            event = t.result()
 
-                            if is_eof:
+                            if isinstance(event, UnexpectedEOF):
                                 logger.debug(
                                     f"Handling EOF in Pooled Listener {self.__class__.__name__}"
                                 )
                                 break
 
-                            subscriptions = self.to_subscriptions.get(key, [])
+                            subscriptions = self.to_subscriptions.get(event.key, [])
 
                             for subscription_id in subscriptions:
-                                await self.events[subscription_id].put(event)
+                                await self.events[subscription_id].put(event.data)
 
                     except grpc.RpcError as e:
                         logger.debug(f"grpc error in listener: {e}")

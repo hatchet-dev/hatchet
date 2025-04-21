@@ -44,10 +44,6 @@ const config = {
     defaultMenuCollapseLevel: 2,
     toggleButton: true,
   },
-  toc: {
-    backToTop: null,
-    component: null,
-  },
   darkMode: true,
   nextThemes: {
     defaultTheme: "dark",

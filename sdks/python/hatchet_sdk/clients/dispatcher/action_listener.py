@@ -9,7 +9,11 @@ import grpc
 import grpc.aio
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.clients.event_ts import (
+    ThreadSafeEvent,
+    UnexpectedEOF,
+    read_with_interrupt,
+)
 from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
@@ -275,14 +279,16 @@ class ActionListener:
 
                         break
 
-                    assigned_action, _, is_eof = t.result()
+                    result = t.result()
 
-                    if is_eof:
+                    if isinstance(result, UnexpectedEOF):
                         logger.debug("Handling EOF in Action Listener")
                         self.retries = self.retries + 1
                         break
 
                     self.retries = 0
+
+                    assigned_action = result.data
 
                     try:
                         action_payload = (

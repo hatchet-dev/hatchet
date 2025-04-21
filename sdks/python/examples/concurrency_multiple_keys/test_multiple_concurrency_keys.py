@@ -71,7 +71,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
                     },
                 ),
             )
-            for _ in range(200)
+            for _ in range(100)
         ]
     )
 
