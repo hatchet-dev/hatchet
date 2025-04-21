@@ -1,13 +1,7 @@
-import {
-  createContext,
-  useContext,
-  createElement,
-  PropsWithChildren,
-} from 'react';
+import { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '@/lib/api';
 import {
   V1TaskSummary,
-  V1TaskSummaryList,
   V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
   V1TaskStatus,
@@ -19,15 +13,19 @@ import {
   UseMutationResult,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
-import { PaginationManager, PaginationManagerNoOp } from './use-pagination';
+import {
+  PaginationProvider,
+  PaginationProviderProps,
+  usePagination,
+} from '@/next/hooks/utils/use-pagination';
+import {
+  TimeFilterProvider,
+  useTimeFilters,
+} from '@/next/hooks/utils/use-time-filters';
+import { FilterProvider, useFilters } from '@/next/hooks/utils/use-filters';
 
-// Define the RunQuery type to match the API parameter structure
-type RunQuery = Parameters<typeof api.v1WorkflowRunList>[1];
-
-// Types for filters and pagination
+// Types for filters
 export interface RunsFilters {
-  createdAfter?: string;
-  createdBefore?: string;
   statuses?: V1TaskStatus[];
   additional_metadata?: string[];
   workflow_ids?: string[];
@@ -49,7 +47,6 @@ interface RunsState {
     data: V1TaskRunMetrics;
     isLoading: boolean;
   };
-  pagination?: V1TaskSummaryList['pagination'];
   isLoading: boolean;
   create: UseMutationResult<
     V1WorkflowRunDetails,
@@ -57,108 +54,151 @@ interface RunsState {
     CreateRunParams,
     unknown
   >;
-
-  filters: RunsFilters;
+  cancel: UseMutationResult<
+    unknown,
+    Error,
+    { tasks: V1TaskSummary[] },
+    unknown
+  >;
+  replay: UseMutationResult<
+    unknown,
+    Error,
+    { tasks: V1TaskSummary[] },
+    unknown
+  >;
+  triggerNow: UseMutationResult<
+    V1WorkflowRunDetails,
+    Error,
+    {
+      workflowName: string;
+      input: object;
+      additionalMetadata: object;
+    },
+    unknown
+  >;
   refetch: () => Promise<unknown>;
+  filters: ReturnType<typeof useFilters<RunsFilters>>;
+  pagination: ReturnType<typeof usePagination>;
+  timeFilter: ReturnType<typeof useTimeFilters>;
 }
 
 interface RunsProviderProps {
-  filters?: RunsFilters;
-  pagination?: PaginationManager;
-  refetchInterval?: number;
+  children: React.ReactNode;
+  initialFilters?: RunsFilters;
+  initialPagination?: PaginationProviderProps;
 }
 
 const RunsContext = createContext<RunsState | null>(null);
 
-export function useRuns({
-  filters = {},
-  pagination = PaginationManagerNoOp,
-  refetchInterval,
+export function useRuns() {
+  const context = useContext(RunsContext);
+  if (!context) {
+    throw new Error('useRuns must be used within a RunsProvider');
+  }
+  return context;
+}
+
+export function RunsProvider({
+  children,
+  initialFilters,
+  initialPagination = {
+    initialPageSize: 50,
+  },
 }: RunsProviderProps) {
+  return (
+    <FilterProvider initialFilters={initialFilters}>
+      <TimeFilterProvider>
+        <PaginationProvider {...initialPagination}>
+          <RunsProviderContent>{children}</RunsProviderContent>
+        </PaginationProvider>
+      </TimeFilterProvider>
+    </FilterProvider>
+  );
+}
+
+function RunsProviderContent({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
 
-  console.log('Filters from inside useRuns', filters);
+  const filters = useFilters<RunsFilters>();
+  const pagination = usePagination();
+  const timeFilter = useTimeFilters();
 
   const listRunsQuery = useQuery({
-    queryKey: ['v1:workflow-run:list', tenant, filters, pagination],
+    queryKey: [
+      'v1:workflow-run:list',
+      tenant,
+      filters.filters,
+      timeFilter.filters,
+      pagination,
+    ],
     queryFn: async () => {
       if (!tenant) {
-        pagination?.setNumPages(1);
+        pagination.setNumPages(1);
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
-      // TODO: createdAfter should always be set, and rename this
       const since =
-        filters.createdAfter ||
+        timeFilter.filters.createdAfter ||
         new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
       const until =
-        filters.createdBefore ||
+        timeFilter.filters.createdBefore ||
         new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
-      // Convert pagination and filters to API query format
-      const query: RunQuery = {
+      const query = {
         offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
         limit: pagination.pageSize,
-        since: since,
-        until: until,
-        ...filters,
-        only_tasks: !!filters.only_tasks,
+        since,
+        until,
+        ...filters.filters,
+        only_tasks: !!filters.filters.only_tasks,
       };
 
-      console.log('Query params passed to api', query);
-
       const res = (await api.v1WorkflowRunList(tenant.metadata.id, query)).data;
-
-      pagination?.setNumPages(res.pagination?.num_pages || 1);
-
+      pagination.setNumPages(res.pagination?.num_pages || 1);
       return res;
     },
-    refetchInterval,
   });
 
   const metricsRunsQuery = useQuery({
-    queryKey: ['v1:workflow-run:metrics', tenant, filters, pagination],
+    queryKey: ['v1:workflow-run:metrics', tenant, filters.filters, pagination],
     queryFn: async () => {
       if (!tenant) {
         return [] as V1TaskRunMetrics;
       }
 
-      // TODO: createdAfter should always be set, and rename this
       const since =
-        filters.createdAfter ||
+        timeFilter.filters.createdAfter ||
         new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
       const until =
-        filters.createdBefore ||
+        timeFilter.filters.createdBefore ||
         new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 
-      // Convert pagination and filters to API query format
-      const query: RunQuery = {
+      const query = {
         offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
         limit: pagination.pageSize,
-        since: since,
-        until: until,
-        ...filters,
-        only_tasks: !!filters.only_tasks,
+        since,
+        until,
+        ...filters.filters,
+        only_tasks: !!filters.filters.only_tasks,
       };
-      // cloudApi.workflowRunEventsGetMetrics
+
       const res = (
         await api.v1TaskListStatusMetrics(tenant.metadata.id, {
           ...query,
-          workflow_ids: filters.workflow_ids,
+          workflow_ids: filters.filters.workflow_ids,
         })
       ).data;
 
       return res;
     },
   });
-  // Create workflow run implementation
+
   const createRunMutation = useMutation({
     mutationKey: ['v1:workflow-run:create', tenant],
     mutationFn: async ({ data }: CreateRunParams) => {
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-
       const res = await api.v1WorkflowRunCreate(tenant.metadata.id, data);
       return res.data;
     },
@@ -173,11 +213,9 @@ export function useRuns({
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-
       const res = await api.v1TaskCancel(tenant.metadata.id, {
         externalIds: tasks.map((run) => run.taskExternalId),
       });
-
       return res.data;
     },
     onSuccess: () => {
@@ -191,11 +229,9 @@ export function useRuns({
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-
       const res = await api.v1TaskReplay(tenant.metadata.id, {
         externalIds: tasks.map((run) => run.taskExternalId),
       });
-
       return res.data;
     },
     onSuccess: () => {
@@ -213,13 +249,11 @@ export function useRuns({
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-
       const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
         workflowName: data.workflowName,
         input: data.input,
         additionalMetadata: data.additionalMetadata,
       });
-
       return res.data;
     },
     onSuccess: () => {
@@ -227,56 +261,42 @@ export function useRuns({
     },
   });
 
-  return {
-    data: listRunsQuery.data?.rows || [],
-    metrics: {
-      data: metricsRunsQuery.data || [],
-      isLoading: metricsRunsQuery.isLoading,
-    },
-    pagination: listRunsQuery.data?.pagination,
-    isLoading: listRunsQuery.isLoading,
-    create: createRunMutation,
-    cancel: cancelRunMutation,
-    replay: replayRunMutation,
-    triggerNow: triggerNowMutation,
-    refetch: async () => {
-      return Promise.all([listRunsQuery.refetch(), metricsRunsQuery.refetch()]);
-    },
+  const refetch = useCallback(async () => {
+    return Promise.all([listRunsQuery.refetch(), metricsRunsQuery.refetch()]);
+  }, [listRunsQuery, metricsRunsQuery]);
 
-    // Filter state management
-    filters,
-  };
-}
-
-export function useRunsContext(): RunsState {
-  const context = useContext(RunsContext);
-  if (!context) {
-    throw new Error('useRuns must be used within a RunsProvider');
-  }
-  return context;
-}
-
-export function RunsProvider({
-  children,
-  refetchInterval,
-  ...props
-}: RunsProviderProps & PropsWithChildren) {
-  const runsState = useRuns({
-    refetchInterval,
-    ...props,
-  });
-
-  console.log(
-    'Filter from props to runs provider',
-    props.filters,
-    runsState.data,
+  const value = useMemo(
+    () => ({
+      data: listRunsQuery.data?.rows || [],
+      metrics: {
+        data: metricsRunsQuery.data || [],
+        isLoading: metricsRunsQuery.isLoading,
+      },
+      isLoading: listRunsQuery.isLoading,
+      create: createRunMutation,
+      cancel: cancelRunMutation,
+      replay: replayRunMutation,
+      triggerNow: triggerNowMutation,
+      refetch,
+      filters,
+      pagination,
+      timeFilter,
+    }),
+    [
+      listRunsQuery.data,
+      listRunsQuery.isLoading,
+      metricsRunsQuery.data,
+      metricsRunsQuery.isLoading,
+      createRunMutation,
+      cancelRunMutation,
+      replayRunMutation,
+      triggerNowMutation,
+      refetch,
+      filters,
+      pagination,
+      timeFilter,
+    ],
   );
 
-  return createElement(
-    RunsContext.Provider,
-    {
-      value: runsState,
-    },
-    children,
-  );
+  return <RunsContext.Provider value={value}>{children}</RunsContext.Provider>;
 }

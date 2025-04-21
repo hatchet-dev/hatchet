@@ -12,12 +12,12 @@ import {
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
-  useState,
   createContext,
   useContext,
   PropsWithChildren,
-  createElement,
 } from 'react';
+import { FilterProvider, useFilters } from './utils/use-filters';
+import { PaginationProvider, usePagination } from './utils/use-pagination';
 
 // Types for filters and pagination
 interface ManagedComputeFilters {
@@ -26,11 +26,6 @@ interface ManagedComputeFilters {
   sortDirection?: 'asc' | 'desc';
   fromDate?: string;
   toDate?: string;
-}
-
-interface ManagedComputePagination {
-  currentPage: number;
-  pageSize: number;
 }
 
 // Create params
@@ -47,7 +42,7 @@ interface UpdateManagedComputeParams {
 // Main hook return type
 interface ManagedComputeState {
   data?: ManagedWorker[];
-  pagination?: ManagedWorkerList['pagination'];
+  paginationData?: ManagedWorkerList['pagination'];
   isLoading: boolean;
   create: UseMutationResult<
     ManagedWorker,
@@ -62,43 +57,40 @@ interface ManagedComputeState {
     unknown
   >;
   delete: UseMutationResult<ManagedWorker, Error, string, unknown>;
-
-  // Added from context
-  filters: ManagedComputeFilters;
-  setFilters: (filters: ManagedComputeFilters) => void;
-  paginationState: ManagedComputePagination;
-  setPagination: (pagination: ManagedComputePagination) => void;
+  filters: ReturnType<typeof useFilters<ManagedComputeFilters>>;
+  pagination: ReturnType<typeof usePagination>;
 }
 
-interface UseManagedComputeOptions {
+interface ManagedComputeProviderProps extends PropsWithChildren {
   refetchInterval?: number;
-  initialFilters?: ManagedComputeFilters;
-  initialPagination?: ManagedComputePagination;
 }
 
-export default function useManagedCompute({
-  refetchInterval,
-  initialFilters = {},
-  initialPagination = { currentPage: 1, pageSize: 10 },
-}: UseManagedComputeOptions = {}): ManagedComputeState {
-  const { tenant } = useTenant();
+const ManagedComputeContext = createContext<ManagedComputeState | null>(null);
 
-  // State from the former context
-  const [filters, setFilters] = useState<ManagedComputeFilters>(initialFilters);
-  const [paginationState, setPagination] =
-    useState<ManagedComputePagination>(initialPagination);
+export function useManagedCompute() {
+  const context = useContext(ManagedComputeContext);
+  if (!context) {
+    throw new Error('useManagedCompute must be used within a ManagedComputeProvider');
+  }
+  return context;
+}
+
+function ManagedComputeProviderContent({ children, refetchInterval }: ManagedComputeProviderProps) {
+  const { tenant } = useTenant();
+  const filters = useFilters<ManagedComputeFilters>();
+  const pagination = usePagination();
 
   const listManagedComputeQuery = useQuery({
     queryKey: [
       'managed-compute:list',
       tenant,
-      filters.search,
-      filters.sortBy,
-      filters.sortDirection,
-      filters.fromDate,
-      filters.toDate,
-      paginationState.currentPage,
-      paginationState.pageSize,
+      filters.filters.search,
+      filters.filters.sortBy,
+      filters.filters.sortDirection,
+      filters.filters.fromDate,
+      filters.filters.toDate,
+      pagination.currentPage,
+      pagination.pageSize,
     ],
     queryFn: async () => {
       if (!tenant) {
@@ -107,37 +99,37 @@ export default function useManagedCompute({
 
       // Build query params
       const queryParams: Record<string, any> = {
-        page: paginationState.currentPage,
-        limit: paginationState.pageSize,
+        page: pagination.currentPage,
+        limit: pagination.pageSize,
       };
 
-      if (filters.sortBy) {
-        queryParams.orderBy = filters.sortBy;
-        queryParams.orderDirection = filters.sortDirection || 'asc';
+      if (filters.filters.sortBy) {
+        queryParams.orderBy = filters.filters.sortBy;
+        queryParams.orderDirection = filters.filters.sortDirection || 'asc';
       }
 
       const res = await cloudApi.managedWorkerList(tenant?.metadata.id || '');
 
       // Client-side filtering for search if API doesn't support it
       let filteredRows = res.data.rows || [];
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
+      if (filters.filters.search) {
+        const searchLower = filters.filters.search.toLowerCase();
         filteredRows = filteredRows.filter((worker: ManagedWorker) =>
           worker.name?.toLowerCase().includes(searchLower),
         );
       }
 
       // Client-side date filtering
-      if (filters.fromDate) {
-        const fromDate = new Date(filters.fromDate);
+      if (filters.filters.fromDate) {
+        const fromDate = new Date(filters.filters.fromDate);
         filteredRows = filteredRows.filter((worker: ManagedWorker) => {
           const createdAt = new Date(worker.metadata.createdAt);
           return createdAt >= fromDate;
         });
       }
 
-      if (filters.toDate) {
-        const toDate = new Date(filters.toDate);
+      if (filters.filters.toDate) {
+        const toDate = new Date(filters.filters.toDate);
         filteredRows = filteredRows.filter((worker: ManagedWorker) => {
           const createdAt = new Date(worker.metadata.createdAt);
           return createdAt <= toDate;
@@ -145,12 +137,12 @@ export default function useManagedCompute({
       }
 
       // Client-side sorting if API doesn't support it
-      if (filters.sortBy) {
+      if (filters.filters.sortBy) {
         filteredRows.sort((a: ManagedWorker, b: ManagedWorker) => {
           let valueA: any;
           let valueB: any;
 
-          switch (filters.sortBy) {
+          switch (filters.filters.sortBy) {
             case 'name':
               valueA = a.name;
               valueB = b.name;
@@ -163,7 +155,7 @@ export default function useManagedCompute({
               return 0;
           }
 
-          const direction = filters.sortDirection === 'desc' ? -1 : 1;
+          const direction = filters.filters.sortDirection === 'desc' ? -1 : 1;
           if (valueA < valueB) {
             return -1 * direction;
           }
@@ -235,50 +227,40 @@ export default function useManagedCompute({
     },
   });
 
-  return {
+  const value = {
     data: listManagedComputeQuery.data?.rows || [],
-    pagination: listManagedComputeQuery.data?.pagination,
+    paginationData: listManagedComputeQuery.data?.pagination,
     isLoading: listManagedComputeQuery.isLoading,
     create: createManagedComputeMutation,
     update: updateManagedComputeMutation,
     delete: deleteManagedComputeMutation,
-
-    // Added from context
     filters,
-    setFilters,
-    paginationState,
-    setPagination,
+    pagination,
   };
+
+  return (
+    <ManagedComputeContext.Provider value={value}>
+      {children}
+    </ManagedComputeContext.Provider>
+  );
 }
 
-// Context implementation (to maintain compatibility with components)
-interface ManagedComputeContextType extends ManagedComputeState {}
-
-const ManagedComputeContext = createContext<
-  ManagedComputeContextType | undefined
->(undefined);
-
-export const useManagedComputeContext = () => {
-  const context = useContext(ManagedComputeContext);
-  if (context === undefined) {
-    throw new Error(
-      'useManagedComputeContext must be used within a ManagedComputeProvider',
-    );
-  }
-  return context;
-};
-
-interface ManagedComputeProviderProps extends PropsWithChildren {
-  options?: UseManagedComputeOptions;
-}
-
-export function ManagedComputeProvider(props: ManagedComputeProviderProps) {
-  const { children, options = {} } = props;
-  const managedComputeState = useManagedCompute(options);
-
-  return createElement(
-    ManagedComputeContext.Provider,
-    { value: managedComputeState },
-    children,
+export function ManagedComputeProvider({ children, refetchInterval }: ManagedComputeProviderProps) {
+  return (
+    <FilterProvider<ManagedComputeFilters>
+      initialFilters={{
+        search: undefined,
+        sortBy: undefined,
+        sortDirection: 'asc',
+        fromDate: undefined,
+        toDate: undefined,
+      }}
+    >
+      <PaginationProvider initialPage={1} initialPageSize={10}>
+        <ManagedComputeProviderContent refetchInterval={refetchInterval}>
+          {children}
+        </ManagedComputeProviderContent>
+      </PaginationProvider>
+    </FilterProvider>
   );
 }

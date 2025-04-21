@@ -6,9 +6,7 @@ import {
   Pagination,
   PageSizeSelector,
   PageSelector,
-  usePagination,
 } from '@/next/components/ui/pagination';
-import { useFilters } from '@/next/hooks/use-filters';
 import {
   FilterGroup,
   FilterSelect,
@@ -22,23 +20,17 @@ import docs from '@/next/docs-meta-data';
 import { RunsMetricsView } from '../runs-metrics/runs-metrics';
 
 interface RunsTableProps {
-  rowClicked: (row: V1TaskSummary) => void;
+  rowClicked?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
 }
 
 export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
-  const { filters, setFilter } = useFilters<RunsFilters>();
-  const pagination = usePagination();
-
   const {
     data: runs,
     metrics,
     isLoading,
-  } = useRuns({
-    pagination,
-    filters,
-    refetchInterval: 3000,
-  });
+    filters: { filters, setFilter },
+  } = useRuns();
 
   const tableColumns = useMemo(() => columns(rowClicked), [rowClicked]);
 

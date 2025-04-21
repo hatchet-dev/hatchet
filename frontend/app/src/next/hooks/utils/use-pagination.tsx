@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useStateAdapter } from '../lib/utils/storage-adapter';
+import { useStateAdapter } from '../../lib/utils/storage-adapter';
 
 export interface PaginationManager {
   currentPage: number;
@@ -42,8 +42,7 @@ export function usePagination() {
 // Storage type for pagination - either in-memory state or URL query parameters
 type PaginationType = 'state' | 'query';
 
-interface PaginationProviderProps {
-  children: React.ReactNode;
+export interface PaginationProviderProps {
   initialPage?: number;
   initialPageSize?: number;
   pageSizeOptions?: number[];
@@ -75,7 +74,7 @@ export function PaginationProvider({
   initialPageSize = 50,
   pageSizeOptions = [10, 50, 100, 500],
   type = 'query',
-}: PaginationProviderProps) {
+}: PaginationProviderProps & React.PropsWithChildren) {
   // Initialize the storage with default values
   const state = useStateAdapter<PaginationState>(
     {

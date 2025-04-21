@@ -1,20 +1,12 @@
 import { useMemo } from 'react';
 import { Worker } from '@/lib/api/generated/data-contracts';
-import useWorkers from '@/next/hooks/use-workers';
 
 interface WorkerIdProps {
   worker?: Worker;
-  workerId?: string;
 }
 
-export function WorkerId({ worker: providedWorker, workerId }: WorkerIdProps) {
-  const { data: workers = [] } = useWorkers({
-    initialPagination: { currentPage: 1, pageSize: 100 },
-    refetchInterval: 5000,
-  });
-
-  const worker =
-    providedWorker || workers.find((w: Worker) => w.metadata.id === workerId);
+export function WorkerId({ worker: providedWorker }: WorkerIdProps) {
+  const worker = providedWorker;
 
   const name = useMemo(() => {
     if (!worker) {

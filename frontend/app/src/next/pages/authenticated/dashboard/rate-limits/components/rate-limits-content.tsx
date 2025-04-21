@@ -16,7 +16,7 @@ import {
 } from '@/next/components/ui/dropdown-menu';
 import { Separator } from '@/next/components/ui/separator';
 import { MoreHorizontal, RefreshCw, Lock } from 'lucide-react';
-import useRateLimits from '@/next/hooks/use-ratelimits';
+import { useRateLimits } from '@/next/hooks/use-ratelimits';
 import docs from '@/next/docs-meta-data';
 import { DocsButton } from '@/next/components/ui/docs-button';
 

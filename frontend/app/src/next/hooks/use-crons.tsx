@@ -16,7 +16,8 @@ import {
   PropsWithChildren,
   createElement,
 } from 'react';
-import { PaginationManager, PaginationManagerNoOp } from './use-pagination';
+import { FilterProvider, useFilters } from './utils/use-filters';
+import { PaginationProvider, usePagination } from './utils/use-pagination';
 
 // Types for filters and pagination
 export interface CronsFilters {
@@ -40,47 +41,55 @@ interface CreateCronParams {
 // Main hook return type
 interface CronsState {
   data?: CronWorkflowsList['rows'];
-  pagination?: CronWorkflowsList['pagination'];
+  paginationData?: CronWorkflowsList['pagination'];
   isLoading: boolean;
   update: UseMutationResult<CronWorkflows, Error, UpdateCronParams, unknown>;
   create: UseMutationResult<CronWorkflows, Error, CreateCronParams, unknown>;
   delete: UseMutationResult<void, Error, string, unknown>;
+  filters: ReturnType<typeof useFilters<CronsFilters>>;
+  pagination: ReturnType<typeof usePagination>;
 }
 
-interface UseCronsOptions {
+interface CronsProviderProps extends PropsWithChildren {
   refetchInterval?: number;
-  filters?: CronsFilters;
-  paginationManager?: PaginationManager;
 }
 
-export default function useCrons({
+const CronsContext = createContext<CronsState | null>(null);
+
+export function useCrons() {
+  const context = useContext(CronsContext);
+  if (!context) {
+    throw new Error('useCrons must be used within a CronsProvider');
+  }
+  return context;
+}
+
+function CronsProviderContent({
+  children,
   refetchInterval,
-  filters = {},
-  paginationManager = PaginationManagerNoOp,
-}: UseCronsOptions = {}): CronsState {
+}: CronsProviderProps) {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
+  const filters = useFilters<CronsFilters>();
+  const pagination = usePagination();
 
   const listCronsQuery = useQuery({
-    queryKey: ['cron:list', tenant, filters, paginationManager],
+    queryKey: ['cron:list', tenant, filters.filters, pagination],
     queryFn: async () => {
       if (!tenant) {
-        paginationManager?.setNumPages(1);
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
       const queryParams: Record<string, any> = {
-        limit: paginationManager.pageSize,
-        offset:
-          (paginationManager.currentPage - 1) * paginationManager.pageSize,
-        ...filters,
+        limit: pagination.pageSize,
+        offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
+        ...filters.filters,
       };
 
       const res = await api.cronWorkflowList(
         tenant?.metadata.id || '',
         queryParams,
       );
-      paginationManager.setNumPages(res.data.pagination?.num_pages || 1);
 
       return res.data;
     },
@@ -147,36 +156,36 @@ export default function useCrons({
     },
   });
 
-  return {
+  const value = {
     data: listCronsQuery.data?.rows || [],
-    pagination: listCronsQuery.data?.pagination,
+    paginationData: listCronsQuery.data?.pagination,
     isLoading: listCronsQuery.isLoading,
     update: updateCronMutation,
     create: createCronMutation,
     delete: deleteCronMutation,
+    filters,
+    pagination,
   };
+
+  return createElement(CronsContext.Provider, { value }, children);
 }
 
-// Context implementation (to maintain compatibility with components)
-interface CronsContextType extends CronsState {}
-
-const CronsContext = createContext<CronsContextType | undefined>(undefined);
-
-export const useCronsContext = () => {
-  const context = useContext(CronsContext);
-  if (context === undefined) {
-    throw new Error('useCronsContext must be used within a CronsProvider');
-  }
-  return context;
-};
-
-interface CronsProviderProps extends PropsWithChildren {
-  options?: UseCronsOptions;
-}
-
-export function CronsProvider(props: CronsProviderProps) {
-  const { children, options = {} } = props;
-  const cronsState = useCrons(options);
-
-  return createElement(CronsContext.Provider, { value: cronsState }, children);
+export function CronsProvider({
+  children,
+  refetchInterval,
+}: CronsProviderProps) {
+  return (
+    <FilterProvider<CronsFilters>
+      initialFilters={{
+        workflowId: undefined,
+        additionalMetadata: [],
+      }}
+    >
+      <PaginationProvider initialPage={1} initialPageSize={50}>
+        <CronsProviderContent refetchInterval={refetchInterval}>
+          {children}
+        </CronsProviderContent>
+      </PaginationProvider>
+    </FilterProvider>
+  );
 }

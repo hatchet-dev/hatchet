@@ -1,4 +1,4 @@
-import { V1WorkflowRun } from './api';
+import { V1WorkflowRun } from '@/lib/api';
 
 // Base paths
 export const BASE_PATH = '/next';

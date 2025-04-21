@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/next/lib/utils';
 import { Input } from '@/next/components/ui/input';
-import { useFilters } from '@/next/hooks/use-filters';
+import { useFilters } from '@/next/hooks/utils/use-filters';
 import { Badge } from '@/next/components/ui/badge';
 import { Check, X } from 'lucide-react';
 import { Button } from '@/next/components/ui/button';

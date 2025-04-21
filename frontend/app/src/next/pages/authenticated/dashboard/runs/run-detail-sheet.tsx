@@ -27,13 +27,10 @@ interface RunDetailSheetProps {
 export function RunDetailSheet({
   isOpen,
   onClose,
-  workflowRunId,
   taskId,
   detailsLink,
 }: RunDetailSheetProps) {
-  const { data, isLoading, error, cancel, replay } = useRunDetail(
-    workflowRunId || '',
-  );
+  const { data } = useRunDetail();
   const workflow = useMemo(() => data?.run, [data]);
 
   const tasks = useMemo(() => data?.tasks, [data]);

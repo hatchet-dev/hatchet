@@ -2,8 +2,8 @@ import { Card, CardContent } from '@/next/components/ui/card';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { cn } from '@/next/lib/utils';
 import { WorkerStatusBadge } from './worker-status-badge';
-import { useFilters } from '@/next/hooks/use-filters';
 import { useEffect } from 'react';
+import { useWorkers } from '@/next/hooks/use-workers';
 
 interface WorkerStatsProps {
   stats: {
@@ -42,11 +42,13 @@ const StatCard = ({
   className,
   status,
 }: StatCardProps) => {
-  const { setFilter } = useFilters<{ status?: string }>();
+  const {
+    filters: { setFilter },
+  } = useWorkers();
 
   const handleClick = () => {
     if (status) {
-      setFilter('status', status.toLowerCase());
+      setFilter('status', status);
     }
   };
 
@@ -67,7 +69,9 @@ const StatCard = ({
 };
 
 export function WorkerStats({ stats, isLoading }: WorkerStatsProps) {
-  const { setFilter } = useFilters<{ status?: string }>();
+  const {
+    filters: { setFilter },
+  } = useWorkers();
 
   useEffect(() => {
     if (!isLoading) {

@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import useWorkers from '@/next/hooks/use-workers';
+import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { WorkerStats } from './components';
@@ -13,12 +13,11 @@ import {
 } from '@/next/components/ui/page-header';
 import docs from '@/next/docs-meta-data';
 import { WorkerTable } from './components/worker-table';
-import { FilterProvider } from '@/next/hooks/use-filters';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerDetailSheet } from './components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 
-export default function ServiceDetailPage() {
+function ServiceDetailPageContent() {
   const { serviceName = '', workerId } = useParams<{
     serviceName: string;
     workerId?: string;
@@ -26,9 +25,7 @@ export default function ServiceDetailPage() {
   const decodedServiceName = decodeURIComponent(serviceName);
   const navigate = useNavigate();
 
-  const { data: workers = [], isLoading } = useWorkers({
-    refetchInterval: 5000,
-  });
+  const { data: workers = [], isLoading } = useWorkers();
 
   const { setBreadcrumbs } = useBreadcrumbs();
 
@@ -104,15 +101,21 @@ export default function ServiceDetailPage() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <FilterProvider>
-        {/* Stats Cards */}
-        <div className="mb-6">
-          <WorkerStats stats={serviceStats} isLoading={isLoading} />
-        </div>
+      {/* Stats Cards */}
+      <div className="mb-6">
+        <WorkerStats stats={serviceStats} isLoading={isLoading} />
+      </div>
 
-        {/* Worker Table */}
-        <WorkerTable serviceName={decodedServiceName} />
-      </FilterProvider>
+      {/* Worker Table */}
+      <WorkerTable serviceName={decodedServiceName} />
     </SheetViewLayout>
+  );
+}
+
+export default function ServiceDetailPage() {
+  return (
+    <WorkersProvider>
+      <ServiceDetailPageContent />
+    </WorkersProvider>
   );
 }

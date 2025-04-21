@@ -19,11 +19,9 @@ import { RunId } from '../run-id';
 import { RunsBadge } from '../runs-badge';
 import { Duration } from '@/next/components/ui/duration';
 import { AdditionalMetadata } from '@/next/components/ui/additional-meta';
-import { useFilters } from '@/next/hooks/use-filters';
-import { RunsFilters } from '@/next/hooks/use-runs';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-
+import { useRuns } from '@/next/hooks/use-runs';
 export const statusOptions = [
   { label: 'Pending', value: 'PENDING' },
   { label: 'Running', value: 'RUNNING' },
@@ -33,7 +31,7 @@ export const statusOptions = [
 ];
 
 export const columns = (
-  rowClicked: (row: V1TaskSummary) => void,
+  rowClicked?: (row: V1TaskSummary) => void,
 ): ColumnDef<V1TaskSummary>[] => [
   {
     accessorKey: 'status',
@@ -67,9 +65,7 @@ export const columns = (
         <div className="flex items-center gap-2">
           <RunId
             taskRun={row.original}
-            onClick={() => {
-              rowClicked(row.original);
-            }}
+            onClick={rowClicked ? () => rowClicked(row.original) : undefined}
           />
           {url && (
             <Link
@@ -211,7 +207,9 @@ export const columns = (
 ];
 
 export function AdditionalMetadataCell({ row }: { row: Row<V1TaskSummary> }) {
-  const { setFilter, filters } = useFilters<RunsFilters>();
+  const {
+    filters: { setFilter, filters },
+  } = useRuns();
 
   const metadata = row.original.additionalMetadata;
   if (!metadata) {

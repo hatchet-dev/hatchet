@@ -3,7 +3,7 @@ import { Skeleton } from '@/next/components/ui/skeleton';
 import { DataPoint } from '@/next/components/ui/charts/zoomable';
 import { ZoomableChart } from '@/next/components/ui/charts/zoomable';
 import { RunsFilters } from '@/next/hooks/use-runs';
-import { useFilters } from '@/next/hooks/use-filters';
+import { useFilters } from '@/next/hooks/utils/use-filters';
 import useTenant from '@/next/hooks/use-tenant';
 import invariant from 'tiny-invariant';
 import { queries } from '@/lib/api/queries';

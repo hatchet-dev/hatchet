@@ -32,10 +32,8 @@ import {
   PageSelector,
   PageSizeSelector,
   Pagination,
-  usePagination,
 } from '@/next/components/ui/pagination';
-import { useFilters } from '@/next/hooks/use-filters';
-import useSchedules, { SchedulesFilters } from '@/next/hooks/use-schedules';
+import { useSchedules, SchedulesFilters } from '@/next/hooks/use-schedules';
 import {
   FilterGroup,
   FilterKeyValue,
@@ -56,16 +54,11 @@ export function ScheduledRunsTable({
     null,
   );
 
-  const paginationManager = usePagination();
-  const { filters, setFilter } = useFilters<SchedulesFilters>();
-
-  const { data: scheduledRunsData = [], delete: deleteSchedule } = useSchedules(
-    {
-      refetchInterval: 5000,
-      paginationManager,
-      filters,
-    },
-  );
+  const {
+    data: scheduledRunsData = [],
+    delete: deleteSchedule,
+    filters,
+  } = useSchedules();
 
   const handleDeleteClick = (run: ScheduledWorkflows) => {
     setSelectedRun(run);
@@ -177,8 +170,8 @@ export function ScheduledRunsTable({
                     <AdditionalMetadata
                       metadata={run.additionalMetadata}
                       onClick={(click) => {
-                        setFilter('additionalMetadata', [
-                          ...(filters.additionalMetadata || []),
+                        filters.setFilter('additionalMetadata', [
+                          ...(filters.filters.additionalMetadata || []),
                           `${click.key}:${click.value}`,
                         ]);
                       }}

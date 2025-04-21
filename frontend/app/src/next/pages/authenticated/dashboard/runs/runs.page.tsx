@@ -11,17 +11,15 @@ import {
 } from '@/next/components/ui/page-header';
 import { Separator } from '@/next/components/ui/separator';
 import docs from '@/next/docs-meta-data';
-import { FilterProvider } from '@/next/hooks/use-filters';
-import { PaginationProvider } from '@/next/hooks/use-pagination';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { V1TaskSummary } from '@/lib/api';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import { RunDetailSheet } from './run-detail-sheet';
 import { ROUTES } from '@/next/lib/routes';
 import { TimeFilterGroup } from '@/next/components/ui/filters/time-filter-group';
-
+import { RunDetailProvider } from '@/next/hooks/use-run-detail';
 export interface RunsPageSheetProps {
   workflowRunId: string;
   taskId: string;
@@ -47,16 +45,18 @@ export default function RunsPage() {
     <SheetViewLayout
       sheet={
         taskId && (
-          <RunDetailSheet
-            isOpen={!!taskId}
-            onClose={handleCloseSheet}
-            workflowRunId={taskId.workflowRunId}
-            taskId={taskId.taskId}
-            detailsLink={ROUTES.runs.taskDetail(
-              taskId.workflowRunId,
-              taskId.taskId,
-            )}
-          />
+          <RunDetailProvider runId={taskId.workflowRunId}>
+            <RunDetailSheet
+              isOpen={!!taskId}
+              onClose={handleCloseSheet}
+              workflowRunId={taskId.workflowRunId}
+              taskId={taskId.taskId}
+              detailsLink={ROUTES.runs.taskDetail(
+                taskId.workflowRunId,
+                taskId.taskId,
+              )}
+            />
+          </RunDetailProvider>
         )
       }
     >
@@ -77,31 +77,18 @@ export default function RunsPage() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <FilterProvider
-        initialFilters={{
-          statuses: [
-            V1TaskStatus.RUNNING,
-            V1TaskStatus.COMPLETED,
-            V1TaskStatus.FAILED,
-          ],
-          is_root_task: true,
-        }}
-      >
-        <PaginationProvider>
-          <RunsProvider>
-            <TimeFilterGroup />
-            <GetWorkflowChart />
-            <RunsTable
-              rowClicked={handleRowClick}
-              selectedTaskId={taskId?.taskId}
-            />
-          </RunsProvider>
-        </PaginationProvider>
-      </FilterProvider>
-      <TriggerRunModal
-        show={showTriggerModal}
-        onClose={() => setShowTriggerModal(false)}
-      />
+      <RunsProvider>
+        <TimeFilterGroup />
+        <GetWorkflowChart />
+        <RunsTable
+          rowClicked={handleRowClick}
+          selectedTaskId={taskId?.taskId}
+        />
+        <TriggerRunModal
+          show={showTriggerModal}
+          onClose={() => setShowTriggerModal(false)}
+        />
+      </RunsProvider>
     </SheetViewLayout>
   );
 }

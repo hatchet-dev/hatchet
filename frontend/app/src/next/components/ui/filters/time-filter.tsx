@@ -1,30 +1,25 @@
-import { useFilters } from '@/next/hooks/use-filters';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import { cn } from '@/next/lib/utils';
 import { Button } from '@/next/components/ui/button';
-import { subMinutes, subHours, subDays } from 'date-fns';
+import { startOfMinute } from 'date-fns';
+import { TIME_PRESETS, useTimeFilters } from '@/next/hooks/utils/use-time-filters';
 
-interface TimeFilterProps<T extends Record<string, any>> {
-  startField: keyof T;
-  endField: keyof T;
+interface TimeFilterProps {
+  startField?: string;
+  endField?: string;
   className?: string;
 }
 
-const TIME_PRESETS = [
-  { label: '10m', getStartDate: () => subMinutes(new Date(), 10) },
-  { label: '30m', getStartDate: () => subMinutes(new Date(), 30) },
-  { label: '1h', getStartDate: () => subHours(new Date(), 1) },
-  { label: '6h', getStartDate: () => subHours(new Date(), 6) },
-  { label: '24h', getStartDate: () => subHours(new Date(), 24) },
-  { label: '7d', getStartDate: () => subDays(new Date(), 7) },
-] as const;
-
-export function TimeFilter<T extends Record<string, any>>({
-  startField,
-  endField,
+export function TimeFilter({
+  startField = 'createdAfter',
+  endField = 'createdBefore',
   className,
-}: TimeFilterProps<T>) {
-  const { filters, setFilters } = useFilters<T>();
+}: TimeFilterProps) {
+  const { filters, setFilters, activePreset, handleTimeFilterChange } =
+    useTimeFilters({
+      startField,
+      endField,
+    });
 
   const startDate = filters[startField]
     ? new Date(filters[startField] as string)
@@ -33,46 +28,48 @@ export function TimeFilter<T extends Record<string, any>>({
     ? new Date(filters[endField] as string)
     : undefined;
 
-  const handlePresetClick = (getStartDate: () => Date) => {
-    const newStartDate = getStartDate();
-    setFilters({
-      [startField]: newStartDate.toISOString(),
-      [endField]: undefined,
-    } as Partial<T>);
+  const handleDateChange = (date: Date | undefined, field: string) => {
+    if (date) {
+      const roundedDate = startOfMinute(date);
+      setFilters({
+        ...filters,
+        [field]: roundedDate.toISOString(),
+      });
+      handleTimeFilterChange(null); // Clear preset when manually selecting dates
+    } else {
+      setFilters({
+        ...filters,
+        [field]: undefined,
+      });
+    }
   };
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex items-center gap-2">
-        {TIME_PRESETS.map((preset) => (
+        {Object.entries(TIME_PRESETS).map(([key]) => (
           <Button
-            key={preset.label}
-            variant="outline"
+            key={key}
+            variant={activePreset === key ? 'default' : 'outline'}
             size="sm"
             className="h-8 px-2 text-xs"
-            onClick={() => handlePresetClick(preset.getStartDate)}
+            onClick={() =>
+              handleTimeFilterChange(key as keyof typeof TIME_PRESETS)
+            }
           >
-            {preset.label}
+            {key}
           </Button>
         ))}
       </div>
       <div className="flex items-center gap-4">
         <DateTimePicker
           date={startDate}
-          setDate={(date) =>
-            setFilters({
-              [startField]: date?.toISOString() as unknown as T[keyof T],
-            } as Partial<T>)
-          }
+          setDate={(date) => handleDateChange(date, startField)}
           label="Start Time"
         />
         <DateTimePicker
           date={endDate}
-          setDate={(date) =>
-            setFilters({
-              [endField]: date?.toISOString() as unknown as T[keyof T],
-            } as Partial<T>)
-          }
+          setDate={(date) => handleDateChange(date, endField)}
           label="End Time"
         />
       </div>

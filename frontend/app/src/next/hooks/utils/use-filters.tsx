@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useStateAdapter } from '../lib/utils/storage-adapter';
+import { useStateAdapter } from '../../lib/utils/storage-adapter';
 
 export interface FilterManager<T> {
   filters: T;
