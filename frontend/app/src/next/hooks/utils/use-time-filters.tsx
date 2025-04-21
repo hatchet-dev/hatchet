@@ -173,6 +173,9 @@ export function TimeFilterProvider({ children }: TimeFilterProviderProps) {
         startTime: stored.startTime,
         endTime: stored.endTime,
       });
+    } else {
+      // Set initial time if no stored values
+      setTimeFilter('1h');
     }
   }, [setTimeFilter, timeFilterStorage]);
 
