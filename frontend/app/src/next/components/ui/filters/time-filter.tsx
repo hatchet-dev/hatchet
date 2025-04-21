@@ -1,7 +1,6 @@
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import { cn } from '@/next/lib/utils';
 import { Button } from '@/next/components/ui/button';
-import { startOfMinute } from 'date-fns';
 import {
   TIME_PRESETS,
   useTimeFilters,
@@ -72,18 +71,6 @@ export function TimeFilter({ className }: TimeFilterProps) {
     ? new Date(filters.endTime as string)
     : undefined;
 
-  const handleDateChange = (date: Date | undefined) => {
-    if (date) {
-      const roundedDate = startOfMinute(date);
-      setTimeFilter({
-        startTime: roundedDate.toISOString(),
-        endTime: undefined,
-      });
-    } else {
-      handleClearTimeFilters();
-    }
-  };
-
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex items-center gap-2">
@@ -104,12 +91,30 @@ export function TimeFilter({ className }: TimeFilterProps) {
       <div className="flex items-center gap-4">
         <DateTimePicker
           date={startDate}
-          setDate={(date) => handleDateChange(date)}
+          setDate={(date) => {
+            if (date) {
+              setTimeFilter({
+                startTime: date?.toISOString(),
+                endTime: endDate?.toISOString(),
+              });
+            } else {
+              handleClearTimeFilters();
+            }
+          }}
           label="Start Time"
         />
         <DateTimePicker
           date={endDate}
-          setDate={(date) => handleDateChange(date)}
+          setDate={(date) => {
+            if (date) {
+              setTimeFilter({
+                startTime: startDate!.toISOString(),
+                endTime: date?.toISOString(),
+              });
+            } else {
+              handleClearTimeFilters();
+            }
+          }}
           label="End Time"
         />
       </div>

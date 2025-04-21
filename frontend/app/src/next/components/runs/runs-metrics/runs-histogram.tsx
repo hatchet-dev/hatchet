@@ -28,9 +28,9 @@ function GetWorkflowChart() {
           FAILED: 'hsl(var(--destructive))',
         }}
         zoom={(start, end) => {
-          timeRange.setFilters({
-            createdAfter: start,
-            createdBefore: end,
+          timeRange.setTimeFilter({
+            startTime: start,
+            endTime: end,
           });
         }}
         showYAxis={false}

@@ -1,9 +1,8 @@
 import * as React from 'react';
 import { startOfMinute, subDays, subHours, subMinutes } from 'date-fns';
+import { useStateAdapter } from '../../lib/utils/storage-adapter';
 
 export const TIME_PRESETS = {
-  '1m': (now: Date) => startOfMinute(subMinutes(now, 1)),
-  '10m': (now: Date) => startOfMinute(subMinutes(now, 10)),
   '30m': (now: Date) => startOfMinute(subMinutes(now, 30)),
   '1h': (now: Date) => startOfMinute(subHours(now, 1)),
   '6h': (now: Date) => startOfMinute(subHours(now, 6)),
@@ -29,6 +28,7 @@ interface TimeFilterState {
   startTime?: string;
   endTime?: string;
   activePreset: TimePreset | null;
+  lastActivePreset: TimePreset | null;
 }
 
 interface TimeFilterContextType {
@@ -78,10 +78,14 @@ export function useTimeFilters() {
       });
     },
     resume: () => {
-      setTimeFilter({
-        startTime: state.startTime!,
-        endTime: undefined,
-      });
+      if (state.lastActivePreset) {
+        setTimeFilter(state.lastActivePreset);
+      } else {
+        setTimeFilter({
+          startTime: state.startTime!,
+          endTime: undefined,
+        });
+      }
     },
     isPaused: state.endTime !== undefined,
   };
@@ -95,116 +99,96 @@ interface TimeFilterProviderProps {
 export function TimeFilterProvider({ children }: TimeFilterProviderProps) {
   const [state, setState] = React.useState<TimeFilterState>({
     activePreset: '1h',
+    lastActivePreset: '1h',
   });
   const updateIntervalRef = React.useRef<NodeJS.Timeout>();
 
-  const setDefaultTimeRange = React.useCallback(() => {
-    const now = startOfMinute(new Date());
-    const startTime = TIME_PRESETS['1h'](now);
+  // Initialize storage for time filter
+  const timeFilterStorage = useStateAdapter<{
+    preset?: TimePreset;
+    startTime?: string;
+    endTime?: string;
+  }>(
+    {},
+    {
+      type: 'query',
+      prefix: 'time_',
+    },
+  );
+
+  const setTimeFilter = React.useCallback(
+    (input: TimeFilterInput) => {
+      if (typeof input === 'string') {
+        // Handle preset
+        const now = startOfMinute(new Date());
+        const startTime = TIME_PRESETS[input](now);
+        setState((prev) => ({
+          ...prev,
+          startTime: startTime.toISOString(),
+          endTime: undefined,
+          activePreset: input,
+          lastActivePreset: input,
+        }));
+        // Store preset in storage
+        timeFilterStorage.setValues({
+          preset: input,
+          startTime: undefined,
+          endTime: undefined,
+        });
+      } else {
+        // Handle custom time range
+        setState((prev) => ({
+          ...prev,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          activePreset: null,
+        }));
+        // Only store in storage if both start and end time are set
+        if (input.startTime && input.endTime) {
+          timeFilterStorage.setValues({
+            preset: undefined,
+            startTime: input.startTime,
+            endTime: input.endTime,
+          });
+        } else {
+          // Clear storage if not a complete time range
+          timeFilterStorage.setValues({
+            preset: undefined,
+            startTime: undefined,
+            endTime: undefined,
+          });
+        }
+      }
+    },
+    [timeFilterStorage],
+  );
+
+  // Load initial values from storage
+  React.useEffect(() => {
+    const stored = timeFilterStorage.getValues();
+    if (stored.preset) {
+      setTimeFilter(stored.preset);
+    } else if (stored.startTime && stored.endTime) {
+      setTimeFilter({
+        startTime: stored.startTime,
+        endTime: stored.endTime,
+      });
+    }
+  }, [setTimeFilter, timeFilterStorage]);
+
+  const setActivePreset = React.useCallback((preset: TimePreset | null) => {
     setState((prev) => ({
       ...prev,
-      startTime: startTime.toISOString(),
-      endTime: undefined,
+      activePreset: preset,
     }));
   }, []);
 
-  // Set initial 1h time range
-  React.useEffect(() => {
-    setDefaultTimeRange();
-  }, [setDefaultTimeRange]);
-
-  // Clear interval when filters change
-  const clearUpdateInterval = React.useCallback(() => {
-    if (updateIntervalRef.current) {
-      if (typeof updateIntervalRef.current === 'number') {
-        clearInterval(updateIntervalRef.current);
-      } else {
-        clearTimeout(updateIntervalRef.current);
-      }
-      updateIntervalRef.current = undefined;
-    }
-  }, []);
-
-  // Handle preset updates
-  React.useEffect(() => {
-    if (!state.activePreset) {
-      clearUpdateInterval();
-      return;
-    }
-
-    const updateTimeRange = () => {
-      const now = startOfMinute(new Date());
-      const startTime = TIME_PRESETS[state.activePreset!](now);
-
-      setState((prev) => ({
-        ...prev,
-        startTime: startTime.toISOString(),
-        endTime: undefined,
-      }));
-    };
-
-    // Update immediately
-    updateTimeRange();
-
-    // Set up interval for updates
-    const updateEveryMinute = () => {
-      const now = new Date();
-      const secondsUntilNextMinute = 60 - now.getSeconds();
-      const timeoutId = setTimeout(() => {
-        updateTimeRange();
-        // Once we're synchronized with the minute boundary, use setInterval
-        updateIntervalRef.current = setInterval(updateTimeRange, 60 * 1000); // Update every minute
-      }, secondsUntilNextMinute * 1000);
-
-      return timeoutId;
-    };
-    const timeoutId = updateEveryMinute();
-    updateIntervalRef.current = timeoutId;
-
-    return clearUpdateInterval;
-  }, [state.activePreset, clearUpdateInterval]);
-
-  const setTimeFilter = React.useCallback((input: TimeFilterInput) => {
-    if (typeof input === 'string') {
-      // Handle preset
-      const now = startOfMinute(new Date());
-      const startTime = TIME_PRESETS[input](now);
-      setState((prev) => ({
-        ...prev,
-        startTime: startTime.toISOString(),
-        endTime: undefined,
-        activePreset: input,
-      }));
-    } else {
-      // Handle custom time range
-      setState((prev) => ({
-        ...prev,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        activePreset: null,
-      }));
-    }
-  }, []);
-
-  const setActivePreset = React.useCallback(
-    (preset: TimePreset | null) => {
-      clearUpdateInterval();
-      setState((prev) => ({
-        ...prev,
-        activePreset: preset,
-      }));
-    },
-    [clearUpdateInterval],
-  );
-
   const clearTimeFilters = React.useCallback(() => {
-    clearUpdateInterval();
     setState((prev) => ({
       ...prev,
       activePreset: '1h',
     }));
-    setDefaultTimeRange();
-  }, [clearUpdateInterval, setDefaultTimeRange]);
+  }, []);
 
   const value = React.useMemo(
     () => ({
