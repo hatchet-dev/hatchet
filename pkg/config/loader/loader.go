@@ -601,6 +601,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Validator:              v,
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
+		Prometheus:             cf.Prometheus,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,

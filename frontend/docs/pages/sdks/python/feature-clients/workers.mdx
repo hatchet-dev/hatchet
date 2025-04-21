@@ -1,0 +1,104 @@
+# Workers Client
+
+Bases: `BaseRestClient`
+
+The workers client is a client for managing workers programmatically within Hatchet.
+
+Methods:
+
+| Name         | Description                                                     |
+| ------------ | --------------------------------------------------------------- |
+| `aio_get`    | Get a worker by its ID.                                         |
+| `aio_list`   | List all workers in the tenant determined by the client config. |
+| `aio_update` | Update a worker by its ID.                                      |
+| `get`        | Get a worker by its ID.                                         |
+| `list`       | List all workers in the tenant determined by the client config. |
+| `update`     | Update a worker by its ID.                                      |
+
+### Functions
+
+#### `aio_get`
+
+Get a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                       | Default    |
+| ----------- | ----- | --------------------------------- | ---------- |
+| `worker_id` | `str` | The ID of the worker to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description |
+| -------- | ----------- |
+| `Worker` | The worker. |
+
+#### `aio_list`
+
+List all workers in the tenant determined by the client config.
+
+Returns:
+
+| Type         | Description        |
+| ------------ | ------------------ |
+| `WorkerList` | A list of workers. |
+
+#### `aio_update`
+
+Update a worker by its ID.
+
+Parameters:
+
+| Name        | Type                  | Description                     | Default    |
+| ----------- | --------------------- | ------------------------------- | ---------- |
+| `worker_id` | `str`                 | The ID of the worker to update. | _required_ |
+| `opts`      | `UpdateWorkerRequest` | The update options.             | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Worker` | The updated worker. |
+
+#### `get`
+
+Get a worker by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                       | Default    |
+| ----------- | ----- | --------------------------------- | ---------- |
+| `worker_id` | `str` | The ID of the worker to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description |
+| -------- | ----------- |
+| `Worker` | The worker. |
+
+#### `list`
+
+List all workers in the tenant determined by the client config.
+
+Returns:
+
+| Type         | Description        |
+| ------------ | ------------------ |
+| `WorkerList` | A list of workers. |
+
+#### `update`
+
+Update a worker by its ID.
+
+Parameters:
+
+| Name        | Type                  | Description                     | Default    |
+| ----------- | --------------------- | ------------------------------- | ---------- |
+| `worker_id` | `str`                 | The ID of the worker to update. | _required_ |
+| `opts`      | `UpdateWorkerRequest` | The update options.             | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Worker` | The updated worker. |

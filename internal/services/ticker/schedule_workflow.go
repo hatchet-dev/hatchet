@@ -157,7 +157,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			return
 		}
 
-		defer t.scheduledWorkflows.Delete(workflowVersionId)
+		defer t.scheduledWorkflows.Delete(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId))
 
 		go func() {
 			scheduler := schedulerVal.(gocron.Scheduler)

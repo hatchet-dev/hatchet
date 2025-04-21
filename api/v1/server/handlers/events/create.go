@@ -10,7 +10,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *EventService) EventCreate(ctx echo.Context, request gen.EventCreateRequestObject) (gen.EventCreateResponseObject, error) {
@@ -45,13 +44,7 @@ func (t *EventService) EventCreate(ctx echo.Context, request gen.EventCreateRequ
 		return nil, err
 	}
 
-	dbNewEvent, err := t.config.APIRepository.Event().GetEventById(ctx.Request().Context(), sqlchelpers.UUIDToStr(newEvent.ID))
-
-	if err != nil {
-		return nil, err
-	}
-
 	return gen.EventCreate200JSONResponse(
-		transformers.ToEvent(dbNewEvent),
+		transformers.ToEvent(newEvent),
 	), nil
 }

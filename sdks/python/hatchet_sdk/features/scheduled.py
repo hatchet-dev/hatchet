@@ -27,6 +27,10 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
 class ScheduledClient(BaseRestClient):
+    """
+    The scheduled client is a client for managing scheduled workflows within Hatchet.
+    """
+
     def _wra(self, client: ApiClient) -> WorkflowRunApi:
         return WorkflowRunApi(client)
 
@@ -41,16 +45,16 @@ class ScheduledClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping,
     ) -> ScheduledWorkflows:
         """
-        Creates a new scheduled workflow run asynchronously.
+        Creates a new scheduled workflow run.
 
-        Args:
-            workflow_name (str): The name of the scheduled workflow.
-            trigger_at (datetime.datetime): The datetime when the run should be triggered.
-            input (JSONSerializableMapping): The input data for the scheduled workflow.
-            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run.
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
 
-        Returns:
-            ScheduledWorkflows: The created scheduled workflow instance.
+        :param workflow_name: The name of the workflow to schedule.
+        :param trigger_at: The datetime when the run should be triggered.
+        :param input: The input data for the scheduled workflow.
+        :param additional_metadata: Additional metadata associated with the future run as a key-value pair.
+
+        :return: The created scheduled workflow instance.
         """
         with self.client() as client:
             return self._wra(client).scheduled_workflow_run_create(
@@ -71,16 +75,16 @@ class ScheduledClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping,
     ) -> ScheduledWorkflows:
         """
-        Creates a new scheduled workflow run asynchronously.
+        Creates a new scheduled workflow run.
 
-        Args:
-            workflow_name (str): The name of the scheduled workflow.
-            trigger_at (datetime.datetime): The datetime when the run should be triggered.
-            input (JSONSerializableMapping): The input data for the scheduled workflow.
-            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run as a key-value pair (e.g. {"key1": "value1", "key2": "value2"}).
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
 
-        Returns:
-            ScheduledWorkflows: The created scheduled workflow instance.
+        :param workflow_name: The name of the workflow to schedule.
+        :param trigger_at: The datetime when the run should be triggered.
+        :param input: The input data for the scheduled workflow.
+        :param additional_metadata: Additional metadata associated with the future run as a key-value pair.
+
+        :return: The created scheduled workflow instance.
         """
 
         return await asyncio.to_thread(
@@ -93,10 +97,10 @@ class ScheduledClient(BaseRestClient):
 
     def delete(self, scheduled_id: str) -> None:
         """
-        Deletes a scheduled workflow run.
+        Deletes a scheduled workflow run by its ID.
 
-        Args:
-            scheduled_id (str): The scheduled workflow trigger ID to delete.
+        :param scheduled_id: The ID of the scheduled workflow run to delete.
+        :return: None
         """
         with self.client() as client:
             self._wa(client).workflow_scheduled_delete(
@@ -105,6 +109,12 @@ class ScheduledClient(BaseRestClient):
             )
 
     async def aio_delete(self, scheduled_id: str) -> None:
+        """
+        Deletes a scheduled workflow run by its ID.
+
+        :param scheduled_id: The ID of the scheduled workflow run to delete.
+        :return: None
+        """
         await asyncio.to_thread(self.delete, scheduled_id)
 
     async def aio_list(
@@ -121,18 +131,16 @@ class ScheduledClient(BaseRestClient):
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
-        Args:
-            offset (int | None): The starting point for the list.
-            limit (int | None): The maximum number of items to return.
-            workflow_id (str | None): Filter by specific workflow ID.
-            parent_workflow_run_id (str | None): Filter by parent workflow run ID.
-            statuses (list[ScheduledRunStatus] | None): Filter by status.
-            additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
-            order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
-            order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
+        :param offset: The offset to use in pagination.
+        :param limit: The maximum number of scheduled workflows to return.
+        :param workflow_id: The ID of the workflow to filter by.
+        :param parent_workflow_run_id: The ID of the parent workflow run to filter by.
+        :param statuses: A list of statuses to filter by.
+        :param additional_metadata: Additional metadata to filter by.
+        :param order_by_field: The field to order the results by.
+        :param order_by_direction: The direction to order the results by.
 
-        Returns:
-            List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
+        :return: A list of scheduled workflows matching the provided filters.
         """
         return await asyncio.to_thread(
             self.list,
@@ -160,18 +168,16 @@ class ScheduledClient(BaseRestClient):
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
-        Args:
-            offset (int | None): The starting point for the list.
-            limit (int | None): The maximum number of items to return.
-            workflow_id (str | None): Filter by specific workflow ID.
-            parent_workflow_run_id (str | None): Filter by parent workflow run ID.
-            statuses (list[ScheduledRunStatus] | None): Filter by status.
-            additional_metadata (Optional[List[dict[str, str]]]): Filter by additional metadata.
-            order_by_field (Optional[ScheduledWorkflowsOrderByField]): Field to order the results by.
-            order_by_direction (Optional[WorkflowRunOrderByDirection]): Direction to order the results.
+        :param offset: The offset to use in pagination.
+        :param limit: The maximum number of scheduled workflows to return.
+        :param workflow_id: The ID of the workflow to filter by.
+        :param parent_workflow_run_id: The ID of the parent workflow run to filter by.
+        :param statuses: A list of statuses to filter by.
+        :param additional_metadata: Additional metadata to filter by.
+        :param order_by_field: The field to order the results by.
+        :param order_by_direction: The direction to order the results by.
 
-        Returns:
-            List[ScheduledWorkflows]: A list of scheduled workflows matching the criteria.
+        :return: A list of scheduled workflows matching the provided filters.
         """
         with self.client() as client:
             return self._wa(client).workflow_scheduled_list(
@@ -192,11 +198,8 @@ class ScheduledClient(BaseRestClient):
         """
         Retrieves a specific scheduled workflow by scheduled run trigger ID.
 
-        Args:
-            scheduled (str): The scheduled workflow trigger ID to retrieve.
-
-        Returns:
-            ScheduledWorkflows: The requested scheduled workflow instance.
+        :param scheduled_id: The scheduled workflow trigger ID to retrieve.
+        :return: The requested scheduled workflow instance.
         """
 
         with self.client() as client:
@@ -209,10 +212,7 @@ class ScheduledClient(BaseRestClient):
         """
         Retrieves a specific scheduled workflow by scheduled run trigger ID.
 
-        Args:
-            scheduled (str): The scheduled workflow trigger ID to retrieve.
-
-        Returns:
-            ScheduledWorkflows: The requested scheduled workflow instance.
+        :param scheduled_id: The scheduled workflow trigger ID to retrieve.
+        :return: The requested scheduled workflow instance.
         """
         return await asyncio.to_thread(self.get, scheduled_id)

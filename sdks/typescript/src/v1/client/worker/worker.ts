@@ -90,33 +90,29 @@ export class Worker {
    * @returns Array of registered workflow promises
    */
   async registerWorkflows(workflows?: Array<BaseWorkflowDeclaration<any, any> | V0Workflow>) {
-    return Promise.all(
-      workflows?.map(async (wf) => {
-        if (wf instanceof BaseWorkflowDeclaration) {
-          // TODO check if tenant is V1
-          const register = this.nonDurable.registerWorkflowV1(wf);
+    for (const wf of workflows || []) {
+      if (wf instanceof BaseWorkflowDeclaration) {
+        // TODO check if tenant is V1
+        await this.nonDurable.registerWorkflowV1(wf);
 
-          if (wf.definition._durableTasks.length > 0) {
-            if (!this.durable) {
-              const opts = {
-                name: `${this.name}-durable`,
-                ...this.config,
-                maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
-              };
+        if (wf.definition._durableTasks.length > 0) {
+          if (!this.durable) {
+            const opts = {
+              name: `${this.name}-durable`,
+              ...this.config,
+              maxRuns: this.config.durableSlots || DEFAULT_DURABLE_SLOTS,
+            };
 
-              this.durable = new V1Worker(this._v1, opts);
-              await this.durable.registerWorkflowV1(wf);
-            }
-            this.durable.registerDurableActionsV1(wf.definition);
+            this.durable = new V1Worker(this._v1, opts);
+            await this.durable.registerWorkflowV1(wf);
           }
-
-          return register;
+          this.durable.registerDurableActionsV1(wf.definition);
         }
-
+      } else {
         // fallback to v0 client for backwards compatibility
-        return this.nonDurable.registerWorkflow(wf);
-      }) || []
-    );
+        await this.nonDurable.registerWorkflow(wf);
+      }
+    }
   }
 
   /**
