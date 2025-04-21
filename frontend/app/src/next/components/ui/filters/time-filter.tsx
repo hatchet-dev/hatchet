@@ -5,6 +5,20 @@ import {
   TIME_PRESETS,
   useTimeFilters,
 } from '@/next/hooks/utils/use-time-filters';
+import { Pause } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/next/components/ui/dropdown-menu';
+import { ChevronDown } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/next/components/ui/tooltip';
 
 interface TimeFilterProps {
   startField?: string;
@@ -26,7 +40,7 @@ export function TimeFilterGroup({
     <div
       role="filters"
       aria-label="filters"
-      className={cn('flex w-full items-center gap-2 md:gap-6', className)}
+      className={cn('flex w-full items-center gap-2', className)}
       {...props}
     >
       {children}
@@ -38,20 +52,29 @@ export function TogglePause() {
   const { pause, resume, isPaused } = useTimeFilters();
 
   return (
-    <Button
-      variant={isPaused ? 'default' : 'outline'}
-      size="sm"
-      className="h-8 px-2 text-xs"
-      onClick={() => {
-        if (isPaused) {
-          resume();
-        } else {
-          pause();
-        }
-      }}
-    >
-      {isPaused ? 'Resume' : 'Pause'}
-    </Button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={isPaused ? 'default' : 'outline'}
+            size="sm"
+            className="h-8 px-2 text-xs"
+            onClick={() => {
+              if (isPaused) {
+                resume();
+              } else {
+                pause();
+              }
+            }}
+          >
+            {isPaused ? 'Resume' : <Pause className="h-4 w-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isPaused ? 'Resume Live Data' : 'Pause Live Data'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -62,6 +85,8 @@ export function TimeFilter({ className }: TimeFilterProps) {
     activePreset,
     handleTimeFilterChange,
     handleClearTimeFilters,
+    pause,
+    isPaused,
   } = useTimeFilters();
 
   const startDate = filters.startTime
@@ -72,52 +97,71 @@ export function TimeFilter({ className }: TimeFilterProps) {
     : undefined;
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
-      <div className="flex items-center gap-2">
-        {Object.entries(TIME_PRESETS).map(([key]) => (
-          <Button
-            key={key}
-            variant={activePreset === key ? 'default' : 'outline'}
-            size="sm"
-            className="h-8 px-2 text-xs"
-            onClick={() =>
-              handleTimeFilterChange(key as keyof typeof TIME_PRESETS)
-            }
-          >
-            {key}
-          </Button>
-        ))}
-      </div>
-      <div className="flex items-center gap-4">
-        <DateTimePicker
-          date={startDate}
-          setDate={(date) => {
-            if (date) {
-              setTimeFilter({
-                startTime: date?.toISOString(),
-                endTime: endDate?.toISOString(),
-              });
-            } else {
-              handleClearTimeFilters();
-            }
-          }}
-          label="Start Time"
-        />
-        <DateTimePicker
-          date={endDate}
-          setDate={(date) => {
-            if (date) {
-              setTimeFilter({
-                startTime: startDate!.toISOString(),
-                endTime: date?.toISOString(),
-              });
-            } else {
-              handleClearTimeFilters();
-            }
-          }}
-          label="End Time"
-        />
-      </div>
+    <div className={cn('flex flex-col', className)}>
+      {!isPaused ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-xs flex items-center gap-1"
+            >
+              Last {activePreset || 'Select Time Range'}
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {Object.entries(TIME_PRESETS).map(([key]) => (
+              <DropdownMenuItem
+                key={key}
+                onClick={() =>
+                  handleTimeFilterChange(key as keyof typeof TIME_PRESETS)
+                }
+                className={cn(
+                  'cursor-pointer',
+                  activePreset === key && 'bg-accent',
+                )}
+              >
+                Last {key}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuItem onClick={() => pause()}>
+              Custom Range
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <div className="flex items-center gap-4">
+          <DateTimePicker
+            date={startDate}
+            setDate={(date) => {
+              if (date) {
+                setTimeFilter({
+                  startTime: date?.toISOString(),
+                  endTime: endDate?.toISOString(),
+                });
+              } else {
+                handleClearTimeFilters();
+              }
+            }}
+            label="Start Time"
+          />
+          <DateTimePicker
+            date={endDate}
+            setDate={(date) => {
+              if (date) {
+                setTimeFilter({
+                  startTime: startDate!.toISOString(),
+                  endTime: date?.toISOString(),
+                });
+              } else {
+                handleClearTimeFilters();
+              }
+            }}
+            label="End Time"
+          />
+        </div>
+      )}
     </div>
   );
 }
