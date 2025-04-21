@@ -212,6 +212,25 @@ export default function UpdateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
+  // Set initial machine type based on current worker configuration
+  useEffect(() => {
+    if (
+      managedWorker?.runtimeConfigs &&
+      managedWorker.runtimeConfigs.length > 0
+    ) {
+      const config = managedWorker.runtimeConfigs[0];
+      const matchingType = machineTypes.find(
+        (m) =>
+          m.cpuKind === config.cpuKind &&
+          m.cpus === config.cpus &&
+          m.memoryMb === config.memoryMb,
+      );
+      if (matchingType) {
+        setMachineType(matchingType.title);
+      }
+    }
+  }, [managedWorker]);
+
   const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
