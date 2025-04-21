@@ -30,7 +30,9 @@ export const statusOptions = [
   { label: 'Cancelled', value: 'CANCELLED' },
 ];
 
-export const columns: ColumnDef<V1TaskSummary>[] = [
+export const columns = (
+  rowClicked: (row: V1TaskSummary) => void,
+): ColumnDef<V1TaskSummary>[] => [
   {
     accessorKey: 'status',
     header: ({ column }) => <DataTableColumnHeader column={column} title="" />,
@@ -53,7 +55,14 @@ export const columns: ColumnDef<V1TaskSummary>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Run ID" />
     ),
-    cell: ({ row }) => <RunId taskRun={row.original} />,
+    cell: ({ row }) => (
+      <RunId
+        taskRun={row.original}
+        onClick={() => {
+          rowClicked(row.original);
+        }}
+      />
+    ),
     enableSorting: false,
     enableHiding: false,
   },

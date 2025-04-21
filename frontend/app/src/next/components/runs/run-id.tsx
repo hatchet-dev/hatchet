@@ -7,17 +7,18 @@ import {
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 
-export function RunId({
-  wfRun,
-  taskRun,
-}: {
+export interface RunIdProps {
   wfRun?: V1WorkflowRun;
   taskRun?: V1TaskSummary;
-}) {
+  onClick?: () => void;
+}
+
+export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
+  const navigate = useNavigate();
 
   if (taskRun?.displayName.startsWith('leaf')) {
     // Debugging code removed.
@@ -37,17 +38,29 @@ export function RunId({
     return getFriendlyWorkflowRunId(wfRun);
   }, [isTaskRun, taskRun, wfRun]);
 
+  const handleDoubleClick = () => {
+    if (url) {
+      navigate(url);
+    }
+  };
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <span>
-            {url ? (
+            {url && !onClick ? (
               <Link to={url} className="hover:underline text-foreground">
                 {name}
               </Link>
             ) : (
-              name
+              <span
+                className={onClick ? 'cursor-pointer' : ''}
+                onClick={onClick}
+                onDoubleClick={handleDoubleClick}
+              >
+                {name}
+              </span>
             )}
           </span>
         </TooltipTrigger>
@@ -74,7 +87,7 @@ export function getFriendlyTaskRunId(run?: V1TaskSummary) {
     return;
   }
 
-  const [first, second] = run.actionId.split(':');
+  const [first, second] = run.actionId?.split(':') || [];
   const runIdPrefix = run.metadata.id.split('-')[0];
 
   return run.actionId

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -28,6 +28,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   emptyState?: React.ReactNode;
   isLoading?: boolean;
+  selectedTaskId?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -35,11 +36,11 @@ export function DataTable<TData, TValue>({
   data,
   emptyState,
   isLoading,
+  selectedTaskId,
 }: DataTableProps<TData, TValue>) {
   // Client-side state
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = useState({});
 
   // Set up table
   const table = useReactTable({
@@ -48,10 +49,7 @@ export function DataTable<TData, TValue>({
     state: {
       columnFilters,
       columnVisibility,
-      rowSelection,
     },
-    enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
@@ -65,6 +63,51 @@ export function DataTable<TData, TValue>({
     status: 'p-0 w-[40px]',
     runId: 'border-r border-border',
   };
+
+  const tableRows = useMemo(() => {
+    if (isLoading) {
+      return (
+        <TableRow>
+          <TableCell colSpan={columns.length} className="h-24 text-center">
+            Loading...
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    if (!table.getRowModel().rows?.length) {
+      return (
+        <TableRow>
+          <TableCell colSpan={columns.length} className="h-24 text-center">
+            {emptyState || 'No results found.'}
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return table.getRowModel().rows.map((row) => {
+      const isSelected =
+        selectedTaskId === (row.original as any).taskExternalId;
+      return (
+        <TableRow key={row.id} data-state={isSelected ? 'selected' : undefined}>
+          {row.getVisibleCells().map((cell) => (
+            <TableCell
+              key={cell.id}
+              className={cn(styles[cell.column.id as keyof typeof styles])}
+            >
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          ))}
+        </TableRow>
+      );
+    });
+  }, [
+    table.getRowModel().rows,
+    isLoading,
+    emptyState,
+    selectedTaskId,
+    columns.length,
+  ]);
 
   return (
     <div className="rounded-md border">
@@ -88,39 +131,7 @@ export function DataTable<TData, TValue>({
             </TableRow>
           ))}
         </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                Loading...
-              </TableCell>
-            </TableRow>
-          ) : table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
-                    className={cn(
-                      styles[cell.column.id as keyof typeof styles],
-                    )}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                {emptyState || 'No results found.'}
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
+        <TableBody>{tableRows}</TableBody>
       </Table>
     </div>
   );

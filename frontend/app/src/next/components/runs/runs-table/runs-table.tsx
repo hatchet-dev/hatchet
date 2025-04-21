@@ -1,5 +1,5 @@
 import { useRuns, RunsFilters } from '@/next/hooks/use-runs';
-
+import { useMemo } from 'react';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import {
@@ -15,13 +15,17 @@ import {
   FilterTaskSelect,
   FilterKeyValue,
 } from '@/next/components/ui/filters/filters';
-import { V1TaskStatus } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
 import { RunsMetricsView } from '../runs-metrics/runs-metrics';
-import { useMemo } from 'react';
 
-export function RunsTable() {
+interface RunsTableProps {
+  rowClicked: (row: V1TaskSummary) => void;
+  selectedTaskId?: string;
+}
+
+export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
   const { filters } = useFilters<RunsFilters>();
   const pagination = usePagination();
 
@@ -34,6 +38,8 @@ export function RunsTable() {
     filters,
     refetchInterval: 3000,
   });
+
+  const tableColumns = useMemo(() => columns(rowClicked), [rowClicked]);
 
   const additionalMetaOpts = useMemo(() => {
     if (!runs || runs.length === 0) {
@@ -53,6 +59,22 @@ export function RunsTable() {
     }));
   }, [runs]);
 
+  const emptyState = useMemo(
+    () => (
+      <div className="flex flex-col items-center justify-center gap-4 py-8">
+        <p className="text-md">No runs found.</p>
+        <p className="text-sm text-muted-foreground">
+          Trigger a new run to get started.
+        </p>
+        <DocsButton
+          doc={docs.home['running-tasks']}
+          titleOverride="Running Tasks"
+        />
+      </div>
+    ),
+    [],
+  );
+
   return (
     <div className="flex flex-col gap-4 mt-4">
       <RunsMetricsView metrics={metrics} />
@@ -71,7 +93,7 @@ export function RunsTable() {
           ]}
         />
         <FilterTaskSelect<RunsFilters>
-          name="workflows_ids"
+          name="workflow_ids"
           placeholder="Name"
           multi
         />
@@ -96,21 +118,11 @@ export function RunsTable() {
         />
       </FilterGroup>
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         data={runs || []}
-        emptyState={
-          <div className="flex flex-col items-center justify-center gap-4 py-8">
-            <p className="text-md">No runs found.</p>
-            <p className="text-sm text-muted-foreground">
-              Trigger a new run to get started.
-            </p>
-            <DocsButton
-              doc={docs.home['running-tasks']}
-              titleOverride="Running Tasks"
-            />
-          </div>
-        }
+        emptyState={emptyState}
         isLoading={isLoading}
+        selectedTaskId={selectedTaskId}
       />
       <Pagination className="p-2 justify-between flex flex-row">
         <PageSizeSelector />

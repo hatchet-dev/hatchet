@@ -1,4 +1,3 @@
-import BasicLayout from '@/next/components/layouts/basic.layout';
 import GetWorkflowChart from '@/next/components/runs/runs-metrics/runs-histogram';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
@@ -18,12 +17,36 @@ import { RunsProvider } from '@/next/hooks/use-runs';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { V1TaskStatus } from '@/lib/api';
+import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
+import { RunDetailSheet } from './run-detail-sheet';
+
+export interface RunsPageSheetProps {
+  workflowRunId: string;
+  taskId: string;
+}
 
 export default function RunsPage() {
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
+  const [taskId, setTaskId] = useState<RunsPageSheetProps>();
+
+  const handleCloseSheet = () => {
+    setTaskId(undefined);
+  };
+
   return (
-    <BasicLayout>
+    <SheetViewLayout
+      sheet={
+        taskId && (
+          <RunDetailSheet
+            isOpen={!!taskId}
+            onClose={handleCloseSheet}
+            workflowRunId={taskId.workflowRunId}
+            taskId={taskId.taskId}
+          />
+        )
+      }
+    >
       <Headline>
         <PageTitle description="View and filter runs on this tenant.">
           Runs
@@ -54,7 +77,16 @@ export default function RunsPage() {
         <PaginationProvider>
           <RunsProvider>
             <GetWorkflowChart />
-            <RunsTable />
+            <RunsTable
+              rowClicked={(task) =>
+                setTaskId({
+                  workflowRunId:
+                    task.workflowRunExternalId || task.taskExternalId,
+                  taskId: task.taskExternalId,
+                })
+              }
+              selectedTaskId={taskId?.taskId}
+            />
           </RunsProvider>
         </PaginationProvider>
       </FilterProvider>
@@ -62,6 +94,6 @@ export default function RunsPage() {
         show={showTriggerModal}
         onClose={() => setShowTriggerModal(false)}
       />
-    </BasicLayout>
+    </SheetViewLayout>
   );
 }

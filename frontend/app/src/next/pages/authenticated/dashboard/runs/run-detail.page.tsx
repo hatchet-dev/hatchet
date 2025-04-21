@@ -316,8 +316,8 @@ export default function RunDetailPage() {
         <RunDetailSheet
           isOpen={!!taskId}
           onClose={handleCloseSheet}
-          workflow={workflow}
-          selectedTask={selectedTask}
+          workflowRunId={workflowRunId || ''}
+          taskId={taskId || ''}
         />
       }
     >

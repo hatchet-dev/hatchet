@@ -11,22 +11,36 @@ import {
   TabsContent,
 } from '@/components/v1/ui/tabs';
 import { useSearchParams } from 'react-router-dom';
-import { useCallback } from 'react';
-import { WorkerDetails } from '../worker-services/components/worker-details';
+import { useCallback, useMemo } from 'react';
+import { useRunDetail } from '@/next/hooks/use-run-detail';
 
 interface RunDetailSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  workflow: any;
-  selectedTask?: any;
+  workflowRunId: string;
+  taskId: string;
 }
 
 export function RunDetailSheet({
   isOpen,
   onClose,
-  workflow,
-  selectedTask,
+  workflowRunId,
+  taskId,
 }: RunDetailSheetProps) {
+  const { data, isLoading, error, cancel, replay } = useRunDetail(
+    workflowRunId || '',
+  );
+  const workflow = useMemo(() => data?.run, [data]);
+
+  const tasks = useMemo(() => data?.tasks, [data]);
+
+  const selectedTask = useMemo(() => {
+    if (taskId) {
+      return tasks?.find((t) => t.taskExternalId === taskId);
+    }
+    return tasks?.[0];
+  }, [tasks, taskId]);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('task_tab') || 'payload';
 
@@ -98,7 +112,7 @@ export function RunDetailSheet({
                   title="Metadata"
                   output={{
                     taskRunId: selectedTask.metadata.id,
-                    workflowRunId: workflow.metadata.id,
+                    workflowRunId: workflow?.metadata.id,
                     additional: selectedTask.additionalMetadata,
                   }}
                   status={selectedTask.status}
@@ -118,17 +132,17 @@ export function RunDetailSheet({
               <>
                 <RunDataCard
                   title="Input"
-                  output={(workflow.input as { input: object }).input}
-                  status={workflow.status}
+                  output={(workflow?.input as { input: object })?.input}
+                  status={workflow?.status}
                   variant="input"
                 />
                 <RunDataCard
                   title="Metadata"
                   output={{
-                    workflowRunId: workflow.metadata.id,
-                    additional: workflow.additionalMetadata,
+                    workflowRunId: workflow?.metadata.id,
+                    additional: workflow?.additionalMetadata,
                   }}
-                  status={workflow.status}
+                  status={workflow?.status}
                   variant="metadata"
                   collapsed
                   actions={
@@ -145,16 +159,17 @@ export function RunDetailSheet({
           </div>
         </TabsContent>
         <TabsContent value="worker" className="mt-4">
-          {selectedTask?.workerId ? (
+          {/* TODO: Add worker details */}
+          {/* {selectedTask?.workerId ? (
             <WorkerDetails
-              workerId={selectedTask.workerId}
+              workerId={selectedTask}
               showActions={false}
             />
           ) : (
             <div className="text-center text-muted-foreground py-8">
               No worker information available
             </div>
-          )}
+          )} */}
         </TabsContent>
       </Tabs>
     </InfoSheet>
