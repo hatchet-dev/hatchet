@@ -89,6 +89,10 @@ class BulkCancelReplayOpts(BaseModel):
 
 
 class RunsClient(BaseRestClient):
+    """
+    The runs client is a client for interacting with task and workflow runs within Hatchet.
+    """
+
     def __init__(
         self,
         config: ClientConfig,
@@ -107,10 +111,22 @@ class RunsClient(BaseRestClient):
         return TaskApi(client)
 
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
+        """
+        Get workflow run details for a given workflow run ID.
+
+        :param workflow_run_id: The ID of the workflow run to retrieve details for.
+        :return: Workflow run details for the specified workflow run ID.
+        """
         with self.client() as client:
             return self._wra(client).v1_workflow_run_get(str(workflow_run_id))
 
     async def aio_get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
+        """
+        Get workflow run details for a given workflow run ID.
+
+        :param workflow_run_id: The ID of the workflow run to retrieve details for.
+        :return: Workflow run details for the specified workflow run ID.
+        """
         return await asyncio.to_thread(self.get, workflow_run_id)
 
     async def aio_list(
@@ -126,6 +142,22 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
     ) -> V1TaskSummaryList:
+        """
+        List task runs according to a set of filters.
+
+        :param since: The start time for filtering task runs.
+        :param only_tasks: Whether to only list task runs.
+        :param offset: The offset for pagination.
+        :param limit: The maximum number of task runs to return.
+        :param statuses: The statuses to filter task runs by.
+        :param until: The end time for filtering task runs.
+        :param additional_metadata: Additional metadata to filter task runs by.
+        :param workflow_ids: The workflow IDs to filter task runs by.
+        :param worker_id: The worker ID to filter task runs by.
+        :param parent_task_external_id: The parent task external ID to filter task runs by.
+
+        :return: A list of task runs matching the specified filters.
+        """
         return await asyncio.to_thread(
             self.list,
             since=since,
@@ -153,6 +185,22 @@ class RunsClient(BaseRestClient):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
     ) -> V1TaskSummaryList:
+        """
+        List task runs according to a set of filters.
+
+        :param since: The start time for filtering task runs.
+        :param only_tasks: Whether to only list task runs.
+        :param offset: The offset for pagination.
+        :param limit: The maximum number of task runs to return.
+        :param statuses: The statuses to filter task runs by.
+        :param until: The end time for filtering task runs.
+        :param additional_metadata: Additional metadata to filter task runs by.
+        :param workflow_ids: The workflow IDs to filter task runs by.
+        :param worker_id: The worker ID to filter task runs by.
+        :param parent_task_external_id: The parent task external ID to filter task runs by.
+
+        :return: A list of task runs matching the specified filters.
+        """
         with self.client() as client:
             return self._wra(client).v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
@@ -175,7 +223,20 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> V1WorkflowRunDetails:
+        """
+        Trigger a new workflow run.
+
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
+
+        :param workflow_name: The name of the workflow to trigger.
+        :param input: The input data for the workflow run.
+        :param additional_metadata: Additional metadata associated with the workflow run.
+        :param priority: The priority of the workflow run.
+
+        :return: The details of the triggered workflow run.
+        """
         with self.client() as client:
             return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,
@@ -183,6 +244,7 @@ class RunsClient(BaseRestClient):
                     workflowName=workflow_name,
                     input=dict(input),
                     additionalMetadata=dict(additional_metadata),
+                    priority=priority,
                 ),
             )
 
@@ -191,18 +253,49 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> V1WorkflowRunDetails:
+        """
+        Trigger a new workflow run.
+
+        IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workflows if possible. This method is intended to be an escape hatch. For more details, see [the documentation](https://docs.hatchet.run/sdks/python/runnables#workflow).
+
+        :param workflow_name: The name of the workflow to trigger.
+        :param input: The input data for the workflow run.
+        :param additional_metadata: Additional metadata associated with the workflow run.
+        :param priority: The priority of the workflow run.
+
+        :return: The details of the triggered workflow run.
+        """
         return await asyncio.to_thread(
-            self.create, workflow_name, input, additional_metadata
+            self.create, workflow_name, input, additional_metadata, priority
         )
 
     def replay(self, run_id: str) -> None:
+        """
+        Replay a task or workflow run.
+
+        :param run_id: The external ID of the task or workflow run to replay.
+        :return: None
+        """
         self.bulk_replay(opts=BulkCancelReplayOpts(ids=[run_id]))
 
     async def aio_replay(self, run_id: str) -> None:
+        """
+        Replay a task or workflow run.
+
+        :param run_id: The external ID of the task or workflow run to replay.
+        :return: None
+        """
         return await asyncio.to_thread(self.replay, run_id)
 
     def bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
+        """
+        Replay task or workflow runs in bulk, according to a set of filters.
+
+        :param opts: Options for bulk replay, including filters and IDs.
+        :return: None
+        """
         with self.client() as client:
             self._ta(client).v1_task_replay(
                 tenant=self.client_config.tenant_id,
@@ -210,15 +303,39 @@ class RunsClient(BaseRestClient):
             )
 
     async def aio_bulk_replay(self, opts: BulkCancelReplayOpts) -> None:
+        """
+        Replay task or workflow runs in bulk, according to a set of filters.
+
+        :param opts: Options for bulk replay, including filters and IDs.
+        :return: None
+        """
         return await asyncio.to_thread(self.bulk_replay, opts)
 
     def cancel(self, run_id: str) -> None:
+        """
+        Cancel a task or workflow run.
+
+        :param run_id: The external ID of the task or workflow run to cancel.
+        :return: None
+        """
         self.bulk_cancel(opts=BulkCancelReplayOpts(ids=[run_id]))
 
     async def aio_cancel(self, run_id: str) -> None:
+        """
+        Cancel a task or workflow run.
+
+        :param run_id: The external ID of the task or workflow run to cancel.
+        :return: None
+        """
         return await asyncio.to_thread(self.cancel, run_id)
 
     def bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
+        """
+        Cancel task or workflow runs in bulk, according to a set of filters.
+
+        :param opts: Options for bulk cancel, including filters and IDs.
+        :return: None
+        """
         with self.client() as client:
             self._ta(client).v1_task_cancel(
                 tenant=self.client_config.tenant_id,
@@ -226,14 +343,43 @@ class RunsClient(BaseRestClient):
             )
 
     async def aio_bulk_cancel(self, opts: BulkCancelReplayOpts) -> None:
+        """
+        Cancel task or workflow runs in bulk, according to a set of filters.
+
+        :param opts: Options for bulk cancel, including filters and IDs.
+        :return: None
+        """
         return await asyncio.to_thread(self.bulk_cancel, opts)
 
     def get_result(self, run_id: str) -> JSONSerializableMapping:
+        """
+        Get the result of a workflow run by its external ID.
+
+        :param run_id: The external ID of the workflow run to retrieve the result for.
+        :return: The result of the workflow run.
+        """
         details = self.get(run_id)
 
         return details.run.output
 
+    async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
+        """
+        Get the result of a workflow run by its external ID.
+
+        :param run_id: The external ID of the workflow run to retrieve the result for.
+        :return: The result of the workflow run.
+        """
+        details = await asyncio.to_thread(self.get, run_id)
+
+        return details.run.output
+
     def get_run_ref(self, workflow_run_id: str) -> "WorkflowRunRef":
+        """
+        Get a reference to a workflow run.
+
+        :param workflow_run_id: The ID of the workflow run to get a reference to.
+        :return: A reference to the specified workflow run.
+        """
         from hatchet_sdk.workflow_run import WorkflowRunRef
 
         return WorkflowRunRef(
@@ -242,8 +388,3 @@ class RunsClient(BaseRestClient):
             workflow_run_listener=self.workflow_run_listener,
             runs_client=self,
         )
-
-    async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
-        details = await asyncio.to_thread(self.get, run_id)
-
-        return details.run.output

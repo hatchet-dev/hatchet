@@ -40,10 +40,12 @@ type CreateWorkflowVersionOpts struct {
 	OnFailure *CreateStepOpts `json:"onFailureJob,omitempty" validate:"omitempty"`
 
 	// (optional) the workflow concurrency groups
-	Concurrency *CreateConcurrencyOpts `json:"concurrency,omitempty" validator:"omitnil"`
+	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validator:"omitempty,dive"`
 
 	// (optional) sticky strategy
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
+
+	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -276,6 +278,12 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 	default:
 		workflowId = existingWorkflow.ID
 
+		// Lock the previous workflow version to prevent concurrent version creation
+		_, err := r.queries.LockWorkflowVersion(ctx, tx, workflowId)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("failed to lock previous workflow version: %w", err)
+		}
+
 		// fetch the latest workflow version
 		workflowVersionIds, err := r.queries.GetLatestWorkflowVersionForWorkflows(ctx, tx, sqlcv1.GetLatestWorkflowVersionForWorkflowsParams{
 			Tenantid:    pgTenantId,
@@ -361,6 +369,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		}
 	}
 
+	if opts.DefaultPriority != nil {
+		createParams.DefaultPriority = pgtype.Int4{
+			Int32: *opts.DefaultPriority,
+			Valid: true,
+		}
+	}
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,
@@ -398,33 +412,50 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	// create concurrency group
 	// NOTE: we do this AFTER the creation of steps/jobs because we have a trigger which depends on the existence
 	// of the jobs/steps to create the v1 concurrency groups
-	if opts.Concurrency != nil {
-		params := sqlcv1.CreateWorkflowConcurrencyParams{
-			Workflowversionid:          sqlcWorkflowVersion.ID,
-			ConcurrencyGroupExpression: sqlchelpers.TextFromStr(opts.Concurrency.Expression),
+	for _, wfConcurrency := range opts.Concurrency {
+		params := sqlcv1.CreateWorkflowConcurrencyV1Params{
+			Workflowid:        workflowId,
+			Workflowversionid: sqlcWorkflowVersion.ID,
+			Expression:        wfConcurrency.Expression,
+			Tenantid:          tenantId,
 		}
 
-		if opts.Concurrency.MaxRuns != nil {
-			params.MaxRuns = sqlchelpers.ToInt(*opts.Concurrency.MaxRuns)
+		if wfConcurrency.MaxRuns != nil {
+			params.MaxRuns = pgtype.Int4{
+				Int32: *wfConcurrency.MaxRuns,
+				Valid: true,
+			}
 		}
 
-		var ls sqlcv1.ConcurrencyLimitStrategy
+		var ls sqlcv1.V1ConcurrencyStrategy
 
-		if opts.Concurrency.LimitStrategy != nil && *opts.Concurrency.LimitStrategy != "" {
-			ls = sqlcv1.ConcurrencyLimitStrategy(*opts.Concurrency.LimitStrategy)
+		if wfConcurrency.LimitStrategy != nil && *wfConcurrency.LimitStrategy != "" {
+			ls = sqlcv1.V1ConcurrencyStrategy(*wfConcurrency.LimitStrategy)
 		} else {
-			ls = sqlcv1.ConcurrencyLimitStrategyCANCELINPROGRESS
+			ls = sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS
 		}
 
-		params.LimitStrategy = sqlcv1.NullConcurrencyLimitStrategy{
-			Valid:                    true,
-			ConcurrencyLimitStrategy: ls,
-		}
+		params.Limitstrategy = ls
 
-		_, err = r.queries.CreateWorkflowConcurrency(
+		wcs, err := r.queries.CreateWorkflowConcurrencyV1(
 			ctx,
 			tx,
 			params,
+		)
+
+		if err != nil {
+			return "", fmt.Errorf("could not create concurrency group: %w", err)
+		}
+
+		err = r.queries.UpdateWorkflowConcurrencyWithChildStrategyIds(
+			ctx,
+			tx,
+			sqlcv1.UpdateWorkflowConcurrencyWithChildStrategyIdsParams{
+				Workflowid:            workflowId,
+				Workflowversionid:     sqlcWorkflowVersion.ID,
+				Workflowconcurrencyid: wcs.ID,
+				Childstrategyids:      wcs.ChildStrategyIds,
+			},
 		)
 
 		if err != nil {
@@ -466,6 +497,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	for _, cronTrigger := range opts.CronTriggers {
 
+		var priority pgtype.Int4
+
+		if opts.DefaultPriority != nil {
+			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
+		}
+
 		_, err := r.queries.CreateWorkflowTriggerCronRef(
 			ctx,
 			tx,
@@ -477,6 +514,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 					String: "",
 					Valid:  true,
 				},
+				Priority: priority,
 			},
 		)
 

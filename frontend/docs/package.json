@@ -10,7 +10,7 @@
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
-    "prettier:fix": "prettier \"pages/**/*.{tsx,mdx}\" --write"
+    "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write"
   },
   "repository": {
     "type": "git",

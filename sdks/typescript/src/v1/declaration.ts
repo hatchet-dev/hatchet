@@ -9,17 +9,25 @@ import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
   CreateOnFailureTaskOpts,
-  TaskConcurrency,
   TaskFn,
   CreateWorkflowDurableTaskOpts,
   CreateBaseTaskOpts,
   CreateOnSuccessTaskOpts,
+  Concurrency,
+  DurableTaskFn,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
+
+// eslint-disable-next-line no-shadow
+export enum Priority {
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+}
 
 /**
  * Additional metadata that can be attached to a workflow run.
@@ -31,9 +39,16 @@ type AdditionalMetadata = Record<string, string>;
  */
 export type RunOpts = {
   /**
-   * Additional metadata to attach to the workflow run.
+   * (optional) additional metadata to attach to the workflow run.
    */
   additionalMetadata?: AdditionalMetadata;
+
+  /**
+   * (optional) the priority for the workflow run.
+   *
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  priority?: Priority;
 };
 
 /**
@@ -89,13 +104,27 @@ export type CreateBaseWorkflowOpts = {
    */
   onEvents?: string[];
 
-  concurrency?: TaskConcurrency;
+  /**
+   * (optional) concurrency config for the workflow.
+   */
+  concurrency?: Concurrency | Concurrency[];
+
+  /**
+   * (optional) the priority for the workflow.
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  defaultPriority?: Priority;
 };
 
 export type CreateTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, TaskFn<I, O>>;
+
+export type CreateDurableTaskWorkflowOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, DurableTaskFn<I, O>>;
 
 /**
  * Options for creating a new workflow.
@@ -160,7 +189,7 @@ export type TaskDefaults = {
   /**
    * (optional) the concurrency options for the task.
    */
-  concurrency?: TaskConcurrency | TaskConcurrency[];
+  concurrency?: Concurrency | Concurrency[];
 };
 
 /**
@@ -338,7 +367,7 @@ export class BaseWorkflowDeclaration<
     const scheduled = this.client._v0.schedule.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
-      additionalMetadata: options?.additionalMetadata,
+      ...options,
     });
 
     return scheduled;
@@ -380,6 +409,7 @@ export class BaseWorkflowDeclaration<
     const cronDef = this.client._v0.cron.create(this.definition.name, {
       expression,
       input: input as JsonObject,
+      ...options,
       additionalMetadata: options?.additionalMetadata,
       name,
     });

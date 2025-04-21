@@ -6,10 +6,8 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/v1/features"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -24,7 +22,7 @@ type Worker interface {
 	Start() (func() error, error)
 
 	// StartBlocking begins worker execution and blocks until the process is interrupted.
-	StartBlocking(ctx ...context.Context) error
+	StartBlocking(ctx context.Context) error
 
 	// RegisterWorkflows registers one or more workflows with the worker.
 	RegisterWorkflows(workflows ...workflow.WorkflowBase) error
@@ -302,33 +300,19 @@ func (w *WorkerImpl) Start() (func() error, error) {
 // StartBlocking begins worker execution and blocks until the process is interrupted.
 // this method handles graceful shutdown via interrupt signals.
 // returns any error encountered during startup or shutdown.
-func (w *WorkerImpl) StartBlocking(ctx ...context.Context) error {
-
-	if len(ctx) == 0 {
-		ctx = []context.Context{context.Background()}
-	}
-
+func (w *WorkerImpl) StartBlocking(ctx context.Context) error {
 	cleanup, err := w.Start()
 	if err != nil {
 		return err
 	}
-	ch := cmdutils.InterruptChan()
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
-	defer cancel()
 
-	for {
-		select {
-		case <-ctx[0].Done():
-		case <-interruptCtx.Done():
-			err := cleanup()
-			if err != nil {
-				panic(err)
-			}
-			return nil
-		default:
-			time.Sleep(time.Second)
-		}
+	<-ctx.Done()
+
+	err = cleanup()
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 // IsPaused checks if all worker instances are paused

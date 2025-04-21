@@ -7,7 +7,7 @@ import { InputType, OutputType, UnknownInputType } from './types';
 /**
  * Options for configuring the concurrency for a task.
  */
-export type TaskConcurrency = {
+export type Concurrency = {
   /**
    * required the CEL expression to use for concurrency
    *
@@ -32,6 +32,11 @@ export type TaskConcurrency = {
    */
   limitStrategy?: ConcurrencyLimitStrategy;
 };
+
+/**
+ * @deprecated use Concurrency instead
+ */
+export type TaskConcurrency = Concurrency;
 
 export class NonRetryableError extends Error {
   constructor(message?: string) {
@@ -130,7 +135,7 @@ export type CreateBaseTaskOpts<
   /**
    * (optional) the concurrency options for the task
    */
-  concurrency?: TaskConcurrency | TaskConcurrency[];
+  concurrency?: Concurrency | Concurrency[];
 };
 
 export type CreateWorkflowTaskOpts<
@@ -200,12 +205,6 @@ export type CreateWorkflowTaskOpts<
   skipIf?: Conditions | Conditions[];
 };
 
-export type CreateStandaloneTaskOpts<
-  I extends InputType = UnknownInputType,
-  O extends OutputType = void,
-  C extends TaskFn<I, O> = TaskFn<I, O>,
-> = CreateBaseTaskOpts<I, O, C>;
-
 /**
  * Options for creating a hatchet durable task which is an atomic unit of work in a workflow.
  * @template I The input type for the task function.
@@ -216,17 +215,6 @@ export type CreateWorkflowDurableTaskOpts<
   O extends OutputType = void,
   C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
 > = CreateWorkflowTaskOpts<I, O, C>;
-
-/**
- * Options for creating a hatchet task which is an atomic unit of work in a workflow.
- * @template I The input type for the task function.
- * @template O The return type of the task function (can be inferred from the return value of fn).
- */
-export type CreateStandaloneDurableTaskOpts<
-  I extends InputType = UnknownInputType,
-  O extends OutputType = void,
-  C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
-> = CreateBaseTaskOpts<I, O, C>;
 
 /**
  * Options for configuring the onSuccess task that is invoked when a task succeeds.

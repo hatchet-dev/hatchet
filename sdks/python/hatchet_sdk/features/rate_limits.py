@@ -12,6 +12,10 @@ from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 
 
 class RateLimitsClient(BaseRestClient):
+    """
+    The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
+    """
+
     @tenacity_retry
     def put(
         self,
@@ -19,6 +23,16 @@ class RateLimitsClient(BaseRestClient):
         limit: int,
         duration: RateLimitDuration = RateLimitDuration.SECOND,
     ) -> None:
+        """
+        Put a rate limit for a given key.
+
+        :param key: The key to set the rate limit for.
+        :param limit: The rate limit to set.
+        :param duration: The duration of the rate limit.
+
+        :return: None
+        """
+
         duration_proto = convert_python_enum_to_proto(
             duration, workflow_protos.RateLimitDuration
         )
@@ -42,4 +56,14 @@ class RateLimitsClient(BaseRestClient):
         limit: int,
         duration: RateLimitDuration = RateLimitDuration.SECOND,
     ) -> None:
+        """
+        Put a rate limit for a given key.
+
+        :param key: The key to set the rate limit for.
+        :param limit: The rate limit to set.
+        :param duration: The duration of the rate limit.
+
+        :return: None
+        """
+
         await asyncio.to_thread(self.put, key, limit, duration)

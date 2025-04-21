@@ -235,6 +235,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			return nil, err
 		}
 	} else {
+
 		oldWorkflowVersion, err = a.repo.Workflow().GetLatestWorkflowVersion(
 			ctx,
 			tenantId,
@@ -376,6 +377,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			ScheduledTriggers:  dbSchedules,
 			Input:              []byte(req.Input),
 			AdditionalMetadata: additionalMetadata,
+			Priority:           req.Priority,
 		},
 	)
 
@@ -830,6 +832,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				req.ChildKey,
 				additionalMetadata,
 				parentAdditionalMeta,
+				req.Priority,
 			)
 
 			if err != nil {

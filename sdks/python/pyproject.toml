@@ -1,10 +1,11 @@
 [tool.poetry]
 name = "hatchet-sdk"
-version = "1.3.2"
+version = "1.6.3"
 description = ""
 authors = ["Alexander Belanger <alexander@hatchet.run>"]
 readme = "README.md"
 include = ["hatchet_sdk/py.typed"]
+license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -50,6 +51,17 @@ pytest = "^8.3.5"
 pytest-asyncio = "^0.25.3"
 pytest-env = "^1.1.5"
 pytest-retry = "^1.7.0"
+psycopg = { extras = ["pool"], version = "^3.2.6" }
+
+
+[tool.poetry.group.docs.dependencies]
+mkdocs = "^1.6.1"
+mkdocstrings = { extras = ["python"], version = "^0.29.1" }
+pydoclint = "^0.6.6"
+markdownify = "^1.1.0"
+openai = "^1.75.0"
+bs4 = "^0.0.2"
+types-beautifulsoup4 = "^4.12.0.20250204"
 
 [tool.poetry.extras]
 otel = [
@@ -87,7 +99,7 @@ known_third_party = [
 extend_skip = ["hatchet_sdk/contracts/", "hatchet_sdk/v0/contracts/"]
 
 [tool.black]
-extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/)"
+extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/|site)"
 
 [tool.mypy]
 files = ["."]
@@ -100,6 +112,7 @@ exclude = [
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
     "hatchet_sdk/v0/*",
+    "site/*",
 ]
 strict = true
 enable_error_code = [
@@ -119,7 +132,9 @@ exclude = [
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
     "hatchet_sdk/v0/*",
+    "site/*",
 ]
+target-version = "py310"
 
 [tool.poetry.scripts]
 
@@ -151,3 +166,14 @@ otel = "examples.opentelemetry_instrumentation.worker:main"
 waits = "examples.waits.worker:main"
 durable = "examples.durable.worker:main"
 streaming = "examples.streaming.worker:main"
+lifespans = "examples.lifespans.worker:main"
+docs-gen = "docs.generator.generate:main"
+
+[tool.pydoclint]
+style = 'sphinx'
+exclude = 'v0|clients/rest/*|contracts/*|.venv|site/*'
+arg-type-hints-in-docstring = false                    # Automatically checked by mypy and mkdocs
+check-return-types = false                             # Automatically checked by mypy and mkdocs
+
+[tool.poetry.plugins."mkdocs.plugins"]
+"markdown-export" = "docs.generator.markdown_export:MarkdownExportPlugin"

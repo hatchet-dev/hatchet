@@ -486,7 +486,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		})
 	}
 
-	encryptionSvc, err := loadEncryptionSvc(cf)
+	encryptionSvc, err := LoadEncryptionSvc(cf)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not load encryption service: %w", err)
@@ -601,6 +601,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Validator:              v,
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
+		Prometheus:             cf.Prometheus,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
@@ -617,7 +618,7 @@ func getStrArr(v string) []string {
 	return strings.Split(v, " ")
 }
 
-func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
+func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
 	var err error
 
 	hasLocalMasterKeyset := cf.Encryption.MasterKeyset != "" || cf.Encryption.MasterKeysetFile != ""

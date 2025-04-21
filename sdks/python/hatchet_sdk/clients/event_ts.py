@@ -1,8 +1,10 @@
 import asyncio
-from typing import Callable, TypeVar, cast, overload
+from typing import Callable, Generic, TypeVar, cast, overload
 
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
+
+from hatchet_sdk.logger import logger
 
 
 class ThreadSafeEvent(asyncio.Event):
@@ -27,12 +29,23 @@ TRequest = TypeVar("TRequest")
 TResponse = TypeVar("TResponse")
 
 
+class ReadWithInterruptResult(Generic[TResponse]):
+    def __init__(self, data: TResponse, key: str):
+        self.data = data
+        self.key = key
+
+
+class UnexpectedEOF:
+    def __init__(self) -> None:
+        pass
+
+
 @overload
 async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str],
-) -> tuple[TResponse, str]: ...
+) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF: ...
 
 
 @overload
@@ -40,22 +53,23 @@ async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: None = None,
-) -> tuple[TResponse, None]: ...
+) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF: ...
 
 
 async def read_with_interrupt(
     listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str] | None = None,
-) -> tuple[TResponse, str | None]:
+) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF:
     try:
         result = cast(TResponse, await listener.read())
 
         if result is cygrpc.EOF:
-            raise ValueError("Unexpected EOF")
+            logger.warning("Received EOF from engine")
+            return UnexpectedEOF()
 
-        key = key_generator(result) if key_generator else None
+        key = key_generator(result) if key_generator else ""
 
-        return result, key
+        return ReadWithInterruptResult(data=result, key=key)
     finally:
         interrupt.set()

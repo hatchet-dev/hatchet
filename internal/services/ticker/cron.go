@@ -92,7 +92,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	_, err = s.NewJob(
 		gocron.CronJob(cron.Cron, false),
 		gocron.NewTask(
-			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata),
+			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata, &cron.Priority),
 		),
 	)
 
@@ -108,7 +108,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}) func() {
+func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -133,7 +133,7 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 		case dbsqlc.TenantMajorEngineVersionV0:
 			err = t.runCronWorkflowV0(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata)
 		case dbsqlc.TenantMajorEngineVersionV1:
-			err = t.runCronWorkflowV1(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata)
+			err = t.runCronWorkflowV1(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata, priority)
 		default:
 			t.l.Error().Msgf("unsupported tenant major engine version %s", tenant.Version)
 			return

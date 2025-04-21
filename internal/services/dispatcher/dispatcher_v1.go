@@ -76,6 +76,7 @@ func populateAssignedAction(tenantId string, task *sqlcv1.V1Task) *contracts.Ass
 		StepName:      task.StepReadableID,
 		WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
 		RetryCount:    task.RetryCount,
+		Priority:      task.Priority.Int32,
 	}
 
 	if task.AdditionalMetadata != nil {
@@ -228,8 +229,10 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 							err := w.StartTaskFromBulk(ctx, msg.TenantID, task)
 
 							if err != nil {
-								d.l.Err(err).Msgf("could not send step run to worker (%d)", i)
-								multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
+								multiErr = multierror.Append(
+									multiErr,
+									fmt.Errorf("could not send action for task %s to worker %s (%d / %d): %w", sqlchelpers.UUIDToStr(task.ExternalID), workerId, i+1, len(workers), err),
+								)
 							} else {
 								success = true
 								break

@@ -234,9 +234,9 @@ class Hatchet:
         Initialize a new Hatchet instance.
 
         Args:
-            debug (bool, optional): Enable debug logging. Defaults to False.
-            client (Optional[Client], optional): A pre-configured Client instance. Defaults to None.
-            config (ClientConfig, optional): Configuration for creating a new Client. Defaults to ClientConfig().
+            debug (bool, optional): Enable debug logging.
+            client (Optional[Client], optional): A pre-configured Client instance.
+            config (ClientConfig, optional): Configuration for creating a new Client.
         """
         if client is not None:
             self._client = client

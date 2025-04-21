@@ -57,7 +57,6 @@ def create_traceparent() -> str | None:
     :returns: A W3C-formatted traceparent header value if successful, None if the context
                     injection fails or no active span exists.\n
                     Example: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
-    :rtype: str | None:
     """
 
     carrier: dict[str, str] = {}
@@ -75,10 +74,9 @@ def parse_carrier_from_metadata(metadata: dict[str, str] | None) -> Context | No
 
     :param metadata: A dictionary containing metadata key-value pairs,
                      potentially including the `traceparent` header. Can be None.
-    :type metadata: dict[str, str] | None
+
     :returns: The extracted OpenTelemetry Context object if a valid `traceparent`
               is found in the metadata, otherwise None.
-    :rtype: Context | None
 
     :Example:
 
@@ -108,13 +106,12 @@ def inject_traceparent_into_metadata(
     `OTEL_TRACEPARENT_KEY`. If no `traceparent` is provided, it attempts to create one.
 
     :param metadata: The metadata dictionary to inject the `traceparent` into.
-    :type metadata: dict[str, str]
+
     :param traceparent: The `traceparent` string to inject. If None, attempts to use
                         the current span.
-    :type traceparent: str | None, optional
+
     :returns: A new metadata dictionary containing the original metadata plus
               the injected `traceparent`, if one was available or could be created.
-    :rtype: dict[str, str]
 
     :Example:
 

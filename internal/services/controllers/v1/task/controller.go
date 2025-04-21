@@ -22,6 +22,7 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -356,6 +357,11 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 		return err
 	}
 
+	// instrumentation
+	for range res.ReleasedTasks {
+		prometheus.SucceededTasks.Inc()
+	}
+
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	return tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
@@ -429,10 +435,12 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	for _, e := range res.InternalEvents {
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
+			prometheus.RetriedTasks.Inc()
 			continue
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
+		prometheus.FailedTasks.Inc()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -541,6 +549,11 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		if err != nil {
 			outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
 		}
+	}
+
+	// instrumentation
+	for range res.ReleasedTasks {
+		prometheus.CancelledTasks.Inc()
 	}
 
 	return err
@@ -711,6 +724,10 @@ func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Con
 }
 
 func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId string, releasedTasks []*sqlcv1.ReleaseTasksRow) {
+	if len(releasedTasks) == 0 {
+		return
+	}
+
 	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
@@ -734,6 +751,38 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
 			}
 		}
+	}
+
+	payloads := make([]tasktypes.CandidateFinalizedPayload, 0, len(releasedTasks))
+
+	for _, releasedTask := range releasedTasks {
+		payloads = append(payloads, tasktypes.CandidateFinalizedPayload{
+			WorkflowRunId: sqlchelpers.UUIDToStr(releasedTask.WorkflowRunID),
+		})
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		"workflow-run-finished-candidate",
+		true,
+		false,
+		payloads...,
+	)
+
+	if err != nil {
+		tc.l.Err(err).Msg("could not create message for workflow run finished candidate")
+		return
+	}
+
+	err = tc.mq.SendMessage(
+		ctx,
+		msgqueue.TenantEventConsumerQueue(tenantId),
+		msg,
+	)
+
+	if err != nil {
+		tc.l.Err(err).Msg("could not send workflow-run-finished-candidate message")
+		return
 	}
 }
 
@@ -1249,6 +1298,13 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 		}
 	}
 
+	// instrumentation
+	go func() {
+		for range tasks {
+			prometheus.CreatedTasks.Inc()
+		}
+	}()
+
 	return nil
 }
 
@@ -1303,6 +1359,14 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 			continue
 		}
 	}
+
+	// instrumentation
+	go func() {
+		for range tasks {
+			prometheus.CreatedTasks.Inc()
+			prometheus.CancelledTasks.Inc()
+		}
+	}()
 
 	return nil
 }
@@ -1360,6 +1424,14 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 		}
 	}
 
+	// instrumentation
+	go func() {
+		for range tasks {
+			prometheus.CreatedTasks.Inc()
+			prometheus.FailedTasks.Inc()
+		}
+	}()
+
 	return nil
 }
 
@@ -1414,6 +1486,14 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 			continue
 		}
 	}
+
+	// instrumentation
+	go func() {
+		for range tasks {
+			prometheus.CreatedTasks.Inc()
+			prometheus.SkippedTasks.Inc()
+		}
+	}()
 
 	return nil
 }
