@@ -13,12 +13,15 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import { useCallback, useMemo } from 'react';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { Link } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 
 interface RunDetailSheetProps {
   isOpen: boolean;
   onClose: () => void;
   workflowRunId: string;
   taskId: string;
+  detailsLink?: string;
 }
 
 export function RunDetailSheet({
@@ -26,6 +29,7 @@ export function RunDetailSheet({
   onClose,
   workflowRunId,
   taskId,
+  detailsLink,
 }: RunDetailSheetProps) {
   const { data, isLoading, error, cancel, replay } = useRunDetail(
     workflowRunId || '',
@@ -59,14 +63,34 @@ export function RunDetailSheet({
       onClose={onClose}
       title={
         selectedTask ? (
-          <div className="flex flex-row items-center justify-between gap-2">
-            <span>Task Details</span>
-            <RunId taskRun={selectedTask} />
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-row items-center justify-between gap-2">
+              <span>Task Details</span>
+              <RunId taskRun={selectedTask} />
+            </div>
+            {detailsLink && (
+              <Link
+                to={detailsLink}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                View run details <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <span>Run:</span>
-            <RunId wfRun={workflow} />
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span>Run:</span>
+              <RunId wfRun={workflow} />
+            </div>
+            {detailsLink && (
+              <Link
+                to={detailsLink}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                View run details <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         )
       }

@@ -28,7 +28,10 @@ export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
     ? ROUTES.runs.detail(wfRun?.metadata.id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
-      : ROUTES.runs.detail(taskRun?.taskExternalId || '');
+      : ROUTES.runs.taskDetail(
+          taskRun?.workflowRunExternalId || '',
+          taskRun?.taskExternalId || '',
+        );
 
   const name = useMemo(() => {
     if (isTaskRun) {

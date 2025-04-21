@@ -16,9 +16,10 @@ import { PaginationProvider } from '@/next/hooks/use-pagination';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { V1TaskStatus } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import { RunDetailSheet } from './run-detail-sheet';
+import { ROUTES } from '@/next/lib/routes';
 
 export interface RunsPageSheetProps {
   workflowRunId: string;
@@ -34,6 +35,13 @@ export default function RunsPage() {
     setTaskId(undefined);
   };
 
+  const handleRowClick = (task: V1TaskSummary) => {
+    setTaskId({
+      workflowRunId: task.workflowRunExternalId || task.taskExternalId,
+      taskId: task.taskExternalId,
+    });
+  };
+
   return (
     <SheetViewLayout
       sheet={
@@ -43,6 +51,10 @@ export default function RunsPage() {
             onClose={handleCloseSheet}
             workflowRunId={taskId.workflowRunId}
             taskId={taskId.taskId}
+            detailsLink={ROUTES.runs.taskDetail(
+              taskId.workflowRunId,
+              taskId.taskId,
+            )}
           />
         )
       }
@@ -78,13 +90,7 @@ export default function RunsPage() {
           <RunsProvider>
             <GetWorkflowChart />
             <RunsTable
-              rowClicked={(task) =>
-                setTaskId({
-                  workflowRunId:
-                    task.workflowRunExternalId || task.taskExternalId,
-                  taskId: task.taskExternalId,
-                })
-              }
+              rowClicked={handleRowClick}
               selectedTaskId={taskId?.taskId}
             />
           </RunsProvider>
