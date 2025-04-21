@@ -1,8 +1,8 @@
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Workflow } from '@/lib/api';
 import { Badge } from '@/next/components/ui/badge';
 import { Button } from '@/next/components/ui/button';
 import useWorkflows from '@/next/hooks/use-workflows';
-import { Workflow } from '@/next/lib/api';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';

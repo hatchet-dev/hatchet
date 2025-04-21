@@ -1,5 +1,5 @@
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
-import api, { queries, WorkflowUpdateRequest } from '@/next/lib/api';
+import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 

@@ -22,11 +22,11 @@ import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import WorkflowGeneralSettings from './settings';
-import { FilterProvider, useFilters } from '@/next/hooks/use-filters';
+import { FilterProvider } from '@/next/hooks/use-filters';
 import { PaginationProvider } from '@/next/hooks/use-pagination';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 
 export default function WorkflowDetails() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);

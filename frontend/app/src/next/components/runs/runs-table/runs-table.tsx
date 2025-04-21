@@ -71,7 +71,7 @@ export function RunsTable() {
           ]}
         />
         <FilterTaskSelect<RunsFilters>
-          name="workflows_ids"
+          name="workflow_ids"
           placeholder="Name"
           multi
         />

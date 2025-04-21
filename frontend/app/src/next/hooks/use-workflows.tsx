@@ -1,6 +1,6 @@
-import api from '@/next/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import useTenant from './use-tenant';
+import api from '@/lib/api';
 
 interface UseWorkflowsOptions {
   refetchInterval?: number;

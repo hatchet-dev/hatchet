@@ -74,7 +74,7 @@ export function getFriendlyTaskRunId(run?: V1TaskSummary) {
     return;
   }
 
-  const [first, second] = run.actionId.split(':');
+  const [first, second] = run.actionId?.split(':') || [];
   const runIdPrefix = run.metadata.id.split('-')[0];
 
   return run.actionId
