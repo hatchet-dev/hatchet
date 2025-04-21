@@ -14,6 +14,7 @@ import {
   FilterSelect,
   FilterTaskSelect,
   FilterKeyValue,
+  ClearFiltersButton,
 } from '@/next/components/ui/filters/filters';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
@@ -116,6 +117,7 @@ export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
           placeholder="Metadata"
           options={additionalMetaOpts}
         />
+        <ClearFiltersButton />
       </FilterGroup>
       <DataTable
         columns={tableColumns}
