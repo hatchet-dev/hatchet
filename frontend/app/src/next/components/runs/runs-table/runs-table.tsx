@@ -27,7 +27,7 @@ interface RunsTableProps {
 }
 
 export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
-  const { filters } = useFilters<RunsFilters>();
+  const { filters, setFilter } = useFilters<RunsFilters>();
   const pagination = usePagination();
 
   const {
@@ -76,9 +76,15 @@ export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
     [],
   );
 
+  const handleMetricClick = (status?: V1TaskStatus) => {
+    if (status) {
+      setFilter('statuses', [status]);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4 mt-4">
-      <RunsMetricsView metrics={metrics} />
+      <RunsMetricsView metrics={metrics} onClick={handleMetricClick} />
       <FilterGroup>
         <FilterSelect<RunsFilters, V1TaskStatus[]>
           name="statuses"
