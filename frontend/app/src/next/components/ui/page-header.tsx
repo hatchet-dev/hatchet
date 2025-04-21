@@ -28,7 +28,9 @@ const PageTitle = React.forwardRef<HTMLDivElement, PageTitleProps>(
     return (
       <div ref={ref} {...props}>
         <h1 className="text-2xl font-bold">{children}</h1>
-        {description && <p className="text-muted-foreground">{description}</p>}
+        {description && (
+          <p className="text-muted-foreground mt-2">{description}</p>
+        )}
       </div>
     );
   },

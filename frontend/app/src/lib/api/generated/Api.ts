@@ -434,6 +434,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       since: string;
+      /**
+       * The end time to get metrics for
+       * @format date-time
+       */
+      until?: string;
       /** The workflow id to find runs for */
       workflow_ids?: string[];
       /**

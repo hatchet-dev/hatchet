@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { MoreHorizontal, Trash2, Clock, Plus } from 'lucide-react';
-import { ScheduledWorkflows } from '@/next/lib/api';
+import { ScheduledWorkflows } from '@/lib/api';
 import {
   Tooltip,
   TooltipContent,

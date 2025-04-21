@@ -34,6 +34,7 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 
 	metrics, err := t.config.V1.OLAP().ReadTaskRunMetrics(ctx.Request().Context(), tenantId, v1.ReadTaskRunMetricsOpts{
 		CreatedAfter:         request.Params.Since,
+		CreatedBefore:        request.Params.Until,
 		WorkflowIds:          workflowIds,
 		ParentTaskExternalID: parentTaskExternalId,
 	})

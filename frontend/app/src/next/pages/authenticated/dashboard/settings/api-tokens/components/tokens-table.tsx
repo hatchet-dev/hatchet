@@ -8,7 +8,7 @@ import {
   Column,
   Table,
 } from '@tanstack/react-table';
-import { APIToken } from '@/next/lib/api';
+import { APIToken } from '@/lib/api';
 import {
   Table as UITable,
   TableBody,

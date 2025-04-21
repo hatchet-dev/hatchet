@@ -7,7 +7,7 @@ import {
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { cn } from '@/next/lib/utils';
 import { RunStatusConfigs } from '../runs-badge';
-import { WorkflowRunStatus } from '@/next/lib/api';
+import { WorkflowRunStatus } from '@/lib/api';
 import {
   CheckCircle2,
   PlayCircle,
@@ -206,8 +206,7 @@ interface EventIconProps {
 
 const EventIcon = ({ eventType, className }: EventIconProps) => {
   const config = EVENT_CONFIG[eventType];
-  const textColor =
-    RunStatusConfigs[config.status]?.textColor || 'text-gray-500';
+  const textColor = RunStatusConfigs[config.status]?.primary || 'text-gray-500';
   return <config.icon className={cn('h-3 w-3', textColor, className)} />;
 };
 
@@ -421,13 +420,13 @@ export function RunEventLog({ workflow, onTaskSelect }: RunEventLogProps) {
           />
         )}
       </FilterGroup>
-      <div className="space-y-0.5 bg-gray-950/50 p-1 rounded-md">
+      <div className="space-y-0.5 bg-background p-1 rounded-md">
         {filteredActivity?.map((event) => (
           <div
             key={event.id}
             className={cn(
               'flex flex-col gap-0.5 rounded-sm p-1 text-xs font-mono',
-              'hover:bg-gray-900/50 cursor-pointer transition-colors',
+              'hover:bg-muted/50 cursor-pointer transition-colors',
               'group relative',
             )}
             onClick={() => onTaskSelect?.(event.taskId)}
@@ -461,9 +460,11 @@ export function RunEventLog({ workflow, onTaskSelect }: RunEventLogProps) {
                         <p
                           className={cn(
                             'font-medium shrink-0',
+
                             RunStatusConfigs[
                               EVENT_CONFIG[event.eventType].status
-                            ]?.textColor || 'text-gray-500',
+                            ]?.primary || 'text-gray-500',
+                            'bg-transparent',
                           )}
                         >
                           {event.eventType}

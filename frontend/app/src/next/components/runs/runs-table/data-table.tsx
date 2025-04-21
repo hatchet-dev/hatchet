@@ -38,9 +38,7 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   // Client-side state
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    workflowName: false,
-  });
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState({});
 
   // Set up table
@@ -64,8 +62,8 @@ export function DataTable<TData, TValue>({
   });
 
   const styles = {
-    status: 'p-0 w-[40px] bg-muted/20',
-    runId: 'p-0 bg-muted/20 border-r border-border',
+    status: 'p-0 w-[40px]',
+    runId: 'border-r border-border',
   };
 
   return (

@@ -5,7 +5,7 @@ import api, {
   ScheduledRunStatus,
   ScheduledWorkflowsOrderByField,
   WorkflowRunOrderByDirection,
-} from '@/next/lib/api';
+} from '@/lib/api';
 import {
   useMutation,
   UseMutationResult,

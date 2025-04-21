@@ -1,4 +1,4 @@
-import api, { Worker, UpdateWorkerRequest, WorkerList } from '@/next/lib/api';
+import api, { Worker, UpdateWorkerRequest, WorkerList } from '@/lib/api';
 import {
   useMutation,
   UseMutationResult,

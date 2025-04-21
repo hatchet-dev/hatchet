@@ -1,6 +1,6 @@
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { useRuns, RunsProvider } from '@/next/hooks/use-runs';
-import { V1TaskSummary, V1WorkflowRun } from '@/next/lib/api';
+import { V1TaskSummary, V1WorkflowRun } from '@/lib/api';
 import { PropsWithChildren, useMemo, useState } from 'react';
 import { Button } from '@/next/components/ui/button';
 import { Timeline } from '../timeline';
@@ -82,7 +82,7 @@ function RunRow({
               <RunId wfRun={parentRun} />
             </div>
           ) : (
-            <>TODO TRIGGERED BY DETAILS</>
+            <></>
           )
         ) : run ? (
           <>

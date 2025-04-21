@@ -4,7 +4,7 @@ import {
   useMutation,
   UseMutationResult,
 } from '@tanstack/react-query';
-import api from '@/next/lib/api';
+import api from '@/lib/api';
 import useTenant from './use-tenant';
 import {
   TenantMember,
@@ -12,7 +12,7 @@ import {
   CreateTenantInviteRequest,
   TenantInvite,
   TenantInviteList,
-} from '@/next/lib/api/generated/data-contracts';
+} from '@/lib/api/generated/data-contracts';
 
 interface MembersState {
   data: TenantMember[];

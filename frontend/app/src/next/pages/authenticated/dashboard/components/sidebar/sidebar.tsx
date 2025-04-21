@@ -106,7 +106,7 @@ name: ${user?.name}`;
 
   return (
     <>
-      <Sidebar variant="floating" collapsible="icon">
+      <Sidebar variant="sidebar" collapsible="icon">
         <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>

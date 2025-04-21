@@ -30,7 +30,12 @@ export function CodeBlock({
   };
 
   return (
-    <div className={cn('relative rounded-md overflow-hidden', className)}>
+    <div
+      className={cn(
+        'relative rounded-md overflow-hidden border border-muted',
+        className,
+      )}
+    >
       {!noHeader && (
         <div className="flex items-center justify-between px-2 bg-muted/50 border-b rounded-t-md">
           <div className="text-xs text-muted-foreground font-mono">

@@ -278,6 +278,12 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId st
 	default:
 		workflowId = existingWorkflow.ID
 
+		// Lock the previous workflow version to prevent concurrent version creation
+		_, err := r.queries.LockWorkflowVersion(ctx, tx, workflowId)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("failed to lock previous workflow version: %w", err)
+		}
+
 		// fetch the latest workflow version
 		workflowVersionIds, err := r.queries.GetLatestWorkflowVersionForWorkflows(ctx, tx, sqlcv1.GetLatestWorkflowVersionForWorkflowsParams{
 			Tenantid:    pgTenantId,

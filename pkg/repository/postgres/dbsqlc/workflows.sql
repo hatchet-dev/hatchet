@@ -862,3 +862,16 @@ WHERE
 DELETE FROM "WorkflowTriggerCronRef"
 WHERE
     "id" = @id::uuid;
+
+-- name: LockWorkflowVersion :one
+SELECT
+    "id"
+FROM
+    "WorkflowVersion"
+WHERE
+    "workflowId" = @workflowId::uuid AND
+    "deletedAt" IS NULL
+ORDER BY
+    "order" DESC
+LIMIT 1
+FOR UPDATE;

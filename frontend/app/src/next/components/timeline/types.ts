@@ -1,4 +1,4 @@
-import { V1WorkflowRun } from '@/next/lib/api';
+import { V1WorkflowRun } from '@/lib/api';
 
 export interface TimelineProps {
   items: V1WorkflowRun[];

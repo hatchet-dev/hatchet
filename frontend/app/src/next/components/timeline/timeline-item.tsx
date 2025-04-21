@@ -1,6 +1,6 @@
 import { intervalToDuration, Duration } from 'date-fns';
 import { TimelineItemProps } from './types';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import useTimeline from '@/next/hooks/use-timeline-context';
 import { cn } from '@/next/lib/utils';
 import {
@@ -192,7 +192,7 @@ export function TimelineItem({ item, onClick }: TimelineItemProps) {
 }
 
 function RunBar({ status }: { status: V1TaskStatus }) {
-  const statusColorClass = RunStatusConfigs[status].colors;
+  const statusColorClass = RunStatusConfigs[status].primary;
 
   return (
     <div className="flex flex-row items-center h-full rounded-md overflow-hidden">

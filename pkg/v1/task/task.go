@@ -145,12 +145,11 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	}
 
 	if t.ExecutionTimeout != nil {
-		executionTimeout := t.ExecutionTimeout.String()
-		taskOpts.Timeout = executionTimeout
+		taskOpts.Timeout = durationToSeconds(*t.ExecutionTimeout)
 	}
 
 	if t.ScheduleTimeout != nil {
-		scheduleTimeout := t.ScheduleTimeout.String()
+		scheduleTimeout := durationToSeconds(*t.ScheduleTimeout)
 		taskOpts.ScheduleTimeout = &scheduleTimeout
 	}
 
@@ -174,12 +173,11 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 		}
 
 		if t.ExecutionTimeout == nil && taskDefaults.ExecutionTimeout != 0 {
-			executionTimeout := taskDefaults.ExecutionTimeout.String()
-			taskOpts.Timeout = executionTimeout
+			taskOpts.Timeout = durationToSeconds(taskDefaults.ExecutionTimeout)
 		}
 
 		if t.ScheduleTimeout == nil && taskDefaults.ScheduleTimeout != 0 {
-			scheduleTimeout := taskDefaults.ScheduleTimeout.String()
+			scheduleTimeout := durationToSeconds(taskDefaults.ScheduleTimeout)
 			taskOpts.ScheduleTimeout = &scheduleTimeout
 		}
 
@@ -238,6 +236,14 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	}
 
 	return base
+}
+
+func durationToSeconds(d time.Duration) string {
+	if d == 0 {
+		return "0s"
+	}
+
+	return fmt.Sprintf("%ds", int(d.Seconds()))
 }
 
 func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {

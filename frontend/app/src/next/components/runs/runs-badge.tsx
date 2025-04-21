@@ -1,5 +1,5 @@
 import { Badge, BadgeProps } from '@/next/components/ui/badge';
-import { V1TaskStatus, WorkflowRunStatus } from '@/next/lib/api';
+import { V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
 import { cn } from '@/next/lib/utils';
 
 interface RunsBadgeProps extends BadgeProps {
@@ -12,7 +12,7 @@ interface RunsBadgeProps extends BadgeProps {
 
 type StatusConfig = {
   colors: string;
-  textColor: string;
+  primary: string;
   label: string;
 };
 
@@ -20,43 +20,48 @@ type StatusKey = WorkflowRunStatus | V1TaskStatus;
 
 export const RunStatusConfigs: Record<StatusKey, StatusConfig> = {
   [WorkflowRunStatus.RUNNING]: {
-    colors: 'bg-blue-500 text-white border-blue-600',
-    textColor: 'text-blue-500',
+    colors:
+      'text-indigo-800 dark:text-indigo-300 bg-indigo-500/20 ring-indigo-500/30',
+    primary: 'text-indigo-500 bg-indigo-500',
     label: 'Running',
   },
   [WorkflowRunStatus.SUCCEEDED]: {
-    colors: 'bg-green-500 text-white border-green-600',
-    textColor: 'text-green-500',
+    colors:
+      'text-green-800 dark:text-green-300 bg-green-500/20 ring-green-500/30',
+    primary: 'text-green-500 bg-green-500',
     label: 'Succeeded',
   },
   [V1TaskStatus.COMPLETED]: {
-    colors: 'bg-green-500 text-white border-green-600',
-    textColor: 'text-green-500',
+    colors:
+      'text-green-800 dark:text-green-300 bg-green-500/20 ring-green-500/30',
+    primary: 'text-green-500 bg-green-500',
     label: 'Succeeded',
   },
   [WorkflowRunStatus.FAILED]: {
-    colors: 'bg-red-500 text-white border-red-600',
-    textColor: 'text-red-500',
+    colors: 'text-red-800 dark:text-red-300 bg-red-500/20 ring-red-500',
+    primary: 'text-red-500 bg-red-500',
     label: 'Failed',
   },
   [WorkflowRunStatus.CANCELLED]: {
-    colors: 'bg-gray-500 text-white border-gray-600',
-    textColor: 'text-gray-500',
+    colors: 'text-gray-800 dark:text-gray-300 bg-gray-500/20 ring-gray-500/30',
+    primary: 'text-gray-500 bg-gray-500',
     label: 'Cancelled',
   },
   [V1TaskStatus.QUEUED]: {
-    colors: 'bg-yellow-500 text-white border-yellow-600',
-    textColor: 'text-yellow-500',
+    colors:
+      'text-yellow-800 dark:text-yellow-300 bg-yellow-500/20 ring-yellow-500/30',
+    primary: 'text-yellow-500 bg-yellow-500',
     label: 'Queued',
   },
   [WorkflowRunStatus.BACKOFF]: {
-    colors: 'bg-orange-500 text-white border-orange-600',
-    textColor: 'text-orange-500',
+    colors:
+      'text-orange-800 dark:text-orange-300 bg-orange-500/20 ring-orange-500/30',
+    primary: 'text-orange-500 bg-orange-500',
     label: 'Backoff',
   },
   [WorkflowRunStatus.PENDING]: {
-    colors: 'bg-gray-500 text-white border-gray-600',
-    textColor: 'text-gray-500',
+    colors: 'text-gray-800 dark:text-gray-300 bg-gray-500/20 ring-gray-500/30',
+    primary: 'text-gray-500 bg-gray-500',
     label: 'Pending',
   },
 };
@@ -75,7 +80,7 @@ export function RunsBadge({
     ? RunStatusConfigs.PENDING
     : RunStatusConfigs[status] || {
         colors: 'bg-gray-50 text-gray-700 border-gray-200',
-        textColor: 'text-gray-500',
+        primary: 'text-gray-500',
         label: 'Pending',
       };
 
@@ -91,9 +96,13 @@ export function RunsBadge({
   return (
     <Badge
       className={cn(
+        variant === 'xs' ? 'p-0 w-2 h-2' : 'px-3 py-1',
         isLoading
-          ? 'animate-pulse bg-gray-200 text-transparent border-gray-300'
-          : config.colors,
+          ? 'animate-pulse bg-gray-200/20 text-transparent'
+          : variant === 'xs'
+            ? config.primary
+            : config.colors,
+        'text-xs font-medium rounded-md border-transparent',
         className,
       )}
       tooltipContent={status}

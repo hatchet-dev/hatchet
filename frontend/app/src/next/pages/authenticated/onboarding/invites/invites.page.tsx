@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
 import { TenantBlock } from '../../dashboard/components/sidebar/user-dropdown';
-import { TenantInvite } from '@/next/lib/api';
+import { TenantInvite } from '@/lib/api';
 
 export function InviteCard({ invite }: { invite: TenantInvite }) {
   const { invites } = useUser();

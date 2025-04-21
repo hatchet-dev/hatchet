@@ -19,7 +19,7 @@ import useTenant from '@/next/hooks/use-tenant';
 import {
   TenantVersion,
   UpdateTenantRequest,
-} from '@/next/lib/api/generated/data-contracts';
+} from '@/lib/api/generated/data-contracts';
 import { UpdateTenantForm } from './components/update-tenant-form';
 import { Lock } from 'lucide-react';
 import BasicLayout from '@/next/components/layouts/basic.layout';

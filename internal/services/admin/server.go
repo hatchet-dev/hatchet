@@ -235,6 +235,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			return nil, err
 		}
 	} else {
+
 		oldWorkflowVersion, err = a.repo.Workflow().GetLatestWorkflowVersion(
 			ctx,
 			tenantId,

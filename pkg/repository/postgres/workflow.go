@@ -917,6 +917,29 @@ func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId stri
 func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
+	// Lock the previous workflow version to prevent concurrent version creation
+	_, err := r.queries.LockWorkflowVersion(ctx, tx, workflowId)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("failed to lock previous workflow version: %w", err)
+	}
+
+	if oldWorkflowVersion != nil {
+		// get the latest workflow version and if they are not the same, return an error
+		latestWorkflowVersion, err := r.GetLatestWorkflowVersion(
+			ctx,
+			sqlchelpers.UUIDToStr(tenantId),
+			sqlchelpers.UUIDToStr(workflowId),
+		)
+
+		if err != nil {
+			return "", err
+		}
+
+		if latestWorkflowVersion != nil && latestWorkflowVersion.WorkflowVersion.ID.String() != oldWorkflowVersion.WorkflowVersion.ID.String() {
+			return "", fmt.Errorf("workflow version %s already exists, race condition detected -- upgrade to v1 engine to avoid this issue", workflowVersionId)
+		}
+	}
+
 	var version pgtype.Text
 
 	if opts.Version != nil {

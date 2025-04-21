@@ -4,6 +4,7 @@ import { useStateAdapter } from '../lib/utils/storage-adapter';
 export interface FilterManager<T> {
   filters: T;
   setFilter: (key: keyof T, value: T[keyof T]) => void;
+  setFilters: (filters: Partial<T>) => void;
   clearFilter: (key: keyof T) => void;
   clearAllFilters: () => void;
 }
@@ -11,6 +12,7 @@ export interface FilterManager<T> {
 export const FilterManagerNoOp: FilterManager<Record<string, any>> = {
   filters: {},
   setFilter: () => {},
+  setFilters: () => {},
   clearFilter: () => {},
   clearAllFilters: () => {},
 };
@@ -78,6 +80,14 @@ export function FilterProvider<T extends Record<string, any>>({
     [state],
   );
 
+  // Set multiple filter values
+  const setFilters = React.useCallback(
+    (filters: Partial<T>) => {
+      state.setValues(filters);
+    },
+    [state],
+  );
+
   // Clear a single filter
   const clearFilter = React.useCallback(
     (key: keyof T) => {
@@ -98,10 +108,11 @@ export function FilterProvider<T extends Record<string, any>>({
     () => ({
       filters,
       setFilter,
+      setFilters,
       clearFilter,
       clearAllFilters,
     }),
-    [filters, setFilter, clearFilter, clearAllFilters],
+    [filters, setFilter, setFilters, clearFilter, clearAllFilters],
   ) as FilterManager<T>;
 
   return (

@@ -1,4 +1,4 @@
-import { V1TaskSummary, V1WorkflowRun, V1WorkflowType } from '@/next/lib/api';
+import { V1TaskSummary, V1WorkflowRun, V1WorkflowType } from '@/lib/api';
 import { Duration } from 'date-fns';
 import {
   Tooltip,
@@ -6,7 +6,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
-import { Code } from '@/next/components/ui/code';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
@@ -44,7 +43,7 @@ export function RunId({
         <TooltipTrigger asChild>
           <span>
             {url ? (
-              <Link to={url} className="hover:underline text-blue-500">
+              <Link to={url} className="hover:underline text-foreground">
                 {name}
               </Link>
             ) : (
@@ -52,15 +51,10 @@ export function RunId({
             )}
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          <Code
-            variant="inline"
-            className="font-medium"
-            language={'plaintext'}
-            value={wfRun?.metadata.id || taskRun?.metadata.id || ''}
-          >
+        <TooltipContent className="bg-muted">
+          <div className="font-mono text-foreground">
             {wfRun?.metadata.id || taskRun?.metadata.id || ''}
-          </Code>
+          </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

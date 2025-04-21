@@ -20,7 +20,7 @@ import {
   PageSelector,
   PageSizeSelector,
 } from '@/next/components/ui/pagination';
-import { RateLimit } from '@/next/lib/api';
+import { RateLimit } from '@/lib/api';
 import { Time } from '@/next/components/ui/time';
 
 const getStatusBadge = (value: number, limitValue: number) => {
