@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -41,18 +43,20 @@ type OLAPControllerImpl struct {
 	updateTaskStatusOperations   *queueutils.OperationPool
 	updateDAGStatusOperations    *queueutils.OperationPool
 	processTenantAlertOperations *queueutils.OperationPool
+	samplingHashThreshold        *int64
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
 
 type OLAPControllerOpts struct {
-	mq      msgqueue.MessageQueue
-	l       *zerolog.Logger
-	repo    v1.Repository
-	dv      datautils.DataDecoderValidator
-	alerter hatcheterrors.Alerter
-	p       *partition.Partition
-	ta      *alerting.TenantAlertManager
+	mq                    msgqueue.MessageQueue
+	l                     *zerolog.Logger
+	repo                  v1.Repository
+	dv                    datautils.DataDecoderValidator
+	alerter               hatcheterrors.Alerter
+	p                     *partition.Partition
+	ta                    *alerting.TenantAlertManager
+	samplingHashThreshold *int64
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -108,6 +112,17 @@ func WithTenantAlertManager(ta *alerting.TenantAlertManager) OLAPControllerOpt {
 	}
 }
 
+func WithSamplingConfig(c server.ConfigFileSampling) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		if c.Enabled && c.SamplingRate != 1.0 {
+			// convert the rate into a hash threshold
+			hashThreshold := int64(c.SamplingRate * 100)
+
+			opts.samplingHashThreshold = &hashThreshold
+		}
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -144,14 +159,15 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "olap-controller"})
 
 	o := &OLAPControllerImpl{
-		mq:   opts.mq,
-		l:    opts.l,
-		s:    s,
-		p:    opts.p,
-		repo: opts.repo,
-		dv:   opts.dv,
-		a:    a,
-		ta:   opts.ta,
+		mq:                    opts.mq,
+		l:                     opts.l,
+		s:                     s,
+		p:                     opts.p,
+		repo:                  opts.repo,
+		dv:                    opts.dv,
+		a:                     a,
+		ta:                    opts.ta,
+		samplingHashThreshold: opts.samplingHashThreshold,
 	}
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*15, "update task statuses", o.updateTaskStatuses)
@@ -288,6 +304,11 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
+		if !tc.sample(sqlchelpers.UUIDToStr(msg.WorkflowRunID)) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.ID, sqlchelpers.UUIDToStr(msg.WorkflowRunID))
+			continue
+		}
+
 		createTaskOpts = append(createTaskOpts, msg.V1Task)
 	}
 
@@ -300,6 +321,11 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
 
 	for _, msg := range msgs {
+		if !tc.sample(sqlchelpers.UUIDToStr(msg.ExternalID)) {
+			tc.l.Debug().Msgf("skipping dag %s", sqlchelpers.UUIDToStr(msg.ExternalID))
+			continue
+		}
+
 		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
 	}
 
@@ -344,6 +370,11 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		if taskMeta == nil {
 			tc.l.Error().Msgf("could not find task meta for task id %d", msg.TaskId)
+			continue
+		}
+
+		if !tc.sample(sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID)) {
+			tc.l.Debug().Msgf("skipping task %d for workflow run %s", msg.TaskId, sqlchelpers.UUIDToStr(taskMeta.WorkflowRunID))
 			continue
 		}
 
@@ -443,4 +474,21 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	}
 
 	return tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts)
+}
+
+func (tc *OLAPControllerImpl) sample(workflowRunID string) bool {
+	if tc.samplingHashThreshold == nil {
+		return true
+	}
+
+	bucket := hashToBucket(workflowRunID, 100)
+
+	return int64(bucket) <= *tc.samplingHashThreshold
+}
+
+func hashToBucket(workflowRunID string, buckets int) int {
+	hasher := fnv.New32a()
+	idBytes := []byte(workflowRunID)
+	hasher.Write(idBytes)
+	return int(hasher.Sum32()) % buckets
 }
