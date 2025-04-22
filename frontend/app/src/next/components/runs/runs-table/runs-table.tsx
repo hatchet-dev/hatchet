@@ -1,5 +1,5 @@
 import { useRuns, RunsFilters } from '@/next/hooks/use-runs';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import {
@@ -39,7 +39,7 @@ export function RunsTable({
     count,
     timeRange: { pause, isPaused },
     isLoading,
-    filters: { filters, setFilter },
+    filters: { filters },
     cancel,
     replay,
   } = useRuns();
@@ -109,12 +109,6 @@ export function RunsTable({
     [],
   );
 
-  const handleMetricClick = (status?: V1TaskStatus) => {
-    if (status) {
-      setFilter('statuses', [status]);
-    }
-  };
-
   const numSelectedRows = useMemo(() => {
     return Object.keys(rowSelection).length;
   }, [rowSelection]);
@@ -142,10 +136,20 @@ export function RunsTable({
     setSelectedTasks(newSelectedTasks);
   };
 
+  const clearSelection = useCallback(() => {
+    setSelectAll(false);
+    setRowSelection({});
+    setSelectedTasks(new Map());
+  }, [setSelectAll, setRowSelection, setSelectedTasks]);
+
+  useEffect(() => {
+    clearSelection();
+  }, [filters, clearSelection]);
+
   return (
     <>
       <div className="flex flex-col gap-4 mt-4">
-        <RunsMetricsView onClick={handleMetricClick} />
+        <RunsMetricsView />
         <FilterGroup>
           <FilterSelect<RunsFilters, V1TaskStatus[]>
             name="statuses"
@@ -191,31 +195,34 @@ export function RunsTable({
             {numSelectedRows > 0 || selectAll ? (
               <>
                 <span className="text-muted-foreground">
-                  {selectAll ? count : numSelectedRows} of {count} runs selected
+                  {selectAll
+                    ? count.toLocaleString()
+                    : numSelectedRows.toLocaleString()}{' '}
+                  of {count.toLocaleString()} runs selected
                 </span>
               </>
             ) : (
-              <span className="text-muted-foreground">{count} runs</span>
+              <span className="text-muted-foreground">
+                {count.toLocaleString()} runs
+              </span>
             )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-2 h-6 px-2"
-              onClick={() => setSelectAll(true)}
-            >
-              Select All
-            </Button>
+            {count > 0 && !selectAll && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-2 h-6 px-2"
+                onClick={() => setSelectAll(true)}
+              >
+                Select All
+              </Button>
+            )}
             {(numSelectedRows > 0 || selectAll) && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="ml-2 h-6 px-2"
-                onClick={() => {
-                  setSelectAll(false);
-                  setRowSelection({});
-                  setSelectedTasks(new Map());
-                }}
+                onClick={clearSelection}
               >
                 Clear Selection
               </Button>

@@ -10,10 +10,7 @@ import {
   DialogDescription,
 } from '@/next/components/ui/dialog';
 import { useRuns } from '@/next/hooks/use-runs';
-
-interface V1TaskRunMetricsProps {
-  onClick?: (status?: V1TaskStatus) => void;
-}
+import { cn } from '@/next/lib/utils';
 
 function MetricBadge({
   metrics,
@@ -48,25 +45,50 @@ function MetricBadge({
   );
 }
 
-export const RunsMetricsView = ({
-  onClick = () => {},
-}: V1TaskRunMetricsProps) => {
-  const { metrics, queueMetrics } = useRuns();
+export const RunsMetricsView = () => {
+  const {
+    metrics,
+    queueMetrics,
+    filters: { filters, setFilter },
+  } = useRuns();
 
   const [isQueueMetricsOpen, setIsQueueMetricsOpen] = useState(false);
   const total = metrics.data
     .map((m) => m.count)
     .reduce((acc, curr) => acc + curr, 0);
 
+  const handleMetricClick = (status?: V1TaskStatus) => {
+    if (status) {
+      // Toggle the filter - if it's already set to this status, clear it
+      const currentStatuses = filters.statuses || [];
+      if (currentStatuses.includes(status)) {
+        setFilter('statuses', undefined);
+      } else {
+        setFilter('statuses', [status]);
+      }
+    }
+  };
+
+  const isMetricActive = (status: V1TaskStatus) => {
+    return !(
+      filters.statuses &&
+      filters.statuses.length > 0 &&
+      !filters.statuses.includes(status)
+    );
+  };
+
   return (
-    <>
+    <div className="flex flex-row justify-between gap-6">
       <dl className="flex flex-row justify-start gap-6">
         <MetricBadge
           metrics={metrics.data}
           status={V1TaskStatus.COMPLETED}
           total={total}
-          onClick={onClick}
-          className="cursor-pointer text-sm px-2 py-1 w-fit"
+          onClick={handleMetricClick}
+          className={cn(
+            'cursor-pointer text-sm px-2 py-1 w-fit',
+            !isMetricActive(V1TaskStatus.COMPLETED) && 'opacity-50',
+          )}
           isLoading={metrics.isLoading}
         />
 
@@ -74,8 +96,11 @@ export const RunsMetricsView = ({
           metrics={metrics.data}
           status={V1TaskStatus.RUNNING}
           total={total}
-          onClick={onClick}
-          className="cursor-pointer text-sm px-2 py-1 w-fit"
+          onClick={handleMetricClick}
+          className={cn(
+            'cursor-pointer text-sm px-2 py-1 w-fit',
+            !isMetricActive(V1TaskStatus.RUNNING) && 'opacity-50',
+          )}
           isLoading={metrics.isLoading}
         />
 
@@ -83,8 +108,11 @@ export const RunsMetricsView = ({
           metrics={metrics.data}
           status={V1TaskStatus.FAILED}
           total={total}
-          onClick={onClick}
-          className="cursor-pointer text-sm px-2 py-1 w-fit"
+          onClick={handleMetricClick}
+          className={cn(
+            'cursor-pointer text-sm px-2 py-1 w-fit',
+            !isMetricActive(V1TaskStatus.FAILED) && 'opacity-50',
+          )}
           isLoading={metrics.isLoading}
         />
 
@@ -92,20 +120,23 @@ export const RunsMetricsView = ({
           metrics={metrics.data}
           status={V1TaskStatus.QUEUED}
           total={total}
-          onClick={onClick}
-          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+          onClick={handleMetricClick}
+          className={cn(
+            'cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit',
+            !isMetricActive(V1TaskStatus.QUEUED) && 'opacity-50',
+          )}
           isLoading={metrics.isLoading}
         />
-
-        <RunsBadge
-          status="QueueMetrics"
-          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
-          onClick={() => setIsQueueMetricsOpen(true)}
-          isLoading={metrics.isLoading}
-        >
-          Queue metrics
-        </RunsBadge>
       </dl>
+
+      <RunsBadge
+        status="QueueMetrics"
+        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+        onClick={() => setIsQueueMetricsOpen(true)}
+        isLoading={metrics.isLoading}
+      >
+        Queue metrics
+      </RunsBadge>
 
       <Dialog open={isQueueMetricsOpen} onOpenChange={setIsQueueMetricsOpen}>
         <DialogContent>
@@ -124,6 +155,6 @@ export const RunsMetricsView = ({
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 };
