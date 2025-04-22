@@ -396,6 +396,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 			WorkflowVersionId:    row.WorkflowVersionID,
 			Input:                row.Input,
 			ParentTaskExternalId: &row.ParentTaskExternalID,
+			Output:               &row.Output,
 		},
 		TaskMetadata: taskMetadata,
 	}, nil
