@@ -1,4 +1,9 @@
-import { WorkersProvider, useWorkers } from '@/next/hooks/use-workers';
+import {
+  WorkersProvider,
+  useWorkers,
+  Worker,
+  WorkerService,
+} from '@/next/hooks/use-workers';
 import { Button } from '@/next/components/ui/button';
 import {
   Select,
@@ -59,16 +64,16 @@ import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
 
 // Service row component to simplify the main component
-const ServiceRow = ({ service }: { service: any }) => {
+const ServiceRow = ({ service }: { service: WorkerService }) => {
   const { bulkUpdate } = useWorkers();
 
   const getLastActiveTime = () => {
     const mostRecentWorker = service.workers
-      .filter((worker: any) => worker.lastHeartbeatAt)
+      .filter((worker) => worker.lastHeartbeatAt)
       .sort(
-        (a: any, b: any) =>
-          new Date(b.lastHeartbeatAt).getTime() -
-          new Date(a.lastHeartbeatAt).getTime(),
+        (a: Worker, b: Worker) =>
+          new Date(b.lastHeartbeatAt || '').getTime() -
+          new Date(a.lastHeartbeatAt || '').getTime(),
       )[0];
 
     return mostRecentWorker?.lastHeartbeatAt
@@ -76,20 +81,12 @@ const ServiceRow = ({ service }: { service: any }) => {
       : 'Never';
   };
 
-  // Calculate slots totals
-  const totalMaxRuns = service.workers
-    .filter((worker: any) => worker.status === 'ACTIVE')
-    .reduce((sum: number, worker: any) => sum + (worker.maxRuns || 0), 0);
-  const totalAvailableRuns = service.workers
-    .filter((worker: any) => worker.status === 'ACTIVE')
-    .reduce((sum: number, worker: any) => sum + (worker.availableRuns || 0), 0);
-
   // Handlers for pause and resume
   const handlePauseAllActive = async () => {
     // Get all active worker IDs for this service
     const activeWorkerIds = service.workers
-      .filter((worker: any) => worker.status === 'ACTIVE')
-      .map((worker: any) => worker.metadata.id);
+      .filter((worker) => worker.status === 'ACTIVE')
+      .map((worker) => worker.metadata.id);
 
     if (activeWorkerIds.length > 0) {
       await bulkUpdate.mutateAsync({
@@ -102,8 +99,8 @@ const ServiceRow = ({ service }: { service: any }) => {
   const handleResumeAllPaused = async () => {
     // Get all paused worker IDs for this service
     const pausedWorkerIds = service.workers
-      .filter((worker: any) => worker.status === 'PAUSED')
-      .map((worker: any) => worker.metadata.id);
+      .filter((worker) => worker.status === 'PAUSED')
+      .map((worker) => worker.metadata.id);
 
     if (pausedWorkerIds.length > 0) {
       await bulkUpdate.mutateAsync({
@@ -114,7 +111,7 @@ const ServiceRow = ({ service }: { service: any }) => {
   };
 
   return (
-    <TableRow key={service.id}>
+    <TableRow key={service.name}>
       <TableCell className="font-medium">
         <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
           {service.name}
@@ -137,9 +134,13 @@ const ServiceRow = ({ service }: { service: any }) => {
         </div>
       </TableCell>
       <TableCell>
-        <SlotsBadge available={totalAvailableRuns} max={totalMaxRuns} />
+        <SlotsBadge
+          available={service.totalAvailableRuns}
+          max={service.totalMaxRuns}
+        />
       </TableCell>
       <TableCell>{getLastActiveTime()}</TableCell>
+      <TableCell>{service.type}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
           <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
@@ -260,7 +261,7 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
 );
 
 function WorkerServicesContent() {
-  const { data, isLoading } = useWorkers();
+  const { services, isLoading } = useWorkers();
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -279,7 +280,7 @@ function WorkerServicesContent() {
         .map((_, i) => <SkeletonRow key={i} />);
     }
 
-    if (!data || data.length === 0) {
+    if (!services || services.length === 0) {
       return (
         <TableRow>
           <TableCell colSpan={5} className="text-center">
@@ -289,8 +290,8 @@ function WorkerServicesContent() {
       );
     }
 
-    return data.map((service) => (
-      <ServiceRow key={service.metadata.id} service={service} />
+    return services.map((service) => (
+      <ServiceRow key={service.name} service={service} />
     ));
   };
 
@@ -330,6 +331,7 @@ function WorkerServicesContent() {
               <TableHead>Status</TableHead>
               <TableHead>Slots</TableHead>
               <TableHead>Last Active</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>

@@ -15,6 +15,7 @@ export function WorkerDetailSheet({
   isOpen,
   onClose,
   workerId,
+  serviceName,
 }: WorkerDetailSheetProps) {
   const { data: worker } = useWorkerDetail();
 
@@ -25,7 +26,7 @@ export function WorkerDetailSheet({
       title={
         <div className="flex items-center gap-2">
           <CpuIcon className="h-4 w-4" />
-          <WorkerId worker={worker} />
+          <WorkerId worker={worker} serviceName={serviceName} />
         </div>
       }
     >

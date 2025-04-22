@@ -15,6 +15,19 @@ import {
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 
+export type { Worker };
+
+export interface WorkerService {
+  name: string;
+  type: Worker['type'];
+  workers: Worker[];
+  activeCount: number;
+  pausedCount: number;
+  inactiveCount: number;
+  totalMaxRuns: number;
+  totalAvailableRuns: number;
+}
+
 // Types for filters and pagination
 interface WorkersFilters {
   search?: string;
@@ -47,6 +60,7 @@ interface WorkersState {
   bulkUpdate: UseMutationResult<void, Error, BulkUpdateWorkersParams, unknown>;
   filters: ReturnType<typeof useFilters<WorkersFilters>>;
   pagination: ReturnType<typeof usePagination>;
+  services: WorkerService[];
 }
 
 interface WorkersProviderProps extends PropsWithChildren {
@@ -76,7 +90,11 @@ function WorkersProviderContent({
     queryKey: ['worker:list', tenant, filters.filters, pagination],
     queryFn: async () => {
       if (!tenant) {
-        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
+        return {
+          rows: [],
+          pagination: { current_page: 0, num_pages: 0 },
+          services: [],
+        };
       }
 
       const res = await api.workerList(tenant?.metadata.id || '');
@@ -168,9 +186,42 @@ function WorkersProviderContent({
         });
       }
 
+      const groupedByName = filteredRows.reduce(
+        (acc, worker) => {
+          const name = worker.name;
+          if (!acc[name]) {
+            acc[name] = [];
+          }
+          acc[name].push(worker);
+          return acc;
+        },
+        {} as Record<string, Worker[]>,
+      );
+
+      const services = Object.entries(groupedByName).map(([name, workers]) => {
+        const activeWorkers = workers.filter((w) => w.status === 'ACTIVE');
+        return {
+          name,
+          type: workers[0].type,
+          workers,
+          activeCount: activeWorkers.length,
+          inactiveCount: workers.filter((w) => w.status === 'INACTIVE').length,
+          pausedCount: workers.filter((w) => w.status === 'PAUSED').length,
+          totalMaxRuns: activeWorkers.reduce(
+            (sum, worker) => sum + (worker.maxRuns || 0),
+            0,
+          ),
+          totalAvailableRuns: activeWorkers.reduce(
+            (sum, worker) => sum + (worker.availableRuns || 0),
+            0,
+          ),
+        } as WorkerService;
+      });
+
       return {
         ...res.data,
         rows: filteredRows,
+        services,
       };
     },
     refetchInterval,
@@ -231,6 +282,7 @@ function WorkersProviderContent({
     bulkUpdate: bulkUpdateWorkersMutation,
     filters,
     pagination,
+    services: listWorkersQuery.data?.services || [],
   };
 
   return createElement(WorkersContext.Provider, { value }, children);

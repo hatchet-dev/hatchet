@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
@@ -16,6 +16,7 @@ import { WorkerTable } from './components/worker-table';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerDetailSheet } from './components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
+import { WorkerDetailProvider } from '@/next/hooks/use-worker-detail';
 
 function ServiceDetailPageContent() {
   const { serviceName = '', workerId } = useParams<{
@@ -25,15 +26,11 @@ function ServiceDetailPageContent() {
   const decodedServiceName = decodeURIComponent(serviceName);
   const navigate = useNavigate();
 
-  const { data: workers = [], isLoading } = useWorkers();
+  const { services, isLoading } = useWorkers();
 
   const { setBreadcrumbs } = useBreadcrumbs();
 
   useEffect(() => {
-    if (!workers) {
-      return;
-    }
-
     const breadcrumbs = [
       {
         title: 'Worker Services',
@@ -48,46 +45,38 @@ function ServiceDetailPageContent() {
     return () => {
       setBreadcrumbs([]);
     };
-  }, [workers, decodedServiceName, setBreadcrumbs, serviceName]);
-
-  // Filter workers for this service
-  const serviceWorkers = useMemo(() => {
-    return workers.filter((worker) => worker.name === decodedServiceName);
-  }, [workers, decodedServiceName]);
-
-  // Service stats
-  const serviceStats = useMemo(() => {
-    return {
-      total: serviceWorkers.length,
-      active: serviceWorkers.filter((worker) => worker.status === 'ACTIVE')
-        .length,
-      inactive: serviceWorkers.filter((worker) => worker.status === 'INACTIVE')
-        .length,
-      paused: serviceWorkers.filter((worker) => worker.status === 'PAUSED')
-        .length,
-      slots: serviceWorkers
-        .filter((worker: any) => worker.status === 'ACTIVE')
-        .reduce((sum: number, worker: any) => sum + (worker.maxRuns || 0), 0),
-      maxSlots: serviceWorkers
-        .filter((worker: any) => worker.status === 'ACTIVE')
-        .reduce((sum: number, worker: any) => sum + (worker.maxRuns || 0), 0),
-      lastActive: null,
-    };
-  }, [serviceWorkers]);
+  }, [services, decodedServiceName, setBreadcrumbs, serviceName]);
 
   const handleCloseSheet = useCallback(() => {
     navigate(ROUTES.services.detail(encodeURIComponent(decodedServiceName)));
   }, [navigate, decodedServiceName]);
 
+  const service = useMemo(() => {
+    console.log('Finding service:', decodedServiceName);
+    console.log('Available services:', services);
+    const found = services.find((s) => s.name === decodedServiceName);
+    console.log('Found service:', found);
+    return found;
+  }, [services, decodedServiceName]);
+
+  console.log('Services:', services);
+
+  if (!service) {
+    console.log('Service not found for:', decodedServiceName);
+    return <div>Service not found</div>;
+  }
+
   return (
     <SheetViewLayout
       sheet={
-        <WorkerDetailSheet
-          isOpen={!!workerId}
-          onClose={handleCloseSheet}
-          serviceName={decodedServiceName}
-          workerId={workerId || ''}
-        />
+        <WorkerDetailProvider workerId={workerId || ''}>
+          <WorkerDetailSheet
+            isOpen={!!workerId}
+            onClose={handleCloseSheet}
+            serviceName={decodedServiceName}
+            workerId={workerId || ''}
+          />
+        </WorkerDetailProvider>
       }
     >
       <Headline>
@@ -103,7 +92,7 @@ function ServiceDetailPageContent() {
       <Separator className="my-4" />
       {/* Stats Cards */}
       <div className="mb-6">
-        <WorkerStats stats={serviceStats} isLoading={isLoading} />
+        <WorkerStats stats={service} isLoading={isLoading} />
       </div>
 
       {/* Worker Table */}

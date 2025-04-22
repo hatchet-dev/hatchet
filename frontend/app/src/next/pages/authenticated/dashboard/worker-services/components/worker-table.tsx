@@ -69,7 +69,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   const navigate = useNavigate();
 
   const {
-    data: workers = [],
+    services,
     isLoading,
     update,
     filters: { filters, setFilter },
@@ -78,41 +78,28 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   const filterStatus = useMemo(() => filters.status || 'ALL', [filters]);
 
   // Filter workers for this service
-  const serviceWorkers = workers.filter(
-    (worker) => worker.name === serviceName,
-  );
-
-  // Calculate worker counts for filter
-  const workerCounts = {
-    all: serviceWorkers.length,
-    active: serviceWorkers.filter((worker) => worker.status === 'ACTIVE')
-      .length,
-    paused: serviceWorkers.filter((worker) => worker.status === 'PAUSED')
-      .length,
-    inactive: serviceWorkers.filter((worker) => worker.status === 'INACTIVE')
-      .length,
-  };
+  const service = services.find((worker) => worker.name === serviceName);
 
   // Set filter to paused if there are no active workers but there are paused workers
   useEffect(() => {
     if (!isLoading) {
       if (
-        (workerCounts.active === 0 && filterStatus === 'ACTIVE') ||
-        (workerCounts.paused === 0 && filterStatus === 'PAUSED')
+        (service?.activeCount === 0 && filterStatus === 'ACTIVE') ||
+        (service?.pausedCount === 0 && filterStatus === 'PAUSED')
       ) {
         setFilter('status', 'all');
       }
     }
   }, [
-    workerCounts.active,
-    workerCounts.paused,
+    service?.activeCount,
+    service?.pausedCount,
     isLoading,
     filterStatus,
     setFilter,
   ]);
 
   // Filter workers based on selected status
-  const filteredWorkers = serviceWorkers.filter((worker) => {
+  const filteredWorkers = service?.workers.filter((worker) => {
     if (filterStatus === 'ALL') {
       return true;
     }
@@ -137,8 +124,8 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   };
 
   const selectAllWorkers = () => {
-    const allWorkerIds = filteredWorkers.map((worker) => worker.metadata.id);
-    setSelectedWorkers(allWorkerIds);
+    const allWorkerIds = filteredWorkers?.map((worker) => worker.metadata.id);
+    setSelectedWorkers(allWorkerIds || []);
   };
 
   const clearSelection = () => {
@@ -189,10 +176,10 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   };
 
   const statusOptions = [
-    { label: 'All Workers', value: 'all', count: workerCounts.all },
-    { label: 'Active', value: 'active', count: workerCounts.active },
-    { label: 'Paused', value: 'paused', count: workerCounts.paused },
-    { label: 'Inactive', value: 'inactive', count: workerCounts.inactive },
+    { label: 'All Workers', value: 'all', count: service?.workers.length },
+    { label: 'Active', value: 'active', count: service?.activeCount },
+    { label: 'Paused', value: 'paused', count: service?.pausedCount },
+    { label: 'Inactive', value: 'inactive', count: service?.inactiveCount },
   ];
 
   return (
@@ -250,10 +237,10 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
                     type="checkbox"
                     checked={
                       selectedWorkers.length > 0 &&
-                      selectedWorkers.length === filteredWorkers.length
+                      selectedWorkers.length === filteredWorkers?.length
                     }
                     onChange={
-                      selectedWorkers.length === filteredWorkers.length
+                      selectedWorkers.length === filteredWorkers?.length
                         ? clearSelection
                         : selectAllWorkers
                     }
@@ -264,6 +251,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
               <TableHead>ID</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Slots</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Last Heartbeat</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -274,7 +262,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
               Array(5)
                 .fill(0)
                 .map((_, index) => <TableRowSkeleton key={index} />)
-            ) : filteredWorkers.length === 0 ? (
+            ) : filteredWorkers?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
                   {filterStatus === 'ALL'
@@ -283,7 +271,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredWorkers.map((worker) => (
+              filteredWorkers?.map((worker) => (
                 <TableRow key={worker.metadata.id}>
                   <TableCell>
                     <div className="flex items-center justify-center">
@@ -300,7 +288,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
                       onClick={() => handleWorkerClick(worker.metadata.id)}
                       className="hover:underline text-left"
                     >
-                      <WorkerId worker={worker} />
+                      <WorkerId worker={worker} serviceName={serviceName} />
                     </button>
                   </TableCell>
                   <TableCell>
@@ -319,6 +307,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
                       max={worker.maxRuns || 0}
                     />
                   </TableCell>
+                  <TableCell>{worker.type}</TableCell>
                   <TableCell>
                     <TooltipProvider>
                       <Tooltip>

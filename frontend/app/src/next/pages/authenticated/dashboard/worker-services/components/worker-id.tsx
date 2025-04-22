@@ -1,21 +1,65 @@
 import { useMemo } from 'react';
 import { Worker } from '@/lib/api/generated/data-contracts';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/next/components/ui/tooltip';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 interface WorkerIdProps {
   worker?: Worker;
+  serviceName: string;
+  onClick?: () => void;
 }
 
-export function WorkerId({ worker: providedWorker }: WorkerIdProps) {
+export function WorkerId({
+  worker: providedWorker,
+  serviceName,
+  onClick,
+}: WorkerIdProps) {
   const worker = providedWorker;
 
   const name = useMemo(() => {
     if (!worker) {
       return 'Worker not found';
     }
-    return worker.metadata.id;
+    return getFriendlyWorkerId(worker);
   }, [worker]);
 
-  return <span>{name}</span>;
+  const url = worker
+    ? ROUTES.services.workerDetail(serviceName, worker.metadata.id)
+    : undefined;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span>
+            {url && !onClick ? (
+              <Link to={url} className="hover:underline text-foreground">
+                {name}-{worker?.metadata.id.split('-')[0]}
+              </Link>
+            ) : (
+              <span
+                className={onClick ? 'cursor-pointer' : ''}
+                onClick={onClick}
+              >
+                {name}-{worker?.metadata.id.split('-')[0]}
+              </span>
+            )}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="bg-muted">
+          <div className="font-mono text-foreground">
+            {worker?.metadata.id || ''}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export function getFriendlyWorkerId(worker: Worker) {
