@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/next/components/ui/button';
 import { Separator } from '@/next/components/ui/separator';
 import { Label } from '@/next/components/ui/label';
@@ -78,6 +78,11 @@ function AnalyticsOptOut() {
   const { tenant, update } = useTenant();
   const [checkedState, setChecked] = useState(false);
   const [changed, setChanged] = useState(false);
+
+  useEffect(() => {
+    setChecked(!!tenant?.analyticsOptOut);
+    setChanged(false);
+  }, [tenant]);
 
   if (!tenant) {
     return null;
