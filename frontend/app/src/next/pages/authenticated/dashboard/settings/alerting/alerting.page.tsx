@@ -14,6 +14,9 @@ import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
 import { Dialog } from '@/next/components/ui/dialog';
 import { DestructiveDialog } from '@/next/components/ui/dialog/index';
 import { slackWebhookColumns } from './components/slack-webhooks-columns';
+import BasicLayout from '@/next/components/layouts/basic.layout';
+import { Headline, PageTitle } from '@/next/components/ui/page-header';
+
 export default function Alerting() {
   const { integrations } = useApiMeta();
 
@@ -21,32 +24,29 @@ export default function Alerting() {
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
 
   return (
-    <div className="flex-grow h-full w-full">
-      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-semibold leading-tight text-foreground">
+    <BasicLayout>
+      <Headline>
+        <PageTitle description="Manage your tenant alerting settings">
           Alerting
-        </h2>
-        <p className="text-gray-700 dark:text-gray-300 my-4">
-          Manage alerts to get notified on task failure.
-        </p>
-        <Separator className="my-4" />
-        <TenantAlertsProvider>
-          <AlertingSettings />
-          {hasEmailIntegration && (
-            <>
-              <Separator className="my-4" />
-              <EmailGroupsList />
-            </>
-          )}
-          {hasSlackIntegration && (
-            <>
-              <Separator className="my-4" />
-              <SlackWebhooksList />
-            </>
-          )}
-        </TenantAlertsProvider>
-      </div>
-    </div>
+        </PageTitle>
+      </Headline>
+      <Separator className="my-4" />
+      <TenantAlertsProvider>
+        <AlertingSettings />
+        {hasEmailIntegration && (
+          <>
+            <Separator className="my-4" />
+            <EmailGroupsList />
+          </>
+        )}
+        {hasSlackIntegration && (
+          <>
+            <Separator className="my-4" />
+            <SlackWebhooksList />
+          </>
+        )}
+      </TenantAlertsProvider>
+    </BasicLayout>
   );
 }
 

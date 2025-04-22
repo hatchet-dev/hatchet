@@ -127,7 +127,6 @@ export default function GithubPage() {
                 Connect new account
               </Button>
             </a>
-            <></>
             {/* <DocsButton doc={docs.home['github-integration']} size="icon" /> */}
           </HeadlineActionItem>
         </HeadlineActions>
