@@ -2747,6 +2747,7 @@ type V1TasksOlap struct {
 	Queue                string               `json:"queue"`
 	ActionID             string               `json:"action_id"`
 	StepID               pgtype.UUID          `json:"step_id"`
+	StepReadableID       string               `json:"step_readable_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
 	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
 	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`

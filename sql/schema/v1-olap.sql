@@ -143,6 +143,7 @@ CREATE TABLE v1_tasks_olap (
     queue TEXT NOT NULL,
     action_id TEXT NOT NULL,
     step_id UUID NOT NULL,
+    step_readable_id TEXT NOT NULL DEFAULT '',
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
     workflow_run_id UUID NOT NULL,

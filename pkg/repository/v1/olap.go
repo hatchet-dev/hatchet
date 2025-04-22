@@ -396,7 +396,6 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 			WorkflowVersionId:    row.WorkflowVersionID,
 			Input:                row.Input,
 			ParentTaskExternalId: &row.ParentTaskExternalID,
-			Output:               &row.Output,
 		},
 		TaskMetadata: taskMetadata,
 	}, nil
@@ -1145,6 +1144,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId string
 			DagInsertedAt:        task.DagInsertedAt,
 			ParentTaskExternalID: task.ParentTaskExternalID,
 			WorkflowRunID:        task.WorkflowRunID,
+			StepReadableID:       task.StepReadableID,
 		})
 	}
 
