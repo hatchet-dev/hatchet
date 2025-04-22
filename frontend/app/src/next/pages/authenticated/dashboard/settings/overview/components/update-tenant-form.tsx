@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/next/components/ui/button';
 import { Input } from '@/next/components/ui/input';
 import { Label } from '@/next/components/ui/label';
@@ -20,6 +20,11 @@ export function UpdateTenantForm({
 }: UpdateTenantFormProps) {
   const [name, setName] = useState(tenant.name);
   const [changed, setChanged] = useState(false);
+
+  useEffect(() => {
+    setName(tenant.name);
+    setChanged(false);
+  }, [tenant]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setName(e.target.value);
