@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Position,
   MarkerType,
@@ -40,6 +40,27 @@ const WorkflowRunVisualizer = ({
 
   const shape = useMemo(() => data?.shape || [], [data]);
   const taskRuns = useMemo(() => data?.tasks || [], [data]);
+
+  const [containerWidth, setContainerWidth] = useState(0);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      if (containerRef.current) {
+        resizeObserver.unobserve(containerRef.current);
+      }
+    };
+  }, []);
 
   const setSelectedTaskRunId = useCallback(
     (taskRunId: string) => {
@@ -173,8 +194,9 @@ const WorkflowRunVisualizer = ({
   }
 
   return (
-    <div className="w-full h-[300px]">
+    <div ref={containerRef} className="w-full h-[300px]">
       <ReactFlow
+        key={containerWidth}
         nodes={layoutedNodes}
         edges={layoutedEdges}
         nodeTypes={nodeTypes}

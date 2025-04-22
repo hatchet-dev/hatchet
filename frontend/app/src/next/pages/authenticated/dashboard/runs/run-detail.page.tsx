@@ -43,6 +43,9 @@ import {
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
 import { FilterProvider } from '@/next/hooks/use-filters';
 import { RunDetailSheet } from './run-detail-sheet';
+import { Separator } from '@/next/components/ui/separator';
+import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
+import { Waterfall } from '@/next/components/waterfall/waterfall';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -258,54 +261,68 @@ export default function RunDetailPage() {
   }
 
   const Timing = () => {
-    return (
-      <div className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>Created</span>
+    const timings: JSX.Element[] = [
+      <div key="created" className="flex items-center gap-2">
+        <span>Created</span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="whitespace-nowrap">
+                <Time date={workflow.createdAt} variant="timestamp" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <Time date={workflow.createdAt} variant="timeSince" />
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>,
+      <div key="started" className="flex items-center gap-2">
+        <span>Started</span>
+        {workflow.startedAt ? (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="whitespace-nowrap">
-                  <Time date={workflow.createdAt} variant="timestamp" />
+                  <Time date={workflow.startedAt} variant="timeSince" />
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                <Time date={workflow.createdAt} variant="timeSince" />
+                <Time date={workflow.startedAt} variant="timestamp" />
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </div>
+        ) : (
+          <span>Not started</span>
+        )}
+      </div>,
+      <div key="duration" className="flex items-center gap-2">
+        <span>Duration</span>
+        <span className="whitespace-nowrap">
+          <Duration
+            start={workflow.startedAt}
+            end={workflow.finishedAt}
+            status={workflow.status}
+          />
+        </span>
+      </div>,
+    ];
 
-        <div className="flex items-center gap-2">
-          <span>Started</span>
-          {workflow.startedAt ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="whitespace-nowrap">
-                    <Time date={workflow.startedAt} variant="timeSince" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <Time date={workflow.startedAt} variant="timestamp" />
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            <span>Not started</span>
-          )}
-        </div>
+    const interleavedTimings: JSX.Element[] = [];
+    timings.forEach((timing, index) => {
+      interleavedTimings.push(timing);
+      if (index < timings.length - 1) {
+        interleavedTimings.push(
+          <div key={`sep-${index}`} className="text-sm text-muted-foreground">
+            |
+          </div>,
+        );
+      }
+    });
 
-        <div className="flex items-center gap-2">
-          <span>Duration</span>
-          <span className="whitespace-nowrap">
-            <Duration
-              start={workflow.startedAt}
-              end={workflow.finishedAt}
-              status={workflow.status}
-            />
-          </span>
-        </div>
+    return (
+      <div className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
+        {interleavedTimings}
       </div>
     );
   };
@@ -322,10 +339,11 @@ export default function RunDetailPage() {
       }
     >
       <Headline>
-        <PageTitle description={<Timing />}>
-          <h1 className="text-2xl font-bold truncate flex items-center gap-2">
-            <RunsBadge status={workflow.status} variant="xs" />
+        <PageTitle>
+          <h1 className="text-2xl font-bold truncate flex items-center gap-4">
+            <AdjustmentsHorizontalIcon className="w-5 h-5 mt-1" />
             <RunId wfRun={workflow} />
+            <RunsBadge status={workflow.status} variant="default" />
           </h1>
         </PageTitle>
         <HeadlineActions>
@@ -408,22 +426,33 @@ export default function RunDetailPage() {
         </HeadlineActions>
       </Headline>
 
-      {workflowRunId && (
-        <div className="w-full overflow-x-auto">
-          <WorkflowRunVisualizer
-            workflowRunId={workflowRunId}
-            onTaskSelect={handleTaskSelect}
-          />
-        </div>
-      )}
+      <Timing />
 
-      <div className="grid grid-cols-1 gap-4">
-        <RunChildrenCardRoot
-          workflow={workflow}
-          parentRun={parentData?.run}
-          onTaskSelect={handleTaskSelect}
-        />
-      </div>
+      <Separator className="my-4" />
+
+      <Tabs defaultValue="minimap" className="w-full">
+        <TabsList layout="underlined" className="w-full">
+          <TabsTrigger variant="underlined" value="minimap">
+            Minimap
+          </TabsTrigger>
+          <TabsTrigger variant="underlined" value="waterfall">
+            Waterfall
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="minimap" className="mt-4">
+          {workflowRunId && (
+            <div className="w-full overflow-x-auto bg-slate-100 dark:bg-slate-900">
+              <WorkflowRunVisualizer
+                workflowRunId={workflowRunId}
+                onTaskSelect={handleTaskSelect}
+              />
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="waterfall" className="mt-4">
+          <Waterfall />
+        </TabsContent>
+      </Tabs>
 
       <div className="grid grid-cols-1 gap-4 mt-8">
         <Tabs defaultValue="activity" className="w-full">

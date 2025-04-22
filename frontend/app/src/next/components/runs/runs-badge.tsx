@@ -96,13 +96,13 @@ export function RunsBadge({
   return (
     <Badge
       className={cn(
-        variant === 'xs' ? 'p-0 w-2 h-2' : 'px-3 py-1',
+        variant === 'xs' ? 'p-0 w-2 h-2' : 'px-2 py-1',
         isLoading
           ? 'animate-pulse bg-gray-200/20 text-transparent'
           : variant === 'xs'
             ? config.primary
             : config.colors,
-        'text-xs font-medium rounded-md border-transparent',
+        'text-xs font-medium rounded-sm border-transparent',
         className,
       )}
       tooltipContent={status}
