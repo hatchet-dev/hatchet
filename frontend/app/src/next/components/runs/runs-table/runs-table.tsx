@@ -92,22 +92,6 @@ export function RunsTable({
     }));
   }, [runs]);
 
-  const emptyState = useMemo(
-    () => (
-      <div className="flex flex-col items-center justify-center gap-4 py-8">
-        <p className="text-md">No runs found.</p>
-        <p className="text-sm text-muted-foreground">
-          Trigger a new run to get started.
-        </p>
-        <DocsButton
-          doc={docs.home['running-tasks']}
-          titleOverride="Running Tasks"
-        />
-      </div>
-    ),
-    [],
-  );
-
   const numSelectedRows = useMemo(() => {
     return Object.keys(rowSelection).length;
   }, [rowSelection]);
@@ -286,7 +270,18 @@ export function RunsTable({
       <DataTable
         columns={columns(onRowClick, selectAll)}
         data={runs || []}
-        emptyState={emptyState}
+        emptyState={
+          <div className="flex flex-col items-center justify-center gap-4 py-8">
+            <p className="text-md">No runs found.</p>
+            <p className="text-sm text-muted-foreground">
+              Trigger a new run to get started.
+            </p>
+            <DocsButton
+              doc={docs.home['running-tasks']}
+              titleOverride="Running Tasks"
+            />
+          </div>
+        }
         isLoading={isLoading}
         selectedTaskId={selectedTaskId}
         onRowClick={onRowClick}
