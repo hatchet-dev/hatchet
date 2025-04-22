@@ -33,6 +33,7 @@ export function RunsTable({
 }: RunsTableProps) {
   const {
     data: runs,
+    count,
     timeRange: { pause, isPaused, filters: timeFilters },
     isLoading,
     filters: { filters, setFilter },
@@ -45,8 +46,6 @@ export function RunsTable({
       pause();
     }
   }, [pause, rowSelection, isPaused]);
-
-  const tableColumns = useMemo(() => columns(rowClicked), [rowClicked]);
 
   const additionalMetaOpts = useMemo(() => {
     if (!runs || runs.length === 0) {
@@ -87,6 +86,10 @@ export function RunsTable({
       setFilter('statuses', [status]);
     }
   };
+
+  const numSelectedRows = useMemo(() => {
+    return Object.keys(rowSelection).length;
+  }, [rowSelection]);
 
   return (
     <>
@@ -132,16 +135,27 @@ export function RunsTable({
           />
           <ClearFiltersButton />
         </FilterGroup>
+        <div className="flex-1 text-sm text-muted-foreground">
+          {numSelectedRows > 0 ? (
+            <>
+              <span className="text-muted-foreground">
+                {numSelectedRows} of {count} runs selected
+              </span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">{count} runs</span>
+          )}
+        </div>
         <DataTable
-          columns={tableColumns}
+          columns={columns(rowClicked)}
           data={runs || []}
           emptyState={emptyState}
           isLoading={isLoading}
           selectedTaskId={selectedTaskId}
           rowClicked={rowClicked}
+          onSelectionChange={onSelectionChange}
           rowSelection={rowSelection}
           setRowSelection={setRowSelection}
-          onSelectionChange={onSelectionChange}
         />
       </div>
       <Pagination className="mt-4 justify-between flex flex-row">

@@ -47,6 +47,7 @@ interface CreateRunParams {
 
 interface RunsState {
   data: V1TaskSummary[];
+  count: number;
   metrics: {
     data: V1TaskRunMetrics;
     isLoading: boolean;
@@ -322,9 +323,21 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
     ]);
   }, [listRunsQuery, metricsRunsQuery, histogramQuery]);
 
+  const count = useMemo(() => {
+    // TODO this is returning an inconsistent count with the number of runs in the table
+    return metricsRunsQuery.data
+      ?.filter(
+        (metric) =>
+          (metric.status && !filters.filters.statuses) ||
+          filters.filters.statuses?.includes(metric.status),
+      )
+      .reduce((acc, metric) => acc + metric.count, 0);
+  }, [metricsRunsQuery.data, filters.filters.statuses]);
+
   const value = useMemo(
     () => ({
       data: listRunsQuery.data?.rows || [],
+      count,
       metrics: {
         data: metricsRunsQuery.data || [],
         isLoading: metricsRunsQuery.isLoading,
@@ -342,8 +355,9 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       queueMetrics: queueMetricsQuery,
     }),
     [
-      listRunsQuery.data,
+      listRunsQuery.data?.rows,
       listRunsQuery.isLoading,
+      count,
       metricsRunsQuery.data,
       metricsRunsQuery.isLoading,
       createRunMutation,
