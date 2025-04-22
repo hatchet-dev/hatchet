@@ -1,12 +1,19 @@
 import {
+  useCallback,
+  useMemo,
+  useState,
+  createContext,
+  useContext,
+  ReactNode,
+  useEffect,
+} from 'react';
+import api, {
+  UpdateTenantRequest,
   Tenant,
   TenantMember,
   CreateTenantRequest,
-  UpdateTenantRequest,
 } from '@/lib/api';
-import api from '@/lib/api/api';
 import useUser from './use-user';
-import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   useMutation,
@@ -26,16 +33,39 @@ interface TenantState {
   };
 }
 
-export default function useTenant(): TenantState {
+const TenantContext = createContext<TenantState | null>(null);
+
+interface TenantProviderProps {
+  children: ReactNode;
+}
+
+export function TenantProvider({ children }: TenantProviderProps) {
   const { memberships, isLoading: isUserLoading } = useUser();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const [currentTenantId, setCurrentTenantId] = useState<string | undefined>(
+    () =>
+      searchParams.get('tenant') ?? localStorage.getItem('tenant') ?? undefined,
+  );
+
+  // make sure the tenant id is in the url if it's not already
+  useEffect(() => {
+    if (!searchParams.get('tenant') && currentTenantId) {
+      setSearchParams({ tenant: currentTenantId }, { replace: true });
+    }
+  }, [searchParams, currentTenantId, setSearchParams]);
 
   const setTenant = useCallback(
-    (tenantId: string) => {
+    (tenantId?: string) => {
+      if (!tenantId) {
+        return;
+      }
+
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('tenant', tenantId);
       setSearchParams(newSearchParams, { replace: true });
+      setCurrentTenantId(tenantId);
+      localStorage.setItem('tenant', tenantId);
 
       // Get the previous tenant ID that might be in existing query keys
       const prevTenantId = searchParams.get('tenant');
@@ -56,27 +86,21 @@ export default function useTenant(): TenantState {
   );
 
   const membership = useMemo(() => {
-    const tenantId = searchParams.get('tenant');
-
-    if (tenantId == null) {
-      const fallback = memberships?.[0];
-      if (!fallback?.tenant?.metadata.id) {
-        return;
-      }
-      setTenant(fallback.tenant.metadata.id);
-      return fallback;
+    if (!currentTenantId) {
+      return undefined;
     }
 
-    const matched = memberships?.find(
-      (membership) => membership.tenant?.metadata.id === tenantId,
+    return memberships?.find(
+      (membership) => membership.tenant?.metadata.id === currentTenantId,
     );
+  }, [currentTenantId, memberships]);
 
-    if (!matched?.tenant?.metadata.id) {
-      return;
+  // Handle setting initial tenant when no tenant is selected
+  useEffect(() => {
+    if (!currentTenantId && memberships?.[0]?.tenant?.metadata.id) {
+      setTenant(memberships[0].tenant.metadata.id);
     }
-
-    return matched;
-  }, [memberships, searchParams, setTenant]);
+  }, [currentTenantId, memberships, setTenant]);
 
   const tenant = membership?.tenant;
 
@@ -86,7 +110,7 @@ export default function useTenant(): TenantState {
     mutationFn: async (name: string): Promise<Tenant> => {
       const tenantData: CreateTenantRequest = {
         name,
-        slug: name,
+        slug: name.toLowerCase().replace(/\s+/g, '-'),
       };
 
       const response = await api.tenantCreate(tenantData);
@@ -113,11 +137,11 @@ export default function useTenant(): TenantState {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user:*'] });
-      window.location.reload();
+      queryClient.invalidateQueries({ queryKey: ['tenant:*'] });
     },
   });
 
-  return {
+  const value = {
     tenant,
     isLoading: isUserLoading,
     membership: membership?.role,
@@ -128,4 +152,16 @@ export default function useTenant(): TenantState {
       isPending: updateTenantMutation.isPending,
     },
   };
+
+  return (
+    <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
+  );
+}
+
+export default function useTenant(): TenantState {
+  const context = useContext(TenantContext);
+  if (context === null) {
+    throw new Error('useTenant must be used within a TenantProvider');
+  }
+  return context;
 }
