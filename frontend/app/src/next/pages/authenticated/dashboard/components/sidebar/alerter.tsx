@@ -38,7 +38,11 @@ export function Alerter() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 p-0">
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 p-0"
+              disabled
+            >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarFallback className="rounded-lg">
                   <Bell className="h-4 w-4 text-muted-foreground" />
