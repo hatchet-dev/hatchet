@@ -6,7 +6,7 @@ export type EvaluateContext = {
   user?: User;
   membership?: TenantMember['role'];
   tenant?: Tenant;
-  billing?: BillingHook['data'];
+  billing?: BillingHook['billing'];
   meta?: APICloudMetadata;
 };
 

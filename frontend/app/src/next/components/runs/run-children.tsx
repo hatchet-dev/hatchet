@@ -143,7 +143,6 @@ function RunRowWithChildren({
       {isExpanded && hasActualChildren && (
         <RunsProvider>
           <ChildrenList
-            run={run}
             depth={depth}
             expandedIds={expandedIds}
             toggleExpanded={toggleExpanded}
@@ -156,7 +155,6 @@ function RunRowWithChildren({
 }
 
 interface ChildrenListProps {
-  run: V1TaskSummary;
   depth: number;
   expandedIds: Set<string>;
   toggleExpanded: (id: string) => void;
@@ -164,7 +162,6 @@ interface ChildrenListProps {
 }
 
 function ChildrenList({
-  run,
   depth,
   expandedIds,
   toggleExpanded,
