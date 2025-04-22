@@ -1,5 +1,5 @@
 import { useRuns, RunsFilters } from '@/next/hooks/use-runs';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import {
@@ -18,19 +18,33 @@ import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
 import { RunsMetricsView } from '../runs-metrics/runs-metrics';
+import { RowSelectionState } from '@tanstack/react-table';
 
 interface RunsTableProps {
   rowClicked?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
+  onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
 }
 
-export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
+export function RunsTable({
+  rowClicked,
+  selectedTaskId,
+  onSelectionChange,
+}: RunsTableProps) {
   const {
     data: runs,
-    metrics,
+    timeRange: { pause, isPaused, filters: timeFilters },
     isLoading,
     filters: { filters, setFilter },
   } = useRuns();
+
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  useEffect(() => {
+    if (Object.keys(rowSelection).length > 0 && !isPaused) {
+      pause();
+    }
+  }, [pause, rowSelection, isPaused]);
 
   const tableColumns = useMemo(() => columns(rowClicked), [rowClicked]);
 
@@ -124,6 +138,9 @@ export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
         isLoading={isLoading}
         selectedTaskId={selectedTaskId}
         rowClicked={rowClicked}
+        rowSelection={rowSelection}
+        setRowSelection={setRowSelection}
+        onSelectionChange={onSelectionChange}
       />
       <Pagination className="p-2 justify-between flex flex-row">
         <PageSizeSelector />

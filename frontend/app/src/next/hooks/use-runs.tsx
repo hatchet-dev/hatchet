@@ -26,6 +26,7 @@ import {
   useTimeFilters,
 } from '@/next/hooks/utils/use-time-filters';
 import { FilterProvider, useFilters } from '@/next/hooks/utils/use-filters';
+import { endOfMinute, startOfMinute } from 'date-fns';
 
 // Types for filters
 export interface RunsFilters {
@@ -134,7 +135,8 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       'v1:workflow-run:list',
       tenant,
       filters.filters,
-      timeRange.filters,
+      timeRange.filters.startTime,
+      timeRange.filters.endTime || endOfMinute(new Date()).toISOString(),
       pagination,
     ],
     queryFn: async () => {
@@ -143,12 +145,14 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
-      const since =
-        timeRange.filters.startTime ||
-        new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
-      const until =
-        timeRange.filters.endTime ||
-        new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+      const since = timeRange.filters.startTime
+        ? startOfMinute(new Date(timeRange.filters.startTime)).toISOString()
+        : startOfMinute(
+            new Date(Date.now() - 1000 * 60 * 60 * 24),
+          ).toISOString();
+      const until = timeRange.filters.endTime
+        ? endOfMinute(new Date(timeRange.filters.endTime)).toISOString()
+        : endOfMinute(new Date()).toISOString();
 
       const query = {
         offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),

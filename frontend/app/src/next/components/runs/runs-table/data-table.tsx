@@ -5,6 +5,8 @@ import {
   ColumnDef,
   ColumnFiltersState,
   VisibilityState,
+  RowSelectionState,
+  OnChangeFn,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -33,6 +35,9 @@ interface DataTableProps<TData, TValue> {
   isLoading?: boolean;
   selectedTaskId?: string;
   rowClicked?: (row: TData) => void;
+  onSelectionChange?: (selectedRows: TData[]) => void;
+  rowSelection?: RowSelectionState;
+  setRowSelection?: OnChangeFn<RowSelectionState>;
 }
 
 export function DataTable<TData, TValue>({
@@ -42,6 +47,9 @@ export function DataTable<TData, TValue>({
   isLoading,
   selectedTaskId,
   rowClicked,
+  onSelectionChange,
+  rowSelection = {},
+  setRowSelection,
 }: DataTableProps<TData, TValue>) {
   const navigate = useNavigate();
   // Client-side state
@@ -55,15 +63,32 @@ export function DataTable<TData, TValue>({
     state: {
       columnFilters,
       columnVisibility,
+      rowSelection,
     },
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    getRowId: (row) => {
+      const typedRow = row as { taskExternalId?: string; id?: string };
+      return typedRow.taskExternalId || typedRow.id || String(Math.random());
+    },
   });
+
+  // Notify parent component of selection changes
+  useMemo(() => {
+    if (onSelectionChange) {
+      const selectedRows = table
+        .getSelectedRowModel()
+        .rows.map((row) => row.original);
+      onSelectionChange(selectedRows);
+    }
+  }, [onSelectionChange, table]);
 
   const styles = {
     status: 'p-0 w-[40px]',
@@ -92,10 +117,22 @@ export function DataTable<TData, TValue>({
     }
 
     return table.getRowModel().rows.map((row) => {
-      const isSelected =
+      const isSelected = row.getIsSelected();
+      const isTaskSelected =
         selectedTaskId === (row.original as any).taskExternalId;
 
-      const handleClick = () => {
+      const handleClick = (e: React.MouseEvent) => {
+        // Prevent row click if clicking on a button or link
+        if ((e.target as HTMLElement).closest('button, a')) {
+          return;
+        }
+
+        // If Cmd/Ctrl is held, toggle selection instead of triggering row click
+        if (e.metaKey || e.ctrlKey) {
+          row.toggleSelected(!isSelected);
+          return;
+        }
+
         if (rowClicked) {
           rowClicked(row.original);
         }
@@ -111,7 +148,7 @@ export function DataTable<TData, TValue>({
       return (
         <TableRow
           key={row.id}
-          data-state={isSelected ? 'selected' : undefined}
+          data-state={isSelected || isTaskSelected ? 'selected' : undefined}
           className="group cursor-pointer"
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
@@ -135,6 +172,7 @@ export function DataTable<TData, TValue>({
     columns.length,
     rowClicked,
     navigate,
+    rowSelection,
   ]);
 
   return (

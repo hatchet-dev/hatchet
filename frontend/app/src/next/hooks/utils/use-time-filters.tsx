@@ -1,5 +1,11 @@
 import * as React from 'react';
-import { startOfMinute, subDays, subHours, subMinutes } from 'date-fns';
+import {
+  endOfMinute,
+  startOfMinute,
+  subDays,
+  subHours,
+  subMinutes,
+} from 'date-fns';
 import { useStateAdapter } from '../../lib/utils/storage-adapter';
 
 export const TIME_PRESETS = {
@@ -74,7 +80,7 @@ export function useTimeFilters() {
     pause: () => {
       setTimeFilter({
         startTime: state.startTime!,
-        endTime: new Date().toISOString(),
+        endTime: endOfMinute(new Date()).toISOString(),
       });
     },
     resume: () => {
@@ -101,7 +107,6 @@ export function TimeFilterProvider({ children }: TimeFilterProviderProps) {
     activePreset: '1h',
     lastActivePreset: '1h',
   });
-  const updateIntervalRef = React.useRef<NodeJS.Timeout>();
 
   // Initialize storage for time filter
   const timeFilterStorage = useStateAdapter<{

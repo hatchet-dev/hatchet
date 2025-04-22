@@ -22,6 +22,8 @@ import { AdditionalMetadata } from '@/next/components/ui/additional-meta';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { useRuns } from '@/next/hooks/use-runs';
+import { Checkbox } from '@/next/components/ui/checkbox';
+
 export const statusOptions = [
   { label: 'Pending', value: 'PENDING' },
   { label: 'Running', value: 'RUNNING' },
@@ -33,6 +35,29 @@ export const statusOptions = [
 export const columns = (
   rowClicked?: (row: V1TaskSummary) => void,
 ): ColumnDef<V1TaskSummary>[] => [
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllPageRowsSelected()}
+        onCheckedChange={(value: boolean) =>
+          table.toggleAllPageRowsSelected(!!value)
+        }
+        aria-label="Select all"
+        className="translate-y-[2px]"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        className="translate-y-[2px]"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: 'status',
     header: ({ column }) => <DataTableColumnHeader column={column} title="" />,
