@@ -84,7 +84,7 @@ export default function RunsPage() {
           <GetWorkflowChart />
           <RunsMetricsView />
           <RunsTable
-            rowClicked={handleRowClick}
+            onRowClick={handleRowClick}
             selectedTaskId={taskId?.taskId}
           />
         </dl>

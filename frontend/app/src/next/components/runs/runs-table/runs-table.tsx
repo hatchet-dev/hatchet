@@ -23,13 +23,13 @@ import { Button } from '@/next/components/ui/button';
 import { RunsBulkActionDialog } from './bulk-action-dialog';
 
 interface RunsTableProps {
-  rowClicked?: (row: V1TaskSummary) => void;
+  onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
   onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
 }
 
 export function RunsTable({
-  rowClicked,
+  onRowClick,
   selectedTaskId,
   onSelectionChange,
 }: RunsTableProps) {
@@ -284,16 +284,17 @@ export function RunsTable({
         )}
       </div>
       <DataTable
-        columns={columns(rowClicked, selectAll)}
+        columns={columns(onRowClick, selectAll)}
         data={runs || []}
         emptyState={emptyState}
         isLoading={isLoading}
         selectedTaskId={selectedTaskId}
-        rowClicked={rowClicked}
+        onRowClick={onRowClick}
         onSelectionChange={onSelectionChange}
         rowSelection={rowSelection}
         setRowSelection={handleSelectionChange}
         selectAll={selectAll}
+        getSubRows={(row) => row.children || []}
       />
       <Pagination className="mt-4 justify-between flex flex-row">
         <PageSizeSelector />
