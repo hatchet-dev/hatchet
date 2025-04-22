@@ -89,63 +89,65 @@ export function RunsTable({
   };
 
   return (
-    <div className="flex flex-col gap-4 mt-4">
-      <RunsMetricsView onClick={handleMetricClick} />
-      <FilterGroup>
-        <FilterSelect<RunsFilters, V1TaskStatus[]>
-          name="statuses"
-          value={filters.statuses}
-          placeholder="Status"
-          multi
-          options={[
-            { label: 'Running', value: V1TaskStatus.RUNNING },
-            { label: 'Completed', value: V1TaskStatus.COMPLETED },
-            { label: 'Failed', value: V1TaskStatus.FAILED },
-            { label: 'Cancelled', value: V1TaskStatus.CANCELLED },
-            { label: 'Queued', value: V1TaskStatus.QUEUED },
-          ]}
+    <>
+      <div className="flex flex-col gap-4 mt-4">
+        <RunsMetricsView onClick={handleMetricClick} />
+        <FilterGroup>
+          <FilterSelect<RunsFilters, V1TaskStatus[]>
+            name="statuses"
+            value={filters.statuses}
+            placeholder="Status"
+            multi
+            options={[
+              { label: 'Running', value: V1TaskStatus.RUNNING },
+              { label: 'Completed', value: V1TaskStatus.COMPLETED },
+              { label: 'Failed', value: V1TaskStatus.FAILED },
+              { label: 'Cancelled', value: V1TaskStatus.CANCELLED },
+              { label: 'Queued', value: V1TaskStatus.QUEUED },
+            ]}
+          />
+          <FilterTaskSelect<RunsFilters>
+            name="workflow_ids"
+            placeholder="Name"
+            multi
+          />
+          <FilterSelect<RunsFilters, boolean>
+            name="is_root_task"
+            value={filters.is_root_task}
+            placeholder="Only Root Tasks"
+            options={[
+              { label: 'Yes', value: true },
+              { label: 'No', value: false },
+            ]}
+          />
+          <FilterTaskSelect<RunsFilters>
+            name="workflow_ids"
+            placeholder="Task Name"
+            multi
+          />
+          <FilterKeyValue<RunsFilters>
+            name="additional_metadata"
+            placeholder="Metadata"
+            options={additionalMetaOpts}
+          />
+          <ClearFiltersButton />
+        </FilterGroup>
+        <DataTable
+          columns={tableColumns}
+          data={runs || []}
+          emptyState={emptyState}
+          isLoading={isLoading}
+          selectedTaskId={selectedTaskId}
+          rowClicked={rowClicked}
+          rowSelection={rowSelection}
+          setRowSelection={setRowSelection}
+          onSelectionChange={onSelectionChange}
         />
-        <FilterTaskSelect<RunsFilters>
-          name="workflow_ids"
-          placeholder="Name"
-          multi
-        />
-        <FilterSelect<RunsFilters, boolean>
-          name="is_root_task"
-          value={filters.is_root_task}
-          placeholder="Only Root Tasks"
-          options={[
-            { label: 'Yes', value: true },
-            { label: 'No', value: false },
-          ]}
-        />
-        <FilterTaskSelect<RunsFilters>
-          name="workflow_ids"
-          placeholder="Task Name"
-          multi
-        />
-        <FilterKeyValue<RunsFilters>
-          name="additional_metadata"
-          placeholder="Metadata"
-          options={additionalMetaOpts}
-        />
-        <ClearFiltersButton />
-      </FilterGroup>
-      <DataTable
-        columns={tableColumns}
-        data={runs || []}
-        emptyState={emptyState}
-        isLoading={isLoading}
-        selectedTaskId={selectedTaskId}
-        rowClicked={rowClicked}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
-        onSelectionChange={onSelectionChange}
-      />
-      <Pagination className="p-2 justify-between flex flex-row">
+      </div>
+      <Pagination className="mt-4 justify-between flex flex-row">
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>
-    </div>
+    </>
   );
 }
