@@ -23,6 +23,9 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { useRuns } from '@/next/hooks/use-runs';
 import { Checkbox } from '@/next/components/ui/checkbox';
+import { Button } from '@/components/v1/ui/button';
+import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
+import { cn } from '@/next/lib/utils';
 
 export const statusOptions = [
   { label: 'Pending', value: 'PENDING' },
@@ -50,13 +53,34 @@ export const columns = (
       />
     ),
     cell: ({ row }) => (
-      <Checkbox
-        checked={selectAll || row.getIsSelected()}
-        onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        className="translate-y-[2px]"
-        disabled={selectAll}
-      />
+      <div
+        className={cn(
+          `pl-${row.depth * 4}`,
+          'flex flex-row items-center justify-start gap-x-2 max-w-6',
+        )}
+      >
+        <Checkbox
+          checked={selectAll || row.getIsSelected()}
+          onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          disabled={selectAll}
+        />
+        {row.getCanExpand() && (
+          <Button
+            onClick={() => row.toggleExpanded()}
+            variant="ghost"
+            size="icon"
+            className="cursor-pointer px-2"
+            hoverText="Show tasks"
+          >
+            {row.getIsExpanded() ? (
+              <ChevronDownIcon className="size-4" />
+            ) : (
+              <ChevronRightIcon className="size-4" />
+            )}
+          </Button>
+        )}
+      </div>
     ),
     enableSorting: false,
     enableHiding: false,

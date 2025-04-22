@@ -16,7 +16,6 @@ import {
   PageSelector,
   PageSizeSelector,
 } from '@/next/components/ui/pagination';
-import { RateLimit } from '@/lib/api';
 import { Time } from '@/next/components/ui/time';
 import { RateLimitsProvider, useRateLimits } from '@/next/hooks/use-ratelimits';
 
@@ -61,9 +60,13 @@ const formatWindow = (window: string) => {
 function RateLimitsTable() {
   const { data, isLoading } = useRateLimits();
 
-  const rateLimits = data || [];
+  const rateLimits = (data || []).map((r) => ({
+    ...r,
+    metadata: { id: r.key },
+  }));
 
-  const columns: ColumnDef<RateLimit>[] = [
+  // TODO: Fix this type
+  const columns: ColumnDef<(typeof rateLimits)[number], unknown>[] = [
     {
       accessorKey: 'status',
       header: 'Status',

@@ -15,6 +15,7 @@ import {
   getSortedRowModel,
   useReactTable,
   Row,
+  ExpandedState,
 } from '@tanstack/react-table';
 import {
   Table,
@@ -34,7 +35,14 @@ const styles = {
   runId: 'border-r border-border',
 };
 
-interface DataTableProps<TData, TValue> {
+export interface IDGetter {
+  metadata: {
+    id: string;
+  };
+  isExpandable?: boolean;
+}
+
+interface DataTableProps<TData extends IDGetter, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   emptyState?: React.ReactNode;
@@ -48,34 +56,7 @@ interface DataTableProps<TData, TValue> {
   getSubRows?: (originalRow: TData, index: number) => TData[];
 }
 
-const getTableRow = <TData,>(
-  row: Row<TData>,
-  isSelected: boolean,
-  isTaskSelected: boolean,
-  handleClick: (e: React.MouseEvent) => void,
-  handleDoubleClick: () => void,
-) => {
-  return (
-    <TableRow
-      key={row.id}
-      data-state={isSelected || isTaskSelected ? 'selected' : undefined}
-      className="group cursor-pointer"
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-    >
-      {row.getVisibleCells().map((cell) => (
-        <TableCell
-          key={cell.id}
-          className={cn(styles[cell.column.id as keyof typeof styles])}
-        >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </TableCell>
-      ))}
-    </TableRow>
-  );
-};
-
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends IDGetter, TValue>({
   columns,
   data,
   emptyState,
@@ -91,6 +72,7 @@ export function DataTable<TData, TValue>({
   const navigate = useNavigate();
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [expanded, setExpanded] = useState<ExpandedState>({});
 
   const memoizedRowSelection = useMemo(() => {
     if (selectAll) {
@@ -106,6 +88,7 @@ export function DataTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       rowSelection: memoizedRowSelection,
+      expanded,
     },
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -122,6 +105,7 @@ export function DataTable<TData, TValue>({
     },
     getSubRows,
     getRowCanExpand: (row) => row.subRows.length > 0,
+    onExpandedChange: setExpanded,
   });
 
   // Notify parent component of selection changes
@@ -133,6 +117,36 @@ export function DataTable<TData, TValue>({
       onSelectionChange(selectedRows);
     }
   }, [onSelectionChange, table]);
+
+  const getTableRow = (
+    row: Row<TData>,
+    isSelected: boolean,
+    isTaskSelected: boolean,
+    handleClick: (e: React.MouseEvent) => void,
+    handleDoubleClick: () => void,
+  ) => {
+    return (
+      <TableRow
+        key={row.id}
+        data-state={isSelected || isTaskSelected ? 'selected' : undefined}
+        className={cn(
+          row.original.isExpandable && 'cursor-pointer hover:bg-muted',
+          'group cursor-pointer',
+        )}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className={cn(styles[cell.column.id as keyof typeof styles])}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+    );
+  };
 
   const handleClick = useCallback(
     (row: Row<TData>, e: React.MouseEvent, isSelected: boolean) => {
