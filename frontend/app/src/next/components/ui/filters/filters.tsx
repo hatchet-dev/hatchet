@@ -177,7 +177,7 @@ export function FilterSelect<T, A>({
         <Command>
           <CommandInput placeholder={placeholder} />
           <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup>
+          <CommandGroup className="max-h-[300px] overflow-auto">
             {options.map((option, index) => (
               <CommandItem
                 key={index}
