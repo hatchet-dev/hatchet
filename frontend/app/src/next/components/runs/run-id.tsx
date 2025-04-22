@@ -86,10 +86,7 @@ export function getFriendlyTaskRunId(run?: V1TaskSummary) {
   }
 
   // TODO: Use step readable id here
-
-  const [_, second] = run.actionId?.split(':') || [];
-
-  return second;
+  return run.actionId?.split(':')?.at(1);
 }
 
 export function getFriendlyWorkflowRunId(run?: V1WorkflowRun) {
