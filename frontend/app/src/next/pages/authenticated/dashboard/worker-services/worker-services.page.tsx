@@ -4,6 +4,10 @@ import {
   Worker,
   WorkerService,
 } from '@/next/hooks/use-workers';
+import {
+  ManagedComputeProvider,
+  useUnifiedWorkerServices,
+} from '@/next/hooks/use-managed-compute';
 import { Button } from '@/next/components/ui/button';
 import {
   Select,
@@ -21,6 +25,7 @@ import {
   X,
   Pause,
   Play,
+  Plus,
 } from 'lucide-react';
 import {
   Table,
@@ -62,6 +67,7 @@ import {
 import docs from '@/next/docs-meta-data';
 import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
+import { WorkerType } from '@/lib/api';
 
 // Service row component to simplify the main component
 const ServiceRow = ({ service }: { service: WorkerService }) => {
@@ -113,7 +119,12 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
   return (
     <TableRow key={service.name}>
       <TableCell className="font-medium">
-        <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
+        <Link
+          to={ROUTES.services.detail(
+            encodeURIComponent(service.name),
+            service.type,
+          )}
+        >
           {service.name}
         </Link>
       </TableCell>
@@ -143,7 +154,12 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
       <TableCell>{service.type}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
-          <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
+          <Link
+            to={ROUTES.services.detail(
+              encodeURIComponent(service.name),
+              service.type,
+            )}
+          >
             <Button variant="ghost" size="icon">
               <ArrowUpRight className="h-4 w-4" />
             </Button>
@@ -160,7 +176,10 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Link
-                  to={ROUTES.services.detail(encodeURIComponent(service.name))}
+                  to={ROUTES.services.detail(
+                    encodeURIComponent(service.name),
+                    service.type,
+                  )}
                   className="w-full"
                 >
                   View details
@@ -261,7 +280,8 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
 );
 
 function WorkerServicesContent() {
-  const { services, isLoading } = useWorkers();
+  const { isLoading } = useWorkers();
+  const unifiedServices = useUnifiedWorkerServices();
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -280,7 +300,7 @@ function WorkerServicesContent() {
         .map((_, i) => <SkeletonRow key={i} />);
     }
 
-    if (!services || services.length === 0) {
+    if (!unifiedServices || unifiedServices.length === 0) {
       return (
         <TableRow>
           <TableCell colSpan={5} className="text-center">
@@ -290,7 +310,7 @@ function WorkerServicesContent() {
       );
     }
 
-    return services.map((service) => (
+    return unifiedServices.map((service) => (
       <ServiceRow key={service.name} service={service} />
     ));
   };
@@ -304,6 +324,28 @@ function WorkerServicesContent() {
         <HeadlineActions>
           <HeadlineActionItem>
             <DocsButton doc={docs.home.workers} size="icon" />
+          </HeadlineActionItem>
+          <HeadlineActionItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  New Service
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  <Link to={ROUTES.services.new(WorkerType.MANAGED)}>
+                    Managed Service
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Link to={ROUTES.services.new(WorkerType.SELFHOSTED)}>
+                    Self-hosted Service
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
@@ -346,8 +388,10 @@ function WorkerServicesContent() {
 
 export default function WorkerServicesPage() {
   return (
-    <WorkersProvider>
-      <WorkerServicesContent />
-    </WorkersProvider>
+    <ManagedComputeProvider>
+      <WorkersProvider>
+        <WorkerServicesContent />
+      </WorkersProvider>
+    </ManagedComputeProvider>
   );
 }

@@ -171,7 +171,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
 
   const handleWorkerClick = (workerId: string) => {
     navigate(
-      ROUTES.services.workerDetail(encodeURIComponent(serviceName), workerId),
+      ROUTES.services.selfhostedWorkerDetail(encodeURIComponent(serviceName), workerId),
     );
   };
 

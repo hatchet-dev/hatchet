@@ -6,13 +6,13 @@ export type EvaluateContext = {
   user?: User;
   membership?: TenantMember['role'];
   tenant?: Tenant;
-  billing?: BillingHook['data'];
+  billing?: BillingHook['billing'];
   meta?: APICloudMetadata;
 };
 
 export type EvaluateResult = {
   allowed: boolean;
-  reason?: RejectReason;
+  rejectReason?: RejectReason;
   message?: string;
 };
 

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
-import { WorkerStats } from './components';
+import { WorkerStats } from '../components';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -12,11 +12,17 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import docs from '@/next/docs-meta-data';
-import { WorkerTable } from './components/worker-table';
+import { WorkerTable } from '../components/worker-table';
 import { ROUTES } from '@/next/lib/routes';
-import { WorkerDetailSheet } from './components/worker-detail-sheet';
+import { WorkerDetailSheet } from '../components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import { WorkerDetailProvider } from '@/next/hooks/use-worker-detail';
+import { WorkerType } from '@/lib/api';
+import {
+  ManagedComputeProvider,
+  useManagedCompute,
+} from '@/next/hooks/use-managed-compute';
+import { useUnifiedWorkerServices } from '@/next/hooks/use-managed-compute';
 
 function ServiceDetailPageContent() {
   const { serviceName = '', workerId } = useParams<{
@@ -26,7 +32,10 @@ function ServiceDetailPageContent() {
   const decodedServiceName = decodeURIComponent(serviceName);
   const navigate = useNavigate();
 
-  const { services, isLoading } = useWorkers();
+  const { isLoading: isRegularLoading } = useWorkers();
+  const { isLoading: isManagedLoading } = useManagedCompute();
+
+  const unifiedServices = useUnifiedWorkerServices();
 
   const { setBreadcrumbs } = useBreadcrumbs();
 
@@ -35,7 +44,10 @@ function ServiceDetailPageContent() {
       {
         title: 'Worker Services',
         label: serviceName,
-        url: ROUTES.services.detail(encodeURIComponent(decodedServiceName)),
+        url: ROUTES.services.detail(
+          encodeURIComponent(decodedServiceName),
+          WorkerType.MANAGED,
+        ),
       },
     ];
 
@@ -45,24 +57,24 @@ function ServiceDetailPageContent() {
     return () => {
       setBreadcrumbs([]);
     };
-  }, [services, decodedServiceName, setBreadcrumbs, serviceName]);
+  }, [decodedServiceName, setBreadcrumbs, serviceName]);
 
   const handleCloseSheet = useCallback(() => {
-    navigate(ROUTES.services.detail(encodeURIComponent(decodedServiceName)));
+    navigate(
+      ROUTES.services.detail(
+        encodeURIComponent(decodedServiceName),
+        WorkerType.MANAGED,
+      ),
+    );
   }, [navigate, decodedServiceName]);
 
   const service = useMemo(() => {
-    console.log('Finding service:', decodedServiceName);
-    console.log('Available services:', services);
-    const found = services.find((s) => s.name === decodedServiceName);
-    console.log('Found service:', found);
-    return found;
-  }, [services, decodedServiceName]);
+    return unifiedServices.find((s) => s.name === decodedServiceName);
+  }, [unifiedServices, decodedServiceName]);
 
-  console.log('Services:', services);
+  const isLoading = isRegularLoading || isManagedLoading;
 
-  if (!service) {
-    console.log('Service not found for:', decodedServiceName);
+  if (!service && !isLoading) {
     return <div>Service not found</div>;
   }
 
@@ -91,9 +103,11 @@ function ServiceDetailPageContent() {
       </Headline>
       <Separator className="my-4" />
       {/* Stats Cards */}
-      <div className="mb-6">
-        <WorkerStats stats={service} isLoading={isLoading} />
-      </div>
+      {service && (
+        <div className="mb-6">
+          <WorkerStats stats={service} isLoading={isLoading} />
+        </div>
+      )}
 
       {/* Worker Table */}
       <WorkerTable serviceName={decodedServiceName} />
@@ -103,8 +117,10 @@ function ServiceDetailPageContent() {
 
 export default function ServiceDetailPage() {
   return (
-    <WorkersProvider>
-      <ServiceDetailPageContent />
-    </WorkersProvider>
+    <ManagedComputeProvider>
+      <WorkersProvider>
+        <ServiceDetailPageContent />
+      </WorkersProvider>
+    </ManagedComputeProvider>
   );
 }

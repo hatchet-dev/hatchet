@@ -30,7 +30,7 @@ export function WorkerId({
   }, [worker]);
 
   const url = worker
-    ? ROUTES.services.workerDetail(serviceName, worker.metadata.id)
+    ? ROUTES.services.workerDetail(serviceName, worker.metadata.id, worker.type)
     : undefined;
 
   return (

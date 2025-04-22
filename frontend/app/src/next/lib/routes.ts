@@ -1,4 +1,4 @@
-import { V1WorkflowRun } from '@/lib/api';
+import { V1WorkflowRun, WorkerType } from '@/lib/api';
 
 // Base paths
 export const BASE_PATH = '/next';
@@ -56,9 +56,11 @@ export const ROUTES = {
   },
   services: {
     list: `${FB.services}`,
-    detail: (serviceName: string) => `${FB.services}/${serviceName}`,
-    workerDetail: (serviceName: string, workerName: string) =>
-      `${FB.services}/${serviceName}/${workerName}`,
+    new: (type: WorkerType) => `${FB.services}/${type.toLowerCase()}`,
+    detail: (serviceName: string, type: WorkerType) =>
+      `${FB.services}/${type.toLowerCase()}/${serviceName}`,
+    workerDetail: (serviceName: string, workerName: string, type: WorkerType) =>
+      `${FB.services}/${type.toLowerCase()}/${serviceName}/${workerName}`,
   },
   rateLimits: {
     list: `${FB.rateLimits}`,

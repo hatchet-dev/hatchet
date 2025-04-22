@@ -35,7 +35,7 @@ export const managedCompute: PermissionSet = {
     ) {
       return {
         allowed: false,
-        reason: RejectReason.BILLING_REQUIRED,
+        rejectReason: RejectReason.BILLING_REQUIRED,
       };
     }
 
@@ -73,7 +73,7 @@ export const managedCompute: PermissionSet = {
     if (currentWorkerServiceCount >= maxWorkerServices) {
       return {
         allowed: false,
-        reason: RejectReason.UPGRADE_REQUIRED,
+        rejectReason: RejectReason.UPGRADE_REQUIRED,
       };
     }
 
@@ -111,7 +111,7 @@ export const managedCompute: PermissionSet = {
     if (replicaCount > maxReplicas) {
       return {
         allowed: false,
-        reason: RejectReason.UPGRADE_REQUIRED,
+        rejectReason: RejectReason.UPGRADE_REQUIRED,
       };
     }
 
@@ -143,7 +143,7 @@ export const managedCompute: PermissionSet = {
       case 'starter':
         return {
           allowed: false,
-          reason: RejectReason.UPGRADE_REQUIRED,
+          rejectReason: RejectReason.UPGRADE_REQUIRED,
         };
       case 'growth':
         // For growth plan, we might want to limit GPU types or quantities
@@ -172,7 +172,7 @@ export const managedCompute: PermissionSet = {
 
     // Check GPU restrictions first
     if (gpuKind || gpus) {
-      const { allowed: gpuAllowed, reason: gpuRejectReason } =
+      const { allowed: gpuAllowed, rejectReason: gpuRejectReason } =
         managedCompute.canUseGpu({
           gpuKind,
           gpus,
@@ -180,7 +180,7 @@ export const managedCompute: PermissionSet = {
       if (!gpuAllowed) {
         return {
           allowed: false,
-          reason: gpuRejectReason,
+          rejectReason: gpuRejectReason,
         };
       }
     }
@@ -191,19 +191,19 @@ export const managedCompute: PermissionSet = {
         if (cpuKind !== 'shared') {
           return {
             allowed: false,
-            reason: RejectReason.UPGRADE_REQUIRED,
+            rejectReason: RejectReason.UPGRADE_REQUIRED,
           };
         }
         if (cpus !== 1) {
           return {
             allowed: false,
-            reason: RejectReason.UPGRADE_REQUIRED,
+            rejectReason: RejectReason.UPGRADE_REQUIRED,
           };
         }
         if (memoryMb > 1024) {
           return {
             allowed: false,
-            reason: RejectReason.UPGRADE_REQUIRED,
+            rejectReason: RejectReason.UPGRADE_REQUIRED,
           };
         }
         break;
@@ -212,13 +212,13 @@ export const managedCompute: PermissionSet = {
         if (cpus > 4) {
           return {
             allowed: false,
-            reason: RejectReason.UPGRADE_REQUIRED,
+            rejectReason: RejectReason.UPGRADE_REQUIRED,
           };
         }
         if (memoryMb > 4096) {
           return {
             allowed: false,
-            reason: RejectReason.UPGRADE_REQUIRED,
+            rejectReason: RejectReason.UPGRADE_REQUIRED,
           };
         }
         break;
