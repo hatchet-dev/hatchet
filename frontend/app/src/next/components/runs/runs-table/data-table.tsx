@@ -189,7 +189,10 @@ export function DataTable<TData extends IDGetter, TValue>({
   if (!table.getRowModel().rows?.length) {
     return (
       <TableRow>
-        <TableCell colSpan={columns.length} className="h-24 text-center">
+        <TableCell
+          colSpan={columns.length}
+          className="h-48 text-center flex flex-col justify-center items-center"
+        >
           {emptyState || 'No results found.'}
         </TableCell>
       </TableRow>
