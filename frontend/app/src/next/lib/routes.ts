@@ -68,14 +68,16 @@ export const ROUTES = {
     team: `${FB.settings}/team`,
     overview: `${FB.settings}/overview`,
     github: `${FB.settings}/github`,
-    resourceLimits: `${FB.settings}/resource-limits`,
+    usage: `${FB.settings}/usage`,
     alerting: `${FB.settings}/alerting`,
     ingestors: `${FB.settings}/ingestors`,
   },
   common: {
     community: `https://hatchet.run/discord`,
     feedback: `https://github.com/hatchet-dev/hatchet/issues`,
+    pricing: `https://hatchet.run/pricing`,
     tutorial: `${BASE_PATH}/tutorial`,
+    contact: `https://hatchet.run/office-hours`,
   },
 } as const;
 

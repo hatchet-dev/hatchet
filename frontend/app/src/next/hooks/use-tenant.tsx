@@ -12,18 +12,22 @@ import api, {
   Tenant,
   TenantMember,
   CreateTenantRequest,
+  TenantResourceLimit,
 } from '@/lib/api';
 import useUser from './use-user';
 import { useSearchParams } from 'react-router-dom';
 import {
   useMutation,
   UseMutationResult,
+  useQuery,
   useQueryClient,
+  UseQueryResult,
 } from '@tanstack/react-query';
 
 interface TenantState {
   tenant?: Tenant;
   membership?: TenantMember['role'];
+  limit?: UseQueryResult<TenantResourceLimit[], Error>;
   isLoading: boolean;
   setTenant: (tenantId: string) => void;
   create: UseMutationResult<Tenant, Error, string, unknown>;
@@ -141,6 +145,14 @@ export function TenantProvider({ children }: TenantProviderProps) {
     },
   });
 
+  const resourcePolicyQuery = useQuery({
+    queryKey: ['tenant-resource-policy:get', tenant?.metadata.id],
+    queryFn: async () =>
+      (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? '')).data
+        .limits,
+    enabled: !!tenant?.metadata.id,
+  });
+
   const value = {
     tenant,
     isLoading: isUserLoading,
@@ -151,6 +163,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       mutate: (data: UpdateTenantRequest) => updateTenantMutation.mutate(data),
       isPending: updateTenantMutation.isPending,
     },
+    limit: resourcePolicyQuery,
   };
 
   return (

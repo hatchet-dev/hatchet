@@ -24,6 +24,7 @@ import { UpdateTenantForm } from './components/update-tenant-form';
 import { Lock } from 'lucide-react';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Headline, PageTitle } from '@/next/components/ui/page-header';
+import { ROUTES } from '@/next/lib/routes';
 
 export default function SettingsOverviewPage() {
   const { tenant } = useTenant();
@@ -147,7 +148,7 @@ function TenantVersionSwitcher() {
         You can downgrade your tenant to v0 if needed. Please help us improve v1
         by reporting any bugs in our{' '}
         <a
-          href="https://github.com/hatchet-dev/hatchet/issues"
+          href={ROUTES.common.feedback}
           target="_blank"
           rel="noopener noreferrer"
           className="text-indigo-400 hover:underline"
