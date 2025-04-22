@@ -12,6 +12,9 @@ import {
   ManagedWorkerSecret,
   UpdateManagedWorkerSecretRequest,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useState, useMemo } from 'react';
+import { BulkSecretsDialog } from './bulk-secrets-dialog';
+import { ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 
 interface SecretsEditorProps {
   secrets: UpdateManagedWorkerSecretRequest;
@@ -29,11 +32,60 @@ export function SecretsEditor({
   secrets = { add: [], update: [], delete: [] },
   setSecrets,
 }: SecretsEditorProps) {
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+
+  // Function to check if a key is duplicated
+  const isKeyDuplicated = useMemo(() => {
+    const allKeys = new Map<string, number>();
+
+    // Count occurrences of each key
+    original.directSecrets.forEach((secret) => {
+      if (!secrets.delete?.includes(secret.id)) {
+        const update = secrets.update?.find((s) => s.id === secret.id);
+        const key = update ? update.key : secret.key;
+        allKeys.set(key, (allKeys.get(key) || 0) + 1);
+      }
+    });
+
+    secrets.add?.forEach((secret) => {
+      const key = secret.key;
+      allKeys.set(key, (allKeys.get(key) || 0) + 1);
+    });
+
+    return (key: string) => (allKeys.get(key) || 0) > 1;
+  }, [original.directSecrets, secrets]);
+
   const handleAddSecret = () => {
     setSecrets((prev) => ({
       ...prev,
       add: [...(prev.add || []), { key: '', value: '' }],
     }));
+  };
+
+  const handleBulkAddSecrets = (
+    newSecrets: { key: string; value: string }[],
+  ) => {
+    setSecrets((prev) => ({
+      ...prev,
+      add: [...(prev.add || []), ...newSecrets],
+    }));
+  };
+
+  const handleBulkUpdateSecrets = (
+    updatedSecrets: { id: string; key: string; value: string }[],
+  ) => {
+    setSecrets((prev) => {
+      // Remove any existing updates for these secrets
+      const existingUpdates =
+        prev.update?.filter(
+          (update) => !updatedSecrets.some((s) => s.id === update.id),
+        ) || [];
+
+      return {
+        ...prev,
+        update: [...existingUpdates, ...updatedSecrets],
+      };
+    });
   };
 
   const handleDeleteAddSecret = (index: number) => {
@@ -128,6 +180,13 @@ export function SecretsEditor({
     }));
   };
 
+  const handleRemoveFromDelete = (ids: string[]) => {
+    setSecrets((prev) => ({
+      ...prev,
+      delete: prev.delete?.filter((id) => !ids.includes(id)),
+    }));
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -142,14 +201,17 @@ export function SecretsEditor({
         {/* Existing secrets */}
         {original.directSecrets.map((secret) => {
           const update = secrets.update?.find((s) => s.id === secret.id);
+          const currentKey = update ? update.key : secret.key;
+          const isDuplicated = isKeyDuplicated(currentKey);
+
           return (
             <div key={secret.id} className="flex items-center gap-2">
               <Input
-                value={update ? update.key : secret.key}
+                value={currentKey}
                 onChange={(e) =>
                   handleUpdateExistingSecret(secret.id, 'key', e.target.value)
                 }
-                className={`w-48 ${secrets.delete?.includes(secret.id) ? 'line-through' : ''}`}
+                className={`w-48 ${secrets.delete?.includes(secret.id) ? 'line-through' : ''} ${isDuplicated ? 'border-red-500' : ''}`}
                 disabled={secrets.delete?.includes(secret.id)}
               />
               <Input
@@ -173,40 +235,64 @@ export function SecretsEditor({
         })}
 
         {/* New secrets */}
-        {(secrets.add || []).map((secret, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <Input
-              placeholder="Key"
-              value={secret.key}
-              onChange={(e) =>
-                handleUpdateAddSecret(index, 'key', e.target.value)
-              }
-              className="w-48"
-            />
-            <Input
-              placeholder="Value"
-              value={secret.value}
-              onChange={(e) =>
-                handleUpdateAddSecret(index, 'value', e.target.value)
-              }
-              className="flex-1"
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleDeleteAddSecret(index)}
-            >
-              <TrashIcon className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
+        {(secrets.add || []).map((secret, index) => {
+          const isDuplicated = isKeyDuplicated(secret.key);
+          return (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                placeholder="Key"
+                value={secret.key}
+                onChange={(e) =>
+                  handleUpdateAddSecret(index, 'key', e.target.value)
+                }
+                className={`w-48 ${isDuplicated ? 'border-red-500' : ''}`}
+              />
+              <Input
+                placeholder="Value"
+                value={secret.value}
+                onChange={(e) =>
+                  handleUpdateAddSecret(index, 'value', e.target.value)
+                }
+                className="flex-1"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteAddSecret(index)}
+              >
+                <TrashIcon className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        })}
 
-        {/* Add new secret button */}
-        <Button variant="outline" onClick={handleAddSecret} className="w-full">
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add Secret
-        </Button>
+        {/* Add new secret buttons */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleAddSecret}
+            className="flex-1"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add Secret
+          </Button>
+          <Button variant="outline" onClick={() => setIsBulkDialogOpen(true)}>
+            <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
+            From Clipboard
+          </Button>
+        </div>
       </CardContent>
+
+      <BulkSecretsDialog
+        open={isBulkDialogOpen}
+        onOpenChange={setIsBulkDialogOpen}
+        onAddSecrets={handleBulkAddSecrets}
+        onUpdateSecrets={handleBulkUpdateSecrets}
+        onRemoveFromDelete={handleRemoveFromDelete}
+        original={original}
+        pendingUpdates={secrets.update || []}
+        pendingDeletes={secrets.delete || []}
+      />
     </Card>
   );
 }
