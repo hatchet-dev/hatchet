@@ -14,27 +14,18 @@ import useDefinitions from '@/next/hooks/use-definitions';
 import { useNavigate } from 'react-router-dom';
 import { useState, useMemo, useEffect } from 'react';
 import { Workflow } from '@/lib/api';
-import { useRuns } from '@/next/hooks/use-runs';
-import useCrons from '@/next/hooks/use-crons';
-import useSchedules from '@/next/hooks/use-schedules';
+import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
+import { CronsProvider, useCrons } from '@/next/hooks/use-crons';
+import { SchedulesProvider, useSchedules } from '@/next/hooks/use-schedules';
 import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { ROUTES } from '@/next/lib/routes';
-import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { getFriendlyWorkflowRunId } from '@/next/components/runs/run-id';
-import { PaginationManagerNoOp } from '@/next/hooks/use-pagination';
 import { FaCodeBranch } from 'react-icons/fa';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
-export function TriggerRunModal({
-  show,
-  onClose,
-  defaultTimingOption = 'now',
-  defaultInput = '{}',
-  defaultAddlMeta = '{}',
-  defaultWorkflowId,
-  defaultRunId,
-}: {
+type TriggerRunModalProps = {
   show: boolean;
   onClose: () => void;
   defaultTimingOption?: TimingOption;
@@ -42,31 +33,36 @@ export function TriggerRunModal({
   defaultAddlMeta?: string;
   defaultWorkflowId?: string;
   defaultRunId?: string;
-}) {
-  const navigate = useNavigate();
-  const { data: workflows } = useDefinitions();
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<
-    string | undefined
-  >(defaultWorkflowId);
-
-  const { data: recentRuns } = useRuns({
-    pagination: {
-      ...PaginationManagerNoOp,
-      pageSize: 5,
-    },
-    filters: {
-      workflow_ids: selectedWorkflowId ? [selectedWorkflowId] : undefined,
-    },
-  });
-
-  const [selectedRunId, setSelectedRunId] = useState<string>(
-    defaultRunId || '',
+};
+export function TriggerRunModal(props: TriggerRunModalProps) {
+  return (
+    <CronsProvider>
+      <SchedulesProvider>
+        <RunsProvider
+          initialPagination={{
+            initialPageSize: 5,
+          }}
+          initialFilters={{
+            workflow_ids: props.defaultWorkflowId
+              ? [props.defaultWorkflowId]
+              : undefined,
+          }}
+        >
+          <TriggerRunModalContent {...props} />
+        </RunsProvider>
+      </SchedulesProvider>
+    </CronsProvider>
   );
-  const { data: selectedRunDetails } = useRunDetail(selectedRunId);
-  const { triggerNow } = useRuns({});
-  const { create: createCron } = useCrons({});
-  const { create: createSchedule } = useSchedules({});
+}
 
+function WithPreviousInput({
+  setInput,
+  setAddlMeta,
+}: {
+  setInput: (input: string) => void;
+  setAddlMeta: (addlMeta: string) => void;
+}) {
+  const { data: selectedRunDetails } = useRunDetail();
   useEffect(() => {
     if (selectedRunDetails?.run) {
       setInput(
@@ -76,7 +72,33 @@ export function TriggerRunModal({
         JSON.stringify(selectedRunDetails.run.additionalMetadata, null, 2),
       );
     }
-  }, [selectedRunDetails]);
+  }, [selectedRunDetails, setAddlMeta, setInput]);
+
+  return null;
+}
+
+function TriggerRunModalContent({
+  show,
+  onClose,
+  defaultTimingOption = 'now',
+  defaultInput = '{}',
+  defaultAddlMeta = '{}',
+  defaultWorkflowId,
+  defaultRunId,
+}: TriggerRunModalProps) {
+  const navigate = useNavigate();
+  const { data: workflows } = useDefinitions();
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<
+    string | undefined
+  >(defaultWorkflowId);
+
+  const { data: recentRuns, triggerNow } = useRuns();
+
+  const [selectedRunId, setSelectedRunId] = useState<string>(
+    defaultRunId || '',
+  );
+  const { create: createCron } = useCrons();
+  const { create: createSchedule } = useSchedules();
 
   const [input, setInput] = useState<string>(defaultInput);
   const [addlMeta, setAddlMeta] = useState<string>(defaultAddlMeta);
@@ -236,6 +258,14 @@ export function TriggerRunModal({
         </DialogHeader>
 
         <div className="space-y-4">
+          {selectedRunId && (
+            <RunDetailProvider runId={selectedRunId}>
+              <WithPreviousInput
+                setInput={setInput}
+                setAddlMeta={setAddlMeta}
+              />
+            </RunDetailProvider>
+          )}
           <div>
             <label className="text-sm font-medium">Workflow</label>
             <select

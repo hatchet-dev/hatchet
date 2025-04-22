@@ -11,22 +11,37 @@ import {
   TabsContent,
 } from '@/components/v1/ui/tabs';
 import { useSearchParams } from 'react-router-dom';
-import { useCallback } from 'react';
-import { WorkerDetails } from '../worker-services/components/worker-details';
+import { useCallback, useMemo } from 'react';
+import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { Link } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 
 interface RunDetailSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  workflow: any;
-  selectedTask?: any;
+  workflowRunId: string;
+  taskId: string;
+  detailsLink?: string;
 }
 
 export function RunDetailSheet({
   isOpen,
   onClose,
-  workflow,
-  selectedTask,
+  taskId,
+  detailsLink,
 }: RunDetailSheetProps) {
+  const { data } = useRunDetail();
+  const workflow = useMemo(() => data?.run, [data]);
+
+  const tasks = useMemo(() => data?.tasks, [data]);
+
+  const selectedTask = useMemo(() => {
+    if (taskId) {
+      return tasks?.find((t) => t.taskExternalId === taskId);
+    }
+    return tasks?.[0];
+  }, [tasks, taskId]);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('task_tab') || 'payload';
 
@@ -45,14 +60,34 @@ export function RunDetailSheet({
       onClose={onClose}
       title={
         selectedTask ? (
-          <div className="flex flex-row items-center justify-between gap-2">
-            <span>Task Details</span>
-            <RunId taskRun={selectedTask} />
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-row items-center justify-between gap-2">
+              <span>Task Details</span>
+              <RunId taskRun={selectedTask} />
+            </div>
+            {detailsLink && (
+              <Link
+                to={detailsLink}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                View run details <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <span>Run:</span>
-            <RunId wfRun={workflow} />
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span>Run:</span>
+              <RunId wfRun={workflow} />
+            </div>
+            {detailsLink && (
+              <Link
+                to={detailsLink}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                View run details <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         )
       }
@@ -98,7 +133,7 @@ export function RunDetailSheet({
                   title="Metadata"
                   output={{
                     taskRunId: selectedTask.metadata.id,
-                    workflowRunId: workflow.metadata.id,
+                    workflowRunId: workflow?.metadata.id,
                     additional: selectedTask.additionalMetadata,
                   }}
                   status={selectedTask.status}
@@ -118,17 +153,17 @@ export function RunDetailSheet({
               <>
                 <RunDataCard
                   title="Input"
-                  output={(workflow.input as { input: object }).input}
-                  status={workflow.status}
+                  output={(workflow?.input as { input: object })?.input}
+                  status={workflow?.status}
                   variant="input"
                 />
                 <RunDataCard
                   title="Metadata"
                   output={{
-                    workflowRunId: workflow.metadata.id,
-                    additional: workflow.additionalMetadata,
+                    workflowRunId: workflow?.metadata.id,
+                    additional: workflow?.additionalMetadata,
                   }}
-                  status={workflow.status}
+                  status={workflow?.status}
                   variant="metadata"
                   collapsed
                   actions={
@@ -145,16 +180,17 @@ export function RunDetailSheet({
           </div>
         </TabsContent>
         <TabsContent value="worker" className="mt-4">
-          {selectedTask?.workerId ? (
+          {/* TODO: Add worker details */}
+          {/* {selectedTask?.workerId ? (
             <WorkerDetails
-              workerId={selectedTask.workerId}
+              workerId={selectedTask}
               showActions={false}
             />
           ) : (
             <div className="text-center text-muted-foreground py-8">
               No worker information available
             </div>
-          )}
+          )} */}
         </TabsContent>
       </Tabs>
     </InfoSheet>

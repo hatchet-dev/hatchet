@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/next/components/ui/button';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import {
@@ -21,8 +21,7 @@ import { WorkerStatusBadge } from './worker-status-badge';
 import { SlotsBadge } from './worker-slots-badge';
 import { WorkerId } from './worker-id';
 import { Time } from '@/next/components/ui/time';
-import useWorkers from '@/next/hooks/use-workers';
-import { useFilters } from '@/next/hooks/use-filters';
+import { useWorkers } from '@/next/hooks/use-workers';
 import {
   FilterGroup,
   FilterSelect,
@@ -67,17 +66,16 @@ export const TableRowSkeleton = () => (
 
 export function WorkerTable({ serviceName }: WorkerTableProps) {
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
-  const { filters, setFilter } = useFilters<WorkerFilters>();
-  const filterStatus = filters.status || 'active';
   const navigate = useNavigate();
 
   const {
     data: workers = [],
     isLoading,
     update,
-  } = useWorkers({
-    refetchInterval: 5000,
-  });
+    filters: { filters, setFilter },
+  } = useWorkers();
+
+  const filterStatus = useMemo(() => filters.status || 'ALL', [filters]);
 
   // Filter workers for this service
   const serviceWorkers = workers.filter(
@@ -99,8 +97,8 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   useEffect(() => {
     if (!isLoading) {
       if (
-        (workerCounts.active === 0 && filterStatus === 'active') ||
-        (workerCounts.paused === 0 && filterStatus === 'paused')
+        (workerCounts.active === 0 && filterStatus === 'ACTIVE') ||
+        (workerCounts.paused === 0 && filterStatus === 'PAUSED')
       ) {
         setFilter('status', 'all');
       }
@@ -115,16 +113,16 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
 
   // Filter workers based on selected status
   const filteredWorkers = serviceWorkers.filter((worker) => {
-    if (filterStatus === 'all') {
+    if (filterStatus === 'ALL') {
       return true;
     }
-    if (filterStatus === 'active' && worker.status === 'ACTIVE') {
+    if (filterStatus === 'ACTIVE' && worker.status === 'ACTIVE') {
       return true;
     }
-    if (filterStatus === 'paused' && worker.status === 'PAUSED') {
+    if (filterStatus === 'PAUSED' && worker.status === 'PAUSED') {
       return true;
     }
-    if (filterStatus === 'inactive' && worker.status === 'INACTIVE') {
+    if (filterStatus === 'INACTIVE' && worker.status === 'INACTIVE') {
       return true;
     }
     return false;
@@ -279,7 +277,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
             ) : filteredWorkers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  {filterStatus === 'all'
+                  {filterStatus === 'ALL'
                     ? 'No workers in this service.'
                     : `No ${filterStatus} workers in this service.`}
                 </TableCell>

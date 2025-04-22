@@ -7,12 +7,13 @@ import {
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
-  useState,
   createContext,
   useContext,
   PropsWithChildren,
   createElement,
 } from 'react';
+import { FilterProvider, useFilters } from './utils/use-filters';
+import { PaginationProvider, usePagination } from './utils/use-pagination';
 
 // Types for filters and pagination
 interface WorkersFilters {
@@ -22,11 +23,6 @@ interface WorkersFilters {
   fromDate?: string;
   toDate?: string;
   status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
-}
-
-interface WorkersPagination {
-  currentPage: number;
-  pageSize: number;
 }
 
 // Update worker params
@@ -45,49 +41,39 @@ interface BulkUpdateWorkersParams {
 // Main hook return type
 interface WorkersState {
   data?: WorkerList['rows'];
-  pagination?: WorkerList['pagination'];
+  paginationData?: WorkerList['pagination'];
   isLoading: boolean;
   update: UseMutationResult<Worker, Error, UpdateWorkerParams, unknown>;
   bulkUpdate: UseMutationResult<void, Error, BulkUpdateWorkersParams, unknown>;
-
-  // Added from context
-  filters: WorkersFilters;
-  setFilters: (filters: WorkersFilters) => void;
-  paginationState: WorkersPagination;
-  setPagination: (pagination: WorkersPagination) => void;
+  filters: ReturnType<typeof useFilters<WorkersFilters>>;
+  pagination: ReturnType<typeof usePagination>;
 }
 
-interface UseWorkersOptions {
+interface WorkersProviderProps extends PropsWithChildren {
   refetchInterval?: number;
-  initialFilters?: WorkersFilters;
-  initialPagination?: WorkersPagination;
 }
 
-export default function useWorkers({
+const WorkersContext = createContext<WorkersState | null>(null);
+
+export function useWorkers() {
+  const context = useContext(WorkersContext);
+  if (!context) {
+    throw new Error('useWorkers must be used within a WorkersProvider');
+  }
+  return context;
+}
+
+function WorkersProviderContent({
+  children,
   refetchInterval,
-  initialFilters = {},
-  initialPagination = { currentPage: 1, pageSize: 10 },
-}: UseWorkersOptions = {}): WorkersState {
+}: WorkersProviderProps) {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
-  // State from the former context
-  const [filters, setFilters] = useState<WorkersFilters>(initialFilters);
-  const [paginationState, setPagination] =
-    useState<WorkersPagination>(initialPagination);
+  const filters = useFilters<WorkersFilters>();
+  const pagination = usePagination();
 
   const listWorkersQuery = useQuery({
-    queryKey: [
-      'worker:list',
-      tenant,
-      filters.search,
-      filters.sortBy,
-      filters.sortDirection,
-      filters.fromDate,
-      filters.toDate,
-      filters.status,
-      paginationState.currentPage,
-      paginationState.pageSize,
-    ],
+    queryKey: ['worker:list', tenant, filters.filters, pagination],
     queryFn: async () => {
       if (!tenant) {
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
@@ -103,16 +89,16 @@ export default function useWorkers({
 
       // Client-side filtering for search if API doesn't support it
       let filteredRows = sorted || [];
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
+      if (filters.filters.search) {
+        const searchLower = filters.filters.search.toLowerCase();
         filteredRows = filteredRows.filter((worker) =>
           worker.name.toLowerCase().includes(searchLower),
         );
       }
 
       // Client-side date filtering
-      if (filters.fromDate) {
-        const fromDate = new Date(filters.fromDate);
+      if (filters.filters.fromDate) {
+        const fromDate = new Date(filters.filters.fromDate);
         filteredRows = filteredRows.filter((worker) => {
           if (!worker.lastHeartbeatAt) {
             return true;
@@ -122,8 +108,8 @@ export default function useWorkers({
         });
       }
 
-      if (filters.toDate) {
-        const toDate = new Date(filters.toDate);
+      if (filters.filters.toDate) {
+        const toDate = new Date(filters.filters.toDate);
         filteredRows = filteredRows.filter((worker) => {
           if (!worker.lastHeartbeatAt) {
             return true;
@@ -134,19 +120,19 @@ export default function useWorkers({
       }
 
       // Filter by status
-      if (filters.status) {
+      if (filters.filters.status) {
         filteredRows = filteredRows.filter(
-          (worker) => worker.status === filters.status,
+          (worker) => worker.status === filters.filters.status,
         );
       }
 
       // Client-side sorting if API doesn't support it
-      if (filters.sortBy) {
+      if (filters.filters.sortBy) {
         filteredRows.sort((a, b) => {
           let valueA: any;
           let valueB: any;
 
-          switch (filters.sortBy) {
+          switch (filters.filters.sortBy) {
             case 'name':
               valueA = a.name;
               valueB = b.name;
@@ -171,7 +157,7 @@ export default function useWorkers({
               return 0;
           }
 
-          const direction = filters.sortDirection === 'desc' ? -1 : 1;
+          const direction = filters.filters.sortDirection === 'desc' ? -1 : 1;
           if (valueA < valueB) {
             return -1 * direction;
           }
@@ -237,45 +223,39 @@ export default function useWorkers({
     },
   });
 
-  return {
+  const value = {
     data: listWorkersQuery.data?.rows || [],
-    pagination: listWorkersQuery.data?.pagination,
+    paginationData: listWorkersQuery.data?.pagination,
     isLoading: listWorkersQuery.isLoading,
     update: updateWorkerMutation,
     bulkUpdate: bulkUpdateWorkersMutation,
-
-    // Added from context
     filters,
-    setFilters,
-    paginationState,
-    setPagination,
+    pagination,
   };
+
+  return createElement(WorkersContext.Provider, { value }, children);
 }
 
-// Context implementation (to maintain compatibility with components)
-interface WorkersContextType extends WorkersState {}
-
-const WorkersContext = createContext<WorkersContextType | undefined>(undefined);
-
-export const useWorkersContext = () => {
-  const context = useContext(WorkersContext);
-  if (context === undefined) {
-    throw new Error('useWorkersContext must be used within a WorkersProvider');
-  }
-  return context;
-};
-
-interface WorkersProviderProps extends PropsWithChildren {
-  options?: UseWorkersOptions;
-}
-
-export function WorkersProvider(props: WorkersProviderProps) {
-  const { children, options = {} } = props;
-  const workersState = useWorkers(options);
-
-  return createElement(
-    WorkersContext.Provider,
-    { value: workersState },
-    children,
+export function WorkersProvider({
+  children,
+  refetchInterval,
+}: WorkersProviderProps) {
+  return (
+    <FilterProvider<WorkersFilters>
+      initialFilters={{
+        search: undefined,
+        sortBy: undefined,
+        sortDirection: undefined,
+        fromDate: undefined,
+        toDate: undefined,
+        status: undefined,
+      }}
+    >
+      <PaginationProvider initialPage={1} initialPageSize={50}>
+        <WorkersProviderContent refetchInterval={refetchInterval}>
+          {children}
+        </WorkersProviderContent>
+      </PaginationProvider>
+    </FilterProvider>
   );
 }

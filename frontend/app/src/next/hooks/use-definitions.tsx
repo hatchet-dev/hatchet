@@ -7,7 +7,10 @@ import {
   PropsWithChildren,
   createElement,
 } from 'react';
-import { PaginationManager, PaginationManagerNoOp } from './use-pagination';
+import {
+  PaginationManager,
+  PaginationManagerNoOp,
+} from './utils/use-pagination';
 
 // Main hook return type
 interface DefinitionsState {

@@ -3,7 +3,7 @@ import { V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
 import { cn } from '@/next/lib/utils';
 
 interface RunsBadgeProps extends BadgeProps {
-  status?: WorkflowRunStatus | V1TaskStatus;
+  status?: StatusKey;
   count?: number;
   percentage?: number;
   animated?: boolean;
@@ -16,7 +16,7 @@ type StatusConfig = {
   label: string;
 };
 
-type StatusKey = WorkflowRunStatus | V1TaskStatus;
+type StatusKey = WorkflowRunStatus | V1TaskStatus | 'QueueMetrics';
 
 export const RunStatusConfigs: Record<StatusKey, StatusConfig> = {
   [WorkflowRunStatus.RUNNING]: {
@@ -63,6 +63,11 @@ export const RunStatusConfigs: Record<StatusKey, StatusConfig> = {
     colors: 'text-gray-800 dark:text-gray-300 bg-gray-500/20 ring-gray-500/30',
     primary: 'text-gray-500 bg-gray-500',
     label: 'Pending',
+  },
+  QueueMetrics: {
+    colors: 'text-gray-800 dark:text-gray-300 bg-gray-500/20 ring-gray-500/30',
+    primary: 'text-gray-500 bg-gray-500',
+    label: 'Queue Metrics',
   },
 };
 

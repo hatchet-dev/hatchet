@@ -1,4 +1,4 @@
-import useWorkers from '@/next/hooks/use-workers';
+import { WorkersProvider, useWorkers } from '@/next/hooks/use-workers';
 import { Button } from '@/next/components/ui/button';
 import {
   Select,
@@ -43,7 +43,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/next/components/ui/card';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { SlotsBadge } from './components/worker-slots-badge';
 import { WorkerStatusBadge } from './components/worker-status-badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
@@ -259,104 +259,45 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
   </Card>
 );
 
-export default function WorkerServicesPage() {
+function WorkerServicesContent() {
+  const { data, isLoading } = useWorkers();
   const [showCloudCard, setShowCloudCard] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  // Check local storage on component mount
-  useEffect(() => {
-    const isHidden = localStorage.getItem('hideHatchetCloudCard') === 'true';
-    setShowCloudCard(!isHidden);
-  }, []);
-
-  // Handle dismissal
   const handleDismissCard = () => {
-    localStorage.setItem('hideHatchetCloudCard', 'true');
     setShowCloudCard(false);
   };
 
-  const {
-    data: workers = [],
-    isLoading,
-    filters,
-    setFilters,
-  } = useWorkers({
-    refetchInterval: 5000,
-  });
-
-  // Process the workers to group by name (service)
-  const workerServices = workers.reduce(
-    (services: Record<string, any>, worker) => {
-      const serviceName = worker.name;
-      if (!services[serviceName]) {
-        services[serviceName] = {
-          id: serviceName,
-          name: serviceName,
-          workersCount: 0,
-          activeCount: 0,
-          inactiveCount: 0,
-          pausedCount: 0,
-          workers: [],
-        };
-      }
-
-      services[serviceName].workersCount++;
-      if (worker.status === 'ACTIVE') {
-        services[serviceName].activeCount++;
-      } else if (worker.status === 'INACTIVE') {
-        services[serviceName].inactiveCount++;
-      } else if (worker.status === 'PAUSED') {
-        services[serviceName].pausedCount++;
-      }
-
-      services[serviceName].workers.push(worker);
-      return services;
-    },
-    {},
-  );
-
-  // Convert to array for the table
-  const servicesData = Object.values(workerServices);
-
-  // Handle status filter change
   const handleStatusChange = (status: string) => {
-    setFilters({
-      ...filters,
-      status:
-        status === 'ALL'
-          ? undefined
-          : (status as 'ACTIVE' | 'INACTIVE' | 'PAUSED'),
-    });
+    setStatusFilter(status);
   };
 
   const renderTableContent = () => {
     if (isLoading) {
       return Array(5)
-        .fill(0)
-        .map((_, index) => <SkeletonRow key={`skeleton-${index}`} />);
+        .fill(null)
+        .map((_, i) => <SkeletonRow key={i} />);
     }
 
-    if (servicesData.length === 0) {
+    if (!data || data.length === 0) {
       return (
         <TableRow>
-          <TableCell colSpan={5} className="h-24">
-            <div className="flex flex-col items-center justify-center gap-4 p-6">
-              <p className="text-muted-foreground">No worker services found.</p>
-              <DocsButton doc={docs.home.workers} size="lg" />
-            </div>
+          <TableCell colSpan={5} className="text-center">
+            No worker services found
           </TableCell>
         </TableRow>
       );
     }
 
-    return servicesData.map((service: any) => (
-      <ServiceRow key={service.id} service={service} />
+    return data.map((service) => (
+      <ServiceRow key={service.metadata.id} service={service} />
     ));
   };
 
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage your worker services">
+        <PageTitle description="Manage your worker services and view their status">
           Worker Services
         </PageTitle>
         <HeadlineActions>
@@ -365,41 +306,46 @@ export default function WorkerServicesPage() {
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
+
       <Separator className="my-4" />
-      <div className="mb-6">
-        <div className="flex gap-4 mb-6">
-          <Select
-            value={filters.status || 'ALL'}
-            onValueChange={handleStatusChange}
-          >
+
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-center">
+          <Select value={statusFilter} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All Statuses</SelectItem>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="INACTIVE">Inactive</SelectItem>
-              <SelectItem value="PAUSED">Paused</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="paused">Paused</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Service Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Total Slots</TableHead>
-                <TableHead>Last Active</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>{renderTableContent()}</TableBody>
-          </Table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Service</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Slots</TableHead>
+              <TableHead>Last Active</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>{renderTableContent()}</TableBody>
+        </Table>
+
         {showCloudCard && <HatchetCloudCard onDismiss={handleDismissCard} />}
       </div>
     </BasicLayout>
+  );
+}
+
+export default function WorkerServicesPage() {
+  return (
+    <WorkersProvider>
+      <WorkerServicesContent />
+    </WorkersProvider>
   );
 }

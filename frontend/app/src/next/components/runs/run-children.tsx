@@ -118,13 +118,8 @@ function RunRowWithChildren({
 }: RunRowWithChildrenProps) {
   const navigate = useNavigate();
 
-  const { data: childrenData } = useRuns({
-    refetchInterval: 3000,
-    filters: {
-      parent_task_external_id: run.metadata.id,
-      is_root_task: false,
-    },
-  });
+  // TODO add parent...
+  const { data: childrenData } = useRuns();
 
   const hasActualChildren = childrenData && childrenData.length > 0;
   const isExpanded = expandedIds.has(run.metadata.id);
@@ -175,13 +170,8 @@ function ChildrenList({
   toggleExpanded,
   onTaskSelect,
 }: ChildrenListProps) {
-  const { data } = useRuns({
-    refetchInterval: 3000,
-    filters: {
-      parent_task_external_id: run.metadata.id,
-      is_root_task: false,
-    },
-  });
+  // TODO add parent...
+  const { data } = useRuns();
   const [maxChildren, setMaxChildren] = useState(MAX_CHILDREN);
 
   const [render, numHidden] = useMemo(() => {
@@ -238,7 +228,7 @@ export function RunChildrenCardRoot({
   parentRun,
   onTaskSelect,
 }: RunChildrenCardProps) {
-  const { data } = useRunDetail(workflow.metadata.id, 1000);
+  const { data } = useRunDetail();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const run = data?.run;

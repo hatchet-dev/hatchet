@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  CheckIcon,
   ChevronRight,
   ChevronsUpDown,
   MessageCircle,
@@ -140,9 +141,13 @@ name: ${user?.name}`;
                         <DropdownMenuItem
                           key={membership.tenant?.metadata.id}
                           onClick={() => {
-                            setTenant(membership.tenant!);
+                            setTenant(membership.tenant!.metadata.id);
                           }}
                         >
+                          {membership.tenant?.metadata.id ===
+                            tenant?.metadata.id && (
+                            <CheckIcon className="h-4 w-4 mr-2" />
+                          )}
                           <span>{membership.tenant?.name}</span>
                         </DropdownMenuItem>
                       ))}

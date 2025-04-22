@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { AlertCircle } from 'lucide-react';
 import {
   Alert,
@@ -41,7 +41,7 @@ import {
   TabsContent,
 } from '@/components/v1/ui/tabs';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
-import { FilterProvider } from '@/next/hooks/use-filters';
+import { FilterProvider } from '@/next/hooks/utils/use-filters';
 import { RunDetailSheet } from './run-detail-sheet';
 import { Separator } from '@/next/components/ui/separator';
 import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
@@ -52,14 +52,23 @@ export default function RunDetailPage() {
     workflowRunId: string;
     taskId: string;
   }>();
+  return (
+    <RunDetailProvider runId={workflowRunId || ''}>
+      <RunDetailPageContent workflowRunId={workflowRunId} taskId={taskId} />
+    </RunDetailProvider>
+  );
+}
+
+type RunDetailPageProps = {
+  workflowRunId?: string;
+  taskId?: string;
+};
+
+function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
-  const { data, isLoading, error, cancel, replay } = useRunDetail(
-    workflowRunId || '',
-  );
-  const { data: parentData } = useRunDetail(
-    data?.run?.parentTaskExternalId || '',
-  );
+  const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
+
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -333,8 +342,8 @@ export default function RunDetailPage() {
         <RunDetailSheet
           isOpen={!!taskId}
           onClose={handleCloseSheet}
-          workflow={workflow}
-          selectedTask={selectedTask}
+          workflowRunId={workflowRunId || ''}
+          taskId={taskId || ''}
         />
       }
     >

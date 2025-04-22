@@ -17,6 +17,14 @@ export default function useApiMeta() {
     refetchInterval,
   });
 
+  const integrationsQuery = useQuery({
+    queryKey: ['metadata:get:integrations'],
+    queryFn: async () => {
+      const meta = await api.metadataListIntegrations();
+      return meta.data;
+    },
+  });
+
   const { data: version } = useQuery({
     queryKey: ['info:version'],
     queryFn: async () => (await api.infoGetVersion()).data,
@@ -48,6 +56,7 @@ export default function useApiMeta() {
 
   return {
     oss: metaQuery.data,
+    integrations: integrationsQuery.data,
     cloud: cloudMeta,
     isLoading: metaQuery.isLoading,
     hasFailed: metaQuery.isError && metaQuery.error,

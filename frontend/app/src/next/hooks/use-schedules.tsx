@@ -19,10 +19,8 @@ import {
   PropsWithChildren,
   createElement,
 } from 'react';
-import {
-  PaginationManagerNoOp,
-  PaginationManager,
-} from '@/next/components/ui/pagination';
+import { FilterProvider, useFilters } from './utils/use-filters';
+import { PaginationProvider, usePagination } from './utils/use-pagination';
 
 // Types for filters and pagination
 export interface SchedulesFilters {
@@ -54,7 +52,7 @@ interface CreateScheduleParams {
 // Main hook return type
 interface SchedulesState {
   data?: ScheduledWorkflowsList['rows'];
-  paginationResponse?: ScheduledWorkflowsList['pagination'];
+  paginationData?: ScheduledWorkflowsList['pagination'];
   isLoading: boolean;
   update: UseMutationResult<
     ScheduledWorkflows,
@@ -69,60 +67,51 @@ interface SchedulesState {
     unknown
   >;
   delete: UseMutationResult<void, Error, string, unknown>;
-
-  // Filters state
-  filters: SchedulesFilters;
+  filters: ReturnType<typeof useFilters<SchedulesFilters>>;
+  pagination: ReturnType<typeof usePagination>;
 }
 
-interface UseSchedulesOptions {
+interface SchedulesProviderProps extends PropsWithChildren {
   refetchInterval?: number;
-  filters?: SchedulesFilters;
-  sort?: SchedulesSort;
-  paginationManager?: PaginationManager;
 }
 
-export default function useSchedules({
+const SchedulesContext = createContext<SchedulesState | null>(null);
+
+export function useSchedules() {
+  const context = useContext(SchedulesContext);
+  if (!context) {
+    throw new Error('useSchedules must be used within a SchedulesProvider');
+  }
+  return context;
+}
+
+function SchedulesProviderContent({
+  children,
   refetchInterval,
-  filters = {},
-  sort = {},
-  paginationManager: pagination = PaginationManagerNoOp,
-}: UseSchedulesOptions = {}): SchedulesState {
+}: SchedulesProviderProps) {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
-
-  // State for filters only
+  const filters = useFilters<SchedulesFilters>();
+  const pagination = usePagination();
 
   const listSchedulesQuery = useQuery({
-    queryKey: ['schedule:list', tenant, filters, sort, pagination],
+    queryKey: ['schedule:list', tenant, filters.filters, pagination],
     queryFn: async () => {
       if (!tenant) {
-        const p = {
-          rows: [],
-          pagination: { current_page: 0, num_pages: 0 },
-        };
-        pagination?.setNumPages(p.pagination.num_pages);
-        return p;
+        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
       // Build query params
       const queryParams: Parameters<typeof api.workflowScheduledList>[1] = {
-        limit: pagination?.pageSize || 10,
-        offset: (pagination?.currentPage - 1) * pagination?.pageSize || 0,
-        ...filters,
+        limit: pagination.pageSize,
+        offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
+        ...filters.filters,
       };
-
-      if (sort.sortBy) {
-        queryParams.orderByField = sort.sortBy;
-        queryParams.orderByDirection =
-          sort.sortDirection || WorkflowRunOrderByDirection.ASC;
-      }
 
       const res = await api.workflowScheduledList(
         tenant?.metadata.id || '',
         queryParams,
       );
-
-      pagination?.setNumPages(res.data.pagination?.num_pages || 1);
 
       return res.data;
     },
@@ -194,45 +183,39 @@ export default function useSchedules({
     },
   });
 
-  return {
+  const value = {
     data: listSchedulesQuery.data?.rows || [],
-    paginationResponse: listSchedulesQuery.data?.pagination,
+    paginationData: listSchedulesQuery.data?.pagination,
     isLoading: listSchedulesQuery.isLoading,
     update: updateScheduleMutation,
     create: createScheduleMutation,
     delete: deleteScheduleMutation,
     filters,
+    pagination,
   };
+
+  return createElement(SchedulesContext.Provider, { value }, children);
 }
 
-// Context implementation (to maintain compatibility with components)
-interface SchedulesContextType extends SchedulesState {}
-
-const SchedulesContext = createContext<SchedulesContextType | undefined>(
-  undefined,
-);
-
-export const useSchedulesContext = () => {
-  const context = useContext(SchedulesContext);
-  if (context === undefined) {
-    throw new Error(
-      'useSchedulesContext must be used within a SchedulesProvider',
-    );
-  }
-  return context;
-};
-
-interface SchedulesProviderProps extends PropsWithChildren {
-  options?: UseSchedulesOptions;
-}
-
-export function SchedulesProvider(props: SchedulesProviderProps) {
-  const { children, options = {} } = props;
-  const schedulesState = useSchedules(options);
-
-  return createElement(
-    SchedulesContext.Provider,
-    { value: schedulesState },
-    children,
+export function SchedulesProvider({
+  children,
+  refetchInterval,
+}: SchedulesProviderProps) {
+  return (
+    <FilterProvider<SchedulesFilters>
+      initialFilters={{
+        statuses: [],
+        workflowId: undefined,
+        parentWorkflowRunId: undefined,
+        parentStepRunId: undefined,
+        additionalMetadata: [],
+      }}
+    >
+      <PaginationProvider initialPage={1} initialPageSize={50}>
+        <SchedulesProviderContent refetchInterval={refetchInterval}>
+          {children}
+        </SchedulesProviderContent>
+      </PaginationProvider>
+    </FilterProvider>
   );
 }
