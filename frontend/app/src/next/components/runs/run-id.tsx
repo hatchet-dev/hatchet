@@ -6,7 +6,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
-import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 
@@ -33,13 +32,9 @@ export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
           taskRun?.taskExternalId || '',
         );
 
-  const name = useMemo(() => {
-    if (isTaskRun) {
-      return getFriendlyTaskRunId(taskRun);
-    }
-
-    return getFriendlyWorkflowRunId(wfRun);
-  }, [isTaskRun, taskRun, wfRun]);
+  const name = isTaskRun
+    ? getFriendlyTaskRunId(taskRun)
+    : getFriendlyWorkflowRunId(wfRun);
 
   const handleDoubleClick = () => {
     if (url) {
@@ -92,14 +87,9 @@ export function getFriendlyTaskRunId(run?: V1TaskSummary) {
 
   // TODO: Use step readable id here
 
-  const [first, second] = run.actionId?.split(':') || [];
-  const runIdPrefix = run.metadata.id.split('-')[0];
+  const [_, second] = run.actionId?.split(':') || [];
 
-  return run.actionId
-    ? first === second
-      ? first + '-' + runIdPrefix
-      : run.actionId + '-' + runIdPrefix
-    : getFriendlyWorkflowRunId(run);
+  return second;
 }
 
 export function getFriendlyWorkflowRunId(run?: V1WorkflowRun) {

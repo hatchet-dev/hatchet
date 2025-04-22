@@ -44,7 +44,7 @@ function RunRow({
   return (
     <div
       className={cn(
-        'grid grid-cols-[200px,1fr] items-center',
+        'grid grid-cols-[120px,1fr] items-center',
         isTitle && 'cursor-pointer',
       )}
       onClick={onClick}
