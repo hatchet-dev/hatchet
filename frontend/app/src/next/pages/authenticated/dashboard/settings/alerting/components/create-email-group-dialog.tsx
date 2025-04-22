@@ -11,7 +11,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Textarea } from '@/components/v1/ui/textarea';
-import { useState } from 'react';
 
 const schema = z.object({
   emails: z.array(z.string().email()).min(1).max(100),
@@ -27,8 +26,6 @@ export function CreateEmailGroupDialog({
   className,
   ...props
 }: CreateEmailGroupDialogProps) {
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
   const {
     handleSubmit,
     control,
@@ -37,7 +34,7 @@ export function CreateEmailGroupDialog({
     resolver: zodResolver(schema),
   });
 
-  const emailsError = errors.emails?.message?.toString() || fieldErrors.name;
+  const emailsError = errors.emails?.message?.toString();
 
   return (
     <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
@@ -82,9 +79,6 @@ export function CreateEmailGroupDialog({
               {props.isLoading && <Spinner />}
               Create email group
             </Button>
-            {fieldErrors.name && (
-              <div className="text-sm text-red-500">{fieldErrors.name}</div>
-            )}
           </div>
         </form>
       </div>

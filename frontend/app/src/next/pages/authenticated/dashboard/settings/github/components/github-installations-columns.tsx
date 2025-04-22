@@ -9,7 +9,6 @@ import { Time } from '@/next/components/ui/time';
 import { GearIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
 import { useGithubIntegration } from '@/next/hooks/use-github-integration';
-import React from 'react';
 import {
   Tooltip,
   TooltipContent,
