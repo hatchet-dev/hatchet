@@ -149,6 +149,7 @@ class EventClient:
             ).events
         )
 
+    @tenacity_retry
     def log(self, message: str, step_run_id: str) -> None:
         request = PutLogRequest(
             stepRunId=step_run_id,
@@ -158,6 +159,7 @@ class EventClient:
 
         self.client.PutLog(request, metadata=get_metadata(self.token))
 
+    @tenacity_retry
     def stream(self, data: str | bytes, step_run_id: str) -> None:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
