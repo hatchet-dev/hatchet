@@ -38,6 +38,7 @@ interface DataTableProps<TData, TValue> {
   onSelectionChange?: (selectedRows: TData[]) => void;
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
+  selectAll?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -50,11 +51,20 @@ export function DataTable<TData, TValue>({
   onSelectionChange,
   rowSelection = {},
   setRowSelection,
+  selectAll = false,
 }: DataTableProps<TData, TValue>) {
   const navigate = useNavigate();
   // Client-side state
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  // Memoize the row selection state
+  const memoizedRowSelection = useMemo(() => {
+    if (selectAll) {
+      return data.reduce((acc, _, index) => ({ ...acc, [index]: true }), {});
+    }
+    return rowSelection;
+  }, [selectAll, data, rowSelection]);
 
   // Set up table
   const table = useReactTable({
@@ -63,7 +73,7 @@ export function DataTable<TData, TValue>({
     state: {
       columnFilters,
       columnVisibility,
-      rowSelection,
+      rowSelection: memoizedRowSelection,
     },
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -165,14 +175,14 @@ export function DataTable<TData, TValue>({
       );
     });
   }, [
-    table.getRowModel().rows,
     isLoading,
+    table,
+    columns.length,
     emptyState,
     selectedTaskId,
-    columns.length,
     rowClicked,
     navigate,
-    rowSelection,
+    styles,
   ]);
 
   return (

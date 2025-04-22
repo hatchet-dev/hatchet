@@ -45,6 +45,16 @@ interface CreateRunParams {
   data: V1TriggerWorkflowRunRequest;
 }
 
+type BulkMutation =
+  | {
+      bulk?: never;
+      tasks: V1TaskSummary[];
+    }
+  | {
+      bulk: boolean;
+      tasks?: never;
+    };
+
 interface RunsState {
   data: V1TaskSummary[];
   count: number;
@@ -59,18 +69,8 @@ interface RunsState {
     CreateRunParams,
     unknown
   >;
-  cancel: UseMutationResult<
-    unknown,
-    Error,
-    { tasks: V1TaskSummary[] },
-    unknown
-  >;
-  replay: UseMutationResult<
-    unknown,
-    Error,
-    { tasks: V1TaskSummary[] },
-    unknown
-  >;
+  cancel: UseMutationResult<unknown, Error, BulkMutation, unknown>;
+  replay: UseMutationResult<unknown, Error, BulkMutation, unknown>;
   triggerNow: UseMutationResult<
     V1WorkflowRunDetails,
     Error,
@@ -168,11 +168,19 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       pagination.setNumPages(res.pagination?.num_pages || 1);
       return res;
     },
+    placeholderData: (prev: any) => prev,
     refetchInterval,
   });
 
   const metricsRunsQuery = useQuery({
-    queryKey: ['v1:workflow-run:metrics', tenant, filters.filters, pagination],
+    queryKey: [
+      'v1:workflow-run:metrics',
+      tenant,
+      filters.filters,
+      pagination,
+      timeRange.filters.startTime,
+      timeRange.filters.endTime || endOfMinute(new Date()).toISOString(),
+    ],
     queryFn: async () => {
       if (!tenant) {
         return [] as V1TaskRunMetrics;
@@ -180,10 +188,9 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
       const since =
         timeRange.filters.startTime ||
-        new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
+        startOfMinute(new Date(Date.now() - 1000 * 60 * 60 * 24)).toISOString();
       const until =
-        timeRange.filters.endTime ||
-        new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
+        timeRange.filters.endTime || endOfMinute(new Date()).toISOString();
 
       const query = {
         offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
@@ -203,6 +210,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
       return res;
     },
+    placeholderData: (prev: any) => prev,
     refetchInterval,
   });
 
@@ -263,14 +271,26 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
   const cancelRunMutation = useMutation({
     mutationKey: ['run:cancel', tenant],
-    mutationFn: async ({ tasks }: { tasks: V1TaskSummary[] }) => {
+    mutationFn: async ({ tasks, bulk }: BulkMutation) => {
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-      const res = await api.v1TaskCancel(tenant.metadata.id, {
-        externalIds: tasks.map((run) => run.taskExternalId),
-      });
-      return res.data;
+
+      if (tasks) {
+        const res = await api.v1TaskCancel(tenant.metadata.id, {
+          externalIds: tasks.map((run) => run.taskExternalId),
+        });
+        return res.data;
+      } else if (bulk) {
+        const res = await api.v1TaskCancel(tenant.metadata.id, {
+          filter: {
+            ...filters.filters,
+            since: timeRange.filters.startTime || new Date().toISOString(),
+            until: timeRange.filters.endTime,
+          },
+        });
+        return res.data;
+      }
     },
     onSuccess: () => {
       listRunsQuery.refetch();
@@ -279,14 +299,26 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
   const replayRunMutation = useMutation({
     mutationKey: ['run:replay', tenant],
-    mutationFn: async ({ tasks }: { tasks: V1TaskSummary[] }) => {
+    mutationFn: async ({ tasks, bulk }: BulkMutation) => {
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-      const res = await api.v1TaskReplay(tenant.metadata.id, {
-        externalIds: tasks.map((run) => run.taskExternalId),
-      });
-      return res.data;
+
+      if (tasks) {
+        const res = await api.v1TaskReplay(tenant.metadata.id, {
+          externalIds: tasks.map((run) => run.taskExternalId),
+        });
+        return res.data;
+      } else if (bulk) {
+        const res = await api.v1TaskReplay(tenant.metadata.id, {
+          filter: {
+            ...filters.filters,
+            since: timeRange.filters.startTime || new Date().toISOString(),
+            until: timeRange.filters.endTime,
+          },
+        });
+        return res.data;
+      }
     },
     onSuccess: () => {
       listRunsQuery.refetch();

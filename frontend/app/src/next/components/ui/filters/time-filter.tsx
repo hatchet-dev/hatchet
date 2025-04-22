@@ -19,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
+import { VscRecord } from 'react-icons/vsc';
 
 interface TimeFilterProps {
   startField?: string;
@@ -67,11 +68,18 @@ export function TogglePause() {
               }
             }}
           >
-            {isPaused ? 'Resume' : <Pause className="h-4 w-4" />}
+            {isPaused ? (
+              <>
+                <VscRecord className="h-4 w-4" />
+                <span className="text-xs">Resume New Runs</span>
+              </>
+            ) : (
+              <Pause className="h-4 w-4" />
+            )}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {isPaused ? 'Resume Live Data' : 'Pause Live Data'}
+          {isPaused ? undefined : 'Pause New Runs'}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

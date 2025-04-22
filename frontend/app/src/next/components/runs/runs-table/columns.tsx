@@ -34,25 +34,28 @@ export const statusOptions = [
 
 export const columns = (
   rowClicked?: (row: V1TaskSummary) => void,
+  selectAll?: boolean,
 ): ColumnDef<V1TaskSummary>[] => [
   {
     id: 'select',
     header: ({ table }) => (
       <Checkbox
-        checked={table.getIsAllPageRowsSelected()}
+        checked={selectAll || table.getIsAllPageRowsSelected()}
         onCheckedChange={(value: boolean) =>
           table.toggleAllPageRowsSelected(!!value)
         }
         aria-label="Select all"
         className="translate-y-[2px]"
+        disabled={selectAll}
       />
     ),
     cell: ({ row }) => (
       <Checkbox
-        checked={row.getIsSelected()}
+        checked={selectAll || row.getIsSelected()}
         onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
         aria-label="Select row"
         className="translate-y-[2px]"
+        disabled={selectAll}
       />
     ),
     enableSorting: false,
