@@ -1,14 +1,220 @@
-export default function AlertingPage() {
+import { Separator } from '@/next/components/ui/separator';
+import useApiMeta from '@/next/hooks/use-api-meta';
+import {
+  TenantAlertsProvider,
+  useTenantAlerts,
+} from '@/next/hooks/use-tenant-alerts';
+import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
+import { SlackWebhook, TenantAlertEmailGroup } from '@/lib/api';
+import { useMemo, useState } from 'react';
+import { Button } from '@/next/components/ui/button';
+import { DataTable } from '@/next/components/ui/data-table';
+import { emailGroupColumns } from './components/email-groups-columns';
+import { CreateEmailGroupDialog } from './components/create-email-group-dialog';
+import { Dialog } from '@/next/components/ui/dialog';
+import { DestructiveDialog } from '@/next/components/ui/dialog/index';
+import { slackWebhookColumns } from './components/slack-webhooks-columns';
+export default function Alerting() {
+  const { integrations } = useApiMeta();
+
+  const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
+  const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
+
   return (
-    <>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          <div className="aspect-video rounded-xl bg-muted/50" />
-          <div className="aspect-video rounded-xl bg-muted/50" />
-          <div className="aspect-video rounded-xl bg-muted/50" />
-        </div>
-        <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
+    <div className="flex-grow h-full w-full">
+      <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <h2 className="text-2xl font-semibold leading-tight text-foreground">
+          Alerting
+        </h2>
+        <p className="text-gray-700 dark:text-gray-300 my-4">
+          Manage alerts to get notified on task failure.
+        </p>
+        <Separator className="my-4" />
+        <TenantAlertsProvider>
+          <AlertingSettings />
+          {hasEmailIntegration && (
+            <>
+              <Separator className="my-4" />
+              <EmailGroupsList />
+            </>
+          )}
+          {hasSlackIntegration && (
+            <>
+              <Separator className="my-4" />
+              <SlackWebhooksList />
+            </>
+          )}
+        </TenantAlertsProvider>
       </div>
-    </>
+    </div>
+  );
+}
+
+const AlertingSettings: React.FC = () => {
+  const { data: alertingSettings, isLoading, update } = useTenantAlerts();
+
+  return (
+    <div>
+      <div className="flex items-center space-x-2">
+        {alertingSettings && (
+          <UpdateTenantAlertingSettings
+            alertingSettings={alertingSettings}
+            isLoading={isLoading}
+            onSubmit={async (opts) => {
+              console.log('opts', opts);
+              await update.mutateAsync(opts);
+            }}
+            fieldErrors={{}}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+function EmailGroupsList() {
+  const {
+    emailGroups: { list, create, remove },
+    data,
+    update,
+  } = useTenantAlerts();
+
+  const [showGroupsDialog, setShowGroupsDialog] = useState(false);
+  const [deleteEmailGroup, setDeleteEmailGroup] =
+    useState<TenantAlertEmailGroup | null>(null);
+
+  const [isAlertMemberEmails, setIsAlertMemberEmails] = useState(
+    data?.alertMemberEmails || false,
+  );
+
+  const cols = emailGroupColumns({
+    onDeleteClick: (row) => {
+      setDeleteEmailGroup(row);
+    },
+    alertTenantEmailsSet: isAlertMemberEmails,
+    onToggleMembersClick: async (value) => {
+      setIsAlertMemberEmails(value);
+      await update.mutateAsync({
+        alertMemberEmails: value,
+      });
+    },
+  });
+
+  const groups: TenantAlertEmailGroup[] = useMemo(() => {
+    const customGroups = list?.data?.rows || [];
+
+    return [
+      {
+        // Special group for all tenant members
+        emails: [],
+        metadata: {
+          id: 'default',
+          createdAt: 'default',
+          updatedAt: 'default',
+        },
+      },
+      ...customGroups,
+    ];
+  }, [list?.data?.rows]);
+
+  return (
+    <div>
+      <div className="flex flex-row justify-between items-center">
+        <h3 className="text-xl font-semibold leading-tight text-foreground">
+          Email Groups
+        </h3>
+        <Button
+          key="create-slack-webhook"
+          onClick={() => {
+            setShowGroupsDialog(true);
+          }}
+        >
+          Create new group
+        </Button>
+      </div>
+      <Separator className="my-4" />
+      <DataTable
+        isLoading={list.isLoading}
+        columns={cols}
+        data={groups}
+        filters={[]}
+        getRowId={(row) => row.metadata.id}
+      />
+      {showGroupsDialog && (
+        <Dialog open={showGroupsDialog} onOpenChange={setShowGroupsDialog}>
+          <CreateEmailGroupDialog
+            isLoading={create.isPending}
+            onSubmit={async (data) => {
+              await create.mutate(data);
+              setShowGroupsDialog(false);
+            }}
+            // fieldErrors={create}
+          />
+        </Dialog>
+      )}
+      {deleteEmailGroup && (
+        <DestructiveDialog
+          open={true}
+          onOpenChange={() => {}}
+          title="Delete email group"
+          description="Are you sure you want to delete this email group?"
+          confirmationText="delete"
+          confirmButtonText="Delete group"
+          onConfirm={async () => {
+            await remove.mutate(deleteEmailGroup.metadata.id);
+            setDeleteEmailGroup(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function SlackWebhooksList() {
+  const {
+    slackWebhooks: { list, startUrl, remove },
+  } = useTenantAlerts();
+
+  const [deleteSlack, setDeleteSlack] = useState<SlackWebhook | null>(null);
+
+  const cols = slackWebhookColumns({
+    onDeleteClick: (row) => {
+      setDeleteSlack(row);
+    },
+  });
+
+  return (
+    <div>
+      <div className="flex flex-row justify-between items-center">
+        <h3 className="text-xl font-semibold leading-tight text-foreground">
+          Slack Webhooks
+        </h3>
+        <a href={startUrl}>
+          <Button key="create-slack-webhook">Add Slack Webhook</Button>
+        </a>
+      </div>
+      <Separator className="my-4" />
+      <DataTable
+        isLoading={list.isLoading}
+        columns={cols}
+        data={list.data?.rows || []}
+        filters={[]}
+        getRowId={(row) => row.metadata.id}
+      />
+      {deleteSlack && (
+        <DestructiveDialog
+          open={true}
+          onOpenChange={() => {}}
+          title="Delete Slack Webhook"
+          description="Are you sure you want to delete this Slack Webhook?"
+          confirmationText="delete"
+          confirmButtonText="Delete Webhook"
+          onConfirm={async () => {
+            await remove.mutate(deleteSlack.metadata.id);
+            setDeleteSlack(null);
+          }}
+        />
+      )}
+    </div>
   );
 }

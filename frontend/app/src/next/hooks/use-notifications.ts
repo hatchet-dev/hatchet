@@ -2,20 +2,20 @@ import { TenantInvite } from '@/lib/api';
 import useUser from './use-user';
 import { useMemo } from 'react';
 
-type Alert = {
+type Notification = {
   id: string;
   createdAt: Date;
   invite: TenantInvite;
 };
 
-interface AlerterState {
-  alerts: Alert[];
+interface NotificationState {
+  notifications: Notification[];
 }
 
-export default function useAlerter(): AlerterState {
+export default function useNotifications(): NotificationState {
   const { invites } = useUser();
 
-  const alerts = useMemo(() => {
+  const notifications = useMemo(() => {
     const alerts = [
       ...invites.list.map(
         (invite) =>
@@ -23,7 +23,7 @@ export default function useAlerter(): AlerterState {
             id: invite.metadata.id,
             createdAt: new Date(invite.metadata.createdAt),
             invite,
-          }) as Alert,
+          }) as Notification,
       ),
     ];
 
@@ -33,6 +33,6 @@ export default function useAlerter(): AlerterState {
   }, [invites]);
 
   return {
-    alerts,
+    notifications,
   };
 }
