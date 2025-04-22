@@ -134,25 +134,6 @@ export function DataTable<TData, TValue>({
     }
   }, [onSelectionChange, table]);
 
-  if (isLoading) {
-    return (
-      <TableRow>
-        <TableCell colSpan={columns.length} className="h-24 text-center">
-          Loading...
-        </TableCell>
-      </TableRow>
-    );
-  }
-  if (!table.getRowModel().rows?.length) {
-    return (
-      <TableRow>
-        <TableCell colSpan={columns.length} className="h-24 text-center">
-          {emptyState || 'No results found.'}
-        </TableCell>
-      </TableRow>
-    );
-  }
-
   const handleClick = useCallback(
     (row: Row<TData>, e: React.MouseEvent, isSelected: boolean) => {
       // Prevent row click if clicking on a button or link
@@ -181,6 +162,25 @@ export function DataTable<TData, TValue>({
     },
     [navigate],
   );
+
+  if (isLoading) {
+    return (
+      <TableRow>
+        <TableCell colSpan={columns.length} className="h-24 text-center">
+          Loading...
+        </TableCell>
+      </TableRow>
+    );
+  }
+  if (!table.getRowModel().rows?.length) {
+    return (
+      <TableRow>
+        <TableCell colSpan={columns.length} className="h-24 text-center">
+          {emptyState || 'No results found.'}
+        </TableCell>
+      </TableRow>
+    );
+  }
 
   return (
     <div className="rounded-md border">
