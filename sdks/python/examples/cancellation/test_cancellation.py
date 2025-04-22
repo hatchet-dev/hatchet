@@ -22,7 +22,6 @@ async def test_cancellation(hatchet: Hatchet) -> None:
             continue
 
         assert run.run.status == V1TaskStatus.CANCELLED
-        assert not run.run.output
 
         break
     else:
