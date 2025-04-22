@@ -7,6 +7,7 @@ import {
   V1TaskStatus,
   V1TaskRunMetrics,
   V1TaskPointMetrics,
+  TenantStepRunQueueMetrics,
 } from '@/lib/api/generated/data-contracts';
 import {
   useQuery,
@@ -83,6 +84,7 @@ interface RunsState {
   pagination: ReturnType<typeof usePagination>;
   timeRange: ReturnType<typeof useTimeFilters>;
   histogram: UseQueryResult<V1TaskPointMetrics, Error>;
+  queueMetrics: UseQueryResult<TenantStepRunQueueMetrics, Error>;
 }
 
 interface RunsProviderProps {
@@ -220,6 +222,26 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
     refetchInterval,
   });
 
+  const queueMetricsQuery = useQuery({
+    queryKey: [
+      'v1:workflow-run:queue-metrics',
+      tenant,
+      filters.filters,
+      pagination,
+    ],
+    queryFn: async () => {
+      if (!tenant) {
+        return [] as TenantStepRunQueueMetrics;
+      }
+
+      const res = (await api.tenantGetStepRunQueueMetrics(tenant.metadata.id))
+        .data;
+
+      return res;
+    },
+    refetchInterval,
+  });
+
   const createRunMutation = useMutation({
     mutationKey: ['v1:workflow-run:create', tenant],
     mutationFn: async ({ data }: CreateRunParams) => {
@@ -313,6 +335,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       pagination,
       timeRange,
       histogram: histogramQuery,
+      queueMetrics: queueMetricsQuery,
     }),
     [
       listRunsQuery.data,
@@ -328,6 +351,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       pagination,
       timeRange,
       histogramQuery,
+      queueMetricsQuery,
     ],
   );
 

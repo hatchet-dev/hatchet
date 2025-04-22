@@ -76,7 +76,7 @@ export function RunsTable({ rowClicked, selectedTaskId }: RunsTableProps) {
 
   return (
     <div className="flex flex-col gap-4 mt-4">
-      <RunsMetricsView metrics={metrics} onClick={handleMetricClick} />
+      <RunsMetricsView onClick={handleMetricClick} />
       <FilterGroup>
         <FilterSelect<RunsFilters, V1TaskStatus[]>
           name="statuses"

@@ -1,15 +1,18 @@
-import { V1TaskRunMetric, V1TaskRunMetrics, V1TaskStatus } from '@/lib/api';
+import { V1TaskRunMetrics, V1TaskStatus } from '@/lib/api';
 import { RunsBadge } from '../runs-badge';
 import { percent } from '@/next/lib/utils/percent';
+import { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/next/components/ui/dialog';
+import { useRuns } from '@/next/hooks/use-runs';
 
 interface V1TaskRunMetricsProps {
-  metrics: {
-    data: V1TaskRunMetric[];
-    isLoading: boolean;
-  };
   onClick?: (status?: V1TaskStatus) => void;
-  onViewQueueMetricsClick?: () => void;
-  showQueueMetrics?: boolean;
 }
 
 function MetricBadge({
@@ -46,62 +49,81 @@ function MetricBadge({
 }
 
 export const RunsMetricsView = ({
-  metrics,
-  showQueueMetrics = false,
   onClick = () => {},
-  onViewQueueMetricsClick = () => {},
 }: V1TaskRunMetricsProps) => {
+  const { metrics, queueMetrics } = useRuns();
+
+  const [isQueueMetricsOpen, setIsQueueMetricsOpen] = useState(false);
   const total = metrics.data
     .map((m) => m.count)
     .reduce((acc, curr) => acc + curr, 0);
 
   return (
-    <dl className="flex flex-row justify-start gap-6">
-      <MetricBadge
-        metrics={metrics.data}
-        status={V1TaskStatus.COMPLETED}
-        total={total}
-        onClick={onClick}
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
-        isLoading={metrics.isLoading}
-      />
+    <>
+      <dl className="flex flex-row justify-start gap-6">
+        <MetricBadge
+          metrics={metrics.data}
+          status={V1TaskStatus.COMPLETED}
+          total={total}
+          onClick={onClick}
+          className="cursor-pointer text-sm px-2 py-1 w-fit"
+          isLoading={metrics.isLoading}
+        />
 
-      <MetricBadge
-        metrics={metrics.data}
-        status={V1TaskStatus.RUNNING}
-        total={total}
-        onClick={onClick}
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
-        isLoading={metrics.isLoading}
-      />
+        <MetricBadge
+          metrics={metrics.data}
+          status={V1TaskStatus.RUNNING}
+          total={total}
+          onClick={onClick}
+          className="cursor-pointer text-sm px-2 py-1 w-fit"
+          isLoading={metrics.isLoading}
+        />
 
-      <MetricBadge
-        metrics={metrics.data}
-        status={V1TaskStatus.FAILED}
-        total={total}
-        onClick={onClick}
-        className="cursor-pointer text-sm px-2 py-1 w-fit"
-        isLoading={metrics.isLoading}
-      />
+        <MetricBadge
+          metrics={metrics.data}
+          status={V1TaskStatus.FAILED}
+          total={total}
+          onClick={onClick}
+          className="cursor-pointer text-sm px-2 py-1 w-fit"
+          isLoading={metrics.isLoading}
+        />
 
-      <MetricBadge
-        metrics={metrics.data}
-        status={V1TaskStatus.QUEUED}
-        total={total}
-        onClick={onClick}
-        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
-        isLoading={metrics.isLoading}
-      />
-
-      {showQueueMetrics && (
-        <RunsBadge
+        <MetricBadge
+          metrics={metrics.data}
+          status={V1TaskStatus.QUEUED}
+          total={total}
+          onClick={onClick}
           className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
-          onClick={() => onViewQueueMetricsClick()}
+          isLoading={metrics.isLoading}
+        />
+
+        <RunsBadge
+          status="QueueMetrics"
+          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+          onClick={() => setIsQueueMetricsOpen(true)}
           isLoading={metrics.isLoading}
         >
           Queue metrics
         </RunsBadge>
-      )}
-    </dl>
+      </dl>
+
+      <Dialog open={isQueueMetricsOpen} onOpenChange={setIsQueueMetricsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Current Queue Status</DialogTitle>
+            <DialogDescription>
+              Detailed information about queued tasks
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <pre className="text-sm text-muted-foreground">
+                {JSON.stringify(queueMetrics.data?.queues, null, 2)}
+              </pre>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
