@@ -17,7 +17,6 @@ import {
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
-import { RunsMetricsView } from '../runs-metrics/runs-metrics';
 import { RowSelectionState, OnChangeFn } from '@tanstack/react-table';
 import { MdOutlineReplay, MdOutlineCancel } from 'react-icons/md';
 import { Button } from '@/next/components/ui/button';
@@ -148,161 +147,154 @@ export function RunsTable({
 
   return (
     <>
-      <div className="flex flex-col gap-4 mt-4">
-        <RunsMetricsView />
-        <FilterGroup>
-          <FilterSelect<RunsFilters, V1TaskStatus[]>
-            name="statuses"
-            value={filters.statuses}
-            placeholder="Status"
-            multi
-            options={[
-              { label: 'Running', value: V1TaskStatus.RUNNING },
-              { label: 'Completed', value: V1TaskStatus.COMPLETED },
-              { label: 'Failed', value: V1TaskStatus.FAILED },
-              { label: 'Cancelled', value: V1TaskStatus.CANCELLED },
-              { label: 'Queued', value: V1TaskStatus.QUEUED },
-            ]}
-          />
-          <FilterTaskSelect<RunsFilters>
-            name="workflow_ids"
-            placeholder="Name"
-            multi
-          />
-          <FilterSelect<RunsFilters, boolean>
-            name="is_root_task"
-            value={filters.is_root_task}
-            placeholder="Only Root Tasks"
-            options={[
-              { label: 'Yes', value: true },
-              { label: 'No', value: false },
-            ]}
-          />
-          <FilterTaskSelect<RunsFilters>
-            name="workflow_ids"
-            placeholder="Task Name"
-            multi
-          />
-          <FilterKeyValue<RunsFilters>
-            name="additional_metadata"
-            placeholder="Metadata"
-            options={additionalMetaOpts}
-          />
-          <ClearFiltersButton />
-        </FilterGroup>
-        <div className="flex items-center justify-between">
-          <div className="flex-1 text-sm text-muted-foreground">
-            {numSelectedRows > 0 || selectAll ? (
-              <>
-                <span className="text-muted-foreground">
-                  {selectAll
-                    ? count.toLocaleString()
-                    : numSelectedRows.toLocaleString()}{' '}
-                  of {count.toLocaleString()} runs selected
-                </span>
-              </>
-            ) : (
+      <FilterGroup>
+        <FilterSelect<RunsFilters, V1TaskStatus[]>
+          name="statuses"
+          value={filters.statuses}
+          placeholder="Status"
+          multi
+          options={[
+            { label: 'Running', value: V1TaskStatus.RUNNING },
+            { label: 'Completed', value: V1TaskStatus.COMPLETED },
+            { label: 'Failed', value: V1TaskStatus.FAILED },
+            { label: 'Cancelled', value: V1TaskStatus.CANCELLED },
+            { label: 'Queued', value: V1TaskStatus.QUEUED },
+          ]}
+        />
+        <FilterTaskSelect<RunsFilters>
+          name="workflow_ids"
+          placeholder="Name"
+          multi
+        />
+        <FilterSelect<RunsFilters, boolean>
+          name="is_root_task"
+          value={filters.is_root_task}
+          placeholder="Only Root Tasks"
+          options={[
+            { label: 'Yes', value: true },
+            { label: 'No', value: false },
+          ]}
+        />
+        <FilterTaskSelect<RunsFilters>
+          name="workflow_ids"
+          placeholder="Task Name"
+          multi
+        />
+        <FilterKeyValue<RunsFilters>
+          name="additional_metadata"
+          placeholder="Metadata"
+          options={additionalMetaOpts}
+        />
+        <ClearFiltersButton />
+      </FilterGroup>
+      <div className="flex items-center justify-between">
+        <div className="flex-1 text-sm text-muted-foreground">
+          {numSelectedRows > 0 || selectAll ? (
+            <>
               <span className="text-muted-foreground">
-                {count.toLocaleString()} runs
+                {selectAll
+                  ? count.toLocaleString()
+                  : numSelectedRows.toLocaleString()}{' '}
+                of {count.toLocaleString()} runs selected
               </span>
-            )}
-
-            {count > 0 && !selectAll && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-2 h-6 px-2"
-                onClick={() => setSelectAll(true)}
-              >
-                Select All
-              </Button>
-            )}
-            {(numSelectedRows > 0 || selectAll) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-2 h-6 px-2"
-                onClick={clearSelection}
-              >
-                Clear Selection
-              </Button>
-            )}
-          </div>
-          {!selectAll ? (
-            <div className="flex gap-2">
-              <Button
-                tooltip={
-                  numSelectedRows == 0
-                    ? 'No runs selected'
-                    : canReplay
-                      ? 'Replay the selected runs'
-                      : 'Cannot replay the selected runs'
-                }
-                variant="outline"
-                size="sm"
-                disabled={!canReplay || replay.isPending}
-                onClick={async () =>
-                  replay.mutateAsync({ tasks: selectedRuns })
-                }
-              >
-                <MdOutlineReplay className="h-4 w-4" />
-                Replay
-              </Button>
-              <Button
-                tooltip={
-                  numSelectedRows == 0
-                    ? 'No runs selected'
-                    : canCancel
-                      ? 'Cancel the selected runs'
-                      : 'Cannot cancel the selected runs because they are not running or queued'
-                }
-                variant="outline"
-                size="sm"
-                disabled={!canCancel || cancel.isPending}
-                onClick={async () =>
-                  cancel.mutateAsync({ tasks: selectedRuns })
-                }
-              >
-                <MdOutlineCancel className="h-4 w-4" />
-                Cancel
-              </Button>
-            </div>
+            </>
           ) : (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={replay.isPending}
-                onClick={() => setShowBulkActionDialog('replay')}
-              >
-                <MdOutlineReplay className="h-4 w-4" />
-                Replay All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={cancel.isPending}
-                onClick={() => setShowBulkActionDialog('cancel')}
-              >
-                <MdOutlineCancel className="h-4 w-4" />
-                Cancel All
-              </Button>
-            </div>
+            <span className="text-muted-foreground">
+              {count.toLocaleString()} runs
+            </span>
+          )}
+
+          {count > 0 && !selectAll && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2 h-6 px-2"
+              onClick={() => setSelectAll(true)}
+            >
+              Select All
+            </Button>
+          )}
+          {(numSelectedRows > 0 || selectAll) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2 h-6 px-2"
+              onClick={clearSelection}
+            >
+              Clear Selection
+            </Button>
           )}
         </div>
-        <DataTable
-          columns={columns(rowClicked, selectAll)}
-          data={runs || []}
-          emptyState={emptyState}
-          isLoading={isLoading}
-          selectedTaskId={selectedTaskId}
-          rowClicked={rowClicked}
-          onSelectionChange={onSelectionChange}
-          rowSelection={rowSelection}
-          setRowSelection={handleSelectionChange}
-          selectAll={selectAll}
-        />
+        {!selectAll ? (
+          <div className="flex gap-2">
+            <Button
+              tooltip={
+                numSelectedRows == 0
+                  ? 'No runs selected'
+                  : canReplay
+                    ? 'Replay the selected runs'
+                    : 'Cannot replay the selected runs'
+              }
+              variant="outline"
+              size="sm"
+              disabled={!canReplay || replay.isPending}
+              onClick={async () => replay.mutateAsync({ tasks: selectedRuns })}
+            >
+              <MdOutlineReplay className="h-4 w-4" />
+              Replay
+            </Button>
+            <Button
+              tooltip={
+                numSelectedRows == 0
+                  ? 'No runs selected'
+                  : canCancel
+                    ? 'Cancel the selected runs'
+                    : 'Cannot cancel the selected runs because they are not running or queued'
+              }
+              variant="outline"
+              size="sm"
+              disabled={!canCancel || cancel.isPending}
+              onClick={async () => cancel.mutateAsync({ tasks: selectedRuns })}
+            >
+              <MdOutlineCancel className="h-4 w-4" />
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={replay.isPending}
+              onClick={() => setShowBulkActionDialog('replay')}
+            >
+              <MdOutlineReplay className="h-4 w-4" />
+              Replay All
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={cancel.isPending}
+              onClick={() => setShowBulkActionDialog('cancel')}
+            >
+              <MdOutlineCancel className="h-4 w-4" />
+              Cancel All
+            </Button>
+          </div>
+        )}
       </div>
+      <DataTable
+        columns={columns(rowClicked, selectAll)}
+        data={runs || []}
+        emptyState={emptyState}
+        isLoading={isLoading}
+        selectedTaskId={selectedTaskId}
+        rowClicked={rowClicked}
+        onSelectionChange={onSelectionChange}
+        rowSelection={rowSelection}
+        setRowSelection={handleSelectionChange}
+        selectAll={selectAll}
+      />
       <Pagination className="mt-4 justify-between flex flex-row">
         <PageSizeSelector />
         <PageSelector variant="dropdown" />

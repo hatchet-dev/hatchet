@@ -20,6 +20,7 @@ import { RunDetailSheet } from './run-detail-sheet';
 import { ROUTES } from '@/next/lib/routes';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { RunDetailProvider } from '@/next/hooks/use-run-detail';
+import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
 export interface RunsPageSheetProps {
   workflowRunId: string;
   taskId: string;
@@ -78,12 +79,15 @@ export default function RunsPage() {
       </Headline>
       <Separator className="my-4" />
       <RunsProvider>
-        <TimeFilters />
-        <GetWorkflowChart />
-        <RunsTable
-          rowClicked={handleRowClick}
-          selectedTaskId={taskId?.taskId}
-        />
+        <dl className="flex flex-col gap-4 mt-4">
+          <TimeFilters />
+          <GetWorkflowChart />
+          <RunsMetricsView />
+          <RunsTable
+            rowClicked={handleRowClick}
+            selectedTaskId={taskId?.taskId}
+          />
+        </dl>
         <TriggerRunModal
           show={showTriggerModal}
           onClose={() => setShowTriggerModal(false)}
