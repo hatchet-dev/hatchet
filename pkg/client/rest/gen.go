@@ -1325,7 +1325,7 @@ type V1TaskSummary struct {
 	WorkflowName *string            `json:"workflowName,omitempty"`
 
 	// WorkflowRunExternalId The external ID of the workflow run
-	WorkflowRunExternalId *openapi_types.UUID `json:"workflowRunExternalId,omitempty"`
+	WorkflowRunExternalId openapi_types.UUID `json:"workflowRunExternalId"`
 
 	// WorkflowVersionId The version ID of the workflow
 	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
@@ -1810,6 +1810,9 @@ type V1TaskEventListParams struct {
 type V1TaskListStatusMetricsParams struct {
 	// Since The start time to get metrics for
 	Since time.Time `form:"since" json:"since"`
+
+	// Until The end time to get metrics for
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
 
 	// WorkflowIds The workflow id to find runs for
 	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
@@ -5005,6 +5008,22 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 					queryValues.Add(k, v2)
 				}
 			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
 		}
 
 		if params.WorkflowIds != nil {

@@ -1091,7 +1091,8 @@ WITH input AS (
         t.display_name,
         t.input,
         t.additional_metadata,
-        t.readable_status
+        t.readable_status,
+        t.workflow_run_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -1190,6 +1191,7 @@ SELECT
     t.additional_metadata,
     t.input,
     t.readable_status::v1_readable_status_olap as status,
+    t.workflow_run_id,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     e.error_message as error_message,
@@ -1230,6 +1232,7 @@ type PopulateTaskRunDataRow struct {
 	AdditionalMetadata []byte               `json:"additional_metadata"`
 	Input              []byte               `json:"input"`
 	Status             V1ReadableStatusOlap `json:"status"`
+	WorkflowRunID      pgtype.UUID          `json:"workflow_run_id"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
@@ -1262,6 +1265,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.AdditionalMetadata,
 			&i.Input,
 			&i.Status,
+			&i.WorkflowRunID,
 			&i.FinishedAt,
 			&i.StartedAt,
 			&i.ErrorMessage,

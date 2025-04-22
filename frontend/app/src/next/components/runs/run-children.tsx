@@ -53,10 +53,8 @@ function RunRow({
         className={cn(
           'text-sm text-muted-foreground truncate overflow-hidden whitespace-nowrap flex items-center gap-2',
           isTitle && 'cursor-pointer',
+          `pl-[${depth * 15}px]`,
         )}
-        style={{
-          paddingLeft: `${depth * 15}px`,
-        }}
       >
         {hasChildren && (
           <Button
@@ -74,7 +72,7 @@ function RunRow({
           </Button>
         )}
 
-        {run?.numSpawnedChildren}
+        {hasChildren && run?.numSpawnedChildren}
         {isTitle ? (
           parentRun ? (
             <div className="flex items-center gap-2 cursor-pointer">
@@ -249,7 +247,7 @@ export function RunChildrenCardRoot({
   return (
     <TimelineProvider>
       <RunsProvider>
-        <div className="flex flex-col gap-0">
+        <div className="flex flex-col gap-y-4 p-4">
           <HighlightGroup>
             <RunRow
               isTitle

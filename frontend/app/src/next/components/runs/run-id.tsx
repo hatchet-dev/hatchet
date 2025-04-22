@@ -90,6 +90,8 @@ export function getFriendlyTaskRunId(run?: V1TaskSummary) {
     return;
   }
 
+  // TODO: Use step readable id here
+
   const [first, second] = run.actionId?.split(':') || [];
   const runIdPrefix = run.metadata.id.split('-')[0];
 
