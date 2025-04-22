@@ -325,13 +325,15 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
 
   const count = useMemo(() => {
     // TODO this is returning an inconsistent count with the number of runs in the table
-    return metricsRunsQuery.data
-      ?.filter(
-        (metric) =>
-          (metric.status && !filters.filters.statuses) ||
-          filters.filters.statuses?.includes(metric.status),
-      )
-      .reduce((acc, metric) => acc + metric.count, 0);
+    return (
+      metricsRunsQuery.data
+        ?.filter(
+          (metric) =>
+            (metric.status && !filters.filters.statuses) ||
+            filters.filters.statuses?.includes(metric.status),
+        )
+        .reduce((acc, metric) => acc + metric.count, 0) || 0
+    );
   }, [metricsRunsQuery.data, filters.filters.statuses]);
 
   const value = useMemo(
