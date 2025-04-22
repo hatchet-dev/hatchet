@@ -11,11 +11,7 @@ import {
   useQuery,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
-import {
-  createContext,
-  useContext,
-  PropsWithChildren,
-} from 'react';
+import { createContext, useContext, PropsWithChildren } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 
@@ -70,12 +66,17 @@ const ManagedComputeContext = createContext<ManagedComputeState | null>(null);
 export function useManagedCompute() {
   const context = useContext(ManagedComputeContext);
   if (!context) {
-    throw new Error('useManagedCompute must be used within a ManagedComputeProvider');
+    throw new Error(
+      'useManagedCompute must be used within a ManagedComputeProvider',
+    );
   }
   return context;
 }
 
-function ManagedComputeProviderContent({ children, refetchInterval }: ManagedComputeProviderProps) {
+function ManagedComputeProviderContent({
+  children,
+  refetchInterval,
+}: ManagedComputeProviderProps) {
   const { tenant } = useTenant();
   const filters = useFilters<ManagedComputeFilters>();
   const pagination = usePagination();
@@ -245,7 +246,10 @@ function ManagedComputeProviderContent({ children, refetchInterval }: ManagedCom
   );
 }
 
-export function ManagedComputeProvider({ children, refetchInterval }: ManagedComputeProviderProps) {
+export function ManagedComputeProvider({
+  children,
+  refetchInterval,
+}: ManagedComputeProviderProps) {
   return (
     <FilterProvider<ManagedComputeFilters>
       initialFilters={{

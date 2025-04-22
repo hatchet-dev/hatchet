@@ -85,7 +85,10 @@ export function useSchedules() {
   return context;
 }
 
-function SchedulesProviderContent({ children, refetchInterval }: SchedulesProviderProps) {
+function SchedulesProviderContent({
+  children,
+  refetchInterval,
+}: SchedulesProviderProps) {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const filters = useFilters<SchedulesFilters>();
@@ -194,7 +197,10 @@ function SchedulesProviderContent({ children, refetchInterval }: SchedulesProvid
   return createElement(SchedulesContext.Provider, { value }, children);
 }
 
-export function SchedulesProvider({ children, refetchInterval }: SchedulesProviderProps) {
+export function SchedulesProvider({
+  children,
+  refetchInterval,
+}: SchedulesProviderProps) {
   return (
     <FilterProvider<SchedulesFilters>
       initialFilters={{
