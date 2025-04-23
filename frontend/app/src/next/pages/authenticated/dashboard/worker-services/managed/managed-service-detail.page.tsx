@@ -94,10 +94,10 @@ function ServiceDetailPageContent({
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs defaultValue="overview" className="w-full" state="query">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="update">Update Service</TabsTrigger>
+          <TabsTrigger value="config">Configuration</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
           {/* Stats Cards */}
@@ -108,7 +108,7 @@ function ServiceDetailPageContent({
           {/* Worker Table */}
           <WorkerTable serviceName={service?.name || ''} />
         </TabsContent>
-        <TabsContent value="update">
+        <TabsContent value="config">
           <UpdateServiceContent />
         </TabsContent>
       </Tabs>
