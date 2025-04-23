@@ -11,7 +11,7 @@ export default function WorkflowGeneralSettings() {
     <>
       <h3 className="text-lg font-semibold mb-4">Trigger</h3>
       <TriggerSettings workflow={workflowVersion} />
-      <h3 className="text-lg font-semibold mb-4">Schedule Timeout</h3>
+      <h3 className="text-lg font-semibold my-4">Schedule Timeout</h3>
       <ScheduleTimeoutSettings workflow={workflowVersion} />
       <h3 className="text-lg font-semibold my-4">Concurrency</h3>
       <ConcurrencySettings workflow={workflowVersion} />
@@ -52,7 +52,7 @@ function TriggerSettings({
 }: {
   workflow: WorkflowVersion | undefined;
 }) {
-  if (!workflow?.triggers) {
+  if (!workflow?.triggers || Object.keys(workflow.triggers).length === 0) {
     return (
       <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
         There are no trigger settings for this workflow.
