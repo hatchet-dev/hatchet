@@ -37,6 +37,8 @@ export default function useBilling({
   const { tenant } = useTenant();
   const { toast } = useToast();
 
+  const canBill = !!meta.cloud?.canBill;
+
   const {
     data: billingState,
     isLoading,
@@ -56,7 +58,7 @@ export default function useBilling({
         return undefined;
       }
     },
-    enabled: meta.cloud?.canBill,
+    enabled: canBill,
     refetchInterval,
   });
 
@@ -88,7 +90,7 @@ export default function useBilling({
         return undefined;
       }
     },
-    enabled: !!tenant?.metadata.id,
+    enabled: canBill,
   });
 
   const subscriptionMutation = useMutation({

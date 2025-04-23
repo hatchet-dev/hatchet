@@ -85,7 +85,7 @@ function ManagedComputeProviderContent({
   children,
   refetchInterval,
 }: ManagedComputeProviderProps) {
-  const { cloud } = useApiMeta();
+  const { cloud, isCloud } = useApiMeta();
   const { tenant } = useTenant();
   const filters = useFilters<ManagedComputeFilters>();
   const pagination = usePagination();
@@ -192,6 +192,7 @@ function ManagedComputeProviderContent({
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
     },
+    enabled: isCloud,
     refetchInterval,
   });
 
@@ -312,6 +313,7 @@ function ManagedComputeProviderContent({
         throw error;
       }
     },
+    enabled: isCloud,
   });
 
   const value = {
