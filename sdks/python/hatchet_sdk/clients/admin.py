@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import datetime
-from typing import Generator, TypeVar, Union, cast
+from typing import Any, Generator, TypeVar, Union, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -16,7 +16,6 @@ from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
-from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
@@ -72,10 +71,8 @@ class AdminClient:
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-        runs_client: RunsClient,
     ):
         self.config = config
-        self.runs_client = runs_client
         self.token = config.token
         self.namespace = config.namespace
 
@@ -239,7 +236,7 @@ class AdminClient:
             ),
         )
 
-    def get_workflow_run_output(self, workflow_run_id: str) -> JSONSerializableMapping:
+    def get_workflow_run_output(self, workflow_run_id: str) -> dict[str, Any]:
         opts = v0_workflow_protos.GetWorkflowRunOutputRequest(
             workflow_run_id=workflow_run_id,
         )
@@ -256,7 +253,7 @@ class AdminClient:
             ),
         )
 
-        return cast(JSONSerializableMapping, json.loads(raw.output))
+        return cast(dict[str, Any], json.loads(raw.output))
 
     @tenacity_retry
     def put_rate_limit(
@@ -380,7 +377,7 @@ class AdminClient:
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
-            runs_client=self.runs_client,
+            admin_client=self,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -410,7 +407,7 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
-            runs_client=self.runs_client,
+            admin_client=self,
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
@@ -455,7 +452,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -499,7 +496,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -509,7 +506,7 @@ class AdminClient:
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
         return WorkflowRunRef(
-            runs_client=self.runs_client,
+            admin_client=self,
             workflow_run_id=workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,

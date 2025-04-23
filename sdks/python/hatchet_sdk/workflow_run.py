@@ -1,13 +1,13 @@
-import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.features.runs import RunsClient
+
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.admin import AdminClient
 
 
 class WorkflowRunRef:
@@ -16,12 +16,12 @@ class WorkflowRunRef:
         workflow_run_id: str,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-        runs_client: RunsClient,
+        admin_client: "AdminClient",
     ):
         self.workflow_run_id = workflow_run_id
         self.workflow_run_listener = workflow_run_listener
         self.workflow_run_event_listener = workflow_run_event_listener
-        self.runs_client = runs_client
+        self.admin_client = admin_client
 
     def __str__(self) -> str:
         return self.workflow_run_id
@@ -42,40 +42,4 @@ class WorkflowRunRef:
             return None
 
     def result(self) -> dict[str, Any]:
-        retries = 0
-
-        while True:
-            try:
-                details = self.runs_client.get(self.workflow_run_id)
-            except Exception:
-                retries += 1
-
-                if retries > 10:
-                    raise ValueError(f"Workflow run {self.workflow_run_id} not found")
-
-                time.sleep(1)
-                continue
-
-            match details.run.status:
-                case V1TaskStatus.RUNNING:
-                    time.sleep(1)
-                case V1TaskStatus.FAILED:
-                    raise ValueError(
-                        f"Workflow run failed: {details.run.error_message}"
-                    )
-                case V1TaskStatus.COMPLETED:
-                    return {
-                        name: t.output
-                        for t in details.tasks
-                        if (name := self._safely_get_action_name(t.action_id))
-                    }
-                case V1TaskStatus.QUEUED:
-                    time.sleep(1)
-                case V1TaskStatus.CANCELLED:
-                    raise ValueError(
-                        f"Workflow run cancelled: {details.run.error_message}"
-                    )
-                case _:
-                    raise ValueError(
-                        f"Unknown workflow run status: {details.run.status}"
-                    )
+        return self.admin_client.get_workflow_run_output(self.workflow_run_id)

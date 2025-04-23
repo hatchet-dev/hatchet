@@ -30,6 +30,10 @@ class Client:
         self.listener = RunEventListenerClient(config)
         self.workflow_listener = workflow_listener or PooledWorkflowRunListener(config)
 
+        self.admin = admin_client or AdminClient(
+            config, self.workflow_listener, self.listener
+        )
+
         self.log_interceptor = config.logger
         self.debug = debug
 
@@ -41,11 +45,8 @@ class Client:
             config=self.config,
             workflow_run_event_listener=self.listener,
             workflow_run_listener=self.workflow_listener,
+            admin_client=self.admin,
         )
         self.scheduled = ScheduledClient(self.config)
         self.workers = WorkersClient(self.config)
         self.workflows = WorkflowsClient(self.config)
-
-        self.admin = admin_client or AdminClient(
-            config, self.workflow_listener, self.listener, self.runs
-        )
