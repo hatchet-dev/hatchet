@@ -1278,8 +1278,6 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 		rootTaskExternalIds = append(rootTaskExternalIds, task.ExternalID)
 	}
 
-	fmt.Println("LENGTH OF ROOT TASK EXTERNAL IDS", len(rootTaskExternalIds))
-
 	runsList, err := r.queries.GetRunsListRecursive(ctx, r.pool, sqlcv1.GetRunsListRecursiveParams{
 		Taskexternalids: rootTaskExternalIds,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
@@ -1289,8 +1287,6 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	if err != nil {
 		return nil, nil, err
 	}
-
-	fmt.Println("LENGTH OF RUNS LIST", len(runsList))
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
