@@ -37,6 +37,7 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
+  isCollapsed: boolean;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -139,6 +140,7 @@ const SidebarProvider = React.forwardRef<
         openMobile,
         setOpenMobile,
         toggleSidebar,
+        isCollapsed: state === 'collapsed',
       }),
       [
         state,

@@ -75,7 +75,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const navigate = useNavigate();
   const location = useLocation();
   const navLinks = getMainNavLinks(location.pathname);
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, isCollapsed } = useSidebar();
   const docs = useDocs();
   const [collapsibleState, setCollapsibleState] = useState<
     Record<string, boolean>
@@ -154,53 +154,87 @@ name: ${user?.name}`;
                     }
                   >
                     <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip={item.title}
-                          className={
-                            item.isActive
-                              ? 'bg-muted/50 hover:bg-muted/80'
-                              : 'hover:bg-muted/30'
-                          }
-                        >
-                          <Link to={item.url}>
-                            <item.icon />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      {item.items?.length ? (
+                      {isCollapsed && item.items?.length ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <SidebarMenuButton
+                              tooltip={item.title}
+                              className={
+                                item.isActive
+                                  ? 'bg-muted/50 hover:bg-muted/80'
+                                  : 'hover:bg-muted/30'
+                              }
+                            >
+                              <item.icon />
+                              <span className="sr-only">{item.title}</span>
+                            </SidebarMenuButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            side="right"
+                            sideOffset={4}
+                            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                          >
+                            {item.items?.map((subItem) => (
+                              <DropdownMenuItem key={subItem.title} asChild>
+                                <Link to={subItem.url}>
+                                  <subItem.icon className="mr-2 h-4 w-4" />
+                                  {subItem.title}
+                                </Link>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
                         <>
                           <CollapsibleTrigger asChild>
-                            <SidebarMenuAction className="data-[state=open]:rotate-90">
-                              <ChevronRight />
-                              <span className="sr-only">Toggle</span>
-                            </SidebarMenuAction>
+                            <SidebarMenuButton
+                              asChild
+                              tooltip={item.title}
+                              className={
+                                item.isActive
+                                  ? 'bg-muted/50 hover:bg-muted/80'
+                                  : 'hover:bg-muted/30'
+                              }
+                            >
+                              <Link to={item.url}>
+                                <item.icon />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuButton>
                           </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <SidebarMenuSub>
-                              {item.items?.map((subItem) => (
-                                <SidebarMenuSubItem key={subItem.title}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    className={
-                                      subItem.isActive
-                                        ? 'bg-muted/50 hover:bg-muted/80'
-                                        : 'hover:bg-muted/30'
-                                    }
-                                  >
-                                    <Link to={subItem.url}>
-                                      <subItem.icon />
-                                      <span>{subItem.title}</span>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
+                          {item.items?.length ? (
+                            <>
+                              <CollapsibleTrigger asChild>
+                                <SidebarMenuAction className="data-[state=open]:rotate-90">
+                                  <ChevronRight />
+                                  <span className="sr-only">Toggle</span>
+                                </SidebarMenuAction>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <SidebarMenuSub>
+                                  {item.items?.map((subItem) => (
+                                    <SidebarMenuSubItem key={subItem.title}>
+                                      <SidebarMenuSubButton
+                                        asChild
+                                        className={
+                                          subItem.isActive
+                                            ? 'bg-muted/50 hover:bg-muted/80'
+                                            : 'hover:bg-muted/30'
+                                        }
+                                      >
+                                        <Link to={subItem.url}>
+                                          <subItem.icon />
+                                          <span>{subItem.title}</span>
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  ))}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            </>
+                          ) : null}
                         </>
-                      ) : null}
+                      )}
                     </SidebarMenuItem>
                   </Collapsible>
                 ))}
