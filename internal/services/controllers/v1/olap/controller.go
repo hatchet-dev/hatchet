@@ -483,7 +483,7 @@ func (tc *OLAPControllerImpl) sample(workflowRunID string) bool {
 
 	bucket := hashToBucket(workflowRunID, 100)
 
-	return int64(bucket) <= *tc.samplingHashThreshold
+	return int64(bucket) < *tc.samplingHashThreshold
 }
 
 func hashToBucket(workflowRunID string, buckets int) int {
