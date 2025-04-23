@@ -226,9 +226,15 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
       : config.message;
 
   if (event.eventType === V1TaskEventType.FAILED) {
-    const error = event.errorMessage
-      ? JSON.parse(event.errorMessage)
-      : { message: 'Unknown error' };
+    let error = { message: 'Unknown error' };
+    try {
+      error = event.errorMessage
+        ? JSON.parse(event.errorMessage)
+        : { message: 'Unknown error' };
+    } catch {
+      error = { message: 'Unknown error' };
+    }
+
     return (
       <div className="flex justify-between gap-1">
         <span className="text-xs text-destructive">{error.message}</span>

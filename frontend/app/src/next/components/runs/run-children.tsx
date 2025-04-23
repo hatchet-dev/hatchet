@@ -44,7 +44,7 @@ function RunRow({
   return (
     <div
       className={cn(
-        'grid grid-cols-[200px,1fr] items-center',
+        'grid grid-cols-[120px,1fr] items-center',
         isTitle && 'cursor-pointer',
       )}
       onClick={onClick}
@@ -53,10 +53,8 @@ function RunRow({
         className={cn(
           'text-sm text-muted-foreground truncate overflow-hidden whitespace-nowrap flex items-center gap-2',
           isTitle && 'cursor-pointer',
+          `pl-[${depth * 15}px]`,
         )}
-        style={{
-          paddingLeft: `${depth * 15}px`,
-        }}
       >
         {hasChildren && (
           <Button
@@ -74,7 +72,7 @@ function RunRow({
           </Button>
         )}
 
-        {run?.numSpawnedChildren}
+        {hasChildren && run?.numSpawnedChildren}
         {isTitle ? (
           parentRun ? (
             <div className="flex items-center gap-2 cursor-pointer">
@@ -143,7 +141,6 @@ function RunRowWithChildren({
       {isExpanded && hasActualChildren && (
         <RunsProvider>
           <ChildrenList
-            run={run}
             depth={depth}
             expandedIds={expandedIds}
             toggleExpanded={toggleExpanded}
@@ -156,7 +153,6 @@ function RunRowWithChildren({
 }
 
 interface ChildrenListProps {
-  run: V1TaskSummary;
   depth: number;
   expandedIds: Set<string>;
   toggleExpanded: (id: string) => void;
@@ -164,7 +160,6 @@ interface ChildrenListProps {
 }
 
 function ChildrenList({
-  run,
   depth,
   expandedIds,
   toggleExpanded,
@@ -252,7 +247,7 @@ export function RunChildrenCardRoot({
   return (
     <TimelineProvider>
       <RunsProvider>
-        <div className="flex flex-col gap-0">
+        <div className="flex flex-col gap-y-4 p-4">
           <HighlightGroup>
             <RunRow
               isTitle

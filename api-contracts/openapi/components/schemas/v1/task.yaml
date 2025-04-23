@@ -118,6 +118,7 @@ V1TaskSummary:
     - tenantId
     - type
     - workflowId
+    - workflowRunExternalId
 
 V1WorkflowRunDisplayName:
   properties:
