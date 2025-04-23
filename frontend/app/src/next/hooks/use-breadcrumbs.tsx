@@ -17,7 +17,7 @@ interface BreadcrumbContextType {
   setBreadcrumbs: (breadcrumbs: BreadcrumbData[]) => void;
 }
 
-const BreadcrumbContext = React.createContext<
+export const BreadcrumbContext = React.createContext<
   BreadcrumbContextType | undefined
 >(undefined);
 
@@ -40,6 +40,17 @@ export function BreadcrumbProvider({
   );
 }
 
+// HACK this is a hack to get the breadcrumbs to work
+// currently we cant call useBreadcrumbs more than once
+// so we need to create a new hook for each use case
+export function useBreadcrumbsGetter() {
+  const context = React.useContext(BreadcrumbContext);
+  if (context === undefined) {
+    throw new Error('useBreadcrumbs must be used within a BreadcrumbProvider');
+  }
+  return context;
+}
+
 export function useBreadcrumbs(
   effect: () => BreadcrumbData[],
   deps: React.DependencyList,
@@ -50,15 +61,16 @@ export function useBreadcrumbs(
     throw new Error('useBreadcrumbs must be used within a BreadcrumbProvider');
   }
 
-  // FIXME this is not working as expected
-  // React.useEffect(() => {
-  //   const breadcrumbs = effect();
-  //   context.setBreadcrumbs(breadcrumbs);
+  React.useEffect(() => {
+    if (effect) {
+      const breadcrumbs = effect();
+      context.setBreadcrumbs(breadcrumbs);
+    }
 
-  //   return () => {
-  //     context.setBreadcrumbs([]);
-  //   };
-  // }, [effect, deps, context]);
+    return () => {
+      context.setBreadcrumbs([]);
+    };
+  }, [effect, deps, context]);
 
   return context;
 }

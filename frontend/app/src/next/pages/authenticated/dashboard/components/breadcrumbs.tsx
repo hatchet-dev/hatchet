@@ -21,7 +21,10 @@ import {
 } from '@/next/components/ui/dropdown-menu';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
-import { BreadcrumbData, useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
+import {
+  BreadcrumbData,
+  useBreadcrumbsGetter,
+} from '@/next/hooks/use-breadcrumbs';
 import { BASE_PATH } from '@/next/lib/routes';
 
 // Use the existing NavItem type from main-nav
@@ -51,7 +54,7 @@ export function BreadcrumbNav() {
   // Flattened navigation map for easy lookup
   const navMap = useMemo(() => new Map<string, NavItem>(), []);
 
-  const { breadcrumbs } = useBreadcrumbs(() => [], []);
+  const { breadcrumbs } = useBreadcrumbsGetter();
 
   // Map to track siblings at each level of the hierarchy
   const siblingsByPath = useMemo(() => new Map<string, NavItem[]>(), []);
