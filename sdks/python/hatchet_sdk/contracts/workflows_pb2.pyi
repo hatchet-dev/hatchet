@@ -68,18 +68,6 @@ WEEK: RateLimitDuration
 MONTH: RateLimitDuration
 YEAR: RateLimitDuration
 
-class GetWorkflowRunOutputRequest(_message.Message):
-    __slots__ = ("workflow_run_id",)
-    WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
-    workflow_run_id: str
-    def __init__(self, workflow_run_id: _Optional[str] = ...) -> None: ...
-
-class GetWorkflowRunOutputResponse(_message.Message):
-    __slots__ = ("output",)
-    OUTPUT_FIELD_NUMBER: _ClassVar[int]
-    output: str
-    def __init__(self, output: _Optional[str] = ...) -> None: ...
-
 class PutWorkflowRequest(_message.Message):
     __slots__ = ("opts",)
     OPTS_FIELD_NUMBER: _ClassVar[int]
