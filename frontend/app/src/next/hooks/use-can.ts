@@ -30,10 +30,10 @@ export default function useCan(): CanHook {
         membership,
         tenant,
         billing,
-        meta: meta.cloud,
+        meta,
       });
     },
-    [user, membership, tenant, billing, meta.cloud],
+    [user, membership, tenant, billing, meta],
   );
 
   const can = useCallback(

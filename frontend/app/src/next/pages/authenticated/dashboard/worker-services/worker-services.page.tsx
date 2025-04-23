@@ -334,12 +334,12 @@ function WorkerServicesContent() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link to={ROUTES.services.new(WorkerType.MANAGED)}>
                     Managed Service
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link to={ROUTES.services.new(WorkerType.SELFHOSTED)}>
                     Self-hosted Service
                   </Link>

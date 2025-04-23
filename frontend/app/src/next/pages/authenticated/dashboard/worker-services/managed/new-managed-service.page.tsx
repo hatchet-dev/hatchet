@@ -16,9 +16,9 @@ import {
   useManagedCompute,
   ManagedComputeProvider,
 } from '@/next/hooks/use-managed-compute';
-import { RejectReason } from '@/lib/can/shared/permission.base';
+import { RejectReason } from '@/next/lib/can/shared/permission.base';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { BillingRequired } from './components/billing-required';
+import { CloudOnly } from './components/cloud-only';
 import useCan from '@/next/hooks/use-can';
 import { managedCompute } from '@/next/lib/can/features/managed-compute.permissions';
 import { Separator } from '@/next/components/ui/separator';
@@ -43,7 +43,7 @@ import {
 import { Summary } from './components/config/summary';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { Button } from '@/next/components/ui/button';
-
+import { BillingRequired } from './components/billing-required';
 function ServiceDetailPageContent() {
   const navigate = useNavigate();
 
@@ -263,6 +263,14 @@ function ServiceDetailPageContent() {
 }
 
 export default function ServiceDetailPage() {
+  const { canWithReason } = useCan();
+
+  const { rejectReason } = canWithReason(managedCompute.create());
+
+  if (rejectReason == RejectReason.CLOUD_ONLY) {
+    return <CloudOnly />;
+  }
+
   return (
     <ManagedComputeProvider>
       <WorkersProvider>

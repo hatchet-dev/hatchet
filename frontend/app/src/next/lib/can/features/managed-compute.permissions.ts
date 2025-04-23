@@ -26,8 +26,17 @@ export const replicaLimits = {
 
 export const managedCompute: PermissionSet = {
   create: () => (context) => {
+    const { meta } = context;
+
+    if (!meta?.isCloud) {
+      return {
+        allowed: false,
+        rejectReason: RejectReason.CLOUD_ONLY,
+      };
+    }
+
     const requireBillingForManagedCompute =
-      context.meta?.requireBillingForManagedCompute;
+      meta.cloud?.requireBillingForManagedCompute;
 
     if (
       requireBillingForManagedCompute &&

@@ -1,23 +1,12 @@
 import { Button } from '@/next/components/ui/button';
-import { Link } from 'react-router-dom';
 import {
   CalendarIcon,
   CpuChipIcon,
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
-import { useManagedCompute } from '@/next/hooks/use-managed-compute';
-import useBilling from '@/next/hooks/use-billing';
-import { PricingTable } from './cloud-only';
-export function BillingRequired() {
-  const { costs } = useManagedCompute();
-  const {
-    billing: { getManagedUrl },
-  } = useBilling();
-  // Query for compute cost information to show available credits
-  const hasCredits =
-    costs.data?.hasCreditsRemaining &&
-    costs.data?.creditsRemaining !== undefined;
+import { ROUTES } from '@/next/lib/routes';
 
+export function CloudOnly() {
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -46,20 +35,7 @@ export function BillingRequired() {
                   <h4 className="font-medium">
                     Transparent Pay as You Go Pricing
                   </h4>
-                  <div className="mt-2 grid gap-2 text-sm">
-                    <PricingTable />
-                    {hasCredits &&
-                      costs.data?.creditsRemaining !== undefined && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">
-                            Monthly Free Credits:
-                          </span>
-                          <span className="font-medium text-green-500">
-                            ${costs.data.creditsRemaining.toFixed(2)}
-                          </span>
-                        </div>
-                      )}
-                  </div>
+                  {PricingTable()}
                 </div>
               </div>
             </div>
@@ -87,37 +63,12 @@ export function BillingRequired() {
 
             <div className="flex flex-col gap-4 w-full">
               <Button
-                onClick={() =>
-                  getManagedUrl.data &&
-                  window.open(getManagedUrl.data, '_blank')
-                }
-                loading={getManagedUrl.isLoading}
+                onClick={() => window.open(ROUTES.common.pricing, '_blank')}
                 className="min-w-40 py-6 px-8 text-base"
                 size="lg"
               >
-                Add Payment Method →
+                Create a Hatchet Cloud Account →
               </Button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">
-                    Not ready yet?
-                  </span>
-                </div>
-              </div>
-
-              <Link to="/managed-workers/demo-template" className="w-full">
-                <Button
-                  variant="outline"
-                  className="min-w-40 py-6 px-8 text-base w-full"
-                  size="lg"
-                >
-                  Deploy a Demo Template for Free
-                </Button>
-              </Link>
 
               <div className="relative mt-4">
                 <div className="absolute inset-0 flex items-center">
@@ -148,6 +99,24 @@ export function BillingRequired() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+export function PricingTable() {
+  return (
+    <div className="mt-2 grid gap-2 text-sm">
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Shared CPU:</span>
+        <span className="font-medium">$0.01/CPU/hour</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Performance CPU:</span>
+        <span className="font-medium">$0.02/CPU/hour</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Memory:</span>
+        <span className="font-medium">$0.01/GB/hour</span>
       </div>
     </div>
   );

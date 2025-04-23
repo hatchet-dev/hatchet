@@ -4,11 +4,13 @@ import {
   ManagedWorkerList,
   CreateManagedWorkerRequest,
   UpdateManagedWorkerRequest,
+  MonthlyComputeCost,
 } from '@/lib/api/generated/cloud/data-contracts';
 import {
   useMutation,
   UseMutationResult,
   useQuery,
+  UseQueryResult,
 } from '@tanstack/react-query';
 import { WorkerType } from '@/lib/api';
 import { Worker } from '@/lib/api/generated/data-contracts';
@@ -59,6 +61,7 @@ interface ManagedComputeState {
   delete: UseMutationResult<ManagedWorker, Error, string, unknown>;
   filters: ReturnType<typeof useFilters<ManagedComputeFilters>>;
   pagination: ReturnType<typeof usePagination>;
+  costs: UseQueryResult<MonthlyComputeCost, Error>;
 }
 
 interface ManagedComputeProviderProps extends PropsWithChildren {
@@ -247,6 +250,17 @@ function ManagedComputeProviderContent({
     },
   });
 
+  const costsQuery = useQuery({
+    queryKey: ['managed-compute:costs', tenant],
+    queryFn: async () => {
+      if (!tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      return (await cloudApi.computeCostGet(tenant.metadata.id)).data;
+    },
+  });
+
   const value = {
     data: listManagedComputeQuery.data?.rows || [],
     paginationData: listManagedComputeQuery.data?.pagination,
@@ -256,6 +270,7 @@ function ManagedComputeProviderContent({
     delete: deleteManagedComputeMutation,
     filters,
     pagination,
+    costs: costsQuery,
   };
 
   return (

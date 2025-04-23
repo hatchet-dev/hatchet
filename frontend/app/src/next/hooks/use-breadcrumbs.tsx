@@ -50,14 +50,15 @@ export function useBreadcrumbs(
     throw new Error('useBreadcrumbs must be used within a BreadcrumbProvider');
   }
 
-  React.useEffect(() => {
-    const breadcrumbs = effect();
-    context.setBreadcrumbs(breadcrumbs);
+  // FIXME this is not working as expected
+  // React.useEffect(() => {
+  //   const breadcrumbs = effect();
+  //   context.setBreadcrumbs(breadcrumbs);
 
-    return () => {
-      context.setBreadcrumbs([]);
-    };
-  }, [effect, deps, context]);
+  //   return () => {
+  //     context.setBreadcrumbs([]);
+  //   };
+  // }, [effect, deps, context]);
 
   return context;
 }

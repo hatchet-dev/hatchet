@@ -77,7 +77,7 @@ export const ROUTES = {
   common: {
     community: `https://hatchet.run/discord`,
     feedback: `https://github.com/hatchet-dev/hatchet/issues`,
-    pricing: `https://hatchet.run/pricing`,
+    pricing: `https://cloud.onhatchet.run`,
     tutorial: `${BASE_PATH}/tutorial`,
     contact: `https://hatchet.run/office-hours`,
   },
