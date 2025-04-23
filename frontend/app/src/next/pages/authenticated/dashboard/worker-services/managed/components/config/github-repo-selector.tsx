@@ -24,6 +24,7 @@ import { GitHubLogoIcon } from '@radix-ui/react-icons';
 import { useState, useEffect } from 'react';
 import { GitBranchIcon, GitForkIcon } from 'lucide-react';
 import { CreateManagedWorkerBuildConfigRequest } from '@/lib/api/generated/cloud/data-contracts';
+import { Spinner } from '@/next/components/ui/spinner';
 
 export type GithubRepoSelectorValue = Omit<
   CreateManagedWorkerBuildConfigRequest,
@@ -117,6 +118,27 @@ export function GithubRepoSelector({
     selectedRepo,
     setSelectedRepo,
   ]);
+
+  // Set default branch to 'main' if it exists
+  useEffect(() => {
+    if (
+      branches.data &&
+      branches.data.length > 0 &&
+      !value.githubRepositoryBranch &&
+      value.githubRepositoryOwner &&
+      value.githubRepositoryName
+    ) {
+      const mainBranch = branches.data.find(
+        (branch) => branch.branch_name === 'main',
+      );
+      if (mainBranch) {
+        onChange({
+          ...value,
+          githubRepositoryBranch: 'main',
+        });
+      }
+    }
+  }, [branches.data, value, onChange]);
 
   const selectedInstallationName = installations.data?.find(
     (i) => i.metadata.id === value.githubInstallationId,
@@ -237,13 +259,18 @@ export function GithubRepoSelector({
                 role="combobox"
                 aria-expanded={openBranch}
                 className="w-full justify-between"
+                loading={branches.isLoading}
                 disabled={
-                  !value.githubRepositoryOwner || !value.githubRepositoryName
+                  !value.githubRepositoryOwner ||
+                  !value.githubRepositoryName ||
+                  branches.isLoading
                 }
               >
                 <div className="flex items-center gap-2">
                   <GitBranchIcon className="h-4 w-4" />
-                  {value.githubRepositoryBranch ? (
+                  {branches.isLoading ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : value.githubRepositoryBranch ? (
                     value.githubRepositoryBranch
                   ) : (
                     <span>Select branch</span>

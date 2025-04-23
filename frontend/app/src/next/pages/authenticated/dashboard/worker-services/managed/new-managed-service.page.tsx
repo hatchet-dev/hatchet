@@ -104,6 +104,7 @@ function ServiceDetailPageContent() {
     cpus: 1,
     memoryMb: 1024,
     regions: [ManagedWorkerRegion.Ewr],
+    numReplicas: 1,
   });
 
   const [isDeploying, setIsDeploying] = useState(false);
@@ -117,7 +118,7 @@ function ServiceDetailPageContent() {
 
     setIsDeploying(true);
     try {
-      await create.mutateAsync({
+      const deployedService = await create.mutateAsync({
         data: {
           name: buildConfig.serviceName,
           buildConfig: {
@@ -136,7 +137,7 @@ function ServiceDetailPageContent() {
       });
 
       navigate(
-        ROUTES.services.detail(buildConfig.serviceName, WorkerType.MANAGED),
+        ROUTES.services.detail(deployedService.metadata.id, WorkerType.MANAGED),
       );
     } catch (error) {
       console.error('Failed to deploy service:', error);
@@ -174,7 +175,6 @@ function ServiceDetailPageContent() {
         <Steps>
           <Step
             title="GitHub Repository"
-            className="border-none"
             open={activeStep === 0}
             setOpen={(open: boolean) => setActiveStep(open ? 0 : -1)}
           >

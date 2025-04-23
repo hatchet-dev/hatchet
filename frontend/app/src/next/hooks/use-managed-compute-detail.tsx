@@ -47,6 +47,15 @@ export function ManagedComputeDetailProvider({
     refetchInterval,
   });
 
+  const managedWorkerMetricsQuery = useQuery({
+    queryKey: ['managed-worker:metrics', managedWorkerId],
+    queryFn: async () => {
+      const res = await cloudApi.managedWorkerMetrics(managedWorkerId);
+      return res.data;
+    },
+    refetchInterval,
+  });
+
   const value = useMemo(
     () => ({
       data: managedWorkerQuery.data,

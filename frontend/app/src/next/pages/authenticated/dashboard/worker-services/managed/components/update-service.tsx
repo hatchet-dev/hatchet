@@ -242,8 +242,6 @@ export function UpdateServiceContent() {
             buildConfig={buildConfig}
             machineConfig={machineConfig}
             secrets={secrets}
-            onDeploy={handleDeploy}
-            isDeploying={isDeploying}
             type="update"
             originalGithubRepo={initialGithubRepo}
             originalBuildConfig={initialBuildConfig}

@@ -11,7 +11,6 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import docs from '@/next/docs-meta-data';
-import { WorkerTable } from '../components/worker-table';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerDetailSheet } from '../components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
@@ -27,6 +26,9 @@ import {
 import { useManagedComputeDetail } from '@/next/hooks/use-managed-compute-detail';
 import { ManagedComputeDetailProvider } from '@/next/hooks/use-managed-compute-detail';
 import { UpdateServiceContent } from './components/update-service';
+import { WorkersTab } from './components/workers-tab';
+import { LogsTab } from './components/logs-tab';
+import { MetricsTab } from './components/metrics-tab';
 
 function ServiceDetailPageContent({
   serviceId,
@@ -94,21 +96,23 @@ function ServiceDetailPageContent({
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <Tabs defaultValue="overview" className="w-full" state="query">
+      <Tabs defaultValue="instances" className="w-full" state="query">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="instances">Workers</TabsTrigger>
+          <TabsTrigger value="logs">Logs & Activity</TabsTrigger>
+          <TabsTrigger value="metrics">Metrics</TabsTrigger>
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview">
-          {/* Stats Cards */}
-          {/* <div className="mb-6">
-            <WorkerStats stats={service} isLoading={isLoading} />
-          </div> */}
-
-          {/* Worker Table */}
-          <WorkerTable serviceName={service?.name || ''} />
+        <TabsContent value="instances">
+          <WorkersTab serviceName={service?.name || ''} />
         </TabsContent>
-        <TabsContent value="config">
+        <TabsContent value="logs">
+          <LogsTab serviceName={service?.name || ''} />
+        </TabsContent>
+        <TabsContent value="metrics">
+          <MetricsTab serviceName={service?.name || ''} />
+        </TabsContent>
+        <TabsContent value="configuration">
           {service && <UpdateServiceContent />}
         </TabsContent>
       </Tabs>

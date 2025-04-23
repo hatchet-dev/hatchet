@@ -188,6 +188,13 @@ function ManagedComputeProviderContent({
         throw new Error('Tenant not found');
       }
 
+      // Validate that only one of numReplicas or autoscaling is set
+      if (data.runtimeConfig?.autoscaling) {
+        data.runtimeConfig.numReplicas = undefined;
+      } else if (data.runtimeConfig) {
+        data.runtimeConfig.autoscaling = undefined;
+      }
+
       const res = await cloudApi.managedWorkerCreate(tenant.metadata.id, data);
 
       return res.data;
@@ -206,6 +213,13 @@ function ManagedComputeProviderContent({
     }: UpdateManagedComputeParams) => {
       if (!tenant) {
         throw new Error('Tenant not found');
+      }
+
+      // Validate that only one of numReplicas or autoscaling is set
+      if (data.runtimeConfig?.autoscaling) {
+        data.runtimeConfig.numReplicas = undefined;
+      } else if (data.runtimeConfig) {
+        data.runtimeConfig.autoscaling = undefined;
       }
 
       const res = await cloudApi.managedWorkerUpdate(managedWorkerId, data);
