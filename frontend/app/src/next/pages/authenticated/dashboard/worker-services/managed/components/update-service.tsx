@@ -24,13 +24,16 @@ import { Button } from '@/next/components/ui/button';
 import { Dialog, DialogContent } from '@/next/components/ui/dialog';
 import { RotateCcw } from 'lucide-react';
 import { Separator } from '@/next/components/ui/separator';
+import { DangerZone } from './config/danger-zone';
+
 export function UpdateServiceContent() {
   const navigate = useNavigate();
   const { data: service } = useManagedComputeDetail();
-  const { update } = useManagedCompute();
+  const { update, delete: deleteService } = useManagedCompute();
 
   const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
 
   // Initial values from service
   const initialGithubRepo: GithubRepoSelectorValue = {
@@ -74,7 +77,6 @@ export function UpdateServiceContent() {
     useState<BuildConfigValue>(initialBuildConfig);
   const [machineConfig, setMachineConfig] =
     useState<MachineConfigValue>(initialMachineConfig);
-  const [isDeploying, setIsDeploying] = useState(false);
 
   const handleRevert = (section: string) => {
     switch (section) {
@@ -131,6 +133,11 @@ export function UpdateServiceContent() {
     } finally {
       setIsDeploying(false);
     }
+  };
+
+  const handleDelete = async (serviceId: string) => {
+    await deleteService.mutateAsync(serviceId);
+    navigate(ROUTES.services.list);
   };
 
   const SectionActions = ({ section }: { section: string }) => {
@@ -218,6 +225,13 @@ export function UpdateServiceContent() {
           }}
           type="update"
           actions={<SectionActions section="buildConfig" />}
+        />
+        <Separator />
+        <DangerZone
+          serviceName={service?.name || ''}
+          serviceId={service?.metadata?.id || ''}
+          onDelete={handleDelete}
+          type="update"
         />
       </dl>
 
