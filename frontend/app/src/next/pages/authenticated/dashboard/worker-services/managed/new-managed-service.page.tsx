@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
@@ -55,27 +55,19 @@ function ServiceDetailPageContent() {
 
   const decodedServiceName = decodeURIComponent(serviceName);
 
-  const { setBreadcrumbs } = useBreadcrumbs();
-  const { canWithReason } = useCan();
-
-  const { rejectReason } = canWithReason(managedCompute.create());
-
-  useEffect(() => {
-    const breadcrumbs = [
+  useBreadcrumbs(
+    () => [
       {
         title: 'Worker Services',
         label: serviceName,
         url: ROUTES.services.new(WorkerType.MANAGED),
       },
-    ];
+    ],
+    [decodedServiceName, serviceName],
+  );
+  const { canWithReason } = useCan();
 
-    setBreadcrumbs(breadcrumbs);
-
-    // Clear breadcrumbs when this component unmounts
-    return () => {
-      setBreadcrumbs([]);
-    };
-  }, [decodedServiceName, setBreadcrumbs, serviceName]);
+  const { rejectReason } = canWithReason(managedCompute.create());
 
   // Only show BillingRequired if there are no managed workers AND billing is required
   const hasExistingWorkers = (services?.length || 0) > 0;

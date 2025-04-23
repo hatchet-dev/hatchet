@@ -40,12 +40,24 @@ export function BreadcrumbProvider({
   );
 }
 
-export function useBreadcrumbs(): BreadcrumbContextType {
+export function useBreadcrumbs(
+  effect: () => BreadcrumbData[],
+  deps: React.DependencyList,
+): BreadcrumbContextType {
   const context = React.useContext(BreadcrumbContext);
 
   if (context === undefined) {
     throw new Error('useBreadcrumbs must be used within a BreadcrumbProvider');
   }
+
+  React.useEffect(() => {
+    const breadcrumbs = effect();
+    context.setBreadcrumbs(breadcrumbs);
+
+    return () => {
+      context.setBreadcrumbs([]);
+    };
+  }, [effect, deps, context]);
 
   return context;
 }

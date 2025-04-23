@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
@@ -18,6 +18,8 @@ import { WorkerDetailSheet } from '../components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import { WorkerDetailProvider } from '@/next/hooks/use-worker-detail';
 import { Badge } from '@/next/components/ui/badge';
+import { WorkerType } from '@/lib/api';
+
 function ServiceDetailPageContent() {
   const { serviceName = '', workerId } = useParams<{
     serviceName: string;
@@ -28,35 +30,23 @@ function ServiceDetailPageContent() {
 
   const { services, isLoading } = useWorkers();
 
-  const { setBreadcrumbs } = useBreadcrumbs();
-
   const service = useMemo(() => {
     return services.find((s) => s.name === decodedServiceName);
   }, [services, decodedServiceName]);
 
-  useEffect(() => {
-    if (!service) {
-      return;
-    }
-
-    const breadcrumbs = [
+  useBreadcrumbs(
+    () => [
       {
         title: 'Worker Services',
         label: serviceName,
         url: ROUTES.services.detail(
           encodeURIComponent(decodedServiceName),
-          service.type,
+          service?.type || WorkerType.SELFHOSTED,
         ),
       },
-    ];
-
-    setBreadcrumbs(breadcrumbs);
-
-    // Clear breadcrumbs when this component unmounts
-    return () => {
-      setBreadcrumbs([]);
-    };
-  }, [services, decodedServiceName, setBreadcrumbs, serviceName, service]);
+    ],
+    [decodedServiceName, service?.type],
+  );
 
   const handleCloseSheet = useCallback(() => {
     if (!service) {

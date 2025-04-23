@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
@@ -42,10 +42,8 @@ function ServiceDetailPageContent({
 
   const { data: service } = useManagedComputeDetail();
 
-  const { setBreadcrumbs } = useBreadcrumbs();
-
-  useEffect(() => {
-    const breadcrumbs = [
+  useBreadcrumbs(
+    () => [
       {
         title: 'Worker Services',
         label: service?.name || '',
@@ -54,15 +52,9 @@ function ServiceDetailPageContent({
           WorkerType.MANAGED,
         ),
       },
-    ];
-
-    setBreadcrumbs(breadcrumbs);
-
-    // Clear breadcrumbs when this component unmounts
-    return () => {
-      setBreadcrumbs([]);
-    };
-  }, [setBreadcrumbs, service?.metadata?.id, service?.name]);
+    ],
+    [service?.name, service?.metadata?.id],
+  );
 
   const handleCloseSheet = useCallback(() => {
     navigate(

@@ -7,8 +7,7 @@ import {
   AlertTitle,
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
@@ -43,6 +42,7 @@ import {
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
 import { FilterProvider } from '@/next/hooks/utils/use-filters';
 import { RunDetailSheet } from './run-detail-sheet';
+import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -68,8 +68,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
-  const { setBreadcrumbs } = useBreadcrumbs();
-
   const workflow = useMemo(() => data?.run, [data]);
   const tasks = useMemo(() => data?.tasks, [data]);
 
@@ -91,9 +89,9 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     navigate(ROUTES.runs.detail(workflowRunId!));
   }, [navigate, workflowRunId]);
 
-  useEffect(() => {
+  useBreadcrumbs(() => {
     if (!workflow) {
-      return;
+      return [];
     }
 
     const breadcrumbs = [];
@@ -123,21 +121,8 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       alwaysShowIcon: true,
     });
 
-    setBreadcrumbs(breadcrumbs);
-
-    // Clear breadcrumbs when this component unmounts
-    return () => {
-      setBreadcrumbs([]);
-    };
-  }, [
-    data?.tasks,
-    parentData,
-    workflow,
-    workflowRunId,
-    setBreadcrumbs,
-    data?.run,
-    selectedTask,
-  ]);
+    return breadcrumbs;
+  }, [workflow, parentData, selectedTask]);
 
   const canCancel = useMemo(() => {
     return (

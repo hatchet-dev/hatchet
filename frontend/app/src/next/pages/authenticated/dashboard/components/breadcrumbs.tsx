@@ -48,10 +48,10 @@ export function BreadcrumbNav() {
   const isMobile = useIsMobile();
   const navStructure = getMainNavLinks(location.pathname);
 
-  const { breadcrumbs } = useBreadcrumbs();
-
   // Flattened navigation map for easy lookup
   const navMap = useMemo(() => new Map<string, NavItem>(), []);
+
+  const { breadcrumbs } = useBreadcrumbs(() => [], []);
 
   // Map to track siblings at each level of the hierarchy
   const siblingsByPath = useMemo(() => new Map<string, NavItem[]>(), []);
