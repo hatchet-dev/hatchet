@@ -112,11 +112,7 @@ export function OnboardingLayout() {
         </div>
       </header>
       <main className="flex flex-1 flex-col p-0">
-        <div className="flex justify-center items-start py-12 px-4">
-          <div className="max-w-xl w-full pt-12">
-            <Outlet />
-          </div>
-        </div>
+        <Outlet />
       </main>
     </div>
   );

@@ -1,19 +1,13 @@
-import { Button } from '@/next/components/ui/button';
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
   CardDescription,
 } from '@/next/components/ui/card';
-import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
-
-import { useNavigate } from 'react-router-dom';
-import { ROUTES } from '@/next/lib/routes';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import useMembers, { MembersProvider } from '@/next/hooks/use-members';
+import { MembersProvider } from '@/next/hooks/use-members';
+import { Code } from '@/next/components/ui/code/code';
 
 export default function OnboardingFirstRunPage() {
   return (
@@ -24,51 +18,82 @@ export default function OnboardingFirstRunPage() {
 }
 
 function OnboardingFirstRunContent() {
-  const { data: members } = useMembers();
-  const navigate = useNavigate();
-
   return (
     <BasicLayout>
-      <Card>
-        <CardHeader>
-          <CardTitle>First Run</CardTitle>
-          <CardDescription>
-            Tenants are isolated environments that are used to organize your
-            workloads.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>{/* The onboarding flow */}</CardContent>
-        <CardFooter className="flex justify-between gap-2">
-          <DocsButton doc={docs.home.environments} size="icon" />
-          <dl className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                navigate(ROUTES.runs.list);
-              }}
-            >
-              Skip
-            </Button>
-            {members?.length === 1 ? (
-              <Button
-                onClick={() => {
-                  navigate(ROUTES.onboarding.inviteTeam);
-                }}
-              >
-                Continue
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  navigate(ROUTES.runs.list);
-                }}
-              >
-                Finish
-              </Button>
-            )}
-          </dl>
-        </CardFooter>
-      </Card>
+      <div className="flex h-[calc(100vh-4rem)] gap-4 p-4">
+        {/* Left panel - Tutorial content */}
+        <div className="flex-1 overflow-y-auto pr-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Getting Started with Hatchet</CardTitle>
+              <CardDescription>
+                Let's create your first task and get it running in minutes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Tutorial content will go here */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">
+                  Step 1: Choose your technology
+                </h3>
+                <p>
+                  Select your preferred programming language to get started.
+                </p>
+                {/* Technology selection will go here */}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right panel - Code preview */}
+        <div className="w-1/2 overflow-y-auto">
+          <Card className="h-full">
+            <CardContent className="space-y-6 py-4">
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Task</h3>
+                <Code
+                  language="typescript"
+                  value={`// Define your task
+const task = hatchet.task({
+  name: 'hello-world',
+  fn: (input: { name: string }) => {
+    return {
+      message: \`Hello, \${input.name}!\`
+    };
+  },
+});`}
+                  showLineNumbers
+                />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Worker</h3>
+                <Code
+                  language="typescript"
+                  value={`// Create a worker to run your task
+const worker = hatchet.worker({
+  name: 'hello-world-worker',
+  tasks: [task],
+});`}
+                  showLineNumbers
+                />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Trigger</h3>
+                <Code
+                  language="typescript"
+                  value={`// Trigger your task
+await task.run({
+  name: 'World'
+});`}
+                  showLineNumbers
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </BasicLayout>
   );
 }
