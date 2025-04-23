@@ -127,7 +127,8 @@ SELECT
     inserted_at,
     external_id,
     retry_count,
-    workflow_id
+    workflow_id,
+    workflow_run_id
 FROM
     v1_task
 WHERE

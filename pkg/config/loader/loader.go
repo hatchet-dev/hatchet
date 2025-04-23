@@ -611,6 +611,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		SchedulingPool:         schedulingPool,
 		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
+		Sampling:               cf.Sampling,
 	}, nil
 }
 
