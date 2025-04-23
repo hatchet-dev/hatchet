@@ -26,5 +26,5 @@ export default {
   benchmarking: "Benchmarking",
   "data-retention": "Data Retention",
   "improving-performance": "Improving Performance",
-  sampling: "Sampling",
+  sampling: "Trace Sampling",
 };
