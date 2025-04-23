@@ -17,11 +17,10 @@ import {
   AlertDescription,
 } from '@/next/components/ui/alert';
 import { Lock, Plus } from 'lucide-react';
-import { PaginationProvider } from '@/next/components/ui/pagination';
-import { FilterProvider } from '@/next/hooks/use-filters';
 import { Button } from '@/next/components/ui/button';
 import { useState } from 'react';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
+import { CronsProvider } from '@/next/hooks/use-crons';
 
 export default function CronJobsPage() {
   const { canWithReason } = useCan();
@@ -66,13 +65,11 @@ export default function CronJobsPage() {
       {canManage && (
         <>
           <Separator className="my-4" />
-          <FilterProvider>
-            <PaginationProvider>
-              <CronJobsTable
-                onCreateClicked={() => setIsCreateDialogOpen(true)}
-              />
-            </PaginationProvider>
-          </FilterProvider>
+          <CronsProvider>
+            <CronJobsTable
+              onCreateClicked={() => setIsCreateDialogOpen(true)}
+            />
+          </CronsProvider>
 
           <TriggerRunModal
             show={isCreateDialogOpen}

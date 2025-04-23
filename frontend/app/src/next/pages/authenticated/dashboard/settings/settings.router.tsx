@@ -43,9 +43,9 @@ export const settingsRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.settings.resourceLimits,
+    path: ROUTES.settings.usage,
     lazy: async () =>
-      import('./resource-limits/resource-limits.page').then((res) => {
+      import('./usage/usage.page').then((res) => {
         return {
           Component: res.default,
         };

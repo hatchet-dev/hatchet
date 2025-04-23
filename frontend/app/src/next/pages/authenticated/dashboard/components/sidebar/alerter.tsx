@@ -7,7 +7,7 @@ import {
 import { Button } from '@/next/components/ui/button';
 import { Avatar, AvatarFallback } from '@/next/components/ui/avatar';
 import { Bell } from 'lucide-react';
-import useAlerter from '@/next/hooks/use-alerter';
+import useNotifications from '@/next/hooks/use-notifications';
 import { InviteCard } from '@/next/pages/authenticated/onboarding/invites/invites.page';
 import { useEffect, useState } from 'react';
 import {
@@ -19,7 +19,7 @@ import {
 import { cn } from '@/next/lib/utils';
 
 export function Alerter() {
-  const { alerts } = useAlerter();
+  const { notifications: alerts } = useNotifications();
 
   const [open, setOpen] = useState(false);
 
@@ -38,7 +38,11 @@ export function Alerter() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 p-0">
+            <Button
+              variant="ghost"
+              className="flex items-center gap-2 p-0"
+              disabled
+            >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarFallback className="rounded-lg">
                   <Bell className="h-4 w-4 text-muted-foreground" />

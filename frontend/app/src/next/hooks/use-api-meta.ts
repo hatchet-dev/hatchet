@@ -1,25 +1,66 @@
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useToast } from './utils/use-toast';
 
 export default function useApiMeta() {
   const [refetchInterval, setRefetchInterval] = useState<number | undefined>(
     undefined,
   );
+  const { toast } = useToast();
 
   const metaQuery = useQuery({
     queryKey: ['metadata:get'],
-    queryFn: async () => (await api.metadataGet()).data,
+    queryFn: async () => {
+      try {
+        return (await api.metadataGet()).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching metadata',
+
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
     staleTime: 1000 * 60 * 60, // 1 hour
     retryDelay: 150,
     retry: 2,
     refetchInterval,
   });
 
+  const integrationsQuery = useQuery({
+    queryKey: ['metadata:get:integrations'],
+    queryFn: async () => {
+      try {
+        const meta = await api.metadataListIntegrations();
+        return meta.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching integrations',
+
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+  });
+
   const { data: version } = useQuery({
     queryKey: ['info:version'],
-    queryFn: async () => (await api.infoGetVersion()).data,
+    queryFn: async () => {
+      try {
+        return (await api.infoGetVersion()).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching version info',
+
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
     retryDelay: 150,
     retry: 2,
     refetchInterval,
@@ -32,7 +73,11 @@ export default function useApiMeta() {
         const meta = (await cloudApi.metadataGet()).data;
         return meta;
       } catch (e) {
-        console.error('Failed to get cloud metadata', e);
+        toast({
+          title: 'Error fetching cloud metadata',
+
+          variant: 'destructive',
+        });
         return;
       }
     },
@@ -46,12 +91,16 @@ export default function useApiMeta() {
     setRefetchInterval(metaQuery.isError ? 15000 : undefined);
   }, [metaQuery.isError]);
 
+  const isCloud = useMemo(() => !(cloudMeta as any)?.errors, [cloudMeta]);
+
   return {
     oss: metaQuery.data,
+    integrations: integrationsQuery.data,
     cloud: cloudMeta,
     isLoading: metaQuery.isLoading,
     hasFailed: metaQuery.isError && metaQuery.error,
     refetchInterval,
     version: version?.version,
+    isCloud,
   };
 }

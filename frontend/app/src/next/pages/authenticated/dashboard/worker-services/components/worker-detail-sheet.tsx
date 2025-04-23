@@ -2,6 +2,7 @@ import { InfoSheet } from '@/next/components/ui/info-sheet';
 import { WorkerId } from './worker-id';
 import { CpuIcon } from 'lucide-react';
 import { WorkerDetails } from './worker-details';
+import { useWorkerDetail } from '@/next/hooks/use-worker-detail';
 
 interface WorkerDetailSheetProps {
   isOpen: boolean;
@@ -14,7 +15,10 @@ export function WorkerDetailSheet({
   isOpen,
   onClose,
   workerId,
+  serviceName,
 }: WorkerDetailSheetProps) {
+  const { data: worker } = useWorkerDetail();
+
   return (
     <InfoSheet
       isOpen={isOpen}
@@ -22,7 +26,7 @@ export function WorkerDetailSheet({
       title={
         <div className="flex items-center gap-2">
           <CpuIcon className="h-4 w-4" />
-          <WorkerId workerId={workerId} />
+          <WorkerId worker={worker} serviceName={serviceName} />
         </div>
       }
     >

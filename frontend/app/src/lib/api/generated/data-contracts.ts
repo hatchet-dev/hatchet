@@ -106,7 +106,7 @@ export interface V1TaskSummary {
    * The external ID of the workflow run
    * @format uuid
    */
-  workflowRunExternalId?: string;
+  workflowRunExternalId: string;
   /**
    * The version ID of the workflow
    * @format uuid

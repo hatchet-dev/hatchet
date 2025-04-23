@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { AlertCircle } from 'lucide-react';
 import {
   Alert,
@@ -7,8 +7,7 @@ import {
   AlertTitle,
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
@@ -35,28 +34,36 @@ import {
   TabsContent,
 } from '@/components/v1/ui/tabs';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
-import { FilterProvider } from '@/next/hooks/use-filters';
+import { FilterProvider } from '@/next/hooks/utils/use-filters';
 import { RunDetailSheet } from './run-detail-sheet';
 import { Separator } from '@/next/components/ui/separator';
 import { Waterfall } from '@/next/components/waterfall/waterfall';
 import RelativeDate from '@/next/components/ui/relative-date';
+import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
     workflowRunId: string;
     taskId: string;
   }>();
+  return (
+    <RunDetailProvider runId={workflowRunId || ''}>
+      <RunDetailPageContent workflowRunId={workflowRunId} taskId={taskId} />
+    </RunDetailProvider>
+  );
+}
+
+type RunDetailPageProps = {
+  workflowRunId?: string;
+  taskId?: string;
+};
+
+function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
-  const { data, isLoading, error, cancel, replay } = useRunDetail(
-    workflowRunId || '',
-  );
-  const { data: parentData } = useRunDetail(
-    data?.run?.parentTaskExternalId || '',
-  );
-  const [showTriggerModal, setShowTriggerModal] = useState(false);
+  const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
 
-  const { setBreadcrumbs } = useBreadcrumbs();
+  const [showTriggerModal, setShowTriggerModal] = useState(false);
 
   const workflow = useMemo(() => data?.run, [data]);
   const tasks = useMemo(() => data?.tasks, [data]);
@@ -79,9 +86,9 @@ export default function RunDetailPage() {
     navigate(ROUTES.runs.detail(workflowRunId!));
   }, [navigate, workflowRunId]);
 
-  useEffect(() => {
+  useBreadcrumbs(() => {
     if (!workflow) {
-      return;
+      return [];
     }
 
     const breadcrumbs = [];
@@ -111,21 +118,8 @@ export default function RunDetailPage() {
       alwaysShowIcon: true,
     });
 
-    setBreadcrumbs(breadcrumbs);
-
-    // Clear breadcrumbs when this component unmounts
-    return () => {
-      setBreadcrumbs([]);
-    };
-  }, [
-    data?.tasks,
-    parentData,
-    workflow,
-    workflowRunId,
-    setBreadcrumbs,
-    data?.run,
-    selectedTask,
-  ]);
+    return breadcrumbs;
+  }, [workflow, parentData, selectedTask]);
 
   const canCancel = useMemo(() => {
     return (
@@ -301,8 +295,8 @@ export default function RunDetailPage() {
         <RunDetailSheet
           isOpen={!!taskId}
           onClose={handleCloseSheet}
-          workflow={workflow}
-          selectedTask={selectedTask}
+          workflowRunId={workflowRunId || ''}
+          taskId={taskId || ''}
         />
       }
     >

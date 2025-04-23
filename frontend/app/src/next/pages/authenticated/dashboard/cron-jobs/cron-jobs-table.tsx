@@ -23,19 +23,17 @@ import {
   RefreshCw,
   Plus,
 } from 'lucide-react';
-import useCrons, { CronsFilters } from '@/next/hooks/use-crons';
+import { CronsFilters, useCrons } from '@/next/hooks/use-crons';
 import {
   PageSelector,
   PageSizeSelector,
   Pagination,
-  usePagination,
 } from '@/next/components/ui/pagination';
 import { Time } from '@/next/components/ui/time';
 import { DestructiveDialog } from '@/next/components/ui/dialog/destructive-dialog';
 import { useMemo, useState } from 'react';
 import { CronWorkflows } from '@/lib/api';
 import cronstrue from 'cronstrue';
-import { useFilters } from '@/next/hooks/use-filters';
 import {
   FilterGroup,
   FilterKeyValue,
@@ -50,19 +48,15 @@ export default function CronJobsTable({
 }: {
   onCreateClicked: () => void;
 }) {
-  const paginationManager = usePagination();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCron, setSelectedCron] = useState<CronWorkflows>();
-  const { filters, setFilter } = useFilters<CronsFilters>();
 
   const {
     data: crons = [],
     isLoading,
     delete: deleteCron,
-  } = useCrons({
-    paginationManager,
-    filters,
-  });
+    filters: { filters, setFilter },
+  } = useCrons();
 
   const handleDeleteCron = async (cronId: string) => {
     try {

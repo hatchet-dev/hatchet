@@ -22,7 +22,7 @@ interface DestructiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   confirmationText: string;
   confirmButtonText: string;
   cancelButtonText?: string;
@@ -32,8 +32,9 @@ interface DestructiveDialogProps {
   onCancel?: () => void;
   children?: React.ReactNode;
   alertTitle?: string;
-  alertDescription?: string;
+  alertDescription?: React.ReactNode;
   hideAlert?: boolean;
+  submitVariant?: 'default' | 'destructive';
 }
 
 export function DestructiveDialog({
@@ -52,6 +53,7 @@ export function DestructiveDialog({
   alertTitle = 'Destructive Action',
   alertDescription = 'This action cannot be undone. Please review carefully before proceeding.',
   hideAlert = false,
+  submitVariant = 'destructive',
 }: DestructiveDialogProps) {
   const [inputValue, setInputValue] = useState('');
   const isConfirmationValid = inputValue === confirmationText;
@@ -115,7 +117,7 @@ export function DestructiveDialog({
             {cancelButtonText}
           </Button>
           <Button
-            variant="destructive"
+            variant={submitVariant}
             onClick={onConfirm}
             disabled={
               (requireTextConfirmation && !isConfirmationValid) || isLoading

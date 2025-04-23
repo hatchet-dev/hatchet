@@ -447,7 +447,8 @@ WITH input AS (
         t.input,
         t.additional_metadata,
         t.readable_status,
-        t.parent_task_external_id
+        t.parent_task_external_id,
+        t.workflow_run_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -561,6 +562,7 @@ SELECT
     t.parent_task_external_id,
     t.input,
     t.readable_status::v1_readable_status_olap as status,
+    t.workflow_run_id,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,

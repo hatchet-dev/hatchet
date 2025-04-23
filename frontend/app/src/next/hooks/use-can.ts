@@ -20,7 +20,7 @@ interface CanHook {
 export default function useCan(): CanHook {
   const { data: user } = useUser();
   const { tenant, membership } = useTenant();
-  const { data: billing } = useBilling();
+  const { billing: billing } = useBilling();
   const meta = useApiMeta();
 
   const canWithReason = useCallback(
@@ -30,10 +30,10 @@ export default function useCan(): CanHook {
         membership,
         tenant,
         billing,
-        meta: meta.cloud,
+        meta,
       });
     },
-    [user, membership, tenant, billing, meta.cloud],
+    [user, membership, tenant, billing, meta],
   );
 
   const can = useCallback(

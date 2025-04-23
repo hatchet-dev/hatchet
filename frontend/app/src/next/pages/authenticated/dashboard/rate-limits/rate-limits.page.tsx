@@ -1,7 +1,5 @@
 import { Badge } from '@/next/components/ui/badge';
 import { DataTable } from '@/next/components/runs/runs-table/data-table';
-
-import { FilterProvider } from '@/next/hooks/use-filters';
 import {
   Headline,
   HeadlineActionItem,
@@ -10,18 +8,16 @@ import {
 } from '@/next/components/ui/page-header';
 import { Separator } from '@/next/components/ui/separator';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import useRateLimits from '@/next/hooks/use-ratelimits';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
-import { PaginationProvider, usePagination } from '@/next/hooks/use-pagination';
 import { ColumnDef } from '@tanstack/react-table';
 import {
   Pagination,
   PageSelector,
   PageSizeSelector,
 } from '@/next/components/ui/pagination';
-import { RateLimit } from '@/lib/api';
 import { Time } from '@/next/components/ui/time';
+import { RateLimitsProvider, useRateLimits } from '@/next/hooks/use-ratelimits';
 
 const getStatusBadge = (value: number, limitValue: number) => {
   if (value === 0) {
@@ -61,42 +57,16 @@ const formatWindow = (window: string) => {
   return `${value} ${unit.toLowerCase()}`;
 };
 
-export default function RateLimitsPage() {
-  return (
-    <BasicLayout>
-      <Headline>
-        <PageTitle description="Control the rate at which your tasks are executed">
-          Rate Limits
-        </PageTitle>
-        <HeadlineActions>
-          <HeadlineActionItem>
-            <DocsButton doc={docs.home['rate-limits']} size="icon" />
-          </HeadlineActionItem>
-        </HeadlineActions>
-      </Headline>
-
-      <Separator className="my-4" />
-
-      <div className="space-y-4">
-        <FilterProvider>
-          <PaginationProvider>
-            <RateLimitsTable />
-          </PaginationProvider>
-        </FilterProvider>
-      </div>
-    </BasicLayout>
-  );
-}
-
 function RateLimitsTable() {
-  const pagination = usePagination();
-  const { data, isLoading } = useRateLimits({
-    paginationManager: pagination,
-  });
+  const { data, isLoading } = useRateLimits();
 
-  const rateLimits = data || [];
+  const rateLimits = (data || []).map((r) => ({
+    ...r,
+    metadata: { id: r.key },
+  }));
 
-  const columns: ColumnDef<RateLimit>[] = [
+  // TODO: Fix this type
+  const columns: ColumnDef<(typeof rateLimits)[number], unknown>[] = [
     {
       accessorKey: 'status',
       header: 'Status',
@@ -154,5 +124,30 @@ function RateLimitsTable() {
         <PageSelector variant="dropdown" />
       </Pagination>
     </>
+  );
+}
+
+export default function RateLimitsPage() {
+  return (
+    <BasicLayout>
+      <Headline>
+        <PageTitle description="Control the rate at which your tasks are executed">
+          Rate Limits
+        </PageTitle>
+        <HeadlineActions>
+          <HeadlineActionItem>
+            <DocsButton doc={docs.home['rate-limits']} size="icon" />
+          </HeadlineActionItem>
+        </HeadlineActions>
+      </Headline>
+
+      <Separator className="my-4" />
+
+      <div className="space-y-4">
+        <RateLimitsProvider>
+          <RateLimitsTable />
+        </RateLimitsProvider>
+      </div>
+    </BasicLayout>
   );
 }

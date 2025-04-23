@@ -41,7 +41,7 @@ import {
   FilterText,
   FilterSelect,
 } from '@/next/components/ui/filters/filters';
-import { useFilters } from '@/next/hooks/use-filters';
+import { useFilters } from '@/next/hooks/utils/use-filters';
 import { ROUTES } from '@/next/lib/routes';
 
 interface RunEventLogProps {
@@ -228,9 +228,15 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
       : config.message;
 
   if (event.eventType === V1TaskEventType.FAILED) {
-    const error = event.errorMessage
-      ? JSON.parse(event.errorMessage)
-      : { message: 'Unknown error' };
+    let error = { message: 'Unknown error' };
+    try {
+      error = event.errorMessage
+        ? JSON.parse(event.errorMessage)
+        : { message: 'Unknown error' };
+    } catch {
+      error = { message: 'Unknown error' };
+    }
+
     return (
       <div className="flex justify-between items-center gap-2">
         <span className="text-xs text-destructive">{error.message}</span>
@@ -292,8 +298,8 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
   );
 };
 
-export function RunEventLog({ workflow, onTaskSelect }: RunEventLogProps) {
-  const { data, activity } = useRunDetail(workflow.metadata.id || '');
+export function RunEventLog({ onTaskSelect }: RunEventLogProps) {
+  const { data, activity } = useRunDetail();
   const { filters } = useFilters<ActivityFilters>();
 
   const tasks = useMemo(() => {

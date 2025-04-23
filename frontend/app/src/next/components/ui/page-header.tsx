@@ -27,7 +27,9 @@ const PageTitle = React.forwardRef<HTMLDivElement, PageTitleProps>(
   ({ className, children, description, ...props }, ref) => {
     return (
       <div ref={ref} {...props}>
-        <h1 className="text-2xl font-bold">{children}</h1>
+        <h1 className="text-2xl font-bold flex flex-row items-center gap-2">
+          {children}
+        </h1>
         {description && (
           <p className="text-muted-foreground mt-2">{description}</p>
         )}

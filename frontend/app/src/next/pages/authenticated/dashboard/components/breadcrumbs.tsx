@@ -21,7 +21,10 @@ import {
 } from '@/next/components/ui/dropdown-menu';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
-import { BreadcrumbData, useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
+import {
+  BreadcrumbData,
+  useBreadcrumbsGetter,
+} from '@/next/hooks/use-breadcrumbs';
 import { BASE_PATH } from '@/next/lib/routes';
 
 // Use the existing NavItem type from main-nav
@@ -48,10 +51,10 @@ export function BreadcrumbNav() {
   const isMobile = useIsMobile();
   const navStructure = getMainNavLinks(location.pathname);
 
-  const { breadcrumbs } = useBreadcrumbs();
-
   // Flattened navigation map for easy lookup
   const navMap = useMemo(() => new Map<string, NavItem>(), []);
+
+  const { breadcrumbs } = useBreadcrumbsGetter();
 
   // Map to track siblings at each level of the hierarchy
   const siblingsByPath = useMemo(() => new Map<string, NavItem[]>(), []);
@@ -184,7 +187,7 @@ export function BreadcrumbNav() {
             className={`flex-shrink overflow-hidden ${item.isLast ? 'flex-1' : 'max-w-fit'}`}
           >
             {item.isLast ? (
-              item.siblings ? (
+              item.siblings && isMobile ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger className="flex items-center gap-2 font-normal text-foreground whitespace-nowrap overflow-hidden text-ellipsis">
                     {(item.isFirst || item.alwaysShowIcon) && item.icon && (
@@ -239,27 +242,33 @@ export function BreadcrumbNav() {
                   )}
                 </BreadcrumbLink>
                 <div className="relative w-4 h-4 mx-2 flex items-center justify-center">
-                  <ChevronRight className="absolute h-4 w-4 group-hover:opacity-0 transition-opacity" />
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="absolute inset-0 flex items-center justify-center">
-                      <ChevronDown className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      {item.siblings.map((sibling, index) => (
-                        <DropdownMenuItem key={sibling.url + index} asChild>
-                          <BreadcrumbLink
-                            to={addBasePath(sibling.url)}
-                            className="flex items-center gap-2"
-                          >
-                            {sibling.icon && (
-                              <sibling.icon className="h-4 w-4 flex-shrink-0" />
-                            )}
-                            {sibling.title}
-                          </BreadcrumbLink>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {!isMobile ? (
+                    <ChevronRight className="absolute h-4 w-4" />
+                  ) : (
+                    <>
+                      <ChevronRight className="absolute h-4 w-4 group-hover:opacity-0 transition-opacity" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="absolute inset-0 flex items-center justify-center">
+                          <ChevronDown className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {item.siblings.map((sibling, index) => (
+                            <DropdownMenuItem key={sibling.url + index} asChild>
+                              <BreadcrumbLink
+                                to={addBasePath(sibling.url)}
+                                className="flex items-center gap-2"
+                              >
+                                {sibling.icon && (
+                                  <sibling.icon className="h-4 w-4 flex-shrink-0" />
+                                )}
+                                {sibling.title}
+                              </BreadcrumbLink>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
+                  )}
                 </div>
               </div>
             ) : (

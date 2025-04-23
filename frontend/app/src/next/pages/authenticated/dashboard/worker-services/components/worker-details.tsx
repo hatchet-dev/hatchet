@@ -19,7 +19,10 @@ import {
 } from 'lucide-react';
 import { WorkerStatusBadge } from './worker-status-badge';
 import { Time } from '@/next/components/ui/time';
-import useWorkers from '@/next/hooks/use-workers';
+import {
+  WorkerDetailProvider,
+  useWorkerDetail,
+} from '@/next/hooks/use-worker-detail';
 
 // Extending Worker type with additional properties that may exist
 interface IWorkerDetails {
@@ -38,20 +41,31 @@ interface WorkerDetailsProps {
 }
 
 export function WorkerDetails({
-  worker: providedWorker,
+  worker,
   workerId,
   showActions = true,
 }: WorkerDetailsProps) {
-  const { data: workers = [], update } = useWorkers({
-    initialPagination: { currentPage: 1, pageSize: 100 },
-    refetchInterval: 5000,
-  });
+  return (
+    <WorkerDetailProvider workerId={workerId}>
+      <WorkerDetailsContent
+        worker={worker}
+        workerId={workerId}
+        showActions={showActions}
+      />
+    </WorkerDetailProvider>
+  );
+}
 
-  // Find the worker if only ID is provided
-  const worker =
-    providedWorker || workers.find((w) => w.metadata.id === workerId);
+function WorkerDetailsContent({
+  worker: providedWorker,
+  showActions = true,
+}: WorkerDetailsProps) {
+  const { data: workerDetail, update } = useWorkerDetail();
 
-  if (!worker) {
+  // Use provided worker if available, otherwise use the one from the hook
+  const currentWorker = providedWorker || workerDetail;
+
+  if (!currentWorker) {
     return (
       <div className="text-center text-muted-foreground py-8">
         Worker not found
@@ -60,17 +74,18 @@ export function WorkerDetails({
   }
 
   // Cast worker to include additional properties
-  const workerDetails = worker as unknown as typeof worker & IWorkerDetails;
+  const workerDetails = currentWorker as unknown as typeof currentWorker &
+    IWorkerDetails;
 
   // Status management
   const handlePauseWorker = async () => {
-    if (!worker) {
+    if (!currentWorker) {
       return;
     }
 
     try {
       await update.mutateAsync({
-        workerId: worker.metadata.id,
+        workerId: currentWorker.metadata.id,
         data: { isPaused: true },
       });
     } catch (error) {
@@ -79,13 +94,13 @@ export function WorkerDetails({
   };
 
   const handleResumeWorker = async () => {
-    if (!worker) {
+    if (!currentWorker) {
       return;
     }
 
     try {
       await update.mutateAsync({
-        workerId: worker.metadata.id,
+        workerId: currentWorker.metadata.id,
         data: { isPaused: false },
       });
     } catch (error) {
@@ -95,11 +110,11 @@ export function WorkerDetails({
 
   // Calculate time since last heartbeat
   const getTimeSinceLastHeartbeat = () => {
-    if (!worker?.lastHeartbeatAt) {
+    if (!currentWorker?.lastHeartbeatAt) {
       return 'Never connected';
     }
 
-    const lastHeartbeat = new Date(worker.lastHeartbeatAt);
+    const lastHeartbeat = new Date(currentWorker.lastHeartbeatAt);
     const now = new Date();
     const diffMs = now.getTime() - lastHeartbeat.getTime();
 
@@ -130,20 +145,20 @@ export function WorkerDetails({
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle className="flex items-center">
-                  {worker.name}
+                  {currentWorker.name}
                 </CardTitle>
                 <CardDescription>
-                  Worker ID: {worker.metadata.id}
+                  Worker ID: {currentWorker.metadata.id}
                 </CardDescription>
               </div>
               {showActions && (
                 <div className="flex gap-2">
                   <div className="flex items-center gap-2">
                     <WorkerStatusBadge
-                      status={worker.status}
+                      status={currentWorker.status}
                       variant="outline"
                     />
-                    {worker.status === 'ACTIVE' && (
+                    {currentWorker.status === 'ACTIVE' && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -154,7 +169,7 @@ export function WorkerDetails({
                         <span className="sr-only">Pause</span>
                       </Button>
                     )}
-                    {worker.status === 'PAUSED' && (
+                    {currentWorker.status === 'PAUSED' && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -179,7 +194,9 @@ export function WorkerDetails({
                     <Server className="h-5 w-5 mr-2 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Type</p>
-                      <p className="font-medium">{worker.type || 'Standard'}</p>
+                      <p className="font-medium">
+                        {currentWorker.type || 'Standard'}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center">
@@ -190,7 +207,7 @@ export function WorkerDetails({
                       </p>
                       <p className="font-medium">
                         <Time
-                          date={worker.lastHeartbeatAt}
+                          date={currentWorker.lastHeartbeatAt}
                           variant="timeSince"
                         />
                       </p>
@@ -204,7 +221,7 @@ export function WorkerDetails({
                       </p>
                       <p className="font-medium">
                         <Time
-                          date={worker.metadata.createdAt}
+                          date={currentWorker.metadata.createdAt}
                           variant="timeSince"
                         />
                       </p>
@@ -214,7 +231,7 @@ export function WorkerDetails({
                     <Activity className="h-5 w-5 mr-2 text-muted-foreground" />
                     <div>
                       <p className="text-sm text-muted-foreground">Status</p>
-                      <p className="font-medium">{worker.status}</p>
+                      <p className="font-medium">{currentWorker.status}</p>
                     </div>
                   </div>
                 </div>
@@ -300,7 +317,7 @@ export function WorkerDetails({
                     <span className="text-sm">Created</span>
                     <span className="text-sm">
                       <Time
-                        date={worker.metadata.createdAt}
+                        date={currentWorker.metadata.createdAt}
                         variant="timeSince"
                       />
                     </span>
@@ -309,7 +326,7 @@ export function WorkerDetails({
                     <span className="text-sm">Last Updated</span>
                     <span className="text-sm">
                       <Time
-                        date={worker.metadata.updatedAt}
+                        date={currentWorker.metadata.updatedAt}
                         variant="timeSince"
                       />
                     </span>

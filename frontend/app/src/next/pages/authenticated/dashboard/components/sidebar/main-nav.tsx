@@ -134,10 +134,10 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
                 isActive: isActive(ROUTES.settings.github),
               },
               {
-                title: 'Resource Limits',
-                url: ROUTES.settings.resourceLimits,
+                title: 'Billing & Usage',
+                url: ROUTES.settings.usage,
                 icon: Scale,
-                isActive: isActive(ROUTES.settings.resourceLimits),
+                isActive: isActive(ROUTES.settings.usage),
               },
               {
                 title: 'Alerting',

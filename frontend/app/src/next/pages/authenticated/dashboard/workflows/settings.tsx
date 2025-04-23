@@ -4,12 +4,8 @@ import { WorkflowVersion } from '@/lib/api';
 import { useWorkflowDetails } from '@/next/hooks/use-workflow-details';
 import CronPrettifier from 'cronstrue';
 
-export default function WorkflowGeneralSettings({
-  workflowId,
-}: {
-  workflowId: string;
-}) {
-  const { workflowVersion } = useWorkflowDetails({ workflowId });
+export default function WorkflowGeneralSettings() {
+  const { workflowVersion } = useWorkflowDetails();
 
   return (
     <>

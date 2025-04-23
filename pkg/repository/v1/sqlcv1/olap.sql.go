@@ -1206,7 +1206,8 @@ WITH input AS (
         t.input,
         t.additional_metadata,
         t.readable_status,
-        t.parent_task_external_id
+        t.parent_task_external_id,
+        t.workflow_run_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -1320,6 +1321,7 @@ SELECT
     t.parent_task_external_id,
     t.input,
     t.readable_status::v1_readable_status_olap as status,
+    t.workflow_run_id,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
@@ -1364,6 +1366,7 @@ type PopulateTaskRunDataRow struct {
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 	Input                []byte               `json:"input"`
 	Status               V1ReadableStatusOlap `json:"status"`
+	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt            pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt             pgtype.Timestamptz   `json:"queued_at"`
@@ -1398,6 +1401,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.ParentTaskExternalID,
 			&i.Input,
 			&i.Status,
+			&i.WorkflowRunID,
 			&i.FinishedAt,
 			&i.StartedAt,
 			&i.QueuedAt,

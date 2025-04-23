@@ -1,39 +1,78 @@
 import { useRuns, RunsFilters } from '@/next/hooks/use-runs';
-
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { DataTable } from './data-table';
 import { columns } from './columns';
 import {
   Pagination,
   PageSizeSelector,
   PageSelector,
-  usePagination,
 } from '@/next/components/ui/pagination';
-import { useFilters } from '@/next/hooks/use-filters';
 import {
   FilterGroup,
   FilterSelect,
   FilterTaskSelect,
   FilterKeyValue,
+  ClearFiltersButton,
 } from '@/next/components/ui/filters/filters';
-import { V1TaskStatus } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/docs-meta-data';
-import { RunsMetricsView } from '../runs-metrics/runs-metrics';
-import { useMemo } from 'react';
+import { RowSelectionState, OnChangeFn } from '@tanstack/react-table';
+import { MdOutlineReplay, MdOutlineCancel } from 'react-icons/md';
+import { Button } from '@/next/components/ui/button';
+import { RunsBulkActionDialog } from './bulk-action-dialog';
 
-export function RunsTable() {
-  const { filters } = useFilters<RunsFilters>();
-  const pagination = usePagination();
+interface RunsTableProps {
+  onRowClick?: (row: V1TaskSummary) => void;
+  selectedTaskId?: string;
+  onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
+}
 
+export function RunsTable({
+  onRowClick,
+  selectedTaskId,
+  onSelectionChange,
+}: RunsTableProps) {
   const {
     data: runs,
-    metrics,
+    count,
+    timeRange: { pause, isPaused },
     isLoading,
-  } = useRuns({
-    pagination,
-    filters,
-    refetchInterval: 3000,
-  });
+    filters: { filters },
+    cancel,
+    replay,
+  } = useRuns();
+
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkActionDialog, setShowBulkActionDialog] = useState<
+    'replay' | 'cancel' | null
+  >(null);
+
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [selectedTasks, setSelectedTasks] = useState<
+    Map<string, V1TaskSummary>
+  >(new Map());
+
+  useEffect(() => {
+    if (Object.keys(rowSelection).length > 0 && !isPaused) {
+      pause();
+    }
+  }, [pause, rowSelection, isPaused]);
+
+  const selectedRuns = useMemo(() => {
+    return Array.from(selectedTasks.values());
+  }, [selectedTasks]);
+
+  const canCancel = useMemo(() => {
+    return selectedRuns.some(
+      (t) =>
+        t.status === V1TaskStatus.RUNNING || t.status === V1TaskStatus.QUEUED,
+    );
+  }, [selectedRuns]);
+
+  const canReplay = useMemo(() => {
+    return selectedRuns.length > 0;
+  }, [selectedRuns]);
 
   const additionalMetaOpts = useMemo(() => {
     if (!runs || runs.length === 0) {
@@ -53,9 +92,45 @@ export function RunsTable() {
     }));
   }, [runs]);
 
+  const numSelectedRows = useMemo(() => {
+    return Object.keys(rowSelection).length;
+  }, [rowSelection]);
+
+  const handleSelectionChange: OnChangeFn<RowSelectionState> = (
+    updaterOrValue,
+  ) => {
+    const newSelection =
+      typeof updaterOrValue === 'function'
+        ? updaterOrValue(rowSelection)
+        : updaterOrValue;
+
+    setRowSelection(newSelection);
+
+    // Update the selected tasks map
+    const newSelectedTasks = new Map();
+    if (runs) {
+      Object.keys(newSelection).forEach((taskId) => {
+        const task = runs.find((run) => run.taskExternalId === taskId);
+        if (task) {
+          newSelectedTasks.set(taskId, task);
+        }
+      });
+    }
+    setSelectedTasks(newSelectedTasks);
+  };
+
+  const clearSelection = useCallback(() => {
+    setSelectAll(false);
+    setRowSelection({});
+    setSelectedTasks(new Map());
+  }, [setSelectAll, setRowSelection, setSelectedTasks]);
+
+  useEffect(() => {
+    clearSelection();
+  }, [filters, clearSelection]);
+
   return (
-    <div className="flex flex-col gap-4 mt-4">
-      <RunsMetricsView metrics={metrics} />
+    <>
       <FilterGroup>
         <FilterSelect<RunsFilters, V1TaskStatus[]>
           name="statuses"
@@ -71,7 +146,7 @@ export function RunsTable() {
           ]}
         />
         <FilterTaskSelect<RunsFilters>
-          name="workflows_ids"
+          name="workflow_ids"
           placeholder="Name"
           multi
         />
@@ -94,9 +169,106 @@ export function RunsTable() {
           placeholder="Metadata"
           options={additionalMetaOpts}
         />
+        <ClearFiltersButton />
       </FilterGroup>
+      <div className="flex items-center justify-between">
+        <div className="flex-1 text-sm text-muted-foreground">
+          {numSelectedRows > 0 || selectAll ? (
+            <>
+              <span className="text-muted-foreground">
+                {selectAll
+                  ? count.toLocaleString()
+                  : numSelectedRows.toLocaleString()}{' '}
+                of {count.toLocaleString()} runs selected
+              </span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">
+              {count.toLocaleString()} runs
+            </span>
+          )}
+
+          {count > 0 && !selectAll && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2 h-6 px-2"
+              onClick={() => setSelectAll(true)}
+            >
+              Select All
+            </Button>
+          )}
+          {(numSelectedRows > 0 || selectAll) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2 h-6 px-2"
+              onClick={clearSelection}
+            >
+              Clear Selection
+            </Button>
+          )}
+        </div>
+        {!selectAll ? (
+          <div className="flex gap-2">
+            <Button
+              tooltip={
+                numSelectedRows == 0
+                  ? 'No runs selected'
+                  : canReplay
+                    ? 'Replay the selected runs'
+                    : 'Cannot replay the selected runs'
+              }
+              variant="outline"
+              size="sm"
+              disabled={!canReplay || replay.isPending}
+              onClick={async () => replay.mutateAsync({ tasks: selectedRuns })}
+            >
+              <MdOutlineReplay className="h-4 w-4" />
+              Replay
+            </Button>
+            <Button
+              tooltip={
+                numSelectedRows == 0
+                  ? 'No runs selected'
+                  : canCancel
+                    ? 'Cancel the selected runs'
+                    : 'Cannot cancel the selected runs because they are not running or queued'
+              }
+              variant="outline"
+              size="sm"
+              disabled={!canCancel || cancel.isPending}
+              onClick={async () => cancel.mutateAsync({ tasks: selectedRuns })}
+            >
+              <MdOutlineCancel className="h-4 w-4" />
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={replay.isPending}
+              onClick={() => setShowBulkActionDialog('replay')}
+            >
+              <MdOutlineReplay className="h-4 w-4" />
+              Replay All
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={cancel.isPending}
+              onClick={() => setShowBulkActionDialog('cancel')}
+            >
+              <MdOutlineCancel className="h-4 w-4" />
+              Cancel All
+            </Button>
+          </div>
+        )}
+      </div>
       <DataTable
-        columns={columns}
+        columns={columns(onRowClick, selectAll)}
         data={runs || []}
         emptyState={
           <div className="flex flex-col items-center justify-center gap-4 py-8">
@@ -111,11 +283,39 @@ export function RunsTable() {
           </div>
         }
         isLoading={isLoading}
+        selectedTaskId={selectedTaskId}
+        onRowClick={onRowClick}
+        onSelectionChange={onSelectionChange}
+        rowSelection={rowSelection}
+        setRowSelection={handleSelectionChange}
+        selectAll={selectAll}
+        getSubRows={(row) => row.children || []}
       />
-      <Pagination className="p-2 justify-between flex flex-row">
+      <Pagination className="mt-4 justify-between flex flex-row">
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>
-    </div>
+
+      <RunsBulkActionDialog
+        open={!!showBulkActionDialog}
+        onOpenChange={(open) =>
+          setShowBulkActionDialog(open ? showBulkActionDialog : null)
+        }
+        action={showBulkActionDialog || 'replay'}
+        isLoading={
+          showBulkActionDialog === 'replay'
+            ? replay.isPending
+            : cancel.isPending
+        }
+        onConfirm={async () => {
+          if (showBulkActionDialog === 'replay') {
+            await replay.mutateAsync({ bulk: true });
+          } else {
+            await cancel.mutateAsync({ bulk: true });
+          }
+          setShowBulkActionDialog(null);
+        }}
+      />
+    </>
   );
 }

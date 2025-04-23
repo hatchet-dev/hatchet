@@ -17,26 +17,32 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/next/components/ui/tabs';
-import { useWorkflowDetails } from '@/next/hooks/use-workflow-details';
+import {
+  useWorkflowDetails,
+  WorkflowDetailsProvider,
+} from '@/next/hooks/use-workflow-details';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import WorkflowGeneralSettings from './settings';
-import { FilterProvider, useFilters } from '@/next/hooks/use-filters';
-import { PaginationProvider } from '@/next/hooks/use-pagination';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
-import { V1TaskStatus } from '@/next/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 
-export default function WorkflowDetails() {
-  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-
+export default function WorkflowDetailPage() {
   const { workflowId: workflowIdRaw } = useParams<{
     workflowId: string;
   }>();
+  return (
+    <WorkflowDetailsProvider workflowId={workflowIdRaw || ''}>
+      <WorkflowDetailPageContent workflowId={workflowIdRaw || ''} />
+    </WorkflowDetailsProvider>
+  );
+}
 
-  const workflowId = workflowIdRaw || '';
+function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
+  const [triggerWorkflow, setTriggerWorkflow] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const {
     workflow,
@@ -49,7 +55,7 @@ export default function WorkflowDetails() {
     hasGithubIntegration,
     currentVersion,
     isDeleting,
-  } = useWorkflowDetails({ workflowId });
+  } = useWorkflowDetails();
 
   if (workflowIsLoading || !workflow) {
     return <Loading />;
@@ -158,23 +164,19 @@ export default function WorkflowDetails() {
               Recent Runs
             </h3>
             <Separator className="my-4" />
-            <FilterProvider>
-              <PaginationProvider initialPage={0} initialPageSize={50}>
-                <RunsProvider
-                  filters={{
-                    workflow_ids: [workflowId],
-                    statuses: [
-                      V1TaskStatus.RUNNING,
-                      V1TaskStatus.COMPLETED,
-                      V1TaskStatus.FAILED,
-                      V1TaskStatus.CANCELLED,
-                    ],
-                  }}
-                >
-                  <RunsTable />
-                </RunsProvider>
-              </PaginationProvider>
-            </FilterProvider>{' '}
+            <RunsProvider
+              initialFilters={{
+                workflow_ids: [workflowId],
+                statuses: [
+                  V1TaskStatus.RUNNING,
+                  V1TaskStatus.COMPLETED,
+                  V1TaskStatus.FAILED,
+                  V1TaskStatus.CANCELLED,
+                ],
+              }}
+            >
+              <RunsTable />
+            </RunsProvider>
           </TabsContent>
           <TabsContent value="settings">
             <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
@@ -184,7 +186,7 @@ export default function WorkflowDetails() {
             {workflowVersionIsLoading || !workflowVersion ? (
               <Loading />
             ) : (
-              <WorkflowGeneralSettings workflowId={workflowId} />
+              <WorkflowGeneralSettings />
             )}
             <Separator className="my-4" />
             {hasGithubIntegration && (
