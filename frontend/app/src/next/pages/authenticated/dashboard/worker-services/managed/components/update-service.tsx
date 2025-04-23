@@ -22,7 +22,8 @@ import {
 import { Summary } from './config/summary';
 import { Button } from '@/next/components/ui/button';
 import { Dialog, DialogContent } from '@/next/components/ui/dialog';
-
+import { RotateCcw } from 'lucide-react';
+import { Separator } from '@/next/components/ui/separator';
 export function UpdateServiceContent() {
   const navigate = useNavigate();
   const { data: service } = useManagedComputeDetail();
@@ -30,31 +31,25 @@ export function UpdateServiceContent() {
 
   const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
-  const [activeSection, setActiveSection] = useState<string>('');
 
-  const [secrets, setSecrets] = useState<UpdateManagedWorkerSecretRequest>({
-    add: [],
-    update: [],
-    delete: [],
-  });
-
-  const [githubRepo, setGithubRepo] = useState<GithubRepoSelectorValue>({
+  // Initial values from service
+  const initialGithubRepo: GithubRepoSelectorValue = {
     githubInstallationId: service?.buildConfig?.githubInstallationId || '',
     githubRepositoryOwner:
       service?.buildConfig?.githubRepository?.repo_owner || '',
     githubRepositoryName:
       service?.buildConfig?.githubRepository?.repo_name || '',
     githubRepositoryBranch: service?.buildConfig?.githubRepositoryBranch || '',
-  });
+  };
 
-  const [buildConfig, setBuildConfig] = useState<BuildConfigValue>({
+  const initialBuildConfig: BuildConfigValue = {
     buildDir: service?.buildConfig?.steps?.[0]?.buildDir || './',
     dockerfilePath:
       service?.buildConfig?.steps?.[0]?.dockerfilePath || './Dockerfile',
     serviceName: service?.name || '',
-  });
+  };
 
-  const [machineConfig, setMachineConfig] = useState<MachineConfigValue>({
+  const initialMachineConfig: MachineConfigValue = {
     cpuKind: service?.runtimeConfigs?.[0]?.cpuKind || 'shared',
     cpus: service?.runtimeConfigs?.[0]?.cpus || 1,
     memoryMb: service?.runtimeConfigs?.[0]?.memoryMb || 1024,
@@ -63,9 +58,44 @@ export function UpdateServiceContent() {
       : [ManagedWorkerRegion.Ewr],
     numReplicas: service?.runtimeConfigs?.[0]?.numReplicas,
     autoscaling: service?.runtimeConfigs?.[0]?.autoscaling,
-  });
+  };
 
+  const initialSecrets: UpdateManagedWorkerSecretRequest = {
+    add: [],
+    update: [],
+    delete: [],
+  };
+
+  const [secrets, setSecrets] =
+    useState<UpdateManagedWorkerSecretRequest>(initialSecrets);
+  const [githubRepo, setGithubRepo] =
+    useState<GithubRepoSelectorValue>(initialGithubRepo);
+  const [buildConfig, setBuildConfig] =
+    useState<BuildConfigValue>(initialBuildConfig);
+  const [machineConfig, setMachineConfig] =
+    useState<MachineConfigValue>(initialMachineConfig);
   const [isDeploying, setIsDeploying] = useState(false);
+
+  const handleRevert = (section: string) => {
+    switch (section) {
+      case 'machineConfig':
+        setMachineConfig(initialMachineConfig);
+        break;
+      case 'secrets':
+        setSecrets(initialSecrets);
+        break;
+      case 'githubRepo':
+        setGithubRepo(initialGithubRepo);
+        break;
+      case 'buildConfig':
+        setBuildConfig(initialBuildConfig);
+        break;
+    }
+    setHasChanged({
+      ...hasChanged,
+      [section]: false,
+    });
+  };
 
   const handleDeploy = async () => {
     if (!githubRepo.githubInstallationId || !githubRepo.githubRepositoryName) {
@@ -105,11 +135,20 @@ export function UpdateServiceContent() {
 
   const SectionActions = ({ section }: { section: string }) => {
     return (
-      <div className="flex justify-end gap-2 p-4 border-t">
+      <div className="flex justify-end gap-2 p-4">
+        {hasChanged[section] && (
+          <Button
+            variant="outline"
+            onClick={() => handleRevert(section)}
+            className="gap-2"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Revert
+          </Button>
+        )}
         <Button
           disabled={!hasChanged[section]}
           onClick={() => {
-            setActiveSection(section);
             setShowSummaryDialog(true);
           }}
         >
@@ -132,7 +171,9 @@ export function UpdateServiceContent() {
             });
           }}
           actions={<SectionActions section="machineConfig" />}
+          type="update"
         />
+        <Separator />
         <EnvVarsEditor
           secrets={secrets}
           setSecrets={(value) => {
@@ -147,7 +188,9 @@ export function UpdateServiceContent() {
             globalSecrets: service?.globalSecrets || [],
           }}
           actions={<SectionActions section="secrets" />}
+          type="update"
         />
+        <Separator />
         <GithubIntegrationProvider>
           <GithubRepoSelector
             value={githubRepo}
@@ -159,8 +202,10 @@ export function UpdateServiceContent() {
               setGithubRepo(value);
             }}
             actions={<SectionActions section="githubRepo" />}
+            type="update"
           />
         </GithubIntegrationProvider>
+        <Separator />
         <BuildConfig
           githubRepo={githubRepo}
           value={buildConfig}
@@ -186,33 +231,9 @@ export function UpdateServiceContent() {
             onDeploy={handleDeploy}
             isDeploying={isDeploying}
             type="update"
-            originalGithubRepo={{
-              githubInstallationId:
-                service?.buildConfig?.githubInstallationId || '',
-              githubRepositoryOwner:
-                service?.buildConfig?.githubRepository?.repo_owner || '',
-              githubRepositoryName:
-                service?.buildConfig?.githubRepository?.repo_name || '',
-              githubRepositoryBranch:
-                service?.buildConfig?.githubRepositoryBranch || '',
-            }}
-            originalBuildConfig={{
-              buildDir: service?.buildConfig?.steps?.[0]?.buildDir || './',
-              dockerfilePath:
-                service?.buildConfig?.steps?.[0]?.dockerfilePath ||
-                './Dockerfile',
-              serviceName: service?.name || '',
-            }}
-            originalMachineConfig={{
-              cpuKind: service?.runtimeConfigs?.[0]?.cpuKind || 'shared',
-              cpus: service?.runtimeConfigs?.[0]?.cpus || 1,
-              memoryMb: service?.runtimeConfigs?.[0]?.memoryMb || 1024,
-              regions: service?.runtimeConfigs?.[0]?.region
-                ? [service.runtimeConfigs[0].region]
-                : [ManagedWorkerRegion.Ewr],
-              numReplicas: service?.runtimeConfigs?.[0]?.numReplicas,
-              autoscaling: service?.runtimeConfigs?.[0]?.autoscaling,
-            }}
+            originalGithubRepo={initialGithubRepo}
+            originalBuildConfig={initialBuildConfig}
+            originalMachineConfig={initialMachineConfig}
           />
           <div className="pt-4 flex gap-2 justify-end">
             <Button

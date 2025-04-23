@@ -26,6 +26,7 @@ interface SecretsEditorProps {
     globalSecrets: ManagedWorkerSecret[];
   };
   actions?: React.ReactNode;
+  type?: 'create' | 'update';
 }
 
 export function EnvVarsEditor({
@@ -33,6 +34,7 @@ export function EnvVarsEditor({
   secrets = { add: [], update: [], delete: [] },
   setSecrets,
   actions,
+  type = 'create',
 }: SecretsEditorProps) {
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
 
@@ -190,7 +192,7 @@ export function EnvVarsEditor({
   };
 
   return (
-    <Card>
+    <Card variant={type === 'update' ? 'borderless' : 'default'}>
       <CardHeader>
         <CardTitle>Environment Variables</CardTitle>
         <CardDescription>

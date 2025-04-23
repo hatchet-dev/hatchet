@@ -67,7 +67,7 @@ export function BuildConfig({
   }, [githubRepo, onChange, value, isNamePristine, value.dockerfilePath]);
 
   return (
-    <Card>
+    <Card variant={type === 'update' ? 'borderless' : 'default'}>
       <CardHeader>
         <CardTitle>Build Configuration</CardTitle>
         <CardDescription>

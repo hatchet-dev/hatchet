@@ -34,12 +34,14 @@ interface GithubRepoSelectorProps {
   value: GithubRepoSelectorValue;
   onChange: (value: GithubRepoSelectorValue) => void;
   actions?: React.ReactNode;
+  type?: 'create' | 'update';
 }
 
 export function GithubRepoSelector({
   value,
   onChange,
   actions,
+  type = 'create',
 }: GithubRepoSelectorProps) {
   const {
     installations,
@@ -121,7 +123,7 @@ export function GithubRepoSelector({
   )?.account_name;
 
   return (
-    <Card>
+    <Card variant={type === 'update' ? 'borderless' : 'default'}>
       <CardHeader>
         <CardTitle>Worker Source</CardTitle>
         <CardDescription>

@@ -45,16 +45,18 @@ export const scalingTypes: ScalingType[] = ['Static', 'Autoscaling'];
 export interface MachineConfigValue
   extends CreateManagedWorkerRuntimeConfigRequest {}
 
-interface MachineConfigProps {
+export interface MachineConfigProps {
   config: MachineConfigValue;
   setConfig: (config: MachineConfigValue) => void;
   actions?: React.ReactNode;
+  type?: 'create' | 'update';
 }
 
 export function MachineConfig({
   config,
   setConfig,
   actions,
+  type = 'create',
 }: MachineConfigProps) {
   const selectedMachineType = DefaultMachineTypes.find(
     (type) => type.cpuKind === config.cpuKind,
@@ -118,7 +120,7 @@ export function MachineConfig({
   };
 
   return (
-    <Card>
+    <Card variant={type === 'update' ? 'borderless' : 'default'}>
       <CardHeader>
         <CardTitle>Machine Configuration</CardTitle>
         <CardDescription>
