@@ -155,6 +155,7 @@ function UpdateServiceContent() {
           onChange={(value) => {
             setBuildConfig(value);
           }}
+          type="update"
         />
       </dl>
       <div className="sticky top-4 h-fit">

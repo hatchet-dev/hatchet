@@ -174,6 +174,7 @@ function ServiceDetailPageContent() {
             onChange={(value) => {
               setBuildConfig(value);
             }}
+            type="create"
           />
           <EnvVarsEditor
             secrets={secrets}

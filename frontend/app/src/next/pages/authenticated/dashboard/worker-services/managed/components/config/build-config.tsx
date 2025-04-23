@@ -23,13 +23,23 @@ interface BuildConfigProps {
   githubRepo: GithubRepoSelectorValue;
   value: BuildConfigValue;
   onChange: (value: BuildConfigValue) => void;
+  type: 'update' | 'create';
 }
 
-export function BuildConfig({ githubRepo, value, onChange }: BuildConfigProps) {
+export function BuildConfig({
+  githubRepo,
+  value,
+  onChange,
+  type,
+}: BuildConfigProps) {
   const [isNamePristine, setIsNamePristine] = useState(true);
 
   useEffect(() => {
-    if (!isNamePristine || githubRepo.githubRepositoryName === '') {
+    if (
+      !isNamePristine ||
+      githubRepo.githubRepositoryName === '' ||
+      type === 'update'
+    ) {
       return;
     }
 
