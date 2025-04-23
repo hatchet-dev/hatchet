@@ -248,9 +248,10 @@ class AdminClient:
             self.v0_client = WorkflowServiceStub(conn)
 
         retries = 0
+        max_retries = 5
 
         while True:
-            if retries > 3:
+            if retries > max_retries:
                 raise ValueError("Max retries exceeded")
 
             try:
@@ -264,7 +265,7 @@ class AdminClient:
 
                 break
             except grpc.RpcError as e:
-                if retries > 3:
+                if retries > max_retries:
                     raise e
 
                 ## If we get an error that _isn't_ the one that indicates
