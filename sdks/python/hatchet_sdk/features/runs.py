@@ -1,9 +1,10 @@
 import asyncio
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from pydantic import BaseModel, model_validator
 
+from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
@@ -98,11 +99,13 @@ class RunsClient(BaseRestClient):
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
+        admin_client: AdminClient,
     ) -> None:
         super().__init__(config)
 
         self.workflow_run_listener = workflow_run_listener
         self.workflow_run_event_listener = workflow_run_event_listener
+        self.admin_client = admin_client
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -351,18 +354,16 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.bulk_cancel, opts)
 
-    def get_result(self, run_id: str) -> JSONSerializableMapping:
+    def get_result(self, run_id: str) -> dict[str, Any]:
         """
         Get the result of a workflow run by its external ID.
 
         :param run_id: The external ID of the workflow run to retrieve the result for.
         :return: The result of the workflow run.
         """
-        details = self.get(run_id)
+        return self.admin_client.get_workflow_run_output(run_id)
 
-        return details.run.output
-
-    async def aio_get_result(self, run_id: str) -> JSONSerializableMapping:
+    async def aio_get_result(self, run_id: str) -> dict[str, Any]:
         """
         Get the result of a workflow run by its external ID.
 
@@ -386,5 +387,5 @@ class RunsClient(BaseRestClient):
             workflow_run_id=workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
-            runs_client=self,
+            admin_client=self.admin_client,
         )
