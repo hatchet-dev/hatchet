@@ -77,7 +77,7 @@ function WorkflowsProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching workflows',
-          
+
           variant: 'destructive',
           error,
         });

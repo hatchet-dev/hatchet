@@ -59,7 +59,7 @@ function WorkerDetailProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching worker details',
-          
+
           variant: 'destructive',
           error,
         });
@@ -81,7 +81,7 @@ function WorkerDetailProviderContent({
       } catch (error) {
         toast({
           title: 'Error updating worker',
-          
+
           variant: 'destructive',
           error,
         });

@@ -123,7 +123,7 @@ function SchedulesProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching schedules',
-          
+
           variant: 'destructive',
           error,
         });
@@ -152,7 +152,7 @@ function SchedulesProviderContent({
       } catch (error) {
         toast({
           title: 'Error creating schedule',
-          
+
           variant: 'destructive',
           error,
         });
@@ -177,7 +177,7 @@ function SchedulesProviderContent({
       } catch (error) {
         toast({
           title: 'Error deleting schedule',
-          
+
           variant: 'destructive',
           error,
         });
@@ -216,7 +216,7 @@ function SchedulesProviderContent({
       } catch (error) {
         toast({
           title: 'Error updating schedule',
-          
+
           variant: 'destructive',
           error,
         });

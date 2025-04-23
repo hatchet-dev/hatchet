@@ -49,7 +49,7 @@ export default function useUser({
       } catch (error) {
         toast({
           title: 'Error fetching user data',
-          
+
           variant: 'destructive',
           error,
         });
@@ -68,7 +68,7 @@ export default function useUser({
       } catch (error) {
         toast({
           title: 'Error fetching memberships',
-          
+
           variant: 'destructive',
           error,
         });
@@ -87,7 +87,7 @@ export default function useUser({
       } catch (error) {
         toast({
           title: 'Error fetching invites',
-          
+
           variant: 'destructive',
           error,
         });
@@ -106,7 +106,7 @@ export default function useUser({
       } catch (error) {
         toast({
           title: 'Error logging out',
-          
+
           variant: 'destructive',
           error,
         });
@@ -155,7 +155,7 @@ export default function useUser({
       } catch (error) {
         toast({
           title: 'Error registering user',
-          
+
           variant: 'destructive',
           error,
         });
@@ -175,7 +175,7 @@ export default function useUser({
       } catch (error) {
         toast({
           title: 'Error accepting invite',
-          
+
           variant: 'destructive',
           error,
         });
@@ -200,7 +200,7 @@ export default function useUser({
       } catch (error) {
         toast({
           title: 'Error rejecting invite',
-          
+
           variant: 'destructive',
           error,
         });

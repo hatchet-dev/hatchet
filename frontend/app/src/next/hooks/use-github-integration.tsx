@@ -96,7 +96,7 @@ function GithubIntegrationProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching GitHub installations',
-          
+
           variant: 'destructive',
           error,
         });
@@ -125,7 +125,7 @@ function GithubIntegrationProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching GitHub repositories',
-          
+
           variant: 'destructive',
           error,
         });
@@ -166,7 +166,7 @@ function GithubIntegrationProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching GitHub branches',
-          
+
           variant: 'destructive',
           error,
         });
@@ -191,7 +191,7 @@ function GithubIntegrationProviderContent({
       } catch (error) {
         toast({
           title: 'Error linking GitHub installation',
-          
+
           variant: 'destructive',
           error,
         });
@@ -213,7 +213,7 @@ function GithubIntegrationProviderContent({
       } catch (error) {
         toast({
           title: 'Error starting GitHub OAuth',
-          
+
           variant: 'destructive',
           error,
         });

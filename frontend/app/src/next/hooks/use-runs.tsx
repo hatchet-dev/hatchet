@@ -177,7 +177,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error fetching workflow runs',
-          
+
           variant: 'destructive',
           error,
         });
@@ -234,7 +234,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error fetching workflow metrics',
-          
+
           variant: 'destructive',
           error,
         });
@@ -264,7 +264,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error fetching workflow histogram',
-          
+
           variant: 'destructive',
           error,
         });
@@ -296,7 +296,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error fetching queue metrics',
-          
+
           variant: 'destructive',
           error,
         });
@@ -318,7 +318,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error creating workflow run',
-          
+
           variant: 'destructive',
           error,
         });
@@ -356,7 +356,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error canceling workflow run',
-          
+
           variant: 'destructive',
           error,
         });
@@ -394,7 +394,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error replaying workflow run',
-          
+
           variant: 'destructive',
           error,
         });
@@ -426,7 +426,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error triggering workflow run',
-          
+
           variant: 'destructive',
           error,
         });

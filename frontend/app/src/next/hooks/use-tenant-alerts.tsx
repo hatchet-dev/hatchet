@@ -85,7 +85,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error fetching alert settings',
-          
+
           variant: 'destructive',
           error,
         });
@@ -104,7 +104,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error updating alert settings',
-          
+
           variant: 'destructive',
           error,
         });
@@ -124,7 +124,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error fetching email groups',
-          
+
           variant: 'destructive',
           error,
         });
@@ -145,7 +145,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error creating email group',
-          
+
           variant: 'destructive',
           error,
         });
@@ -165,7 +165,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error deleting email group',
-          
+
           variant: 'destructive',
           error,
         });
@@ -185,7 +185,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error fetching Slack webhooks',
-          
+
           variant: 'destructive',
           error,
         });
@@ -206,7 +206,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error deleting Slack webhook',
-          
+
           variant: 'destructive',
           error,
         });

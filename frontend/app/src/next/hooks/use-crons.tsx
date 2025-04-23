@@ -101,7 +101,7 @@ function CronsProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching crons',
-          
+
           variant: 'destructive',
           error,
         });
@@ -130,7 +130,7 @@ function CronsProviderContent({
       } catch (error) {
         toast({
           title: 'Error creating cron',
-          
+
           variant: 'destructive',
           error,
         });
@@ -155,7 +155,7 @@ function CronsProviderContent({
       } catch (error) {
         toast({
           title: 'Error deleting cron',
-          
+
           variant: 'destructive',
           error,
         });
@@ -189,7 +189,7 @@ function CronsProviderContent({
       } catch (error) {
         toast({
           title: 'Error updating cron',
-          
+
           variant: 'destructive',
           error,
         });

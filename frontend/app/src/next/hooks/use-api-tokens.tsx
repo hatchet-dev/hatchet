@@ -143,7 +143,7 @@ export default function useApiTokens({
       } catch (error) {
         toast({
           title: 'Error fetching API tokens',
-          
+
           variant: 'destructive',
           error,
         });
@@ -168,7 +168,7 @@ export default function useApiTokens({
       } catch (error) {
         toast({
           title: 'Error creating API token',
-          
+
           variant: 'destructive',
           error,
         });
@@ -189,7 +189,6 @@ export default function useApiTokens({
       } catch (error) {
         toast({
           title: 'Error revoking API token',
-          
           variant: 'destructive',
           error,
         });

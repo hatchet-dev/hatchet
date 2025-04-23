@@ -18,7 +18,7 @@ export default function useApiMeta() {
       } catch (error) {
         toast({
           title: 'Error fetching metadata',
-          
+
           variant: 'destructive',
         });
         throw error;
@@ -39,7 +39,7 @@ export default function useApiMeta() {
       } catch (error) {
         toast({
           title: 'Error fetching integrations',
-          
+
           variant: 'destructive',
         });
         throw error;
@@ -55,7 +55,7 @@ export default function useApiMeta() {
       } catch (error) {
         toast({
           title: 'Error fetching version info',
-          
+
           variant: 'destructive',
         });
         throw error;
@@ -75,7 +75,7 @@ export default function useApiMeta() {
       } catch (e) {
         toast({
           title: 'Error fetching cloud metadata',
-          
+
           variant: 'destructive',
         });
         return;

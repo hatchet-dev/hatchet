@@ -59,7 +59,7 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error fetching SNS integrations',
-          
+
           variant: 'destructive',
           error,
         });
@@ -80,7 +80,7 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error creating SNS integration',
-          
+
           variant: 'destructive',
           error,
         });
@@ -100,7 +100,7 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
       } catch (error) {
         toast({
           title: 'Error deleting SNS integration',
-          
+
           variant: 'destructive',
           error,
         });

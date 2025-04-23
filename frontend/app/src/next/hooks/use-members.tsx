@@ -47,7 +47,7 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error fetching members',
-          
+
           variant: 'destructive',
           error,
         });
@@ -68,7 +68,7 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error fetching invites',
-          
+
           variant: 'destructive',
           error,
         });
@@ -90,7 +90,7 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         toast({
           title: 'Error creating invite',
-          
+
           variant: 'destructive',
           error,
         });

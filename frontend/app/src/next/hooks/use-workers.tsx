@@ -233,7 +233,7 @@ function WorkersProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching workers',
-          
+
           variant: 'destructive',
           error,
         });
@@ -259,7 +259,7 @@ function WorkersProviderContent({
       } catch (error) {
         toast({
           title: 'Error updating worker',
-          
+
           variant: 'destructive',
           error,
         });
@@ -300,7 +300,7 @@ function WorkersProviderContent({
       } catch (error) {
         toast({
           title: 'Error bulk updating workers',
-          
+
           variant: 'destructive',
           error,
         });

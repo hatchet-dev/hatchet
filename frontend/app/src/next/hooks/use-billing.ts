@@ -50,7 +50,7 @@ export default function useBilling({
       } catch (error) {
         toast({
           title: 'Error fetching billing state',
-          
+
           variant: 'destructive',
         });
         return undefined;
@@ -82,7 +82,7 @@ export default function useBilling({
       } catch (error) {
         toast({
           title: 'Error fetching billing portal URL',
-          
+
           variant: 'destructive',
         });
         return undefined;
@@ -103,7 +103,7 @@ export default function useBilling({
       } catch (error) {
         toast({
           title: 'Error updating subscription',
-          
+
           variant: 'destructive',
         });
         throw error;

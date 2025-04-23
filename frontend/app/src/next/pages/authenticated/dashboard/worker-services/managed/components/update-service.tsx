@@ -168,6 +168,7 @@ export function UpdateServiceContent() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <dl className="flex flex-col gap-4">
+        {JSON.stringify(service)}
         <MachineConfig
           config={machineConfig}
           setConfig={(value) => {

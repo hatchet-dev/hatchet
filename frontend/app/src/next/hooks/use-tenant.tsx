@@ -125,7 +125,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       } catch (error) {
         toast({
           title: 'Error creating tenant',
-          
+
           variant: 'destructive',
           error,
         });
@@ -154,7 +154,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       } catch (error) {
         toast({
           title: 'Error updating tenant',
-          
+
           variant: 'destructive',
           error,
         });
@@ -176,7 +176,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       } catch (error) {
         toast({
           title: 'Error fetching tenant resource policy',
-          
+
           variant: 'destructive',
           error,
         });

@@ -185,7 +185,7 @@ function ManagedComputeProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching managed compute',
-          
+
           variant: 'destructive',
           error,
         });
@@ -219,7 +219,7 @@ function ManagedComputeProviderContent({
       } catch (error) {
         toast({
           title: 'Error creating managed compute',
-          
+
           variant: 'destructive',
           error,
         });
@@ -255,7 +255,7 @@ function ManagedComputeProviderContent({
       } catch (error) {
         toast({
           title: 'Error updating managed compute',
-          
+
           variant: 'destructive',
           error,
         });
@@ -281,7 +281,7 @@ function ManagedComputeProviderContent({
       } catch (error) {
         toast({
           title: 'Error deleting managed compute',
-          
+
           variant: 'destructive',
           error,
         });
@@ -305,7 +305,7 @@ function ManagedComputeProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching compute costs',
-          
+
           variant: 'destructive',
           error,
         });

@@ -97,7 +97,7 @@ function RunDetailProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching run details',
-          
+
           variant: 'destructive',
           error,
         });
@@ -130,7 +130,7 @@ function RunDetailProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching parent run details',
-          
+
           variant: 'destructive',
           error,
         });
@@ -181,7 +181,7 @@ function RunDetailProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching run activity',
-          
+
           variant: 'destructive',
           error,
         });

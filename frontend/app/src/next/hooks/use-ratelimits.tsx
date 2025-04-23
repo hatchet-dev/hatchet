@@ -78,7 +78,7 @@ function RateLimitsProviderContent({ children }: PropsWithChildren) {
       } catch (error) {
         toast({
           title: 'Error fetching rate limits',
-          
+
           variant: 'destructive',
           error,
         });

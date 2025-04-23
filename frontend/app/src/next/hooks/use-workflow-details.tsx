@@ -72,7 +72,7 @@ function WorkflowDetailsProviderContent({
       } catch (error) {
         toast({
           title: 'Error updating workflow',
-          
+
           variant: 'destructive',
           error,
         });
@@ -105,7 +105,7 @@ function WorkflowDetailsProviderContent({
       } catch (error) {
         toast({
           title: 'Error deleting workflow',
-          
+
           variant: 'destructive',
           error,
         });

@@ -75,7 +75,7 @@ export default function useDefinitions({
       } catch (error) {
         toast({
           title: 'Error fetching workflow definitions',
-          
+
           variant: 'destructive',
           error,
         });

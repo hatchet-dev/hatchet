@@ -15,7 +15,7 @@ export default function useCloudFeatureFlags(tenantId: string) {
       } catch (error) {
         toast({
           title: 'Error fetching feature flags',
-          
+
           variant: 'destructive',
           error,
         });
