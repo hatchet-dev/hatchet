@@ -5,9 +5,9 @@ import {
   CardTitle,
   CardDescription,
 } from '@/next/components/ui/card';
-import BasicLayout from '@/next/components/layouts/basic.layout';
 import { MembersProvider } from '@/next/hooks/use-members';
 import { Code } from '@/next/components/ui/code/code';
+import { TwoColumnLayout } from '@/next/components/layouts/two-column.layout';
 
 export default function OnboardingFirstRunPage() {
   return (
@@ -19,41 +19,74 @@ export default function OnboardingFirstRunPage() {
 
 function OnboardingFirstRunContent() {
   return (
-    <BasicLayout>
-      <div className="flex h-[calc(100vh-4rem)] gap-4 p-4">
-        {/* Left panel - Tutorial content */}
-        <div className="flex-1 overflow-y-auto pr-4">
+    <TwoColumnLayout
+      left={
+        <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Getting Started with Hatchet</CardTitle>
+              <CardTitle>1. Setup Your Environment</CardTitle>
               <CardDescription>
-                Let's create your first task and get it running in minutes.
+                Choose your technology stack and install the necessary
+                dependencies.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Tutorial content will go here */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">
-                  Step 1: Choose your technology
-                </h3>
-                <p>
-                  Select your preferred programming language to get started.
-                </p>
-                {/* Technology selection will go here */}
-              </div>
+            <CardContent>{/* Technology selection will go here */}</CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>2. Writing Your First Task</CardTitle>
+              <CardDescription>
+                Define a task that performs a specific action in your workflow.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>{/* Task writing content will go here */}</CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>3. Registering Your First Worker</CardTitle>
+              <CardDescription>
+                Create a worker to execute your tasks.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Worker registration content will go here */}
             </CardContent>
           </Card>
-        </div>
 
-        {/* Right panel - Code preview */}
-        <div className="w-1/2 overflow-y-auto">
-          <Card className="h-full">
-            <CardContent className="space-y-6 py-4">
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Task</h3>
-                <Code
-                  language="typescript"
-                  value={`// Define your task
+          <Card>
+            <CardHeader>
+              <CardTitle>4. Running Your Task</CardTitle>
+              <CardDescription>
+                Trigger your task and see it in action.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>{/* Task running content will go here */}</CardContent>
+          </Card>
+        </div>
+      }
+      right={
+        <>
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Client</h3>
+            <Code
+              title="/client.ts"
+              language="typescript"
+              value={`// Initialize the Hatchet client
+import { Hatchet } from '@hatchet-dev/typescript-sdk';
+
+const hatchet = Hatchet.init();`}
+              showLineNumbers
+            />
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Task</h3>
+            <Code
+              title="/task.ts"
+              language="typescript"
+              value={`// Define your task
 const task = hatchet.task({
   name: 'hello-world',
   fn: (input: { name: string }) => {
@@ -62,38 +95,38 @@ const task = hatchet.task({
     };
   },
 });`}
-                  showLineNumbers
-                />
-              </div>
+              showLineNumbers
+            />
+          </div>
 
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Worker</h3>
-                <Code
-                  language="typescript"
-                  value={`// Create a worker to run your task
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Worker</h3>
+            <Code
+              title="/worker.ts"
+              language="typescript"
+              value={`// Create a worker to run your task
 const worker = hatchet.worker({
   name: 'hello-world-worker',
   tasks: [task],
 });`}
-                  showLineNumbers
-                />
-              </div>
+              showLineNumbers
+            />
+          </div>
 
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Trigger</h3>
-                <Code
-                  language="typescript"
-                  value={`// Trigger your task
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Trigger</h3>
+            <Code
+              title="/trigger.ts"
+              language="typescript"
+              value={`// Trigger your task
 await task.run({
   name: 'World'
 });`}
-                  showLineNumbers
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </BasicLayout>
+              showLineNumbers
+            />
+          </div>
+        </>
+      }
+    />
   );
 }
