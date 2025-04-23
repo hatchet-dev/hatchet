@@ -414,10 +414,17 @@ func (a *AdminServiceImpl) GetOutput(ctx context.Context, req *contracts.GetWork
 		return nil, status.Error(codes.NotFound, "No workflow run found")
 	}
 
-	output := make(map[string]json.RawMessage)
+	output := make(map[string]interface{})
 
 	for _, outputEvent := range workflowRun.OutputEvents {
-		output[outputEvent.StepReadableID] = json.RawMessage(outputEvent.Output)
+		tmpOutput := make(map[string]json.RawMessage)
+		err = json.Unmarshal(outputEvent.Output, &tmpOutput)
+
+		if err != nil {
+			output[outputEvent.StepReadableID] = nil
+		} else {
+			output[outputEvent.StepReadableID] = tmpOutput
+		}
 	}
 
 	jsonBytes, err := json.Marshal(output)
