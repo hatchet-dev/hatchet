@@ -1,9 +1,9 @@
-import { useMemo, useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
-import { WorkerStats } from './components';
+import { WorkerStats } from '../components';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -12,10 +12,11 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import docs from '@/next/docs-meta-data';
-import { WorkerTable } from './components/worker-table';
+import { WorkerTable } from '../components/worker-table';
 import { ROUTES } from '@/next/lib/routes';
-import { WorkerDetailSheet } from './components/worker-detail-sheet';
+import { WorkerDetailSheet } from '../components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
+import { WorkerDetailProvider } from '@/next/hooks/use-worker-detail';
 
 function ServiceDetailPageContent() {
   const { serviceName = '', workerId } = useParams<{
@@ -25,12 +26,16 @@ function ServiceDetailPageContent() {
   const decodedServiceName = decodeURIComponent(serviceName);
   const navigate = useNavigate();
 
-  const { data: workers = [], isLoading } = useWorkers();
+  const { services, isLoading } = useWorkers();
 
   const { setBreadcrumbs } = useBreadcrumbs();
 
+  const service = useMemo(() => {
+    return services.find((s) => s.name === decodedServiceName);
+  }, [services, decodedServiceName]);
+
   useEffect(() => {
-    if (!workers) {
+    if (!service) {
       return;
     }
 
@@ -38,7 +43,10 @@ function ServiceDetailPageContent() {
       {
         title: 'Worker Services',
         label: serviceName,
-        url: ROUTES.services.detail(encodeURIComponent(decodedServiceName)),
+        url: ROUTES.services.detail(
+          encodeURIComponent(decodedServiceName),
+          service.type,
+        ),
       },
     ];
 
@@ -48,46 +56,36 @@ function ServiceDetailPageContent() {
     return () => {
       setBreadcrumbs([]);
     };
-  }, [workers, decodedServiceName, setBreadcrumbs, serviceName]);
-
-  // Filter workers for this service
-  const serviceWorkers = useMemo(() => {
-    return workers.filter((worker) => worker.name === decodedServiceName);
-  }, [workers, decodedServiceName]);
-
-  // Service stats
-  const serviceStats = useMemo(() => {
-    return {
-      total: serviceWorkers.length,
-      active: serviceWorkers.filter((worker) => worker.status === 'ACTIVE')
-        .length,
-      inactive: serviceWorkers.filter((worker) => worker.status === 'INACTIVE')
-        .length,
-      paused: serviceWorkers.filter((worker) => worker.status === 'PAUSED')
-        .length,
-      slots: serviceWorkers
-        .filter((worker: any) => worker.status === 'ACTIVE')
-        .reduce((sum: number, worker: any) => sum + (worker.maxRuns || 0), 0),
-      maxSlots: serviceWorkers
-        .filter((worker: any) => worker.status === 'ACTIVE')
-        .reduce((sum: number, worker: any) => sum + (worker.maxRuns || 0), 0),
-      lastActive: null,
-    };
-  }, [serviceWorkers]);
+  }, [services, decodedServiceName, setBreadcrumbs, serviceName, service]);
 
   const handleCloseSheet = useCallback(() => {
-    navigate(ROUTES.services.detail(encodeURIComponent(decodedServiceName)));
-  }, [navigate, decodedServiceName]);
+    if (!service) {
+      return;
+    }
+
+    navigate(
+      ROUTES.services.detail(
+        encodeURIComponent(decodedServiceName),
+        service?.type,
+      ),
+    );
+  }, [navigate, decodedServiceName, service]);
+
+  if (!service) {
+    return <div>Service not found</div>;
+  }
 
   return (
     <SheetViewLayout
       sheet={
-        <WorkerDetailSheet
-          isOpen={!!workerId}
-          onClose={handleCloseSheet}
-          serviceName={decodedServiceName}
-          workerId={workerId || ''}
-        />
+        <WorkerDetailProvider workerId={workerId || ''}>
+          <WorkerDetailSheet
+            isOpen={!!workerId}
+            onClose={handleCloseSheet}
+            serviceName={decodedServiceName}
+            workerId={workerId || ''}
+          />
+        </WorkerDetailProvider>
       }
     >
       <Headline>
@@ -103,7 +101,7 @@ function ServiceDetailPageContent() {
       <Separator className="my-4" />
       {/* Stats Cards */}
       <div className="mb-6">
-        <WorkerStats stats={serviceStats} isLoading={isLoading} />
+        <WorkerStats stats={service} isLoading={isLoading} />
       </div>
 
       {/* Worker Table */}

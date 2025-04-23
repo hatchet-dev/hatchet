@@ -15,14 +15,13 @@ import {
   CollapsibleTrigger,
 } from '@/next/components/ui/collapsible';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/next/components/ui/dropdown-menu';
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/next/components/ui/command';
 import {
   Sidebar,
   SidebarContent,
@@ -55,6 +54,15 @@ import { Logo } from '@/next/components/ui/logo';
 import { Code } from '@/next/components/ui/code';
 import { pages, useDocs } from '@/next/hooks/use-docs-sheet';
 import { ROUTES } from '@/next/lib/routes';
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuGroup,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/next/components/ui/dropdown-menu';
 export const iframeHeight = '800px';
 
 export const description = 'An inset sidebar with secondary navigation.';
@@ -72,6 +80,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const [collapsibleState, setCollapsibleState] = useState<
     Record<string, boolean>
   >({});
+  const [open, setOpen] = useState(false);
 
   // Load collapsible state from localStorage on initial render
   useEffect(() => {
@@ -119,48 +128,14 @@ name: ${user?.name}`;
               </SidebarMenuItem>
             </header>
             <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton
-                    size="lg"
-                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  >
-                    <TenantBlock />
-                    <ChevronsUpDown className="ml-auto size-4" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                  side="right"
-                  sideOffset={4}
-                >
-                  <DropdownMenuGroup>
-                    {memberships
-                      ?.filter((membership) => !!membership.tenant)
-                      .map((membership) => (
-                        <DropdownMenuItem
-                          key={membership.tenant?.metadata.id}
-                          onClick={() => {
-                            setTenant(membership.tenant!.metadata.id);
-                          }}
-                        >
-                          {membership.tenant?.metadata.id ===
-                            tenant?.metadata.id && (
-                            <CheckIcon className="h-4 w-4 mr-2" />
-                          )}
-                          <span>{membership.tenant?.name}</span>
-                        </DropdownMenuItem>
-                      ))}
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => navigate(ROUTES.onboarding.newTenant)}
-                  >
-                    <Plus />
-                    Create New Tenant
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <SidebarMenuButton
+                size="lg"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                onClick={() => setOpen(true)}
+              >
+                <TenantBlock />
+                <ChevronsUpDown className="ml-auto size-4" />
+              </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
@@ -299,6 +274,42 @@ name: ${user?.name}`;
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
+      <CommandDialog open={open} onOpenChange={setOpen}>
+        <CommandInput placeholder="Switch tenants..." />
+        <CommandList>
+          <CommandEmpty>No tenants found.</CommandEmpty>
+          <CommandGroup>
+            {memberships
+              ?.filter((membership) => !!membership.tenant)
+              .sort((a, b) => a.tenant!.name.localeCompare(b.tenant!.name))
+              .map((membership) => (
+                <CommandItem
+                  key={membership.tenant?.metadata.id}
+                  onSelect={() => {
+                    setTenant(membership.tenant!.metadata.id);
+                    setOpen(false);
+                  }}
+                >
+                  {membership.tenant?.metadata.id === tenant?.metadata.id && (
+                    <CheckIcon className="h-4 w-4 mr-2" />
+                  )}
+                  <span>{membership.tenant?.name}</span>
+                </CommandItem>
+              ))}
+          </CommandGroup>
+          <CommandGroup>
+            <CommandItem
+              onSelect={() => {
+                navigate(ROUTES.onboarding.newTenant);
+                setOpen(false);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create New Tenant
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </>
   );
 }

@@ -1,4 +1,13 @@
-import { WorkersProvider, useWorkers } from '@/next/hooks/use-workers';
+import {
+  WorkersProvider,
+  useWorkers,
+  Worker,
+  WorkerService,
+} from '@/next/hooks/use-workers';
+import {
+  ManagedComputeProvider,
+  useUnifiedWorkerServices,
+} from '@/next/hooks/use-managed-compute';
 import { Button } from '@/next/components/ui/button';
 import {
   Select,
@@ -16,6 +25,7 @@ import {
   X,
   Pause,
   Play,
+  Plus,
 } from 'lucide-react';
 import {
   Table,
@@ -57,18 +67,19 @@ import {
 import docs from '@/next/docs-meta-data';
 import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
+import { WorkerType } from '@/lib/api';
 
 // Service row component to simplify the main component
-const ServiceRow = ({ service }: { service: any }) => {
+const ServiceRow = ({ service }: { service: WorkerService }) => {
   const { bulkUpdate } = useWorkers();
 
   const getLastActiveTime = () => {
     const mostRecentWorker = service.workers
-      .filter((worker: any) => worker.lastHeartbeatAt)
+      .filter((worker) => worker.lastHeartbeatAt)
       .sort(
-        (a: any, b: any) =>
-          new Date(b.lastHeartbeatAt).getTime() -
-          new Date(a.lastHeartbeatAt).getTime(),
+        (a: Worker, b: Worker) =>
+          new Date(b.lastHeartbeatAt || '').getTime() -
+          new Date(a.lastHeartbeatAt || '').getTime(),
       )[0];
 
     return mostRecentWorker?.lastHeartbeatAt
@@ -76,20 +87,12 @@ const ServiceRow = ({ service }: { service: any }) => {
       : 'Never';
   };
 
-  // Calculate slots totals
-  const totalMaxRuns = service.workers
-    .filter((worker: any) => worker.status === 'ACTIVE')
-    .reduce((sum: number, worker: any) => sum + (worker.maxRuns || 0), 0);
-  const totalAvailableRuns = service.workers
-    .filter((worker: any) => worker.status === 'ACTIVE')
-    .reduce((sum: number, worker: any) => sum + (worker.availableRuns || 0), 0);
-
   // Handlers for pause and resume
   const handlePauseAllActive = async () => {
     // Get all active worker IDs for this service
     const activeWorkerIds = service.workers
-      .filter((worker: any) => worker.status === 'ACTIVE')
-      .map((worker: any) => worker.metadata.id);
+      .filter((worker) => worker.status === 'ACTIVE')
+      .map((worker) => worker.metadata.id);
 
     if (activeWorkerIds.length > 0) {
       await bulkUpdate.mutateAsync({
@@ -102,8 +105,8 @@ const ServiceRow = ({ service }: { service: any }) => {
   const handleResumeAllPaused = async () => {
     // Get all paused worker IDs for this service
     const pausedWorkerIds = service.workers
-      .filter((worker: any) => worker.status === 'PAUSED')
-      .map((worker: any) => worker.metadata.id);
+      .filter((worker) => worker.status === 'PAUSED')
+      .map((worker) => worker.metadata.id);
 
     if (pausedWorkerIds.length > 0) {
       await bulkUpdate.mutateAsync({
@@ -114,9 +117,14 @@ const ServiceRow = ({ service }: { service: any }) => {
   };
 
   return (
-    <TableRow key={service.id}>
+    <TableRow key={service.name}>
       <TableCell className="font-medium">
-        <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
+        <Link
+          to={ROUTES.services.detail(
+            encodeURIComponent(service.id || service.name),
+            service.type,
+          )}
+        >
           {service.name}
         </Link>
       </TableCell>
@@ -137,12 +145,21 @@ const ServiceRow = ({ service }: { service: any }) => {
         </div>
       </TableCell>
       <TableCell>
-        <SlotsBadge available={totalAvailableRuns} max={totalMaxRuns} />
+        <SlotsBadge
+          available={service.totalAvailableRuns}
+          max={service.totalMaxRuns}
+        />
       </TableCell>
       <TableCell>{getLastActiveTime()}</TableCell>
+      <TableCell>{service.type}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
-          <Link to={ROUTES.services.detail(encodeURIComponent(service.name))}>
+          <Link
+            to={ROUTES.services.detail(
+              encodeURIComponent(service.name),
+              service.type,
+            )}
+          >
             <Button variant="ghost" size="icon">
               <ArrowUpRight className="h-4 w-4" />
             </Button>
@@ -159,7 +176,10 @@ const ServiceRow = ({ service }: { service: any }) => {
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Link
-                  to={ROUTES.services.detail(encodeURIComponent(service.name))}
+                  to={ROUTES.services.detail(
+                    encodeURIComponent(service.name),
+                    service.type,
+                  )}
                   className="w-full"
                 >
                   View details
@@ -260,7 +280,8 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
 );
 
 function WorkerServicesContent() {
-  const { data, isLoading } = useWorkers();
+  const { isLoading } = useWorkers();
+  const unifiedServices = useUnifiedWorkerServices();
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -279,7 +300,7 @@ function WorkerServicesContent() {
         .map((_, i) => <SkeletonRow key={i} />);
     }
 
-    if (!data || data.length === 0) {
+    if (!unifiedServices || unifiedServices.length === 0) {
       return (
         <TableRow>
           <TableCell colSpan={5} className="text-center">
@@ -289,8 +310,8 @@ function WorkerServicesContent() {
       );
     }
 
-    return data.map((service) => (
-      <ServiceRow key={service.metadata.id} service={service} />
+    return unifiedServices.map((service) => (
+      <ServiceRow key={service.name} service={service} />
     ));
   };
 
@@ -303,6 +324,28 @@ function WorkerServicesContent() {
         <HeadlineActions>
           <HeadlineActionItem>
             <DocsButton doc={docs.home.workers} size="icon" />
+          </HeadlineActionItem>
+          <HeadlineActionItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4" />
+                  New Service
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  <Link to={ROUTES.services.new(WorkerType.MANAGED)}>
+                    Managed Service
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Link to={ROUTES.services.new(WorkerType.SELFHOSTED)}>
+                    Self-hosted Service
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
@@ -330,6 +373,7 @@ function WorkerServicesContent() {
               <TableHead>Status</TableHead>
               <TableHead>Slots</TableHead>
               <TableHead>Last Active</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -344,8 +388,10 @@ function WorkerServicesContent() {
 
 export default function WorkerServicesPage() {
   return (
-    <WorkersProvider>
-      <WorkerServicesContent />
-    </WorkersProvider>
+    <ManagedComputeProvider>
+      <WorkersProvider>
+        <WorkerServicesContent />
+      </WorkersProvider>
+    </ManagedComputeProvider>
   );
 }

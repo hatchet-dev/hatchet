@@ -1,6 +1,6 @@
 import { ROUTES } from '@/next/lib/routes';
 import { RouteObject } from 'react-router-dom';
-
+import { WorkerType } from '@/lib/api';
 export const workerServicesRoutes: RouteObject[] = [
   {
     path: ROUTES.services.list,
@@ -12,18 +12,63 @@ export const workerServicesRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.detail(':serviceName'),
+    path: ROUTES.services.new(WorkerType.SELFHOSTED),
     lazy: () =>
-      import('./worker-service-detail.page').then((res) => {
+      import('./selfhost/new-selfhost-service.page').then((res) => {
         return {
           Component: res.default,
         };
       }),
   },
   {
-    path: ROUTES.services.workerDetail(':serviceName', ':workerId'),
+    path: ROUTES.services.new(WorkerType.MANAGED),
     lazy: () =>
-      import('./worker-service-detail.page').then((res) => {
+      import('./managed/new-managed-service.page').then((res) => {
+        return {
+          Component: res.default,
+        };
+      }),
+  },
+  {
+    path: ROUTES.services.detail(':serviceName', WorkerType.SELFHOSTED),
+    lazy: () =>
+      import('./selfhost/worker-service-detail.page').then((res) => {
+        return {
+          Component: res.default,
+        };
+      }),
+  },
+  {
+    path: ROUTES.services.workerDetail(
+      ':serviceName',
+      ':workerName',
+      WorkerType.SELFHOSTED,
+    ),
+    lazy: () =>
+      import('./selfhost/worker-service-detail.page').then((res) => {
+        return {
+          Component: res.default,
+        };
+      }),
+  },
+
+  {
+    path: ROUTES.services.detail(':serviceName', WorkerType.MANAGED),
+    lazy: () =>
+      import('./managed/managed-service-detail.page').then((res) => {
+        return {
+          Component: res.default,
+        };
+      }),
+  },
+  {
+    path: ROUTES.services.workerDetail(
+      ':serviceName',
+      ':workerName',
+      WorkerType.MANAGED,
+    ),
+    lazy: () =>
+      import('./managed/managed-service-detail.page').then((res) => {
         return {
           Component: res.default,
         };

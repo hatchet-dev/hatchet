@@ -14,7 +14,7 @@ export const members: PermissionSet = {
       if (!membership) {
         return {
           allowed: false,
-          reason: RejectReason.ROLE_REQUIRED,
+          rejectReason: RejectReason.ROLE_REQUIRED,
           message: 'You must be logged in to view members',
         };
       }
@@ -25,7 +25,7 @@ export const members: PermissionSet = {
 
       return {
         allowed: false,
-        reason: RejectReason.ROLE_REQUIRED,
+        rejectReason: RejectReason.ROLE_REQUIRED,
         message: 'You do not have permission to view members',
       };
     },
@@ -35,7 +35,7 @@ export const members: PermissionSet = {
       if (!membership) {
         return {
           allowed: false,
-          reason: RejectReason.ROLE_REQUIRED,
+          rejectReason: RejectReason.ROLE_REQUIRED,
           message: 'You must be logged in to remove members',
         };
       }
@@ -64,7 +64,7 @@ export const members: PermissionSet = {
       if (!membership) {
         return {
           allowed: false,
-          reason: RejectReason.ROLE_REQUIRED,
+          rejectReason: RejectReason.ROLE_REQUIRED,
           message: 'You must be logged in to invite members',
         };
       }

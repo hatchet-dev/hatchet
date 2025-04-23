@@ -1301,7 +1301,6 @@ const getBillingPortalUrl = () => {
   // Replace with your actual billing portal URL or API call
   return '/tenant-settings/billing-and-limits';
 };
-
 export const UpgradeMessage = ({ feature }: { feature: string }) => (
   <div className="flex flex-col gap-2 border border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-md my-3">
     <div className="flex items-start gap-2">

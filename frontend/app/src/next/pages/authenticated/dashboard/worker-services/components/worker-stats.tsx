@@ -3,17 +3,10 @@ import { Skeleton } from '@/next/components/ui/skeleton';
 import { cn } from '@/next/lib/utils';
 import { WorkerStatusBadge } from './worker-status-badge';
 import { useEffect } from 'react';
-import { useWorkers } from '@/next/hooks/use-workers';
+import { useWorkers, WorkerService } from '@/next/hooks/use-workers';
 
 interface WorkerStatsProps {
-  stats: {
-    active: number;
-    paused: number;
-    inactive: number;
-    total: number;
-    slots: number;
-    maxSlots: number;
-  };
+  stats: WorkerService;
   isLoading: boolean;
 }
 
@@ -75,11 +68,11 @@ export function WorkerStats({ stats, isLoading }: WorkerStatsProps) {
 
   useEffect(() => {
     if (!isLoading) {
-      if (stats.active === 0 && stats.paused > 0) {
+      if (stats.activeCount === 0 && stats.pausedCount > 0) {
         setFilter('status', 'paused');
       }
     }
-  }, [stats.active, stats.paused, isLoading, setFilter]);
+  }, [stats.activeCount, stats.pausedCount, isLoading, setFilter]);
 
   if (isLoading) {
     return (
@@ -95,21 +88,21 @@ export function WorkerStats({ stats, isLoading }: WorkerStatsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
       <StatCard
-        value={stats.active}
+        value={stats.activeCount}
         label="Active Workers"
         colorClass="text-green-600"
         status="ACTIVE"
       />
 
       <StatCard
-        value={stats.paused}
+        value={stats.pausedCount}
         label="Paused Workers"
         colorClass="text-yellow-600"
         status="PAUSED"
       />
 
       <StatCard
-        value={stats.inactive}
+        value={stats.inactiveCount}
         label="Inactive Workers"
         colorClass="text-red-600"
         status="INACTIVE"
@@ -118,10 +111,16 @@ export function WorkerStats({ stats, isLoading }: WorkerStatsProps) {
       <StatCard
         value={
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold">{stats.slots}</span>
-            <div className="text-sm">/ {stats.maxSlots}</div>
+            <span className="text-2xl font-bold">
+              {stats.totalAvailableRuns}
+            </span>
+            <div className="text-sm">/ {stats.totalMaxRuns}</div>
             <WorkerStatusBadge
-              status={stats.slots === stats.maxSlots ? 'ACTIVE' : 'INACTIVE'}
+              status={
+                stats.totalAvailableRuns === stats.totalMaxRuns
+                  ? 'ACTIVE'
+                  : 'INACTIVE'
+              }
               variant="xs"
             />
           </div>

@@ -9,7 +9,7 @@ export const apiTokens: PermissionSet = {
       if (!membership || RANK[membership] <= RANK[TenantMemberRole.MEMBER]) {
         return {
           allowed: false,
-          reason: RejectReason.ROLE_REQUIRED,
+          rejectReason: RejectReason.ROLE_REQUIRED,
           message:
             'You must be an owner, admin, or member to manage API tokens.',
         };

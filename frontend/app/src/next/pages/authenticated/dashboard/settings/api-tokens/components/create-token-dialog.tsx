@@ -70,7 +70,7 @@ export function CreateTokenDialog({
       name,
       expiresIn,
     });
-    setToken(token.token);
+    setToken(`export HATCHET_CLIENT_TOKEN="${token.token}"`);
     onSuccess?.(token);
   };
 

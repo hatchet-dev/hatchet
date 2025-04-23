@@ -10,11 +10,15 @@ import {
   UseMutationResult,
   useQuery,
 } from '@tanstack/react-query';
+import { WorkerType } from '@/lib/api';
+import { Worker } from '@/lib/api/generated/data-contracts';
+import { WorkerService } from './use-workers';
 import useTenant from './use-tenant';
-import { createContext, useContext, PropsWithChildren } from 'react';
+import { createContext, useContext, PropsWithChildren, useMemo } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
-
+import useApiMeta from './use-api-meta';
+import { useWorkers } from './use-workers';
 // Types for filters and pagination
 interface ManagedComputeFilters {
   search?: string;
@@ -25,12 +29,12 @@ interface ManagedComputeFilters {
 }
 
 // Create params
-interface CreateManagedComputeParams {
+export interface CreateManagedComputeParams {
   data: CreateManagedWorkerRequest;
 }
 
 // Update params
-interface UpdateManagedComputeParams {
+export interface UpdateManagedComputeParams {
   managedWorkerId: string;
   data: UpdateManagedWorkerRequest;
 }
@@ -77,6 +81,7 @@ function ManagedComputeProviderContent({
   children,
   refetchInterval,
 }: ManagedComputeProviderProps) {
+  const { cloud } = useApiMeta();
   const { tenant } = useTenant();
   const filters = useFilters<ManagedComputeFilters>();
   const pagination = usePagination();
@@ -94,7 +99,7 @@ function ManagedComputeProviderContent({
       pagination.pageSize,
     ],
     queryFn: async () => {
-      if (!tenant) {
+      if (!cloud || !tenant) {
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
@@ -260,7 +265,7 @@ export function ManagedComputeProvider({
         toDate: undefined,
       }}
     >
-      <PaginationProvider initialPage={1} initialPageSize={10}>
+      <PaginationProvider initialPage={1} initialPageSize={50}>
         <ManagedComputeProviderContent refetchInterval={refetchInterval}>
           {children}
         </ManagedComputeProviderContent>
@@ -268,3 +273,69 @@ export function ManagedComputeProvider({
     </FilterProvider>
   );
 }
+
+const mapManagedWorkerToWorkerService = (
+  worker: ManagedWorker,
+): WorkerService => {
+  // Map ManagedWorker to WorkerService format
+  const mappedWorker: Worker = {
+    metadata: worker.metadata,
+    name: worker.name,
+    type: WorkerType.MANAGED,
+    status: 'ACTIVE', // Default to ACTIVE since ManagedWorker doesn't have status
+    maxRuns: 0, // Default to 0 since ManagedWorker doesn't have maxRuns
+    availableRuns: 0, // Default to 0 since ManagedWorker doesn't have availableRuns
+  };
+
+  return {
+    name: worker.name || '',
+    id: worker.metadata.id || '',
+    type: WorkerType.MANAGED,
+    workers: [mappedWorker],
+    activeCount: 1, // Managed workers are always considered active // TODO
+    pausedCount: 0,
+    inactiveCount: 0,
+    totalMaxRuns: 0,
+    totalAvailableRuns: 0,
+  } as WorkerService;
+};
+
+// Helper function to unify regular and managed workers into services
+export const useUnifiedWorkerServices = () => {
+  const { services: regularServices } = useWorkers();
+  const { data: managedCompute } = useManagedCompute();
+
+  return useMemo(() => {
+    // Create services from managed compute workers
+    const managedComputeServices = (managedCompute || []).map((worker) => {
+      return mapManagedWorkerToWorkerService(worker);
+    });
+
+    // Combine and deduplicate services
+    const allServices = [...regularServices, ...managedComputeServices];
+    const uniqueServices = allServices.reduce(
+      (acc, service) => {
+        if (!acc[service.name]) {
+          acc[service.name] = service;
+        } else {
+          // Merge services with the same name
+          const existing = acc[service.name];
+          acc[service.name] = {
+            ...existing,
+            workers: [...existing.workers, ...service.workers],
+            activeCount: existing.activeCount + service.activeCount,
+            inactiveCount: existing.inactiveCount + service.inactiveCount,
+            pausedCount: existing.pausedCount + service.pausedCount,
+            totalMaxRuns: existing.totalMaxRuns + service.totalMaxRuns,
+            totalAvailableRuns:
+              existing.totalAvailableRuns + service.totalAvailableRuns,
+          };
+        }
+        return acc;
+      },
+      {} as Record<string, WorkerService>,
+    );
+
+    return Object.values(uniqueServices);
+  }, [regularServices, managedCompute]);
+};
