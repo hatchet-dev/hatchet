@@ -22,8 +22,11 @@ const CodeStyleRender = ({
 
   useEffect(() => {
     const asyncHighlight = async () => {
+      // Trim trailing empty lines but preserve empty lines within the code
+      const trimmedCode = parsed.replace(/\n+$/, '');
+
       try {
-        const highlightedHtml = await codeToHtml(parsed, {
+        const highlightedHtml = await codeToHtml(trimmedCode, {
           lang: language.toLowerCase(),
           theme: themeName,
         });
@@ -34,7 +37,7 @@ const CodeStyleRender = ({
         // Try fallback theme if first fails
         try {
           const fallbackTheme = theme === 'dark' ? 'nord' : 'min-light';
-          const highlightedHtml = await codeToHtml(parsed, {
+          const highlightedHtml = await codeToHtml(trimmedCode, {
             lang: language.toLowerCase(),
             theme: fallbackTheme,
           });
@@ -42,7 +45,7 @@ const CodeStyleRender = ({
         } catch (fallbackError) {
           console.error('Fallback highlighting failed:', fallbackError);
           // Last resort fallback to plain text
-          setHtml(`<pre>${parsed}</pre>`);
+          setHtml(`<pre><code>${trimmedCode}</code></pre>`);
         }
       }
     };

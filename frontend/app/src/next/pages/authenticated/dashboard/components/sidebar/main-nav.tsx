@@ -166,7 +166,7 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
       },
       {
         title: 'Restart Tutorial',
-        url: ROUTES.onboarding.firstRun,
+        url: ROUTES.learn.firstRun,
         icon: FaPlay,
         target: '_self',
       },

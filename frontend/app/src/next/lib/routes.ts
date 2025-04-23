@@ -6,6 +6,7 @@ export const BASE_PATH = '/next';
 export const FEATURES_BASE_PATH = {
   auth: BASE_PATH + '/auth',
   onboarding: BASE_PATH + '/onboarding',
+  learn: BASE_PATH + '/learn',
   runs: BASE_PATH + '/runs',
   scheduled: BASE_PATH + '/scheduled',
   crons: BASE_PATH + '/crons',
@@ -27,8 +28,10 @@ export const ROUTES = {
   onboarding: {
     newTenant: `${FB.onboarding}/create-tenant`,
     invites: `${FB.onboarding}/invites`,
-    firstRun: `${FB.onboarding}/first-run`,
     inviteTeam: `${FB.onboarding}/invite-team`,
+  },
+  learn: {
+    firstRun: `${FB.learn}/first-run`,
   },
   runs: {
     list: `${FB.runs}`,
@@ -82,7 +85,6 @@ export const ROUTES = {
     community: `https://hatchet.run/discord`,
     feedback: `https://github.com/hatchet-dev/hatchet/issues`,
     pricing: `https://cloud.onhatchet.run`,
-    tutorial: `${BASE_PATH}/tutorial`,
     contact: `https://hatchet.run/office-hours`,
   },
 } as const;

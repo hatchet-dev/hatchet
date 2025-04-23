@@ -264,7 +264,31 @@ html.dark .nextra-code-block pre,
 }
 
 pre.shiki {
-  overflow-x: auto;
+  margin: 0;
+  counter-reset: line;
+}
+
+pre.shiki > code {
+  display: block;
+}
+
+pre.shiki > code > span {
+  counter-increment: line;
+  padding-left: 1rem;
+  position: relative;
+  min-height: 1.25em;
+  line-height: 1.25;
+}
+
+pre.shiki > code > span::before {
+  content: counter(line);
+  position: absolute;
+  left: -2rem;
+  width: 2rem;
+  text-align: right;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  user-select: none;
 }
 
 /* High contrast mode */
@@ -297,4 +321,31 @@ pre.shiki {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--border));
+}
+
+/* Code block line numbers */
+.counter-reset-line {
+  counter-reset: line;
+}
+
+.counter-reset-line code {
+  display: block;
+}
+
+.counter-reset-line code span {
+  display: block;
+  position: relative;
+  padding-left: 2.5rem;
+}
+
+.counter-reset-line code span::before {
+  counter-increment: line;
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  width: 2rem;
+  text-align: right;
+  color: var(--muted-foreground);
+  user-select: none;
+  padding-right: 0.5rem;
 }

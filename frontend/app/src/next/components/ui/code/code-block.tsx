@@ -55,14 +55,15 @@ export function CodeBlock({
           </Button>
         </div>
       )}
-      <pre
-        className={cn(
-          // 'p-4 overflow-x-auto text-sm font-mono bg-muted/30 rounded-b-md',
-          showLineNumbers && 'pl-8 relative counter-reset-line overflow-hidden',
-        )}
-      >
-        <CodeStyleRender parsed={value} language={language} />
-      </pre>
+      <div className={cn('relative')}>
+        <pre
+          className={cn(
+            'p-4 overflow-x-auto text-sm font-mono bg-muted/30 rounded-b-md',
+          )}
+        >
+          <CodeStyleRender parsed={value} language={language} />
+        </pre>
+      </div>
     </div>
   );
 }

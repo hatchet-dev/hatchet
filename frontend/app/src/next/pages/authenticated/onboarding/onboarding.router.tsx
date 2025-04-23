@@ -15,13 +15,6 @@ export const onboardingRoutes: RouteObject[] = [
           })),
       },
       {
-        path: ROUTES.onboarding.firstRun,
-        lazy: () =>
-          import('./new/2.first-run.page').then((module) => ({
-            element: <module.default />,
-          })),
-      },
-      {
         path: ROUTES.onboarding.inviteTeam,
         lazy: () =>
           import('./new/3.invite-team.page').then((module) => ({

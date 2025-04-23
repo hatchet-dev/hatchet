@@ -6,8 +6,8 @@ import {
   CardDescription,
 } from '@/next/components/ui/card';
 import { MembersProvider } from '@/next/hooks/use-members';
-import { Code } from '@/next/components/ui/code/code';
 import { TwoColumnLayout } from '@/next/components/layouts/two-column.layout';
+import { GithubCode } from '@/next/components/ui/code/github-code';
 
 export default function OnboardingFirstRunPage() {
   return (
@@ -70,59 +70,29 @@ function OnboardingFirstRunContent() {
         <>
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Client</h3>
-            <Code
-              title="/client.ts"
+            <GithubCode
+              repo="hatchet-dev/hatchet-typescript-quickstart"
+              path="src/hatchet-client.ts"
               language="typescript"
-              value={`// Initialize the Hatchet client
-import { Hatchet } from '@hatchet-dev/typescript-sdk';
-
-const hatchet = Hatchet.init();`}
-              showLineNumbers
+              showLineNumbers={true}
             />
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Task</h3>
-            <Code
-              title="/task.ts"
+            <GithubCode
+              repo="hatchet-dev/hatchet-typescript-quickstart"
+              path="src/workflows/first-workflow.ts"
               language="typescript"
-              value={`// Define your task
-const task = hatchet.task({
-  name: 'hello-world',
-  fn: (input: { name: string }) => {
-    return {
-      message: \`Hello, \${input.name}!\`
-    };
-  },
-});`}
-              showLineNumbers
+              showLineNumbers={true}
             />
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Worker</h3>
-            <Code
-              title="/worker.ts"
+            <GithubCode
+              repo="hatchet-dev/hatchet-typescript-quickstart"
+              path="src/worker.ts"
               language="typescript"
-              value={`// Create a worker to run your task
-const worker = hatchet.worker({
-  name: 'hello-world-worker',
-  tasks: [task],
-});`}
-              showLineNumbers
+              showLineNumbers={true}
             />
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Trigger</h3>
-            <Code
-              title="/trigger.ts"
+            <GithubCode
+              repo="hatchet-dev/hatchet-typescript-quickstart"
+              path="src/run.ts"
               language="typescript"
-              value={`// Trigger your task
-await task.run({
-  name: 'World'
-});`}
-              showLineNumbers
+              showLineNumbers={true}
             />
           </div>
         </>
