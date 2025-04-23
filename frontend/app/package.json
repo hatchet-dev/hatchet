@@ -44,6 +44,7 @@
     "@rjsf/core": "^5.24.8",
     "@rjsf/utils": "^5.24.8",
     "@rjsf/validator-ajv8": "^5.24.8",
+    "@sentry/browser": "^9.14.0",
     "@sentry/react": "^7.120.3",
     "@sentry/vite-plugin": "^2.23.0",
     "@tanstack/react-query": "^5.71.1",

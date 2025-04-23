@@ -418,6 +418,8 @@ export interface APIMeta {
    */
   pylonAppId?: string;
   posthog?: APIMetaPosthog;
+  /** the Decipher DSN */
+  decipherDsn?: string;
   /**
    * whether or not users can sign up for this instance
    * @example true

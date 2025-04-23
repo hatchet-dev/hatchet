@@ -9,6 +9,9 @@ APIMeta:
       example: 12345678-1234-1234-1234-123456789012
     posthog:
       $ref: "#/APIMetaPosthog"
+    decipherDsn:
+      type: string
+      description: the Decipher DSN
     allowSignup:
       type: boolean
       description: whether or not users can sign up for this instance

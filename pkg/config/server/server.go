@@ -36,6 +36,8 @@ type ServerConfigFile struct {
 
 	Pylon PylonConfig `mapstructure:"pylon" json:"pylon,omitempty"`
 
+	Decipher DecipherConfig `mapstructure:"decipher" json:"decipher,omitempty"`
+
 	Encryption EncryptionConfigFile `mapstructure:"encryption" json:"encryption,omitempty"`
 
 	Runtime ConfigFileRuntime `mapstructure:"runtime" json:"runtime,omitempty"`
@@ -449,6 +451,11 @@ type FePosthogConfig struct {
 	ApiHost string
 }
 
+type DecipherConfig struct {
+	Enabled bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+	Dsn     string `mapstructure:"dsn" json:"dsn,omitempty"`
+}
+
 type ServerConfig struct {
 	*database.Layer
 
@@ -461,6 +468,8 @@ type ServerConfig struct {
 	Pylon *PylonConfig
 
 	FePosthog *FePosthogConfig
+
+	Decipher *DecipherConfig
 
 	Encryption encryption.EncryptionService
 
@@ -626,6 +635,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("pylon.enabled", "SERVER_PYLON_ENABLED")
 	_ = v.BindEnv("pylon.appID", "SERVER_PYLON_APP_ID")
 	_ = v.BindEnv("pylon.secret", "SERVER_PYLON_SECRET")
+
+	// decipher options
+	_ = v.BindEnv("decipher.enabled", "SERVER_DECIPHER_ENABLED")
+	_ = v.BindEnv("decipher.dsn", "SERVER_DECIPHER_DSN")
 
 	// encryption options
 	_ = v.BindEnv("encryption.masterKeyset", "SERVER_ENCRYPTION_MASTER_KEYSET")

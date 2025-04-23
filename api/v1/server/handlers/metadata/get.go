@@ -32,12 +32,18 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		}
 	}
 
+	var decipherDsn string
+	if u.config.Decipher != nil && u.config.Decipher.Enabled {
+		decipherDsn = u.config.Decipher.Dsn
+	}
+
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,
 		},
 		PylonAppId:          &pylonAppID,
 		Posthog:             posthogConfig,
+		DecipherDsn:         &decipherDsn,
 		AllowSignup:         &u.config.Runtime.AllowSignup,
 		AllowInvites:        &u.config.Runtime.AllowInvites,
 		AllowCreateTenant:   &u.config.Runtime.AllowCreateTenant,
