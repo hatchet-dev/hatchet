@@ -67,8 +67,7 @@ type ListWorkflowRunOpts struct {
 }
 
 type ReadTaskRunMetricsOpts struct {
-	CreatedAfter  time.Time
-	CreatedBefore *time.Time
+	CreatedAfter time.Time
 
 	CreatedBefore *time.Time
 
