@@ -38,7 +38,7 @@ const Step = ({
       disabled={disabled}
       onValueChange={(value) => setOpen(value === 'open')}
     >
-      <AccordionItem value="open">
+      <AccordionItem value="open" className="border-none">
         <AccordionTrigger
           hideChevron={disabled}
           className={disabled ? 'hover:no-underline cursor-default' : ''}

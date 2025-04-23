@@ -46,7 +46,7 @@ export default function OnboardingNewPage() {
     try {
       createTenant.mutate(data.name, {
         onSuccess: (tenant) => {
-          setTenant(tenant);
+          setTenant(tenant.metadata.id);
           window.location.href = '/?tenant=' + tenant.metadata.id;
         },
         onError: (error) => {

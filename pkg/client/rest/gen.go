@@ -1325,7 +1325,7 @@ type V1TaskSummary struct {
 	WorkflowName *string            `json:"workflowName,omitempty"`
 
 	// WorkflowRunExternalId The external ID of the workflow run
-	WorkflowRunExternalId *openapi_types.UUID `json:"workflowRunExternalId,omitempty"`
+	WorkflowRunExternalId openapi_types.UUID `json:"workflowRunExternalId"`
 
 	// WorkflowVersionId The version ID of the workflow
 	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`

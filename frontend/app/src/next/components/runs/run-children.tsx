@@ -44,7 +44,7 @@ function RunRow({
   return (
     <div
       className={cn(
-        'grid grid-cols-[200px,1fr] items-center',
+        'grid grid-cols-[120px,1fr] items-center',
         isTitle && 'cursor-pointer',
       )}
       onClick={onClick}
@@ -53,10 +53,8 @@ function RunRow({
         className={cn(
           'text-sm text-muted-foreground truncate overflow-hidden whitespace-nowrap flex items-center gap-2',
           isTitle && 'cursor-pointer',
+          `pl-[${depth * 15}px]`,
         )}
-        style={{
-          paddingLeft: `${depth * 15}px`,
-        }}
       >
         {hasChildren && (
           <Button
@@ -74,7 +72,7 @@ function RunRow({
           </Button>
         )}
 
-        {run?.numSpawnedChildren}
+        {hasChildren && run?.numSpawnedChildren}
         {isTitle ? (
           parentRun ? (
             <div className="flex items-center gap-2 cursor-pointer">
@@ -118,13 +116,8 @@ function RunRowWithChildren({
 }: RunRowWithChildrenProps) {
   const navigate = useNavigate();
 
-  const { data: childrenData } = useRuns({
-    refetchInterval: 3000,
-    filters: {
-      parent_task_external_id: run.metadata.id,
-      is_root_task: false,
-    },
-  });
+  // TODO add parent...
+  const { data: childrenData } = useRuns();
 
   const hasActualChildren = childrenData && childrenData.length > 0;
   const isExpanded = expandedIds.has(run.metadata.id);
@@ -148,7 +141,6 @@ function RunRowWithChildren({
       {isExpanded && hasActualChildren && (
         <RunsProvider>
           <ChildrenList
-            run={run}
             depth={depth}
             expandedIds={expandedIds}
             toggleExpanded={toggleExpanded}
@@ -161,7 +153,6 @@ function RunRowWithChildren({
 }
 
 interface ChildrenListProps {
-  run: V1TaskSummary;
   depth: number;
   expandedIds: Set<string>;
   toggleExpanded: (id: string) => void;
@@ -169,19 +160,13 @@ interface ChildrenListProps {
 }
 
 function ChildrenList({
-  run,
   depth,
   expandedIds,
   toggleExpanded,
   onTaskSelect,
 }: ChildrenListProps) {
-  const { data } = useRuns({
-    refetchInterval: 3000,
-    filters: {
-      parent_task_external_id: run.metadata.id,
-      is_root_task: false,
-    },
-  });
+  // TODO add parent...
+  const { data } = useRuns();
   const [maxChildren, setMaxChildren] = useState(MAX_CHILDREN);
 
   const [render, numHidden] = useMemo(() => {
@@ -238,7 +223,7 @@ export function RunChildrenCardRoot({
   parentRun,
   onTaskSelect,
 }: RunChildrenCardProps) {
-  const { data } = useRunDetail(workflow.metadata.id, 1000);
+  const { data } = useRunDetail();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const run = data?.run;
@@ -262,7 +247,7 @@ export function RunChildrenCardRoot({
   return (
     <TimelineProvider>
       <RunsProvider>
-        <div className="flex flex-col gap-0">
+        <div className="flex flex-col gap-y-4 p-4">
           <HighlightGroup>
             <RunRow
               isTitle

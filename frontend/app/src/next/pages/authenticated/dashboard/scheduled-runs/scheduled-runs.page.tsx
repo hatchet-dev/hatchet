@@ -7,8 +7,6 @@ import {
   AlertDescription,
 } from '@/next/components/ui/alert';
 import { Lock, Plus } from 'lucide-react';
-import { PaginationProvider } from '@/next/components/ui/pagination';
-import { FilterProvider } from '@/next/hooks/use-filters';
 import {
   Headline,
   HeadlineActionItem,
@@ -22,6 +20,7 @@ import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Button } from '@/next/components/ui/button';
 import { useState } from 'react';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
+import { SchedulesProvider } from '@/next/hooks/use-schedules';
 
 export default function ScheduledRunsPage() {
   const { canWithReason } = useCan();
@@ -64,14 +63,11 @@ export default function ScheduledRunsPage() {
       {canManage && (
         <>
           <Separator className="my-4" />
-
-          <FilterProvider>
-            <PaginationProvider>
-              <ScheduledRunsTable
-                onCreateClicked={() => setIsCreateDialogOpen(true)}
-              />
-            </PaginationProvider>
-          </FilterProvider>
+          <SchedulesProvider>
+            <ScheduledRunsTable
+              onCreateClicked={() => setIsCreateDialogOpen(true)}
+            />
+          </SchedulesProvider>
 
           <TriggerRunModal
             show={isCreateDialogOpen}

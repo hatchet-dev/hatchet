@@ -446,7 +446,8 @@ WITH input AS (
         t.display_name,
         t.input,
         t.additional_metadata,
-        t.readable_status
+        t.readable_status,
+        t.workflow_run_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -545,6 +546,7 @@ SELECT
     t.additional_metadata,
     t.input,
     t.readable_status::v1_readable_status_olap as status,
+    t.workflow_run_id,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     e.error_message as error_message,

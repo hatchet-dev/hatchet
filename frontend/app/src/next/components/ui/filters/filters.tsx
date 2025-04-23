@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { cn } from '@/next/lib/utils';
 import { Input } from '@/next/components/ui/input';
-import { useFilters } from '@/next/hooks/use-filters';
+import { useFilters } from '@/next/hooks/utils/use-filters';
 import { Badge } from '@/next/components/ui/badge';
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { Button } from '@/next/components/ui/button';
 import {
   Command,
@@ -30,6 +30,29 @@ interface FilterBuilderProps<T> {
   name: keyof T;
   placeholder?: string;
   className?: string;
+}
+
+export function ClearFiltersButton() {
+  const { filters, clearAllFilters } = useFilters<Record<string, unknown>>();
+  const hasActiveFilters = Object.values(filters).some(
+    (value) => value !== undefined && value !== null && value !== '',
+  );
+
+  if (!hasActiveFilters) {
+    return null;
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={clearAllFilters}
+      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+    >
+      <X className="h-4 w-4 mr-1" />
+      Clear all
+    </Button>
+  );
 }
 
 export function FilterGroup({ className, children, ...props }: FiltersProps) {
@@ -154,7 +177,7 @@ export function FilterSelect<T, A>({
         <Command>
           <CommandInput placeholder={placeholder} />
           <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup>
+          <CommandGroup className="max-h-[300px] overflow-auto">
             {options.map((option, index) => (
               <CommandItem
                 key={index}

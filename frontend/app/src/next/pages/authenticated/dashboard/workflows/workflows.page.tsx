@@ -2,7 +2,7 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Workflow } from '@/lib/api';
 import { Badge } from '@/next/components/ui/badge';
 import { Button } from '@/next/components/ui/button';
-import useWorkflows from '@/next/hooks/use-workflows';
+import { WorkflowsProvider, useWorkflows } from '@/next/hooks/use-workflows';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -37,7 +37,7 @@ const WorkflowCard: React.FC<{ data: Workflow }> = ({ data }) => (
   </div>
 );
 
-export default function WorkflowsPage() {
+function WorkflowsContent() {
   const { data, isLoading, invalidate } = useWorkflows();
   const [rotate, setRotate] = useState(false);
 
@@ -81,5 +81,13 @@ export default function WorkflowsPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function WorkflowsPage() {
+  return (
+    <WorkflowsProvider>
+      <WorkflowsContent />
+    </WorkflowsProvider>
   );
 }

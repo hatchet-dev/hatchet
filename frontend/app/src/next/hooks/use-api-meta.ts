@@ -1,7 +1,7 @@
 import api from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export default function useApiMeta() {
   const [refetchInterval, setRefetchInterval] = useState<number | undefined>(
@@ -15,6 +15,14 @@ export default function useApiMeta() {
     retryDelay: 150,
     retry: 2,
     refetchInterval,
+  });
+
+  const integrationsQuery = useQuery({
+    queryKey: ['metadata:get:integrations'],
+    queryFn: async () => {
+      const meta = await api.metadataListIntegrations();
+      return meta.data;
+    },
   });
 
   const { data: version } = useQuery({
@@ -46,12 +54,16 @@ export default function useApiMeta() {
     setRefetchInterval(metaQuery.isError ? 15000 : undefined);
   }, [metaQuery.isError]);
 
+  const isCloud = useMemo(() => !(cloudMeta as any)?.errors, [cloudMeta]);
+
   return {
     oss: metaQuery.data,
+    integrations: integrationsQuery.data,
     cloud: cloudMeta,
     isLoading: metaQuery.isLoading,
     hasFailed: metaQuery.isError && metaQuery.error,
     refetchInterval,
     version: version?.version,
+    isCloud,
   };
 }
