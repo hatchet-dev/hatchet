@@ -23,6 +23,7 @@ func jsonToMap(jsonBytes []byte) map[string]interface{} {
 }
 
 func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
+	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -70,6 +71,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 		TaskExternalId:     taskExternalId,
 		StepId:             &stepId,
 		ActionId:           &task.ActionID,
+		WorkflowVersionId:  &workflowVersionId,
 	}
 }
 
@@ -227,6 +229,7 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 }
 
 func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExternalId *pgtype.UUID) gen.V1TaskSummary {
+	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowVersionID))
 	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -290,6 +293,7 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		NumSpawnedChildren:    int(taskWithData.SpawnedChildren.Int64),
 		StepId:                &stepId,
 		ActionId:              &taskWithData.ActionID,
+		WorkflowVersionId:     &workflowVersionId,
 	}
 }
 

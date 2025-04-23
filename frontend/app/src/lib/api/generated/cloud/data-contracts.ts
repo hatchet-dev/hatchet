@@ -138,8 +138,8 @@ export interface ManagedWorker {
   name: string;
   buildConfig?: ManagedWorkerBuildConfig;
   isIac: boolean;
-  /** A map of environment variables to set for the worker */
-  envVars: Record<string, string>;
+  directSecrets: ManagedWorkerSecret[];
+  globalSecrets: ManagedWorkerSecret[];
   runtimeConfigs?: ManagedWorkerRuntimeConfig[];
 }
 
@@ -159,6 +159,46 @@ export interface ManagedWorkerBuildConfig {
   githubRepository: GithubRepo;
   githubRepositoryBranch: string;
   steps?: BuildStep[];
+}
+
+export interface ManagedWorkerSecret {
+  key: string;
+  id: string;
+  hint: string;
+}
+
+export interface CreateManagedWorkerSecretRequest {
+  /** array of secret keys and values to add to the worker */
+  add?: {
+    key: string;
+    value: string;
+  }[];
+  /** array of global secret ids to add to the worker */
+  addGlobal?: string[];
+}
+
+export interface UpdateManagedWorkerSecretRequest {
+  /** array of secret keys and values to add to the worker */
+  add?: {
+    key: string;
+    value: string;
+  }[];
+  /** array of global secret ids to add to the worker */
+  addGlobal?: string[];
+  /** array of secret ids to delete from the worker */
+  delete?: string[];
+  /** array of existing secret ids and values to update in the worker */
+  update?: {
+    /**
+     * @format uuid
+     * @minLength 36
+     * @maxLength 36
+     */
+    id: string;
+    /** @minLength 1 */
+    key: string;
+    value: string;
+  }[];
 }
 
 export interface BuildStep {
@@ -186,10 +226,10 @@ export interface ManagedWorkerRuntimeConfig {
 }
 
 export enum ManagedWorkerEventStatus {
-  IN_PROGRESS = "IN_PROGRESS",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
+  IN_PROGRESS = 'IN_PROGRESS',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export interface ManagedWorkerEvent {
@@ -212,8 +252,7 @@ export interface ManagedWorkerEventList {
 export interface CreateManagedWorkerRequest {
   name: string;
   buildConfig: CreateManagedWorkerBuildConfigRequest;
-  /** A map of environment variables to set for the worker */
-  envVars: Record<string, string>;
+  secrets?: CreateManagedWorkerSecretRequest;
   isIac: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
@@ -221,8 +260,7 @@ export interface CreateManagedWorkerRequest {
 export interface UpdateManagedWorkerRequest {
   name?: string;
   buildConfig?: CreateManagedWorkerBuildConfigRequest;
-  /** A map of environment variables to set for the worker */
-  envVars?: Record<string, string>;
+  secrets?: UpdateManagedWorkerSecretRequest;
   isIac?: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
@@ -256,39 +294,40 @@ export interface CreateBuildStepRequest {
 }
 
 export enum ManagedWorkerRegion {
-  Ams = "ams",
-  Arn = "arn",
-  Atl = "atl",
-  Bog = "bog",
-  Bos = "bos",
-  Cdg = "cdg",
-  Den = "den",
-  Dfw = "dfw",
-  Ewr = "ewr",
-  Eze = "eze",
-  Gdl = "gdl",
-  Gig = "gig",
-  Gru = "gru",
-  Hkg = "hkg",
-  Iad = "iad",
-  Jnb = "jnb",
-  Lax = "lax",
-  Lhr = "lhr",
-  Mad = "mad",
-  Mia = "mia",
-  Nrt = "nrt",
-  Ord = "ord",
-  Otp = "otp",
-  Phx = "phx",
-  Qro = "qro",
-  Scl = "scl",
-  Sea = "sea",
-  Sin = "sin",
-  Sjc = "sjc",
-  Syd = "syd",
-  Waw = "waw",
-  Yul = "yul",
-  Yyz = "yyz",
+  Ams = 'ams',
+  Arn = 'arn',
+  Atl = 'atl',
+  Bog = 'bog',
+  Bos = 'bos',
+  Cdg = 'cdg',
+  Den = 'den',
+  Dfw = 'dfw',
+  Ewr = 'ewr',
+  Eze = 'eze',
+  Fra = 'fra',
+  Gdl = 'gdl',
+  Gig = 'gig',
+  Gru = 'gru',
+  Hkg = 'hkg',
+  Iad = 'iad',
+  Jnb = 'jnb',
+  Lax = 'lax',
+  Lhr = 'lhr',
+  Mad = 'mad',
+  Mia = 'mia',
+  Nrt = 'nrt',
+  Ord = 'ord',
+  Otp = 'otp',
+  Phx = 'phx',
+  Qro = 'qro',
+  Scl = 'scl',
+  Sea = 'sea',
+  Sin = 'sin',
+  Sjc = 'sjc',
+  Syd = 'syd',
+  Waw = 'waw',
+  Yul = 'yul',
+  Yyz = 'yyz',
 }
 
 export interface CreateManagedWorkerRuntimeConfigRequest {
@@ -315,7 +354,7 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    */
   memoryMb: number;
   /** The kind of GPU to use for the worker */
-  gpuKind?: "a10" | "l40s" | "a100-40gb" | "a100-80gb";
+  gpuKind?: 'a10' | 'l40s' | 'a100-40gb' | 'a100-80gb';
   /**
    * The number of GPUs to use for the worker
    * @min 1
@@ -383,10 +422,10 @@ export interface TenantPaymentMethod {
 }
 
 export enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
+  Active = 'active',
+  Pending = 'pending',
+  Terminated = 'terminated',
+  Canceled = 'canceled',
 }
 
 export interface Coupon {
@@ -409,8 +448,8 @@ export interface Coupon {
 }
 
 export enum CouponFrequency {
-  Once = "once",
-  Recurring = "recurring",
+  Once = 'once',
+  Recurring = 'recurring',
 }
 
 export type VectorPushRequest = EventObject[];
@@ -558,8 +597,8 @@ export interface AutoscalingConfig {
 }
 
 export enum AutoscalingTargetKind {
-  PORTER = "PORTER",
-  FLY = "FLY",
+  PORTER = 'PORTER',
+  FLY = 'FLY',
 }
 
 export interface CreateOrUpdateAutoscalingRequest {
@@ -578,7 +617,7 @@ export interface CreateOrUpdateAutoscalingRequest {
 
 export interface CreatePorterAutoscalingRequest {
   token: string;
-  targetUrl: "CLOUD" | "DASHBOARD";
+  targetUrl: 'CLOUD' | 'DASHBOARD';
   targetProject: string;
   targetCluster: string;
   targetAppName: string;
@@ -590,9 +629,9 @@ export interface CreateFlyAutoscalingRequest {
 }
 
 export enum TemplateOptions {
-  QUICKSTART_PYTHON = "QUICKSTART_PYTHON",
-  QUICKSTART_TYPESCRIPT = "QUICKSTART_TYPESCRIPT",
-  QUICKSTART_GO = "QUICKSTART_GO",
+  QUICKSTART_PYTHON = 'QUICKSTART_PYTHON',
+  QUICKSTART_TYPESCRIPT = 'QUICKSTART_TYPESCRIPT',
+  QUICKSTART_GO = 'QUICKSTART_GO',
 }
 
 export interface CreateManagedWorkerFromTemplateRequest {

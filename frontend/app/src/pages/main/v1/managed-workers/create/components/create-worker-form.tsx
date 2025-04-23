@@ -154,6 +154,10 @@ export const regions = [
     value: ManagedWorkerRegion.Eze,
   },
   {
+    name: 'Frankfurt, Germany',
+    value: ManagedWorkerRegion.Fra,
+  },
+  {
     name: 'Guadalajara, Mexico',
     value: ManagedWorkerRegion.Gdl,
   },
@@ -265,7 +269,14 @@ const createManagedWorkerSchema = z.object({
     ),
   }),
   isIac: z.boolean().default(false),
-  envVars: z.record(z.string()),
+  secrets: z.object({
+    add: z.array(
+      z.object({
+        key: z.string(),
+        value: z.string(),
+      }),
+    ),
+  }),
   runtimeConfig: z.object({
     numReplicas: z.number().min(0).max(16).optional(),
     cpuKind: z.string(),
@@ -323,7 +334,9 @@ export default function CreateWorkerForm({
           },
         ],
       },
-      envVars: {},
+      secrets: {
+        add: [],
+      },
       runtimeConfig: {
         numReplicas: 1,
         cpuKind: 'shared',
@@ -411,7 +424,7 @@ export default function CreateWorkerForm({
     return allowed;
   }, [can, autoscalingMaxReplicas]);
 
-  const [envVars, setEnvVars] = useState<KeyValueType[]>([]);
+  const [secrets, setSecrets] = useState<KeyValueType[]>([]);
   const [isIac, setIsIac] = useState(false);
   const [scalingType, setScalingType] = useState<ScalingType>('Static');
 
@@ -425,8 +438,8 @@ export default function CreateWorkerForm({
   const numReplicasError =
     errors.runtimeConfig?.numReplicas?.message?.toString() ||
     fieldErrors?.numReplicas;
-  const envVarsError =
-    errors.envVars?.message?.toString() || fieldErrors?.envVars;
+  const secretsError =
+    errors.secrets?.add?.message?.toString() || fieldErrors?.secrets;
   const cpuKindError =
     errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
   const cpusError =
@@ -710,20 +723,20 @@ export default function CreateWorkerForm({
             </div>
             <Label>Environment Variables</Label>
             <EnvGroupArray
-              values={envVars}
+              values={secrets}
               setValues={(value) => {
-                setEnvVars(value);
+                setSecrets(value);
                 setValue(
-                  'envVars',
-                  value.reduce<Record<string, string>>((acc, item) => {
-                    acc[item.key] = item.value;
-                    return acc;
-                  }, {}),
+                  'secrets.add',
+                  value.map((item) => ({
+                    key: item.key,
+                    value: item.value,
+                  })),
                 );
               }}
             />
-            {envVarsError && (
-              <div className="text-sm text-red-500">{envVarsError}</div>
+            {secretsError && (
+              <div className="text-sm text-red-500">{secretsError}</div>
             )}
             <Label>Machine Configuration Method</Label>
             <Tabs
@@ -1290,7 +1303,7 @@ export function getRepoName(repoOwnerName?: string) {
 // URL for the billing portal to upgrade
 const getBillingPortalUrl = () => {
   // Replace with your actual billing portal URL or API call
-  return '/v1/tenant-settings/billing-and-limits';
+  return '/tenant-settings/billing-and-limits';
 };
 
 export const UpgradeMessage = ({ feature }: { feature: string }) => (

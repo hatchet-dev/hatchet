@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -144,13 +146,21 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
+			triggerConverter := &TriggeredByEvent{
+				l:        r.l,
+				eventId:  opt.EventId,
+				eventKey: workflow.EventKey,
+			}
+
+			additionalMetadata := triggerConverter.ToMetadata(opt.AdditionalMetadata)
+
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:  sqlchelpers.UUIDToStr(workflow.WorkflowVersionId),
 				workflowId:         sqlchelpers.UUIDToStr(workflow.WorkflowId),
 				workflowName:       workflow.WorkflowName,
 				externalId:         uuid.NewString(),
 				input:              opt.Data,
-				additionalMetadata: opt.AdditionalMetadata,
+				additionalMetadata: additionalMetadata,
 			})
 		}
 	}
@@ -291,6 +301,54 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 	}
 
 	return nil
+}
+
+type TriggeredBy interface {
+	ToMetadata([]byte) []byte
+}
+
+type TriggeredByEvent struct {
+	l        *zerolog.Logger
+	eventId  string
+	eventKey string
+}
+
+func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
+	res := make(map[string]interface{})
+
+	if len(additionalMetadata) == 0 {
+		res = make(map[string]interface{})
+	} else {
+		err := json.Unmarshal(additionalMetadata, &res)
+
+		if err != nil {
+			res = make(map[string]interface{})
+		}
+	}
+
+	for key := range res {
+		if strings.HasPrefix(key, "hatchet__") {
+			delete(res, key)
+		}
+	}
+
+	return res
+}
+
+func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
+	res := cleanAdditionalMetadata(additionalMetadata)
+
+	res["hatchet__event_id"] = t.eventId
+	res["hatchet__event_key"] = t.eventKey
+
+	resBytes, err := json.Marshal(res)
+
+	if err != nil {
+		t.l.Error().Err(err).Msg("failed to marshal additional metadata")
+		return nil
+	}
+
+	return resBytes
 }
 
 type triggerTuple struct {
