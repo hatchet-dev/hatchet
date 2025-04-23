@@ -24,6 +24,7 @@ interface BuildConfigProps {
   value: BuildConfigValue;
   onChange: (value: BuildConfigValue) => void;
   type: 'update' | 'create';
+  actions?: React.ReactNode;
 }
 
 export function BuildConfig({
@@ -31,6 +32,7 @@ export function BuildConfig({
   value,
   onChange,
   type,
+  actions,
 }: BuildConfigProps) {
   const [isNamePristine, setIsNamePristine] = useState(true);
 
@@ -127,6 +129,7 @@ export function BuildConfig({
           </p>
         </div>
       </CardContent>
+      {actions}
     </Card>
   );
 }

@@ -33,11 +33,13 @@ export type GithubRepoSelectorValue = Omit<
 interface GithubRepoSelectorProps {
   value: GithubRepoSelectorValue;
   onChange: (value: GithubRepoSelectorValue) => void;
+  actions?: React.ReactNode;
 }
 
 export function GithubRepoSelector({
   value,
   onChange,
+  actions,
 }: GithubRepoSelectorProps) {
   const {
     installations,
@@ -272,6 +274,7 @@ export function GithubRepoSelector({
           </Popover>
         </div>
       </CardContent>
+      {actions}
     </Card>
   );
 }

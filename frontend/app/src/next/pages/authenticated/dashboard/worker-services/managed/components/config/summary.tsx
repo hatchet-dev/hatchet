@@ -62,11 +62,11 @@ export function Summary({
   originalMachineConfig,
 }: SummaryProps) {
   return (
-    <Card>
+    <Card variant="borderless">
       <CardHeader>
-        <CardTitle>Configuration Summary</CardTitle>
+        <CardTitle>Configuration Changeset</CardTitle>
         <CardDescription>
-          Review your configuration before deploying
+          Review your configuration changes before deploying
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

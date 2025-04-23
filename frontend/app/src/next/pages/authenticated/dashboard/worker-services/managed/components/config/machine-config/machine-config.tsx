@@ -48,9 +48,14 @@ export interface MachineConfigValue
 interface MachineConfigProps {
   config: MachineConfigValue;
   setConfig: (config: MachineConfigValue) => void;
+  actions?: React.ReactNode;
 }
 
-export function MachineConfig({ config, setConfig }: MachineConfigProps) {
+export function MachineConfig({
+  config,
+  setConfig,
+  actions,
+}: MachineConfigProps) {
   const selectedMachineType = DefaultMachineTypes.find(
     (type) => type.cpuKind === config.cpuKind,
   );
@@ -457,6 +462,7 @@ export function MachineConfig({ config, setConfig }: MachineConfigProps) {
           </Tabs>
         </div>
       </CardContent>
+      {actions}
     </Card>
   );
 }
