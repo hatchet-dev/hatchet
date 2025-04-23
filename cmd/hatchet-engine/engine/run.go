@@ -374,6 +374,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
 			olap.WithTenantAlertManager(sc.TenantAlerter),
+			olap.WithSamplingConfig(sc.Sampling),
 		)
 
 		if err != nil {
@@ -818,6 +819,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
 			olap.WithTenantAlertManager(sc.TenantAlerter),
+			olap.WithSamplingConfig(sc.Sampling),
 		)
 
 		if err != nil {
