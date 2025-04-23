@@ -21,6 +21,7 @@ import {
 } from './config/machine-config/machine-config';
 import { Summary } from './config/summary';
 import { Button } from '@/next/components/ui/button';
+import { Dialog, DialogContent } from '@/next/components/ui/dialog';
 
 export function UpdateServiceContent() {
   const navigate = useNavigate();
@@ -28,6 +29,8 @@ export function UpdateServiceContent() {
   const { update } = useManagedCompute();
 
   const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>('');
 
   const [secrets, setSecrets] = useState<UpdateManagedWorkerSecretRequest>({
     add: [],
@@ -103,7 +106,15 @@ export function UpdateServiceContent() {
   const SectionActions = ({ section }: { section: string }) => {
     return (
       <div className="flex justify-end gap-2 p-4 border-t">
-        <Button disabled={!hasChanged[section]}>Deploy</Button>
+        <Button
+          disabled={!hasChanged[section]}
+          onClick={() => {
+            setActiveSection(section);
+            setShowSummaryDialog(true);
+          }}
+        >
+          Deploy
+        </Button>
       </div>
     );
   };
@@ -164,44 +175,58 @@ export function UpdateServiceContent() {
           actions={<SectionActions section="buildConfig" />}
         />
       </dl>
-      <div className="sticky top-4 h-fit">
-        <Summary
-          githubRepo={githubRepo}
-          buildConfig={buildConfig}
-          machineConfig={machineConfig}
-          secrets={secrets}
-          onDeploy={handleDeploy}
-          isDeploying={isDeploying}
-          type="update"
-          originalGithubRepo={{
-            githubInstallationId:
-              service?.buildConfig?.githubInstallationId || '',
-            githubRepositoryOwner:
-              service?.buildConfig?.githubRepository?.repo_owner || '',
-            githubRepositoryName:
-              service?.buildConfig?.githubRepository?.repo_name || '',
-            githubRepositoryBranch:
-              service?.buildConfig?.githubRepositoryBranch || '',
-          }}
-          originalBuildConfig={{
-            buildDir: service?.buildConfig?.steps?.[0]?.buildDir || './',
-            dockerfilePath:
-              service?.buildConfig?.steps?.[0]?.dockerfilePath ||
-              './Dockerfile',
-            serviceName: service?.name || '',
-          }}
-          originalMachineConfig={{
-            cpuKind: service?.runtimeConfigs?.[0]?.cpuKind || 'shared',
-            cpus: service?.runtimeConfigs?.[0]?.cpus || 1,
-            memoryMb: service?.runtimeConfigs?.[0]?.memoryMb || 1024,
-            regions: service?.runtimeConfigs?.[0]?.region
-              ? [service.runtimeConfigs[0].region]
-              : [ManagedWorkerRegion.Ewr],
-            numReplicas: service?.runtimeConfigs?.[0]?.numReplicas,
-            autoscaling: service?.runtimeConfigs?.[0]?.autoscaling,
-          }}
-        />
-      </div>
+
+      <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
+        <DialogContent className="max-w-3xl">
+          <Summary
+            githubRepo={githubRepo}
+            buildConfig={buildConfig}
+            machineConfig={machineConfig}
+            secrets={secrets}
+            onDeploy={handleDeploy}
+            isDeploying={isDeploying}
+            type="update"
+            originalGithubRepo={{
+              githubInstallationId:
+                service?.buildConfig?.githubInstallationId || '',
+              githubRepositoryOwner:
+                service?.buildConfig?.githubRepository?.repo_owner || '',
+              githubRepositoryName:
+                service?.buildConfig?.githubRepository?.repo_name || '',
+              githubRepositoryBranch:
+                service?.buildConfig?.githubRepositoryBranch || '',
+            }}
+            originalBuildConfig={{
+              buildDir: service?.buildConfig?.steps?.[0]?.buildDir || './',
+              dockerfilePath:
+                service?.buildConfig?.steps?.[0]?.dockerfilePath ||
+                './Dockerfile',
+              serviceName: service?.name || '',
+            }}
+            originalMachineConfig={{
+              cpuKind: service?.runtimeConfigs?.[0]?.cpuKind || 'shared',
+              cpus: service?.runtimeConfigs?.[0]?.cpus || 1,
+              memoryMb: service?.runtimeConfigs?.[0]?.memoryMb || 1024,
+              regions: service?.runtimeConfigs?.[0]?.region
+                ? [service.runtimeConfigs[0].region]
+                : [ManagedWorkerRegion.Ewr],
+              numReplicas: service?.runtimeConfigs?.[0]?.numReplicas,
+              autoscaling: service?.runtimeConfigs?.[0]?.autoscaling,
+            }}
+          />
+          <div className="pt-4 flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setShowSummaryDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button loading={isDeploying} onClick={handleDeploy}>
+              Deploy Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

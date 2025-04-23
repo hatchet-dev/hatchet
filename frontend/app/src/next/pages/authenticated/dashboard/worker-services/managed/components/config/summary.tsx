@@ -1,4 +1,3 @@
-import { Button } from '@/next/components/ui/button';
 import {
   Card,
   CardContent,
@@ -303,12 +302,6 @@ export function Summary({
               </p>
             </>
           )}
-        </div>
-
-        <div className="pt-4">
-          <Button className="w-full" loading={isDeploying} onClick={onDeploy}>
-            {type === 'create' ? 'Deploy Service' : 'Deploy Changes'}
-          </Button>
         </div>
       </CardContent>
     </Card>

@@ -109,7 +109,7 @@ function ServiceDetailPageContent({
           <WorkerTable serviceName={service?.name || ''} />
         </TabsContent>
         <TabsContent value="config">
-          <UpdateServiceContent />
+          {service && <UpdateServiceContent />}
         </TabsContent>
       </Tabs>
     </SheetViewLayout>
