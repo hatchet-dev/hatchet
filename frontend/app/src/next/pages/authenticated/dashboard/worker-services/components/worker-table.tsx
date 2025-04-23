@@ -28,6 +28,7 @@ import {
 } from '@/next/components/ui/filters/filters';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import { WorkerType } from '@/lib/api';
 
 interface WorkerTableProps {
   serviceName: string;
@@ -171,7 +172,11 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
 
   const handleWorkerClick = (workerId: string) => {
     navigate(
-      ROUTES.services.selfhostedWorkerDetail(encodeURIComponent(serviceName), workerId),
+      ROUTES.services.workerDetail(
+        encodeURIComponent(serviceName),
+        workerId,
+        service?.type || WorkerType.SELFHOSTED,
+      ),
     );
   };
 

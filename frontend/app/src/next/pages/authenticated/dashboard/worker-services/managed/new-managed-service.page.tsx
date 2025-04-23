@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { DocsButton } from '@/next/components/ui/docs-button';
@@ -45,26 +45,21 @@ import { Step, Steps } from '@/components/v1/ui/steps';
 import { Button } from '@/next/components/ui/button';
 
 function ServiceDetailPageContent() {
-  const { serviceName = '', workerId } = useParams<{
-    serviceName: string;
-    workerId?: string;
-  }>();
   const navigate = useNavigate();
 
   const { data: services, create } = useManagedCompute();
-
-  const decodedServiceName = decodeURIComponent(serviceName);
 
   useBreadcrumbs(
     () => [
       {
         title: 'Worker Services',
-        label: serviceName,
+        label: 'New Managed Worker Service',
         url: ROUTES.services.new(WorkerType.MANAGED),
       },
     ],
-    [decodedServiceName, serviceName],
+    [],
   );
+
   const { canWithReason } = useCan();
 
   const { rejectReason } = canWithReason(managedCompute.create());
