@@ -239,6 +239,25 @@ class AdminClient:
             ),
         )
 
+    def get_workflow_run_output(self, workflow_run_id: str) -> JSONSerializableMapping:
+        opts = v0_workflow_protos.GetWorkflowRunOutputRequest(
+            workflow_run_id=workflow_run_id,
+        )
+
+        if self.v0_client is None:
+            conn = new_conn(self.config, False)
+            self.v0_client = WorkflowServiceStub(conn)
+
+        raw = cast(
+            v0_workflow_protos.GetWorkflowRunOutputResponse,
+            self.v0_client.GetOutput(
+                opts,
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        return cast(JSONSerializableMapping, json.loads(raw.output))
+
     @tenacity_retry
     def put_rate_limit(
         self,
