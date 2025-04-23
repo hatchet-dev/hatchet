@@ -31,20 +31,30 @@ import {
   AlertDescription,
 } from '@/next/components/ui/alert';
 import { Lock } from 'lucide-react';
-
+import useApiMeta from '@/next/hooks/use-api-meta';
 function GithubInstallationsEmptyState() {
+  const { isCloud } = useApiMeta();
+
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-8">
-      <p className="text-md">No GitHub installations found.</p>
-      <p className="text-sm text-muted-foreground">
-        Connect your GitHub account to get started.
-      </p>
-      <a href="/api/v1/cloud/users/github-app/start">
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Connect GitHub Account
-        </Button>
-      </a>
+      {isCloud ? (
+        <>
+          <p className="text-md">No GitHub installations found.</p>
+          <p className="text-sm text-muted-foreground">
+            Connect your GitHub account to get started.
+          </p>
+          <a href="/api/v1/cloud/users/github-app/start">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Connect GitHub Account
+            </Button>
+          </a>
+        </>
+      ) : (
+        <p className="text-md">
+          GitHub integration is only available in on Hatchet Cloud.
+        </p>
+      )}
     </div>
   );
 }
@@ -108,6 +118,8 @@ function GithubInstallationsList() {
 }
 
 export default function GithubPage() {
+  const { isCloud } = useApiMeta();
+
   const { canWithReason } = useCan();
   const { allowed: canManage, message: canManageMessage } = canWithReason(
     github.manage(),
@@ -121,12 +133,14 @@ export default function GithubPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <a href="/api/v1/cloud/users/github-app/start">
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Connect new account
-              </Button>
-            </a>
+            {isCloud && (
+              <a href="/api/v1/cloud/users/github-app/start">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Connect new account
+                </Button>
+              </a>
+            )}
             {/* <DocsButton doc={docs.home['github-integration']} size="icon" /> */}
           </HeadlineActionItem>
         </HeadlineActions>

@@ -20,7 +20,7 @@ import {
 import { useApiError } from '@/lib/hooks';
 import { cloudApi } from '@/lib/api/api';
 import { useToast } from './utils/use-toast';
-
+import useApiMeta from './use-api-meta';
 export type { GithubAppInstallation, GithubBranch, GithubRepo };
 
 // Main hook return type
@@ -74,6 +74,7 @@ function GithubIntegrationProviderContent({
   const { tenant } = useTenant();
   const { handleApiError } = useApiError({});
   const { toast } = useToast();
+  const { isCloud } = useApiMeta();
 
   // State for selected installation and repo
   const [selectedInstallation, setSelectedInstallation] = useState<
@@ -103,7 +104,7 @@ function GithubIntegrationProviderContent({
         return { rows: [] };
       }
     },
-    enabled: !!tenant?.metadata.id,
+    enabled: !!tenant?.metadata.id && isCloud,
   });
 
   // List repos query
@@ -132,7 +133,7 @@ function GithubIntegrationProviderContent({
         return [];
       }
     },
-    enabled: !!tenant?.metadata.id && !!selectedInstallation,
+    enabled: isCloud && !!tenant?.metadata.id && !!selectedInstallation,
   });
 
   // List branches query
@@ -174,6 +175,7 @@ function GithubIntegrationProviderContent({
       }
     },
     enabled:
+      isCloud &&
       !!tenant?.metadata.id &&
       !!selectedInstallation &&
       !!selectedRepo?.repo_owner &&
