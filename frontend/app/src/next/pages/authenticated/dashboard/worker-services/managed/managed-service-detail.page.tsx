@@ -127,6 +127,20 @@ function UpdateServiceContent() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <dl className="flex flex-col gap-4">
+        <MachineConfig
+          config={machineConfig}
+          setConfig={(value) => {
+            setMachineConfig(value);
+          }}
+        />
+        <EnvVarsEditor
+          secrets={secrets}
+          setSecrets={setSecrets}
+          original={{
+            directSecrets: service?.directSecrets || [],
+            globalSecrets: service?.globalSecrets || [],
+          }}
+        />
         <GithubIntegrationProvider>
           <GithubRepoSelector
             value={githubRepo}
@@ -140,20 +154,6 @@ function UpdateServiceContent() {
           value={buildConfig}
           onChange={(value) => {
             setBuildConfig(value);
-          }}
-        />
-        <EnvVarsEditor
-          secrets={secrets}
-          setSecrets={setSecrets}
-          original={{
-            directSecrets: service?.directSecrets || [],
-            globalSecrets: service?.globalSecrets || [],
-          }}
-        />
-        <MachineConfig
-          config={machineConfig}
-          setConfig={(value) => {
-            setMachineConfig(value);
           }}
         />
       </dl>

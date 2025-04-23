@@ -41,9 +41,7 @@ export function ManagedComputeDetailProvider({
   const managedWorkerQuery = useQuery({
     queryKey: ['managed-worker:get', managedWorkerId],
     queryFn: async () => {
-      const res = await cloudApi.managedWorkerGet(
-        'de1221e1-51b9-47ae-8cd1-768bbe5873e3',
-      );
+      const res = await cloudApi.managedWorkerGet(managedWorkerId);
       return res.data;
     },
     refetchInterval,
