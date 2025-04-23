@@ -21,7 +21,7 @@ interface DiffValueProps {
 
 function DiffValue({ current, original, className, type }: DiffValueProps) {
   if (type != 'update' || !original || original === current) {
-    return <span className={className}>{current}</span>;
+    return <span className={cn(className, 'text-green-600')}>{current}</span>;
   }
 
   return (
@@ -39,8 +39,6 @@ interface SummaryProps {
   buildConfig: BuildConfigValue;
   machineConfig: MachineConfigValue;
   secrets: UpdateManagedWorkerSecretRequest;
-  onDeploy: () => void;
-  isDeploying?: boolean;
   type: 'create' | 'update';
   originalGithubRepo?: GithubRepoSelectorValue;
   originalBuildConfig?: BuildConfigValue;
@@ -53,8 +51,6 @@ export function Summary({
   buildConfig,
   machineConfig,
   secrets,
-  onDeploy,
-  isDeploying = false,
   type,
   originalGithubRepo,
   originalBuildConfig,
@@ -264,20 +260,13 @@ export function Summary({
         <div className="space-y-2">
           <h3 className="font-medium">Environment Variables</h3>
           {type === 'create' && (
-            <p className={cn('text-sm', 'text-muted-foreground')}>
+            <p className={cn('text-sm', 'text-green-600')}>
               {secrets.add?.length || 0} new variables
             </p>
           )}
           {type === 'update' && (
             <>
-              <p
-                className={cn(
-                  'text-sm',
-                  !secrets.add?.length || secrets.add?.length === 0
-                    ? 'text-muted-foreground'
-                    : 'text-green-600',
-                )}
-              >
+              <p className={cn('text-sm', 'text-green-600')}>
                 {secrets.add?.length || 0} new variables
               </p>
               <p

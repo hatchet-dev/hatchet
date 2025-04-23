@@ -41,6 +41,8 @@ import {
   MachineConfigValue,
 } from './components/config/machine-config/machine-config';
 import { Summary } from './components/config/summary';
+import { Step, Steps } from '@/components/v1/ui/steps';
+import { Button } from '@/next/components/ui/button';
 
 function ServiceDetailPageContent() {
   const { serviceName = '', workerId } = useParams<{
@@ -106,6 +108,8 @@ function ServiceDetailPageContent() {
 
   const [isDeploying, setIsDeploying] = useState(false);
 
+  const [activeStep, setActiveStep] = useState(0);
+
   const handleDeploy = async () => {
     if (!githubRepo.githubInstallationId || !githubRepo.githubRepositoryName) {
       return;
@@ -141,6 +145,14 @@ function ServiceDetailPageContent() {
     }
   };
 
+  const handleNext = () => {
+    setActiveStep((prev) => Math.min(prev + 1, 4));
+  };
+
+  const handlePrevious = () => {
+    setActiveStep((prev) => Math.max(prev - 1, 0));
+  };
+
   if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
     return <BillingRequired />;
   }
@@ -157,51 +169,107 @@ function ServiceDetailPageContent() {
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
-      <Separator className="my-4" />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <dl className="flex flex-col gap-4">
-          <GithubIntegrationProvider>
-            <GithubRepoSelector
-              value={githubRepo}
+      <Separator className="mt-4" />
+      <div className="flex flex-col gap-4">
+        <Steps>
+          <Step
+            title="GitHub Repository"
+            className="border-none"
+            open={activeStep === 0}
+            setOpen={(open: boolean) => setActiveStep(open ? 0 : -1)}
+          >
+            <GithubIntegrationProvider>
+              <GithubRepoSelector
+                value={githubRepo}
+                onChange={(value) => {
+                  setGithubRepo(value);
+                }}
+              />
+            </GithubIntegrationProvider>
+            <div className="flex justify-end mt-4">
+              <Button onClick={handleNext}>Next</Button>
+            </div>
+          </Step>
+          <Step
+            title="Build Configuration"
+            open={activeStep === 1}
+            setOpen={(open: boolean) => setActiveStep(open ? 1 : -1)}
+          >
+            <BuildConfig
+              githubRepo={githubRepo}
+              value={buildConfig}
               onChange={(value) => {
-                setGithubRepo(value);
+                setBuildConfig(value);
+              }}
+              type="create"
+            />
+            <div className="flex justify-between mt-4">
+              <Button variant="outline" onClick={handlePrevious}>
+                Previous
+              </Button>
+              <Button onClick={handleNext}>Next</Button>
+            </div>
+          </Step>
+          <Step
+            title="Environment Variables"
+            open={activeStep === 2}
+            setOpen={(open: boolean) => setActiveStep(open ? 2 : -1)}
+          >
+            <EnvVarsEditor
+              secrets={secrets}
+              setSecrets={setSecrets}
+              original={{
+                directSecrets: [],
+                globalSecrets: [],
               }}
             />
-          </GithubIntegrationProvider>
-          <BuildConfig
-            githubRepo={githubRepo}
-            value={buildConfig}
-            onChange={(value) => {
-              setBuildConfig(value);
-            }}
-            type="create"
-          />
-          <EnvVarsEditor
-            secrets={secrets}
-            setSecrets={setSecrets}
-            original={{
-              directSecrets: [],
-              globalSecrets: [],
-            }}
-          />
-          <MachineConfig
-            config={machineConfig}
-            setConfig={(value) => {
-              setMachineConfig(value);
-            }}
-          />
-        </dl>
-        <div className="sticky top-4 h-fit">
-          <Summary
-            githubRepo={githubRepo}
-            buildConfig={buildConfig}
-            machineConfig={machineConfig}
-            secrets={secrets}
-            onDeploy={handleDeploy}
-            isDeploying={isDeploying}
-            type="create"
-          />
-        </div>
+            <div className="flex justify-between mt-4">
+              <Button variant="outline" onClick={handlePrevious}>
+                Previous
+              </Button>
+              <Button onClick={handleNext}>Next</Button>
+            </div>
+          </Step>
+          <Step
+            title="Machine Configuration"
+            open={activeStep === 3}
+            setOpen={(open: boolean) => setActiveStep(open ? 3 : -1)}
+          >
+            <MachineConfig
+              config={machineConfig}
+              setConfig={(value) => {
+                setMachineConfig(value);
+              }}
+            />
+            <div className="flex justify-between mt-4">
+              <Button variant="outline" onClick={handlePrevious}>
+                Previous
+              </Button>
+              <Button onClick={handleNext}>Next</Button>
+            </div>
+          </Step>
+          <Step
+            title="Review & Deploy"
+            open={activeStep === 4}
+            setOpen={(open: boolean) => setActiveStep(open ? 4 : -1)}
+          >
+            <Summary
+              githubRepo={githubRepo}
+              buildConfig={buildConfig}
+              machineConfig={machineConfig}
+              secrets={secrets}
+              type="create"
+            />
+            <div className="flex justify-between mt-4">
+              <Button variant="outline" onClick={handlePrevious}>
+                Previous
+              </Button>
+              <Button onClick={handleDeploy} disabled={isDeploying}>
+                {isDeploying ? 'Deploying...' : 'Deploy Service'}
+              </Button>
+            </div>
+          </Step>
+        </Steps>
       </div>
     </BasicLayout>
   );
