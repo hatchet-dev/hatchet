@@ -21,6 +21,7 @@ import {
   PaginationManager,
   PaginationManagerNoOp,
 } from '@/next/components/ui/pagination';
+import { useToast } from './utils/use-toast';
 
 // Types for filters
 interface TokensFilters {
@@ -61,6 +62,7 @@ export default function useApiTokens({
   paginationManager = PaginationManagerNoOp,
 }: UseApiTokensOptions = {}): ApiTokensState {
   const { tenant } = useTenant();
+  const { toast } = useToast();
 
   // State for filters only
   const [filters, setFilters] = useState<TokensFilters>(initialFilters);
@@ -87,56 +89,69 @@ export default function useApiTokens({
         return pagination;
       }
 
-      // Build query params
-      const queryParams: Record<string, any> = {
-        limit: paginationManager?.pageSize || 10,
-        offset:
-          (paginationManager?.currentPage - 1) * paginationManager?.pageSize ||
-          0,
-      };
+      try {
+        // Build query params
+        const queryParams: Record<string, any> = {
+          limit: paginationManager?.pageSize || 10,
+          offset:
+            (paginationManager?.currentPage - 1) *
+              paginationManager?.pageSize || 0,
+        };
 
-      if (filters.sortBy) {
-        queryParams.orderByField = filters.sortBy;
-        queryParams.orderByDirection = filters.sortDirection || 'asc';
-      }
+        if (filters.sortBy) {
+          queryParams.orderByField = filters.sortBy;
+          queryParams.orderByDirection = filters.sortDirection || 'asc';
+        }
 
-      const res = await api.apiTokenList(
-        tenant?.metadata.id || '',
-        queryParams,
-      );
-
-      // Client-side filtering for search if API doesn't support it
-      let filteredRows = res.data.rows || [];
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
-        filteredRows = filteredRows.filter((token) =>
-          token.name.toLowerCase().includes(searchLower),
+        const res = await api.apiTokenList(
+          tenant?.metadata.id || '',
+          queryParams,
         );
-      }
 
-      // Client-side date filtering
-      if (filters.fromDate) {
-        const fromDate = new Date(filters.fromDate);
-        filteredRows = filteredRows.filter((token) => {
-          const createdAt = new Date(token.metadata.createdAt);
-          return createdAt >= fromDate;
+        // Client-side filtering for search if API doesn't support it
+        let filteredRows = res.data.rows || [];
+        if (filters.search) {
+          const searchLower = filters.search.toLowerCase();
+          filteredRows = filteredRows.filter((token) =>
+            token.name.toLowerCase().includes(searchLower),
+          );
+        }
+
+        // Client-side date filtering
+        if (filters.fromDate) {
+          const fromDate = new Date(filters.fromDate);
+          filteredRows = filteredRows.filter((token) => {
+            const createdAt = new Date(token.metadata.createdAt);
+            return createdAt >= fromDate;
+          });
+        }
+
+        if (filters.toDate) {
+          const toDate = new Date(filters.toDate);
+          filteredRows = filteredRows.filter((token) => {
+            const createdAt = new Date(token.metadata.createdAt);
+            return createdAt <= toDate;
+          });
+        }
+
+        paginationManager?.setNumPages(res.data.pagination?.num_pages || 1);
+
+        return {
+          ...res.data,
+          rows: filteredRows,
+        };
+      } catch (error) {
+        toast({
+          title: 'Error fetching API tokens',
+          
+          variant: 'destructive',
+          error,
         });
+        return {
+          rows: [],
+          pagination: { current_page: 0, num_pages: 0 },
+        };
       }
-
-      if (filters.toDate) {
-        const toDate = new Date(filters.toDate);
-        filteredRows = filteredRows.filter((token) => {
-          const createdAt = new Date(token.metadata.createdAt);
-          return createdAt <= toDate;
-        });
-      }
-
-      paginationManager?.setNumPages(res.data.pagination?.num_pages || 1);
-
-      return {
-        ...res.data,
-        rows: filteredRows,
-      };
     },
     refetchInterval,
   });
@@ -147,8 +162,18 @@ export default function useApiTokens({
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-      const res = await api.apiTokenCreate(tenant.metadata.id, data);
-      return res.data;
+      try {
+        const res = await api.apiTokenCreate(tenant.metadata.id, data);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating API token',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: (data) => {
       listTokensQuery.refetch();
@@ -159,7 +184,17 @@ export default function useApiTokens({
   const revokeMutation = useMutation({
     mutationKey: ['api-token:revoke', tenant],
     mutationFn: async (apiToken: APIToken) => {
-      await api.apiTokenUpdateRevoke(apiToken.metadata.id);
+      try {
+        await api.apiTokenUpdateRevoke(apiToken.metadata.id);
+      } catch (error) {
+        toast({
+          title: 'Error revoking API token',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listTokensQuery.refetch();

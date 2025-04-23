@@ -20,6 +20,7 @@ import {
   createElement,
   useMemo,
 } from 'react';
+import { useToast } from './utils/use-toast';
 
 // Main hook return type
 interface TenantAlertsState {
@@ -73,19 +74,42 @@ export function useTenantAlerts() {
 
 function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   const { tenant } = useTenant();
+  const { toast } = useToast();
 
   const alertingSettingsQuery = useQuery({
     queryKey: ['tenant-alerting-settings:get', tenant],
-    queryFn: async () =>
-      (await api.tenantAlertingSettingsGet(tenant?.metadata.id || '')).data,
+    queryFn: async () => {
+      try {
+        return (await api.tenantAlertingSettingsGet(tenant?.metadata.id || ''))
+          .data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching alert settings',
+          
+          variant: 'destructive',
+          error,
+        });
+        return undefined;
+      }
+    },
   });
 
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      await api.tenantUpdate(tenant?.metadata.id || '', data);
-      return (await api.tenantAlertingSettingsGet(tenant?.metadata.id || ''))
-        .data;
+      try {
+        await api.tenantUpdate(tenant?.metadata.id || '', data);
+        return (await api.tenantAlertingSettingsGet(tenant?.metadata.id || ''))
+          .data;
+      } catch (error) {
+        toast({
+          title: 'Error updating alert settings',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       alertingSettingsQuery.refetch();
@@ -94,18 +118,39 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
 
   const listEmailGroupQuery = useQuery({
     queryKey: ['email-group:list', tenant],
-    queryFn: async () =>
-      (await api.alertEmailGroupList(tenant?.metadata.id || '')).data,
+    queryFn: async () => {
+      try {
+        return (await api.alertEmailGroupList(tenant?.metadata.id || '')).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching email groups',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [] };
+      }
+    },
   });
 
   const createEmailGroupMutation = useMutation({
     mutationKey: ['email-group:create', tenant],
     mutationFn: async (data: CreateTenantAlertEmailGroupRequest) => {
-      const res = await api.alertEmailGroupCreate(
-        tenant?.metadata.id || '',
-        data,
-      );
-      return res.data;
+      try {
+        const res = await api.alertEmailGroupCreate(
+          tenant?.metadata.id || '',
+          data,
+        );
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating email group',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listEmailGroupQuery.refetch();
@@ -115,7 +160,17 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   const deleteEmailGroupMutation = useMutation({
     mutationKey: ['alert-email-group:delete', tenant],
     mutationFn: async (emailGroupId: string) => {
-      await api.alertEmailGroupDelete(emailGroupId);
+      try {
+        await api.alertEmailGroupDelete(emailGroupId);
+      } catch (error) {
+        toast({
+          title: 'Error deleting email group',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listEmailGroupQuery.refetch();
@@ -124,8 +179,19 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
 
   const listSlackWebhookQuery = useQuery({
     queryKey: ['slack-webhook:list', tenant],
-    queryFn: async () =>
-      (await api.slackWebhookList(tenant?.metadata.id || '')).data,
+    queryFn: async () => {
+      try {
+        return (await api.slackWebhookList(tenant?.metadata.id || '')).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching Slack webhooks',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
+      }
+    },
   });
 
   const startSlackWebhookUrl = useMemo(() => {
@@ -135,7 +201,17 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   const deleteSlackWebhookMutation = useMutation({
     mutationKey: ['slack-webhook:delete', tenant],
     mutationFn: async (id: string) => {
-      await api.slackWebhookDelete(id);
+      try {
+        await api.slackWebhookDelete(id);
+      } catch (error) {
+        toast({
+          title: 'Error deleting Slack webhook',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listSlackWebhookQuery.refetch();

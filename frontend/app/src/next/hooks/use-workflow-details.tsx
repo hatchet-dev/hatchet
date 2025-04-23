@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FilterProvider } from './utils/use-filters';
 import { PaginationProvider } from './utils/use-pagination';
+import { useToast } from './utils/use-toast';
 
 interface WorkflowDetailsFilters {
   statuses?: string[];
@@ -48,6 +49,7 @@ function WorkflowDetailsProviderContent({
   const { handleApiError } = useApiError({});
   const navigate = useNavigate();
   const integrations = useApiMetaIntegrations();
+  const { toast } = useToast();
 
   const workflowQuery = useQuery({
     ...queries.workflows.get(workflowId),
@@ -62,10 +64,20 @@ function WorkflowDetailsProviderContent({
   const updateWorkflowMutation = useMutation({
     mutationKey: ['workflow:update', workflowQuery?.data?.metadata.id],
     mutationFn: async (data: WorkflowUpdateRequest) => {
-      const res = await api.workflowUpdate(workflowId, {
-        ...data,
-      });
-      return res.data;
+      try {
+        const res = await api.workflowUpdate(workflowId, {
+          ...data,
+        });
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error updating workflow',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onError: handleApiError,
     onSuccess: () => {
@@ -87,8 +99,18 @@ function WorkflowDetailsProviderContent({
       if (!workflowQuery?.data) {
         return;
       }
-      const res = await api.workflowDelete(workflowQuery?.data.metadata.id);
-      return res.data;
+      try {
+        const res = await api.workflowDelete(workflowQuery?.data.metadata.id);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error deleting workflow',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       navigate('/v1/next/runs');

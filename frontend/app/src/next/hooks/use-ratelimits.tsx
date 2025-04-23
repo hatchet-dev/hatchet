@@ -7,6 +7,7 @@ import {
   usePagination,
   PaginationProviderProps,
 } from './utils/use-pagination';
+import { useToast } from './utils/use-toast';
 
 interface RateLimitsState {
   data?: RateLimit[];
@@ -36,6 +37,7 @@ export function RateLimitsProvider({
 function RateLimitsProviderContent({ children }: PropsWithChildren) {
   const pagination = usePagination();
   const { tenant } = useTenant();
+  const { toast } = useToast();
 
   const listRateLimitsQuery = useQuery({
     queryKey: ['rate-limit:list', tenant, pagination],
@@ -49,29 +51,42 @@ function RateLimitsProviderContent({ children }: PropsWithChildren) {
         return p;
       }
 
-      const res = await api.rateLimitList(tenant?.metadata.id || '', {
-        limit: pagination.pageSize || 10,
-        offset: (pagination.currentPage - 1) * pagination.pageSize || 0,
-      });
+      try {
+        const res = await api.rateLimitList(tenant?.metadata.id || '', {
+          limit: pagination.pageSize || 10,
+          offset: (pagination.currentPage - 1) * pagination.pageSize || 0,
+        });
 
-      pagination.setNumPages(res.data.pagination?.num_pages || 1);
+        pagination.setNumPages(res.data.pagination?.num_pages || 1);
 
-      // Transform API response to match our local RateLimit type
-      const transformedRows = (res.data.rows || []).map(
-        (row: ApiRateLimit) => ({
-          key: row.key || '',
-          tenantId: row.tenantId || '',
-          limitValue: row.limitValue || 0,
-          value: row.value || 0,
-          window: row.window || '',
-          lastRefill: row.lastRefill || new Date().toISOString(),
-        }),
-      );
+        // Transform API response to match our local RateLimit type
+        const transformedRows = (res.data.rows || []).map(
+          (row: ApiRateLimit) => ({
+            key: row.key || '',
+            tenantId: row.tenantId || '',
+            limitValue: row.limitValue || 0,
+            value: row.value || 0,
+            window: row.window || '',
+            lastRefill: row.lastRefill || new Date().toISOString(),
+          }),
+        );
 
-      return {
-        ...res.data,
-        rows: transformedRows,
-      };
+        return {
+          ...res.data,
+          rows: transformedRows,
+        };
+      } catch (error) {
+        toast({
+          title: 'Error fetching rate limits',
+          
+          variant: 'destructive',
+          error,
+        });
+        return {
+          rows: [],
+          pagination: { current_page: 0, num_pages: 0 },
+        };
+      }
     },
   });
 

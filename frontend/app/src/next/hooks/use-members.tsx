@@ -13,6 +13,7 @@ import {
   TenantInvite,
   TenantInviteList,
 } from '@/lib/api/generated/data-contracts';
+import { useToast } from './utils/use-toast';
 
 interface MembersState {
   data: TenantMember[];
@@ -33,6 +34,7 @@ const MembersContext = createContext<MembersState | null>(null);
 
 export function MembersProvider({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
+  const { toast } = useToast();
 
   const membersQuery = useQuery({
     queryKey: ['tenant-members:list', tenant?.metadata.id],
@@ -40,7 +42,17 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       if (!tenant?.metadata.id) {
         return { rows: [] };
       }
-      return (await api.tenantMemberList(tenant.metadata.id)).data;
+      try {
+        return (await api.tenantMemberList(tenant.metadata.id)).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching members',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [] };
+      }
     },
     enabled: !!tenant?.metadata.id,
   });
@@ -51,7 +63,17 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       if (!tenant?.metadata.id) {
         return { rows: [] };
       }
-      return (await api.tenantInviteList(tenant.metadata.id)).data;
+      try {
+        return (await api.tenantInviteList(tenant.metadata.id)).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching invites',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [] };
+      }
     },
     enabled: !!tenant?.metadata.id,
   });
@@ -62,8 +84,18 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
       if (!tenant?.metadata.id) {
         throw new Error('Tenant not found');
       }
-      const res = await api.tenantInviteCreate(tenant.metadata.id, data);
-      return res.data;
+      try {
+        const res = await api.tenantInviteCreate(tenant.metadata.id, data);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating invite',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       // Refresh the members list and invites list after successful invite

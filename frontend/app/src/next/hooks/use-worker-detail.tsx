@@ -7,6 +7,7 @@ import {
   PropsWithChildren,
   createElement,
 } from 'react';
+import { useToast } from './utils/use-toast';
 
 interface UpdateWorkerParams {
   workerId: string;
@@ -43,6 +44,7 @@ function WorkerDetailProviderContent({
 }: WorkerDetailProviderProps) {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const workerDetailQuery = useQuery({
     queryKey: ['worker:detail', tenant, workerId],
@@ -51,8 +53,18 @@ function WorkerDetailProviderContent({
         return undefined;
       }
 
-      const res = await api.workerGet(workerId);
-      return res.data;
+      try {
+        const res = await api.workerGet(workerId);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching worker details',
+          
+          variant: 'destructive',
+          error,
+        });
+        return undefined;
+      }
     },
     enabled: !!workerId,
   });
@@ -63,8 +75,18 @@ function WorkerDetailProviderContent({
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-      const res = await api.workerUpdate(workerId, data);
-      return res.data;
+      try {
+        const res = await api.workerUpdate(workerId, data);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error updating worker',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

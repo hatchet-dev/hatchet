@@ -19,6 +19,7 @@ import {
 } from '@tanstack/react-query';
 import { useApiError } from '@/lib/hooks';
 import { cloudApi } from '@/lib/api/api';
+import { useToast } from './utils/use-toast';
 
 export type { GithubAppInstallation, GithubBranch, GithubRepo };
 
@@ -72,6 +73,7 @@ function GithubIntegrationProviderContent({
 }: PropsWithChildren<{ initialInstallationId?: string }>) {
   const { tenant } = useTenant();
   const { handleApiError } = useApiError({});
+  const { toast } = useToast();
 
   // State for selected installation and repo
   const [selectedInstallation, setSelectedInstallation] = useState<
@@ -86,10 +88,20 @@ function GithubIntegrationProviderContent({
       if (!tenant?.metadata.id) {
         return { rows: [] };
       }
-      const res = await cloudApi.githubAppListInstallations({
-        tenant: tenant.metadata.id,
-      });
-      return res.data;
+      try {
+        const res = await cloudApi.githubAppListInstallations({
+          tenant: tenant.metadata.id,
+        });
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching GitHub installations',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [] };
+      }
     },
     enabled: !!tenant?.metadata.id,
   });
@@ -105,10 +117,20 @@ function GithubIntegrationProviderContent({
       if (!tenant?.metadata.id || !selectedInstallation) {
         return [];
       }
-      const res = await cloudApi.githubAppListRepos(selectedInstallation, {
-        tenant: tenant.metadata.id,
-      });
-      return res.data;
+      try {
+        const res = await cloudApi.githubAppListRepos(selectedInstallation, {
+          tenant: tenant.metadata.id,
+        });
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching GitHub repositories',
+          
+          variant: 'destructive',
+          error,
+        });
+        return [];
+      }
     },
     enabled: !!tenant?.metadata.id && !!selectedInstallation,
   });
@@ -131,15 +153,25 @@ function GithubIntegrationProviderContent({
       ) {
         return [];
       }
-      const res = await cloudApi.githubAppListBranches(
-        selectedInstallation,
-        selectedRepo.repo_owner,
-        selectedRepo.repo_name,
-        {
-          tenant: tenant.metadata.id,
-        },
-      );
-      return res.data;
+      try {
+        const res = await cloudApi.githubAppListBranches(
+          selectedInstallation,
+          selectedRepo.repo_owner,
+          selectedRepo.repo_name,
+          {
+            tenant: tenant.metadata.id,
+          },
+        );
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching GitHub branches',
+          
+          variant: 'destructive',
+          error,
+        });
+        return [];
+      }
     },
     enabled:
       !!tenant?.metadata.id &&
@@ -152,9 +184,19 @@ function GithubIntegrationProviderContent({
   const linkInstallationMutation = useMutation({
     mutationKey: ['github-app:update:installation', tenant?.metadata.id],
     mutationFn: async (installationId: string) => {
-      await cloudApi.githubAppUpdateInstallation(installationId, {
-        tenant: tenant!.metadata.id,
-      });
+      try {
+        await cloudApi.githubAppUpdateInstallation(installationId, {
+          tenant: tenant!.metadata.id,
+        });
+      } catch (error) {
+        toast({
+          title: 'Error linking GitHub installation',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listInstallationsQuery.refetch();
@@ -166,7 +208,17 @@ function GithubIntegrationProviderContent({
   const startOAuthMutation = useMutation({
     mutationKey: ['github-app:oauth:start'],
     mutationFn: async () => {
-      await cloudApi.userUpdateGithubAppOauthStart();
+      try {
+        await cloudApi.userUpdateGithubAppOauthStart();
+      } catch (error) {
+        toast({
+          title: 'Error starting GitHub OAuth',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onError: handleApiError,
   });

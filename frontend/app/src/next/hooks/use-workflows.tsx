@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
+import { useToast } from './utils/use-toast';
 
 interface WorkflowsFilters {
   statuses?: string[];
@@ -42,6 +43,7 @@ function WorkflowsProviderContent({
   const queryClient = useQueryClient();
   const filters = useFilters<WorkflowsFilters>();
   const pagination = usePagination();
+  const { toast } = useToast();
 
   const listWorkflowsQuery = useQuery({
     queryKey: [
@@ -56,18 +58,31 @@ function WorkflowsProviderContent({
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
-      const res = await api.workflowList(tenant.metadata.id, {
-        ...filters.filters,
-        offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
-        limit: pagination.pageSize,
-      });
-      return {
-        rows: res.data.rows,
-        pagination: {
-          current_page: res.data.pagination?.current_page || 0,
-          num_pages: res.data.pagination?.num_pages || 0,
-        },
-      };
+      try {
+        const res = await api.workflowList(tenant.metadata.id, {
+          ...filters.filters,
+          offset: Math.max(
+            0,
+            (pagination.currentPage - 1) * pagination.pageSize,
+          ),
+          limit: pagination.pageSize,
+        });
+        return {
+          rows: res.data.rows,
+          pagination: {
+            current_page: res.data.pagination?.current_page || 0,
+            num_pages: res.data.pagination?.num_pages || 0,
+          },
+        };
+      } catch (error) {
+        toast({
+          title: 'Error fetching workflows',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
+      }
     },
     refetchInterval,
   });

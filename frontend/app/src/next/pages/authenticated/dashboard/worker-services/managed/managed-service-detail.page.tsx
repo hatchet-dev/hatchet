@@ -28,16 +28,9 @@ import { ManagedComputeDetailProvider } from '@/next/hooks/use-managed-compute-d
 import { UpdateServiceContent } from './components/update-service';
 import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
-import { MetricsTab } from './components/metrics-tab';
 import { Badge } from '@/next/components/ui/badge';
 
-function ServiceDetailPageContent({
-  serviceId,
-  workerId,
-}: {
-  serviceId: string;
-  workerId: string;
-}) {
+function ServiceDetailPageContent({ workerId }: { workerId: string }) {
   const navigate = useNavigate();
 
   const { data: service } = useManagedComputeDetail();
@@ -106,9 +99,7 @@ function ServiceDetailPageContent({
         {/* <TabsContent value="builds">
           <BuildsTab serviceName={service?.name || ''} />
         </TabsContent> */}
-        <TabsContent value="metrics">
-          <MetricsTab />
-        </TabsContent>
+        <TabsContent value="metrics">{/* <MetricsTab /> */}</TabsContent>
         <TabsContent value="configuration">
           {service && <UpdateServiceContent />}
         </TabsContent>
@@ -126,14 +117,8 @@ export default function ServiceDetailPage() {
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
-        <ManagedComputeDetailProvider
-          managedWorkerId={serviceName || ''}
-          defaultRefetchInterval={10000}
-        >
-          <ServiceDetailPageContent
-            serviceId={serviceName || ''}
-            workerId={workerId || ''}
-          />
+        <ManagedComputeDetailProvider managedWorkerId={serviceName || ''}>
+          <ServiceDetailPageContent workerId={workerId || ''} />
         </ManagedComputeDetailProvider>
       </WorkersProvider>
     </ManagedComputeProvider>

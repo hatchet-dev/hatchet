@@ -3,6 +3,7 @@ import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
 import { V1TaskSummary, V1WorkflowRunDetails, V1TaskEvent } from '@/lib/api';
+import { useToast } from './utils/use-toast';
 
 interface RunDetailState {
   data: V1WorkflowRunDetails | undefined;
@@ -75,6 +76,7 @@ function RunDetailProviderContent({
   const [refetchInterval, setRefetchInterval] = useState(
     defaultRefetchInterval,
   );
+  const { toast } = useToast();
 
   const runDetails = useQuery({
     queryKey: ['workflow-run-details:get', runId],
@@ -82,15 +84,25 @@ function RunDetailProviderContent({
       if (runId === '00000000-0000-0000-0000-000000000000') {
         return;
       }
-      const run = (await api.v1WorkflowRunGet(runId)).data;
+      try {
+        const run = (await api.v1WorkflowRunGet(runId)).data;
 
-      if (refetchInterval) {
-        setRefetchInterval(
-          run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
-        );
+        if (refetchInterval) {
+          setRefetchInterval(
+            run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
+          );
+        }
+
+        return run;
+      } catch (error) {
+        toast({
+          title: 'Error fetching run details',
+          
+          variant: 'destructive',
+          error,
+        });
+        return undefined;
       }
-
-      return run;
     },
     refetchInterval: refetchInterval,
   });
@@ -105,15 +117,25 @@ function RunDetailProviderContent({
       if (!runId || runId === '00000000-0000-0000-0000-000000000000') {
         return;
       }
-      const run = (await api.v1WorkflowRunGet(runId)).data;
+      try {
+        const run = (await api.v1WorkflowRunGet(runId)).data;
 
-      if (refetchInterval) {
-        setRefetchInterval(
-          run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
-        );
+        if (refetchInterval) {
+          setRefetchInterval(
+            run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
+          );
+        }
+
+        return run;
+      } catch (error) {
+        toast({
+          title: 'Error fetching parent run details',
+          
+          variant: 'destructive',
+          error,
+        });
+        return undefined;
       }
-
-      return run;
     },
     refetchInterval: refetchInterval,
   });
@@ -125,36 +147,46 @@ function RunDetailProviderContent({
         return;
       }
 
-      const tasks = runDetails.data?.tasks || [];
+      try {
+        const tasks = runDetails.data?.tasks || [];
 
-      const logPromises = tasks.map(async (task) =>
-        ((await api.v1LogLineList(task.metadata.id)).data?.rows || []).map(
-          (log) => ({
-            ...log,
-            taskId: task.metadata.id,
-          }),
-        ),
-      );
+        const logPromises = tasks.map(async (task) =>
+          ((await api.v1LogLineList(task.metadata.id)).data?.rows || []).map(
+            (log) => ({
+              ...log,
+              taskId: task.metadata.id,
+            }),
+          ),
+        );
 
-      const eventPromises = tasks.map(
-        async (task) =>
-          (
-            await api.v1TaskEventList(task.metadata.id, {
-              limit: 50,
-              offset: 0,
-            })
-          ).data?.rows || [],
-      );
+        const eventPromises = tasks.map(
+          async (task) =>
+            (
+              await api.v1TaskEventList(task.metadata.id, {
+                limit: 50,
+                offset: 0,
+              })
+            ).data?.rows || [],
+        );
 
-      const [logs, events] = await Promise.all([
-        Promise.all(logPromises),
-        Promise.all(eventPromises),
-      ]);
+        const [logs, events] = await Promise.all([
+          Promise.all(logPromises),
+          Promise.all(eventPromises),
+        ]);
 
-      const mergedLogs = logs.flat();
-      const mergedEvents = events.flat();
+        const mergedLogs = logs.flat();
+        const mergedEvents = events.flat();
 
-      return { events: mergedEvents, logs: mergedLogs };
+        return { events: mergedEvents, logs: mergedLogs };
+      } catch (error) {
+        toast({
+          title: 'Error fetching run activity',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { events: [], logs: [] };
+      }
     },
     refetchInterval: refetchInterval,
   });

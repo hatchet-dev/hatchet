@@ -23,6 +23,7 @@ import {
   useQueryClient,
   UseQueryResult,
 } from '@tanstack/react-query';
+import { useToast } from './utils/use-toast';
 
 interface TenantState {
   tenant?: Tenant;
@@ -47,6 +48,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const { memberships, isLoading: isUserLoading } = useUser();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [currentTenantId, setCurrentTenantId] = useState<string | undefined>(
     () =>
       searchParams.get('tenant') ?? localStorage.getItem('tenant') ?? undefined,
@@ -112,13 +114,23 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
     mutationFn: async (name: string): Promise<Tenant> => {
-      const tenantData: CreateTenantRequest = {
-        name,
-        slug: name.toLowerCase().replace(/\s+/g, '-'),
-      };
+      try {
+        const tenantData: CreateTenantRequest = {
+          name,
+          slug: name.toLowerCase().replace(/\s+/g, '-'),
+        };
 
-      const response = await api.tenantCreate(tenantData);
-      return response.data;
+        const response = await api.tenantCreate(tenantData);
+        return response.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating tenant',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['user:*'] });
@@ -136,8 +148,18 @@ export function TenantProvider({ children }: TenantProviderProps) {
       if (!tenant?.metadata.id) {
         throw new Error('Tenant not found');
       }
-      const response = await api.tenantUpdate(tenant.metadata.id, data);
-      return response.data;
+      try {
+        const response = await api.tenantUpdate(tenant.metadata.id, data);
+        return response.data;
+      } catch (error) {
+        toast({
+          title: 'Error updating tenant',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user:*'] });
@@ -147,9 +169,20 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
   const resourcePolicyQuery = useQuery({
     queryKey: ['tenant-resource-policy:get', tenant?.metadata.id],
-    queryFn: async () =>
-      (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? '')).data
-        .limits,
+    queryFn: async () => {
+      try {
+        return (await api.tenantResourcePolicyGet(tenant?.metadata.id ?? ''))
+          .data.limits;
+      } catch (error) {
+        toast({
+          title: 'Error fetching tenant resource policy',
+          
+          variant: 'destructive',
+          error,
+        });
+        return [];
+      }
+    },
     enabled: !!tenant?.metadata.id,
   });
 

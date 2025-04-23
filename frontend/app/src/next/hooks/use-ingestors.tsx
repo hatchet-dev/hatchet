@@ -17,6 +17,7 @@ import {
   createElement,
   useMemo,
 } from 'react';
+import { useToast } from './utils/use-toast';
 
 // Main hook return type
 interface IngestorsState {
@@ -48,17 +49,43 @@ export function useIngestors() {
 
 function IngestorsProviderContent({ children }: IngestorsProviderProps) {
   const { tenant } = useTenant();
+  const { toast } = useToast();
 
   const listSNSIntegrationsQuery = useQuery({
     queryKey: ['sns:list', tenant],
-    queryFn: async () => (await api.snsList(tenant?.metadata.id || '')).data,
+    queryFn: async () => {
+      try {
+        return (await api.snsList(tenant?.metadata.id || '')).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching SNS integrations',
+          
+          variant: 'destructive',
+          error,
+        });
+        return {
+          rows: [],
+          pagination: { current_page: 0, num_pages: 0 },
+        } as ListSNSIntegrations;
+      }
+    },
   });
 
   const createSNSIntegrationMutation = useMutation({
     mutationKey: ['sns:create', tenant],
     mutationFn: async (data: CreateSNSIntegrationRequest) => {
-      const res = await api.snsCreate(tenant?.metadata.id || '', data);
-      return res.data;
+      try {
+        const res = await api.snsCreate(tenant?.metadata.id || '', data);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating SNS integration',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listSNSIntegrationsQuery.refetch();
@@ -68,7 +95,17 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
   const deleteSNSIntegrationMutation = useMutation({
     mutationKey: ['sns:delete', tenant],
     mutationFn: async (snsIntegration: SNSIntegration) => {
-      await api.snsDelete(snsIntegration.metadata.id);
+      try {
+        await api.snsDelete(snsIntegration.metadata.id);
+      } catch (error) {
+        toast({
+          title: 'Error deleting SNS integration',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listSNSIntegrationsQuery.refetch();

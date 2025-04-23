@@ -21,6 +21,7 @@ import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 import useApiMeta from './use-api-meta';
 import { useWorkers } from './use-workers';
+import { useToast } from './utils/use-toast';
 // Types for filters and pagination
 interface ManagedComputeFilters {
   search?: string;
@@ -88,6 +89,7 @@ function ManagedComputeProviderContent({
   const { tenant } = useTenant();
   const filters = useFilters<ManagedComputeFilters>();
   const pagination = usePagination();
+  const { toast } = useToast();
 
   const listManagedComputeQuery = useQuery({
     queryKey: [
@@ -106,79 +108,89 @@ function ManagedComputeProviderContent({
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
-      // Build query params
-      const queryParams: Record<string, any> = {
-        page: pagination.currentPage,
-        limit: pagination.pageSize,
-      };
+      try {
+        // Build query params
+        const queryParams: Record<string, any> = {
+          page: pagination.currentPage,
+          limit: pagination.pageSize,
+        };
 
-      if (filters.filters.sortBy) {
-        queryParams.orderBy = filters.filters.sortBy;
-        queryParams.orderDirection = filters.filters.sortDirection || 'asc';
-      }
+        if (filters.filters.sortBy) {
+          queryParams.orderBy = filters.filters.sortBy;
+          queryParams.orderDirection = filters.filters.sortDirection || 'asc';
+        }
 
-      const res = await cloudApi.managedWorkerList(tenant?.metadata.id || '');
+        const res = await cloudApi.managedWorkerList(tenant?.metadata.id || '');
 
-      // Client-side filtering for search if API doesn't support it
-      let filteredRows = res.data.rows || [];
-      if (filters.filters.search) {
-        const searchLower = filters.filters.search.toLowerCase();
-        filteredRows = filteredRows.filter((worker: ManagedWorker) =>
-          worker.name?.toLowerCase().includes(searchLower),
-        );
-      }
+        // Client-side filtering for search if API doesn't support it
+        let filteredRows = res.data.rows || [];
+        if (filters.filters.search) {
+          const searchLower = filters.filters.search.toLowerCase();
+          filteredRows = filteredRows.filter((worker: ManagedWorker) =>
+            worker.name?.toLowerCase().includes(searchLower),
+          );
+        }
 
-      // Client-side date filtering
-      if (filters.filters.fromDate) {
-        const fromDate = new Date(filters.filters.fromDate);
-        filteredRows = filteredRows.filter((worker: ManagedWorker) => {
-          const createdAt = new Date(worker.metadata.createdAt);
-          return createdAt >= fromDate;
+        // Client-side date filtering
+        if (filters.filters.fromDate) {
+          const fromDate = new Date(filters.filters.fromDate);
+          filteredRows = filteredRows.filter((worker: ManagedWorker) => {
+            const createdAt = new Date(worker.metadata.createdAt);
+            return createdAt >= fromDate;
+          });
+        }
+
+        if (filters.filters.toDate) {
+          const toDate = new Date(filters.filters.toDate);
+          filteredRows = filteredRows.filter((worker: ManagedWorker) => {
+            const createdAt = new Date(worker.metadata.createdAt);
+            return createdAt <= toDate;
+          });
+        }
+
+        // Client-side sorting if API doesn't support it
+        if (filters.filters.sortBy) {
+          filteredRows.sort((a: ManagedWorker, b: ManagedWorker) => {
+            let valueA: any;
+            let valueB: any;
+
+            switch (filters.filters.sortBy) {
+              case 'name':
+                valueA = a.name;
+                valueB = b.name;
+                break;
+              case 'createdAt':
+                valueA = new Date(a.metadata.createdAt).getTime();
+                valueB = new Date(b.metadata.createdAt).getTime();
+                break;
+              default:
+                return 0;
+            }
+
+            const direction = filters.filters.sortDirection === 'desc' ? -1 : 1;
+            if (valueA < valueB) {
+              return -1 * direction;
+            }
+            if (valueA > valueB) {
+              return 1 * direction;
+            }
+            return 0;
+          });
+        }
+
+        return {
+          ...res.data,
+          rows: filteredRows,
+        };
+      } catch (error) {
+        toast({
+          title: 'Error fetching managed compute',
+          
+          variant: 'destructive',
+          error,
         });
+        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
-
-      if (filters.filters.toDate) {
-        const toDate = new Date(filters.filters.toDate);
-        filteredRows = filteredRows.filter((worker: ManagedWorker) => {
-          const createdAt = new Date(worker.metadata.createdAt);
-          return createdAt <= toDate;
-        });
-      }
-
-      // Client-side sorting if API doesn't support it
-      if (filters.filters.sortBy) {
-        filteredRows.sort((a: ManagedWorker, b: ManagedWorker) => {
-          let valueA: any;
-          let valueB: any;
-
-          switch (filters.filters.sortBy) {
-            case 'name':
-              valueA = a.name;
-              valueB = b.name;
-              break;
-            case 'createdAt':
-              valueA = new Date(a.metadata.createdAt).getTime();
-              valueB = new Date(b.metadata.createdAt).getTime();
-              break;
-            default:
-              return 0;
-          }
-
-          const direction = filters.filters.sortDirection === 'desc' ? -1 : 1;
-          if (valueA < valueB) {
-            return -1 * direction;
-          }
-          if (valueA > valueB) {
-            return 1 * direction;
-          }
-          return 0;
-        });
-      }
-
-      return {
-        ...res.data,
-        rows: filteredRows,
-      };
     },
     refetchInterval,
   });
@@ -191,16 +203,28 @@ function ManagedComputeProviderContent({
         throw new Error('Tenant not found');
       }
 
-      // Validate that only one of numReplicas or autoscaling is set
-      if (data.runtimeConfig?.autoscaling) {
-        data.runtimeConfig.numReplicas = undefined;
-      } else if (data.runtimeConfig) {
-        data.runtimeConfig.autoscaling = undefined;
+      try {
+        // Validate that only one of numReplicas or autoscaling is set
+        if (data.runtimeConfig?.autoscaling) {
+          data.runtimeConfig.numReplicas = undefined;
+        } else if (data.runtimeConfig) {
+          data.runtimeConfig.autoscaling = undefined;
+        }
+
+        const res = await cloudApi.managedWorkerCreate(
+          tenant.metadata.id,
+          data,
+        );
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating managed compute',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
       }
-
-      const res = await cloudApi.managedWorkerCreate(tenant.metadata.id, data);
-
-      return res.data;
     },
     onSuccess: () => {
       listManagedComputeQuery.refetch();
@@ -218,16 +242,25 @@ function ManagedComputeProviderContent({
         throw new Error('Tenant not found');
       }
 
-      // Validate that only one of numReplicas or autoscaling is set
-      if (data.runtimeConfig?.autoscaling) {
-        data.runtimeConfig.numReplicas = undefined;
-      } else if (data.runtimeConfig) {
-        data.runtimeConfig.autoscaling = undefined;
+      try {
+        // Validate that only one of numReplicas or autoscaling is set
+        if (data.runtimeConfig?.autoscaling) {
+          data.runtimeConfig.numReplicas = undefined;
+        } else if (data.runtimeConfig) {
+          data.runtimeConfig.autoscaling = undefined;
+        }
+
+        const res = await cloudApi.managedWorkerUpdate(managedWorkerId, data);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error updating managed compute',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
       }
-
-      const res = await cloudApi.managedWorkerUpdate(managedWorkerId, data);
-
-      return res.data;
     },
     onSuccess: () => {
       listManagedComputeQuery.refetch();
@@ -242,8 +275,18 @@ function ManagedComputeProviderContent({
         throw new Error('Tenant not found');
       }
 
-      const res = await cloudApi.managedWorkerDelete(managedWorkerId);
-      return res.data;
+      try {
+        const res = await cloudApi.managedWorkerDelete(managedWorkerId);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error deleting managed compute',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listManagedComputeQuery.refetch();
@@ -257,7 +300,17 @@ function ManagedComputeProviderContent({
         throw new Error('Tenant not found');
       }
 
-      return (await cloudApi.computeCostGet(tenant.metadata.id)).data;
+      try {
+        return (await cloudApi.computeCostGet(tenant.metadata.id)).data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching compute costs',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
   });
 

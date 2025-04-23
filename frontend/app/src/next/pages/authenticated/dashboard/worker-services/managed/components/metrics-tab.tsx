@@ -1,14 +1,10 @@
 import { Matrix } from '@/lib/api/generated/cloud/data-contracts';
-import { Spinner } from '@/next/components/ui/spinner';
 import { useEffect, useMemo, useState } from 'react';
 import { Separator } from '@/next/components/ui/separator';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import { Button } from '@/next/components/ui/button';
 import { XCircleIcon } from '@heroicons/react/24/outline';
-import {
-  DataPoint,
-  ZoomableChart,
-} from '@/components/v1/molecules/charts/zoomable';
+import { DataPoint } from '@/components/v1/molecules/charts/zoomable';
 import { useAtom } from 'jotai';
 import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
 import { getCreatedAfterFromTimeRange } from '@/pages/main/workflow-runs/components/workflow-runs-table';
@@ -19,10 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useManagedComputeDetail } from '@/next/hooks/use-managed-compute-detail';
 
 export function MetricsTab() {
-  const { metrics } = useManagedComputeDetail();
+  // const { metrics } = useManagedComputeDetail();
 
   const [defaultTimeRange, setDefaultTimeRange] = useAtom(
     lastWorkerMetricsTimeRangeAtom,
@@ -74,16 +69,13 @@ export function MetricsTab() {
     };
   }, [createdAfter, finishedBefore]);
 
-  if (
-    metrics.cpu?.isLoading ||
-    metrics.memory?.isLoading ||
-    metrics.disk?.isLoading ||
-    !metrics.cpu?.data ||
-    !metrics.memory?.data ||
-    !metrics.disk?.data
-  ) {
-    return <Spinner />;
-  }
+  // if (
+  //   metrics.cpu?.isLoading ||
+  //   metrics.memory?.isLoading ||
+  //   metrics.disk?.isLoading
+  // ) {
+  //   return <Spinner />;
+  // }
 
   return (
     <div className="flex flex-col gap-4">
@@ -155,7 +147,7 @@ export function MetricsTab() {
         CPU
       </h4>
       <Separator />
-      {
+      {/* {
         <ZoomableChart
           className="max-h-[25rem] min-h-[25rem]"
           data={transformToDataPoints(metrics.cpu.data)}
@@ -165,8 +157,8 @@ export function MetricsTab() {
           }}
           showYAxis={true}
         />
-      }
-      <h4 className="text-lg font-bold leading-tight text-foreground mt-16 ml-4">
+      } */}
+      {/* <h4 className="text-lg font-bold leading-tight text-foreground mt-16 ml-4">
         Memory
       </h4>
       <Separator />
@@ -199,7 +191,7 @@ export function MetricsTab() {
           }}
           showYAxis={true}
         />
-      }
+      } */}
     </div>
   );
 }

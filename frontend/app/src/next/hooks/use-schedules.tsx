@@ -21,6 +21,7 @@ import {
 } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
+import { useToast } from './utils/use-toast';
 
 // Types for filters and pagination
 export interface SchedulesFilters {
@@ -93,6 +94,7 @@ function SchedulesProviderContent({
   const queryClient = useQueryClient();
   const filters = useFilters<SchedulesFilters>();
   const pagination = usePagination();
+  const { toast } = useToast();
 
   const listSchedulesQuery = useQuery({
     queryKey: ['schedule:list', tenant, filters.filters, pagination],
@@ -101,19 +103,32 @@ function SchedulesProviderContent({
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
-      // Build query params
-      const queryParams: Parameters<typeof api.workflowScheduledList>[1] = {
-        limit: pagination.pageSize,
-        offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
-        ...filters.filters,
-      };
+      try {
+        // Build query params
+        const queryParams: Parameters<typeof api.workflowScheduledList>[1] = {
+          limit: pagination.pageSize,
+          offset: Math.max(
+            0,
+            (pagination.currentPage - 1) * pagination.pageSize,
+          ),
+          ...filters.filters,
+        };
 
-      const res = await api.workflowScheduledList(
-        tenant?.metadata.id || '',
-        queryParams,
-      );
+        const res = await api.workflowScheduledList(
+          tenant?.metadata.id || '',
+          queryParams,
+        );
 
-      return res.data;
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching schedules',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
+      }
     },
     refetchInterval,
   });
@@ -126,13 +141,23 @@ function SchedulesProviderContent({
         throw new Error('Tenant not found');
       }
 
-      const res = await api.scheduledWorkflowRunCreate(
-        tenant.metadata.id,
-        workflowName,
-        data,
-      );
+      try {
+        const res = await api.scheduledWorkflowRunCreate(
+          tenant.metadata.id,
+          workflowName,
+          data,
+        );
 
-      return res.data;
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating schedule',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schedule:list'] });
@@ -147,7 +172,17 @@ function SchedulesProviderContent({
         throw new Error('Tenant not found');
       }
 
-      await api.workflowScheduledDelete(tenant.metadata.id, scheduleId);
+      try {
+        await api.workflowScheduledDelete(tenant.metadata.id, scheduleId);
+      } catch (error) {
+        toast({
+          title: 'Error deleting schedule',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listSchedulesQuery.refetch();
@@ -166,17 +201,27 @@ function SchedulesProviderContent({
         throw new Error('Tenant not found');
       }
 
-      // First delete the existing schedule
-      await api.workflowScheduledDelete(tenant.metadata.id, scheduleId);
+      try {
+        // First delete the existing schedule
+        await api.workflowScheduledDelete(tenant.metadata.id, scheduleId);
 
-      // Then create a new one with the updated data
-      const res = await api.scheduledWorkflowRunCreate(
-        tenant.metadata.id,
-        workflowId,
-        data,
-      );
+        // Then create a new one with the updated data
+        const res = await api.scheduledWorkflowRunCreate(
+          tenant.metadata.id,
+          workflowId,
+          data,
+        );
 
-      return res.data;
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error updating schedule',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listSchedulesQuery.refetch();

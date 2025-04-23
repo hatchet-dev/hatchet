@@ -10,6 +10,7 @@ import useApiMeta from './use-api-meta';
 import { cloudApi } from '@/lib/api/api';
 import { useMemo } from 'react';
 import queryClient from '@/query-client';
+import { useToast } from './utils/use-toast';
 
 export type Plan = 'free' | 'starter' | 'growth';
 
@@ -33,8 +34,8 @@ export default function useBilling({
   refetchInterval,
 }: UseBillingOptions = {}): BillingHook {
   const meta = useApiMeta();
-
   const { tenant } = useTenant();
+  const { toast } = useToast();
 
   const {
     data: billingState,
@@ -42,8 +43,19 @@ export default function useBilling({
     isError,
   } = useQuery({
     queryKey: ['billing:state:get', tenant?.metadata.id],
-    queryFn: async () =>
-      (await cloudApi.tenantBillingStateGet(tenant?.metadata.id || '')).data,
+    queryFn: async () => {
+      try {
+        return (await cloudApi.tenantBillingStateGet(tenant?.metadata.id || ''))
+          .data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching billing state',
+          
+          variant: 'destructive',
+        });
+        return undefined;
+      }
+    },
     enabled: meta.cloud?.canBill,
     refetchInterval,
   });
@@ -62,10 +74,19 @@ export default function useBilling({
   const getManagedUrl = useQuery({
     queryKey: ['billing:get-managed-url', tenant?.metadata.id],
     queryFn: async () => {
-      const response = await cloudApi.billingPortalLinkGet(
-        tenant?.metadata.id || '',
-      );
-      return response.data.url;
+      try {
+        const response = await cloudApi.billingPortalLinkGet(
+          tenant?.metadata.id || '',
+        );
+        return response.data.url;
+      } catch (error) {
+        toast({
+          title: 'Error fetching billing portal URL',
+          
+          variant: 'destructive',
+        });
+        return undefined;
+      }
     },
     enabled: !!tenant?.metadata.id,
   });
@@ -73,11 +94,20 @@ export default function useBilling({
   const subscriptionMutation = useMutation({
     mutationKey: ['billing:subscription:update'],
     mutationFn: async ({ plan_code }: { plan_code: Plan }) => {
-      const [plan, period] = plan_code.split(':');
-      await cloudApi.subscriptionUpsert(tenant?.metadata.id || '', {
-        plan,
-        period,
-      });
+      try {
+        const [plan, period] = plan_code.split(':');
+        await cloudApi.subscriptionUpsert(tenant?.metadata.id || '', {
+          plan,
+          period,
+        });
+      } catch (error) {
+        toast({
+          title: 'Error updating subscription',
+          
+          variant: 'destructive',
+        });
+        throw error;
+      }
     },
     onSuccess: async () => {
       await Promise.all([

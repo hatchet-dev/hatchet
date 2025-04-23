@@ -18,6 +18,7 @@ import {
 } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
+import { useToast } from './utils/use-toast';
 
 // Types for filters and pagination
 export interface CronsFilters {
@@ -72,6 +73,7 @@ function CronsProviderContent({
   const queryClient = useQueryClient();
   const filters = useFilters<CronsFilters>();
   const pagination = usePagination();
+  const { toast } = useToast();
 
   const listCronsQuery = useQuery({
     queryKey: ['cron:list', tenant, filters.filters, pagination],
@@ -80,18 +82,31 @@ function CronsProviderContent({
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
-      const queryParams: Record<string, any> = {
-        limit: pagination.pageSize,
-        offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
-        ...filters.filters,
-      };
+      try {
+        const queryParams: Record<string, any> = {
+          limit: pagination.pageSize,
+          offset: Math.max(
+            0,
+            (pagination.currentPage - 1) * pagination.pageSize,
+          ),
+          ...filters.filters,
+        };
 
-      const res = await api.cronWorkflowList(
-        tenant?.metadata.id || '',
-        queryParams,
-      );
+        const res = await api.cronWorkflowList(
+          tenant?.metadata.id || '',
+          queryParams,
+        );
 
-      return res.data;
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching crons',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
+      }
     },
     refetchInterval,
   });
@@ -104,13 +119,23 @@ function CronsProviderContent({
         throw new Error('Tenant not found');
       }
 
-      const res = await api.cronWorkflowTriggerCreate(
-        tenant.metadata.id,
-        workflowId,
-        data,
-      );
+      try {
+        const res = await api.cronWorkflowTriggerCreate(
+          tenant.metadata.id,
+          workflowId,
+          data,
+        );
 
-      return res.data;
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating cron',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cron:list'] });
@@ -125,7 +150,17 @@ function CronsProviderContent({
         throw new Error('Tenant not found');
       }
 
-      await api.workflowCronDelete(tenant.metadata.id, cronId);
+      try {
+        await api.workflowCronDelete(tenant.metadata.id, cronId);
+      } catch (error) {
+        toast({
+          title: 'Error deleting cron',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listCronsQuery.refetch();
@@ -139,17 +174,27 @@ function CronsProviderContent({
         throw new Error('Tenant not found');
       }
 
-      // First delete the existing cron
-      await api.workflowCronDelete(tenant.metadata.id, cronId);
+      try {
+        // First delete the existing cron
+        await api.workflowCronDelete(tenant.metadata.id, cronId);
 
-      // Then create a new one with the updated data
-      const res = await api.cronWorkflowTriggerCreate(
-        tenant.metadata.id,
-        workflowId,
-        data,
-      );
+        // Then create a new one with the updated data
+        const res = await api.cronWorkflowTriggerCreate(
+          tenant.metadata.id,
+          workflowId,
+          data,
+        );
 
-      return res.data;
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error updating cron',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listCronsQuery.refetch();

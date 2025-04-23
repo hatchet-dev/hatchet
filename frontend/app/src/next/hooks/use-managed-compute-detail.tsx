@@ -8,6 +8,8 @@ import {
 } from '@/lib/api/generated/cloud/data-contracts';
 import { ListCloudLogsQuery } from '@/lib/api/queries';
 import { subDays } from 'date-fns';
+import { useToast } from '@/next/hooks/utils/use-toast';
+
 interface ManagedComputeDetailState {
   data: ManagedWorker | undefined;
   isLoading: boolean;
@@ -46,55 +48,111 @@ export function ManagedComputeDetailProvider({
   managedWorkerId,
   defaultRefetchInterval,
 }: ManagedComputeDetailProviderProps) {
+  const { toast } = useToast();
+
   const [refetchInterval, setRefetchInterval] = useState(
     defaultRefetchInterval,
+  );
+
+  const logsQuery = useMemo<ListCloudLogsQuery>(
+    () => ({
+      before: subDays(new Date(), 1).toISOString(),
+      after: new Date().toISOString(),
+      direction: 'backward',
+      search: '',
+    }),
+    [],
   );
 
   const managedWorkerQuery = useQuery({
     queryKey: ['managed-worker:get', managedWorkerId],
     queryFn: async () => {
-      const res = await cloudApi.managedWorkerGet(managedWorkerId);
-      return res.data;
+      try {
+        const res = await cloudApi.managedWorkerGet(managedWorkerId);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching managed worker',
+
+          variant: 'destructive',
+          error,
+        });
+      }
     },
     refetchInterval,
   });
 
-  const logsQuery: ListCloudLogsQuery = {
-    before: subDays(new Date(), 1).toISOString(),
-    after: new Date().toISOString(),
-    direction: 'backward',
-    search: '',
-  };
-
   const managedWorkerLogsQuery = useQuery({
     queryKey: ['managed-worker:logs', managedWorkerId],
     queryFn: async () => {
-      const res = await cloudApi.logList(managedWorkerId, logsQuery);
-      return res.data;
+      try {
+        const res = await cloudApi.logList(managedWorkerId, logsQuery);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching managed worker logs',
+
+          variant: 'destructive',
+          error,
+        });
+      }
     },
     refetchInterval,
   });
 
   const getCpuMetricsQuery = useQuery({
     queryKey: ['managed-worker:get:cpu-metrics', managedWorkerId, logsQuery],
-    queryFn: async () =>
-      (await cloudApi.metricsCpuGet(managedWorkerId, logsQuery)).data,
+    queryFn: async () => {
+      try {
+        const res = await cloudApi.metricsCpuGet(managedWorkerId, logsQuery);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching managed worker CPU metrics',
+
+          variant: 'destructive',
+          error,
+        });
+      }
+    },
     enabled: !!managedWorkerId,
     refetchInterval: refetchInterval,
   });
 
   const getMemoryMetricsQuery = useQuery({
     queryKey: ['managed-worker:get:memory-metrics', managedWorkerId, logsQuery],
-    queryFn: async () =>
-      (await cloudApi.metricsMemoryGet(managedWorkerId, logsQuery)).data,
+    queryFn: async () => {
+      try {
+        const res = await cloudApi.metricsMemoryGet(managedWorkerId, logsQuery);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching managed worker memory metrics',
+
+          variant: 'destructive',
+          error,
+        });
+      }
+    },
     enabled: !!managedWorkerId,
     refetchInterval: refetchInterval,
   });
 
   const getDiskMetricsQuery = useQuery({
     queryKey: ['managed-worker:get:disk-metrics', managedWorkerId, logsQuery],
-    queryFn: async () =>
-      (await cloudApi.metricsDiskGet(managedWorkerId, logsQuery)).data,
+    queryFn: async () => {
+      try {
+        const res = await cloudApi.metricsDiskGet(managedWorkerId, logsQuery);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error fetching managed worker disk metrics',
+
+          variant: 'destructive',
+          error,
+        });
+      }
+    },
     enabled: !!managedWorkerId,
     refetchInterval: refetchInterval,
   });

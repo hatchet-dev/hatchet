@@ -27,6 +27,7 @@ import {
 } from '@/next/hooks/utils/use-time-filters';
 import { FilterProvider, useFilters } from '@/next/hooks/utils/use-filters';
 import { endOfMinute, startOfMinute } from 'date-fns';
+import { useToast } from './utils/use-toast';
 
 // Types for filters
 export interface RunsFilters {
@@ -125,6 +126,7 @@ export function RunsProvider({
 
 function RunsProviderContent({ children }: { children: React.ReactNode }) {
   const { tenant } = useTenant();
+  const { toast } = useToast();
 
   const filters = useFilters<RunsFilters>();
   const pagination = usePagination();
@@ -146,27 +148,41 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
-      const since = timeRange.filters.startTime
-        ? startOfMinute(new Date(timeRange.filters.startTime)).toISOString()
-        : startOfMinute(
-            new Date(Date.now() - 1000 * 60 * 60 * 24),
-          ).toISOString();
-      const until = timeRange.filters.endTime
-        ? endOfMinute(new Date(timeRange.filters.endTime)).toISOString()
-        : endOfMinute(new Date()).toISOString();
+      try {
+        const since = timeRange.filters.startTime
+          ? startOfMinute(new Date(timeRange.filters.startTime)).toISOString()
+          : startOfMinute(
+              new Date(Date.now() - 1000 * 60 * 60 * 24),
+            ).toISOString();
+        const until = timeRange.filters.endTime
+          ? endOfMinute(new Date(timeRange.filters.endTime)).toISOString()
+          : endOfMinute(new Date()).toISOString();
 
-      const query = {
-        offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
-        limit: pagination.pageSize,
-        since,
-        until,
-        ...filters.filters,
-        only_tasks: !!filters.filters.only_tasks,
-      };
+        const query = {
+          offset: Math.max(
+            0,
+            (pagination.currentPage - 1) * pagination.pageSize,
+          ),
+          limit: pagination.pageSize,
+          since,
+          until,
+          ...filters.filters,
+          only_tasks: !!filters.filters.only_tasks,
+        };
 
-      const res = (await api.v1WorkflowRunList(tenant.metadata.id, query)).data;
-      pagination.setNumPages(res.pagination?.num_pages || 1);
-      return res;
+        const res = (await api.v1WorkflowRunList(tenant.metadata.id, query))
+          .data;
+        pagination.setNumPages(res.pagination?.num_pages || 1);
+        return res;
+      } catch (error) {
+        toast({
+          title: 'Error fetching workflow runs',
+          
+          variant: 'destructive',
+          error,
+        });
+        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
+      }
     },
     placeholderData: (prev: any) => prev,
     refetchInterval,
@@ -186,29 +202,44 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
         return [] as V1TaskRunMetrics;
       }
 
-      const since =
-        timeRange.filters.startTime ||
-        startOfMinute(new Date(Date.now() - 1000 * 60 * 60 * 24)).toISOString();
-      const until =
-        timeRange.filters.endTime || endOfMinute(new Date()).toISOString();
+      try {
+        const since =
+          timeRange.filters.startTime ||
+          startOfMinute(
+            new Date(Date.now() - 1000 * 60 * 60 * 24),
+          ).toISOString();
+        const until =
+          timeRange.filters.endTime || endOfMinute(new Date()).toISOString();
 
-      const query = {
-        offset: Math.max(0, (pagination.currentPage - 1) * pagination.pageSize),
-        limit: pagination.pageSize,
-        since,
-        until,
-        ...filters.filters,
-        only_tasks: !!filters.filters.only_tasks,
-      };
+        const query = {
+          offset: Math.max(
+            0,
+            (pagination.currentPage - 1) * pagination.pageSize,
+          ),
+          limit: pagination.pageSize,
+          since,
+          until,
+          ...filters.filters,
+          only_tasks: !!filters.filters.only_tasks,
+        };
 
-      const res = (
-        await api.v1TaskListStatusMetrics(tenant.metadata.id, {
-          ...query,
-          workflow_ids: filters.filters.workflow_ids,
-        })
-      ).data;
+        const res = (
+          await api.v1TaskListStatusMetrics(tenant.metadata.id, {
+            ...query,
+            workflow_ids: filters.filters.workflow_ids,
+          })
+        ).data;
 
-      return res;
+        return res;
+      } catch (error) {
+        toast({
+          title: 'Error fetching workflow metrics',
+          
+          variant: 'destructive',
+          error,
+        });
+        return [] as V1TaskRunMetrics;
+      }
     },
     placeholderData: (prev: any) => prev,
     refetchInterval,
@@ -221,14 +252,24 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
         return [] as V1TaskPointMetrics;
       }
 
-      const res = (
-        await api.v1TaskGetPointMetrics(tenant.metadata.id, {
-          createdAfter: timeRange.filters.startTime,
-          finishedBefore: timeRange.filters.endTime, // TODO: THIS ISN'T CORRECT
-        })
-      ).data;
+      try {
+        const res = (
+          await api.v1TaskGetPointMetrics(tenant.metadata.id, {
+            createdAfter: timeRange.filters.startTime,
+            finishedBefore: timeRange.filters.endTime,
+          })
+        ).data;
 
-      return res;
+        return res;
+      } catch (error) {
+        toast({
+          title: 'Error fetching workflow histogram',
+          
+          variant: 'destructive',
+          error,
+        });
+        return [] as V1TaskPointMetrics;
+      }
     },
     placeholderData: (prev: any) => prev,
     enabled: !!tenant?.metadata.id,
@@ -247,10 +288,20 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
         return [] as TenantStepRunQueueMetrics;
       }
 
-      const res = (await api.tenantGetStepRunQueueMetrics(tenant.metadata.id))
-        .data;
+      try {
+        const res = (await api.tenantGetStepRunQueueMetrics(tenant.metadata.id))
+          .data;
 
-      return res;
+        return res;
+      } catch (error) {
+        toast({
+          title: 'Error fetching queue metrics',
+          
+          variant: 'destructive',
+          error,
+        });
+        return [] as TenantStepRunQueueMetrics;
+      }
     },
     refetchInterval,
   });
@@ -261,8 +312,18 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-      const res = await api.v1WorkflowRunCreate(tenant.metadata.id, data);
-      return res.data;
+      try {
+        const res = await api.v1WorkflowRunCreate(tenant.metadata.id, data);
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error creating workflow run',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listRunsQuery.refetch();
@@ -276,20 +337,30 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
         throw new Error('Tenant not found');
       }
 
-      if (tasks) {
-        const res = await api.v1TaskCancel(tenant.metadata.id, {
-          externalIds: tasks.map((run) => run.taskExternalId),
+      try {
+        if (tasks) {
+          const res = await api.v1TaskCancel(tenant.metadata.id, {
+            externalIds: tasks.map((run) => run.taskExternalId),
+          });
+          return res.data;
+        } else if (bulk) {
+          const res = await api.v1TaskCancel(tenant.metadata.id, {
+            filter: {
+              ...filters.filters,
+              since: timeRange.filters.startTime || new Date().toISOString(),
+              until: timeRange.filters.endTime,
+            },
+          });
+          return res.data;
+        }
+      } catch (error) {
+        toast({
+          title: 'Error canceling workflow run',
+          
+          variant: 'destructive',
+          error,
         });
-        return res.data;
-      } else if (bulk) {
-        const res = await api.v1TaskCancel(tenant.metadata.id, {
-          filter: {
-            ...filters.filters,
-            since: timeRange.filters.startTime || new Date().toISOString(),
-            until: timeRange.filters.endTime,
-          },
-        });
-        return res.data;
+        throw error;
       }
     },
     onSuccess: () => {
@@ -304,20 +375,30 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
         throw new Error('Tenant not found');
       }
 
-      if (tasks) {
-        const res = await api.v1TaskReplay(tenant.metadata.id, {
-          externalIds: tasks.map((run) => run.taskExternalId),
+      try {
+        if (tasks) {
+          const res = await api.v1TaskReplay(tenant.metadata.id, {
+            externalIds: tasks.map((run) => run.taskExternalId),
+          });
+          return res.data;
+        } else if (bulk) {
+          const res = await api.v1TaskReplay(tenant.metadata.id, {
+            filter: {
+              ...filters.filters,
+              since: timeRange.filters.startTime || new Date().toISOString(),
+              until: timeRange.filters.endTime,
+            },
+          });
+          return res.data;
+        }
+      } catch (error) {
+        toast({
+          title: 'Error replaying workflow run',
+          
+          variant: 'destructive',
+          error,
         });
-        return res.data;
-      } else if (bulk) {
-        const res = await api.v1TaskReplay(tenant.metadata.id, {
-          filter: {
-            ...filters.filters,
-            since: timeRange.filters.startTime || new Date().toISOString(),
-            until: timeRange.filters.endTime,
-          },
-        });
-        return res.data;
+        throw error;
       }
     },
     onSuccess: () => {
@@ -335,12 +416,22 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       if (!tenant) {
         throw new Error('Tenant not found');
       }
-      const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
-        workflowName: data.workflowName,
-        input: data.input,
-        additionalMetadata: data.additionalMetadata,
-      });
-      return res.data;
+      try {
+        const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
+          workflowName: data.workflowName,
+          input: data.input,
+          additionalMetadata: data.additionalMetadata,
+        });
+        return res.data;
+      } catch (error) {
+        toast({
+          title: 'Error triggering workflow run',
+          
+          variant: 'destructive',
+          error,
+        });
+        throw error;
+      }
     },
     onSuccess: () => {
       listRunsQuery.refetch();
