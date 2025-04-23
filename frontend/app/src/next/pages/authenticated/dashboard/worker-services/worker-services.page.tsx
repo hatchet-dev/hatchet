@@ -121,7 +121,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
       <TableCell className="font-medium">
         <Link
           to={ROUTES.services.detail(
-            encodeURIComponent(service.name),
+            encodeURIComponent(service.id || service.name),
             service.type,
           )}
         >

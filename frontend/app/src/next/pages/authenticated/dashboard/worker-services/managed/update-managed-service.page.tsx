@@ -16,11 +16,7 @@ import {
   useManagedCompute,
   ManagedComputeProvider,
 } from '@/next/hooks/use-managed-compute';
-import { RejectReason } from '@/lib/can/shared/permission.base';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { BillingRequired } from './components/billing-required';
-import useCan from '@/next/hooks/use-can';
-import { managedCompute } from '@/next/lib/can/features/managed-compute.permissions';
 import { Separator } from '@/next/components/ui/separator';
 import { EnvVarsEditor } from './components/config/env-vars/env-vars';
 import {
@@ -42,28 +38,31 @@ import {
 } from './components/config/machine-config/machine-config';
 import { Summary } from './components/config/summary';
 
-function ServiceDetailPageContent() {
-  const { serviceName = '', workerId } = useParams<{
+function UpdateServicePageContent() {
+  const { serviceName = '' } = useParams<{
     serviceName: string;
-    workerId?: string;
   }>();
   const navigate = useNavigate();
 
-  const { data: services, create } = useManagedCompute();
+  const { data: services, update } = useManagedCompute();
 
   const decodedServiceName = decodeURIComponent(serviceName);
 
   const { setBreadcrumbs } = useBreadcrumbs();
-  const { canWithReason } = useCan();
-
-  const { rejectReason } = canWithReason(managedCompute.create());
 
   useEffect(() => {
     const breadcrumbs = [
       {
         title: 'Worker Services',
         label: serviceName,
-        url: ROUTES.services.new(WorkerType.MANAGED),
+        url: ROUTES.services.detail(decodedServiceName, WorkerType.MANAGED),
+      },
+      {
+        title: 'Update Service',
+        label: 'Update',
+        url:
+          ROUTES.services.detail(decodedServiceName, WorkerType.MANAGED) +
+          '/update',
       },
     ];
 
@@ -75,8 +74,7 @@ function ServiceDetailPageContent() {
     };
   }, [decodedServiceName, setBreadcrumbs, serviceName]);
 
-  // Only show BillingRequired if there are no managed workers AND billing is required
-  const hasExistingWorkers = (services?.length || 0) > 0;
+  const service = services?.find((s) => s.name === decodedServiceName);
 
   const [secrets, setSecrets] = useState<UpdateManagedWorkerSecretRequest>({
     add: [],
@@ -85,23 +83,30 @@ function ServiceDetailPageContent() {
   });
 
   const [githubRepo, setGithubRepo] = useState<GithubRepoSelectorValue>({
-    githubInstallationId: '',
-    githubRepositoryOwner: '',
-    githubRepositoryName: '',
-    githubRepositoryBranch: '',
+    githubInstallationId: service?.buildConfig?.githubInstallationId || '',
+    githubRepositoryOwner:
+      service?.buildConfig?.githubRepository?.repo_owner || '',
+    githubRepositoryName:
+      service?.buildConfig?.githubRepository?.repo_name || '',
+    githubRepositoryBranch: service?.buildConfig?.githubRepositoryBranch || '',
   });
 
   const [buildConfig, setBuildConfig] = useState<BuildConfigValue>({
-    buildDir: './',
-    dockerfilePath: './Dockerfile',
-    serviceName: '',
+    buildDir: service?.buildConfig?.steps?.[0]?.buildDir || './',
+    dockerfilePath:
+      service?.buildConfig?.steps?.[0]?.dockerfilePath || './Dockerfile',
+    serviceName: service?.name || '',
   });
 
   const [machineConfig, setMachineConfig] = useState<MachineConfigValue>({
-    cpuKind: 'shared',
-    cpus: 1,
-    memoryMb: 1024,
-    regions: [ManagedWorkerRegion.Ewr],
+    cpuKind: service?.runtimeConfigs?.[0]?.cpuKind || 'shared',
+    cpus: service?.runtimeConfigs?.[0]?.cpus || 1,
+    memoryMb: service?.runtimeConfigs?.[0]?.memoryMb || 1024,
+    regions: service?.runtimeConfigs?.[0]?.region
+      ? [service.runtimeConfigs[0].region]
+      : [ManagedWorkerRegion.Ewr],
+    numReplicas: service?.runtimeConfigs?.[0]?.numReplicas,
+    autoscaling: service?.runtimeConfigs?.[0]?.autoscaling,
   });
 
   const [isDeploying, setIsDeploying] = useState(false);
@@ -113,7 +118,8 @@ function ServiceDetailPageContent() {
 
     setIsDeploying(true);
     try {
-      await create.mutateAsync({
+      await update.mutateAsync({
+        managedWorkerId: service?.metadata?.id || '',
         data: {
           name: buildConfig.serviceName,
           buildConfig: {
@@ -135,21 +141,21 @@ function ServiceDetailPageContent() {
         ROUTES.services.detail(buildConfig.serviceName, WorkerType.MANAGED),
       );
     } catch (error) {
-      console.error('Failed to deploy service:', error);
+      console.error('Failed to update service:', error);
     } finally {
       setIsDeploying(false);
     }
   };
 
-  if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
-    return <BillingRequired />;
+  if (!service) {
+    return <div>Service not found</div>;
   }
 
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage workers in a worker service">
-          New Managed Worker Service
+        <PageTitle description="Update your managed worker service">
+          Update Managed Worker Service
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -198,7 +204,39 @@ function ServiceDetailPageContent() {
             secrets={secrets}
             onDeploy={handleDeploy}
             isDeploying={isDeploying}
-            type="create"
+            type="update"
+            originalGithubRepo={{
+              githubInstallationId:
+                service.buildConfig?.githubInstallationId || '',
+              githubRepositoryOwner:
+                service.buildConfig?.githubRepository?.repo_owner || '',
+              githubRepositoryName:
+                service.buildConfig?.githubRepository?.repo_name || '',
+              githubRepositoryBranch:
+                service.buildConfig?.githubRepositoryBranch || '',
+            }}
+            originalBuildConfig={{
+              buildDir: service.buildConfig?.steps?.[0]?.buildDir || './',
+              dockerfilePath:
+                service.buildConfig?.steps?.[0]?.dockerfilePath ||
+                './Dockerfile',
+              serviceName: service.name || '',
+            }}
+            originalMachineConfig={{
+              cpuKind: service.runtimeConfigs?.[0]?.cpuKind || 'shared',
+              cpus: service.runtimeConfigs?.[0]?.cpus || 1,
+              memoryMb: service.runtimeConfigs?.[0]?.memoryMb || 1024,
+              regions: service.runtimeConfigs?.[0]?.region
+                ? [service.runtimeConfigs[0].region]
+                : [ManagedWorkerRegion.Ewr],
+              numReplicas: service.runtimeConfigs?.[0]?.numReplicas,
+              autoscaling: service.runtimeConfigs?.[0]?.autoscaling,
+            }}
+            originalSecrets={{
+              add: [],
+              update: [],
+              delete: [],
+            }}
           />
         </div>
       </div>
@@ -206,11 +244,11 @@ function ServiceDetailPageContent() {
   );
 }
 
-export default function ServiceDetailPage() {
+export default function UpdateServicePage() {
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
-        <ServiceDetailPageContent />
+        <UpdateServicePageContent />
       </WorkersProvider>
     </ManagedComputeProvider>
   );

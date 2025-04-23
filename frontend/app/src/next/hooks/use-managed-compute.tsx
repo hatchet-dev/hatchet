@@ -289,6 +289,7 @@ const mapManagedWorkerToWorkerService = (
 
   return {
     name: worker.name || '',
+    id: worker.metadata.id || '',
     type: WorkerType.MANAGED,
     workers: [mappedWorker],
     activeCount: 1, // Managed workers are always considered active // TODO

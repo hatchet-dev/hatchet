@@ -18,6 +18,7 @@ import { PaginationProvider, usePagination } from './utils/use-pagination';
 export type { Worker };
 
 export interface WorkerService {
+  id?: string;
   name: string;
   type: Worker['type'];
   workers: Worker[];
