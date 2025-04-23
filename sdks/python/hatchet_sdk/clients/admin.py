@@ -247,7 +247,12 @@ class AdminClient:
             conn = new_conn(self.config, False)
             self.v0_client = WorkflowServiceStub(conn)
 
+        retries = 0
+
         while True:
+            if retries > 3:
+                raise ValueError("Max retries exceeded")
+
             try:
                 raw = cast(
                     v0_workflow_protos.GetWorkflowRunOutputResponse,
@@ -259,13 +264,17 @@ class AdminClient:
 
                 break
             except grpc.RpcError as e:
-                ## TODO: Retry here
-                if (e.code() == grpc.StatusCode.NOT_FOUND):
-                    time.sleep(1)
-                    continue
+                if retries > 3:
+                    raise e
 
-                print(e)
-                break
+                ## If we get an error that _isn't_ the one that indicates
+                ## that the workflow is still running (DEADLINE_EXCEEDED),
+                ## we should treat it as a failure and begin retrying
+                if (e.code() != grpc.StatusCode.DEADLINE_EXCEEDED):
+                    retries += 1
+
+                time.sleep(1)
+
 
         return cast(dict[str, Any], json.loads(raw.output))
 
