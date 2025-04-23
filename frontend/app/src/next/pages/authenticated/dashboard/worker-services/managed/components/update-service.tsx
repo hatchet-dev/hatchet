@@ -20,11 +20,14 @@ import {
   MachineConfig,
 } from './config/machine-config/machine-config';
 import { Summary } from './config/summary';
+import { Button } from '@/next/components/ui/button';
 
 export function UpdateServiceContent() {
   const navigate = useNavigate();
   const { data: service } = useManagedComputeDetail();
   const { update } = useManagedCompute();
+
+  const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
 
   const [secrets, setSecrets] = useState<UpdateManagedWorkerSecretRequest>({
     add: [],
@@ -97,6 +100,14 @@ export function UpdateServiceContent() {
     }
   };
 
+  const SectionActions = ({ section }: { section: string }) => {
+    return (
+      <div className="flex justify-end gap-2 p-4 border-t">
+        <Button disabled={!hasChanged[section]}>Deploy</Button>
+      </div>
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <dl className="flex flex-col gap-4">
@@ -104,22 +115,39 @@ export function UpdateServiceContent() {
           config={machineConfig}
           setConfig={(value) => {
             setMachineConfig(value);
+            setHasChanged({
+              ...hasChanged,
+              machineConfig: true,
+            });
           }}
+          actions={<SectionActions section="machineConfig" />}
         />
         <EnvVarsEditor
           secrets={secrets}
-          setSecrets={setSecrets}
+          setSecrets={(value) => {
+            setSecrets(value);
+            setHasChanged({
+              ...hasChanged,
+              secrets: true,
+            });
+          }}
           original={{
             directSecrets: service?.directSecrets || [],
             globalSecrets: service?.globalSecrets || [],
           }}
+          actions={<SectionActions section="secrets" />}
         />
         <GithubIntegrationProvider>
           <GithubRepoSelector
             value={githubRepo}
             onChange={(value) => {
+              setHasChanged({
+                ...hasChanged,
+                githubRepo: true,
+              });
               setGithubRepo(value);
             }}
+            actions={<SectionActions section="githubRepo" />}
           />
         </GithubIntegrationProvider>
         <BuildConfig
@@ -127,8 +155,13 @@ export function UpdateServiceContent() {
           value={buildConfig}
           onChange={(value) => {
             setBuildConfig(value);
+            setHasChanged({
+              ...hasChanged,
+              buildConfig: true,
+            });
           }}
           type="update"
+          actions={<SectionActions section="buildConfig" />}
         />
       </dl>
       <div className="sticky top-4 h-fit">

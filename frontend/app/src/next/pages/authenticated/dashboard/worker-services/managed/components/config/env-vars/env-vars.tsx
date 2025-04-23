@@ -25,12 +25,14 @@ interface SecretsEditorProps {
     directSecrets: ManagedWorkerSecret[];
     globalSecrets: ManagedWorkerSecret[];
   };
+  actions?: React.ReactNode;
 }
 
 export function EnvVarsEditor({
   original = { directSecrets: [], globalSecrets: [] },
   secrets = { add: [], update: [], delete: [] },
   setSecrets,
+  actions,
 }: SecretsEditorProps) {
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
 
@@ -293,6 +295,7 @@ export function EnvVarsEditor({
         pendingUpdates={secrets.update || []}
         pendingDeletes={secrets.delete || []}
       />
+      {actions}
     </Card>
   );
 }
