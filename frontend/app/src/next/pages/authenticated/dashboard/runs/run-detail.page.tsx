@@ -38,10 +38,8 @@ import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log'
 import { FilterProvider } from '@/next/hooks/use-filters';
 import { RunDetailSheet } from './run-detail-sheet';
 import { Separator } from '@/next/components/ui/separator';
-import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import { Waterfall } from '@/next/components/waterfall/waterfall';
 import RelativeDate from '@/next/components/ui/relative-date';
-import { RunsProvider } from '@/next/hooks/use-runs';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
