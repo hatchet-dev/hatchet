@@ -390,47 +390,6 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	return resp, nil
 }
 
-func (a *AdminServiceImpl) GetOutput(ctx context.Context, req *contracts.GetWorkflowRunOutputRequest) (*contracts.GetWorkflowRunOutputResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	workflowRunIds := []string{req.WorkflowRunId}
-	finalizedWorkflowRuns, err := a.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, workflowRunIds)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(finalizedWorkflowRuns) == 0 {
-		return nil, status.Error(codes.NotFound, "No workflow runs found")
-	}
-
-	if len(finalizedWorkflowRuns) > 1 {
-		return nil, status.Error(codes.Internal, "Too many workflow runs found")
-	}
-
-	workflowRun := finalizedWorkflowRuns[0]
-
-	if workflowRun == nil {
-		return nil, status.Error(codes.NotFound, "No workflow run found")
-	}
-
-	output := make(map[string]json.RawMessage)
-
-	for _, outputEvent := range workflowRun.OutputEvents {
-		output[outputEvent.StepReadableID] = json.RawMessage(outputEvent.Output)
-	}
-
-	jsonBytes, err := json.Marshal(output)
-
-	if err != nil {
-		return nil, status.Error(codes.Internal, "could not marshal output")
-	}
-
-	return &contracts.GetWorkflowRunOutputResponse{
-		Output: string(jsonBytes),
-	}, nil
-}
-
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)

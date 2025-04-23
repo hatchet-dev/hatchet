@@ -27,7 +27,6 @@ type WorkflowServiceClient interface {
 	TriggerWorkflow(ctx context.Context, in *TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error)
 	BulkTriggerWorkflow(ctx context.Context, in *BulkTriggerWorkflowRequest, opts ...grpc.CallOption) (*BulkTriggerWorkflowResponse, error)
 	PutRateLimit(ctx context.Context, in *PutRateLimitRequest, opts ...grpc.CallOption) (*PutRateLimitResponse, error)
-	GetOutput(ctx context.Context, in *GetWorkflowRunOutputRequest, opts ...grpc.CallOption) (*GetWorkflowRunOutputResponse, error)
 }
 
 type workflowServiceClient struct {
@@ -83,15 +82,6 @@ func (c *workflowServiceClient) PutRateLimit(ctx context.Context, in *PutRateLim
 	return out, nil
 }
 
-func (c *workflowServiceClient) GetOutput(ctx context.Context, in *GetWorkflowRunOutputRequest, opts ...grpc.CallOption) (*GetWorkflowRunOutputResponse, error) {
-	out := new(GetWorkflowRunOutputResponse)
-	err := c.cc.Invoke(ctx, "/WorkflowService/GetOutput", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // WorkflowServiceServer is the server API for WorkflowService service.
 // All implementations must embed UnimplementedWorkflowServiceServer
 // for forward compatibility
@@ -101,7 +91,6 @@ type WorkflowServiceServer interface {
 	TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error)
 	BulkTriggerWorkflow(context.Context, *BulkTriggerWorkflowRequest) (*BulkTriggerWorkflowResponse, error)
 	PutRateLimit(context.Context, *PutRateLimitRequest) (*PutRateLimitResponse, error)
-	GetOutput(context.Context, *GetWorkflowRunOutputRequest) (*GetWorkflowRunOutputResponse, error)
 	mustEmbedUnimplementedWorkflowServiceServer()
 }
 
@@ -123,9 +112,6 @@ func (UnimplementedWorkflowServiceServer) BulkTriggerWorkflow(context.Context, *
 }
 func (UnimplementedWorkflowServiceServer) PutRateLimit(context.Context, *PutRateLimitRequest) (*PutRateLimitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutRateLimit not implemented")
-}
-func (UnimplementedWorkflowServiceServer) GetOutput(context.Context, *GetWorkflowRunOutputRequest) (*GetWorkflowRunOutputResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetOutput not implemented")
 }
 func (UnimplementedWorkflowServiceServer) mustEmbedUnimplementedWorkflowServiceServer() {}
 
@@ -230,24 +216,6 @@ func _WorkflowService_PutRateLimit_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _WorkflowService_GetOutput_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetWorkflowRunOutputRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(WorkflowServiceServer).GetOutput(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/WorkflowService/GetOutput",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WorkflowServiceServer).GetOutput(ctx, req.(*GetWorkflowRunOutputRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // WorkflowService_ServiceDesc is the grpc.ServiceDesc for WorkflowService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -274,10 +242,6 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PutRateLimit",
 			Handler:    _WorkflowService_PutRateLimit_Handler,
-		},
-		{
-			MethodName: "GetOutput",
-			Handler:    _WorkflowService_GetOutput_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
