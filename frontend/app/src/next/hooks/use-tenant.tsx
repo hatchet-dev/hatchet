@@ -57,7 +57,9 @@ export function TenantProvider({ children }: TenantProviderProps) {
   // make sure the tenant id is in the url if it's not already
   useEffect(() => {
     if (!searchParams.get('tenant') && currentTenantId) {
-      setSearchParams({ tenant: currentTenantId }, { replace: true });
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('tenant', currentTenantId);
+      setSearchParams(newSearchParams, { replace: true });
     }
   }, [searchParams, currentTenantId, setSearchParams]);
 

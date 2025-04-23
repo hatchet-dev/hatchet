@@ -57,8 +57,10 @@ export const ROUTES = {
   services: {
     list: `${FB.services}`,
     new: (type: WorkerType) => `${FB.services}/${type.toLowerCase()}`,
-    detail: (serviceName: string, type: WorkerType) =>
-      `${FB.services}/${type.toLowerCase()}/${serviceName}`,
+    detail: (serviceName: string, type: WorkerType, tab?: string) =>
+      `${FB.services}/${type.toLowerCase()}/${serviceName}${
+        tab ? `?tab=${tab}` : ''
+      }`,
     workerDetail: (serviceName: string, workerName: string, type: WorkerType) =>
       `${FB.services}/${type.toLowerCase()}/${serviceName}/${workerName}`,
   },

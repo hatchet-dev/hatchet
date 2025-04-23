@@ -20,8 +20,14 @@ interface DiffValueProps {
 }
 
 function DiffValue({ current, original, className, type }: DiffValueProps) {
-  if (type != 'update' || !original || original === current) {
+  if (type === 'create') {
     return <span className={cn(className, 'text-green-600')}>{current}</span>;
+  }
+
+  if (!original || original === current) {
+    return (
+      <span className={cn(className, 'text-muted-foreground')}>{current}</span>
+    );
   }
 
   return (

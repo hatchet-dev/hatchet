@@ -30,6 +30,14 @@ import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
 
+export enum ManagedServiceDetailTabs {
+  INSTANCES = 'instances',
+  LOGS = 'logs',
+  BUILDS = 'builds',
+  METRICS = 'metrics',
+  CONFIGURATION = 'configuration',
+}
+
 function ServiceDetailPageContent({ workerId }: { workerId: string }) {
   const navigate = useNavigate();
 
@@ -82,13 +90,25 @@ function ServiceDetailPageContent({ workerId }: { workerId: string }) {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <Tabs defaultValue="instances" className="w-full" state="query">
+      <Tabs
+        defaultValue={ManagedServiceDetailTabs.INSTANCES}
+        className="w-full"
+        state="query"
+      >
         <TabsList>
-          <TabsTrigger value="instances">Workers</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="builds">Builds & Deployments</TabsTrigger>
-          <TabsTrigger value="metrics">Metrics</TabsTrigger>
-          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.INSTANCES}>
+            Workers
+          </TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.LOGS}>Logs</TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.BUILDS}>
+            Builds & Deployments
+          </TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.METRICS}>
+            Metrics
+          </TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.CONFIGURATION}>
+            Configuration
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="instances">
           <WorkersTab serviceName={service?.name || ''} />
