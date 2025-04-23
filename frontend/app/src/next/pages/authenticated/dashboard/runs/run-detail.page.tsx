@@ -13,7 +13,6 @@ import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
-import { RunChildrenCardRoot } from '@/next/components/runs/run-children';
 import { MdOutlineReplay } from 'react-icons/md';
 import { MdOutlineCancel } from 'react-icons/md';
 import WorkflowRunVisualizer from '@/next/components/runs/run-dag/dag-run-visualizer';
@@ -25,11 +24,6 @@ import {
   PageTitle,
 } from '@/next/components/ui/page-header';
 import { Headline } from '@/next/components/ui/page-header';
-import { TooltipContent } from '@/next/components/ui/tooltip';
-import { TooltipTrigger } from '@/next/components/ui/tooltip';
-import { Tooltip } from '@/next/components/ui/tooltip';
-import { TooltipProvider } from '@/next/components/ui/tooltip';
-import { Time } from '@/next/components/ui/time';
 import { Duration } from '@/next/components/ui/duration';
 import { V1TaskStatus } from '@/lib/api/generated/data-contracts';
 import { ROUTES } from '@/next/lib/routes';
@@ -46,6 +40,8 @@ import { RunDetailSheet } from './run-detail-sheet';
 import { Separator } from '@/next/components/ui/separator';
 import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import { Waterfall } from '@/next/components/waterfall/waterfall';
+import RelativeDate from '@/next/components/ui/relative-date';
+import { RunsProvider } from '@/next/hooks/use-runs';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -273,37 +269,11 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     const timings: JSX.Element[] = [
       <div key="created" className="flex items-center gap-2">
         <span>Created</span>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="whitespace-nowrap">
-                <Time date={workflow.createdAt} variant="timestamp" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <Time date={workflow.createdAt} variant="timeSince" />
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <RelativeDate date={workflow.createdAt} />
       </div>,
       <div key="started" className="flex items-center gap-2">
         <span>Started</span>
-        {workflow.startedAt ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="whitespace-nowrap">
-                  <Time date={workflow.startedAt} variant="timeSince" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <Time date={workflow.startedAt} variant="timestamp" />
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : (
-          <span>Not started</span>
-        )}
+        <RelativeDate date={workflow.startedAt} />
       </div>,
       <div key="duration" className="flex items-center gap-2">
         <span>Duration</span>
@@ -459,7 +429,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
           )}
         </TabsContent>
         <TabsContent value="waterfall" className="mt-4">
-          <Waterfall />
+          <Waterfall workflowRunId={workflowRunId!} />
         </TabsContent>
       </Tabs>
 

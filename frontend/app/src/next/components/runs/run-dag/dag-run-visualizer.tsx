@@ -60,7 +60,7 @@ function WorkflowRunVisualizerContent({
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
+      for (const entry of entries) {
         setContainerWidth(entry.contentRect.width);
       }
     });

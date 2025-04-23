@@ -387,3 +387,48 @@ func ToWorkflowRunDetails(
 		Tasks:      parsedTasks,
 	}, nil
 }
+
+func ToTaskTimings(
+	timings []*sqlcv1.PopulateTaskRunDataRow,
+	idsToDepth map[string]int32,
+) []gen.V1TaskTiming {
+	toReturn := make([]gen.V1TaskTiming, len(timings))
+
+	for i, timing := range timings {
+		depth := idsToDepth[sqlchelpers.UUIDToStr(timing.ExternalID)]
+
+		toReturn[i] = gen.V1TaskTiming{
+			Metadata: gen.APIResourceMeta{
+				Id:        sqlchelpers.UUIDToStr(timing.ExternalID),
+				CreatedAt: timing.InsertedAt.Time,
+				UpdatedAt: timing.InsertedAt.Time,
+			},
+			Status:          gen.V1TaskStatus(timing.Status),
+			TaskDisplayName: timing.DisplayName,
+			TaskId:          int(timing.ID),
+			TaskInsertedAt:  timing.InsertedAt.Time,
+			TaskExternalId:  uuid.MustParse(sqlchelpers.UUIDToStr(timing.ExternalID)),
+			TenantId:        uuid.MustParse(sqlchelpers.UUIDToStr(timing.TenantID)),
+			Depth:           int(depth),
+		}
+
+		if timing.QueuedAt.Valid {
+			toReturn[i].QueuedAt = &timing.QueuedAt.Time
+		}
+
+		if timing.StartedAt.Valid {
+			toReturn[i].StartedAt = &timing.StartedAt.Time
+		}
+
+		if timing.FinishedAt.Valid {
+			toReturn[i].FinishedAt = &timing.FinishedAt.Time
+		}
+
+		if timing.ParentTaskExternalID.Valid {
+			parentId := uuid.MustParse(sqlchelpers.UUIDToStr(timing.ParentTaskExternalID))
+			toReturn[i].ParentTaskExternalId = &parentId
+		}
+	}
+
+	return toReturn
+}
