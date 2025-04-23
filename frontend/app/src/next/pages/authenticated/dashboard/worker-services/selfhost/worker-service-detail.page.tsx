@@ -17,7 +17,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { WorkerDetailSheet } from '../components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import { WorkerDetailProvider } from '@/next/hooks/use-worker-detail';
-
+import { Badge } from '@/next/components/ui/badge';
 function ServiceDetailPageContent() {
   const { serviceName = '', workerId } = useParams<{
     serviceName: string;
@@ -90,7 +90,7 @@ function ServiceDetailPageContent() {
     >
       <Headline>
         <PageTitle description="Manage workers in a worker service">
-          {decodedServiceName}
+          {decodedServiceName} <Badge variant="outline">Self-hosted</Badge>
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>

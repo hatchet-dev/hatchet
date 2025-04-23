@@ -29,6 +29,7 @@ import { UpdateServiceContent } from './components/update-service';
 import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { MetricsTab } from './components/metrics-tab';
+import { Badge } from '@/next/components/ui/badge';
 
 function ServiceDetailPageContent({
   serviceId,
@@ -87,7 +88,7 @@ function ServiceDetailPageContent({
     >
       <Headline>
         <PageTitle description="Manage workers in a worker service">
-          {service?.name || ''}
+          {service?.name || ''} <Badge variant="outline">Managed</Badge>
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -99,7 +100,8 @@ function ServiceDetailPageContent({
       <Tabs defaultValue="instances" className="w-full" state="query">
         <TabsList>
           <TabsTrigger value="instances">Workers</TabsTrigger>
-          <TabsTrigger value="logs">Logs & Activity</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
+          <TabsTrigger value="builds">Builds & Deployments</TabsTrigger>
           <TabsTrigger value="metrics">Metrics</TabsTrigger>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
         </TabsList>
@@ -107,10 +109,13 @@ function ServiceDetailPageContent({
           <WorkersTab serviceName={service?.name || ''} />
         </TabsContent>
         <TabsContent value="logs">
-          <LogsTab serviceName={service?.name || ''} />
+          <LogsTab />
         </TabsContent>
+        {/* <TabsContent value="builds">
+          <BuildsTab serviceName={service?.name || ''} />
+        </TabsContent> */}
         <TabsContent value="metrics">
-          <MetricsTab serviceName={service?.name || ''} />
+          <MetricsTab />
         </TabsContent>
         <TabsContent value="configuration">
           {service && <UpdateServiceContent />}
