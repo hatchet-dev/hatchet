@@ -3,6 +3,7 @@ package ingestor
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -72,10 +73,14 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}
 
+	now := time.Now().UTC()
+
 	return &dbsqlc.Event{
 		ID:                 sqlchelpers.UUIDFromStr(eventId),
-		TenantId:           sqlchelpers.UUIDFromStr(tenantId),
+		CreatedAt:          sqlchelpers.TimestampFromTime(now),
+		UpdatedAt:          sqlchelpers.TimestampFromTime(now),
 		Key:                key,
+		TenantId:           sqlchelpers.UUIDFromStr(tenantId),
 		Data:               data,
 		AdditionalMetadata: metadata,
 	}, nil

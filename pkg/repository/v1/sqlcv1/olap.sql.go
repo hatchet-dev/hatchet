@@ -1082,6 +1082,7 @@ WITH input AS (
         t.action_id,
         t.step_id,
         t.workflow_id,
+        t.workflow_version_id,
         t.schedule_timeout,
         t.step_timeout,
         t.priority,
@@ -1183,6 +1184,7 @@ SELECT
     t.action_id,
     t.step_id,
     t.workflow_id,
+    t.workflow_version_id,
     t.schedule_timeout,
     t.step_timeout,
     t.priority,
@@ -1224,6 +1226,7 @@ type PopulateTaskRunDataRow struct {
 	ActionID           string               `json:"action_id"`
 	StepID             pgtype.UUID          `json:"step_id"`
 	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
 	ScheduleTimeout    string               `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text          `json:"step_timeout"`
 	Priority           pgtype.Int4          `json:"priority"`
@@ -1257,6 +1260,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.ActionID,
 			&i.StepID,
 			&i.WorkflowID,
+			&i.WorkflowVersionID,
 			&i.ScheduleTimeout,
 			&i.StepTimeout,
 			&i.Priority,
