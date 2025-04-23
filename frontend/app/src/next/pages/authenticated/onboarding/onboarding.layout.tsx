@@ -36,20 +36,27 @@ export function OnboardingLayout() {
     </div>
   );
 
-  if (
-    !invites.loading &&
-    invites.list.length > 0 &&
-    !location.pathname.startsWith(ROUTES.onboarding.invites)
-  ) {
-    return <Navigate to={ROUTES.onboarding.invites} />;
-  }
+  // if pathname is either ROUTES.onboarding.invites or ROUTES.onboarding.newTenant
 
   if (
-    !invites.loading &&
-    invites.list.length === 0 &&
-    !location.pathname.startsWith(ROUTES.onboarding.newTenant)
+    location.pathname === ROUTES.onboarding.invites ||
+    location.pathname === ROUTES.onboarding.newTenant
   ) {
-    return <Navigate to={ROUTES.onboarding.newTenant} />;
+    if (
+      !invites.loading &&
+      invites.list.length > 0 &&
+      !location.pathname.startsWith(ROUTES.onboarding.invites)
+    ) {
+      return <Navigate to={ROUTES.onboarding.invites} />;
+    }
+
+    if (
+      !invites.loading &&
+      invites.list.length === 0 &&
+      !location.pathname.startsWith(ROUTES.onboarding.newTenant)
+    ) {
+      return <Navigate to={ROUTES.onboarding.newTenant} />;
+    }
   }
 
   return (
@@ -105,7 +112,11 @@ export function OnboardingLayout() {
         </div>
       </header>
       <main className="flex flex-1 flex-col p-0">
-        <Outlet />
+        <div className="flex justify-center items-start py-12 px-4">
+          <div className="max-w-xl w-full pt-12">
+            <Outlet />
+          </div>
+        </div>
       </main>
     </div>
   );

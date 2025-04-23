@@ -25,8 +25,10 @@ export const ROUTES = {
     verifyEmail: `${FB.auth}/verify-email`,
   },
   onboarding: {
-    newTenant: `${FB.onboarding}/new`,
+    newTenant: `${FB.onboarding}/create-tenant`,
     invites: `${FB.onboarding}/invites`,
+    firstRun: `${FB.onboarding}/first-run`,
+    inviteTeam: `${FB.onboarding}/invite-team`,
   },
   runs: {
     list: `${FB.runs}`,

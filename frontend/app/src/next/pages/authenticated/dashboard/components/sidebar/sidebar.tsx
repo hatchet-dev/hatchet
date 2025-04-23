@@ -263,7 +263,12 @@ name: ${user?.name}`;
                           Chat with Support
                         </DropdownMenuItem>
                         {navLinks.support.map((item) => (
-                          <DropdownMenuItem key={item.title}>
+                          <DropdownMenuItem
+                            key={item.title}
+                            onClick={() => {
+                              window.open(item.url, item.target);
+                            }}
+                          >
                             <item.icon />
                             {item.title}
                           </DropdownMenuItem>
