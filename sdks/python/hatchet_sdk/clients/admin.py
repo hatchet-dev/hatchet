@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from typing import Any, Generator, TypeVar, Union, cast
 
+import time
 import grpc
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -236,6 +237,7 @@ class AdminClient:
             ),
         )
 
+
     def get_workflow_run_output(self, workflow_run_id: str) -> dict[str, Any]:
         opts = v0_workflow_protos.GetWorkflowRunOutputRequest(
             workflow_run_id=workflow_run_id,
@@ -245,13 +247,25 @@ class AdminClient:
             conn = new_conn(self.config, False)
             self.v0_client = WorkflowServiceStub(conn)
 
-        raw = cast(
-            v0_workflow_protos.GetWorkflowRunOutputResponse,
-            self.v0_client.GetOutput(
-                opts,
-                metadata=get_metadata(self.token),
-            ),
-        )
+        while True:
+            try:
+                raw = cast(
+                    v0_workflow_protos.GetWorkflowRunOutputResponse,
+                    self.v0_client.GetOutput(
+                        opts,
+                        metadata=get_metadata(self.token),
+                    ),
+                )
+
+                break
+            except grpc.RpcError as e:
+                ## TODO: Retry here
+                if (e.code() == grpc.StatusCode.NOT_FOUND):
+                    time.sleep(1)
+                    continue
+
+                print(e)
+                break
 
         return cast(dict[str, Any], json.loads(raw.output))
 
