@@ -1,5 +1,4 @@
-import { Input } from '@/next/components/ui/input';
-import { Button } from '@/next/components/ui/button';
+import { Label } from '@/next/components/ui/label';
 import {
   Card,
   CardContent,
@@ -7,292 +6,117 @@ import {
   CardHeader,
   CardTitle,
 } from '@/next/components/ui/card';
-import { TrashIcon, PlusIcon } from '@radix-ui/react-icons';
-import {
-  ManagedWorkerSecret,
-  UpdateManagedWorkerSecretRequest,
-} from '@/lib/api/generated/cloud/data-contracts';
-import { useState, useMemo } from 'react';
-import { BulkSecretsDialog } from './bulk-secrets-dialog';
-import { ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import { Input } from '@/next/components/ui/input';
+import { CreateBuildStepRequest } from '@/lib/api/generated/cloud/data-contracts';
+import { GithubRepoSelectorValue } from './github-repo-selector';
+import { useEffect, useState } from 'react';
 
-interface SecretsEditorProps {
-  secrets: UpdateManagedWorkerSecretRequest;
-  setSecrets: React.Dispatch<
-    React.SetStateAction<UpdateManagedWorkerSecretRequest>
-  >;
-  original: {
-    directSecrets: ManagedWorkerSecret[];
-    globalSecrets: ManagedWorkerSecret[];
-  };
+const sanitizeServiceName = (name: string): string => {
+  return name.replace(/[^a-zA-Z0-9-]/g, '-');
+};
+
+export type BuildConfigValue = CreateBuildStepRequest & {
+  serviceName: string;
+};
+
+interface BuildConfigProps {
+  githubRepo: GithubRepoSelectorValue;
+  value: BuildConfigValue;
+  onChange: (value: BuildConfigValue) => void;
 }
 
-export function SecretsEditor({
-  original = { directSecrets: [], globalSecrets: [] },
-  secrets = { add: [], update: [], delete: [] },
-  setSecrets,
-}: SecretsEditorProps) {
-  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+export function BuildConfig({ githubRepo, value, onChange }: BuildConfigProps) {
+  const [isNamePristine, setIsNamePristine] = useState(true);
 
-  // Function to check if a key is duplicated
-  const isKeyDuplicated = useMemo(() => {
-    const allKeys = new Map<string, number>();
+  useEffect(() => {
+    if (!isNamePristine || githubRepo.githubRepositoryName === '') {
+      return;
+    }
 
-    // Count occurrences of each key
-    original.directSecrets.forEach((secret) => {
-      if (!secrets.delete?.includes(secret.id)) {
-        const update = secrets.update?.find((s) => s.id === secret.id);
-        const key = update ? update.key : secret.key;
-        allKeys.set(key, (allKeys.get(key) || 0) + 1);
-      }
-    });
+    const dockerfileName = value.dockerfilePath.split('/').pop();
+    const dockerfileServiceName = dockerfileName
+      ?.split('.')
+      .filter((part) => part !== 'Dockerfile')
+      .pop();
 
-    secrets.add?.forEach((secret) => {
-      const key = secret.key;
-      allKeys.set(key, (allKeys.get(key) || 0) + 1);
-    });
-
-    return (key: string) => (allKeys.get(key) || 0) > 1;
-  }, [original.directSecrets, secrets]);
-
-  const handleAddSecret = () => {
-    setSecrets((prev) => ({
-      ...prev,
-      add: [...(prev.add || []), { key: '', value: '' }],
-    }));
-  };
-
-  const handleBulkAddSecrets = (
-    newSecrets: { key: string; value: string }[],
-  ) => {
-    setSecrets((prev) => ({
-      ...prev,
-      add: [...(prev.add || []), ...newSecrets],
-    }));
-  };
-
-  const handleBulkUpdateSecrets = (
-    updatedSecrets: { id: string; key: string; value: string }[],
-  ) => {
-    setSecrets((prev) => {
-      // Remove any existing updates for these secrets
-      const existingUpdates =
-        prev.update?.filter(
-          (update) => !updatedSecrets.some((s) => s.id === update.id),
-        ) || [];
-
-      return {
-        ...prev,
-        update: [...existingUpdates, ...updatedSecrets],
-      };
-    });
-  };
-
-  const handleDeleteAddSecret = (index: number) => {
-    setSecrets((prev) => ({
-      ...prev,
-      add: prev.add?.filter((_, i) => i !== index),
-    }));
-  };
-
-  const handleUpdateAddSecret = (
-    index: number,
-    field: 'key' | 'value',
-    value: string,
-  ) => {
-    setSecrets((prev) => ({
-      ...prev,
-      add: prev.add?.map((secret, i) =>
-        i === index
-          ? {
-              ...secret,
-              [field]: field === 'key' ? value.replace(/\s+/g, '_') : value,
-            }
-          : secret,
+    onChange({
+      ...value,
+      serviceName: sanitizeServiceName(
+        [
+          githubRepo.githubRepositoryName,
+          githubRepo.githubRepositoryBranch,
+          dockerfileServiceName,
+        ]
+          .filter(Boolean)
+          .join('-')
+          .toLowerCase(),
       ),
-    }));
-  };
-
-  const handleUpdateExistingSecret = (
-    id: string,
-    field: 'key' | 'value',
-    value: string,
-  ) => {
-    setSecrets((prev) => {
-      // Find the original secret to get its current values
-      const originalSecret = original.directSecrets.find((s) => s.id === id);
-      if (!originalSecret) {
-        return prev;
-      }
-
-      // Check if this secret is already in the update array
-      const existingUpdateIndex =
-        prev.update?.findIndex((s) => s.id === id) ?? -1;
-
-      if (existingUpdateIndex >= 0) {
-        if (field === 'value' && value === '') {
-          return {
-            ...prev,
-            update: prev.update?.filter((secret) => secret.id !== id),
-          };
-        }
-
-        // Update existing update
-        return {
-          ...prev,
-          update: prev.update?.map((secret) =>
-            secret.id === id
-              ? {
-                  ...secret,
-                  key:
-                    field === 'key' ? value.replace(/\s+/g, '_') : secret.key,
-                  value: field === 'value' ? value : secret.value,
-                }
-              : secret,
-          ),
-        };
-      } else {
-        // Create new update entry
-        return {
-          ...prev,
-          update: [
-            ...(prev.update || []),
-            {
-              id,
-              key:
-                field === 'key'
-                  ? value.replace(/\s+/g, '_')
-                  : originalSecret.key,
-              value: field === 'value' ? value : '',
-            },
-          ],
-        };
-      }
     });
-  };
-
-  const handleDeleteExistingSecret = (id: string) => {
-    setSecrets((prev) => ({
-      ...prev,
-      delete: prev.delete?.includes(id)
-        ? prev.delete.filter((deleteId) => deleteId !== id)
-        : [...(prev.delete || []), id],
-    }));
-  };
-
-  const handleRemoveFromDelete = (ids: string[]) => {
-    setSecrets((prev) => ({
-      ...prev,
-      delete: prev.delete?.filter((id) => !ids.includes(id)),
-    }));
-  };
+  }, [githubRepo, onChange, value, isNamePristine, value.dockerfilePath]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Environment Variables</CardTitle>
+        <CardTitle>Build Configuration</CardTitle>
         <CardDescription>
-          Add environment variables that will be available to the worker service
-          at runtime. These are encrypted at rest and can only be accessed by
-          the worker service.
+          Configure the Docker build settings for your worker service.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Existing secrets */}
-        {original.directSecrets.map((secret) => {
-          const update = secrets.update?.find((s) => s.id === secret.id);
-          const currentKey = update ? update.key : secret.key;
-          const isDuplicated = isKeyDuplicated(currentKey);
+        <div className="space-y-2">
+          <Label htmlFor="build-dir">Build Directory</Label>
+          <Input
+            id="build-dir"
+            placeholder="e.g. ./"
+            value={value.buildDir || ''}
+            onChange={(e) => {
+              onChange({
+                ...value,
+                buildDir: e.target.value,
+              });
+            }}
+          />
+          <p className="text-sm text-muted-foreground">
+            The relative path to the build directory
+          </p>
+        </div>
 
-          return (
-            <div key={secret.id} className="flex items-center gap-2">
-              <Input
-                value={currentKey}
-                onChange={(e) =>
-                  handleUpdateExistingSecret(secret.id, 'key', e.target.value)
-                }
-                className={`w-48 ${secrets.delete?.includes(secret.id) ? 'line-through' : ''} ${isDuplicated ? 'border-red-500' : ''}`}
-                disabled={secrets.delete?.includes(secret.id)}
-              />
-              <Input
-                placeholder={secret.hint}
-                value={update ? update.value : ''}
-                onChange={(e) =>
-                  handleUpdateExistingSecret(secret.id, 'value', e.target.value)
-                }
-                className={`flex-1 ${secrets.delete?.includes(secret.id) ? 'line-through' : ''}`}
-                disabled={secrets.delete?.includes(secret.id)}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDeleteExistingSecret(secret.id)}
-              >
-                <TrashIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          );
-        })}
-
-        {/* New secrets */}
-        {(secrets.add || []).map((secret, index) => {
-          const isDuplicated = isKeyDuplicated(secret.key);
-          return (
-            <div key={index} className="flex items-center gap-2">
-              <Input
-                placeholder="Key"
-                value={secret.key}
-                onChange={(e) =>
-                  handleUpdateAddSecret(index, 'key', e.target.value)
-                }
-                className={`w-48 ${isDuplicated ? 'border-red-500' : ''}`}
-              />
-              <Input
-                placeholder="Value"
-                value={secret.value}
-                onChange={(e) =>
-                  handleUpdateAddSecret(index, 'value', e.target.value)
-                }
-                className="flex-1"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDeleteAddSecret(index)}
-              >
-                <TrashIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          );
-        })}
-
-        {/* Add new secret buttons */}
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={handleAddSecret}
-            className="flex-1"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Add Secret
-          </Button>
-          <Button variant="outline" onClick={() => setIsBulkDialogOpen(true)}>
-            <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
-            From Clipboard
-          </Button>
+        <div className="space-y-2">
+          <Label htmlFor="dockerfile-path">Dockerfile Path</Label>
+          <Input
+            id="dockerfile-path"
+            placeholder="e.g. ./Dockerfile"
+            value={value.dockerfilePath || ''}
+            onChange={(e) => {
+              onChange({
+                ...value,
+                dockerfilePath: e.target.value,
+              });
+            }}
+          />
+          <p className="text-sm text-muted-foreground">
+            The relative path from the build directory to the Dockerfile
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="service-name">Service Name</Label>
+          <Input
+            id="service-name"
+            placeholder="e.g. my-service"
+            value={value.serviceName || ''}
+            onChange={(e) => {
+              setIsNamePristine(false);
+              onChange({
+                ...value,
+                serviceName: sanitizeServiceName(e.target.value),
+              });
+            }}
+          />
+          <p className="text-sm text-muted-foreground">
+            A friendly name for the service
+          </p>
         </div>
       </CardContent>
-
-      <BulkSecretsDialog
-        open={isBulkDialogOpen}
-        onOpenChange={setIsBulkDialogOpen}
-        onAddSecrets={handleBulkAddSecrets}
-        onUpdateSecrets={handleBulkUpdateSecrets}
-        onRemoveFromDelete={handleRemoveFromDelete}
-        original={original}
-        pendingUpdates={secrets.update || []}
-        pendingDeletes={secrets.delete || []}
-      />
     </Card>
   );
 }
