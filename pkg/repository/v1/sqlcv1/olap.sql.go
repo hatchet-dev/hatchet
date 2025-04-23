@@ -111,7 +111,7 @@ WITH lookups AS (
     FROM
         lookups l
     JOIN
-        v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id
+        v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id AND l.inserted_at = dt.dag_inserted_at
     WHERE
         l.dag_id IS NOT NULL
 ), unioned_tasks AS (
@@ -133,6 +133,7 @@ SELECT
     t.tenant_id,
     t.id,
     t.inserted_at,
+    t.external_id,
     t.latest_retry_count AS retry_count
 FROM
     v1_tasks_olap t
@@ -149,6 +150,7 @@ type FlattenTasksByExternalIdsRow struct {
 	TenantID   pgtype.UUID        `json:"tenant_id"`
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID pgtype.UUID        `json:"external_id"`
 	RetryCount int32              `json:"retry_count"`
 }
 
@@ -166,7 +168,114 @@ func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg Fl
 			&i.TenantID,
 			&i.ID,
 			&i.InsertedAt,
+			&i.ExternalID,
 			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRunsListRecursive = `-- name: GetRunsListRecursive :many
+WITH RECURSIVE all_runs AS (
+  -- seed term
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.tenant_id,
+        t.external_id,
+        t.parent_task_external_id,
+        0 AS depth
+    FROM
+        v1_lookup_table_olap lt
+        JOIN v1_tasks_olap t
+        ON t.inserted_at = lt.inserted_at
+        AND t.id          = lt.task_id
+    WHERE
+        lt.external_id = ANY($2::uuid[])
+
+    UNION ALL
+
+    -- single recursive term for both DAG- and TASK-driven children
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.tenant_id,
+        t.external_id,
+        t.parent_task_external_id,
+        ar.depth + 1 AS depth
+    FROM
+        v1_runs_olap r
+    JOIN all_runs ar ON ar.external_id = r.parent_task_external_id
+
+    -- only present when r.kind = 'DAG'
+    LEFT JOIN v1_dag_to_task_olap dt ON r.kind = 'DAG' AND r.id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
+
+    -- pick the correct task row for either branch
+    JOIN v1_tasks_olap t
+      ON (
+        r.kind = 'DAG'
+        AND t.id = dt.task_id
+        AND t.inserted_at = dt.task_inserted_at
+         )
+      OR (
+        r.kind = 'TASK'
+        AND t.id = r.id
+        AND t.inserted_at = r.inserted_at
+      )
+  WHERE
+    r.tenant_id = $1::uuid
+    AND ar.depth < $3::int
+)
+SELECT
+  tenant_id,
+  id,
+  inserted_at,
+  external_id,
+  parent_task_external_id,
+  depth
+FROM
+  all_runs
+WHERE
+  tenant_id = $1::uuid
+`
+
+type GetRunsListRecursiveParams struct {
+	Tenantid        pgtype.UUID   `json:"tenantid"`
+	Taskexternalids []pgtype.UUID `json:"taskexternalids"`
+	Depth           int32         `json:"depth"`
+}
+
+type GetRunsListRecursiveRow struct {
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	ID                   int64              `json:"id"`
+	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID           pgtype.UUID        `json:"external_id"`
+	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
+	Depth                int32              `json:"depth"`
+}
+
+func (q *Queries) GetRunsListRecursive(ctx context.Context, db DBTX, arg GetRunsListRecursiveParams) ([]*GetRunsListRecursiveRow, error) {
+	rows, err := db.Query(ctx, getRunsListRecursive, arg.Tenantid, arg.Taskexternalids, arg.Depth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetRunsListRecursiveRow
+	for rows.Next() {
+		var i GetRunsListRecursiveRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.ParentTaskExternalID,
+			&i.Depth,
 		); err != nil {
 			return nil, err
 		}
@@ -239,7 +348,7 @@ WITH task_external_ids AS (
     SELECT external_id
     FROM v1_runs_olap
     WHERE (
-        $4::UUID IS NULL OR parent_task_external_id = $4::UUID
+        $5::UUID IS NULL OR parent_task_external_id = $5::UUID
     )
 )
 SELECT
@@ -254,7 +363,10 @@ WHERE
     tenant_id = $1::UUID
     AND inserted_at >= $2::TIMESTAMPTZ
     AND (
-        $3::UUID[] IS NULL OR workflow_id = ANY($3::UUID[])
+        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
+    )
+    AND (
+        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
     )
     AND external_id IN (
         SELECT external_id
@@ -266,6 +378,7 @@ GROUP BY tenant_id
 type GetTenantStatusMetricsParams struct {
 	Tenantid             pgtype.UUID        `json:"tenantid"`
 	Createdafter         pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore        pgtype.Timestamptz `json:"createdBefore"`
 	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
 	ParentTaskExternalId pgtype.UUID        `json:"parentTaskExternalId"`
 }
@@ -283,6 +396,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 	row := db.QueryRow(ctx, getTenantStatusMetrics,
 		arg.Tenantid,
 		arg.Createdafter,
+		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.ParentTaskExternalId,
 	)
@@ -1091,7 +1205,8 @@ WITH input AS (
         t.display_name,
         t.input,
         t.additional_metadata,
-        t.readable_status
+        t.readable_status,
+        t.parent_task_external_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -1115,10 +1230,10 @@ WITH input AS (
         relevant_events e
     GROUP BY
         e.tenant_id, e.task_id, e.task_inserted_at
-), finished_ats AS (
+), queued_ats AS (
     SELECT
         e.task_id::bigint,
-        MAX(e.event_timestamp) AS finished_at
+        MAX(e.event_timestamp) AS queued_at
     FROM
         relevant_events e
     JOIN
@@ -1128,7 +1243,7 @@ WITH input AS (
             AND e.task_inserted_at = mrc.task_inserted_at
             AND e.retry_count = mrc.max_retry_count
     WHERE
-        e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
+        e.event_type = 'QUEUED'
     GROUP BY e.task_id
 ), started_ats AS (
     SELECT
@@ -1144,6 +1259,21 @@ WITH input AS (
             AND e.retry_count = mrc.max_retry_count
     WHERE
         e.event_type = 'STARTED'
+    GROUP BY e.task_id
+), finished_ats AS (
+    SELECT
+        e.task_id::bigint,
+        MAX(e.event_timestamp) AS finished_at
+    FROM
+        relevant_events e
+    JOIN
+        max_retry_counts mrc ON
+            e.tenant_id = mrc.tenant_id
+            AND e.task_id = mrc.task_id
+            AND e.task_inserted_at = mrc.task_inserted_at
+            AND e.retry_count = mrc.max_retry_count
+    WHERE
+        e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
     GROUP BY e.task_id
 ), error_message AS (
     SELECT
@@ -1172,7 +1302,6 @@ WITH input AS (
     GROUP BY
         task_id
 )
-
 SELECT
     t.tenant_id,
     t.id,
@@ -1188,10 +1317,12 @@ SELECT
     t.sticky,
     t.display_name,
     t.additional_metadata,
+    t.parent_task_external_id,
     t.input,
     t.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
+    q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
     o.output::jsonb as output
 FROM
@@ -1200,6 +1331,8 @@ LEFT JOIN
     finished_ats f ON f.task_id = t.id
 LEFT JOIN
     started_ats s ON s.task_id = t.id
+LEFT JOIN
+    queued_ats q ON q.task_id = t.id
 LEFT JOIN
     error_message e ON e.task_id = t.id
 LEFT JOIN
@@ -1214,26 +1347,28 @@ type PopulateTaskRunDataParams struct {
 }
 
 type PopulateTaskRunDataRow struct {
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	Queue              string               `json:"queue"`
-	ActionID           string               `json:"action_id"`
-	StepID             pgtype.UUID          `json:"step_id"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout    string               `json:"schedule_timeout"`
-	StepTimeout        pgtype.Text          `json:"step_timeout"`
-	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V1StickyStrategyOlap `json:"sticky"`
-	DisplayName        string               `json:"display_name"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
-	Input              []byte               `json:"input"`
-	Status             V1ReadableStatusOlap `json:"status"`
-	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
-	StartedAt          pgtype.Timestamptz   `json:"started_at"`
-	ErrorMessage       pgtype.Text          `json:"error_message"`
-	Output             []byte               `json:"output"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	Queue                string               `json:"queue"`
+	ActionID             string               `json:"action_id"`
+	StepID               pgtype.UUID          `json:"step_id"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout      string               `json:"schedule_timeout"`
+	StepTimeout          pgtype.Text          `json:"step_timeout"`
+	Priority             pgtype.Int4          `json:"priority"`
+	Sticky               V1StickyStrategyOlap `json:"sticky"`
+	DisplayName          string               `json:"display_name"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
+	Input                []byte               `json:"input"`
+	Status               V1ReadableStatusOlap `json:"status"`
+	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
+	StartedAt            pgtype.Timestamptz   `json:"started_at"`
+	QueuedAt             pgtype.Timestamptz   `json:"queued_at"`
+	ErrorMessage         pgtype.Text          `json:"error_message"`
+	Output               []byte               `json:"output"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -1260,10 +1395,12 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.Sticky,
 			&i.DisplayName,
 			&i.AdditionalMetadata,
+			&i.ParentTaskExternalID,
 			&i.Input,
 			&i.Status,
 			&i.FinishedAt,
 			&i.StartedAt,
+			&i.QueuedAt,
 			&i.ErrorMessage,
 			&i.Output,
 		); err != nil {
