@@ -394,14 +394,23 @@ func (a *AdminServiceImpl) GetOutput(ctx context.Context, req *contracts.GetWork
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	workflowRunIds := []string{req.WorkflowRunId}
+	task, err := a.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, req.WorkflowRunId, false)
+
+	if err != nil || task == nil {
+		return nil, status.Error(codes.NotFound, "No task found")
+	}
+
 	finalizedWorkflowRuns, err := a.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, workflowRunIds)
 
 	if err != nil {
 		return nil, err
 	}
 
+	// At this point, if we get an empty set back we know the workflow has not finished yet,
+	// and the client should wait a bit and retry
 	if len(finalizedWorkflowRuns) == 0 {
-		return nil, status.Error(codes.NotFound, "No workflow runs found")
+		// Return a deadline exceeded error to indicate that the task has not completed yet
+		return nil, status.Error(codes.DeadlineExceeded, "Task has not completed, please retry")
 	}
 
 	if len(finalizedWorkflowRuns) > 1 {
