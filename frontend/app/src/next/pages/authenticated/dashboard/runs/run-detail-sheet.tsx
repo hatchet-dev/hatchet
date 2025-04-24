@@ -34,6 +34,28 @@ type TaskRunSummaryTableProps = {
   runIdElement: JSX.Element;
 };
 
+const useTaskAndWorkflowSelection = ({
+  taskId,
+}: Pick<RunDetailSheetProps, 'taskId'>) => {
+  const { data, isLoading } = useRunDetail();
+  const workflow = useMemo(() => data?.run, [data]);
+
+  const tasks = useMemo(() => data?.tasks, [data]);
+
+  const selectedTask = useMemo(() => {
+    if (taskId) {
+      return tasks?.find((t) => t.taskExternalId === taskId);
+    }
+    return tasks?.[0];
+  }, [tasks, taskId]);
+
+  return {
+    workflow,
+    selectedTask,
+    isLoading,
+  };
+};
+
 const TaskRunSummaryTable = ({
   status,
   detailsLink,
@@ -84,17 +106,9 @@ const TaskRunOverview = ({
   taskId,
   detailsLink,
 }: Pick<RunDetailSheetProps, 'detailsLink' | 'taskId'>) => {
-  const { data, isLoading } = useRunDetail();
-  const workflow = useMemo(() => data?.run, [data]);
-
-  const tasks = useMemo(() => data?.tasks, [data]);
-
-  const selectedTask = useMemo(() => {
-    if (taskId) {
-      return tasks?.find((t) => t.taskExternalId === taskId);
-    }
-    return tasks?.[0];
-  }, [tasks, taskId]);
+  const { isLoading, workflow, selectedTask } = useTaskAndWorkflowSelection({
+    taskId,
+  });
 
   if (isLoading || !workflow) {
     return (
@@ -128,17 +142,9 @@ const TaskRunOverview = ({
 };
 
 const PayloadContent = ({ taskId }: Pick<RunDetailSheetProps, 'taskId'>) => {
-  const { data, isLoading } = useRunDetail();
-  const workflow = useMemo(() => data?.run, [data]);
-
-  const tasks = useMemo(() => data?.tasks, [data]);
-
-  const selectedTask = useMemo(() => {
-    if (taskId) {
-      return tasks?.find((t) => t.taskExternalId === taskId);
-    }
-    return tasks?.[0];
-  }, [tasks, taskId]);
+  const { workflow, selectedTask } = useTaskAndWorkflowSelection({
+    taskId,
+  });
 
   if (!selectedTask) {
     return (
