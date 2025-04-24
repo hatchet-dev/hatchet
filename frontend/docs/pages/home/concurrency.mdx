@@ -1,24 +1,12 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
+import { Snippet } from "@/components/code";
+import snips from "@/lib/snips";
 
-export const TS = {
-  path: "src/v1/examples/concurrency-rr/workflow.ts",
-};
-
-export const PY = {
-  path: "examples/concurrency_limit_rr/worker.py",
-};
-
-export const GO = {
-  path: "examples/v1/workflows/concurrency-rr.go",
-};
-
-export const MultiplePY = {
-  path: "examples/concurrency_workflow_level/worker.py",
-};
-
-export const getStaticProps = ({}) => getSnippets([TS, PY, GO, MultiplePY]);
+export const TS = "examples/typescript/concurrency-rr/workflow.ts";
+export const PY = "examples/python/concurrency_limit_rr/worker.py";
+export const GO = "examples/v1/workflows/concurrency-rr.go";
+export const MultiplePY = "examples/python/concurrency_workflow_level/worker.py";
 
 # Concurrency Control in Hatchet Tasks
 
@@ -56,13 +44,13 @@ In addition to setting concurrency limits at the task level, you can also contro
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-    <GithubSnippet src={PY} target="Concurrency Strategy With Key" />
+    <Snippet src={snips.python.concurrency_limit_rr.worker["Concurrency Strategy With Key"]} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <GithubSnippet src={TS} target="Concurrency Strategy With Key" />
+    <Snippet src={snips.typescript['concurrency-rr'].workflow['Concurrency Strategy With Key']} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <GithubSnippet src={GO} target="Concurrency Strategy With Key" />
+    <Snippet src={snips.go.workflows['concurrency-rr']['Concurrency Strategy With Key']} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -132,12 +120,12 @@ You can also combine multiple concurrency strategies to create a more complex co
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-    <GithubSnippet src={MultiplePY} target="Multiple Concurrency Keys" />
+    <Snippet src={snips.python.concurrency_workflow_level.worker['Multiple Concurrency Keys']} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <GithubSnippet src={TS} target="Multiple Concurrency Keys" />
+    <Snippet src={snips.typescript['concurrency-rr'].workflow["Multiple Concurrency Keys"]} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <GithubSnippet src={GO} target="Multiple Concurrency Keys" />
+    <Snippet src={snips.go.workflows['concurrency-rr']['Multiple Concurrency Keys']} />
   </Tabs.Tab>
 </UniversalTabs>

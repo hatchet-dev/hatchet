@@ -1,29 +1,13 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
+import { Snippet } from "@/components/code";
+import snips from "@/lib/snips";
 
-export const SimpleTs = {
-  path: "src/v1/examples/simple/bulk.ts",
-};
-
-export const SimplePy = {
-  path: "examples/child/bulk.py",
-};
-
-export const SimpleGo = {
-  path: "examples/v1/run/bulk.go",
-};
-
-export const FanoutPy = {
-  path: "examples/child/simple-fanout.py",
-};
-
-export const ParentTaskGo = {
-  path: "examples/v1/workflows/simple.go",
-};
-
-export const getStaticProps = ({}) =>
-  getSnippets([SimpleTs, SimplePy, SimpleGo, FanoutPy, ParentTaskGo]);
+export const SimpleTs = "examples/typescript/simple/bulk.ts";
+export const SimplePy = "examples/python/child/bulk.py";
+export const SimpleGo = "examples/v1/run/bulk.go";
+export const FanoutPy = "examples/python/child/simple-fanout.py";
+export const ParentTaskGo = "examples/v1/workflows/simple.go";
 
 # Bulk Run Many Tasks
 
@@ -34,7 +18,7 @@ Often you may want to run a task multiple times with different inputs. There is 
 
 You can use the `aio_run_many` method to bulk run a task. This will return a list of results.
 
-<GithubSnippet src={SimplePy} target="Bulk Run a Task" />
+<Snippet src={snips.python.child.bulk["Bulk Run a Task"]} />
 
 <Callout type="info">
   `Workflow.create_bulk_run_item` is a typed helper to create the inputs for
@@ -58,7 +42,7 @@ As with the run methods, you can call bulk methods from within a task and the ru
 
 You can use the `run` method directly to bulk run tasks by passing an array of inputs. This will return a list of results.
 
-<GithubSnippet src={SimpleTs} target="Bulk Run a Task" />
+<Snippet src={snips.typescript.simple.bulk["Bulk Run a Task"]} />
 
 There are additional bulk methods available on the `Task` object.
 
@@ -67,7 +51,7 @@ There are additional bulk methods available on the `Task` object.
 
 As with the run methods, you can call bulk methods on the task fn context parameter within a task and the runs will be associated with the parent task in the dashboard.
 
-    <GithubSnippet src={SimpleTs} target="Bulk Run Tasks from within a Task" />
+<Snippet src={snips.typescript.simple.bulk["Bulk Run Tasks from within a Task"]} />
 
 Available bulk methods on the `Context` object are: - `bulkRunChildren` - `bulkRunChildrenNoWait`
 
@@ -76,7 +60,7 @@ Available bulk methods on the `Context` object are: - `bulkRunChildren` - `bulkR
 
 You can use the `RunBulkNoWait` method directly on the `Task` object to bulk run tasks by passing an array of inputs. This will return a list of run IDs.
 
-    <GithubSnippet src={SimpleGo} target="Bulk Run Tasks" />
+<Snippet src={snips.go.run.bulk["Bulk Run Tasks"]} />
 
 Additional bulk methods are coming soon for the Go SDK. Join our [Discord](https://hatchet.run/discord) to stay up to date.
 
