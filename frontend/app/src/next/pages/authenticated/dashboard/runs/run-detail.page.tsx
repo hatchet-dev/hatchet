@@ -43,6 +43,8 @@ import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log'
 import { FilterProvider } from '@/next/hooks/utils/use-filters';
 import { RunDetailSheet } from './run-detail-sheet';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
+import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
+import WorkflowGeneralSettings from '../workflows/settings';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -442,7 +444,9 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             </FilterProvider>
           </TabsContent>
           <TabsContent value="config" className="mt-4">
-            TODO
+            <WorkflowDetailsProvider workflowId={workflow.workflowId}>
+              <WorkflowGeneralSettings />
+            </WorkflowDetailsProvider>
           </TabsContent>
         </Tabs>
       </div>
