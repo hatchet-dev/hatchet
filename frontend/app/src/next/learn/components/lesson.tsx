@@ -40,7 +40,7 @@ function LessonContent<
   return (
     <TwoColumnLayout
       left={
-        <div className="space-y-4 pb-[600px]">
+        <div className="space-y-8 pb-[600px]">
           {Object.entries(lesson.steps).map(([key, step]) => {
             const typedStep = step as LessonStep;
             const isActive = key === activeStep;
@@ -84,7 +84,7 @@ function LessonContent<
       }
       right={
         <>
-          <div className="space-y-2 pb-[600px]">
+          <div className="space-y-8 pb-[600px]">
             {Object.entries(lesson.steps).map(([key, step]) => {
               const typedStep = step as LessonStep;
               const languageCode =

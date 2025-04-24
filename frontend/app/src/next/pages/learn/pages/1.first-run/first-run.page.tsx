@@ -1,6 +1,10 @@
 import { lessonPlan } from './first-run.lesson-plan';
-import { Lesson } from '../../../../learn/components/lesson';
+import { Lesson } from '@/next/learn/components/lesson';
 
 export default function FirstRunPage() {
-  return <Lesson lesson={lessonPlan} />;
+  return (
+    <>
+      <Lesson lesson={lessonPlan} />
+    </>
+  );
 }

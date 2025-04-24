@@ -40,6 +40,10 @@ interface TenantState {
 
 const TenantContext = createContext<TenantState | null>(null);
 
+export function clearTenant() {
+  localStorage.removeItem('tenant');
+}
+
 interface TenantProviderProps {
   children: ReactNode;
 }

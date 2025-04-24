@@ -16,10 +16,13 @@ import { CommandConfig, commands } from './first-runs.commands';
 import { Code } from '@/next/components/ui/code';
 import { Button } from '@/next/components/ui/button';
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Key, Loader2 } from 'lucide-react';
 import { codeKeyFrames } from './first-run.keyframes';
 import { Highlight } from '@/next/learn/components';
 import { useLesson as untypedUseLesson } from '@/next/learn/hooks/use-lesson';
+import { SignInRequiredAction } from '@/next/pages/learn/components/signin-required-action';
+import { Dialog } from '@/next/components/ui/dialog';
+import { CreateTokenDialog } from '@/next/pages/authenticated/dashboard/settings/api-tokens/components/create-token-dialog';
 
 const useLesson = untypedUseLesson<
   FirstRunStepKeys,
@@ -126,6 +129,8 @@ function IntroStep() {
 function SetupStep() {
   const { language, setLanguage, extra, setExtra, setHighlights, commands } =
     useLesson();
+  const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
 
   return (
     <Card>
@@ -191,7 +196,25 @@ ${commands.install}
         />
         Next, let's create an access token and save it to your project's `.env`
         file.
-        <Button>Create Access Token</Button>
+        <SignInRequiredAction
+          description="Free tier users can follow along and run your code code locally."
+          variant="card"
+        >
+          {!hasToken ? (
+            <Button onClick={() => setShowTokenDialog(true)}>
+              <Key className="h-4 w-4" />
+              Create Access Token
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={() => setShowTokenDialog(true)}
+            >
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              Token Created
+            </Button>
+          )}
+        </SignInRequiredAction>
         <Highlight
           frame="client"
           language={language}
@@ -202,6 +225,14 @@ ${commands.install}
           Hatchet engine.
         </Highlight>
       </CardContent>
+      {showTokenDialog && (
+        <Dialog open={showTokenDialog} onOpenChange={setShowTokenDialog}>
+          <CreateTokenDialog
+            close={() => setShowTokenDialog(false)}
+            onSuccess={() => setHasToken(true)}
+          />
+        </Dialog>
+      )}
     </Card>
   );
 }

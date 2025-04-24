@@ -83,10 +83,14 @@ export function LessonProvider<
   useEffect(() => {
     const activeBlock = codeBlocksRef.current[activeStep];
     const activeCard = stepCardsRef.current[activeStep];
+
+    // Add scroll margin to both elements
     if (activeBlock) {
+      activeBlock.style.scrollMarginTop = '2rem';
       activeBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     if (activeCard) {
+      activeCard.style.scrollMarginTop = '2rem';
       activeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [activeStep]);
