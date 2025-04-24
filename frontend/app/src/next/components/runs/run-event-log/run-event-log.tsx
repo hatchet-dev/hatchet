@@ -120,7 +120,8 @@ const EVENT_CONFIG: Record<V1TaskEventType, EventConfig> = {
   },
   [V1TaskEventType.REASSIGNED]: {
     icon: UserCog,
-    message: (event) => `Reassigned to worker ${event.workerId}`,
+    message:
+      'Reassigned as the worker became inactive (did not heartbeat for more than 30 seconds)',
     showWorkerButton: true,
     status: WorkflowRunStatus.RUNNING,
     title: 'Task Reassigned',

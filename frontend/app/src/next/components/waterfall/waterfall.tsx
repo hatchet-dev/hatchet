@@ -15,6 +15,7 @@ import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api/queries';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
+import { RunStatusConfigs } from '../runs/runs-badge';
 
 interface ProcessedTaskData {
   id: string;
@@ -38,15 +39,16 @@ interface ProcessedData {
 // Waterfall component to render bars for queued, started, and finished durations
 interface WaterfallProps {
   workflowRunId: string;
+  handleTaskSelect?: (taskId: string) => void; // Added handleTaskSelect prop
 }
 
-// Custom tooltip component that filters out offset entries
 const CustomTooltip = (props: {
   active?: boolean;
   payload?: Array<{
     dataKey: string;
     name: string;
     value: number;
+    payload?: V1TaskTiming;
     [key: string]: unknown;
   }>;
   [key: string]: unknown;
@@ -61,12 +63,24 @@ const CustomTooltip = (props: {
 
     // Only render if we have visible entries
     if (filteredPayload.length > 0) {
+      filteredPayload.forEach((entry, i) => {
+        if (filteredPayload[i].payload && entry.dataKey === 'ranDuration') {
+          const taskStatus = filteredPayload[0]?.payload?.status;
+
+          if (taskStatus && RunStatusConfigs[taskStatus]) {
+            filteredPayload[i].color =
+              RunStatusConfigs[taskStatus].primaryOKLCH;
+          }
+        }
+      });
+
       // Create modified props with filtered payload
       const modifiedProps = { ...props, payload: filteredPayload };
+
       return (
         <ChartTooltipContent
           {...modifiedProps}
-          className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
+          className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs cursor-pointer"
         />
       );
     }
@@ -75,7 +89,7 @@ const CustomTooltip = (props: {
   return null;
 };
 
-export function Waterfall({ workflowRunId }: WaterfallProps) {
+export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
   const [depth, setDepth] = useState(2);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [autoExpandedInitially, setAutoExpandedInitially] = useState(false);
@@ -87,7 +101,77 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
     isError,
   } = useQuery({
     ...queries.v1WorkflowRuns.listTaskTimings(workflowRunId, depth),
+    refetchInterval: 5000,
   });
+
+  // Process and memoize task relationships to allow collapsing all descendants
+  const taskRelationships = useMemo(() => {
+    if (!taskData?.rows || taskData.rows.length === 0) {
+      return {
+        taskMap: new Map<string, V1TaskTiming>(),
+        taskParentMap: new Map<string, string[]>(),
+        taskDescendantsMap: new Map<string, Set<string>>(),
+      };
+    }
+
+    // Create maps for lookup
+    const taskMap = new Map<string, V1TaskTiming>();
+    const taskParentMap = new Map<string, string[]>();
+
+    // First pass: build basic maps
+    taskData.rows.forEach((task) => {
+      if (task.metadata?.id) {
+        taskMap.set(task.metadata.id, task);
+
+        // Record parent-child relationship
+        if (task.parentTaskExternalId) {
+          if (!taskParentMap.has(task.parentTaskExternalId)) {
+            taskParentMap.set(task.parentTaskExternalId, []);
+          }
+          const children = taskParentMap.get(task.parentTaskExternalId);
+          if (children) {
+            children.push(task.metadata.id);
+          }
+        }
+      }
+    });
+
+    // Build descendant map to support recursive collapsing
+    const taskDescendantsMap = new Map<string, Set<string>>();
+
+    // Function to get all descendants of a task
+    const getDescendants = (taskId: string): Set<string> => {
+      // If we've already calculated this, return the cached result
+      if (taskDescendantsMap.has(taskId)) {
+        return taskDescendantsMap.get(taskId)!;
+      }
+
+      const descendants = new Set<string>();
+      const children = taskParentMap.get(taskId) || [];
+
+      // Add direct children
+      children.forEach((childId) => {
+        descendants.add(childId);
+
+        // Recursively add their descendants
+        const childDescendants = getDescendants(childId);
+        childDescendants.forEach((descendantId) => {
+          descendants.add(descendantId);
+        });
+      });
+
+      // Cache the result
+      taskDescendantsMap.set(taskId, descendants);
+      return descendants;
+    };
+
+    // Calculate descendants for all tasks
+    taskMap.forEach((_, taskId) => {
+      getDescendants(taskId);
+    });
+
+    return { taskMap, taskParentMap, taskDescendantsMap };
+  }, [taskData]);
 
   // Handle task expansion
   const toggleTaskExpansion = (
@@ -98,8 +182,15 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
     const newExpandedTasks = new Set(expandedTasks);
 
     if (expandedTasks.has(taskId)) {
-      // Collapse: remove this task from expanded set
+      // Collapse: remove this task and all its descendants from expanded set
       newExpandedTasks.delete(taskId);
+
+      // Get all descendants and remove them from expanded set
+      const descendants =
+        taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
+      descendants.forEach((descendantId) => {
+        newExpandedTasks.delete(descendantId);
+      });
     } else if (hasChildren) {
       // Expand: add this task to expanded set
       newExpandedTasks.add(taskId);
@@ -214,14 +305,20 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
       return { data: [], taskPathMap: new Map() };
     }
 
-    // Find the global minimum queuedAt time among visible tasks
-    let globalMinQueuedAt = Number.MAX_SAFE_INTEGER;
+    // Find the global minimum time (queuedAt or startedAt) among visible tasks
+    let globalMinTime = Number.MAX_SAFE_INTEGER;
     visibleTasks.forEach((id) => {
       const task = taskMap.get(id);
-      if (task && task.queuedAt) {
-        const queuedTime = new Date(task.queuedAt).getTime();
-        if (queuedTime < globalMinQueuedAt) {
-          globalMinQueuedAt = queuedTime;
+      if (task) {
+        // Use queuedAt if available, otherwise use startedAt
+        const minTime = task.queuedAt
+          ? new Date(task.queuedAt).getTime()
+          : task.startedAt
+            ? new Date(task.startedAt).getTime()
+            : null;
+
+        if (minTime !== null && minTime < globalMinTime) {
+          globalMinTime = minTime;
         }
       }
     });
@@ -230,11 +327,14 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
     const data = Array.from(visibleTasks)
       .map((id) => {
         const task = taskMap.get(id);
-        if (!task || !task.queuedAt || !task.startedAt || !task.finishedAt) {
+        if (!task || !task.startedAt || !task.finishedAt) {
           return null;
         }
 
-        const queuedAt = new Date(task.queuedAt).getTime();
+        // Handle missing queuedAt by defaulting to startedAt (no queue time)
+        const queuedAt = task.queuedAt
+          ? new Date(task.queuedAt).getTime()
+          : new Date(task.startedAt).getTime();
         const startedAt = new Date(task.startedAt).getTime();
         const finishedAt = new Date(task.finishedAt).getTime();
 
@@ -246,8 +346,9 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
           depth: taskDepthMap.get(task.metadata.id) || 0,
           isExpanded: expandedTasks.has(task.metadata.id),
           // Chart data
-          offset: (queuedAt - globalMinQueuedAt) / 1000, // in seconds
-          queuedDuration: (startedAt - queuedAt) / 1000, // in seconds
+          offset: (queuedAt - globalMinTime) / 1000, // in seconds
+          // If queuedAt equals startedAt (due to our fallback logic), then queuedDuration will be 0
+          queuedDuration: task.queuedAt ? (startedAt - queuedAt) / 1000 : 0, // in seconds
           ranDuration: (finishedAt - startedAt) / 1000, // in seconds
           status: task.status,
           taskId: task.taskId, // Add taskId for tie-breaking in sorting
@@ -299,7 +400,7 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
       return <g transform={`translate(${x},${y})`}></g>;
     }
 
-    const label = payload.value;
+    const label = stripDashAndNumbers(payload.value);
     const truncatedLabel =
       label.length > 16 ? label.slice(0, 16) + '...' : label;
     const indentation = task.depth * 12; // 12px indentation per level
@@ -389,6 +490,13 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
     },
   };
 
+  // Handler for bar click events
+  const handleBarClick = (data: any) => {
+    if (handleTaskSelect && data && data.id) {
+      handleTaskSelect(data.id);
+    }
+  };
+
   return (
     <ChartContainer
       config={chartConfig}
@@ -405,6 +513,9 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
             }}
             barSize={barSize}
             barGap={rowGap}
+            onClick={(data) =>
+              data && handleBarClick(data.activePayload?.[0]?.payload)
+            }
           >
             <CartesianGrid horizontal={false} vertical={true} />
             <XAxis
@@ -436,6 +547,7 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
               stackId="a"
               fill="transparent"
               maxBarSize={barSize}
+              className="cursor-pointer"
             />
             <Bar
               dataKey="queuedDuration"
@@ -443,6 +555,7 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
               stackId="a"
               fill={chartConfig.queued.color}
               maxBarSize={barSize}
+              className="cursor-pointer"
             />
             <Bar
               dataKey="ranDuration"
@@ -450,13 +563,12 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
               stackId="a"
               fill={chartConfig.runFor.color}
               maxBarSize={barSize}
+              className="cursor-pointer"
             >
-              {processedData.data.map((_, index) => {
-                // TODO: modify color based on status
-                // const color = RunStatusConfigs[entry.status].primary;
-                return (
-                  <Cell key={`cell-${index}`} fill={'rgb(99 102 241 / 0.8)'} />
-                );
+              {processedData.data.map((entry, index) => {
+                const color = RunStatusConfigs[entry.status].primaryOKLCH;
+
+                return <Cell key={`cell-${index}`} fill={color} />;
               })}
             </Bar>
           </BarChart>
@@ -464,4 +576,18 @@ export function Waterfall({ workflowRunId }: WaterfallProps) {
       </div>
     </ChartContainer>
   );
+}
+
+/**
+ * Strips the last part of a name that consists of a dash followed by numbers
+ * @param name The input string to process
+ * @returns The name with the dash and trailing numbers removed
+ */
+function stripDashAndNumbers(name: string): string {
+  // Match a name that may contain a dash followed by only digits
+  const regex = /^(.*?)(?:-\d+)?$/;
+  const match = name.match(regex);
+
+  // Return the part before the dash-numbers, or the original string if no match
+  return match ? match[1] : name;
 }

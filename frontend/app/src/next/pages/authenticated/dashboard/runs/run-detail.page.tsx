@@ -418,7 +418,10 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
           )}
         </TabsContent>
         <TabsContent value="waterfall" className="mt-4">
-          <Waterfall workflowRunId={workflowRunId!} />
+          <Waterfall
+            workflowRunId={workflowRunId!}
+            handleTaskSelect={handleTaskSelect}
+          />
         </TabsContent>
       </Tabs>
 
