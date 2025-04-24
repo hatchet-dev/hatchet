@@ -65,7 +65,7 @@ async def run():
             "request": {
                 "url": "https://example.com",
                 "headers": {
-                    "Authorization": "8BOHec9yUJMJ4sJFqUuC5w==",
+                    "Authorization": "fake-secret-token",
                     "Content-Type": "application/json"
                 },
                 "body": "Hello, world!"

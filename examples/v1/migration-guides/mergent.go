@@ -161,7 +161,7 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 		}{
 			URL: "https://example.com",
 			Headers: map[string]string{
-				"Authorization": "8BOHec9yUJMJ4sJFqUuC5w==",
+				"Authorization": "fake-secret-token",
 				"Content-Type":  "application/json",
 			},
 			Body: "Hello, world!",
