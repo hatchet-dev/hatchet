@@ -14,6 +14,7 @@ export interface CodeProps extends React.HTMLAttributes<HTMLDivElement> {
   showLineNumbers?: boolean;
   highlightLines?: number[];
   highlightStrings?: string[];
+  link?: string;
 }
 
 export function Code({
@@ -26,6 +27,7 @@ export function Code({
   highlightLines = [],
   highlightStrings = [],
   className,
+  link,
   ...props
 }: CodeProps) {
   switch (variant) {
@@ -50,6 +52,7 @@ export function Code({
           highlightLines={highlightLines}
           highlightStrings={highlightStrings}
           className={cn(className)}
+          link={link}
           {...props}
         />
       );

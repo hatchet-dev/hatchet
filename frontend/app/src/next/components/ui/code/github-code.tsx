@@ -69,6 +69,7 @@ export function GithubCode({
       showLineNumbers={showLineNumbers}
       {...props}
       title={props.title || path}
+      link={`https://github.com/${repo}/${branch}/${path}`}
     />
   );
 }

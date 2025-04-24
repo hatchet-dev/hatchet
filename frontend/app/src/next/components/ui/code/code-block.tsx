@@ -3,7 +3,7 @@ import { cn } from '@/next/lib/utils';
 import { Button } from '@/next/components/ui/button';
 import { CheckIcon, Copy } from 'lucide-react';
 import CodeStyleRender from './code-render';
-
+import { Link } from 'react-router-dom';
 interface CodeBlockProps {
   title?: string;
   language: string;
@@ -13,6 +13,7 @@ interface CodeBlockProps {
   showLineNumbers?: boolean;
   highlightLines?: number[];
   highlightStrings?: string[];
+  link?: string;
 }
 
 export function CodeBlock({
@@ -23,6 +24,7 @@ export function CodeBlock({
   className,
   highlightLines = [],
   highlightStrings = [],
+  link,
   ...props
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
@@ -43,7 +45,13 @@ export function CodeBlock({
       {!noHeader && (
         <div className="flex items-center justify-between px-2 bg-muted/50 border-b rounded-t-md">
           <div className="text-xs text-muted-foreground font-mono">
-            {title || language}
+            {link ? (
+              <Link to={link} target="_blank" rel="noopener noreferrer">
+                {title || language}
+              </Link>
+            ) : (
+              title || language
+            )}
           </div>
           <Button
             variant="ghost"

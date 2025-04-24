@@ -80,7 +80,7 @@ export const lessonPlan: LessonPlan<
       githubCode: {
         typescript: 'src/hatchet-client.ts',
         python: 'src/hatchet_client.py',
-        go: 'src/hatchet_client.go',
+        go: 'hatchet_client/hatchet_client.go',
       },
     },
     task: {
@@ -89,7 +89,7 @@ export const lessonPlan: LessonPlan<
       githubCode: {
         typescript: 'src/workflows/first-workflow.ts',
         python: 'src/workflows/first_workflow.py',
-        go: 'src/workflows/first_workflow.go',
+        go: 'workflows/first_workflow.go',
       },
     },
     worker: {
@@ -98,7 +98,7 @@ export const lessonPlan: LessonPlan<
       githubCode: {
         typescript: 'src/worker.ts',
         python: 'src/worker.py',
-        go: 'src/worker.go',
+        go: 'cmd/worker/main.go',
       },
     },
     run: {
@@ -107,7 +107,7 @@ export const lessonPlan: LessonPlan<
       githubCode: {
         typescript: 'src/run.ts',
         python: 'src/run.py',
-        go: 'src/run.go',
+        go: 'cmd/run/main.go',
       },
     },
   },
