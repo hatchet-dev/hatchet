@@ -11,7 +11,7 @@ import {
   SupportedLanguage,
   LessonPlan,
   PackageManager,
-} from '../components/lesson-plan';
+} from '@/next/learn/components';
 
 interface ExtraWithPackageManager {
   packageManager: PackageManager;

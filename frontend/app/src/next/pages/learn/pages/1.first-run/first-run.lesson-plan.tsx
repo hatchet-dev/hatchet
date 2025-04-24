@@ -9,7 +9,7 @@ import {
   LessonPlan,
   SupportedLanguage,
   PackageManager,
-} from '@/next/pages/learn/components/lesson-plan';
+} from '@/next/learn/components/lesson-plan';
 import { Tabs, TabsTrigger } from '@/next/components/ui/tabs';
 import { TabsList } from '@/next/components/ui/tabs';
 import { CommandConfig, commands } from './first-runs.commands';
@@ -18,8 +18,8 @@ import { Button } from '@/next/components/ui/button';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { codeKeyFrames } from './first-run.keyframes';
-import { Highlight } from '@/next/pages/learn/components/lesson-plan';
-import { useLesson as untypedUseLesson } from '@/next/pages/learn/hooks/use-lesson';
+import { Highlight } from '@/next/learn/components';
+import { useLesson as untypedUseLesson } from '@/next/learn/hooks/use-lesson';
 
 const useLesson = untypedUseLesson<
   FirstRunStepKeys,

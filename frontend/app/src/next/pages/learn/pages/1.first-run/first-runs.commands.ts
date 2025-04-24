@@ -1,4 +1,4 @@
-import { Commands } from '../../components/lesson-plan';
+import { Commands } from '@/next/learn/components';
 
 export interface CommandConfig {
   install: string;

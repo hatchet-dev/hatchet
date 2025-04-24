@@ -2,12 +2,12 @@ import { TwoColumnLayout } from '@/next/components/layouts/two-column.layout';
 import { GithubCode } from '@/next/components/ui/code/github-code';
 import { cn } from '@/next/lib/utils';
 import { Button } from '@/next/components/ui/button';
-import { LessonProvider, useLesson } from '@/next/pages/learn/hooks/use-lesson';
+import { LessonProvider, useLesson } from '@/next/learn/hooks/use-lesson';
 import {
   LessonPlan,
   SupportedLanguage,
   LessonStep,
-} from '@/next/pages/learn/components/lesson-plan';
+} from '@/next/learn/components/lesson-plan';
 
 export function Lesson<
   S extends string,

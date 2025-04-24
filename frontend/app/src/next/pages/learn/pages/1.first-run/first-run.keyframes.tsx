@@ -1,4 +1,4 @@
-import { Highlights } from '../../components/lesson-plan';
+import { Highlights } from '@/next/learn/components';
 import { lessonPlan } from './first-run.lesson-plan';
 
 export type HighlightFrames =
