@@ -15,7 +15,7 @@ export const Go = {
   path: "examples/v1/migration-guides/mergent.go",
 };
 
-export const getStaticProps = ({}) =>getSnippets([Ts, Py, Go]);
+export const getStaticProps = ({}) => getSnippets([Ts, Py, Go]);
 
 # Mergent Migration Guide
 
@@ -123,7 +123,6 @@ if err != nil {
 </Tabs.Tab>
 </UniversalTabs>
 
-
 ### 2. Converting Mergent Tasks
 
 Let's look at an example of converting a Mergent task to Hatchet. We'll use an image processing task as an example:
@@ -134,8 +133,8 @@ Let's look at an example of converting a Mergent task to Hatchet. We'll use an i
 <GithubSnippet src={Ts}  target="Before (Mergent)" />
 
 After (Hatchet)
-<GithubSnippet src={Ts}  target="After (Hatchet)" />
 
+<GithubSnippet src={Ts} target="After (Hatchet)" />
 
 </Tabs.Tab>
 <Tabs.Tab title="Python">
@@ -143,7 +142,8 @@ After (Hatchet)
 <GithubSnippet src={Py}  target="Before (Mergent)" />
 
 #### After (Hatchet)
-<GithubSnippet src={Py}  target="After (Hatchet)" />
+
+<GithubSnippet src={Py} target="After (Hatchet)" />
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
@@ -151,7 +151,8 @@ After (Hatchet)
 <GithubSnippet src={Go}  target="Before (Mergent)" />
 
 #### After (Hatchet)
-<GithubSnippet src={Go}  target="After (Hatchet)" />
+
+<GithubSnippet src={Go} target="After (Hatchet)" />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -166,22 +167,23 @@ Key differences in the Hatchet implementation:
 
 ### 3. Migrating Task Triggers
 
-In Mergent the 
-
+In Mergent the
 
 <UniversalTabs items={["Typescript", "Python", "Go"]}>
 <Tabs.Tab title="Typescript">
 #### Before (Mergent)
 The primary way of triggering tasks in Mergent is via the API.
 
-<GithubSnippet src={Ts}  target="Running a task (Mergent)" />
+<GithubSnippet src={Ts} target="Running a task (Mergent)" />
 
-#### After (Hatchet)  
+#### After (Hatchet)
+
 The primary way of triggering tasks in Hatchet is via the SDK.
 
-<GithubSnippet src={Ts}  target="Running a task (Hatchet)" />
+<GithubSnippet src={Ts} target="Running a task (Hatchet)" />
 
 This offers a fully typed way to trigger tasks, with validation of the input parameters.
+
 </Tabs.Tab>
 <Tabs.Tab title="Python">
 #### Before (Mergent)
@@ -189,20 +191,26 @@ The primary way of triggering tasks in Mergent is via the API.
 <GithubSnippet src={Py}  target="Running a task (Mergent)" />
 
 #### After (Hatchet)
+
 The primary way of triggering tasks in Hatchet is via the SDK.
-<GithubSnippet src={Py}  target="Running a task (Hatchet)" />
+
+<GithubSnippet src={Py} target="Running a task (Hatchet)" />
 
 This offers a fully typed way to trigger tasks, with validation of the input parameters.
+
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 #### Before (Mergent)
 <GithubSnippet src={Go}  target="Running a task (Mergent)" />
 
 #### After (Hatchet)
+
 The primary way of triggering tasks in Hatchet is via the SDK.
-<GithubSnippet src={Go}  target="Running a task (Hatchet)" />
+
+<GithubSnippet src={Go} target="Running a task (Hatchet)" />
 
 This offers a fully typed way to trigger tasks, with validation of the input parameters.
+
 </Tabs.Tab>
 </UniversalTabs>
 
@@ -218,6 +226,7 @@ You can do the same in the Hatchet dashboard or programmatically using the SDK:
 <GithubSnippet src={Ts}  target="Scheduling tasks (Mergent)" />
 
 #### After (Hatchet)
+
 <GithubSnippet src={Ts}  target="Scheduling tasks (Hatchet)" />
 </Tabs.Tab>
 <Tabs.Tab title="Python">
@@ -225,11 +234,13 @@ You can do the same in the Hatchet dashboard or programmatically using the SDK:
 <GithubSnippet src={Py}  target="Scheduling tasks (Mergent)" />
 
 #### After (Hatchet)
+
 <GithubSnippet src={Py}  target="Scheduling tasks (Hatchet)" />
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
 #### After (Hatchet)
+
 <GithubSnippet src={Go}  target="Scheduling tasks (Hatchet)" />
 </Tabs.Tab>
 </UniversalTabs>
@@ -239,13 +250,13 @@ You can do the same in the Hatchet dashboard or programmatically using the SDK:
 In Mergent tasks are processed by an HTTP endpoint. In Hatchet there are two ways to process tasks:
 
 1. **Long-Running Worker** (recommended): Process tasks via a long-running worker
-  a. [Managed by Hatchet](../home/compute/index.mdx) -- fully integrated with the platform and automatically scales with your workload
-  b. [Self-hosted](../home/workers.mdx) -- use your own infrastructure to run the worker
+   a. [Managed by Hatchet](../home/compute/index.mdx) -- fully integrated with the platform and automatically scales with your workload
+   b. [Self-hosted](../home/workers.mdx) -- use your own infrastructure to run the worker
 2. **HTTP Endpoint**: Process tasks via an HTTP endpoint via [webhook support (V0 only, v1 coming soon)](https://v0-docs.hatchet.run/home/features/webhooks)
 
-
 <Callout type="info">
-Need help migrating? Our team is here to assist with your transition. Join our Discord community or reach out to support@hatchet.run
+  Need help migrating? Our team is here to assist with your transition. Join our
+  Discord community or reach out to support@hatchet.run
 </Callout>
 
 ## Next Steps
@@ -253,4 +264,3 @@ Need help migrating? Our team is here to assist with your transition. Join our D
 - Review our [comprehensive documentation](../home/workers.mdx)
 - Join our [Discord community](https://hatchet.run/discord)
 - Sign up for a [Hatchet Cloud account](https://cloud.onhatchet.run/)
-
