@@ -67,7 +67,7 @@ async function run() {
       queue: 'default',
       request: {
         url: 'https://example.com',
-        headers: { Authorization: '8BOHec9yUJMJ4sJFqUuC5w==', 'Content-Type': 'application/json' },
+        headers: { Authorization: 'fake-secret-token', 'Content-Type': 'application/json' },
         body: 'Hello, world!',
       },
     }),
