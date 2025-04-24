@@ -100,6 +100,8 @@ async def schedule():
     }
     # !!
 
+    print(options)
+
     # ❓ Scheduling tasks (Hatchet)
     # Schedule the task to run at a specific time
     run_at = datetime.now() + timedelta(days=1)
