@@ -7,10 +7,9 @@ import {
 } from '@/next/components/ui/card';
 import {
   LessonPlan,
-  LessonPlanStepProps,
   SupportedLanguage,
   PackageManager,
-} from '../../components/lesson-plan';
+} from '@/next/pages/learn/components/lesson-plan';
 import { Tabs, TabsTrigger } from '@/next/components/ui/tabs';
 import { TabsList } from '@/next/components/ui/tabs';
 import { CommandConfig, commands } from './first-runs.commands';
@@ -19,19 +18,21 @@ import { Button } from '@/next/components/ui/button';
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { codeKeyFrames } from './first-run.keyframes';
-import { Highlight } from '../../components/lesson-plan';
+import { Highlight } from '@/next/pages/learn/components/lesson-plan';
+import { useLesson as untypedUseLesson } from '@/next/pages/learn/hooks/use-lesson';
+
+const useLesson = untypedUseLesson<
+  FirstRunStepKeys,
+  FirstRunExtra,
+  CommandConfig
+>;
+
 export type FirstRunStepKeys = 'intro' | 'setup' | 'task' | 'worker' | 'run';
 
 export type FirstRunExtra = {
   language: SupportedLanguage;
   packageManager: PackageManager;
 };
-
-export type Props = LessonPlanStepProps<
-  FirstRunStepKeys,
-  FirstRunExtra,
-  CommandConfig
->;
 
 export const lessonPlan: LessonPlan<
   FirstRunStepKeys,
@@ -105,7 +106,7 @@ export const lessonPlan: LessonPlan<
   },
 };
 
-function IntroStep({ extra }: Props) {
+function IntroStep() {
   return (
     <Card>
       <CardHeader>
@@ -122,14 +123,10 @@ function IntroStep({ extra }: Props) {
   );
 }
 
-function SetupStep({
-  extra,
-  setExtra,
-  language,
-  setLanguage,
-  setHighlights,
-  commands,
-}: Props) {
+function SetupStep() {
+  const { language, setLanguage, extra, setExtra, setHighlights, commands } =
+    useLesson();
+
   return (
     <Card>
       <CardHeader>
@@ -155,7 +152,7 @@ function SetupStep({
             value={extra.packageManager}
             onValueChange={(value) =>
               setExtra({
-                packageManager: value as any,
+                packageManager: value as PackageManager,
               })
             }
           >
@@ -171,7 +168,7 @@ function SetupStep({
             value={extra.packageManager}
             onValueChange={(value) =>
               setExtra({
-                packageManager: value as any,
+                packageManager: value as PackageManager,
               })
             }
           >
@@ -209,7 +206,9 @@ ${commands.install}
   );
 }
 
-function TaskStep({ language, setHighlights }: Props): React.ReactNode {
+function TaskStep() {
+  const { language, setHighlights } = useLesson();
+
   return (
     <Card>
       <CardHeader>
@@ -311,7 +310,9 @@ function WorkerConnection() {
   );
 }
 
-function WorkerStep({ setHighlights, commands }: Props): React.ReactNode {
+function WorkerStep() {
+  const { commands } = useLesson();
+
   return (
     <Card>
       <CardHeader>
@@ -350,7 +351,8 @@ function WorkerStep({ setHighlights, commands }: Props): React.ReactNode {
   );
 }
 
-function TaskExecution({ commands }: { commands: CommandConfig }) {
+function TaskExecution() {
+  const { commands } = useLesson();
   const [isExecuting, setIsExecuting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -401,7 +403,7 @@ function TaskExecution({ commands }: { commands: CommandConfig }) {
   );
 }
 
-function RunStep({ setHighlights, commands }: Props): React.ReactNode {
+function RunStep() {
   return (
     <Card>
       <CardHeader>
@@ -422,7 +424,7 @@ function RunStep({ setHighlights, commands }: Props): React.ReactNode {
           a message input. The task will transform the message to lowercase and
           return the result.
         </p>
-        <TaskExecution commands={commands} />
+        <TaskExecution />
         <p>
           Congratulations! You've successfully set up and run your first Hatchet
           task. This is just the beginning - Hatchet offers many more features

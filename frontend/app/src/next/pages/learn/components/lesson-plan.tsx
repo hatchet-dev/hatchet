@@ -39,8 +39,8 @@ export interface LessonPlan<S extends string, E, C> {
 
 export interface LessonStep {
   title: string;
-  description: (props: LessonPlanStepProps<any, any, any>) => React.ReactNode;
-  content?: (props: LessonPlanStepProps<any, any, any>) => React.ReactNode;
+  description: () => React.ReactNode;
+  content?: () => React.ReactNode;
   githubCode?: Partial<typeof GithubCode> & {
     [K in SupportedLanguage]?: string | LanguageSpecificCode;
   };
