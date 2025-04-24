@@ -25,7 +25,7 @@ export type NavItem = {
   items?: NavItem[];
 };
 
-export type SupportItem = {
+type SupportItem = {
   title: string;
   url: string;
   icon: React.ElementType;
@@ -36,7 +36,7 @@ export type NavSection = {
   items: NavItem[];
 };
 
-export type NavStructure = {
+type NavStructure = {
   sections: {
     [key: string]: NavSection;
   };

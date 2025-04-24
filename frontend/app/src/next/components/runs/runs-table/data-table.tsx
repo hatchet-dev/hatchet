@@ -35,7 +35,7 @@ const styles = {
   runId: 'border-r border-border',
 };
 
-export interface IDGetter {
+interface IDGetter {
   metadata: {
     id: string;
   };

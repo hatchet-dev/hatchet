@@ -9,7 +9,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 
-export interface RunIdProps {
+interface RunIdProps {
   wfRun?: V1WorkflowRun;
   taskRun?: V1TaskSummary;
   onClick?: () => void;
@@ -72,7 +72,7 @@ export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
   );
 }
 
-export function splitTime(runId?: string) {
+function splitTime(runId?: string) {
   if (!runId) {
     return;
   }
@@ -80,7 +80,7 @@ export function splitTime(runId?: string) {
   return runId.split('-').slice(0, -1).join('-');
 }
 
-export function getFriendlyTaskRunId(run?: V1TaskSummary) {
+function getFriendlyTaskRunId(run?: V1TaskSummary) {
   if (!run) {
     return;
   }
