@@ -47,6 +47,7 @@
     "@sentry/react": "^7.120.3",
     "@sentry/vite-plugin": "^2.23.0",
     "@tanstack/react-query": "^5.71.1",
+    "@tanstack/react-query-devtools": "^5.74.6",
     "@tanstack/react-table": "^8.21.2",
     "@visx/axis": "^3.12.0",
     "@visx/brush": "^3.12.0",
