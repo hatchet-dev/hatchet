@@ -8,7 +8,7 @@ export const Ts = {
 };
 
 export const Py = {
-  path: "examples/migration-guides/mergent.py",
+  path: "examples/migration_guides/mergent.py",
 };
 
 export const Go = {
@@ -132,7 +132,7 @@ Let's look at an example of converting a Mergent task to Hatchet. We'll use an i
 #### Before (Mergent)
 <GithubSnippet src={Ts}  target="Before (Mergent)" />
 
-After (Hatchet)
+#### After (Hatchet)
 
 <GithubSnippet src={Ts} target="After (Hatchet)" />
 
@@ -167,36 +167,28 @@ Key differences in the Hatchet implementation:
 
 ### 3. Migrating Task Triggers
 
-In Mergent the
+In Mergent the primary way of triggering tasks was via the REST API or in the dashboard.
+
+In Hatchet the primary way of triggering tasks is via the SDK. This offers a fully typed way to trigger tasks, with fully typed outputs of the task.
 
 <UniversalTabs items={["Typescript", "Python", "Go"]}>
 <Tabs.Tab title="Typescript">
 #### Before (Mergent)
-The primary way of triggering tasks in Mergent is via the API.
 
 <GithubSnippet src={Ts} target="Running a task (Mergent)" />
 
 #### After (Hatchet)
 
-The primary way of triggering tasks in Hatchet is via the SDK.
-
 <GithubSnippet src={Ts} target="Running a task (Hatchet)" />
-
-This offers a fully typed way to trigger tasks, with validation of the input parameters.
 
 </Tabs.Tab>
 <Tabs.Tab title="Python">
 #### Before (Mergent)
-The primary way of triggering tasks in Mergent is via the API.
 <GithubSnippet src={Py}  target="Running a task (Mergent)" />
 
 #### After (Hatchet)
 
-The primary way of triggering tasks in Hatchet is via the SDK.
-
 <GithubSnippet src={Py} target="Running a task (Hatchet)" />
-
-This offers a fully typed way to trigger tasks, with validation of the input parameters.
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
@@ -205,11 +197,7 @@ This offers a fully typed way to trigger tasks, with validation of the input par
 
 #### After (Hatchet)
 
-The primary way of triggering tasks in Hatchet is via the SDK.
-
 <GithubSnippet src={Go} target="Running a task (Hatchet)" />
-
-This offers a fully typed way to trigger tasks, with validation of the input parameters.
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -252,7 +240,7 @@ In Mergent tasks are processed by an HTTP endpoint. In Hatchet there are two way
 1. **Long-Running Worker** (recommended): Process tasks via a long-running worker
    a. [Managed by Hatchet](../home/compute) -- fully integrated with the platform and automatically scales with your workload
    b. [Self-hosted](../home/workers) -- use your own infrastructure to run the worker
-2. **HTTP Endpoint**: Process tasks via an HTTP endpoint via [webhook support (V0 only, v1 coming soon)](https://v0-docs.hatchet.run/home/features/webhooks)
+2. **HTTP Endpoint**: Process tasks via an HTTP endpoint via [webhook support (V0 only, V1 coming soon)](https://v0-docs.hatchet.run/home/features/webhooks)
 
 <Callout type="info">
   Need help migrating? Our team is here to assist with your transition. Join our
