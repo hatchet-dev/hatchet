@@ -59,7 +59,9 @@ export default memo(({ data }: { data: NodeData }) => {
         <div className="z-10 flex flex-row items-center justify-between gap-4 w-full">
           <div className="flex flex-row items-center justify-start gap-2 z-10">
             <V1RunIndicator status={data.taskRun?.status} />
-            <div className="truncate flex-grow">{data.taskName}</div>
+            <div className="truncate flex-grow max-w-[160px]">
+              {data.taskName}
+            </div>
           </div>
           {data.taskRun?.finishedAt && data.taskRun?.startedAt && (
             <div className="text-xs text-gray-500 dark:text-gray-400">

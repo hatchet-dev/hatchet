@@ -810,6 +810,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				InsertedAt:         task.InsertedAt,
 				ExternalID:         task.ExternalID,
 				WorkflowID:         task.WorkflowID,
+				WorkflowVersionId:  task.WorkflowVersionID,
 				DisplayName:        task.DisplayName,
 				ReadableStatus:     task.Status,
 				AdditionalMetadata: task.AdditionalMetadata,

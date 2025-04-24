@@ -40,6 +40,8 @@ import { Separator } from '@/next/components/ui/separator';
 import { Waterfall } from '@/next/components/waterfall/waterfall';
 import RelativeDate from '@/next/components/ui/relative-date';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
+import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
+import WorkflowGeneralSettings from '../workflows/settings';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
@@ -443,7 +445,9 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             </FilterProvider>
           </TabsContent>
           <TabsContent value="config" className="mt-4">
-            TODO
+            <WorkflowDetailsProvider workflowId={workflow.workflowId}>
+              <WorkflowGeneralSettings />
+            </WorkflowDetailsProvider>
           </TabsContent>
         </Tabs>
       </div>
