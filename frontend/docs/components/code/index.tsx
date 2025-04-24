@@ -1,5 +1,5 @@
 export * from './GithubSnippet'
-export * from './GithubSnippetV1'
+export * from './Snippet'
 export * from './CodeBlock'
 export * from './codeData'
 export * from './codeParser'

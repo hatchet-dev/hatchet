@@ -7,7 +7,6 @@ interface GithubSnippetProps {
 }
 
 
-
 // This is a server component that will be rendered at build time
 export const Snippet = ({ src }: GithubSnippetProps) => {
   if (!src) {
@@ -15,7 +14,6 @@ export const Snippet = ({ src }: GithubSnippetProps) => {
   }
 
   const [question, filePath] = src.split(":");
-  
   
   // Get the snippet content from the snippets object
   const snippet = snippets[filePath];

@@ -27,7 +27,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
 
   return (
     <>
-      <div className="sticky top-0 z-10 bg-background flex flex-row gap-4 justify-between items-center pl-2 mb-2">
+      <div className="z-10 bg-background flex flex-row gap-4 justify-between items-center pl-2 mb-2">
         {source.githubUrl && (
             <a
               href={source.githubUrl}
@@ -38,7 +38,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
             {source.props?.path}
           </a>
         )}
-        <div className="flex gap-2 w-full justify-end">
+        <div className="flex gap-2 justify-end">
         {canCollapse && (
           <Button
             variant="ghost"

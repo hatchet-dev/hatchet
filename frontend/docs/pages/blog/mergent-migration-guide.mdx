@@ -1,26 +1,10 @@
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import InstallCommand from "@/components/InstallCommand";
-import { GithubSnippet, Snippet, getSnippets } from "@/components/code";
+import { Snippet } from "@/components/code";
 import snips from '@/lib/snips';
 
-export const Ts = {
-  path: "src/v1/examples/migration-guides/mergent.ts",
-};
-
-export const Py = {
-  path: "examples/migration-guides/mergent.py",
-};
-
-export const Go = {
-  path: "examples/v1/migration-guides/mergent.go",
-};
-
-export const getStaticProps = ({}) => getSnippets([Ts, Py, Go]);
-
 # Mergent Migration Guide
-
-<Snippet src={snips.typescript.simple.run['Running a Task']} />
 
 As Mergent sunsets its services, we're here to help you seamlessly transition your background jobs and task processing to Hatchet, a modern, scalable platform for task orchestration in TypeScript, Python, and Go.
 
@@ -54,7 +38,7 @@ It is recommended to instantiate a shared Hatchet Client in a separate file as a
 
 Create a new file called `hatchet-client.ts` in your project root.
 
-<GithubSnippet src={snips.typescript.simple.run} />
+<Snippet src={snips.typescript["hatchet-client"]["*"]} />
 
 You can now import the Hatchet Client in any file that needs it.
 
@@ -129,29 +113,29 @@ Let's look at an example of converting a Mergent task to Hatchet. We'll use an i
 <UniversalTabs items={["Typescript", "Python", "Go"]}>
 <Tabs.Tab title="Typescript">
 #### Before (Mergent)
-<GithubSnippet src={Ts}  target="Before (Mergent)" />
+<Snippet src={snips.typescript['migration-guides']['mergent']['Before (Mergent)']}  />
 
 After (Hatchet)
 
-<GithubSnippet src={Ts} target="After (Hatchet)" />
+<Snippet src={snips.typescript['migration-guides']['mergent']['After (Hatchet)']} />
 
 </Tabs.Tab>
 <Tabs.Tab title="Python">
 #### Before (Mergent)
-<GithubSnippet src={Py}  target="Before (Mergent)" />
+<Snippet src={snips.python['migration-guides']['mergent']['Before (Mergent)']}  />
 
 #### After (Hatchet)
 
-<GithubSnippet src={Py} target="After (Hatchet)" />
+<Snippet src={snips.python['migration-guides']['mergent']['After (Hatchet)']} />
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 #### Before (Mergent)
-<GithubSnippet src={Go}  target="Before (Mergent)" />
+<Snippet src={snips.go['migration-guides']['mergent']['Before (Mergent)']}  />
 
 #### After (Hatchet)
 
-<GithubSnippet src={Go} target="After (Hatchet)" />
+<Snippet src={snips.go['migration-guides']['mergent']['After (Hatchet)']} />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -173,13 +157,13 @@ In Mergent the
 #### Before (Mergent)
 The primary way of triggering tasks in Mergent is via the API.
 
-<GithubSnippet src={Ts} target="Running a task (Mergent)" />
+<Snippet src={snips.typescript['migration-guides']['mergent']['Running a task (Mergent)']} />
 
 #### After (Hatchet)
 
 The primary way of triggering tasks in Hatchet is via the SDK.
 
-<GithubSnippet src={Ts} target="Running a task (Hatchet)" />
+<Snippet src={snips.typescript['migration-guides']['mergent']['Running a task (Hatchet)']} />
 
 This offers a fully typed way to trigger tasks, with validation of the input parameters.
 
@@ -187,26 +171,26 @@ This offers a fully typed way to trigger tasks, with validation of the input par
 <Tabs.Tab title="Python">
 #### Before (Mergent)
 The primary way of triggering tasks in Mergent is via the API.
-<GithubSnippet src={Py}  target="Running a task (Mergent)" />
+<Snippet src={snips.python['migration-guides']['mergent']['Running a task (Mergent)']} />
 
 #### After (Hatchet)
 
 The primary way of triggering tasks in Hatchet is via the SDK.
 
-<GithubSnippet src={Py} target="Running a task (Hatchet)" />
+<Snippet src={snips.python['migration-guides']['mergent']['Running a task (Hatchet)']} />
 
 This offers a fully typed way to trigger tasks, with validation of the input parameters.
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 #### Before (Mergent)
-<GithubSnippet src={Go}  target="Running a task (Mergent)" />
+<Snippet src={snips.go['migration-guides']['mergent']['Running a task (Mergent)']} />
 
 #### After (Hatchet)
 
 The primary way of triggering tasks in Hatchet is via the SDK.
 
-<GithubSnippet src={Go} target="Running a task (Hatchet)" />
+<Snippet src={snips.go['migration-guides']['mergent']['Running a task (Hatchet)']} />
 
 This offers a fully typed way to trigger tasks, with validation of the input parameters.
 
@@ -222,25 +206,25 @@ You can do the same in the Hatchet dashboard or programmatically using the SDK:
 <UniversalTabs items={["Typescript", "Python", "Go"]}>
 <Tabs.Tab title="Typescript">
 #### Before (Mergent)
-<GithubSnippet src={Ts}  target="Scheduling tasks (Mergent)" />
+<Snippet src={snips.typescript['migration-guides']['mergent']['Scheduling tasks (Mergent)']} />
 
 #### After (Hatchet)
 
-<GithubSnippet src={Ts}  target="Scheduling tasks (Hatchet)" />
+<Snippet src={snips.typescript['migration-guides']['mergent']['Scheduling tasks (Hatchet)']} />
 </Tabs.Tab>
 <Tabs.Tab title="Python">
 #### Before (Mergent)
-<GithubSnippet src={Py}  target="Scheduling tasks (Mergent)" />
+<Snippet src={snips.python['migration-guides']['mergent']['Scheduling tasks (Mergent)']} />
 
 #### After (Hatchet)
 
-<GithubSnippet src={Py}  target="Scheduling tasks (Hatchet)" />
+<Snippet src={snips.python['migration-guides']['mergent']['Scheduling tasks (Hatchet)']} />
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
 #### After (Hatchet)
 
-<GithubSnippet src={Go}  target="Scheduling tasks (Hatchet)" />
+<Snippet src={snips.go['migration-guides']['mergent']['Scheduling tasks (Hatchet)']} />
 </Tabs.Tab>
 </UniversalTabs>
 
