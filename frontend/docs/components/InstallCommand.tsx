@@ -16,7 +16,7 @@ export default function InstallCommand({
         const {
             selectedLanguage,
         } = useLanguage();
-    
+
         if (selectedLanguage === "Typescript") {
             return (
                 <UniversalTabs items={["npm", "pnpm", "yarn"]} optionKey="packageManager">
@@ -38,7 +38,7 @@ export default function InstallCommand({
                             raw: `yarn ${installOnly ? "add" : "i @hatchet-dev/typescript-sdk"} ${withDevDependencies ? "&& yarn add ts-node dotenv typescript --dev" : ""}`,
                         }} />
                     </Tabs.Tab>
-                </UniversalTabs>    
+                </UniversalTabs>
             );
         } else if (selectedLanguage === "Python") {
             return withDevDependencies ? (
