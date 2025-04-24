@@ -15,4 +15,11 @@ export default {
   "multi-tenant-queues": {
     title: "An unfair advantage: multi-tenant queues in Postgres",
   },
+  "--migration-guides": {
+    title: "Migration Guides",
+    type: "separator",
+  },
+  "mergent-migration-guide": {
+    title: "Migrating from Mergent",
+  },
 };
