@@ -1,0 +1,3 @@
+// Generated from /Users/gabrielruttner/dev/hatchet/examples/typescript/sticky/workflow.ts
+export const content = "/* eslint-disable no-console */\nimport { StickyStrategy } from '@hatchet/protoc/workflows';\nimport { hatchet } from '../hatchet-client';\nimport { child } from '../child_workflows/workflow';\n\n// ❓ Sticky Task\nexport const sticky = hatchet.task({\n  name: 'sticky',\n  retries: 3,\n  sticky: StickyStrategy.SOFT,\n  fn: async (_, ctx) => {\n    // specify a child workflow to run on the same worker\n    const result = await ctx.runChild(\n      child,\n      {\n        N: 1,\n      },\n      { sticky: true }\n    );\n\n    return {\n      result,\n    };\n  },\n});\n// !!\n";
+export const language = "ts";

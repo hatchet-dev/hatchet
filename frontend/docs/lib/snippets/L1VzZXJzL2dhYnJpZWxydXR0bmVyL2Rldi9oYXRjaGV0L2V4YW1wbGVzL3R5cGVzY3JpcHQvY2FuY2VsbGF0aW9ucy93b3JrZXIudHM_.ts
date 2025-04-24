@@ -1,0 +1,3 @@
+// Generated from /Users/gabrielruttner/dev/hatchet/examples/typescript/cancellations/worker.ts
+export const content = "// ❓ Declaring a Worker\nimport { hatchet } from '../hatchet-client';\nimport { cancellation } from './workflow';\n\nasync function main() {\n  const worker = await hatchet.worker('cancellation-worker', {\n    // 👀 Declare the workflows that the worker can execute\n    workflows: [cancellation],\n    // 👀 Declare the number of concurrent task runs the worker can accept\n    slots: 100,\n  });\n\n  await worker.start();\n}\n\nif (require.main === module) {\n  main();\n}\n// !!\n";
+export const language = "ts";

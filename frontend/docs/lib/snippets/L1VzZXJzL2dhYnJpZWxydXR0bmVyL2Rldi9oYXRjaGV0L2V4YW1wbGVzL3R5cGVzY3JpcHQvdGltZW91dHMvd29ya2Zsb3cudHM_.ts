@@ -1,0 +1,3 @@
+// Generated from /Users/gabrielruttner/dev/hatchet/examples/typescript/timeouts/workflow.ts
+export const content = "// ❓ Declaring a Task\nimport sleep from '@hatchet/util/sleep';\nimport { hatchet } from '../hatchet-client';\n\n// (optional) Define the input type for the workflow\nexport const cancellation = hatchet.task({\n  name: 'cancellation',\n  executionTimeout: '3s',\n  fn: async (_, { cancelled }) => {\n    await sleep(10 * 1000);\n\n    if (cancelled) {\n      throw new Error('Task was cancelled');\n    }\n\n    return {\n      Completed: true,\n    };\n  },\n});\n// !!\n\n// see ./worker.ts and ./run.ts for how to run the workflow\n";
+export const language = "ts";

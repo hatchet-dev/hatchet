@@ -1,0 +1,3 @@
+// Generated from /Users/gabrielruttner/dev/hatchet/examples/typescript/durable-sleep/run.ts
+export const content = "import { durableSleep } from './workflow';\n\nasync function main() {\n  const timeStart = Date.now();\n  const res = await durableSleep.run({});\n  const timeEnd = Date.now();\n  // eslint-disable-next-line no-console\n  console.log(`Time taken: ${timeEnd - timeStart}ms`);\n}\n\nif (require.main === module) {\n  main()\n    .then(() => process.exit(0))\n    .catch((error) => {\n      // eslint-disable-next-line no-console\n      console.error('Error:', error);\n      process.exit(1);\n    });\n}\n";
+export const language = "ts";

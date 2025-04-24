@@ -11,7 +11,8 @@
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
     "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write",
-    "copy-examples": "node scripts/copy-examples.mjs"
+    "copy-examples": "node scripts/copy-examples.mjs",
+    "generate-snips": "node scripts/generate-snips.mjs"
   },
   "repository": {
     "type": "git",
