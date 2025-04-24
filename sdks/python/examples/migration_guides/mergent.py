@@ -5,6 +5,8 @@ import requests
 from pydantic import BaseModel
 from requests import Response
 
+from hatchet_sdk.context.context import Context
+
 from .hatchet_client import hatchet
 
 
@@ -39,8 +41,13 @@ class ImageProcessOutput(BaseModel):
     metadata: Dict[str, Any]
 
 
-@hatchet.task(name="image-processor", retries=3, execution_timeout="10m")  # type: ignore
-async def image_processor(input: ImageProcessInput) -> ImageProcessOutput:
+@hatchet.task(
+    name="image-processor",
+    retries=3,
+    execution_timeout="10m",
+    input_validator=ImageProcessInput,
+)
+async def image_processor(input: ImageProcessInput, ctx: Context) -> ImageProcessOutput:
     # Do some image processing
     result = await process_image(input.image_url, input.filters)
 
@@ -92,7 +99,7 @@ async def run() -> None:
     # !!
 
     # ❓ Running a task (Hatchet)
-    result = await image_processor.run(
+    result = await image_processor.aio_run(
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"])
     )
 
@@ -117,13 +124,13 @@ async def schedule() -> None:
     # ❓ Scheduling tasks (Hatchet)
     # Schedule the task to run at a specific time
     run_at = datetime.now() + timedelta(days=1)
-    await image_processor.schedule(
+    await image_processor.aio_schedule(
         run_at,
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"]),
     )
 
     # Schedule the task to run every hour
-    await image_processor.cron(
+    await image_processor.aio_create_cron(
         "run-hourly",
         "0 * * * *",
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"]),
