@@ -32,12 +32,12 @@ interface ManagedComputeFilters {
 }
 
 // Create params
-export interface CreateManagedComputeParams {
+interface CreateManagedComputeParams {
   data: CreateManagedWorkerRequest;
 }
 
 // Update params
-export interface UpdateManagedComputeParams {
+interface UpdateManagedComputeParams {
   managedWorkerId: string;
   data: UpdateManagedWorkerRequest;
 }

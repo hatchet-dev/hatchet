@@ -39,13 +39,13 @@ import {
   AccordionTrigger,
 } from '@/next/components/ui/accordion';
 
-export type ScalingType = 'Autoscaling' | 'Static';
-export const scalingTypes: ScalingType[] = ['Static', 'Autoscaling'];
+type ScalingType = 'Autoscaling' | 'Static';
+const scalingTypes: ScalingType[] = ['Static', 'Autoscaling'];
 
 export interface MachineConfigValue
   extends CreateManagedWorkerRuntimeConfigRequest {}
 
-export interface MachineConfigProps {
+interface MachineConfigProps {
   config: MachineConfigValue;
   setConfig: (config: MachineConfigValue) => void;
   actions?: React.ReactNode;

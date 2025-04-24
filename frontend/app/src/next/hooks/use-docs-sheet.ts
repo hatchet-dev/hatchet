@@ -14,7 +14,7 @@ export interface DocsSheet {
   title: string;
 }
 
-export interface DocsContextValue {
+interface DocsContextValue {
   sheet: DocsSheet;
   open: (doc: DocRef) => void;
   toggle: (doc: DocRef) => void;

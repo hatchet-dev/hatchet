@@ -1,6 +1,6 @@
 import { PermissionSet, RejectReason } from '@/next/lib/can';
 
-export interface ComputeType {
+interface ComputeType {
   cpuKind: string;
   cpus: number;
   memoryMb: number;
@@ -9,7 +9,7 @@ export interface ComputeType {
 }
 
 // Represents the maximum number of worker services a tenant can create based on their plan
-export const workerServiceLimits = {
+const workerServiceLimits = {
   free: 1,
   starter: 2,
   growth: 5,
@@ -17,7 +17,7 @@ export const workerServiceLimits = {
 };
 
 // Represents the maximum number of replicas per worker service
-export const replicaLimits = {
+const replicaLimits = {
   free: 2,
   starter: 5,
   growth: 20,

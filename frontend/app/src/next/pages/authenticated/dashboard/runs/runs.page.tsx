@@ -21,7 +21,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { RunDetailProvider } from '@/next/hooks/use-run-detail';
 import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
-export interface RunsPageSheetProps {
+interface RunsPageSheetProps {
   workflowRunId: string;
   taskId: string;
 }

@@ -11,7 +11,6 @@ import {
 import { LuBanknote } from 'react-icons/lu';
 
 import { IconType } from 'react-icons/lib';
-import { TenantPaymentMethod } from '@/lib/api/generated/cloud/data-contracts';
 import useBilling from '@/next/hooks/use-billing';
 import { Button } from '@/next/components/ui/button';
 
@@ -25,11 +24,6 @@ const ccIcons: Record<string, IconType> = {
   generic: FaCreditCard,
   link: LuBanknote,
 };
-
-export interface PaymentMethodsProps {
-  hasMethods?: boolean;
-  methods?: TenantPaymentMethod[];
-}
 
 export function PaymentMethods() {
   const { billing } = useBilling();

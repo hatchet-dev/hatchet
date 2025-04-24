@@ -82,8 +82,3 @@ export const ROUTES = {
     contact: `https://hatchet.run/office-hours`,
   },
 } as const;
-
-// Type for route paths
-export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES] extends string
-  ? string
-  : never;

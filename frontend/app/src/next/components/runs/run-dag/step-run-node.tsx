@@ -7,7 +7,7 @@ import { Duration } from '@/next/components/ui/duration';
 import { RunsBadge } from '../runs-badge';
 import { ROUTES } from '@/next/lib/routes';
 
-export enum TabOption {
+enum TabOption {
   Output = 'output',
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',

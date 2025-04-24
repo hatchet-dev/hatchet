@@ -27,14 +27,6 @@ import { Button } from '@/components/v1/ui/button';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import { cn } from '@/next/lib/utils';
 
-export const statusOptions = [
-  { label: 'Pending', value: 'PENDING' },
-  { label: 'Running', value: 'RUNNING' },
-  { label: 'Completed', value: 'COMPLETED' },
-  { label: 'Failed', value: 'FAILED' },
-  { label: 'Cancelled', value: 'CANCELLED' },
-];
-
 export const columns = (
   rowClicked?: (row: V1TaskSummary) => void,
   selectAll?: boolean,
@@ -258,7 +250,7 @@ export const columns = (
   },
 ];
 
-export function AdditionalMetadataCell({ row }: { row: Row<V1TaskSummary> }) {
+function AdditionalMetadataCell({ row }: { row: Row<V1TaskSummary> }) {
   const {
     filters: { setFilter, filters },
   } = useRuns();

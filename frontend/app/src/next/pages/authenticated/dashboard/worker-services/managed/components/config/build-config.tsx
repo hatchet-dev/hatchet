@@ -64,7 +64,7 @@ export function BuildConfig({
           .toLowerCase(),
       ),
     });
-  }, [githubRepo, onChange, value, isNamePristine, value.dockerfilePath]);
+  }, [githubRepo, onChange, value, isNamePristine, value.dockerfilePath, type]);
 
   return (
     <Card variant={type === 'update' ? 'borderless' : 'default'}>

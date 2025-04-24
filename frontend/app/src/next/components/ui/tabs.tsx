@@ -25,7 +25,7 @@ const Tabs = React.forwardRef<
     },
     ref,
   ) => {
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
     const handleValueChange = React.useCallback(

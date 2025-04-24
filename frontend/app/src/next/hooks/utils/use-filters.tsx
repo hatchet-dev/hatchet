@@ -1,21 +1,13 @@
 import * as React from 'react';
 import { useStateAdapter } from '../../lib/utils/storage-adapter';
 
-export interface FilterManager<T> {
+interface FilterManager<T> {
   filters: T;
   setFilter: (key: keyof T, value: T[keyof T]) => void;
   setFilters: (filters: Partial<T>) => void;
   clearFilter: (key: keyof T) => void;
   clearAllFilters: () => void;
 }
-
-export const FilterManagerNoOp: FilterManager<Record<string, any>> = {
-  filters: {},
-  setFilter: () => {},
-  setFilters: () => {},
-  clearFilter: () => {},
-  clearAllFilters: () => {},
-};
 
 type FilterContextType<T> = FilterManager<T>;
 

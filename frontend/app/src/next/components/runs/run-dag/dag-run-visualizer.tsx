@@ -30,7 +30,7 @@ interface WorkflowRunVisualizerProps {
   onTaskSelect?: (taskId: string) => void;
 }
 
-export function WorkflowRunVisualizer({
+function WorkflowRunVisualizer({
   workflowRunId,
   onTaskSelect,
 }: WorkflowRunVisualizerProps) {

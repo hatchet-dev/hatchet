@@ -2,12 +2,6 @@ import api, { Workflow, WorkflowWorkersCount } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
-  createContext,
-  useContext,
-  PropsWithChildren,
-  createElement,
-} from 'react';
-import {
   PaginationManager,
   PaginationManagerNoOp,
 } from './utils/use-pagination';
@@ -92,36 +86,4 @@ export default function useDefinitions({
     slots: listDefinitionsQuery.data?.slots || {},
     isLoading: listDefinitionsQuery.isLoading,
   };
-}
-
-// Context implementation (to maintain compatibility with components)
-interface DefinitionsContextType extends DefinitionsState {}
-
-const DefinitionsContext = createContext<DefinitionsContextType | undefined>(
-  undefined,
-);
-
-export const useDefinitionsContext = () => {
-  const context = useContext(DefinitionsContext);
-  if (context === undefined) {
-    throw new Error(
-      'useDefinitionsContext must be used within a DefinitionsProvider',
-    );
-  }
-  return context;
-};
-
-interface DefinitionsProviderProps extends PropsWithChildren {
-  options?: UseDefinitionsOptions;
-}
-
-export function DefinitionsProvider(props: DefinitionsProviderProps) {
-  const { children, options = {} } = props;
-  const definitionsState = useDefinitions(options);
-
-  return createElement(
-    DefinitionsContext.Provider,
-    { value: definitionsState },
-    children,
-  );
 }

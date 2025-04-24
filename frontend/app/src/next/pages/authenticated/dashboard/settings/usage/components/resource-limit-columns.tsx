@@ -20,7 +20,7 @@ const indicatorVariants = {
   exhausted: 'border-transparent rounded-full bg-red-500',
 };
 
-export function LimitIndicator({
+function LimitIndicator({
   value,
   alarmValue,
   limitValue,
