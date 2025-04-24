@@ -20,7 +20,7 @@ export type RepoProps = {
   user?: string;
   repo?: string;
   branch?: string;
-  path: string;
+  path?: string;
 };
 
 const getLocalUrl = (ext: string | undefined, { path }: RepoProps) => {
@@ -31,7 +31,7 @@ const getLocalUrl = (ext: string | undefined, { path }: RepoProps) => {
 const isDev = process?.env?.NODE_ENV === "development";
 
 const getRawUrl = ({ user, repo, branch, path }: RepoProps) => {
-  const ext = path.split(".").pop();
+  const ext = path?.split(".").pop();
   if (isDev) {
     return getLocalUrl(ext, { path });
   }
@@ -40,7 +40,7 @@ const getRawUrl = ({ user, repo, branch, path }: RepoProps) => {
 };
 
 const getUIUrl = ({ user, repo, branch, path }: RepoProps) => {
-  const ext = path.split(".").pop();
+  const ext = path?.split(".").pop();
   if (isDev) {
     return getLocalUrl(ext, { path });
   }
@@ -50,9 +50,9 @@ const getUIUrl = ({ user, repo, branch, path }: RepoProps) => {
 
 export type Src = {
   raw: string;
-  props: RepoProps;
-  rawUrl: string;
-  githubUrl: string;
+  props?: RepoProps;
+  rawUrl?: string;
+  githubUrl?: string;
   language?: string;
 };
 export const getSnippets = (
@@ -62,7 +62,7 @@ export const getSnippets = (
     props.map(async (prop) => {
       const rawUrl = getRawUrl(prop);
       const githubUrl = getUIUrl(prop);
-      const fileExt = prop.path.split(".").pop() as keyof typeof extToLanguage;
+      const fileExt = prop.path?.split(".").pop() as keyof typeof extToLanguage;
       const language = extToLanguage[fileExt];
 
       try {
