@@ -289,6 +289,8 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     );
   };
 
+  const taskCount = tasks?.length || 0;
+
   return (
     <SheetViewLayout
       sheet={
@@ -387,28 +389,24 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
         </HeadlineActions>
       </Headline>
 
-      {workflowRunId && (
-        <div className="w-full overflow-x-auto">
-          <WorkflowRunVisualizer
-            workflowRunId={workflowRunId}
-            onTaskSelect={handleTaskSelect}
-          />
-        </div>
-      )}
-
       <Separator className="my-4" />
 
-      <Tabs defaultValue="minimap" className="w-full">
+      <Tabs
+        defaultValue={taskCount > 1 ? 'minimap' : 'waterfall'}
+        className="w-full"
+      >
         <TabsList layout="underlined" className="w-full">
-          <TabsTrigger variant="underlined" value="minimap">
-            Minimap
-          </TabsTrigger>
+          {taskCount > 1 && (
+            <TabsTrigger variant="underlined" value="minimap">
+              Minimap
+            </TabsTrigger>
+          )}
           <TabsTrigger variant="underlined" value="waterfall">
             Waterfall
           </TabsTrigger>
         </TabsList>
         <TabsContent value="minimap" className="mt-4">
-          {workflowRunId && (
+          {taskCount > 1 && workflowRunId && (
             <div className="w-full overflow-x-auto bg-slate-100 dark:bg-slate-900">
               <WorkflowRunVisualizer
                 workflowRunId={workflowRunId}
