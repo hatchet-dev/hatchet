@@ -194,7 +194,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	// a pool for read replicas, if enabled
 	var readReplicaPool *pgxpool.Pool
 
-	if cf.ReadReplicaEnabled && cf.ReadReplicaDatabaseURL != "" {
+	if cf.ReadReplicaEnabled {
 		if cf.ReadReplicaDatabaseURL == "" {
 			return nil, fmt.Errorf("read replica database url is required if read replica is enabled")
 		}
