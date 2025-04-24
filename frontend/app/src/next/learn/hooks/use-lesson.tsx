@@ -11,6 +11,7 @@ import {
   SupportedLanguage,
   LessonPlan,
   PackageManager,
+  HighlightState,
 } from '@/next/learn/components';
 
 interface ExtraWithPackageManager {
@@ -25,7 +26,7 @@ export interface LessonState<
   language: SupportedLanguage;
   setLanguage: (language: SupportedLanguage) => void;
   activeStep: S;
-  setActiveStep: (step: S) => void;
+  setActiveStep: (step: S, onlyContent?: boolean) => void;
   extra: Partial<E>;
   setExtra: (e: Partial<E>) => void;
   highlights: HighlightStateMap<S>;
@@ -35,6 +36,7 @@ export interface LessonState<
   currentStepIndex: number;
   codeBlocksRef: React.MutableRefObject<Record<S, HTMLDivElement | null>>;
   stepCardsRef: React.MutableRefObject<Record<S, HTMLDivElement | null>>;
+  codeKeyFrames: Record<string, Partial<Record<S, HighlightState>>>;
 }
 
 export interface LessonProviderProps<
@@ -54,11 +56,12 @@ export function LessonProvider<
   C,
 >({ children, lesson }: LessonProviderProps<S, E, C>) {
   const [language, setLanguage] = useState(lesson.defaultLanguage);
-  const [activeStep, setActiveStep] = useState<S>(
+  const [activeStep, setActiveStepState] = useState<S>(
     Object.keys(lesson.steps)[0] as S,
   );
   const [extra, setExtra] = useState(lesson.extraDefaults);
   const [highlights, setHighlightState] = useState<HighlightStateMap<S>>({});
+  const [onlyContent, setOnlyContent] = useState(false);
 
   const codeBlocksRef = useRef<Record<S, HTMLDivElement | null>>(
     Object.keys(lesson.steps).reduce(
@@ -89,11 +92,16 @@ export function LessonProvider<
       activeBlock.style.scrollMarginTop = '2rem';
       activeBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    if (activeCard) {
+    if (activeCard && !onlyContent) {
       activeCard.style.scrollMarginTop = '2rem';
       activeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [activeStep]);
+  }, [activeStep, onlyContent]);
+
+  const setActiveStep = (step: S, onlyContent?: boolean) => {
+    setActiveStepState(step);
+    setOnlyContent(!!onlyContent);
+  };
 
   const commands = useMemo(() => {
     const languageExtra = extra[language];
@@ -111,6 +119,10 @@ export function LessonProvider<
 
     return lesson.commands[packageManager];
   }, [language, extra, lesson]);
+
+  const codeKeyFrames = useMemo(() => {
+    return lesson.codeKeyFrames[language];
+  }, [language, lesson]);
 
   const stepKeys = Object.keys(lesson.steps) as S[];
   const currentStepIndex = stepKeys.indexOf(activeStep);
@@ -138,6 +150,7 @@ export function LessonProvider<
     currentStepIndex,
     codeBlocksRef,
     stepCardsRef,
+    codeKeyFrames,
   };
 
   return (

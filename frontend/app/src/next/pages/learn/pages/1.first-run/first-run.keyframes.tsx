@@ -5,8 +5,10 @@ export type HighlightFrames =
   | 'client'
   | 'task-name'
   | 'task-input'
+  | 'task-ctx'
   | 'task-fn'
   | 'worker'
+  | 'worker-task'
   | 'run';
 
 export const codeKeyFrames: Highlights<
@@ -19,11 +21,6 @@ export const codeKeyFrames: Highlights<
         lines: [3],
       },
     },
-    worker: {
-      task: {
-        lines: [1],
-      },
-    },
     'task-name': {
       task: {
         lines: [9],
@@ -32,11 +29,30 @@ export const codeKeyFrames: Highlights<
     'task-input': {
       task: {
         lines: [10],
+        strings: ['input'],
+      },
+    },
+    'task-ctx': {
+      task: {
+        lines: [10],
+        strings: ['ctx'],
       },
     },
     'task-fn': {
       task: {
         lines: [10, 11, 12, 13],
+      },
+    },
+    worker: {
+      worker: {
+        lines: [5, 6, 7],
+        strings: ['simple-worker'],
+      },
+    },
+    'worker-task': {
+      worker: {
+        lines: [5, 6, 7],
+        strings: ['simple'],
       },
     },
     run: {
@@ -64,6 +80,13 @@ export const codeKeyFrames: Highlights<
     'task-input': {
       task: {
         lines: [1],
+        strings: ['input'],
+      },
+    },
+    'task-ctx': {
+      task: {
+        lines: [11],
+        strings: ['ctx'],
       },
     },
     'task-fn': {
@@ -76,6 +99,7 @@ export const codeKeyFrames: Highlights<
         lines: [1],
       },
     },
+    'worker-task': {},
   },
   go: {
     client: {
@@ -103,10 +127,16 @@ export const codeKeyFrames: Highlights<
         lines: [1],
       },
     },
+    'task-ctx': {
+      task: {
+        lines: [1],
+      },
+    },
     run: {
       run: {
         lines: [1],
       },
     },
+    'worker-task': {},
   },
 };

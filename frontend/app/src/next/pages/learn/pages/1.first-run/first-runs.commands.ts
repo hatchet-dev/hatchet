@@ -9,18 +9,18 @@ export interface CommandConfig {
 export const commands: Commands<CommandConfig> = {
   pnpm: {
     install: 'pnpm install',
-    startWorker: 'pnpm run dev',
-    runTask: 'pnpm run task',
+    startWorker: 'pnpm run start',
+    runTask: 'pnpm run run:simple',
   },
   npm: {
     install: 'npm install',
-    startWorker: 'npm run dev',
-    runTask: 'npm run task',
+    startWorker: 'npm run start',
+    runTask: 'npm run run:simple',
   },
   yarn: {
     install: 'yarn install',
-    startWorker: 'yarn dev',
-    runTask: 'yarn run task',
+    startWorker: 'yarn run start',
+    runTask: 'yarn run run:simple',
   },
   poetry: {
     install: 'poetry install',

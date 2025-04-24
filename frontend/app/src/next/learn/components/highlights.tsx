@@ -1,4 +1,7 @@
 import { SupportedLanguage } from './lesson-plan';
+import { useLesson } from '../hooks/use-lesson';
+import { useCallback, useState } from 'react';
+import { cn } from '@/next/lib/utils';
 
 export type Highlights<
   S extends string,
@@ -14,23 +17,42 @@ export type HighlightStateMap<S extends string> = Partial<
   Record<S, HighlightState>
 >;
 
-export function Highlight<F extends string, S extends string>({
-  language,
+export function Highlight<F extends string>({
   frame,
-  codeKeyFrames,
-  setHighlights,
   children,
 }: {
-  language: SupportedLanguage;
   frame: F;
-  codeKeyFrames: Highlights<F, S>;
-  setHighlights: (highlightState?: HighlightStateMap<S>) => void;
   children: React.ReactNode;
 }) {
+  const { setActiveStep, codeKeyFrames, setHighlights } = useLesson();
+  const [, setHasHovered] = useState(false);
+
+  const setActive = useCallback(() => {
+    // Get the first step key from the frame's keyframe mapping
+    const stepKey = Object.keys(codeKeyFrames[frame])[0];
+    if (stepKey) {
+      setActiveStep(stepKey, true);
+    }
+  }, [setActiveStep, codeKeyFrames, frame]);
+
+  if (!codeKeyFrames || !codeKeyFrames[frame]) {
+    return children;
+  }
+
   return (
     <span
-      onMouseEnter={() => setHighlights(codeKeyFrames[language][frame])}
-      onMouseLeave={() => setHighlights({})}
+      className={cn(
+        'cursor-help',
+        'underline underline-offset-4 decoration-dotted decoration-2 decoration-muted-foreground decoration-offset-4',
+      )}
+      onMouseEnter={() => {
+        setActive();
+        setHighlights(codeKeyFrames[frame]);
+        setHasHovered(true);
+      }}
+      onMouseLeave={() => {
+        setHighlights({});
+      }}
     >
       {children}
     </span>

@@ -1,4 +1,6 @@
 import { GithubCode } from '@/next/components/ui/code/github-code';
+import { HighlightFrames } from '@/next/pages/learn/pages/1.first-run/first-run.keyframes';
+import { Highlights } from './highlights';
 
 export type SupportedLanguage = 'typescript' | 'python' | 'go';
 export type TypeScriptPackageManager = 'npm' | 'pnpm' | 'yarn';
@@ -26,6 +28,7 @@ export interface LessonPlan<S extends string, E, C> {
   extraDefaults: Extra<E>;
   steps: Record<S, LessonStep>;
   commands: Commands<C>;
+  codeKeyFrames: Highlights<HighlightFrames, S>;
   codeBlockDefaults: {
     showLineNumbers: boolean;
     repos: Record<SupportedLanguage, string>;

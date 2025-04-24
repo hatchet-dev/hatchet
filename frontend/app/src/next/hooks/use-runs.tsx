@@ -94,6 +94,12 @@ interface RunsProviderProps {
   children: React.ReactNode;
   initialFilters?: RunsFilters;
   initialPagination?: PaginationProviderProps;
+  initialTimeRange?: {
+    startTime?: string;
+    endTime?: string;
+    activePreset?: '30m' | '1h' | '6h' | '24h' | '7d';
+  };
+  refetchInterval?: number;
 }
 
 const RunsContext = createContext<RunsState | null>(null);
@@ -109,29 +115,38 @@ export function useRuns() {
 export function RunsProvider({
   children,
   initialFilters,
+  refetchInterval,
+  initialTimeRange,
   initialPagination = {
     initialPageSize: 50,
   },
 }: RunsProviderProps) {
   return (
     <FilterProvider initialFilters={initialFilters}>
-      <TimeFilterProvider>
+      <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
-          <RunsProviderContent>{children}</RunsProviderContent>
+          <RunsProviderContent refetchInterval={refetchInterval}>
+            {children}
+          </RunsProviderContent>
         </PaginationProvider>
       </TimeFilterProvider>
     </FilterProvider>
   );
 }
 
-function RunsProviderContent({ children }: { children: React.ReactNode }) {
+function RunsProviderContent({
+  children,
+  refetchInterval = 1000 * 5,
+}: {
+  children: React.ReactNode;
+  refetchInterval?: number;
+}) {
   const { tenant } = useTenant();
   const { toast } = useToast();
 
   const filters = useFilters<RunsFilters>();
   const pagination = usePagination();
   const timeRange = useTimeFilters();
-  const refetchInterval = 1000 * 5; // 5 seconds
 
   const listRunsQuery = useQuery({
     queryKey: [

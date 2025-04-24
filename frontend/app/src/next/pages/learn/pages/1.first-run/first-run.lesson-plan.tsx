@@ -15,14 +15,17 @@ import { TabsList } from '@/next/components/ui/tabs';
 import { CommandConfig, commands } from './first-runs.commands';
 import { Code } from '@/next/components/ui/code';
 import { Button } from '@/next/components/ui/button';
-import { useEffect, useState } from 'react';
-import { CheckCircle2, Key, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowUpRight, CheckCircle2, Key } from 'lucide-react';
 import { codeKeyFrames } from './first-run.keyframes';
 import { Highlight } from '@/next/learn/components';
 import { useLesson as untypedUseLesson } from '@/next/learn/hooks/use-lesson';
 import { SignInRequiredAction } from '@/next/pages/learn/components/signin-required-action';
 import { Dialog } from '@/next/components/ui/dialog';
 import { CreateTokenDialog } from '@/next/pages/authenticated/dashboard/settings/api-tokens/components/create-token-dialog';
+import { TaskExecution } from '@/next/pages/learn/components/task-executor';
+import { WorkerListener } from '@/next/pages/learn/components/worker-listener';
+import { Link } from 'react-router-dom';
 
 const useLesson = untypedUseLesson<
   FirstRunStepKeys,
@@ -46,6 +49,7 @@ export const lessonPlan: LessonPlan<
   description: 'Learn how to get started with Hatchet',
   defaultLanguage: 'typescript',
   commands,
+  codeKeyFrames,
   extraDefaults: {
     typescript: {
       packageManager: 'npm',
@@ -127,8 +131,7 @@ function IntroStep() {
 }
 
 function SetupStep() {
-  const { language, setLanguage, extra, setExtra, setHighlights, commands } =
-    useLesson();
+  const { language, setLanguage, extra, setExtra, commands } = useLesson();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [hasToken, setHasToken] = useState(false);
 
@@ -215,12 +218,7 @@ ${commands.install}
             </Button>
           )}
         </SignInRequiredAction>
-        <Highlight
-          frame="client"
-          language={language}
-          codeKeyFrames={codeKeyFrames}
-          setHighlights={setHighlights}
-        >
+        <Highlight frame="client">
           Great, this token is used by the hatchet client to connect to the
           Hatchet engine.
         </Highlight>
@@ -238,8 +236,6 @@ ${commands.install}
 }
 
 function TaskStep() {
-  const { language, setHighlights } = useLesson();
-
   return (
     <Card>
       <CardHeader>
@@ -253,52 +249,40 @@ function TaskStep() {
         <p>A task in Hatchet consists of:</p>
         <ul className="list-disc pl-6 space-y-2">
           <li>
-            <Highlight
-              frame="task-name"
-              language={language}
-              codeKeyFrames={codeKeyFrames}
-              setHighlights={setHighlights}
-            >
-              A name to identify the task
-            </Highlight>
+            <Highlight frame="task-name">A name to identify the task</Highlight>
           </li>
           <li>
-            <Highlight
-              frame="task-input"
-              language={language}
-              codeKeyFrames={codeKeyFrames}
-              setHighlights={setHighlights}
-            >
-              An input validator to define the expected input structure
-            </Highlight>
-          </li>
-          <li>
-            <Highlight
-              frame="task-fn"
-              language={language}
-              codeKeyFrames={codeKeyFrames}
-              setHighlights={setHighlights}
-            >
+            <Highlight frame="task-fn">
               A function that performs the actual work
             </Highlight>
           </li>
         </ul>
         <p>The task function receives two parameters:</p>
         <ul className="list-disc pl-6 space-y-2">
-          <li>input: The validated input data</li>
           <li>
-            ctx: A context object containing metadata about the task execution
+            <Highlight frame="task-input">
+              input: The input data to the task
+            </Highlight>
+          </li>
+          <li>
+            <Highlight frame="task-ctx">
+              ctx: A context object to interact with the task and hatchet from
+              within a run
+            </Highlight>
           </li>
         </ul>
         <p>
           In the code example to the right, we've created a simple task that:
         </p>
         <ul className="list-disc pl-6 space-y-2">
-          <li>Is named "simple"</li>
-          <li>Accepts an input with a "message" string field</li>
           <li>
-            Returns an object with a "transformed_message" field containing the
-            lowercase version of the input message
+            <Highlight frame="task-name">Is named "simple"</Highlight>
+          </li>
+          <li>
+            <Highlight frame="task-fn">
+              Returns an object with a "transformed_message" field containing
+              the lowercase version of the input message
+            </Highlight>
           </li>
         </ul>
         <p>
@@ -308,36 +292,6 @@ function TaskStep() {
         </p>
       </CardContent>
     </Card>
-  );
-}
-
-function WorkerConnection() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      setIsConnected(true);
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  return (
-    <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
-      {isLoading ? (
-        <>
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Waiting for worker to connect...</span>
-        </>
-      ) : (
-        <>
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-          <span>Worker connected successfully!</span>
-        </>
-      )}
-    </div>
   );
 }
 
@@ -360,14 +314,18 @@ function WorkerStep() {
           results, enabling distributed execution across your infrastructure.
         </p>
         <p>
-          In the code example to the right, we've created a worker named
-          "simple-worker" that's configured to handle our "simple" task. The
-          worker can process up to 100 tasks concurrently, giving it significant
-          capacity to handle multiple requests.
+          In the code example to the right, we've{' '}
+          <Highlight frame="worker">
+            created a worker named "simple-worker"
+          </Highlight>
+          that registers our{' '}
+          <Highlight frame="worker-task">simple task</Highlight>. The worker can
+          process up to 100 tasks concurrently, giving it significant capacity
+          to handle multiple requests.
         </p>
         <p>To start the worker, run:</p>
         <Code title="cli" language="bash" value={commands.startWorker} />
-        <WorkerConnection />
+        <WorkerListener name="simple-worker" />
         <p>
           Once started, the worker will begin listening for tasks and continue
           running until stopped. You'll see logs indicating its status and
@@ -382,59 +340,9 @@ function WorkerStep() {
   );
 }
 
-function TaskExecution() {
-  const { commands } = useLesson();
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isExecuting) {
-      const timer = setTimeout(() => {
-        setIsExecuting(false);
-        setIsComplete(true);
-        setResult('hello world');
-      }, 2000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isExecuting]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4">
-        <div>
-          <p className="mb-2">Run from CLI:</p>
-          <Code title="cli" language="bash" value={commands.runTask} />
-        </div>
-        <div className="flex items-center gap-2 p-4 bg-muted rounded-lg">
-          {!isExecuting && !isComplete && (
-            <Button onClick={() => setIsExecuting(true)}>Run Task</Button>
-          )}
-          {isExecuting && (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Executing task...</span>
-            </>
-          )}
-          {isComplete && (
-            <>
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Task completed successfully!</span>
-            </>
-          )}
-        </div>
-      </div>
-      {result && (
-        <div className="p-4 bg-muted rounded-lg">
-          <p className="font-mono">{result}</p>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function RunStep() {
+  const { commands } = useLesson();
+  const [runLink, setRunLink] = useState<string | null>(null);
   return (
     <Card>
       <CardHeader>
@@ -455,12 +363,32 @@ function RunStep() {
           a message input. The task will transform the message to lowercase and
           return the result.
         </p>
-        <TaskExecution />
+
+        <div>
+          <p className="mb-2">Run from CLI:</p>
+          <Code title="cli" language="bash" value={commands.runTask} />
+        </div>
+        <TaskExecution
+          name="first-workflow"
+          input={{ message: 'Hello, World!' }}
+          onRun={(link) => {
+            setRunLink(link);
+          }}
+        />
         <p>
           Congratulations! You've successfully set up and run your first Hatchet
           task. This is just the beginning - Hatchet offers many more features
           for building complex workflows and managing task execution.
         </p>
+        {runLink && (
+          <div className="flex justify-end">
+            <Link to={runLink}>
+              <Button>
+                View run details <ArrowUpRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
