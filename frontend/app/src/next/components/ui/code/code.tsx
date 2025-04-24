@@ -12,6 +12,8 @@ export interface CodeProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
   noHeader?: boolean;
   showLineNumbers?: boolean;
+  highlightLines?: number[];
+  highlightStrings?: string[];
 }
 
 export function Code({
@@ -21,6 +23,8 @@ export function Code({
   title,
   noHeader,
   showLineNumbers = false,
+  highlightLines = [],
+  highlightStrings = [],
   className,
   ...props
 }: CodeProps) {
@@ -43,6 +47,8 @@ export function Code({
           title={title}
           noHeader={noHeader}
           showLineNumbers={showLineNumbers}
+          highlightLines={highlightLines}
+          highlightStrings={highlightStrings}
           className={cn(className)}
           {...props}
         />

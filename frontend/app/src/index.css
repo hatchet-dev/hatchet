@@ -349,3 +349,31 @@ pre.shiki > code > span::before {
   user-select: none;
   padding-right: 0.5rem;
 }
+
+/* Code block line highlighting */
+.highlighted-line {
+  background-color: rgba(255, 255, 0, 0.1);
+  display: block;
+  margin: 0 -1rem;
+  padding: 0 1rem;
+  border-left: 3px solid #fbbf24;
+}
+
+.dark .highlighted-line {
+  background-color: rgba(255, 255, 0, 0.05);
+  border-left-color: #fbbf24;
+}
+
+/* Code block string highlighting */
+.highlighted-string {
+  background-color: #fbbf24;
+  color: #000;
+  padding: 0.1em 0.2em;
+  border-radius: 0.2em;
+  font-weight: bold;
+}
+
+.dark .highlighted-string {
+  background-color: #fbbf24;
+  color: #000;
+}

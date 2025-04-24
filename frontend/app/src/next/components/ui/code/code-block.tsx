@@ -11,6 +11,8 @@ interface CodeBlockProps {
   className?: string;
   noHeader?: boolean;
   showLineNumbers?: boolean;
+  highlightLines?: number[];
+  highlightStrings?: string[];
 }
 
 export function CodeBlock({
@@ -18,8 +20,10 @@ export function CodeBlock({
   title,
   language,
   value,
-  showLineNumbers = true,
   className,
+  highlightLines = [],
+  highlightStrings = [],
+  ...props
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
@@ -61,7 +65,13 @@ export function CodeBlock({
             'p-4 overflow-x-auto text-sm font-mono bg-muted/30 rounded-b-md',
           )}
         >
-          <CodeStyleRender parsed={value} language={language} />
+          <CodeStyleRender
+            parsed={value}
+            language={language}
+            highlightLines={highlightLines}
+            highlightStrings={highlightStrings}
+            {...props}
+          />
         </pre>
       </div>
     </div>

@@ -10,7 +10,7 @@ export const learnRoutes: RouteObject[] = [
       {
         path: ROUTES.learn.firstRun,
         lazy: () =>
-          import('./1.first-run/first-run.page').then((module) => ({
+          import('./pages/1.first-run/first-run.page').then((module) => ({
             element: <module.default />,
           })),
       },

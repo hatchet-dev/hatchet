@@ -3,16 +3,20 @@ import { Code, CodeProps } from './code';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/next/hooks/utils/use-toast';
 
-interface GithubCodeProps extends Omit<CodeProps, 'value'> {
+export interface GithubCodeProps extends Omit<CodeProps, 'value'> {
   repo: string;
   path: string;
   branch?: string;
+  highlightLines?: number[];
+  showLineNumbers?: boolean;
 }
 
 export function GithubCode({
   repo,
   path,
   branch = 'main',
+  highlightLines = [],
+  showLineNumbers = true,
   ...props
 }: GithubCodeProps) {
   const { toast } = useToast();
@@ -58,5 +62,13 @@ export function GithubCode({
     );
   }
 
-  return <Code value={code || ''} {...props} title={props.title || path} />;
+  return (
+    <Code
+      value={code || ''}
+      highlightLines={highlightLines}
+      showLineNumbers={showLineNumbers}
+      {...props}
+      title={props.title || path}
+    />
+  );
 }
