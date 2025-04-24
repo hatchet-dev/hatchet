@@ -23,6 +23,8 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
 
   const parsed = parseDocComments(source.raw, target, collapsed);
 
+  const canCollapse = source.raw.includes("// ...") || source.raw.includes("# ...")
+
   return (
     <>
       <div className="sticky top-0 z-10 bg-background flex flex-row gap-4 justify-between items-center pl-2 mb-2">
@@ -37,7 +39,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
           </a>
         )}
         <div className="flex gap-2 w-full justify-end">
-        {source.githubUrl && (
+        {canCollapse && (
           <Button
             variant="ghost"
               size="sm"

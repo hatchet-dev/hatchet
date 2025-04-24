@@ -1,7 +1,7 @@
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import InstallCommand from "@/components/InstallCommand";
-import { GithubSnippet, GithubSnippetV1, getSnippets } from "@/components/code";
+import { GithubSnippet, Snippet, getSnippets } from "@/components/code";
 import snips from '@/lib/snips';
 
 export const Ts = {
@@ -20,7 +20,7 @@ export const getStaticProps = ({}) => getSnippets([Ts, Py, Go]);
 
 # Mergent Migration Guide
 
-<GithubSnippetV1 src={snips.typescript.simple.run['Spawning Tasks from within a Task']} />
+<Snippet src={snips.typescript.simple.run['Running a Task']} />
 
 As Mergent sunsets its services, we're here to help you seamlessly transition your background jobs and task processing to Hatchet, a modern, scalable platform for task orchestration in TypeScript, Python, and Go.
 

@@ -79,7 +79,7 @@ function processDirectory(dirPath) {
         snippetsMap.set(snippetId, {
           content,
           language: ext,
-          source: fullPath
+          source: path.relative(projectRoot, fullPath)
         });
         
         const questions = extractQuestions(fullPath);

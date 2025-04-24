@@ -9,7 +9,7 @@ interface GithubSnippetProps {
 
 
 // This is a server component that will be rendered at build time
-export const GithubSnippetV1 = ({ src }: GithubSnippetProps) => {
+export const Snippet = ({ src }: GithubSnippetProps) => {
   if (!src) {
     throw new Error("src is required");
   }
@@ -26,8 +26,12 @@ export const GithubSnippetV1 = ({ src }: GithubSnippetProps) => {
   return (
     <CodeBlock
       source={{
+        githubUrl: `https://github.com/hatchet-dev/hatchet/blob/main/${snippet.source}`,
         raw: snippet.content,
-        language: snippet.language
+        language: snippet.language,
+        props: {
+          path: snippet.source
+        }
       }}
       target={question}
     />
