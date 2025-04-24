@@ -1471,16 +1471,16 @@ const snips = {
     "cancellations": {
       "run": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy9ydW4udHM_",
-        "Running a Task with Results": "Running a Task with Results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy9ydW4udHM_"
+        "running_a_task_with_results": "Running a Task with Results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy9ydW4udHM_"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZXIudHM_",
-        "Declaring a Worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZXIudHM_"
+        "declaring_a_worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZXIudHM_"
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZmxvdy50cw__",
-        "Declaring a Task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZmxvdy50cw__",
-        "Abort Signal": "Abort Signal:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZmxvdy50cw__"
+        "declaring_a_task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZmxvdy50cw__",
+        "abort_signal": "Abort Signal:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2FuY2VsbGF0aW9ucy93b3JrZmxvdy50cw__"
       }
     },
     "child_workflows": {
@@ -1492,11 +1492,11 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2hpbGRfd29ya2Zsb3dzL3dvcmtmbG93LnRz",
-        "Declaring a Child": "Declaring a Child:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2hpbGRfd29ya2Zsb3dzL3dvcmtmbG93LnRz",
-        "Declaring a Parent": "Declaring a Parent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2hpbGRfd29ya2Zsb3dzL3dvcmtmbG93LnRz"
+        "declaring_a_child": "Declaring a Child:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2hpbGRfd29ya2Zsb3dzL3dvcmtmbG93LnRz",
+        "declaring_a_parent": "Declaring a Parent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY2hpbGRfd29ya2Zsb3dzL3dvcmtmbG93LnRz"
       }
     },
-    "concurrency-rr": {
+    "concurrency_rr": {
       "load": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY29uY3VycmVuY3ktcnIvbG9hZC50cw__"
       },
@@ -1508,14 +1508,14 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY29uY3VycmVuY3ktcnIvd29ya2Zsb3cudHM_",
-        "Concurrency Strategy With Key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY29uY3VycmVuY3ktcnIvd29ya2Zsb3cudHM_",
-        "Multiple Concurrency Keys": "Multiple Concurrency Keys:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY29uY3VycmVuY3ktcnIvd29ya2Zsb3cudHM_"
+        "concurrency_strategy_with_key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY29uY3VycmVuY3ktcnIvd29ya2Zsb3cudHM_",
+        "multiple_concurrency_keys": "Multiple Concurrency Keys:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvY29uY3VycmVuY3ktcnIvd29ya2Zsb3cudHM_"
       }
     },
     "dag": {
-      "interface-workflow": {
+      "interface_workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnL2ludGVyZmFjZS13b3JrZmxvdy50cw__",
-        "Declaring a DAG Workflow": "Declaring a DAG Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnL2ludGVyZmFjZS13b3JrZmxvdy50cw__"
+        "declaring_a_dag_workflow": "Declaring a DAG Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnL2ludGVyZmFjZS13b3JrZmxvdy50cw__"
       },
       "run": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnL3J1bi50cw__"
@@ -1525,19 +1525,19 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnL3dvcmtmbG93LnRz",
-        "Declaring a DAG Workflow": "Declaring a DAG Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnL3dvcmtmbG93LnRz"
+        "declaring_a_dag_workflow": "Declaring a DAG Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnL3dvcmtmbG93LnRz"
       }
     },
     "dag_match_condition": {
-      "complex-workflow": {
+      "complex_workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
-        "Create a workflow": "Create a workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
-        "Add base task": "Add base task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
-        "Add wait for sleep": "Add wait for sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
-        "Add skip on event": "Add skip on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
-        "Add branching": "Add branching:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
-        "Add wait for event": "Add wait for event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
-        "Add sum": "Add sum:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz"
+        "create_a_workflow": "Create a workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
+        "add_base_task": "Add base task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
+        "add_wait_for_sleep": "Add wait for sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
+        "add_skip_on_event": "Add skip on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
+        "add_branching": "Add branching:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
+        "add_wait_for_event": "Add wait for event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz",
+        "add_sum": "Add sum:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9jb21wbGV4LXdvcmtmbG93LnRz"
       },
       "event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGFnX21hdGNoX2NvbmRpdGlvbi9ldmVudC50cw__"
@@ -1563,7 +1563,7 @@ const snips = {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZGVlcC93b3JrZmxvdy50cw__"
       }
     },
-    "durable-event": {
+    "durable_event": {
       "event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1ldmVudC9ldmVudC50cw__"
       },
@@ -1575,11 +1575,11 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1ldmVudC93b3JrZmxvdy50cw__",
-        "Durable Event": "Durable Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1ldmVudC93b3JrZmxvdy50cw__",
-        "Durable Event With Filter": "Durable Event With Filter:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1ldmVudC93b3JrZmxvdy50cw__"
+        "durable_event": "Durable Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1ldmVudC93b3JrZmxvdy50cw__",
+        "durable_event_with_filter": "Durable Event With Filter:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1ldmVudC93b3JrZmxvdy50cw__"
       }
     },
-    "durable-sleep": {
+    "durable_sleep": {
       "event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1zbGVlcC9ldmVudC50cw__"
       },
@@ -1591,13 +1591,13 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1zbGVlcC93b3JrZmxvdy50cw__",
-        "Durable Sleep": "Durable Sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1zbGVlcC93b3JrZmxvdy50cw__"
+        "durable_sleep": "Durable Sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvZHVyYWJsZS1zbGVlcC93b3JrZmxvdy50cw__"
       }
     },
-    "hatchet-client": {
+    "hatchet_client": {
       "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvaGF0Y2hldC1jbGllbnQudHM_"
     },
-    "inferred-typing": {
+    "inferred_typing": {
       "run": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvaW5mZXJyZWQtdHlwaW5nL3J1bi50cw__"
       },
@@ -1609,31 +1609,31 @@ const snips = {
       }
     },
     "landing_page": {
-      "durable-excution": {
+      "durable_excution": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2R1cmFibGUtZXhjdXRpb24udHM_",
-        "Declaring a Durable Task": "Declaring a Durable Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2R1cmFibGUtZXhjdXRpb24udHM_",
-        "Running a Task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2R1cmFibGUtZXhjdXRpb24udHM_"
+        "declaring_a_durable_task": "Declaring a Durable Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2R1cmFibGUtZXhjdXRpb24udHM_",
+        "running_a_task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2R1cmFibGUtZXhjdXRpb24udHM_"
       },
-      "event-signaling": {
+      "event_signaling": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2V2ZW50LXNpZ25hbGluZy50cw__",
-        "Trigger on an event": "Trigger on an event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2V2ZW50LXNpZ25hbGluZy50cw__"
+        "trigger_on_an_event": "Trigger on an event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2V2ZW50LXNpZ25hbGluZy50cw__"
       },
-      "flow-control": {
+      "flow_control": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2Zsb3ctY29udHJvbC50cw__",
-        "Process what you can handle": "Process what you can handle:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2Zsb3ctY29udHJvbC50cw__"
+        "process_what_you_can_handle": "Process what you can handle:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL2Zsb3ctY29udHJvbC50cw__"
       },
       "queues": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3F1ZXVlcy50cw__",
-        "Declaring a Task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3F1ZXVlcy50cw__",
-        "Running a Task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3F1ZXVlcy50cw__"
+        "declaring_a_task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3F1ZXVlcy50cw__",
+        "running_a_task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3F1ZXVlcy50cw__"
       },
       "scheduling": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3NjaGVkdWxpbmcudHM_",
-        "Schedules and Crons": "Schedules and Crons:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3NjaGVkdWxpbmcudHM_"
+        "schedules_and_crons": "Schedules and Crons:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3NjaGVkdWxpbmcudHM_"
       },
-      "task-routing": {
+      "task_routing": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3Rhc2stcm91dGluZy50cw__",
-        "Route tasks to workers with matching labels": "Route tasks to workers with matching labels:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3Rhc2stcm91dGluZy50cw__"
+        "route_tasks_to_workers_with_matching_labels": "Route tasks to workers with matching labels:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGFuZGluZ19wYWdlL3Rhc2stcm91dGluZy50cw__"
       }
     },
     "legacy": {
@@ -1647,18 +1647,18 @@ const snips = {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbGVnYWN5L3dvcmtmbG93LnRz"
       }
     },
-    "migration-guides": {
-      "hatchet-client": {
+    "migration_guides": {
+      "hatchet_client": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9oYXRjaGV0LWNsaWVudC50cw__"
       },
       "mergent": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
-        "Before (Mergent)": "Before (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
-        "After (Hatchet)": "After (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
-        "Running a task (Mergent)": "Running a task (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
-        "Running a task (Hatchet)": "Running a task (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
-        "Scheduling tasks (Mergent)": "Scheduling tasks (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
-        "Scheduling tasks (Hatchet)": "Scheduling tasks (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz"
+        "before_mergent": "Before (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
+        "after_hatchet": "After (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
+        "running_a_task_mergent": "Running a task (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
+        "running_a_task_hatchet": "Running a task (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
+        "scheduling_tasks_mergent": "Scheduling tasks (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz",
+        "scheduling_tasks_hatchet": "Scheduling tasks (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbWlncmF0aW9uLWd1aWRlcy9tZXJnZW50LnRz"
       }
     },
     "multiple_wf_concurrency": {
@@ -1670,7 +1670,7 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbXVsdGlwbGVfd2ZfY29uY3VycmVuY3kvd29ya2Zsb3cudHM_",
-        "Concurrency Strategy With Key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbXVsdGlwbGVfd2ZfY29uY3VycmVuY3kvd29ya2Zsb3cudHM_"
+        "concurrency_strategy_with_key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbXVsdGlwbGVfd2ZfY29uY3VycmVuY3kvd29ya2Zsb3cudHM_"
       }
     },
     "non_retryable": {
@@ -1682,7 +1682,7 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbm9uX3JldHJ5YWJsZS93b3JrZmxvdy50cw__",
-        "Non-retrying task": "Non-retrying task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbm9uX3JldHJ5YWJsZS93b3JrZmxvdy50cw__"
+        "non_retrying_task": "Non-retrying task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvbm9uX3JldHJ5YWJsZS93b3JrZmxvdy50cw__"
       }
     },
     "on_cron": {
@@ -1691,33 +1691,33 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fY3Jvbi93b3JrZmxvdy50cw__",
-        "Run Workflow on Cron": "Run Workflow on Cron:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fY3Jvbi93b3JrZmxvdy50cw__"
+        "run_workflow_on_cron": "Run Workflow on Cron:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fY3Jvbi93b3JrZmxvdy50cw__"
       }
     },
     "on_event": {
       "event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQvZXZlbnQudHM_",
-        "Pushing an Event": "Pushing an Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQvZXZlbnQudHM_"
+        "pushing_an_event": "Pushing an Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQvZXZlbnQudHM_"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQvd29ya2VyLnRz"
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQvd29ya2Zsb3cudHM_",
-        "Run workflow on event": "Run workflow on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQvd29ya2Zsb3cudHM_"
+        "run_workflow_on_event": "Run workflow on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQvd29ya2Zsb3cudHM_"
       }
     },
-    "on_event copy": {
+    "on_event_copy": {
       "event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQgY29weS9ldmVudC50cw__",
-        "Pushing an Event": "Pushing an Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQgY29weS9ldmVudC50cw__"
+        "pushing_an_event": "Pushing an Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQgY29weS9ldmVudC50cw__"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQgY29weS93b3JrZXIudHM_"
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQgY29weS93b3JrZmxvdy50cw__",
-        "Run workflow on event": "Run workflow on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQgY29weS93b3JrZmxvdy50cw__"
+        "run_workflow_on_event": "Run workflow on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZXZlbnQgY29weS93b3JrZmxvdy50cw__"
       }
     },
     "on_failure": {
@@ -1729,7 +1729,7 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZmFpbHVyZS93b3JrZmxvdy50cw__",
-        "On Failure Task": "On Failure Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZmFpbHVyZS93b3JrZmxvdy50cw__"
+        "on_failure_task": "On Failure Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fZmFpbHVyZS93b3JrZmxvdy50cw__"
       }
     },
     "on_success": {
@@ -1741,30 +1741,30 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fc3VjY2Vzcy93b3JrZmxvdy50cw__",
-        "On Success DAG": "On Success DAG:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fc3VjY2Vzcy93b3JrZmxvdy50cw__"
+        "on_success_dag": "On Success DAG:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvb25fc3VjY2Vzcy93b3JrZmxvdy50cw__"
       }
     },
     "priority": {
       "run": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvcnVuLnRz",
-        "Run a Task with a Priority": "Run a Task with a Priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvcnVuLnRz",
-        "Schedule and cron": "Schedule and cron:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvcnVuLnRz"
+        "run_a_task_with_a_priority": "Run a Task with a Priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvcnVuLnRz",
+        "schedule_and_cron": "Schedule and cron:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvcnVuLnRz"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvd29ya2VyLnRz"
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvd29ya2Zsb3cudHM_",
-        "Simple Task Priority": "Simple Task Priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvd29ya2Zsb3cudHM_",
-        "Task Priority in a Workflow": "Task Priority in a Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvd29ya2Zsb3cudHM_"
+        "simple_task_priority": "Simple Task Priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvd29ya2Zsb3cudHM_",
+        "task_priority_in_a_workflow": "Task Priority in a Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcHJpb3JpdHkvd29ya2Zsb3cudHM_"
       }
     },
     "rate_limit": {
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmF0ZV9saW1pdC93b3JrZmxvdy50cw__",
-        "Upsert Rate Limit": "Upsert Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmF0ZV9saW1pdC93b3JrZmxvdy50cw__",
-        "Static": "Static:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmF0ZV9saW1pdC93b3JrZmxvdy50cw__",
-        "Dynamic": "Dynamic:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmF0ZV9saW1pdC93b3JrZmxvdy50cw__"
+        "upsert_rate_limit": "Upsert Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmF0ZV9saW1pdC93b3JrZmxvdy50cw__",
+        "static": "Static:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmF0ZV9saW1pdC93b3JrZmxvdy50cw__",
+        "dynamic": "Dynamic:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmF0ZV9saW1pdC93b3JrZmxvdy50cw__"
       }
     },
     "retries": {
@@ -1776,61 +1776,61 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__",
-        "Simple Step Retries": "Simple Step Retries:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__",
-        "Retries with Count": "Retries with Count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__",
-        "Get the current retry count": "Get the current retry count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__",
-        "Retries with Backoff": "Retries with Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__"
+        "simple_step_retries": "Simple Step Retries:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__",
+        "retries_with_count": "Retries with Count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__",
+        "get_the_current_retry_count": "Get the current retry count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__",
+        "retries_with_backoff": "Retries with Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvcmV0cmllcy93b3JrZmxvdy50cw__"
       }
     },
     "simple": {
       "bulk": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2J1bGsudHM_",
-        "Bulk Run a Task": "Bulk Run a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2J1bGsudHM_",
-        "Bulk Run Tasks from within a Task": "Bulk Run Tasks from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2J1bGsudHM_"
+        "bulk_run_a_task": "Bulk Run a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2J1bGsudHM_",
+        "bulk_run_tasks_from_within_a_task": "Bulk Run Tasks from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2J1bGsudHM_"
       },
-      "client-run": {
+      "client_run": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2NsaWVudC1ydW4udHM_",
-        "Client Run Methods": "Client Run Methods:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2NsaWVudC1ydW4udHM_"
+        "client_run_methods": "Client Run Methods:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2NsaWVudC1ydW4udHM_"
       },
       "cron": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2Nyb24udHM_",
-        "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2Nyb24udHM_",
-        "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2Nyb24udHM_",
-        "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2Nyb24udHM_"
+        "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2Nyb24udHM_",
+        "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2Nyb24udHM_",
+        "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2Nyb24udHM_"
       },
       "delay": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2RlbGF5LnRz"
       },
       "enqueue": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2VucXVldWUudHM_",
-        "Enqueuing a Workflow (Fire and Forget)": "Enqueuing a Workflow (Fire and Forget):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2VucXVldWUudHM_",
-        "Subscribing to results": "Subscribing to results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2VucXVldWUudHM_"
+        "enqueuing_a_workflow_fire_and_forget": "Enqueuing a Workflow (Fire and Forget):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2VucXVldWUudHM_",
+        "subscribing_to_results": "Subscribing to results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL2VucXVldWUudHM_"
       },
       "run": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3J1bi50cw__",
-        "Running a Task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3J1bi50cw__",
-        "Running Multiple Tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3J1bi50cw__",
-        "Spawning Tasks from within a Task": "Spawning Tasks from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3J1bi50cw__"
+        "running_a_task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3J1bi50cw__",
+        "running_multiple_tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3J1bi50cw__",
+        "spawning_tasks_from_within_a_task": "Spawning Tasks from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3J1bi50cw__"
       },
       "schedule": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3NjaGVkdWxlLnRz",
-        "Create a Scheduled Run": "Create a Scheduled Run:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3NjaGVkdWxlLnRz"
+        "create_a_scheduled_run": "Create a Scheduled Run:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3NjaGVkdWxlLnRz"
       },
-      "stub-workflow": {
+      "stub_workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3N0dWItd29ya2Zsb3cudHM_",
-        "Declaring an External Workflow Reference": "Declaring an External Workflow Reference:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3N0dWItd29ya2Zsb3cudHM_"
+        "declaring_an_external_workflow_reference": "Declaring an External Workflow Reference:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3N0dWItd29ya2Zsb3cudHM_"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtlci50cw__",
-        "Declaring a Worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtlci50cw__"
+        "declaring_a_worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtlci50cw__"
       },
-      "workflow-with-child": {
+      "workflow_with_child": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtmbG93LXdpdGgtY2hpbGQudHM_",
-        "Declaring a Task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtmbG93LXdpdGgtY2hpbGQudHM_"
+        "declaring_a_task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtmbG93LXdpdGgtY2hpbGQudHM_"
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtmbG93LnRz",
-        "Declaring a Task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtmbG93LnRz"
+        "declaring_a_task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtmbG93LnRz"
       }
     },
     "sticky": {
@@ -1842,29 +1842,29 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc3RpY2t5L3dvcmtmbG93LnRz",
-        "Sticky Task": "Sticky Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc3RpY2t5L3dvcmtmbG93LnRz"
+        "sticky_task": "Sticky Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc3RpY2t5L3dvcmtmbG93LnRz"
       }
     },
     "timeouts": {
       "run": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvcnVuLnRz",
-        "Running a Task with Results": "Running a Task with Results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvcnVuLnRz"
+        "running_a_task_with_results": "Running a Task with Results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvcnVuLnRz"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvd29ya2VyLnRz",
-        "Declaring a Worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvd29ya2VyLnRz"
+        "declaring_a_worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvd29ya2VyLnRz"
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvd29ya2Zsb3cudHM_",
-        "Declaring a Task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvd29ya2Zsb3cudHM_"
+        "declaring_a_task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvdGltZW91dHMvd29ya2Zsb3cudHM_"
       }
     },
     "with_timeouts": {
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvd2l0aF90aW1lb3V0cy93b3JrZmxvdy50cw__",
-        "Declaring a Task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvd2l0aF90aW1lb3V0cy93b3JrZmxvdy50cw__",
-        "Execution Timeout": "Execution Timeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvd2l0aF90aW1lb3V0cy93b3JrZmxvdy50cw__",
-        "Refresh Timeout": "Refresh Timeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvd2l0aF90aW1lb3V0cy93b3JrZmxvdy50cw__"
+        "declaring_a_task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvd2l0aF90aW1lb3V0cy93b3JrZmxvdy50cw__",
+        "execution_timeout": "Execution Timeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvd2l0aF90aW1lb3V0cy93b3JrZmxvdy50cw__",
+        "refresh_timeout": "Refresh Timeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvd2l0aF90aW1lb3V0cy93b3JrZmxvdy50cw__"
       }
     }
   },
@@ -1878,9 +1878,9 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9hZmZpbml0eV93b3JrZXJzL3dvcmtlci5weQ__",
-        "AffinityWorkflow": "AffinityWorkflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9hZmZpbml0eV93b3JrZXJzL3dvcmtlci5weQ__",
-        "AffinityTask": "AffinityTask:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9hZmZpbml0eV93b3JrZXJzL3dvcmtlci5weQ__",
-        "AffinityWorker": "AffinityWorker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9hZmZpbml0eV93b3JrZXJzL3dvcmtlci5weQ__"
+        "affinityworkflow": "AffinityWorkflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9hZmZpbml0eV93b3JrZXJzL3dvcmtlci5weQ__",
+        "affinitytask": "AffinityTask:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9hZmZpbml0eV93b3JrZXJzL3dvcmtlci5weQ__",
+        "affinityworker": "AffinityWorker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9hZmZpbml0eV93b3JrZXJzL3dvcmtlci5weQ__"
       }
     },
     "api": {
@@ -1914,23 +1914,23 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX2Zhbm91dC93b3JrZXIucHk_",
-        "BulkFanoutParent": "BulkFanoutParent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX2Zhbm91dC93b3JrZXIucHk_"
+        "bulkfanoutparent": "BulkFanoutParent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX2Zhbm91dC93b3JrZXIucHk_"
       }
     },
     "bulk_operations": {
       "cancel": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5",
-        "Setup": "Setup:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5",
-        "List runs": "List runs:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5",
-        "Cancel by run ids": "Cancel by run ids:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5",
-        "Cancel by filters": "Cancel by filters:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5"
+        "setup": "Setup:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5",
+        "list_runs": "List runs:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5",
+        "cancel_by_run_ids": "Cancel by run ids:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5",
+        "cancel_by_filters": "Cancel by filters:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvY2FuY2VsLnB5"
       },
       "replay": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5",
-        "Setup": "Setup:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5",
-        "List runs": "List runs:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5",
-        "Replay by run ids": "Replay by run ids:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5",
-        "Replay by filters": "Replay by filters:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5"
+        "setup": "Setup:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5",
+        "list_runs": "List runs:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5",
+        "replay_by_run_ids": "Replay by run ids:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5",
+        "replay_by_filters": "Replay by filters:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9idWxrX29wZXJhdGlvbnMvcmVwbGF5LnB5"
       }
     },
     "cancellation": {
@@ -1942,31 +1942,31 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jYW5jZWxsYXRpb24vd29ya2VyLnB5",
-        "Self-cancelling task": "Self-cancelling task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jYW5jZWxsYXRpb24vd29ya2VyLnB5",
-        "Checking exit flag": "Checking exit flag:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jYW5jZWxsYXRpb24vd29ya2VyLnB5"
+        "self_cancelling_task": "Self-cancelling task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jYW5jZWxsYXRpb24vd29ya2VyLnB5",
+        "checking_exit_flag": "Checking exit flag:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jYW5jZWxsYXRpb24vd29ya2VyLnB5"
       }
     },
     "child": {
       "bulk": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9idWxrLnB5",
-        "Running a Task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9idWxrLnB5",
-        "Bulk Run a Task": "Bulk Run a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9idWxrLnB5",
-        "Running Multiple Tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9idWxrLnB5"
+        "running_a_task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9idWxrLnB5",
+        "bulk_run_a_task": "Bulk Run a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9idWxrLnB5",
+        "running_multiple_tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9idWxrLnB5"
       },
-      "simple-fanout": {
+      "simple_fanout": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9zaW1wbGUtZmFub3V0LnB5",
-        "Running a Task from within a Task": "Running a Task from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9zaW1wbGUtZmFub3V0LnB5"
+        "running_a_task_from_within_a_task": "Running a Task from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC9zaW1wbGUtZmFub3V0LnB5"
       },
       "trigger": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5",
-        "Running a Task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5",
-        "Schedule a Task": "Schedule a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5",
-        "Running a Task AIO": "Running a Task AIO:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5",
-        "Running Multiple Tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5"
+        "running_a_task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5",
+        "schedule_a_task": "Schedule a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5",
+        "running_a_task_aio": "Running a Task AIO:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5",
+        "running_multiple_tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC90cmlnZ2VyLnB5"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC93b3JrZXIucHk_",
-        "Simple": "Simple:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC93b3JrZXIucHk_"
+        "simple": "Simple:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jaGlsZC93b3JrZXIucHk_"
       }
     },
     "concurrency_limit": {
@@ -1978,7 +1978,7 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9saW1pdC93b3JrZXIucHk_",
-        "Workflow": "Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9saW1pdC93b3JrZXIucHk_"
+        "workflow": "Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9saW1pdC93b3JrZXIucHk_"
       }
     },
     "concurrency_limit_rr": {
@@ -1990,7 +1990,7 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9saW1pdF9yci93b3JrZXIucHk_",
-        "Concurrency Strategy With Key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9saW1pdF9yci93b3JrZXIucHk_"
+        "concurrency_strategy_with_key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9saW1pdF9yci93b3JrZXIucHk_"
       }
     },
     "concurrency_limit_rr_load": {
@@ -2007,7 +2007,7 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9tdWx0aXBsZV9rZXlzL3dvcmtlci5weQ__",
-        "Concurrency Strategy With Key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9tdWx0aXBsZV9rZXlzL3dvcmtlci5weQ__"
+        "concurrency_strategy_with_key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV9tdWx0aXBsZV9rZXlzL3dvcmtlci5weQ__"
       }
     },
     "concurrency_workflow_level": {
@@ -2016,27 +2016,27 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV93b3JrZmxvd19sZXZlbC93b3JrZXIucHk_",
-        "Multiple Concurrency Keys": "Multiple Concurrency Keys:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV93b3JrZmxvd19sZXZlbC93b3JrZXIucHk_"
+        "multiple_concurrency_keys": "Multiple Concurrency Keys:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jb25jdXJyZW5jeV93b3JrZmxvd19sZXZlbC93b3JrZXIucHk_"
       }
     },
     "cron": {
-      "programatic-async": {
+      "programatic_async": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5",
-        "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5",
-        "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5",
-        "Get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5",
-        "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5"
+        "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5",
+        "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5",
+        "get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5",
+        "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLWFzeW5jLnB5"
       },
-      "programatic-sync": {
+      "programatic_sync": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_",
-        "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_",
-        "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_",
-        "Get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_",
-        "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_"
+        "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_",
+        "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_",
+        "get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_",
+        "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3Byb2dyYW1hdGljLXN5bmMucHk_"
       },
-      "workflow-definition": {
+      "workflow_definition": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3dvcmtmbG93LWRlZmluaXRpb24ucHk_",
-        "Workflow Definition Cron Trigger": "Workflow Definition Cron Trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3dvcmtmbG93LWRlZmluaXRpb24ucHk_"
+        "workflow_definition_cron_trigger": "Workflow Definition Cron Trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9jcm9uL3dvcmtmbG93LWRlZmluaXRpb24ucHk_"
       }
     },
     "dag": {
@@ -2075,8 +2075,8 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlL3dvcmtlci5weQ__",
-        "Create a durable workflow": "Create a durable workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlL3dvcmtlci5weQ__",
-        "Add durable task": "Add durable task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlL3dvcmtlci5weQ__"
+        "create_a_durable_workflow": "Create a durable workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlL3dvcmtlci5weQ__",
+        "add_durable_task": "Add durable task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlL3dvcmtlci5weQ__"
       }
     },
     "durable_event": {
@@ -2085,8 +2085,8 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX2V2ZW50L3dvcmtlci5weQ__",
-        "Durable Event": "Durable Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX2V2ZW50L3dvcmtlci5weQ__",
-        "Durable Event With Filter": "Durable Event With Filter:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX2V2ZW50L3dvcmtlci5weQ__"
+        "durable_event": "Durable Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX2V2ZW50L3dvcmtlci5weQ__",
+        "durable_event_with_filter": "Durable Event With Filter:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX2V2ZW50L3dvcmtlci5weQ__"
       }
     },
     "durable_sleep": {
@@ -2095,20 +2095,20 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX3NsZWVwL3dvcmtlci5weQ__",
-        "Durable Sleep": "Durable Sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX3NsZWVwL3dvcmtlci5weQ__"
+        "durable_sleep": "Durable Sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9kdXJhYmxlX3NsZWVwL3dvcmtlci5weQ__"
       }
     },
     "events": {
       "event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ldmVudHMvZXZlbnQucHk_",
-        "Event trigger": "Event trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ldmVudHMvZXZlbnQucHk_"
+        "event_trigger": "Event trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ldmVudHMvZXZlbnQucHk_"
       },
       "test_event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ldmVudHMvdGVzdF9ldmVudC5weQ__"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ldmVudHMvd29ya2VyLnB5",
-        "Event trigger": "Event trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ldmVudHMvd29ya2VyLnB5"
+        "event_trigger": "Event trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ldmVudHMvd29ya2VyLnB5"
       }
     },
     "fanout": {
@@ -2126,8 +2126,8 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9mYW5vdXQvd29ya2VyLnB5",
-        "FanoutParent": "FanoutParent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9mYW5vdXQvd29ya2VyLnB5",
-        "FanoutChild": "FanoutChild:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9mYW5vdXQvd29ya2VyLnB5"
+        "fanoutparent": "FanoutParent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9mYW5vdXQvd29ya2VyLnB5",
+        "fanoutchild": "FanoutChild:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9mYW5vdXQvd29ya2VyLnB5"
       }
     },
     "fanout_sync": {
@@ -2144,7 +2144,7 @@ const snips = {
     "lifespans": {
       "simple": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvc2ltcGxlLnB5",
-        "Lifespan": "Lifespan:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvc2ltcGxlLnB5"
+        "lifespan": "Lifespan:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvc2ltcGxlLnB5"
       },
       "test_lifespans": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvdGVzdF9saWZlc3BhbnMucHk_"
@@ -2154,14 +2154,14 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvd29ya2VyLnB5",
-        "Use the lifespan in a task": "Use the lifespan in a task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvd29ya2VyLnB5",
-        "Define a lifespan": "Define a lifespan:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvd29ya2VyLnB5"
+        "use_the_lifespan_in_a_task": "Use the lifespan in a task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvd29ya2VyLnB5",
+        "define_a_lifespan": "Define a lifespan:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9saWZlc3BhbnMvd29ya2VyLnB5"
       }
     },
     "logger": {
       "client": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvY2xpZW50LnB5",
-        "RootLogger": "RootLogger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvY2xpZW50LnB5"
+        "rootlogger": "RootLogger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvY2xpZW50LnB5"
       },
       "test_logger": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvdGVzdF9sb2dnZXIucHk_"
@@ -2174,28 +2174,28 @@ const snips = {
       },
       "workflow": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvd29ya2Zsb3cucHk_",
-        "LoggingWorkflow": "LoggingWorkflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvd29ya2Zsb3cucHk_",
-        "ContextLogger": "ContextLogger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvd29ya2Zsb3cucHk_"
+        "loggingworkflow": "LoggingWorkflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvd29ya2Zsb3cucHk_",
+        "contextlogger": "ContextLogger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9sb2dnZXIvd29ya2Zsb3cucHk_"
       }
     },
     "manual_slot_release": {
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9tYW51YWxfc2xvdF9yZWxlYXNlL3dvcmtlci5weQ__",
-        "SlotRelease": "SlotRelease:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9tYW51YWxfc2xvdF9yZWxlYXNlL3dvcmtlci5weQ__"
+        "slotrelease": "SlotRelease:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9tYW51YWxfc2xvdF9yZWxlYXNlL3dvcmtlci5weQ__"
       }
     },
-    "migration-guides": {
+    "migration_guides": {
       "hatchet_client": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL2hhdGNoZXRfY2xpZW50LnB5"
       },
       "mergent": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
-        "Before (Mergent)": "Before (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
-        "After (Hatchet)": "After (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
-        "Running a task (Mergent)": "Running a task (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
-        "Running a task (Hatchet)": "Running a task (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
-        "Scheduling tasks (Mergent)": "Scheduling tasks (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
-        "Scheduling tasks (Hatchet)": "Scheduling tasks (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_"
+        "before_mergent": "Before (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
+        "after_hatchet": "After (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
+        "running_a_task_mergent": "Running a task (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
+        "running_a_task_hatchet": "Running a task (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
+        "scheduling_tasks_mergent": "Scheduling tasks (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_",
+        "scheduling_tasks_hatchet": "Scheduling tasks (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9taWdyYXRpb24tZ3VpZGVzL21lcmdlbnQucHk_"
       }
     },
     "non_retryable": {
@@ -2207,7 +2207,7 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ub25fcmV0cnlhYmxlL3dvcmtlci5weQ__",
-        "Non-retryable task": "Non-retryable task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ub25fcmV0cnlhYmxlL3dvcmtlci5weQ__"
+        "non_retryable_task": "Non-retryable task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9ub25fcmV0cnlhYmxlL3dvcmtlci5weQ__"
       }
     },
     "on_failure": {
@@ -2219,8 +2219,8 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9vbl9mYWlsdXJlL3dvcmtlci5weQ__",
-        "OnFailure Step": "OnFailure Step:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9vbl9mYWlsdXJlL3dvcmtlci5weQ__",
-        "OnFailure With Details": "OnFailure With Details:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9vbl9mYWlsdXJlL3dvcmtlci5weQ__"
+        "onfailure_step": "OnFailure Step:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9vbl9mYWlsdXJlL3dvcmtlci5weQ__",
+        "onfailure_with_details": "OnFailure With Details:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9vbl9mYWlsdXJlL3dvcmtlci5weQ__"
       }
     },
     "on_success": {
@@ -2251,13 +2251,13 @@ const snips = {
       },
       "trigger": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS90cmlnZ2VyLnB5",
-        "Runtime priority": "Runtime priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS90cmlnZ2VyLnB5",
-        "Scheduled priority": "Scheduled priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS90cmlnZ2VyLnB5",
-        "Default priority": "Default priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS90cmlnZ2VyLnB5"
+        "runtime_priority": "Runtime priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS90cmlnZ2VyLnB5",
+        "scheduled_priority": "Scheduled priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS90cmlnZ2VyLnB5",
+        "default_priority": "Default priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS90cmlnZ2VyLnB5"
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS93b3JrZXIucHk_",
-        "Default priority": "Default priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS93b3JrZXIucHk_"
+        "default_priority": "Default priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9wcmlvcml0eS93b3JrZXIucHk_"
       }
     },
     "rate_limit": {
@@ -2272,33 +2272,33 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yYXRlX2xpbWl0L3dvcmtlci5weQ__",
-        "Workflow": "Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yYXRlX2xpbWl0L3dvcmtlci5weQ__",
-        "Static": "Static:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yYXRlX2xpbWl0L3dvcmtlci5weQ__",
-        "Dynamic": "Dynamic:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yYXRlX2xpbWl0L3dvcmtlci5weQ__"
+        "workflow": "Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yYXRlX2xpbWl0L3dvcmtlci5weQ__",
+        "static": "Static:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yYXRlX2xpbWl0L3dvcmtlci5weQ__",
+        "dynamic": "Dynamic:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yYXRlX2xpbWl0L3dvcmtlci5weQ__"
       }
     },
     "retries": {
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yZXRyaWVzL3dvcmtlci5weQ__",
-        "Simple Step Retries": "Simple Step Retries:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yZXRyaWVzL3dvcmtlci5weQ__",
-        "Retries with Count": "Retries with Count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yZXRyaWVzL3dvcmtlci5weQ__",
-        "Retries with Backoff": "Retries with Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yZXRyaWVzL3dvcmtlci5weQ__"
+        "simple_step_retries": "Simple Step Retries:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yZXRyaWVzL3dvcmtlci5weQ__",
+        "retries_with_count": "Retries with Count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yZXRyaWVzL3dvcmtlci5weQ__",
+        "retries_with_backoff": "Retries with Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9yZXRyaWVzL3dvcmtlci5weQ__"
       }
     },
     "scheduled": {
-      "programatic-async": {
+      "programatic_async": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_",
-        "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_",
-        "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_",
-        "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_",
-        "Get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_"
+        "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_",
+        "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_",
+        "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_",
+        "get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtYXN5bmMucHk_"
       },
-      "programatic-sync": {
+      "programatic_sync": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__",
-        "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__",
-        "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__",
-        "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__",
-        "Get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__"
+        "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__",
+        "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__",
+        "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__",
+        "get": "Get:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zY2hlZHVsZWQvcHJvZ3JhbWF0aWMtc3luYy5weQ__"
       }
     },
     "simple": {
@@ -2307,7 +2307,7 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zaW1wbGUvd29ya2VyLnB5",
-        "Simple": "Simple:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zaW1wbGUvd29ya2VyLnB5"
+        "simple": "Simple:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zaW1wbGUvd29ya2VyLnB5"
       }
     },
     "sticky_workers": {
@@ -2316,8 +2316,8 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdGlja3lfd29ya2Vycy93b3JrZXIucHk_",
-        "StickyWorker": "StickyWorker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdGlja3lfd29ya2Vycy93b3JrZXIucHk_",
-        "StickyChild": "StickyChild:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdGlja3lfd29ya2Vycy93b3JrZXIucHk_"
+        "stickyworker": "StickyWorker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdGlja3lfd29ya2Vycy93b3JrZXIucHk_",
+        "stickychild": "StickyChild:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdGlja3lfd29ya2Vycy93b3JrZXIucHk_"
       }
     },
     "streaming": {
@@ -2329,7 +2329,7 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdHJlYW1pbmcvd29ya2VyLnB5",
-        "Streaming": "Streaming:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdHJlYW1pbmcvd29ya2VyLnB5"
+        "streaming": "Streaming:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi9zdHJlYW1pbmcvd29ya2VyLnB5"
       }
     },
     "timeout": {
@@ -2341,9 +2341,9 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi90aW1lb3V0L3dvcmtlci5weQ__",
-        "ScheduleTimeout": "ScheduleTimeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi90aW1lb3V0L3dvcmtlci5weQ__",
-        "ExecutionTimeout": "ExecutionTimeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi90aW1lb3V0L3dvcmtlci5weQ__",
-        "RefreshTimeout": "RefreshTimeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi90aW1lb3V0L3dvcmtlci5weQ__"
+        "scheduletimeout": "ScheduleTimeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi90aW1lb3V0L3dvcmtlci5weQ__",
+        "executiontimeout": "ExecutionTimeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi90aW1lb3V0L3dvcmtlci5weQ__",
+        "refreshtimeout": "RefreshTimeout:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi90aW1lb3V0L3dvcmtlci5weQ__"
       }
     },
     "waits": {
@@ -2355,13 +2355,13 @@ const snips = {
       },
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
-        "Create a workflow": "Create a workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
-        "Add base task": "Add base task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
-        "Add wait for sleep": "Add wait for sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
-        "Add skip on event": "Add skip on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
-        "Add branching": "Add branching:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
-        "Add wait for event": "Add wait for event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
-        "Add sum": "Add sum:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_"
+        "create_a_workflow": "Create a workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
+        "add_base_task": "Add base task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
+        "add_wait_for_sleep": "Add wait for sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
+        "add_skip_on_event": "Add skip on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
+        "add_branching": "Add branching:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
+        "add_wait_for_event": "Add wait for event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_",
+        "add_sum": "Add sum:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93YWl0cy93b3JrZXIucHk_"
       }
     },
     "worker": {
@@ -2375,24 +2375,24 @@ const snips = {
     "workflow_registration": {
       "worker": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93b3JrZmxvd19yZWdpc3RyYXRpb24vd29ya2VyLnB5",
-        "WorkflowRegistration": "WorkflowRegistration:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93b3JrZmxvd19yZWdpc3RyYXRpb24vd29ya2VyLnB5"
+        "workflowregistration": "WorkflowRegistration:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3B5dGhvbi93b3JrZmxvd19yZWdpc3RyYXRpb24vd29ya2VyLnB5"
       }
     }
   },
   "go": {
-    "migration-guides": {
-      "hatchet-client": {
+    "migration_guides": {
+      "hatchet_client": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvaGF0Y2hldC1jbGllbnQuZ28_"
       },
       "mergent": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
-        "Before (Mergent)": "Before (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
-        "After (Hatchet)": "After (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
-        "Running a task": "Running a task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
-        "Declaring a Worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
-        "Running a task (Mergent)": "Running a task (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
-        "Running a task (Hatchet)": "Running a task (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
-        "Scheduling tasks (Hatchet)": "Scheduling tasks (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__"
+        "before_mergent": "Before (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
+        "after_hatchet": "After (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
+        "running_a_task": "Running a task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
+        "declaring_a_worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
+        "running_a_task_mergent": "Running a task (Mergent):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
+        "running_a_task_hatchet": "Running a task (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__",
+        "scheduling_tasks_hatchet": "Scheduling tasks (Hatchet):L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL21pZ3JhdGlvbi1ndWlkZXMvbWVyZ2VudC5nbw__"
       }
     },
     "run": {
@@ -2401,29 +2401,29 @@ const snips = {
       },
       "bulk": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9idWxrLmdv",
-        "Bulk Run Tasks": "Bulk Run Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9idWxrLmdv"
+        "bulk_run_tasks": "Bulk Run Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9idWxrLmdv"
       },
       "cron": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9jcm9uLmdv",
-        "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9jcm9uLmdv",
-        "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9jcm9uLmdv",
-        "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9jcm9uLmdv"
+        "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9jcm9uLmdv",
+        "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9jcm9uLmdv",
+        "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9jcm9uLmdv"
       },
       "event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9ldmVudC5nbw__",
-        "Pushing an Event": "Pushing an Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9ldmVudC5nbw__"
+        "pushing_an_event": "Pushing an Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9ldmVudC5nbw__"
       },
       "priority": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9wcmlvcml0eS5nbw__",
-        "Running a Task with Priority": "Running a Task with Priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9wcmlvcml0eS5nbw__",
-        "Schedule and cron": "Schedule and cron:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9wcmlvcml0eS5nbw__"
+        "running_a_task_with_priority": "Running a Task with Priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9wcmlvcml0eS5nbw__",
+        "schedule_and_cron": "Schedule and cron:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9wcmlvcml0eS5nbw__"
       },
       "simple": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_",
-        "Running a Task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_",
-        "Running Multiple Tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_",
-        "Running a Task Without Waiting": "Running a Task Without Waiting:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_",
-        "Subscribing to results": "Subscribing to results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_"
+        "running_a_task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_",
+        "running_multiple_tasks": "Running Multiple Tasks:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_",
+        "running_a_task_without_waiting": "Running a Task Without Waiting:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_",
+        "subscribing_to_results": "Subscribing to results:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3J1bi9zaW1wbGUuZ28_"
       }
     },
     "worker": {
@@ -2434,82 +2434,82 @@ const snips = {
     "workflows": {
       "cancellations": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jYW5jZWxsYXRpb25zLmdv",
-        "Cancelled task": "Cancelled task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jYW5jZWxsYXRpb25zLmdv"
+        "cancelled_task": "Cancelled task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jYW5jZWxsYXRpb25zLmdv"
       },
-      "child-workflows": {
+      "child_workflows": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jaGlsZC13b3JrZmxvd3MuZ28_"
       },
-      "complex-conditions": {
+      "complex_conditions": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
-        "Create a workflow": "Create a workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
-        "Add base task": "Add base task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
-        "Add wait for sleep": "Add wait for sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
-        "Add skip on event": "Add skip on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
-        "Add branching": "Add branching:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
-        "Add wait for event": "Add wait for event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
-        "Add sum": "Add sum:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_"
+        "create_a_workflow": "Create a workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
+        "add_base_task": "Add base task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
+        "add_wait_for_sleep": "Add wait for sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
+        "add_skip_on_event": "Add skip on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
+        "add_branching": "Add branching:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
+        "add_wait_for_event": "Add wait for event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_",
+        "add_sum": "Add sum:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb21wbGV4LWNvbmRpdGlvbnMuZ28_"
       },
-      "concurrency-rr": {
+      "concurrency_rr": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb25jdXJyZW5jeS1yci5nbw__",
-        "Concurrency Strategy With Key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb25jdXJyZW5jeS1yci5nbw__",
-        "Multiple Concurrency Keys": "Multiple Concurrency Keys:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb25jdXJyZW5jeS1yci5nbw__"
+        "concurrency_strategy_with_key": "Concurrency Strategy With Key:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb25jdXJyZW5jeS1yci5nbw__",
+        "multiple_concurrency_keys": "Multiple Concurrency Keys:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9jb25jdXJyZW5jeS1yci5nbw__"
       },
-      "dag-with-conditions": {
+      "dag_with_conditions": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWctd2l0aC1jb25kaXRpb25zLmdv"
       },
       "dag": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWcuZ28_",
-        "Declaring a Workflow": "Declaring a Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWcuZ28_",
-        "Defining a Task": "Defining a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWcuZ28_",
-        "Adding a Task with a parent": "Adding a Task with a parent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWcuZ28_"
+        "declaring_a_workflow": "Declaring a Workflow:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWcuZ28_",
+        "defining_a_task": "Defining a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWcuZ28_",
+        "adding_a_task_with_a_parent": "Adding a Task with a parent:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kYWcuZ28_"
       },
-      "durable-event": {
+      "durable_event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLWV2ZW50Lmdv",
-        "Durable Event": "Durable Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLWV2ZW50Lmdv",
-        "Durable Event With Filter": "Durable Event With Filter:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLWV2ZW50Lmdv"
+        "durable_event": "Durable Event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLWV2ZW50Lmdv",
+        "durable_event_with_filter": "Durable Event With Filter:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLWV2ZW50Lmdv"
       },
-      "durable-sleep": {
+      "durable_sleep": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLXNsZWVwLmdv",
-        "Durable Sleep": "Durable Sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLXNsZWVwLmdv"
+        "durable_sleep": "Durable Sleep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9kdXJhYmxlLXNsZWVwLmdv"
       },
-      "non-retryable-error": {
+      "non_retryable_error": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9ub24tcmV0cnlhYmxlLWVycm9yLmdv",
-        "Non Retryable Error": "Non Retryable Error:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9ub24tcmV0cnlhYmxlLWVycm9yLmdv"
+        "non_retryable_error": "Non Retryable Error:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9ub24tcmV0cnlhYmxlLWVycm9yLmdv"
       },
-      "on-cron": {
+      "on_cron": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9vbi1jcm9uLmdv",
-        "Workflow Definition Cron Trigger": "Workflow Definition Cron Trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9vbi1jcm9uLmdv"
+        "workflow_definition_cron_trigger": "Workflow Definition Cron Trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9vbi1jcm9uLmdv"
       },
-      "on-event": {
+      "on_event": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9vbi1ldmVudC5nbw__",
-        "Run workflow on event": "Run workflow on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9vbi1ldmVudC5nbw__"
+        "run_workflow_on_event": "Run workflow on event:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9vbi1ldmVudC5nbw__"
       },
-      "on-failure": {
+      "on_failure": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9vbi1mYWlsdXJlLmdv"
       },
       "priority": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9wcmlvcml0eS5nbw__",
-        "Default priority": "Default priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9wcmlvcml0eS5nbw__",
-        "Defining a Task": "Defining a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9wcmlvcml0eS5nbw__"
+        "default_priority": "Default priority:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9wcmlvcml0eS5nbw__",
+        "defining_a_task": "Defining a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9wcmlvcml0eS5nbw__"
       },
       "ratelimit": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yYXRlbGltaXQuZ28_",
-        "Upsert Rate Limit": "Upsert Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yYXRlbGltaXQuZ28_",
-        "Static Rate Limit": "Static Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yYXRlbGltaXQuZ28_",
-        "Dynamic Rate Limit": "Dynamic Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yYXRlbGltaXQuZ28_"
+        "upsert_rate_limit": "Upsert Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yYXRlbGltaXQuZ28_",
+        "static_rate_limit": "Static Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yYXRlbGltaXQuZ28_",
+        "dynamic_rate_limit": "Dynamic Rate Limit:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yYXRlbGltaXQuZ28_"
       },
       "retries": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yZXRyaWVzLmdv",
-        "Simple Step Retries": "Simple Step Retries:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yZXRyaWVzLmdv",
-        "Retries with Count": "Retries with Count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yZXRyaWVzLmdv",
-        "Retries with Backoff": "Retries with Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yZXRyaWVzLmdv"
+        "simple_step_retries": "Simple Step Retries:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yZXRyaWVzLmdv",
+        "retries_with_count": "Retries with Count:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yZXRyaWVzLmdv",
+        "retries_with_backoff": "Retries with Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9yZXRyaWVzLmdv"
       },
       "simple": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_",
-        "Declaring a Task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_",
-        "Running a Task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_",
-        "Declaring a Worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_",
-        "Spawning Tasks from within a Task": "Spawning Tasks from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_"
+        "declaring_a_task": "Declaring a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_",
+        "running_a_task": "Running a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_",
+        "declaring_a_worker": "Declaring a Worker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_",
+        "spawning_tasks_from_within_a_task": "Spawning Tasks from within a Task:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zaW1wbGUuZ28_"
       },
       "sticky": {
         "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3dvcmtmbG93cy9zdGlja3kuZ28_"
@@ -2519,7 +2519,7 @@ const snips = {
       }
     },
     "z_v0": {
-      "assignment-affinity": {
+      "assignment_affinity": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1hZmZpbml0eS9tYWluLmdv"
         },
@@ -2527,14 +2527,14 @@ const snips = {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1hZmZpbml0eS9ydW4uZ28_"
         }
       },
-      "assignment-sticky": {
+      "assignment_sticky": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1zdGlja3kvbWFpbi5nbw__"
         },
         "run": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1zdGlja3kvcnVuLmdv",
-          "StickyWorker": "StickyWorker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1zdGlja3kvcnVuLmdv",
-          "StickyChild": "StickyChild:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1zdGlja3kvcnVuLmdv"
+          "stickyworker": "StickyWorker:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1zdGlja3kvcnVuLmdv",
+          "stickychild": "StickyChild:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvYXNzaWdubWVudC1zdGlja3kvcnVuLmdv"
         }
       },
       "bulk_imports": {
@@ -2577,15 +2577,15 @@ const snips = {
       "cron": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi9tYWluLmdv",
-          "Workflow Definition Cron Trigger": "Workflow Definition Cron Trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi9tYWluLmdv"
+          "workflow_definition_cron_trigger": "Workflow Definition Cron Trigger:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi9tYWluLmdv"
         }
       },
-      "cron-programmatic": {
+      "cron_programmatic": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi1wcm9ncmFtbWF0aWMvbWFpbi5nbw__",
-          "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi1wcm9ncmFtbWF0aWMvbWFpbi5nbw__",
-          "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi1wcm9ncmFtbWF0aWMvbWFpbi5nbw__",
-          "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi1wcm9ncmFtbWF0aWMvbWFpbi5nbw__"
+          "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi1wcm9ncmFtbWF0aWMvbWFpbi5nbw__",
+          "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi1wcm9ncmFtbWF0aWMvbWFpbi5nbw__",
+          "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvY3Jvbi1wcm9ncmFtbWF0aWMvbWFpbi5nbw__"
         }
       },
       "dag": {
@@ -2599,7 +2599,7 @@ const snips = {
             "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvZGVwcmVjYXRlZC9yZXF1ZXVlL21haW4uZ28_"
           }
         },
-        "schedule-timeout": {
+        "schedule_timeout": {
           "main": {
             "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvZGVwcmVjYXRlZC9zY2hlZHVsZS10aW1lb3V0L21haW4uZ28_"
           }
@@ -2615,23 +2615,23 @@ const snips = {
           }
         }
       },
-      "errors-test": {
+      "errors_test": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvZXJyb3JzLXRlc3QvbWFpbi5nbw__"
         }
       },
-      "limit-concurrency": {
-        "cancel-in-progress": {
+      "limit_concurrency": {
+        "cancel_in_progress": {
           "main": {
             "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvbGltaXQtY29uY3VycmVuY3kvY2FuY2VsLWluLXByb2dyZXNzL21haW4uZ28_"
           }
         },
-        "group-round-robin": {
+        "group_round_robin": {
           "main": {
             "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvbGltaXQtY29uY3VycmVuY3kvZ3JvdXAtcm91bmQtcm9iaW4vbWFpbi5nbw__"
           }
         },
-        "group-round-robin-advanced": {
+        "group_round_robin_advanced": {
           "main": {
             "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvbGltaXQtY29uY3VycmVuY3kvZ3JvdXAtcm91bmQtcm9iaW4tYWR2YW5jZWQvbWFpbi5nbw__"
           },
@@ -2688,7 +2688,7 @@ const snips = {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvbG9nZ2luZy9tYWluLmdv"
         }
       },
-      "manual-trigger": {
+      "manual_trigger": {
         "trigger": {
           "main": {
             "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvbWFudWFsLXRyaWdnZXIvdHJpZ2dlci9tYWluLmdv"
@@ -2716,15 +2716,15 @@ const snips = {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvbmFtZXNwYWNlZC9tYWluLmdv"
         }
       },
-      "no-tls": {
+      "no_tls": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvbm8tdGxzL21haW4uZ28_"
         }
       },
-      "on-failure": {
+      "on_failure": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvb24tZmFpbHVyZS9tYWluLmdv",
-          "OnFailure Step": "OnFailure Step:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvb24tZmFpbHVyZS9tYWluLmdv"
+          "onfailure_step": "OnFailure Step:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvb24tZmFpbHVyZS9tYWluLmdv"
         }
       },
       "procedural": {
@@ -2735,12 +2735,12 @@ const snips = {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvcHJvY2VkdXJhbC9tYWluX2UyZV90ZXN0Lmdv"
         }
       },
-      "rate-limit": {
+      "rate_limit": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvcmF0ZS1saW1pdC9tYWluLmdv"
         }
       },
-      "register-action": {
+      "register_action": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvcmVnaXN0ZXItYWN0aW9uL21haW4uZ28_"
         }
@@ -2750,18 +2750,18 @@ const snips = {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvcmV0cmllcy9tYWluLmdv"
         }
       },
-      "retries-with-backoff": {
+      "retries_with_backoff": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvcmV0cmllcy13aXRoLWJhY2tvZmYvbWFpbi5nbw__",
-          "Backoff": "Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvcmV0cmllcy13aXRoLWJhY2tvZmYvbWFpbi5nbw__"
+          "backoff": "Backoff:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvcmV0cmllcy13aXRoLWJhY2tvZmYvbWFpbi5nbw__"
         }
       },
       "scheduled": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2NoZWR1bGVkL21haW4uZ28_",
-          "Create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2NoZWR1bGVkL21haW4uZ28_",
-          "List": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2NoZWR1bGVkL21haW4uZ28_",
-          "Delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2NoZWR1bGVkL21haW4uZ28_"
+          "create": "Create:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2NoZWR1bGVkL21haW4uZ28_",
+          "list": "List:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2NoZWR1bGVkL21haW4uZ28_",
+          "delete": "Delete:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2NoZWR1bGVkL21haW4uZ28_"
         }
       },
       "simple": {
@@ -2772,12 +2772,12 @@ const snips = {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc2ltcGxlL21haW5fZTJlX3Rlc3QuZ28_"
         }
       },
-      "stream-event": {
+      "stream_event": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc3RyZWFtLWV2ZW50L21haW4uZ28_"
         }
       },
-      "stream-event-by-meta": {
+      "stream_event_by_meta": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvc3RyZWFtLWV2ZW50LWJ5LW1ldGEvbWFpbi5nbw__"
         }
@@ -2785,7 +2785,7 @@ const snips = {
       "timeout": {
         "main": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvdGltZW91dC9tYWluLmdv",
-          "TimeoutStep": "TimeoutStep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvdGltZW91dC9tYWluLmdv"
+          "timeoutstep": "TimeoutStep:L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvdGltZW91dC9tYWluLmdv"
         },
         "main_e2e_test": {
           "*": ":L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL2dvL3pfdjAvdGltZW91dC9tYWluX2UyZV90ZXN0Lmdv"

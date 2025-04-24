@@ -12,6 +12,10 @@ function cleanQuestionText(text) {
   return text.trim().replace(/❓/g, '').trim();
 }
 
+function normalizeKey(key) {
+  return key.trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/[()]/g, '');
+}
+
 function extractQuestions(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.split('\n');
@@ -64,16 +68,21 @@ function processDirectory(dirPath) {
       // Process subdirectory
       const subDirContent = processDirectory(fullPath);
       if (Object.keys(subDirContent).length > 0) {
-        result[item] = subDirContent;
+        result[normalizeKey(item)] = subDirContent;
       }
     } else {
       // Process file
-      const fileName = path.basename(item, path.extname(item));
-      // Only include specific file types we're interested in
-      if (['run', 'worker', 'workflow'].includes(fileName)) {
+      const fileName = normalizeKey(path.basename(item, path.extname(item)));
+      const ext = path.extname(fullPath).slice(1) || 'txt';
+      
+      // Check if this is a root file (directly in language directory)
+      const isRootFile = path.dirname(fullPath) === dirPath && 
+        ['ts', 'js', 'py', 'go'].includes(ext);
+      
+      // Include if it's a root file or one of our specific file types
+      if (isRootFile || ['run', 'worker', 'workflow'].includes(fileName)) {
         const content = fs.readFileSync(fullPath, 'utf8');
         const snippetId = createSnippetId(fullPath);
-        const ext = path.extname(fullPath).slice(1) || 'txt';
         
         // Store the snippet content and metadata
         snippetsMap.set(snippetId, {
@@ -91,10 +100,16 @@ function processDirectory(dirPath) {
         
         // Add each question as a key pointing to the same snippetId
         questions.forEach(question => {
-          fileObj[question] = `${question}:${snippetId}`;
+          const normalizedQuestion = normalizeKey(question);
+          fileObj[normalizedQuestion] = `${question}:${snippetId}`;
         });
         
-        result[fileName] = fileObj;
+        // For root files, store under a special key
+        if (isRootFile) {
+          result[fileName] = fileObj;
+        } else {
+          result[fileName] = fileObj;
+        }
       }
     }
   });

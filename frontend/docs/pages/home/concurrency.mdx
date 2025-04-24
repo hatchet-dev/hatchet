@@ -3,10 +3,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import snips from "@/lib/snips";
 
-export const TS = "examples/typescript/concurrency-rr/workflow.ts";
-export const PY = "examples/python/concurrency_limit_rr/worker.py";
-export const GO = "examples/v1/workflows/concurrency-rr.go";
-export const MultiplePY = "examples/python/concurrency_workflow_level/worker.py";
 
 # Concurrency Control in Hatchet Tasks
 
@@ -44,13 +40,13 @@ In addition to setting concurrency limits at the task level, you can also contro
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-    <Snippet src={snips.python.concurrency_limit_rr.worker["Concurrency Strategy With Key"]} />
+    <Snippet src={snips.python.concurrency_limit_rr.worker.concurrency_strategy_with_key} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.typescript['concurrency-rr'].workflow['Concurrency Strategy With Key']} />
+    <Snippet src={snips.typescript.concurrency_rr.workflow.concurrency_strategy_with_key} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows['concurrency-rr']['Concurrency Strategy With Key']} />
+    <Snippet src={snips.go.workflows.concurrency_rr.concurrency_strategy_with_key} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -120,12 +116,12 @@ You can also combine multiple concurrency strategies to create a more complex co
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-    <Snippet src={snips.python.concurrency_workflow_level.worker['Multiple Concurrency Keys']} />
+    <Snippet src={snips.python.concurrency_workflow_level.worker.multiple_concurrency_keys} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.typescript['concurrency-rr'].workflow["Multiple Concurrency Keys"]} />
+    <Snippet src={snips.typescript.concurrency_rr.workflow.multiple_concurrency_keys} />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows['concurrency-rr']['Multiple Concurrency Keys']} />
+    <Snippet src={snips.go.workflows.concurrency_rr.multiple_concurrency_keys} />
   </Tabs.Tab>
 </UniversalTabs>
