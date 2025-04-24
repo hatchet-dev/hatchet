@@ -40,31 +40,11 @@ export default function useDefinitions({
         if (!res.data.rows) {
           return {
             rows: [],
-            slots: {},
           };
         }
 
-        // Fetch workers count for all workflows
-        const workersPromises = res.data.rows.map((workflow) =>
-          api.workflowGetWorkersCount(
-            tenant?.metadata.id || '',
-            workflow.metadata.id,
-          ),
-        );
-        const workersResults = await Promise.all(workersPromises);
-
-        // Create slots object with all workflows
-        const slots = res.data.rows.reduce(
-          (acc, workflow, index) => {
-            acc[workflow.name] = workersResults[index].data;
-            return acc;
-          },
-          {} as { [name: string]: WorkflowWorkersCount },
-        );
-
         return {
           rows: res.data.rows,
-          slots,
         };
       } catch (error) {
         toast({
@@ -75,7 +55,6 @@ export default function useDefinitions({
         });
         return {
           rows: [],
-          slots: {},
         };
       }
     },
@@ -83,7 +62,6 @@ export default function useDefinitions({
 
   return {
     data: listDefinitionsQuery.data?.rows || [],
-    slots: listDefinitionsQuery.data?.slots || {},
     isLoading: listDefinitionsQuery.isLoading,
   };
 }
