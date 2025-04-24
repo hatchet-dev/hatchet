@@ -85,9 +85,12 @@ export function getFriendlyTaskRunId(run?: V1TaskSummary) {
     return;
   }
 
-  return run.actionId
-    ? run.actionId?.split(':')?.at(1)
-    : getFriendlyWorkflowRunId(run);
+  if (run.actionId) {
+    const runIdPrefix = run.metadata.id.split('-')[0];
+    return run.actionId?.split(':')?.at(1) + '-' + runIdPrefix;
+  }
+
+  return getFriendlyWorkflowRunId(run);
 }
 
 export function getFriendlyWorkflowRunId(run?: V1WorkflowRun) {
