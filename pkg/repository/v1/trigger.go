@@ -148,7 +148,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		for _, opt := range opts {
 			triggerConverter := &TriggeredByEvent{
 				l:        r.l,
-				eventId:  opt.EventId,
+				eventID:  opt.EventId,
 				eventKey: workflow.EventKey,
 			}
 
@@ -309,7 +309,7 @@ type TriggeredBy interface {
 
 type TriggeredByEvent struct {
 	l        *zerolog.Logger
-	eventId  string
+	eventID  string
 	eventKey string
 }
 
@@ -338,7 +338,7 @@ func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
 func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
 	res := cleanAdditionalMetadata(additionalMetadata)
 
-	res["hatchet__event_id"] = t.eventId
+	res["hatchet__event_id"] = t.eventID
 	res["hatchet__event_key"] = t.eventKey
 
 	resBytes, err := json.Marshal(res)

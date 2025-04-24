@@ -12,7 +12,6 @@ import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
-import { RunChildrenCardRoot } from '@/next/components/runs/run-children';
 import { MdOutlineReplay } from 'react-icons/md';
 import { MdOutlineCancel } from 'react-icons/md';
 import WorkflowRunVisualizer from '@/next/components/runs/run-dag/dag-run-visualizer';
@@ -24,11 +23,6 @@ import {
   PageTitle,
 } from '@/next/components/ui/page-header';
 import { Headline } from '@/next/components/ui/page-header';
-import { TooltipContent } from '@/next/components/ui/tooltip';
-import { TooltipTrigger } from '@/next/components/ui/tooltip';
-import { Tooltip } from '@/next/components/ui/tooltip';
-import { TooltipProvider } from '@/next/components/ui/tooltip';
-import { Time } from '@/next/components/ui/time';
 import { Duration } from '@/next/components/ui/duration';
 import { V1TaskStatus } from '@/lib/api/generated/data-contracts';
 import { ROUTES } from '@/next/lib/routes';
@@ -42,6 +36,9 @@ import {
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
 import { FilterProvider } from '@/next/hooks/utils/use-filters';
 import { RunDetailSheet } from './run-detail-sheet';
+import { Separator } from '@/next/components/ui/separator';
+import { Waterfall } from '@/next/components/waterfall/waterfall';
+import RelativeDate from '@/next/components/ui/relative-date';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
 import WorkflowGeneralSettings from '../workflows/settings';
@@ -254,57 +251,47 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   }
 
   const Timing = () => {
+    const timings: JSX.Element[] = [
+      <div key="created" className="flex items-center gap-2">
+        <span>Created</span>
+        <RelativeDate date={workflow.createdAt} />
+      </div>,
+      <div key="started" className="flex items-center gap-2">
+        <span>Started</span>
+        <RelativeDate date={workflow.startedAt} />
+      </div>,
+      <div key="duration" className="flex items-center gap-2">
+        <span>Duration</span>
+        <span className="whitespace-nowrap">
+          <Duration
+            start={workflow.startedAt}
+            end={workflow.finishedAt}
+            status={workflow.status}
+          />
+        </span>
+      </div>,
+    ];
+
+    const interleavedTimings: JSX.Element[] = [];
+    timings.forEach((timing, index) => {
+      interleavedTimings.push(timing);
+      if (index < timings.length - 1) {
+        interleavedTimings.push(
+          <div key={`sep-${index}`} className="text-sm text-muted-foreground">
+            |
+          </div>,
+        );
+      }
+    });
+
     return (
       <div className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>Created</span>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="whitespace-nowrap">
-                  <Time date={workflow.createdAt} variant="timestamp" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <Time date={workflow.createdAt} variant="timeSince" />
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span>Started</span>
-          {workflow.startedAt ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="whitespace-nowrap">
-                    <Time date={workflow.startedAt} variant="timeSince" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <Time date={workflow.startedAt} variant="timestamp" />
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            <span>Not started</span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span>Duration</span>
-          <span className="whitespace-nowrap">
-            <Duration
-              start={workflow.startedAt}
-              end={workflow.finishedAt}
-              status={workflow.status}
-            />
-          </span>
-        </div>
+        {interleavedTimings}
       </div>
     );
   };
+
+  const taskCount = tasks?.length || 0;
 
   return (
     <SheetViewLayout
@@ -404,22 +391,39 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
         </HeadlineActions>
       </Headline>
 
-      {workflowRunId && (
-        <div className="w-full overflow-x-auto">
-          <WorkflowRunVisualizer
-            workflowRunId={workflowRunId}
-            onTaskSelect={handleTaskSelect}
-          />
-        </div>
-      )}
+      <Separator className="my-4" />
 
-      <div className="grid grid-cols-1 gap-4">
-        <RunChildrenCardRoot
-          workflow={workflow}
-          parentRun={parentData?.run}
-          onTaskSelect={handleTaskSelect}
-        />
-      </div>
+      <Tabs
+        defaultValue={taskCount > 1 ? 'minimap' : 'waterfall'}
+        className="w-full"
+      >
+        <TabsList layout="underlined" className="w-full">
+          {taskCount > 1 && (
+            <TabsTrigger variant="underlined" value="minimap">
+              Minimap
+            </TabsTrigger>
+          )}
+          <TabsTrigger variant="underlined" value="waterfall">
+            Waterfall
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="minimap" className="mt-4">
+          {taskCount > 1 && workflowRunId && (
+            <div className="w-full overflow-x-auto bg-slate-100 dark:bg-slate-900">
+              <WorkflowRunVisualizer
+                workflowRunId={workflowRunId}
+                onTaskSelect={handleTaskSelect}
+              />
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="waterfall" className="mt-4">
+          <Waterfall
+            workflowRunId={workflowRunId!}
+            handleTaskSelect={handleTaskSelect}
+          />
+        </TabsContent>
+      </Tabs>
 
       <div className="grid grid-cols-1 gap-4 mt-8">
         <Tabs defaultValue="activity" className="w-full">

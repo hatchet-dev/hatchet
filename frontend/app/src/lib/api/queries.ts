@@ -265,6 +265,15 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await api.v1WorkflowRunTaskEventsList(workflowRunId)).data,
     }),
+    listTaskTimings: (workflowRunId: string, depth: number) => ({
+      queryKey: ['v1:workflow-run:list-tasks-timings', workflowRunId, depth],
+      queryFn: async () =>
+        (
+          await api.v1WorkflowRunGetTimings(workflowRunId, {
+            depth,
+          })
+        ).data,
+    }),
     details: (workflowRunId: string) => ({
       queryKey: ['workflow-run-details:get', workflowRunId],
       queryFn: async () => (await api.v1WorkflowRunGet(workflowRunId)).data,

@@ -139,7 +139,7 @@ func ToWorkflowRunMany(
 }
 
 func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, workflowName *string) gen.V1TaskSummary {
-	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
+	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -183,7 +183,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 		Status:                gen.V1TaskStatus(task.Status),
 		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
 		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
-		WorkflowVersionId:     &workflowVersionId,
+		WorkflowVersionId:     &workflowVersionID,
 		Children:              nil,
 		TaskExternalId:        uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
 		TaskId:                int(task.ID),

@@ -120,7 +120,8 @@ const EVENT_CONFIG: Record<V1TaskEventType, EventConfig> = {
   },
   [V1TaskEventType.REASSIGNED]: {
     icon: UserCog,
-    message: (event) => `Reassigned to worker ${event.workerId}`,
+    message:
+      'Reassigned as the worker became inactive (did not heartbeat for more than 30 seconds)',
     showWorkerButton: true,
     status: WorkflowRunStatus.RUNNING,
     title: 'Task Reassigned',
@@ -207,7 +208,9 @@ interface EventIconProps {
 const EventIcon = ({ eventType, className }: EventIconProps) => {
   const config = EVENT_CONFIG[eventType];
   const textColor = RunStatusConfigs[config.status]?.primary || 'text-gray-500';
-  return <config.icon className={cn('h-3 w-3', textColor, className)} />;
+  return (
+    <config.icon className={cn('h-2 w-2 rounded-full', textColor, className)} />
+  );
 };
 
 interface EventMessageProps {
@@ -236,13 +239,13 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
     }
 
     return (
-      <div className="flex justify-between gap-1">
+      <div className="flex justify-between items-center gap-2">
         <span className="text-xs text-destructive">{error.message}</span>
         {onTaskSelect && (
           <Button
             variant="outline"
             size="sm"
-            className="h-5 px-2 text-xs text-destructive hover:text-destructive/80 border-destructive/50"
+            className="h-5 px-1 text-xs text-destructive hover:text-destructive/80 border-destructive/50"
             onClick={(e) => {
               e.stopPropagation();
               onTaskSelect(event.taskId);
@@ -257,13 +260,13 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
 
   if (event.eventType === V1TaskEventType.FINISHED) {
     return (
-      <div className="flex justify-between gap-1">
+      <div className="flex justify-between items-center gap-2">
         <span className="text-xs">{message}</span>
         {onTaskSelect && (
           <Button
             variant="outline"
             size="sm"
-            className="h-5 px-2 text-xs text-muted-foreground hover:text-muted-foreground/80 border-muted-foreground/50"
+            className="h-5 px-1 text-xs text-muted-foreground hover:text-muted-foreground/80 border-muted-foreground/50"
             onClick={(e) => {
               e.stopPropagation();
               onTaskSelect(event.taskId);
@@ -277,13 +280,13 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
   }
 
   return (
-    <div className="flex justify-between gap-1">
+    <div className="flex justify-between items-center gap-2">
       <span className="text-xs">{message}</span>
       {config.showWorkerButton && event.workerId && onTaskSelect && (
         <Button
           variant="outline"
           size="sm"
-          className="h-5 px-2 text-xs text-muted-foreground hover:text-muted-foreground/80 border-muted-foreground/50"
+          className="h-5 p-1 text-xs text-muted-foreground hover:text-muted-foreground/80 border-muted-foreground/50"
           onClick={(e) => {
             e.stopPropagation();
             onTaskSelect(event.taskId, { task_tab: 'worker' });
@@ -490,7 +493,7 @@ export function RunEventLog({ onTaskSelect }: RunEventLogProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="absolute right-1 h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute right-2 top-1 h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={(e) => {
                 e.stopPropagation();
                 onTaskSelect?.(event.taskId);
