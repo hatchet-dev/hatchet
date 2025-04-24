@@ -2,8 +2,9 @@ from typing import List, Dict
 from pydantic import BaseModel
 import requests
 from datetime import datetime, timedelta
+from .hatchet_client import hatchet
 
-def process_image(image_url: str, filters: List[str]) -> Dict:
+async def process_image(image_url: str, filters: List[str]) -> Dict:
     # Do some image processing
     return {"url": image_url, "size": 100, "format": "png"}
 
@@ -27,8 +28,6 @@ class ImageProcessInput(BaseModel):
 class ImageProcessOutput(BaseModel):
     processed_url: str
     metadata: Dict[str, any]
-
-hatchet = Hatchet()
 
 @hatchet.task(
     name="image-processor",
