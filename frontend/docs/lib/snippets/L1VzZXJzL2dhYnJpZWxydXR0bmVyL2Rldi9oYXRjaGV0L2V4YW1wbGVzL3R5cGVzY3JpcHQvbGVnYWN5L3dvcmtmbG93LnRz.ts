@@ -1,3 +1,0 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/examples/typescript/legacy/workflow.ts
-export const content = "import { Workflow } from '@hatchet/workflow';\n\nexport const simple: Workflow = {\n  id: 'legacy-workflow',\n  description: 'test',\n  on: {\n    event: 'user:create',\n  },\n  steps: [\n    {\n      name: 'step1',\n      run: async (ctx) => {\n        const input = ctx.workflowInput();\n\n        return { step1: `original input: ${input.Message}` };\n      },\n    },\n    {\n      name: 'step2',\n      parents: ['step1'],\n      run: (ctx) => {\n        const step1Output = ctx.stepOutput('step1');\n\n        return { step2: `step1 output: ${step1Output.step1}` };\n      },\n    },\n  ],\n};\n";
-export const language = "ts";

@@ -1,3 +1,0 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/examples/typescript/on_failure/workflow.ts
-export const content = "/* eslint-disable no-console */\nimport { hatchet } from '../hatchet-client';\n\n// ❓ On Failure Task\nexport const failureWorkflow = hatchet.workflow({\n  name: 'always-fail',\n});\n\nfailureWorkflow.task({\n  name: 'always-fail',\n  fn: async () => {\n    throw new Error('intentional failure');\n  },\n});\n\nfailureWorkflow.onFailure({\n  name: 'on-failure',\n  fn: async (input, ctx) => {\n    console.log('onFailure for run:', ctx.workflowRunId());\n    return {\n      'on-failure': 'success',\n    };\n  },\n});\n// !!\n";
-export const language = "ts";

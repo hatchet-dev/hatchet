@@ -8,12 +8,6 @@ const __dirname = path.dirname(__filename);
 // Get the project root directory (3 levels up from scripts dir)
 const projectRoot = path.resolve(__dirname, '../../..');
 
-// Create snippets directory if it doesn't exist
-const snippetsDir = path.join(__dirname, '../lib/snippets');
-if (!fs.existsSync(snippetsDir)) {
-  fs.mkdirSync(snippetsDir, { recursive: true });
-}
-
 function cleanQuestionText(text) {
   return text.trim().replace(/❓/g, '').trim();
 }
@@ -26,7 +20,7 @@ function extractQuestions(filePath) {
   // Match both Python (#) and JS/TS (//) style comments followed by ❓ or ?
   const questionRegex = /^[\s]*(\/\/|#).*[❓?]/;
   
-  lines.forEach((line, index) => {
+  lines.forEach((line) => {
     if (questionRegex.test(line)) {
       const comment = line.trim().replace(/^[\s]*(\/\/|#)[\s]*/, '');
       questions.push(cleanQuestionText(comment));
@@ -36,24 +30,12 @@ function extractQuestions(filePath) {
   return questions;
 }
 
-function createSnippetModule(filePath) {
-  // Generate a unique filename based on the path
-  const hash = Buffer.from(filePath).toString('base64').replace(/[/+=]/g, '_');
-  const content = fs.readFileSync(filePath, 'utf8');
-  const ext = path.extname(filePath);
-  const snippetPath = path.join(snippetsDir, `${hash}.ts`);
-  
-  // Create a TypeScript module that exports the content
-  const moduleContent = `// Generated from ${filePath}
-export const content = ${JSON.stringify(content)};
-export const language = ${JSON.stringify(ext.slice(1) || 'txt')};
-`;
-  
-  // Write the module
-  fs.writeFileSync(snippetPath, moduleContent, 'utf8');
-  
-  // Return the module path relative to lib directory
-  return `snippets/${path.basename(snippetPath)}`;
+// Store all snippets in a single map
+const snippetsMap = new Map();
+
+function createSnippetId(filePath) {
+  // Generate a unique ID based on the path
+  return Buffer.from(filePath).toString('base64').replace(/[/+=]/g, '_');
 }
 
 function buildSnipsObject(dir) {
@@ -89,18 +71,27 @@ function processDirectory(dirPath) {
       const fileName = path.basename(item, path.extname(item));
       // Only include specific file types we're interested in
       if (['run', 'worker', 'workflow'].includes(fileName)) {
-        // Create a module for this snippet and get its path
-        const modulePath = createSnippetModule(fullPath);
+        const content = fs.readFileSync(fullPath, 'utf8');
+        const snippetId = createSnippetId(fullPath);
+        const ext = path.extname(fullPath).slice(1) || 'txt';
+        
+        // Store the snippet content and metadata
+        snippetsMap.set(snippetId, {
+          content,
+          language: ext,
+          source: fullPath
+        });
+        
         const questions = extractQuestions(fullPath);
         
-        // Create an object with "*" as the first key
+        // Create an object with "*" as the first key and empty question
         const fileObj = {
-          "*": ":"+modulePath
+          "*": ":"+snippetId
         };
         
-        // Add each question as a key pointing to the same module
+        // Add each question as a key pointing to the same snippetId
         questions.forEach(question => {
-          fileObj[question] = question+":"+modulePath;
+          fileObj[question] = `${question}:${snippetId}`;
         });
         
         result[fileName] = fileObj;
@@ -114,12 +105,31 @@ function processDirectory(dirPath) {
 // Path to examples directory (relative to project root)
 const examplesDir = path.join(projectRoot, 'examples');
 
-// Generate the snips object
+// Generate the snips object and snippets content
 const snips = buildSnipsObject(examplesDir);
 
-// Write the snips object to a file
+// Convert snippetsMap to a regular object for export
+const snippetsContent = Object.fromEntries(snippetsMap);
+
+// Write the combined output file
 const outputPath = path.join(__dirname, '../lib/snips.ts');
 const fileContent = `// This file is auto-generated. Do not edit directly.
+
+// Types for snippets
+type Snippet = {
+  content: string;
+  language: string;
+  source: string;
+};
+
+type Snippets = {
+  [key: string]: Snippet;
+};
+
+// Snippet contents
+export const snippets: Snippets = ${JSON.stringify(snippetsContent, null, 2)} as const;
+
+// Snippet mapping
 const snips = ${JSON.stringify(snips, null, 2)} as const;
 
 export default snips;

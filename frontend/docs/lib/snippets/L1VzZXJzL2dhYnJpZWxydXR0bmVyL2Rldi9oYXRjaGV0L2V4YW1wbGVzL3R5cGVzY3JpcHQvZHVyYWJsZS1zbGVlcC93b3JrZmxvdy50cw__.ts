@@ -1,3 +1,0 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/examples/typescript/durable-sleep/workflow.ts
-export const content = "// import sleep from '@hatchet/util/sleep';\nimport { hatchet } from '../hatchet-client';\n\nexport const durableSleep = hatchet.workflow({\n  name: 'durable-sleep',\n});\n\n// ❓ Durable Sleep\ndurableSleep.durableTask({\n  name: 'durable-sleep',\n  executionTimeout: '10m',\n  fn: async (_, ctx) => {\n    console.log('sleeping for 5s');\n    const sleepRes = await ctx.sleepFor('5s');\n    console.log('done sleeping for 5s', sleepRes);\n\n    return {\n      Value: 'done',\n    };\n  },\n});\n// !!\n";
-export const language = "ts";

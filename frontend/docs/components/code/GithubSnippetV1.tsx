@@ -1,37 +1,33 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { CodeBlock } from "./CodeBlock";
+import snips, { snippets } from "@/lib/snips";
 
 interface GithubSnippetProps {
   src: string;
 }
 
+
+
+// This is a server component that will be rendered at build time
 export const GithubSnippetV1 = ({ src }: GithubSnippetProps) => {
-  const [content, setContent] = useState('');
-  const [language, setLanguage] = useState('txt');
+  if (!src) {
+    throw new Error("src is required");
+  }
+
   const [question, filePath] = src.split(":");
-
-  useEffect(() => {
-    if (!src) {
-      throw new Error("src is required");
-    }
-
-    // Dynamic import of the snippet module
-    import(`@/lib/${filePath}`).then((module) => {
-      setContent(module.content);
-      setLanguage(module.language);
-    }).catch((error) => {
-      console.error('Error loading snippet:', error);
-      setContent(`// Error loading snippet: ${error.message}`);
-    });
-  }, [src]);
-
+  
+  
+  // Get the snippet content from the snippets object
+  const snippet = snippets[filePath];
+  if (!snippet) {
+    throw new Error(`Snippet content not found: ${filePath}`);
+  }
+  
   return (
     <CodeBlock
       source={{
-        raw: content || '// Loading...',
-        language
+        raw: snippet.content,
+        language: snippet.language
       }}
       target={question}
     />
