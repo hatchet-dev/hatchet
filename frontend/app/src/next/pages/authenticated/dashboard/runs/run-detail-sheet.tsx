@@ -151,7 +151,7 @@ const PayloadContent = ({ taskId }: Pick<RunDetailSheetProps, 'taskId'>) => {
       <>
         <RunDataCard
           title="Input"
-          output={(workflow?.input as { input: object })?.input}
+          output={(workflow?.input as { input: object })?.input ?? {}}
           status={workflow?.status}
           variant="input"
         />
