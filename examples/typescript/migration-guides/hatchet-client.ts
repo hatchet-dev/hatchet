@@ -1,3 +1,3 @@
-import { HatchetClient } from '@hatchet/v1';
+import HatchetClient from '@hatchet/sdk';
 
 export const hatchet = HatchetClient.init();
