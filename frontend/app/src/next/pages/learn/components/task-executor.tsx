@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import useDefinitions, {
-  DefinitionsProvider,
-} from '@/next/hooks/use-definitions';
+import useDefinitions from '@/next/hooks/use-definitions';
 import { Button } from '@/next/components/ui/button';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 import { SignInRequiredAction } from './signin-required-action';
@@ -25,9 +23,7 @@ export function TaskExecution(props: TaskExecutionProps) {
       }}
       refetchInterval={1000}
     >
-      <DefinitionsProvider>
-        <TaskExecutionContent {...props} />
-      </DefinitionsProvider>
+      <TaskExecutionContent {...props} />
     </RunsProvider>
   );
 }
