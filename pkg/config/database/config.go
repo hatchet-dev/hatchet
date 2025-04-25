@@ -19,6 +19,11 @@ type ConfigFile struct {
 	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
 
+	ReadReplicaEnabled     bool   `mapstructure:"readReplicaEnabled" json:"readReplicaEnabled,omitempty" default:"false"`
+	ReadReplicaDatabaseURL string `mapstructure:"readReplicaDatabaseUrl" json:"readReplicaDatabaseUrl,omitempty" default:""`
+	ReadReplicaMaxConns    int    `mapstructure:"readReplicaMaxConns" json:"readReplicaMaxConns,omitempty" default:"50"`
+	ReadReplicaMinConns    int    `mapstructure:"readReplicaMinConns" json:"readReplicaMinConns,omitempty" default:"10"`
+
 	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
 	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"10"`
 
@@ -53,6 +58,8 @@ type Layer struct {
 
 	EssentialPool *pgxpool.Pool
 
+	ReadReplicaPool *pgxpool.Pool
+
 	QueuePool *pgxpool.Pool
 
 	APIRepository repository.APIRepository
@@ -78,6 +85,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxQueueConns", "DATABASE_MAX_QUEUE_CONNS")
 	_ = v.BindEnv("minQueueConns", "DATABASE_MIN_QUEUE_CONNS")
+
+	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
+	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")
+	_ = v.BindEnv("readReplicaMaxConns", "READ_REPLICA_MAX_CONNS")
+	_ = v.BindEnv("readReplicaMinConns", "READ_REPLICA_MIN_CONNS")
 
 	_ = v.BindEnv("cacheDuration", "CACHE_DURATION")
 
