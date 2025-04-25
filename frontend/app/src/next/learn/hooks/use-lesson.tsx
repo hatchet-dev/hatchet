@@ -82,7 +82,7 @@ export function LessonProvider<
   );
 
   const stepKeys = Object.keys(lesson.steps) as S[];
-  const currentStepIndex = activeStep ? stepKeys.indexOf(activeStep) : 0;
+  const currentStepIndex = activeStep ? stepKeys.indexOf(activeStep) : -1;
 
   useEffect(() => {
     console.log('activeStep', activeStep);

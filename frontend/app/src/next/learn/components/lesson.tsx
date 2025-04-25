@@ -111,50 +111,74 @@ function LessonContent<
   });
 
   return (
-    <div
-      className="h-[calc(100vh-4rem)] overflow-y-auto p-2 md:p-6"
-      onScroll={() => {
-        if (activeStep === undefined) {
-          setActiveStep(stepKeys[0]);
-        }
-      }}
-    >
-      <div className="mx-auto max-w-5xl">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-stretch bg-card rounded-xl border p-6 md:p-8 md:my-40">
-            <div className="flex flex-col gap-4 w-full">
-              {lesson.intro}
+    <div className="flex flex-col h-full">
+      <div
+        className="h-[calc(100vh-10rem)] overflow-y-auto p-2 md:p-6"
+        onScroll={() => {
+          if (activeStep === undefined) {
+            setActiveStep(stepKeys[0]);
+          }
+        }}
+      >
+        <div className="mx-auto max-w-5xl">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-stretch bg-card rounded-xl border p-6 md:p-8 md:my-40">
+              <div className="flex flex-col gap-4 w-full">
+                {lesson.intro}
 
-              <div className="mt-4 flex justify-between gap-2 items-center">
-                <div className="flex gap-2 items-center">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm text-muted-foreground">
-                    {lesson.duration}
-                  </span>
-                </div>
+                <div className="mt-4 flex justify-between gap-2 items-center">
+                  <div className="flex gap-2 items-center">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-sm text-muted-foreground">
+                      {lesson.duration}
+                    </span>
+                  </div>
 
-                <div className="flex gap-2 items-center">
-                  <Link to={ROUTES.runs.list}>
-                    <Button variant="outline">Skip Tutorial</Button>
-                  </Link>
-                  <Button
-                    onClick={() => {
-                      setActiveStep(stepKeys[0]);
-                    }}
-                  >
-                    Get Started
-                  </Button>
+                  <div className="flex gap-2 items-center">
+                    <Link to={ROUTES.runs.list}>
+                      <Button variant="ghost">Skip Tutorial</Button>
+                    </Link>
+                    <Button
+                      onClick={() => {
+                        setActiveStep(stepKeys[0]);
+                      }}
+                    >
+                      Get Started
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
+            <dl
+              className={cn('flex flex-col gap-4', {
+                'opacity-30': activeStep === undefined,
+              })}
+            >
+              {steps}
+            </dl>
           </div>
-          <dl
-            className={cn('flex flex-col gap-4', {
-              'opacity-30': activeStep === undefined,
-            })}
+        </div>
+      </div>
+      <div className="p-4 bg-background flex flex-row justify-between">
+        <div></div>
+        <div className="flex flex-row gap-2">
+          <Button
+            variant="outline"
+            disabled={currentStepIndex === 0}
+            onClick={() => {
+              setActiveStep(stepKeys[currentStepIndex - 1]);
+            }}
           >
-            {steps}
-          </dl>
+            Prev
+          </Button>
+          <Button
+            disabled={currentStepIndex === stepKeys.length - 1}
+            onClick={() => {
+              setActiveStep(stepKeys[currentStepIndex + 1]);
+            }}
+          >
+            Next
+          </Button>
         </div>
       </div>
     </div>
