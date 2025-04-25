@@ -1,11 +1,7 @@
-import { GithubSnippet, getSnippets } from "@/components/code";
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
+
 import { Callout } from "nextra/components";
-
-export const DurablePy = {
-  path: "examples/durable/worker.py",
-};
-
-export const getStaticProps = ({}) => getSnippets([DurablePy]);
 
 # Durable Execution
 
@@ -29,11 +25,11 @@ Tasks that are declared as being durable (using `durable_task` instead of `task`
 
 Now that we know a bit about how Hatchet handles durable execution, let's build a task. We'll start by declaring a task that will run durably, on the "durable worker".
 
-<GithubSnippet src={DurablePy} target="Create a durable workflow" />
+<Snippet src={snips.python.durable.worker.create_a_durable_workflow} />
 
 Here, we've declared a Hatchet task just like any other. Now, we can add some tasks to it:
 
-<GithubSnippet src={DurablePy} target="Add durable task" />
+<Snippet src={snips.python.durable.worker.add_durable_task} />
 
 We've added two tasks to our workflow. The first is a normal, "ephemeral" task, which does not leverage any of Hatchet's durable features.
 

@@ -1,12 +1,7 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const BulkFanoutWorker = {
-  path: "examples/bulk_fanout/worker.py",
-};
-
-export const getStaticProps = ({}) => getSnippets([BulkFanoutWorker]);
 
 # Tuning Hatchet for Performance
 
@@ -130,7 +125,7 @@ c.Event().BulkPush(
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-<GithubSnippet src={BulkFanoutWorker} target="BulkFanoutParent" />
+<Snippet src={snips.python.bulk_fanout.worker.bulkfanoutparent} />
 
   </Tabs.Tab>
   <Tabs.Tab>

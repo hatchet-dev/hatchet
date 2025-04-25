@@ -2,7 +2,7 @@ import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import InstallCommand from "@/components/InstallCommand";
 import { Snippet } from "@/components/code";
-import snips from '@/lib/snips';
+import snips from "@/lib/snips";
 
 # Mergent Migration Guide
 
@@ -38,7 +38,7 @@ It is recommended to instantiate a shared Hatchet Client in a separate file as a
 
 Create a new file called `hatchet-client.ts` in your project root.
 
-<Snippet src={snips.typescript.hatchet_client['*']} />
+<Snippet src={snips.typescript.hatchet_client["*"]} />
 
 You can now import the Hatchet Client in any file that needs it.
 
@@ -157,13 +157,17 @@ In Mergent the
 #### Before (Mergent)
 The primary way of triggering tasks in Mergent is via the API.
 
-<Snippet src={snips.typescript.migration_guides.mergent.running_a_task_mergent} />
+<Snippet
+  src={snips.typescript.migration_guides.mergent.running_a_task_mergent}
+/>
 
 #### After (Hatchet)
 
 The primary way of triggering tasks in Hatchet is via the SDK.
 
-<Snippet src={snips.typescript.migration_guides.mergent.running_a_task_hatchet} />
+<Snippet
+  src={snips.typescript.migration_guides.mergent.running_a_task_hatchet}
+/>
 
 This offers a fully typed way to trigger tasks, with validation of the input parameters.
 

@@ -3,7 +3,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import snips from "@/lib/snips";
 
-
 # Concurrency Control in Hatchet Tasks
 
 Hatchet provides powerful concurrency control features to help you manage the execution of your tasks. This is particularly useful when you have tasks that may be triggered frequently or have long-running steps, and you want to limit the number of concurrent executions to prevent overloading your system, ensure fairness, or avoid race conditions.
@@ -40,13 +39,23 @@ In addition to setting concurrency limits at the task level, you can also contro
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-    <Snippet src={snips.python.concurrency_limit_rr.worker.concurrency_strategy_with_key} />
+    <Snippet
+      src={
+        snips.python.concurrency_limit_rr.worker.concurrency_strategy_with_key
+      }
+    />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.typescript.concurrency_rr.workflow.concurrency_strategy_with_key} />
+    <Snippet
+      src={
+        snips.typescript.concurrency_rr.workflow.concurrency_strategy_with_key
+      }
+    />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows.concurrency_rr.concurrency_strategy_with_key} />
+    <Snippet
+      src={snips.go.workflows.concurrency_rr.concurrency_strategy_with_key}
+    />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -116,12 +125,20 @@ You can also combine multiple concurrency strategies to create a more complex co
 
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab>
-    <Snippet src={snips.python.concurrency_workflow_level.worker.multiple_concurrency_keys} />
+    <Snippet
+      src={
+        snips.python.concurrency_workflow_level.worker.multiple_concurrency_keys
+      }
+    />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.typescript.concurrency_rr.workflow.multiple_concurrency_keys} />
+    <Snippet
+      src={snips.typescript.concurrency_rr.workflow.multiple_concurrency_keys}
+    />
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows.concurrency_rr.multiple_concurrency_keys} />
+    <Snippet
+      src={snips.go.workflows.concurrency_rr.multiple_concurrency_keys}
+    />
   </Tabs.Tab>
 </UniversalTabs>

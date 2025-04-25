@@ -1,19 +1,7 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const SimpleTs = {
-  path: "src/v1/examples/simple/stub-workflow.ts",
-};
-export const ClientTs = {
-  path: "src/v1/examples/simple/client-run.ts",
-};
-export const EventTs = {
-  path: "src/v1/examples/on_event/event.ts",
-};
-
-export const getStaticProps = ({}) =>
-  getSnippets([SimpleTs, ClientTs, EventTs]);
 
 # Running from External Services
 
@@ -34,9 +22,11 @@ The resulting external workflow reference exposes the same run methods as the wo
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">TODO V1 DOCS</Tabs.Tab>
   <Tabs.Tab title="Typescript">
-    <GithubSnippet
-      src={SimpleTs}
-      target="Declaring an External Workflow Reference"
+    <Snippet
+      src={
+        snips.typescript.simple.stub_workflow
+          .declaring_an_external_workflow_reference
+      }
     />
   </Tabs.Tab>
   <Tabs.Tab title="Go">TODO V1 DOCS</Tabs.Tab>
@@ -56,7 +46,7 @@ The client exposes the same run methods as the workflow declaration on the worke
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">TODO V1 DOCS</Tabs.Tab>
   <Tabs.Tab title="Typescript">
-    <GithubSnippet src={ClientTs} target="Client Run Methods" />
+    <Snippet src={snips.typescript.simple.client_run.client_run_methods} />
   </Tabs.Tab>
   <Tabs.Tab title="Go">TODO V1 DOCS</Tabs.Tab>
 </UniversalTabs>
@@ -68,7 +58,7 @@ The client exposes the same run methods as the workflow declaration on the worke
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">TODO V1 DOCS</Tabs.Tab>
   <Tabs.Tab title="Typescript">
-    <GithubSnippet src={EventTs} target="Pushing an Event" />
+    <Snippet src={snips.typescript.on_event.event.pushing_an_event} />
     <Callout variant="info">
       `push` supports optional input typing for the event payload.
     </Callout>

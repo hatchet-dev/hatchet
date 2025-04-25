@@ -1,12 +1,7 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const DagGo = {
-  path: "examples/v1/workflows/dag.go",
-};
-
-export const getStaticProps = ({}) => getSnippets([DagGo]);
 
 # Declarative Workflow Design (DAGs)
 
@@ -54,7 +49,7 @@ export const simple = hatchet.workflow<DagInput, DagOutput>({
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-<GithubSnippet src={DagGo} target="Declaring a Workflow" />
+<Snippet src={snips.go.workflows.dag.declaring_a_workflow} />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -112,7 +107,7 @@ asynchronous.
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-<GithubSnippet src={DagGo} target="Defining a Task" />
+<Snippet src={snips.go.workflows.dag.defining_a_task} />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -166,7 +161,7 @@ dag.task({
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-<GithubSnippet src={DagGo} target="Adding a Task with a parent" />
+<Snippet src={snips.go.workflows.dag.adding_a_task_with_a_parent} />
 
 </Tabs.Tab>
 </UniversalTabs>

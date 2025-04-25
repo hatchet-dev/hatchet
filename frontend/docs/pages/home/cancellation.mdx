@@ -3,7 +3,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import snips from "@/lib/snips";
 
-
 # Cancellation in Hatchet Tasks
 
 Hatchet provides a mechanism for canceling task executions gracefully, allowing you to signal to running tasks that they should stop running. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency.mdx#cancel_in_progress), which cancels currently running task instances to free up slots for new instances when the concurrency limit is reached.

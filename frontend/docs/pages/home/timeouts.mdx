@@ -1,21 +1,15 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const TimeoutPy = {
-  path: "examples/timeout/worker.py",
-};
-
-export const TimeoutTs = {
-  path: "src/v1/examples/with_timeouts/workflow.ts",
-};
 
 export const TimeoutGo = {
   path: "examples/timeout/main.go",
 };
 
 export const getStaticProps = ({}) =>
-  getSnippets([TimeoutPy, TimeoutTs, TimeoutGo]);
+  getSnippets([TimeoutGo]);
 
 # Timeouts in Hatchet
 
@@ -53,11 +47,11 @@ You can specify execution and scheduling timeouts for a task using the `executio
 
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
-  <GithubSnippet src={TimeoutPy} target="ExecutionTimeout" />
+  <Snippet src={snips.python.timeout.worker.executiontimeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={TimeoutTs} target="Execution Timeout" />
+  <Snippet src={snips.typescript.with_timeouts.workflow.execution_timeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -85,11 +79,11 @@ For example:
 
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
-  <GithubSnippet src={TimeoutPy} target="RefreshTimeout" />
+  <Snippet src={snips.python.timeout.worker.refreshtimeout} />
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={TimeoutTs} target="Refresh Timeout" />
+  <Snippet src={snips.typescript.with_timeouts.workflow.refresh_timeout} />
   </Tabs.Tab>
   <Tabs.Tab>
   <GithubSnippet src={TimeoutGo} target="RefreshTimeout" />
