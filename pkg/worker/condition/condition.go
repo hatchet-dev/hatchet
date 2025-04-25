@@ -134,6 +134,19 @@ func ParentCondition(parent NamedTask, expression string) *parentCondition {
 	}
 }
 
+func (p *parentCondition) ToPB(action contracts.Action) *ConditionMulti {
+	parent := &contracts.ParentOverrideMatchCondition{
+		Base:             p.baseCondition.baseCondition(action),
+		ParentReadableId: p.parentReadableId,
+	}
+
+	return &ConditionMulti{
+		SleepConditions:     nil,
+		UserEventConditions: nil,
+		ParentConditions:    []*contracts.ParentOverrideMatchCondition{parent},
+	}
+}
+
 type orGroup struct {
 	orGroupID  uuid.UUID
 	conditions []Condition

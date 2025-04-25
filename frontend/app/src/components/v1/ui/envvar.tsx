@@ -48,9 +48,13 @@ const EnvGroupArray: React.FC<PropsType> = ({
     const newValues = [...values];
     const entry = newValues[index];
 
-    // If this is an existing secret and we're editing the value, set isEditing to true
-    if (key === 'value' && entry.hint && value !== entry.hint) {
-      newValues[index] = { ...entry, [key]: value, isEditing: true };
+    // If this is an existing secret and we're editing the value
+    if (key === 'value' && entry.hint) {
+      // Only set isEditing to true if the value is different from the hint
+      // and not empty (which would be the case when no changes are made)
+      if (value !== entry.hint && value !== '') {
+        newValues[index] = { ...entry, [key]: value, isEditing: true };
+      }
     } else {
       newValues[index] = { ...entry, [key]: value };
     }
@@ -58,7 +62,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
     setValues(newValues);
 
     // If this is an existing entry (has an ID), notify about updates
-    if (entry.id && onUpdate) {
+    if (entry.id && onUpdate && value !== entry.hint) {
       onUpdate([newValues[index]]);
     }
   };

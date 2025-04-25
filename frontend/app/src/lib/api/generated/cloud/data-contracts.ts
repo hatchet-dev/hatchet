@@ -10,72 +10,6 @@
  * ---------------------------------------------------------------
  */
 
-export enum TemplateOptions {
-  QUICKSTART_PYTHON = "QUICKSTART_PYTHON",
-  QUICKSTART_TYPESCRIPT = "QUICKSTART_TYPESCRIPT",
-  QUICKSTART_GO = "QUICKSTART_GO",
-}
-
-export enum AutoscalingTargetKind {
-  PORTER = "PORTER",
-  FLY = "FLY",
-}
-
-export enum CouponFrequency {
-  Once = "once",
-  Recurring = "recurring",
-}
-
-export enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
-}
-
-export enum ManagedWorkerRegion {
-  Ams = "ams",
-  Arn = "arn",
-  Atl = "atl",
-  Bog = "bog",
-  Bos = "bos",
-  Cdg = "cdg",
-  Den = "den",
-  Dfw = "dfw",
-  Ewr = "ewr",
-  Eze = "eze",
-  Gdl = "gdl",
-  Gig = "gig",
-  Gru = "gru",
-  Hkg = "hkg",
-  Iad = "iad",
-  Jnb = "jnb",
-  Lax = "lax",
-  Lhr = "lhr",
-  Mad = "mad",
-  Mia = "mia",
-  Nrt = "nrt",
-  Ord = "ord",
-  Otp = "otp",
-  Phx = "phx",
-  Qro = "qro",
-  Scl = "scl",
-  Sea = "sea",
-  Sin = "sin",
-  Sjc = "sjc",
-  Syd = "syd",
-  Waw = "waw",
-  Yul = "yul",
-  Yyz = "yyz",
-}
-
-export enum ManagedWorkerEventStatus {
-  IN_PROGRESS = "IN_PROGRESS",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
-}
-
 export interface APICloudMetadata {
   /**
    * whether the tenant can be billed
@@ -291,6 +225,13 @@ export interface ManagedWorkerRuntimeConfig {
   actions?: string[];
 }
 
+export enum ManagedWorkerEventStatus {
+  IN_PROGRESS = 'IN_PROGRESS',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+}
+
 export interface ManagedWorkerEvent {
   id: number;
   /** @format date-time */
@@ -352,6 +293,43 @@ export interface CreateBuildStepRequest {
   dockerfilePath: string;
 }
 
+export enum ManagedWorkerRegion {
+  Ams = 'ams',
+  Arn = 'arn',
+  Atl = 'atl',
+  Bog = 'bog',
+  Bos = 'bos',
+  Cdg = 'cdg',
+  Den = 'den',
+  Dfw = 'dfw',
+  Ewr = 'ewr',
+  Eze = 'eze',
+  Fra = 'fra',
+  Gdl = 'gdl',
+  Gig = 'gig',
+  Gru = 'gru',
+  Hkg = 'hkg',
+  Iad = 'iad',
+  Jnb = 'jnb',
+  Lax = 'lax',
+  Lhr = 'lhr',
+  Mad = 'mad',
+  Mia = 'mia',
+  Nrt = 'nrt',
+  Ord = 'ord',
+  Otp = 'otp',
+  Phx = 'phx',
+  Qro = 'qro',
+  Scl = 'scl',
+  Sea = 'sea',
+  Sin = 'sin',
+  Sjc = 'sjc',
+  Syd = 'syd',
+  Waw = 'waw',
+  Yul = 'yul',
+  Yyz = 'yyz',
+}
+
 export interface CreateManagedWorkerRuntimeConfigRequest {
   /**
    * @min 0
@@ -376,7 +354,7 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    */
   memoryMb: number;
   /** The kind of GPU to use for the worker */
-  gpuKind?: "a10" | "l40s" | "a100-40gb" | "a100-80gb";
+  gpuKind?: 'a10' | 'l40s' | 'a100-40gb' | 'a100-80gb';
   /**
    * The number of GPUs to use for the worker
    * @min 1
@@ -443,6 +421,13 @@ export interface TenantPaymentMethod {
   description?: string;
 }
 
+export enum TenantSubscriptionStatus {
+  Active = 'active',
+  Pending = 'pending',
+  Terminated = 'terminated',
+  Canceled = 'canceled',
+}
+
 export interface Coupon {
   /** The name of the coupon. */
   name: string;
@@ -460,6 +445,11 @@ export interface Coupon {
   frequency_duration_remaining?: number;
   /** The percentage off of the coupon. */
   percent?: number;
+}
+
+export enum CouponFrequency {
+  Once = 'once',
+  Recurring = 'recurring',
 }
 
 export type VectorPushRequest = EventObject[];
@@ -606,6 +596,11 @@ export interface AutoscalingConfig {
   scaleToZero: boolean;
 }
 
+export enum AutoscalingTargetKind {
+  PORTER = 'PORTER',
+  FLY = 'FLY',
+}
+
 export interface CreateOrUpdateAutoscalingRequest {
   waitDuration: string;
   rollingWindowDuration: string;
@@ -622,7 +617,7 @@ export interface CreateOrUpdateAutoscalingRequest {
 
 export interface CreatePorterAutoscalingRequest {
   token: string;
-  targetUrl: "CLOUD" | "DASHBOARD";
+  targetUrl: 'CLOUD' | 'DASHBOARD';
   targetProject: string;
   targetCluster: string;
   targetAppName: string;
@@ -631,6 +626,12 @@ export interface CreatePorterAutoscalingRequest {
 export interface CreateFlyAutoscalingRequest {
   autoscalingKey: string;
   currentReplicas: number;
+}
+
+export enum TemplateOptions {
+  QUICKSTART_PYTHON = 'QUICKSTART_PYTHON',
+  QUICKSTART_TYPESCRIPT = 'QUICKSTART_TYPESCRIPT',
+  QUICKSTART_GO = 'QUICKSTART_GO',
 }
 
 export interface CreateManagedWorkerFromTemplateRequest {

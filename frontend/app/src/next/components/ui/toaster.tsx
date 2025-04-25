@@ -57,12 +57,12 @@ export function Toaster() {
                   </Button>
                 )}
               </div>
-              {error && (
+              {currentError && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-8 px-2"
-                  onClick={() => handleErrorClick(error)}
+                  onClick={() => handleErrorClick(currentError)}
                 >
                   <AlertTriangle className="h-4 w-4" />
                 </Button>

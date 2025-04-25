@@ -62,7 +62,7 @@ export function WorkerId({
   );
 }
 
-export function getFriendlyWorkerId(worker: Worker) {
+function getFriendlyWorkerId(worker: Worker) {
   if (!worker) {
     return '';
   }

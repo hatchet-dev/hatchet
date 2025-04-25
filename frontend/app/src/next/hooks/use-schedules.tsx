@@ -3,8 +3,6 @@ import api, {
   ScheduledWorkflowsList,
   ScheduleWorkflowRunRequest,
   ScheduledRunStatus,
-  ScheduledWorkflowsOrderByField,
-  WorkflowRunOrderByDirection,
 } from '@/lib/api';
 import {
   useMutation,
@@ -30,11 +28,6 @@ export interface SchedulesFilters {
   parentWorkflowRunId?: string;
   parentStepRunId?: string;
   additionalMetadata?: string[];
-}
-
-export interface SchedulesSort {
-  sortBy?: ScheduledWorkflowsOrderByField;
-  sortDirection?: WorkflowRunOrderByDirection;
 }
 
 // Update schedule params

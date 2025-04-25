@@ -17,7 +17,7 @@ interface BreadcrumbContextType {
   setBreadcrumbs: (breadcrumbs: BreadcrumbData[]) => void;
 }
 
-export const BreadcrumbContext = React.createContext<
+const BreadcrumbContext = React.createContext<
   BreadcrumbContextType | undefined
 >(undefined);
 

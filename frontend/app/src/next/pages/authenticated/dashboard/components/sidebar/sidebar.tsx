@@ -63,9 +63,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
-export const iframeHeight = '800px';
-
-export const description = 'An inset sidebar with secondary navigation.';
 
 export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();

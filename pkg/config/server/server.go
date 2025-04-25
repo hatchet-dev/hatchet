@@ -70,6 +70,8 @@ type ServerConfigFile struct {
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
+
+	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -78,6 +80,14 @@ type ConfigFileAdditionalLoggers struct {
 
 	// PgxStats is a custom logger config for the pgx stats service
 	PgxStats shared.LoggerConfigFile `mapstructure:"pgxStats" json:"pgxStats,omitempty"`
+}
+
+type ConfigFileSampling struct {
+	// Enabled controls whether sampling is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	// SamplingRate is the rate at which to sample events. Default is 1.0 to sample all events.
+	SamplingRate float64 `mapstructure:"samplingRate" json:"samplingRate,omitempty" default:"1.0"`
 }
 
 // General server runtime options
@@ -506,6 +516,8 @@ type ServerConfig struct {
 
 	SchedulingPoolV1 *v1.SchedulingPool
 
+	Sampling ConfigFileSampling
+
 	Version string
 }
 
@@ -733,4 +745,7 @@ func BindAllEnv(v *viper.Viper) {
 	// we will fill this in from the server config if it is not set
 	_ = v.BindEnv("runtime.monitoring.tlsRootCAFile", "SERVER_MONITORING_TLS_ROOT_CA_FILE")
 
+	// sampling options
+	_ = v.BindEnv("sampling.enabled", "SERVER_SAMPLING_ENABLED")
+	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
 }

@@ -154,6 +154,10 @@ export const regions = [
     value: ManagedWorkerRegion.Eze,
   },
   {
+    name: 'Frankfurt, Germany',
+    value: ManagedWorkerRegion.Fra,
+  },
+  {
     name: 'Guadalajara, Mexico',
     value: ManagedWorkerRegion.Gdl,
   },

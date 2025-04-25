@@ -333,3 +333,77 @@ V1ReplayTaskRequest:
         maxLength: 36
     filter:
       $ref: "#/V1TaskFilter"
+
+V1TaskTiming:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    depth:
+      type: integer
+      description: The depth of the task in the waterfall.
+    status:
+      $ref: "#/V1TaskStatus"
+    taskDisplayName:
+      type: string
+      description: The display name of the task run.
+    taskExternalId:
+      type: string
+      description: The external ID of the task.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    taskId:
+      type: integer
+      description: The ID of the task.
+    taskInsertedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task was inserted.
+    tenantId:
+      type: string
+      description: The ID of the tenant.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    parentTaskExternalId:
+      type: string
+      description: The external ID of the parent task.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    queuedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run was queued.
+    startedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run started.
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+  required:
+    - metadata
+    - depth
+    - status
+    - taskDisplayName
+    - taskExternalId
+    - taskId
+    - taskInsertedAt
+    - tenantId
+
+V1TaskTimingList:
+  type: object
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1TaskTiming"
+      description: The list of task timings
+  required:
+    - pagination
+    - rows

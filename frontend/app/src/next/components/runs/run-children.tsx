@@ -1,10 +1,8 @@
-import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { useRuns, RunsProvider } from '@/next/hooks/use-runs';
 import { V1TaskSummary, V1WorkflowRun } from '@/lib/api';
 import { PropsWithChildren, useMemo, useState } from 'react';
 import { Button } from '@/next/components/ui/button';
 import { Timeline } from '../timeline';
-import { TimelineProvider } from '@/next/hooks/use-timeline-context';
 import { RunId } from './run-id';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/next/lib/utils';
@@ -209,65 +207,5 @@ function ChildrenList({
         </div>
       )}
     </div>
-  );
-}
-
-interface RunChildrenCardProps {
-  workflow: V1WorkflowRun;
-  parentRun?: V1WorkflowRun;
-  onTaskSelect?: (taskId: string) => void;
-}
-
-export function RunChildrenCardRoot({
-  workflow,
-  parentRun,
-  onTaskSelect,
-}: RunChildrenCardProps) {
-  const { data } = useRunDetail();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  const run = data?.run;
-
-  if (!run) {
-    return <div>Run not found</div>;
-  }
-
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
-  };
-
-  return (
-    <TimelineProvider>
-      <RunsProvider>
-        <div className="flex flex-col gap-y-4 p-4">
-          <HighlightGroup>
-            <RunRow
-              isTitle
-              depth={0}
-              parentRun={parentRun}
-              onClick={() => onTaskSelect?.(workflow.metadata.id)}
-            />
-          </HighlightGroup>
-          {data.tasks.map((task) => (
-            <RunRowWithChildren
-              key={task.metadata.id}
-              run={task}
-              depth={0}
-              expandedIds={expandedIds}
-              toggleExpanded={toggleExpanded}
-              onTaskSelect={onTaskSelect}
-            />
-          ))}
-        </div>
-      </RunsProvider>
-    </TimelineProvider>
   );
 }

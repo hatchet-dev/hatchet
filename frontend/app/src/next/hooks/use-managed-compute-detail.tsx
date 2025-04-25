@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { cloudApi } from '@/lib/api/api';
 import {
@@ -50,10 +50,6 @@ export function ManagedComputeDetailProvider({
 }: ManagedComputeDetailProviderProps) {
   const { toast } = useToast();
 
-  const [refetchInterval, setRefetchInterval] = useState(
-    defaultRefetchInterval,
-  );
-
   const logsQuery = useMemo<ListCloudLogsQuery>(
     () => ({
       before: subDays(new Date(), 1).toISOString(),
@@ -79,7 +75,7 @@ export function ManagedComputeDetailProvider({
         });
       }
     },
-    refetchInterval,
+    refetchInterval: defaultRefetchInterval,
   });
 
   const managedWorkerLogsQuery = useQuery({
@@ -97,7 +93,7 @@ export function ManagedComputeDetailProvider({
         });
       }
     },
-    refetchInterval,
+    refetchInterval: defaultRefetchInterval,
   });
 
   const getCpuMetricsQuery = useQuery({
@@ -116,7 +112,7 @@ export function ManagedComputeDetailProvider({
       }
     },
     enabled: !!managedWorkerId,
-    refetchInterval: refetchInterval,
+    refetchInterval: defaultRefetchInterval,
   });
 
   const getMemoryMetricsQuery = useQuery({
@@ -135,7 +131,7 @@ export function ManagedComputeDetailProvider({
       }
     },
     enabled: !!managedWorkerId,
-    refetchInterval: refetchInterval,
+    refetchInterval: defaultRefetchInterval,
   });
 
   const getDiskMetricsQuery = useQuery({
@@ -154,7 +150,7 @@ export function ManagedComputeDetailProvider({
       }
     },
     enabled: !!managedWorkerId,
-    refetchInterval: refetchInterval,
+    refetchInterval: defaultRefetchInterval,
   });
 
   const value = useMemo(

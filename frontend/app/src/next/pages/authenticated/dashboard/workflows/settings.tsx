@@ -11,8 +11,6 @@ export default function WorkflowGeneralSettings() {
     <>
       <h3 className="text-lg font-semibold mb-4">Trigger</h3>
       <TriggerSettings workflow={workflowVersion} />
-      <h3 className="text-lg font-semibold mb-4">Schedule Timeout</h3>
-      <ScheduleTimeoutSettings workflow={workflowVersion} />
       <h3 className="text-lg font-semibold my-4">Concurrency</h3>
       <ConcurrencySettings workflow={workflowVersion} />
       <h3 className="text-lg font-semibold my-4">Sticky Strategy</h3>
@@ -23,36 +21,12 @@ export default function WorkflowGeneralSettings() {
   );
 }
 
-function ScheduleTimeoutSettings({
-  workflow,
-}: {
-  workflow: WorkflowVersion | undefined;
-}) {
-  if (!workflow?.scheduleTimeout) {
-    return (
-      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
-        No schedule timeout set for this workflow.
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <Input
-        disabled
-        placeholder="Schedule Timeout"
-        value={workflow.scheduleTimeout}
-      />
-    </div>
-  );
-}
-
 function TriggerSettings({
   workflow,
 }: {
   workflow: WorkflowVersion | undefined;
 }) {
-  if (!workflow?.triggers) {
+  if (!workflow?.triggers || Object.keys(workflow.triggers).length === 0) {
     return (
       <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
         There are no trigger settings for this workflow.
