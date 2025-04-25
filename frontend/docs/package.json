@@ -10,7 +10,10 @@
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
-    "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write"
+    "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write",
+    "copy-examples": "node scripts/copy-examples.mjs",
+    "generate-snips": "node scripts/generate-snips.mjs",
+    "generate": "pnpm run copy-examples && pnpm run generate-snips"
   },
   "repository": {
     "type": "git",

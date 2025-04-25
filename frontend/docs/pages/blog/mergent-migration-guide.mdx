@@ -1,0 +1,241 @@
+import { Callout, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
+import { Snippet } from "@/components/code";
+import snips from "@/lib/snips";
+
+# Mergent Migration Guide
+
+As Mergent sunsets its services, we're here to help you seamlessly transition your background jobs and task processing to Hatchet, a modern, scalable platform for task orchestration in TypeScript, Python, and Go.
+
+## Why Choose Hatchet?
+
+Hatchet offers a comprehensive solution for modern distributed task processing:
+
+- **Powerful Task Orchestration**: Build complex workflows using DAGs (Directed Acyclic Graphs) with intuitive code
+- **Durable Execution**: Reliable task processing with automatic retries and state persistence
+- **Advanced Flow Control**: Fine-grained control over concurrency, rate limits, and task priorities
+- **Real-time Observability**: Built-in monitoring dashboard and OpenTelemetry integration
+- **Flexible Deployment**: Run workers anywhere - from serverless to your own infrastructure
+- **Developer-First Experience**: Local development tools and straightforward debugging
+
+Hatchet is trusted by F500s and startups for orchestrating AI, background jobs, and more.
+
+## Migration Steps
+
+### 1. Setting Up Hatchet Client
+
+First, install the Hatchet SDK to your project:
+
+<InstallCommand withLanguagePicker />
+
+#### Instantiate your Hatchet Client
+
+<UniversalTabs items={["Typescript", "Python", "Go"]}>
+<Tabs.Tab title="Typescript">
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a singleton.
+
+Create a new file called `hatchet-client.ts` in your project root.
+
+<Snippet src={snips.typescript.hatchet_client["*"]} />
+
+You can now import the Hatchet Client in any file that needs it.
+
+```typescript copy
+import { hatchet } from "./hatchet-client";
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Python">
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a factory function.
+
+Create a new file called `hatchet-client.py` in your project root.
+
+```python copy
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()
+```
+
+You can now import the Hatchet Client in any file that needs it.
+
+```python copy
+from .hatchet_client import hatchet
+```
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a factory function.
+
+Create a new file called `hatchet-client.go` in your project root.
+
+```go
+package migration_guides
+
+import (
+	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+)
+
+func HatchetClient() (v1.HatchetClient, error) {
+	hatchet, err := v1.NewHatchetClient()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return hatchet, nil
+}
+```
+
+You can now import the Hatchet Client in any file that needs it.
+
+```go
+import (
+	"github.com/your-project/migration_guides"
+)
+
+hatchet, err := migration_guides.HatchetClient()
+if err != nil {
+	panic(err)
+}
+```
+
+</Tabs.Tab>
+</UniversalTabs>
+
+### 2. Converting Mergent Tasks
+
+Let's look at an example of converting a Mergent task to Hatchet. We'll use an image processing task as an example:
+
+<UniversalTabs items={["Typescript", "Python", "Go"]}>
+<Tabs.Tab title="Typescript">
+#### Before (Mergent)
+<Snippet src={snips.typescript.migration_guides.mergent.before_mergent}  />
+
+#### After (Hatchet)
+
+<Snippet src={snips.typescript.migration_guides.mergent.after_hatchet} />
+
+</Tabs.Tab>
+<Tabs.Tab title="Python">
+#### Before (Mergent)
+<Snippet src={snips.python.migration_guides.mergent.before_mergent}  />
+
+#### After (Hatchet)
+
+<Snippet src={snips.python.migration_guides.mergent.after_hatchet} />
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+#### Before (Mergent)
+<Snippet src={snips.go.migration_guides.mergent.before_mergent}  />
+
+#### After (Hatchet)
+
+<Snippet src={snips.go.migration_guides.mergent.after_hatchet} />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+Key differences in the Hatchet implementation:
+
+- **Type Safety**: Hatchet provides built-in type validation using Pydantic/TypeScript/Go types
+- **Step-based Execution**: Tasks are broken down into atomic steps for better observability and retry control
+- **Rich Metadata**: Enhanced return types with additional metadata
+- **Built-in Retries**: Configurable retry policies at the task level
+- **Timeout Control**: Explicit timeout settings to prevent hung tasks
+
+### 3. Migrating Task Triggers
+
+In Mergent the primary way of triggering tasks was via the REST API or in the dashboard.
+
+In Hatchet the primary way of triggering tasks is via the SDK. This offers a fully typed way to trigger tasks, with fully typed outputs of the task.
+
+<UniversalTabs items={["Typescript", "Python", "Go"]}>
+<Tabs.Tab title="Typescript">
+#### Before (Mergent)
+
+<Snippet
+  src={snips.typescript.migration_guides.mergent.running_a_task_mergent}
+/>
+
+#### After (Hatchet)
+
+<Snippet
+  src={snips.typescript.migration_guides.mergent.running_a_task_hatchet}
+/>
+
+</Tabs.Tab>
+<Tabs.Tab title="Python">
+#### Before (Mergent)
+<Snippet src={snips.python.migration_guides.mergent.running_a_task_mergent} />
+
+The primary way of triggering tasks in Hatchet is via the SDK.
+
+<Snippet src={snips.python.migration_guides.mergent.running_a_task_hatchet} />
+
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+#### Before (Mergent)
+<Snippet src={snips.go.migration_guides.mergent.running_a_task_mergent} />
+
+#### After (Hatchet)
+
+<Snippet src={snips.go.migration_guides.mergent.running_a_task_hatchet} />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+### 4. Converting Scheduled Tasks
+
+In Mergent you could schedule tasks to run at a specific time using a cron expression or a fixed time via the dashboard or by adding a delay to the request body.
+
+You can do the same in the Hatchet dashboard or programmatically using the SDK:
+
+<UniversalTabs items={["Typescript", "Python", "Go"]}>
+<Tabs.Tab title="Typescript">
+#### Before (Mergent)
+<Snippet src={snips.typescript.migration_guides.mergent.scheduling_tasks_mergent} />
+
+#### After (Hatchet)
+
+<Snippet src={snips.typescript.migration_guides.mergent.scheduling_tasks_hatchet} />
+</Tabs.Tab>
+<Tabs.Tab title="Python">
+#### Before (Mergent)
+<Snippet src={snips.python.migration_guides.mergent.scheduling_tasks_mergent} />
+
+#### After (Hatchet)
+
+<Snippet src={snips.python.migration_guides.mergent.scheduling_tasks_hatchet} />
+</Tabs.Tab>
+<Tabs.Tab title="Go">
+
+#### After (Hatchet)
+
+<Snippet src={snips.go.migration_guides.mergent.scheduling_tasks_hatchet} />
+</Tabs.Tab>
+</UniversalTabs>
+
+## Worker Differences
+
+In Mergent tasks are processed by an HTTP endpoint. In Hatchet there are two ways to process tasks:
+
+1. **Long-Running Worker** (recommended): Process tasks via a long-running worker
+   a. [Managed by Hatchet](../home/compute) -- fully integrated with the platform and automatically scales with your workload
+   b. [Self-hosted](../home/workers) -- use your own infrastructure to run the worker
+2. **HTTP Endpoint**: Process tasks via an HTTP endpoint via [webhook support (V0 only, V1 coming soon)](https://v0-docs.hatchet.run/home/features/webhooks)
+
+<Callout type="info">
+  Need help migrating? Our team is here to assist with your transition. Join our
+  Discord community or reach out to support@hatchet.run
+</Callout>
+
+## Next Steps
+
+- Review our [comprehensive documentation](../home/workers)
+- Join our [Discord community](https://hatchet.run/discord)
+- Sign up for a [Hatchet Cloud account](https://cloud.onhatchet.run/)

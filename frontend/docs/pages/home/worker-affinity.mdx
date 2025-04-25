@@ -1,16 +1,14 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
-export const WorkerAffinityPy = {
-  path: "examples/affinity_workers/worker.py",
-};
 export const WorkerAffinityTS = {
   path: "src/examples/affinity-workers.ts",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([WorkerAffinityPy, WorkerAffinityTS]);
+export const getStaticProps = ({}) => getSnippets([WorkerAffinityTS]);
 
 # Worker Affinity Assignment (Beta)
 
@@ -29,7 +27,7 @@ Labels can be set on workers when they are registered with Hatchet. Labels are k
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
-<GithubSnippet src={WorkerAffinityPy} target="AffinityWorker" />
+<Snippet src={snips.python.affinity_workers.worker.affinityworker} />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -72,7 +70,7 @@ You can specify desired worker label state for specific tasks in a workflow by s
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
-<GithubSnippet src={WorkerAffinityPy} target="AffinityWorkflow" />
+<Snippet src={snips.python.affinity_workers.worker.affinityworkflow} />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -127,7 +125,7 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
 <UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
-<GithubSnippet src={WorkerAffinityPy} target="AffinityTask" />
+<Snippet src={snips.python.affinity_workers.worker.affinitytask} />
 
   </Tabs.Tab>
   <Tabs.Tab>

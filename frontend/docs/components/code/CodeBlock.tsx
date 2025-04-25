@@ -13,7 +13,7 @@ import {
 
 interface CodeRendererProps {
   source: Src;
-  target: string;
+  target?: string;
 }
 
 export const CodeBlock = ({ source, target }: CodeRendererProps) => {
@@ -23,38 +23,46 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
 
   const parsed = parseDocComments(source.raw, target, collapsed);
 
+  const canCollapse = source.raw.includes("// ...") || source.raw.includes("# ...")
+
   return (
     <>
-      <div className="sticky top-0 z-10 bg-background flex flex-row gap-4 justify-between items-center pl-2 mb-2">
-        <a
-          href={source.githubUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-gray-500 font-mono hover:underline"
-        >
-          {source.props.path}
-        </a>
+      <div className="z-10 bg-background flex flex-row gap-4 justify-between items-center pl-2 mb-2">
+        <div className="flex flex-row gap-2">
+        {source.githubUrl && (
+            <a
+              href={source.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-500 font-mono hover:underline"
+          >
+            {source.props?.path}
+          </a>
+        )}
+        </div>
         <div className="flex gap-2 justify-end">
+        {canCollapse && (
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            {collapsed ? (
-              <>
-                <UnfoldVertical className="w-4 h-4 mr-2" />
-                Expand
-              </>
-            ) : (
-              <>
-                <FoldVertical className="w-4 h-4 mr-2" />
-                Collapse
-              </>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+              size="sm"
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              {collapsed ? (
+                <>
+                  <UnfoldVertical className="w-4 h-4 mr-2" />
+                  Expand
+                </>
+              ) : (
+                <>
+                  <FoldVertical className="w-4 h-4 mr-2" />
+                  Collapse
+                </>
+              )}
+              </Button>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
             onClick={() => {
               navigator.clipboard.writeText(parsed);
               setCopied(true);
@@ -93,7 +101,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
 
       <div className="flex flex-row mt-2 justify-between">
         <div className="flex gap-4">
-          <a href={source.githubUrl} target="_blank" rel="noopener noreferrer">
+          {source.githubUrl && <a href={source.githubUrl} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" size="sm" className="flex flex-row gap-2">
               <svg
                 height="16"
@@ -106,7 +114,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
               View Full Code Example on GitHub{" "}
               <MoveUpRight className="w-3 h-3" />
             </Button>
-          </a>
+          </a>}
         </div>
         <div className="flex gap-4">
           <Button

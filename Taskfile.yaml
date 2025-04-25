@@ -53,6 +53,9 @@ tasks:
         SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
         SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
         EOF
+  pre:
+    cmds:
+      - pre-commit run --all-files
   start-db:
     cmds:
       - docker compose up -d

@@ -1,12 +1,7 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Tabs, Steps, Callout, FileTree } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const SimpleWorker = {
-  path: "examples/simple/worker.py",
-};
-
-export const getStaticProps = ({}) => getSnippets([SimpleWorker]);
 
 # Docker Compose Deployment
 

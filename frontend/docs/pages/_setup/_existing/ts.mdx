@@ -1,5 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
 
 #### Cd into your project directory
 
@@ -9,29 +10,7 @@ cd path-to-your-project
 
 #### Install the Hatchet SDK and required dependencies
 
-<UniversalTabs items={["npm", "pnpm", "yarn"]} optionKey="packageManager">
-  <Tabs.Tab title="npm">
-
-    ```bash copy
-    npm i @hatchet-dev/typescript-sdk && npm i ts-node dotenv typescript --save-dev
-    ```
-
-  </Tabs.Tab>
-  <Tabs.Tab title="pnpm">
-
-    ```bash copy
-    pnpm i @hatchet-dev/typescript-sdk && pnpm i ts-node dotenv typescript --save-dev
-    ```
-
-  </Tabs.Tab>
-  <Tabs.Tab title="yarn">
-
-    ```bash copy
-    yarn add @hatchet-dev/typescript-sdk && yarn add ts-node dotenv typescript --dev
-    ```
-
-  </Tabs.Tab>
-</UniversalTabs>
+<InstallCommand withDevDependencies />
 
 #### Create project directories
 

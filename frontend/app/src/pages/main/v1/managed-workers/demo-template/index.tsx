@@ -314,7 +314,7 @@ print(result)
 import (
 	"fmt"
 
-	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/tasks"
+	v1_workflows "github.com/hatchet-dev/hatchet/examples/go/tasks"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/joho/godotenv"
