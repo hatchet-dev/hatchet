@@ -4,7 +4,7 @@
   "description": "Nextra docs template",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "next dev",
+    "dev": "npm run generate-examples && next dev",
     "build": "npm run generate-examples && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
