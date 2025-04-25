@@ -38,7 +38,7 @@ export enum ManagedServiceDetailTabs {
   CONFIGURATION = 'configuration',
 }
 
-function ServiceDetailPageContent({ workerId }: { workerId: string }) {
+function ServiceDetailPageContent({ workerName }: { workerName: string }) {
   const navigate = useNavigate();
 
   const { data: service } = useManagedComputeDetail();
@@ -69,12 +69,12 @@ function ServiceDetailPageContent({ workerId }: { workerId: string }) {
   return (
     <SheetViewLayout
       sheet={
-        <WorkerDetailProvider workerId={workerId || ''}>
+        <WorkerDetailProvider workerId={workerName || ''}>
           <WorkerDetailSheet
-            isOpen={!!workerId}
+            isOpen={!!workerName}
             onClose={handleCloseSheet}
             serviceName={service?.name || ''}
-            workerId={workerId || ''}
+            workerId={workerName || ''}
           />
         </WorkerDetailProvider>
       }
@@ -129,16 +129,16 @@ function ServiceDetailPageContent({ workerId }: { workerId: string }) {
 }
 
 export default function ServiceDetailPage() {
-  const { serviceName, workerId } = useParams<{
+  const { serviceName, workerName } = useParams<{
     serviceName: string;
-    workerId?: string;
+    workerName?: string;
   }>();
 
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
         <ManagedComputeDetailProvider managedWorkerId={serviceName || ''}>
-          <ServiceDetailPageContent workerId={workerId || ''} />
+          <ServiceDetailPageContent workerName={workerName || ''} />
         </ManagedComputeDetailProvider>
       </WorkersProvider>
     </ManagedComputeProvider>
