@@ -146,6 +146,11 @@ class Action(BaseModel):
 
     @property
     def key(self) -> ActionKey:
+        """
+        This key is used to uniquely identify a single step run by its id + retry count.
+        It's used when storing references to a task, a context, etc. in a dictionary so that
+        we can look up those items in the dictionary by a unique key.
+        """
         if self.action_type == ActionType.START_GET_GROUP_KEY:
             return f"{self.get_group_key_run_id}/{self.retry_count}"
         else:
