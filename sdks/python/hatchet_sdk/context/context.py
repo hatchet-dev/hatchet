@@ -127,15 +127,18 @@ class Context:
     def workflow_run_id(self) -> str:
         return self.action.workflow_run_id
 
+    def _set_cancellation_flag(self) -> None:
+        self.exit_flag = True
+
     def cancel(self) -> None:
         logger.debug("cancelling step...")
         self.runs_client.cancel(self.step_run_id)
-        self.exit_flag = True
+        self._set_cancellation_flag()
 
     async def aio_cancel(self) -> None:
         logger.debug("cancelling step...")
         await self.runs_client.aio_cancel(self.step_run_id)
-        self.exit_flag = True
+        self._set_cancellation_flag()
 
     # done returns true if the context has been cancelled
     def done(self) -> bool:

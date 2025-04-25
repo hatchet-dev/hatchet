@@ -69,15 +69,17 @@ class Runner:
         self.config = config
 
         self.slots = slots
-        self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
-        self.contexts: dict[str, Context] = {}  # Store run ids and contexts
+        self.tasks: dict[tuple[str, int], asyncio.Task[Any]] = (
+            {}
+        )  # Store run ids and futures
+        self.contexts: dict[tuple[str, int], Context] = {}  # Store run ids and contexts
         self.action_registry = action_registry
 
         self.event_queue = event_queue
 
         # The thread pool is used for synchronous functions which need to run concurrently
         self.thread_pool = ThreadPoolExecutor(max_workers=slots)
-        self.threads: Dict[str, Thread] = {}  # Store run ids and threads
+        self.threads: Dict[tuple[str, int], Thread] = {}  # Store run ids and threads
 
         self.killing = False
         self.handle_kill = handle_kill
@@ -118,9 +120,11 @@ class Runner:
                 logger.info(log)
                 asyncio.create_task(self.handle_start_step_run(action))
             case ActionType.CANCEL_STEP_RUN:
-                log = f"cancel: step run:  {action.action_id}/{action.step_run_id}"
+                log = f"cancel: step run:  {action.action_id}/{action.step_run_id}/{action.retry_count}"
                 logger.info(log)
-                asyncio.create_task(self.handle_cancel_action(action.step_run_id))
+                asyncio.create_task(
+                    self.handle_cancel_action(action.step_run_id, action.retry_count)
+                )
             case ActionType.START_GET_GROUP_KEY:
                 log = f"run: get group key:  {action.action_id}/{action.get_group_key_run_id}"
                 logger.info(log)
@@ -133,7 +137,7 @@ class Runner:
         self, action: Action, action_task: "Task[TWorkflowInput, R]"
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
-            self.cleanup_run_id(action.step_run_id)
+            self.cleanup_run_id(action.step_run_id, action.retry_count)
 
             errored = False
             cancelled = task.cancelled()
@@ -182,7 +186,7 @@ class Runner:
         self, action: Action
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
-            self.cleanup_run_id(action.get_group_key_run_id)
+            self.cleanup_run_id(action.get_group_key_run_id, action.retry_count)
 
             errored = False
             cancelled = task.cancelled()
@@ -227,9 +231,11 @@ class Runner:
         self, ctx: Context, task: Task[TWorkflowInput, R], action: Action
     ) -> R:
         if action.step_run_id:
-            self.threads[action.step_run_id] = current_thread()
+            self.threads[(action.step_run_id, action.retry_count)] = current_thread()
         elif action.get_group_key_run_id:
-            self.threads[action.get_group_key_run_id] = current_thread()
+            self.threads[(action.get_group_key_run_id, action.retry_count)] = (
+                current_thread()
+            )
 
         return task.call(ctx)
 
@@ -271,17 +277,20 @@ class Runner:
             )
             raise e
         finally:
-            self.cleanup_run_id(run_id)
+            self.cleanup_run_id(run_id, action.retry_count)
 
-    def cleanup_run_id(self, run_id: str | None) -> None:
-        if run_id in self.tasks:
-            del self.tasks[run_id]
+    def cleanup_run_id(self, run_id: str | None, retry_count: int) -> None:
+        if not run_id:
+            return None
 
-        if run_id in self.threads:
-            del self.threads[run_id]
+        if (run_id, retry_count) in self.tasks:
+            del self.tasks[(run_id, retry_count)]
 
-        if run_id in self.contexts:
-            del self.contexts[run_id]
+        if (run_id, retry_count) in self.threads:
+            del self.threads[(run_id, retry_count)]
+
+        if (run_id, retry_count) in self.contexts:
+            del self.contexts[(run_id, retry_count)]
 
     @overload
     def create_context(
@@ -321,7 +330,7 @@ class Runner:
                 action, True if action_func.is_durable else False
             )
 
-            self.contexts[action.step_run_id] = context
+            self.contexts[(action.step_run_id, action.retry_count)] = context
             self.event_queue.put(
                 ActionEvent(
                     action=action,
@@ -339,7 +348,7 @@ class Runner:
             )
 
             task.add_done_callback(self.step_run_callback(action, action_func))
-            self.tasks[action.step_run_id] = task
+            self.tasks[(action.step_run_id, action.retry_count)] = task
 
             try:
                 await task
@@ -358,7 +367,7 @@ class Runner:
         action_name = action.action_id
         context = self.create_context(action)
 
-        self.contexts[action.get_group_key_run_id] = context
+        self.contexts[(action.get_group_key_run_id, action.retry_count)] = context
 
         # Find the corresponding action function from the registry
         action_func = self.action_registry.get(action_name)
@@ -382,7 +391,7 @@ class Runner:
             )
 
             task.add_done_callback(self.group_key_run_callback(action))
-            self.tasks[action.get_group_key_run_id] = task
+            self.tasks[(action.get_group_key_run_id, action.retry_count)] = task
 
             try:
                 await task
@@ -421,35 +430,35 @@ class Runner:
             logger.exception(f"Failed to terminate thread: {e}")
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    async def handle_cancel_action(self, run_id: str) -> None:
+    async def handle_cancel_action(self, run_id: str, retry_count: int) -> None:
         try:
             # call cancel to signal the context to stop
-            if run_id in self.contexts:
-                context = self.contexts.get(run_id)
+            if (run_id, retry_count) in self.contexts:
+                context = self.contexts.get((run_id, retry_count))
 
                 if context:
-                    await context.aio_cancel()
+                    context._set_cancellation_flag()
 
             await asyncio.sleep(1)
 
-            if run_id in self.tasks:
-                future = self.tasks.get(run_id)
+            if (run_id, retry_count) in self.tasks:
+                future = self.tasks.get((run_id, retry_count))
 
                 if future:
                     future.cancel()
 
             # check if thread is still running, if so, print a warning
-            if run_id in self.threads:
-                thread = self.threads.get(run_id)
+            if (run_id, retry_count) in self.threads:
+                thread = self.threads.get((run_id, retry_count))
                 if thread and self.config.enable_force_kill_sync_threads:
                     self.force_kill_thread(thread)
                     await asyncio.sleep(1)
 
                 logger.warning(
-                    f"Thread {self.threads[run_id].ident} with run id {run_id} is still running after cancellation. This could cause the thread pool to get blocked and prevent new tasks from running."
+                    f"Thread {self.threads[(run_id, retry_count)].ident} with run id {run_id} is still running after cancellation. This could cause the thread pool to get blocked and prevent new tasks from running."
                 )
         finally:
-            self.cleanup_run_id(run_id)
+            self.cleanup_run_id(run_id, retry_count)
 
     def serialize_output(self, output: Any) -> str:
         if isinstance(output, BaseModel):
