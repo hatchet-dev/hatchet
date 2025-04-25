@@ -1,4 +1,4 @@
-import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@hatchet/protoc/dispatcher';
+import { DispatcherClient as PbDispatcherClient, AssignedAction, ActionType } from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -8,6 +8,7 @@ import { Logger } from '@hatchet/util/logger';
 
 import { DispatcherClient } from './dispatcher-client';
 import { Heartbeat } from './heartbeat/heartbeat-controller';
+import { StepRun } from '../rest/generated/data-contracts';
 
 const DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5000; // milliseconds
 const DEFAULT_ACTION_LISTENER_RETRY_COUNT = 20;
@@ -19,6 +20,24 @@ enum ListenStrategy {
 }
 
 export interface Action extends AssignedAction {}
+
+export type ActionKey = string
+
+export function createActionKey(
+  action: Action
+): ActionKey {
+  switch (action.actionType) {
+    case ActionType.START_GET_GROUP_KEY:
+      return `${action.getGroupKeyRunId}/${action.retryCount}`;
+    case ActionType.CANCEL_STEP_RUN:
+    case ActionType.START_STEP_RUN:
+    case ActionType.UNRECOGNIZED:
+      return `${action.stepRunId}/${action.retryCount}`
+    default:
+      const exhaustivenessCheck: never = action.actionType;
+      throw new Error(`Unhandled action type: ${exhaustivenessCheck}`);
+  }
+}
 
 export class ActionListener {
   config: ClientConfig;
