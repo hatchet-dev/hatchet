@@ -129,9 +129,7 @@ class Runner:
                 log = f"unknown action type: {action.action_type}"
                 logger.error(log)
 
-    def step_run_callback(
-        self, action: Action, action_task: "Task[TWorkflowInput, R]"
-    ) -> Callable[[asyncio.Task[Any]], None]:
+    def step_run_callback(self, action: Action) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
 
@@ -335,7 +333,7 @@ class Runner:
                 self.async_wrapped_action_func(context, action_func, action)
             )
 
-            task.add_done_callback(self.step_run_callback(action, action_func))
+            task.add_done_callback(self.step_run_callback(action))
             self.tasks[action.key] = task
 
             try:
