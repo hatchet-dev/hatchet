@@ -17,17 +17,6 @@ updates:
     schedule:
       interval: "daily"
       
-  - package-ecosystem: "npm"
-    directory: "/sdks/typescript/v1/examples/quickstart"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "npm"
-    directory: "/examples/typescript/quickstart"
-    schedule:
-      interval: "daily"
-
-
   - package-ecosystem: "gomod"
     directory: "/examples/go/quickstart"
     schedule:
@@ -37,10 +26,5 @@ updates:
 
   - package-ecosystem: "pip"
     directory: "/examples/python/quickstart"
-    schedule:
-      interval: "daily"
-
-  - package-ecosystem: "pip"
-    directory: "/sdks/python/examples/quickstart"
     schedule:
       interval: "daily"
