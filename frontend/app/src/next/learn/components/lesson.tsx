@@ -110,10 +110,17 @@ function LessonContent<
   });
 
   return (
-    <div className="h-[calc(100vh-4rem)] overflow-y-auto p-2 md:p-6">
+    <div
+      className="h-[calc(100vh-4rem)] overflow-y-auto p-2 md:p-6"
+      onScroll={() => {
+        if (activeStep === undefined) {
+          setActiveStep(stepKeys[0]);
+        }
+      }}
+    >
       <div className="mx-auto max-w-5xl">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-stretch bg-card rounded-xl border p-6 md:p-8 my-40">
+          <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-stretch bg-card rounded-xl border p-6 md:p-8 md:my-40">
             <div className="flex flex-col gap-4 w-full">
               {lesson.intro}
 

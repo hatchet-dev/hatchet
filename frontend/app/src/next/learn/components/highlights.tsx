@@ -1,6 +1,6 @@
 import { SupportedLanguage } from './lesson-plan';
 import { useLesson } from '../hooks/use-lesson';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { cn } from '@/next/lib/utils';
 
 export type Highlights<
@@ -25,7 +25,6 @@ export function Highlight<F extends string>({
   children: React.ReactNode;
 }) {
   const { setActiveStep, codeKeyFrames, setHighlights } = useLesson();
-  const [, setHasHovered] = useState(false);
 
   const setActive = useCallback(() => {
     // Get the first step key from the frame's keyframe mapping
@@ -46,7 +45,7 @@ export function Highlight<F extends string>({
         'underline underline-offset-4 decoration-dotted decoration-2 decoration-muted-foreground decoration-offset-4',
       )}
       onClick={() => {
-        // setActive();
+        setActive();
       }}
       onMouseEnter={() => {
         setHighlights(codeKeyFrames[frame]);

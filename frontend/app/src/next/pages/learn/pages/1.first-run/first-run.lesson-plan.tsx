@@ -113,16 +113,32 @@ export const lessonPlan: LessonPlan<
 
 function IntroStep() {
   return (
-    <>
-      <CardTitle>Learn Hatchet in 5 minutes</CardTitle>
-      <CardDescription>
-        Hatchet is a platform for building and running distributed applications.{' '}
-        <br />
-        <br />
-        This lesson will walk you through the process of setting up your
-        environment and running your first task.
-      </CardDescription>
-    </>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+      <div className="order-2 md:order-1 space-y-4">
+        <h2 className="text-2xl font-bold">
+          Your Fast Track to Distributed Applications 🚀
+        </h2>
+        <p className="text-base text-muted-foreground">
+          Dive into Hatchet, the ultimate platform for orchestrating distributed
+          tasks with ease.
+        </p>
+        <p className="text-base text-muted-foreground font-medium">
+          In this quick tutorial, you will:
+        </p>
+        <ul className="list-disc pl-6 space-y-2 text-base text-muted-foreground">
+          <li>Set up your environment in minutes</li>
+          <li>Write and register your first task</li>
+          <li>Run and monitor tasks seamlessly</li>
+          <li>Gain insights into workflow execution</li>
+        </ul>
+        <p className="text-base text-muted-foreground font-medium">
+          Ready to level up your distributed applications? Let's go!
+        </p>
+      </div>
+      <div className="order-1 md:order-2 flex items-center justify-center bg-gray-100 rounded-lg w-full aspect-video">
+        <span className="text-muted-foreground">[Graphic Placeholder]</span>
+      </div>
+    </div>
   );
 }
 
