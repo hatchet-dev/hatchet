@@ -8,7 +8,7 @@ import {
   CardDescription,
 } from '@/next/components/ui/card';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';

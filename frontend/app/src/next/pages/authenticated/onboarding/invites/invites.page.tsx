@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle } from '@/next/components/ui/card';
 import { formatDistance } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { TenantBlock } from '../../dashboard/components/sidebar/user-dropdown';
 import { TenantInvite } from '@/lib/api';
 

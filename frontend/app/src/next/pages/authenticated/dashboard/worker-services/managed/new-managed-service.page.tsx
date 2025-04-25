@@ -9,7 +9,7 @@ import {
   HeadlineActions,
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
 import {

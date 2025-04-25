@@ -12,7 +12,7 @@ import {
   CardDescription,
 } from '@/next/components/ui/card';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import useUser from '@/next/hooks/use-user';
 import { useCallback } from 'react';
 import { FaDice } from 'react-icons/fa';

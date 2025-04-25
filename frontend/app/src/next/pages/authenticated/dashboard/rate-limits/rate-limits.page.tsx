@@ -9,7 +9,7 @@ import {
 import { Separator } from '@/next/components/ui/separator';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { ColumnDef } from '@tanstack/react-table';
 import {
   Pagination,

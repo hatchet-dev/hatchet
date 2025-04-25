@@ -1,7 +1,7 @@
 import { Button } from '@/next/components/ui/button';
 import { Time } from '@/next/components/ui/time';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import {
   Table,
   TableBody,

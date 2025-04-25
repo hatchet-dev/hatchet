@@ -1,7 +1,7 @@
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import { QueryClientProvider } from '@tanstack/react-query';
-import queryClient from './lib/query-client.tsx';
+import queryClient from './lib/utils/query-client.tsx';
 import Router from './router.tsx';
 import * as Sentry from '@sentry/react';
 

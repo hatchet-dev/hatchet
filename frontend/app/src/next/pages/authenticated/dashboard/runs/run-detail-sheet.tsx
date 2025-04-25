@@ -4,7 +4,7 @@ import { RunDataCard } from '@/next/components/runs/run-output-card';
 import { InfoSheet } from '@/next/components/ui/info-sheet';
 import { RunId } from '@/next/components/runs/run-id';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { V1TaskStatus, V1WorkflowType } from '@/lib/api';
 import {
   Tabs,

@@ -41,7 +41,7 @@ import {
 } from '@/next/components/ui/filters/filters';
 import { AdditionalMetadata } from '@/next/components/ui/additional-meta';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 
 export default function CronJobsTable({
   onCreateClicked,

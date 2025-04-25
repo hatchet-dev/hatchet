@@ -14,7 +14,7 @@ import {
   PageTitle,
 } from '@/next/components/ui/page-header';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { Separator } from '@/next/components/ui/separator';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Button } from '@/next/components/ui/button';

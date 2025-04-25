@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react';
-import docMetadata from '@/next/docs-meta-data';
+import docMetadata from '@/next/lib/docs';
 
 export const pages = docMetadata;
 

@@ -10,7 +10,7 @@ import {
   HeadlineActions,
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerDetailSheet } from '../components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
