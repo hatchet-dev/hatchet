@@ -13,6 +13,27 @@ if (!fs.existsSync(generatedDir)) {
   fs.mkdirSync(generatedDir, { recursive: true });
 }
 
+// Copy snips.ts to docs directory
+function copySnipsToDocsDir() {
+  const sourceSnipsFile = path.resolve(docsDir, '..', 'lib', 'snips.ts');
+  const targetDir = path.resolve(generatedDir);
+
+  // Create target directory if it doesn't exist
+  if (!fs.existsSync(targetDir)) {
+    fs.mkdirSync(targetDir, { recursive: true });
+  }
+
+  const targetSnipsFile = path.resolve(targetDir, 'snips.ts');
+
+  // Copy the file
+  if (fs.existsSync(sourceSnipsFile)) {
+    fs.copyFileSync(sourceSnipsFile, targetSnipsFile);
+    console.log(`Copied snips.ts to ${targetSnipsFile}`);
+  } else {
+    console.error(`Source snips file not found: ${sourceSnipsFile}`);
+  }
+}
+
 // Keep track of found meta files for generating the index
 const metaFiles: { importName: string; importPath: string }[] = [];
 
@@ -325,5 +346,8 @@ export { ${metaFiles.map((file) => file.importName).join(', ')} };
 
 // Write the index file
 fs.writeFileSync(path.join(generatedDir, 'index.ts'), indexContent, 'utf8');
+
+// Copy snips to docs directory
+copySnipsToDocsDir();
 
 console.log(`Generated ${metaFiles.length} meta files in ${generatedDir}`);

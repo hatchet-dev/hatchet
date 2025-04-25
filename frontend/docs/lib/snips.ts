@@ -512,18 +512,10 @@ export const snippets: Snippets = {
     "highlights": {}
   },
   "L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc2ltcGxlL3dvcmtmbG93LnRz": {
-    "content": "// ❓ Declaring a Task\nimport sleep from '@hatchet-dev/typescript-sdk/util/sleep';\nimport { hatchet } from '../hatchet-client';\n\n// (optional) Define the input type for the workflow\n\nexport type SimpleInput = {\n  Message: string;\n};\n\nexport const simple = hatchet.task({\n  name: 'simple',\n  retries: 3,\n  fn: async (input: SimpleInput, ctx) => {\n    ctx.log('hello from the workflow');\n    await sleep(100);\n    ctx.log('goodbye from the workflow');\n    await sleep(100);\n    if (ctx.retryCount() < 2) {\n      throw new Error('test error');\n    }\n    return {\n      TransformedMessage: input.Message.toLowerCase(),\n    };\n  },\n});\n\n// see ./worker.ts and ./run.ts for how to run the workflow\n",
+    "content": "// ❓ Declaring a Task\nimport sleep from '@hatchet-dev/typescript-sdk/util/sleep';\nimport { hatchet } from '../hatchet-client';\n\n// (optional) Define the input type for the workflow\nexport type SimpleInput = {\n  Message: string;\n};\n\nexport const simple = hatchet.task({\n  name: 'simple',\n  retries: 3,\n  fn: async (input: SimpleInput, ctx) => {\n    ctx.log('hello from the workflow');\n    await sleep(100);\n    ctx.log('goodbye from the workflow');\n    await sleep(100);\n    if (ctx.retryCount() < 2) {\n      throw new Error('test error');\n    }\n    return {\n      TransformedMessage: input.Message.toLowerCase(),\n    };\n  },\n});\n\n// see ./worker.ts and ./run.ts for how to run the workflow\n",
     "language": "ts",
     "source": "examples/typescript/simple/workflow.ts",
     "highlights": {
-      "input": {
-        "lines": [
-          6
-        ],
-        "strings": [
-          "input"
-        ]
-      },
       "retries": {
         "lines": [
           9,

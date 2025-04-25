@@ -14,7 +14,7 @@
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
     "preview": "vite preview",
-    "generate:docs": "tsx src/next/lib/docs/generate-meta.ts && pnpm run lint:fix"
+    "sync-docs": "tsx src/next/lib/docs/sync-docs.ts && pnpm run lint:fix"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

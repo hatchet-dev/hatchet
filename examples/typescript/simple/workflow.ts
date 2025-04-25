@@ -3,7 +3,6 @@ import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
-
 export type SimpleInput = {
   Message: string;
 };

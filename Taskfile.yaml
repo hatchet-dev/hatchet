@@ -188,5 +188,6 @@ tasks:
       - pre-commit run --all-files || pre-commit run --all-files
   docs:
     cmds:
-      - npx serve -l 4001 &
+      - |
+        npx chokidar "sdks/**/*.{py,ts,go}" --ignore "**/node_modules/**" --ignore "**/.git/**" --initial -c "cd frontend/docs/ && pnpm run generate-examples && cd ../app/ && pnpm run sync-docs" &
       - cd frontend/docs/ && pnpm run dev
