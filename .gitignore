@@ -31,6 +31,8 @@ node_modules
 # Jetbrains IDEs
 *.iml
 
+.eslintcache
+
 # Local docs directories
 /docs/.obsidian
 
