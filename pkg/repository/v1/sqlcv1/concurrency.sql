@@ -115,10 +115,10 @@ WHERE
     step_id = @stepId::uuid AND
     id = @strategyId::bigint;
 
--- name: ConcurrencyAdvisoryLock :exec
+-- name: AdvisoryLock :exec
 SELECT pg_advisory_xact_lock(@key::bigint);
 
--- name: TryConcurrencyAdvisoryLock :one
+-- name: TryAdvisoryLock :one
 SELECT pg_try_advisory_xact_lock(@key::bigint) AS "locked";
 
 -- name: RunParentGroupRoundRobin :exec

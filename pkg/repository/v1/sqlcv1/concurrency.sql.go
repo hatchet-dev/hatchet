@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const advisoryLock = `-- name: AdvisoryLock :exec
+SELECT pg_advisory_xact_lock($1::bigint)
+`
+
+func (q *Queries) AdvisoryLock(ctx context.Context, db DBTX, key int64) error {
+	_, err := db.Exec(ctx, advisoryLock, key)
+	return err
+}
+
 const checkStrategyActive = `-- name: CheckStrategyActive :one
 WITH latest_workflow_version AS (
     SELECT DISTINCT ON("workflowId")
@@ -97,15 +106,6 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	var isActive bool
 	err := row.Scan(&isActive)
 	return isActive, err
-}
-
-const concurrencyAdvisoryLock = `-- name: ConcurrencyAdvisoryLock :exec
-SELECT pg_advisory_xact_lock($1::bigint)
-`
-
-func (q *Queries) ConcurrencyAdvisoryLock(ctx context.Context, db DBTX, key int64) error {
-	_, err := db.Exec(ctx, concurrencyAdvisoryLock, key)
-	return err
 }
 
 const getWorkflowConcurrencyQueueCounts = `-- name: GetWorkflowConcurrencyQueueCounts :many
@@ -1667,12 +1667,12 @@ func (q *Queries) SetConcurrencyStrategyInactive(ctx context.Context, db DBTX, a
 	return err
 }
 
-const tryConcurrencyAdvisoryLock = `-- name: TryConcurrencyAdvisoryLock :one
+const tryAdvisoryLock = `-- name: TryAdvisoryLock :one
 SELECT pg_try_advisory_xact_lock($1::bigint) AS "locked"
 `
 
-func (q *Queries) TryConcurrencyAdvisoryLock(ctx context.Context, db DBTX, key int64) (bool, error) {
-	row := db.QueryRow(ctx, tryConcurrencyAdvisoryLock, key)
+func (q *Queries) TryAdvisoryLock(ctx context.Context, db DBTX, key int64) (bool, error) {
+	row := db.QueryRow(ctx, tryAdvisoryLock, key)
 	var locked bool
 	err := row.Scan(&locked)
 	return locked, err
