@@ -9,6 +9,8 @@ import {
 } from '@/next/learn/components/lesson-plan';
 import { cn } from '@/next/lib/utils';
 import { Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 export function Lesson<
   S extends string,
@@ -38,10 +40,9 @@ function LessonContent<
     stepCardsRef,
   } = useLesson();
 
-  const steps = Object.entries(lesson.steps).map(([key, step], i) => {
+  const steps = Object.entries(lesson.steps).map(([key, step], stepIndex) => {
     const typedStep = step as LessonStep;
     const isActive = key === activeStep;
-    const stepIndex = stepKeys.indexOf(key as S);
     const languageCode = typedStep.githubCode?.[language as SupportedLanguage];
 
     return (
@@ -62,7 +63,7 @@ function LessonContent<
                 <Button
                   variant={isActive ? 'default' : 'outline'}
                   onClick={() => {
-                    setActiveStep(stepKeys[i + 1]);
+                    setActiveStep(stepKeys[stepIndex + 1]);
                   }}
                 >
                   Continue
@@ -133,14 +134,9 @@ function LessonContent<
                 </div>
 
                 <div className="flex gap-2 items-center">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setActiveStep(stepKeys[currentStepIndex - 1]);
-                    }}
-                  >
-                    Skip Tutorial
-                  </Button>
+                  <Link to={ROUTES.runs.list}>
+                    <Button variant="outline">Skip Tutorial</Button>
+                  </Link>
                   <Button
                     onClick={() => {
                       setActiveStep(stepKeys[0]);

@@ -85,16 +85,22 @@ export function LessonProvider<
   const currentStepIndex = activeStep ? stepKeys.indexOf(activeStep) : 0;
 
   useEffect(() => {
-    const activeBlock = activeStep ? codeBlocksRef.current[activeStep] : null;
+    console.log('activeStep', activeStep);
+    const activeBlock = activeStep ? stepCardsRef.current[activeStep] : null;
+
+    console.log('activeBlock', activeBlock);
 
     // Add scroll margin to both elements
-    if (activeBlock) {
-      activeBlock.style.scrollMarginTop = '2rem';
-      activeBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!activeBlock) {
+      return;
     }
+
+    activeBlock.style.scrollMarginTop = '2rem';
+    activeBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [activeStep]);
 
   const setActiveStep = (step: S) => {
+    console.log('setting active step', step);
     setActiveStepState(step);
   };
 
