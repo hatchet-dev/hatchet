@@ -31,4 +31,4 @@ Import the generated docs metadata in your application:
 import * as docs from 'src/next/lib/docs';
 // or
 import { root, blog, home } from 'src/next/lib/docs';
-``` 
+```

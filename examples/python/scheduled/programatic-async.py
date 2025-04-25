@@ -4,7 +4,6 @@ from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
-
 async def create_scheduled() -> None:
     # ❓ Create
     scheduled_run = await hatchet.scheduled.aio_create(
@@ -19,18 +18,14 @@ async def create_scheduled() -> None:
     )
 
     scheduled_run.metadata.id  # the id of the scheduled run trigger
-    # !!
 
     # ❓ Delete
     await hatchet.scheduled.aio_delete(scheduled_id=scheduled_run.metadata.id)
-    # !!
 
     # ❓ List
     await hatchet.scheduled.aio_list()
-    # !!
 
     # ❓ Get
     scheduled_run = await hatchet.scheduled.aio_get(
         scheduled_id=scheduled_run.metadata.id
     )
-    # !!

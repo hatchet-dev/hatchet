@@ -43,8 +43,28 @@ const IGNORE_LIST = [
 // Text replacements to perform on copied files
 const REPLACEMENTS = [
     {
-        from: '@hatchet/v1',
+        from: '@hatchet',
         to: '@hatchet-dev/typescript-sdk'
+    }
+];
+
+// Patterns to remove from code files
+const REMOVAL_PATTERNS = [
+    {
+        regex: /^\s*(\/\/|#)\s*HH-.*$/gm,
+        description: "HH- style comments"
+    },
+    {
+        regex: /^\s*(\/\/|#)\s*!!\s*$/gm,
+        description: "End marker comments"
+    },
+    {
+        regex: /^\s*\/\*\s*eslint-.*\*\/$/gm,
+        description: "ESLint disable block comments"
+    },
+    {
+        regex: /\s*(\/\/|#)\s*eslint-disable-next-line.*$/gm,
+        description: "ESLint disable line comments"
     }
 ];
 
@@ -110,18 +130,38 @@ async function removeDirectoryContents(dir) {
     }
 }
 
+function filterSpecialComments(content) {
+    let filteredContent = content;
+
+    for (const pattern of REMOVAL_PATTERNS) {
+        filteredContent = filteredContent.replace(pattern.regex, '');
+    }
+
+    // Remove any resulting empty lines
+    filteredContent = filteredContent.replace(/\n\s*\n/g, '\n\n');
+
+    return filteredContent;
+}
+
 async function processFileContent(filePath) {
     try {
         let content = await fs.readFile(filePath, 'utf8');
         let hasChanges = false;
 
+        // Apply text replacements
         for (const { from, to } of REPLACEMENTS) {
             const regex = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
             if (content.match(regex)) {
                 content = content.replace(regex, to);
                 hasChanges = true;
-                console.log(`Replaced "${from}" with "${to}" in ${filePath}`);
             }
+        }
+
+        // Filter out special comments
+        const filteredContent = filterSpecialComments(content);
+        if (filteredContent !== content) {
+            content = filteredContent;
+            hasChanges = true;
         }
 
         if (hasChanges) {
@@ -156,7 +196,7 @@ async function copyDirectory(source, destination) {
             } else {
                 // Copy files
                 await fs.copyFile(sourcePath, destPath);
-                // Process the copied file for replacements
+                // Process the copied file for replacements and filtering
                 await processFileContent(destPath);
             }
         }

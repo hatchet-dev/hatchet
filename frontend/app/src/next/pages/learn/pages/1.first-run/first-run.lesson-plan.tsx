@@ -203,8 +203,8 @@ function SetupStep() {
         <Code
           title="cli"
           language={'bash'}
-          value={`git clone https://github.com/${lessonPlan.codeBlockDefaults.repos[language]} && 
-cd ${lessonPlan.codeBlockDefaults.repos[language].split('/').pop()} && 
+          value={`git clone https://github.com/${lessonPlan.codeBlockDefaults.repos[language]} &&
+cd ${lessonPlan.codeBlockDefaults.repos[language].split('/').pop()} &&
 ${commands.install}
 `}
         />

@@ -1,5 +1,5 @@
 // ❓ Declaring a Task
-import sleep from '@hatchet/util/sleep';
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -18,6 +18,5 @@ export const cancellation = hatchet.task({
     };
   },
 });
-// !!
 
 // see ./worker.ts and ./run.ts for how to run the workflow

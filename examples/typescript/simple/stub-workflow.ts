@@ -25,4 +25,3 @@ simple.run({ Message: 'Hello, World!' });
 simple.runNoWait({ Message: 'Hello, World!' });
 simple.schedule(new Date(), { Message: 'Hello, World!' });
 simple.cron('my-cron', '0 0 * * *', { Message: 'Hello, World!' });
-// !!

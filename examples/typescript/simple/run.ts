@@ -1,16 +1,23 @@
-/* eslint-disable no-console */
+
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 
 async function main() {
   // ❓ Running a Task
-  const res = await simple.run({
-    Message: 'HeLlO WoRlD',
-  });
+  const res = await simple.run(
+    {
+      Message: 'HeLlO WoRlD',
+    },
+    {
+      additionalMetadata: {
+        test: 'test',
+      },
+    }
+  );
 
   // 👀 Access the results of the Task
   console.log(res.TransformedMessage);
-  // !!
+
 }
 
 export async function extra() {
@@ -27,7 +34,6 @@ export async function extra() {
 
   console.log(results[0].TransformedMessage);
   console.log(results[1].TransformedMessage);
-  // !!
 
   // ❓ Spawning Tasks from within a Task
   const parent = hatchet.task({
@@ -43,7 +49,7 @@ export async function extra() {
       };
     },
   });
-  // !!
+
 }
 
 if (require.main === module) {

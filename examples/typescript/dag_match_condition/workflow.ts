@@ -1,5 +1,5 @@
-import sleep from '@hatchet/util/sleep';
-import { Or } from '@hatchet-dev/typescript-sdk/conditions';
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
+import { Or } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { hatchet } from '../hatchet-client';
 
 type DagInput = {};

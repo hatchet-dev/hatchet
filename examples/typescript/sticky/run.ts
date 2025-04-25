@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+
 import { retries } from '../retries/workflow';
 
 async function main() {

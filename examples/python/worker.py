@@ -23,7 +23,6 @@ from hatchet_sdk import Hatchet
 
 hatchet = Hatchet(debug=True)
 
-
 def main() -> None:
     worker = hatchet.worker(
         "e2e-test-worker",
@@ -59,7 +58,6 @@ def main() -> None:
     )
 
     worker.start()
-
 
 if __name__ == "__main__":
     main()

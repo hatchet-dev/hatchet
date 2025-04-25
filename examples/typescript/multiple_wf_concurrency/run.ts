@@ -15,12 +15,8 @@ async function main() {
       GroupKey: 'B',
     },
   ]);
-
-  // eslint-disable-next-line no-console
   console.log(res[0]['to-lower'].TransformedMessage);
-  // eslint-disable-next-line no-console
   console.log(res[1]['to-lower'].TransformedMessage);
-  // eslint-disable-next-line no-console
   console.log(res[2]['to-lower'].TransformedMessage);
 }
 

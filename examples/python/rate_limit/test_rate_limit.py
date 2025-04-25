@@ -5,7 +5,6 @@ import pytest
 
 from examples.rate_limit.worker import rate_limit_workflow
 
-
 @pytest.mark.skip(reason="The timing for this test is not reliable")
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run() -> None:

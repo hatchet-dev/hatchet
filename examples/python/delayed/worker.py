@@ -6,10 +6,8 @@ from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-
 class PrinterInput(BaseModel):
     message: str
-
 
 print_schedule_wf = hatchet.workflow(
     name="PrintScheduleWorkflow",
@@ -18,7 +16,6 @@ print_schedule_wf = hatchet.workflow(
 print_printer_wf = hatchet.workflow(
     name="PrintPrinterWorkflow", input_validator=PrinterInput
 )
-
 
 @print_schedule_wf.task()
 def schedule(input: PrinterInput, ctx: Context) -> None:
@@ -29,13 +26,11 @@ def schedule(input: PrinterInput, ctx: Context) -> None:
 
     print_printer_wf.schedule(future_time, input=input)
 
-
 @print_schedule_wf.task()
 def step1(input: PrinterInput, ctx: Context) -> None:
     now = datetime.now()
     print(f"printed at \t {now.strftime('%H:%M:%S')}")
     print(f"message \t {input.message}")
-
 
 def main() -> None:
     worker = hatchet.worker(
@@ -43,7 +38,6 @@ def main() -> None:
     )
 
     worker.start()
-
 
 if __name__ == "__main__":
     main()

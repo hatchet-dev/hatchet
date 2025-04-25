@@ -1,4 +1,4 @@
-import { WorkflowInputType, WorkflowOutputType } from '@hatchet-dev/typescript-sdk';
+import { WorkflowInputType, WorkflowOutputType } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 
 interface DagInput extends WorkflowInputType {

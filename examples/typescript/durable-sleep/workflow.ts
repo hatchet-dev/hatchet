@@ -1,4 +1,4 @@
-// import sleep from '@hatchet/util/sleep';
+// import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 export const durableSleep = hatchet.workflow({
@@ -19,4 +19,3 @@ durableSleep.durableTask({
     };
   },
 });
-// !!

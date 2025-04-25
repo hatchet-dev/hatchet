@@ -1,5 +1,5 @@
 // ❓ Declaring a Task
-import sleep from '@hatchet/util/sleep';
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -31,7 +31,6 @@ export const withTimeouts = hatchet.task({
     };
   },
 });
-// !!
 
 // ❓ Refresh Timeout
 export const refreshTimeout = hatchet.task({
@@ -57,4 +56,3 @@ export const refreshTimeout = hatchet.task({
     };
   },
 });
-// !!

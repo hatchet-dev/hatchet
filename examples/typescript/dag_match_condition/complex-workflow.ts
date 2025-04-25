@@ -1,13 +1,12 @@
 // ❓ Create a workflow
-import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/conditions';
-import { ParentCondition } from '@hatchet-dev/typescript-sdk/conditions/parent-condition';
-import { Context } from '@hatchet/step';
+import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
+import { ParentCondition } from '@hatchet-dev/typescript-sdk/v1/conditions/parent-condition';
+import { Context } from '@hatchet-dev/typescript-sdk/step';
 import { hatchet } from '../hatchet-client';
 
 export const taskConditionWorkflow = hatchet.workflow({
   name: 'TaskConditionWorkflow',
 });
-// !!
 
 // ❓ Add base task
 const start = taskConditionWorkflow.task({
@@ -18,7 +17,6 @@ const start = taskConditionWorkflow.task({
     };
   },
 });
-// !!
 
 // ❓ Add wait for sleep
 const waitForSleep = taskConditionWorkflow.task({
@@ -31,7 +29,6 @@ const waitForSleep = taskConditionWorkflow.task({
     };
   },
 });
-// !!
 
 // ❓ Add skip on event
 const skipOnEvent = taskConditionWorkflow.task({
@@ -45,7 +42,6 @@ const skipOnEvent = taskConditionWorkflow.task({
     };
   },
 });
-// !!
 
 // ❓ Add branching
 const leftBranch = taskConditionWorkflow.task({
@@ -69,7 +65,6 @@ const rightBranch = taskConditionWorkflow.task({
     };
   },
 });
-// !!
 
 // ❓ Add wait for event
 const waitForEvent = taskConditionWorkflow.task({
@@ -82,7 +77,6 @@ const waitForEvent = taskConditionWorkflow.task({
     };
   },
 });
-// !!
 
 // ❓ Add sum
 taskConditionWorkflow.task({
@@ -101,4 +95,3 @@ taskConditionWorkflow.task({
     };
   },
 });
-// !!

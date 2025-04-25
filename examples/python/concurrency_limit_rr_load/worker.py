@@ -12,10 +12,8 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-
 class LoadRRInput(BaseModel):
     group: str
-
 
 load_rr_workflow = hatchet.workflow(
     name="LoadRoundRobin",
@@ -28,12 +26,10 @@ load_rr_workflow = hatchet.workflow(
     input_validator=LoadRRInput,
 )
 
-
 @load_rr_workflow.on_failure_task()
 def on_failure(input: LoadRRInput, context: Context) -> dict[str, str]:
     print("on_failure")
     return {"on_failure": "on_failure"}
-
 
 @load_rr_workflow.task()
 def step1(input: LoadRRInput, context: Context) -> dict[str, str]:
@@ -41,7 +37,6 @@ def step1(input: LoadRRInput, context: Context) -> dict[str, str]:
     time.sleep(random.randint(2, 20))
     print("finished step1")
     return {"step1": "step1"}
-
 
 @load_rr_workflow.task(
     retries=3,
@@ -56,7 +51,6 @@ def step2(sinput: LoadRRInput, context: Context) -> dict[str, str]:
     print("finished step2")
     return {"step2": "step2"}
 
-
 @load_rr_workflow.task()
 def step3(input: LoadRRInput, context: Context) -> dict[str, str]:
     print("starting step3")
@@ -64,14 +58,12 @@ def step3(input: LoadRRInput, context: Context) -> dict[str, str]:
     print("finished step3")
     return {"step3": "step3"}
 
-
 def main() -> None:
     worker = hatchet.worker(
         "concurrency-demo-worker-rr", slots=50, workflows=[load_rr_workflow]
     )
 
     worker.start()
-
 
 if __name__ == "__main__":
     main()

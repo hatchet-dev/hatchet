@@ -12,12 +12,10 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-
 # ❓ Workflow
 class WorkflowInput(BaseModel):
     run: int
     group_key: str
-
 
 concurrency_limit_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflow",
@@ -31,13 +29,11 @@ concurrency_limit_workflow = hatchet.workflow(
 
 # ‼️
 
-
 @concurrency_limit_workflow.task()
 def step1(input: WorkflowInput, ctx: Context) -> dict[str, Any]:
     time.sleep(3)
     print("executed step1")
     return {"run": input.run}
-
 
 def main() -> None:
     worker = hatchet.worker(
@@ -45,7 +41,6 @@ def main() -> None:
     )
 
     worker.start()
-
 
 if __name__ == "__main__":
     main()

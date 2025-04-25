@@ -13,14 +13,11 @@ from hatchet_sdk.opentelemetry.instrumentor import (
 instrumentor = HatchetInstrumentor(tracer_provider=trace_provider)
 tracer = trace_provider.get_tracer(__name__)
 
-
 def create_additional_metadata() -> dict[str, str]:
     return inject_traceparent_into_metadata({"hello": "world"})
 
-
 def create_push_options() -> PushEventOptions:
     return PushEventOptions(additional_metadata=create_additional_metadata())
-
 
 def push_event() -> None:
     print("\npush_event")
@@ -31,14 +28,12 @@ def push_event() -> None:
             options=create_push_options(),
         )
 
-
 async def async_push_event() -> None:
     print("\nasync_push_event")
     with tracer.start_as_current_span("async_push_event"):
         await hatchet.event.aio_push(
             "otel:event", {"test": "test"}, options=create_push_options()
         )
-
 
 def bulk_push_event() -> None:
     print("\nbulk_push_event")
@@ -58,7 +53,6 @@ def bulk_push_event() -> None:
             ],
         )
 
-
 async def async_bulk_push_event() -> None:
     print("\nasync_bulk_push_event")
     with tracer.start_as_current_span("bulk_push_event"):
@@ -77,7 +71,6 @@ async def async_bulk_push_event() -> None:
             ],
         )
 
-
 def run_workflow() -> None:
     print("\nrun_workflow")
     with tracer.start_as_current_span("run_workflow"):
@@ -87,7 +80,6 @@ def run_workflow() -> None:
             ),
         )
 
-
 async def async_run_workflow() -> None:
     print("\nasync_run_workflow")
     with tracer.start_as_current_span("async_run_workflow"):
@@ -96,7 +88,6 @@ async def async_run_workflow() -> None:
                 additional_metadata=create_additional_metadata()
             ),
         )
-
 
 def run_workflows() -> None:
     print("\nrun_workflows")
@@ -116,7 +107,6 @@ def run_workflows() -> None:
             ],
         )
 
-
 async def async_run_workflows() -> None:
     print("\nasync_run_workflows")
     with tracer.start_as_current_span("async_run_workflows"):
@@ -135,7 +125,6 @@ async def async_run_workflows() -> None:
             ],
         )
 
-
 async def main() -> None:
     push_event()
     await async_push_event()
@@ -145,7 +134,6 @@ async def main() -> None:
     # await async_run_workflow()
     run_workflows()
     # await async_run_workflows()
-
 
 if __name__ == "__main__":
     asyncio.run(main())

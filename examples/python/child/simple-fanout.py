@@ -7,9 +7,8 @@ from hatchet_sdk.runnables.types import EmptyModel
 
 hatchet = Hatchet(debug=True)
 
-
 # ❓ Running a Task from within a Task
-@hatchet.task(name="SpawnTask")
+@hatchet-dev/typescript-sdk.task(name="SpawnTask")
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     # Simply run the task with the input we received
     result = await child_task.aio_run(
@@ -17,6 +16,5 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     )
 
     return {"results": result}
-
 
 # ‼️

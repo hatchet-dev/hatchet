@@ -17,16 +17,12 @@ scheduled_run = hatchet.scheduled.create(
 )
 
 id = scheduled_run.metadata.id  # the id of the scheduled run trigger
-# !!
 
 # ❓ Delete
 hatchet.scheduled.delete(scheduled_id=scheduled_run.metadata.id)
-# !!
 
 # ❓ List
 scheduled_runs = hatchet.scheduled.list()
-# !!
 
 # ❓ Get
 scheduled_run = hatchet.scheduled.get(scheduled_id=scheduled_run.metadata.id)
-# !!

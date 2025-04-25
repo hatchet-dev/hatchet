@@ -8,15 +8,12 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-
 # ❓ Use the lifespan in a task
 class TaskOutput(BaseModel):
     num_rows: int
     external_ids: list[UUID]
 
-
 lifespan_workflow = hatchet.workflow(name="LifespanWorkflow")
-
 
 @lifespan_workflow.task()
 def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
@@ -36,10 +33,6 @@ def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
             external_ids=[cast(UUID, row[0]) for row in rows],
         )
 
-
-# !!
-
-
 @lifespan_workflow.task()
 async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
     pool = cast(Lifespan, ctx.lifespan).pool
@@ -58,14 +51,12 @@ async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
             external_ids=[cast(UUID, row[0]) for row in rows],
         )
 
-
 # ❓ Define a lifespan
 class Lifespan(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     foo: str
     pool: ConnectionPool
-
 
 async def lifespan() -> AsyncGenerator[Lifespan, None]:
     print("Running lifespan!")
@@ -77,16 +68,12 @@ async def lifespan() -> AsyncGenerator[Lifespan, None]:
 
     print("Cleaning up lifespan!")
 
-
 worker = hatchet.worker(
     "test-worker", slots=1, workflows=[lifespan_workflow], lifespan=lifespan
 )
-# !!
-
 
 def main() -> None:
     worker.start()
-
 
 if __name__ == "__main__":
     main()

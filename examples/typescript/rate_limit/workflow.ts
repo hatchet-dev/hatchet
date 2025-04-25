@@ -1,4 +1,4 @@
-import { RateLimitDuration } from '@hatchet/protoc/v1/workflows';
+import { RateLimitDuration } from '@hatchet-dev/typescript-sdk/protoc/v1/workflows';
 import { hatchet } from '../hatchet-client';
 
 // ❓ Upsert Rate Limit
@@ -7,7 +7,6 @@ hatchet.ratelimits.upsert({
   limit: 10,
   duration: RateLimitDuration.SECOND,
 });
-// !!
 
 // ❓ Static
 const RATE_LIMIT_KEY = 'api-service-rate-limit';
@@ -25,8 +24,6 @@ const task1 = hatchet.task({
   },
 });
 
-// !!
-
 // ❓ Dynamic
 const task2 = hatchet.task({
   name: 'task2',
@@ -42,4 +39,3 @@ const task2 = hatchet.task({
     },
   ],
 });
-// !!

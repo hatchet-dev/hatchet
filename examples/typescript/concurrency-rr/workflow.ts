@@ -1,4 +1,4 @@
-import { ConcurrencyLimitStrategy } from '@hatchet/workflow';
+import { ConcurrencyLimitStrategy } from '@hatchet-dev/typescript-sdk/workflow';
 import { hatchet } from '../hatchet-client';
 
 type SimpleInput = {
@@ -26,7 +26,6 @@ export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
     expression: 'input.GroupKey',
   },
 });
-// !!
 
 simpleConcurrency.task({
   name: 'to-lower',
@@ -54,7 +53,6 @@ export const multipleConcurrencyKeys = hatchet.workflow<SimpleInput, SimpleOutpu
     },
   ],
 });
-// !!
 
 multipleConcurrencyKeys.task({
   name: 'to-lower',

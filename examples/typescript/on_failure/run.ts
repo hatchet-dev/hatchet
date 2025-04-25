@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+
 import { failureWorkflow } from './workflow';
 
 async function main() {

@@ -3,11 +3,9 @@ from hatchet_sdk.labels import DesiredWorkerLabel
 
 hatchet = Hatchet(debug=True)
 
-
 # ❓ AffinityWorkflow
 
 affinity_worker_workflow = hatchet.workflow(name="AffinityWorkflow")
-
 
 @affinity_worker_workflow.task(
     desired_worker_labels={
@@ -22,7 +20,6 @@ affinity_worker_workflow = hatchet.workflow(name="AffinityWorkflow")
 
 # ‼️
 
-
 # ❓ AffinityTask
 async def step(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     if ctx.worker.labels().get("model") != "fancy-ai-model-v2":
@@ -32,9 +29,7 @@ async def step(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 
     return {"worker": ctx.worker.id()}
 
-
 # ‼️
-
 
 def main() -> None:
 
@@ -49,7 +44,6 @@ def main() -> None:
         workflows=[affinity_worker_workflow],
     )
     worker.start()
-
 
 # ‼️
 

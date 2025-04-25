@@ -9,11 +9,9 @@ from hatchet_sdk.context.context import Context
 
 from .hatchet_client import hatchet
 
-
 async def process_image(image_url: str, filters: List[str]) -> Dict[str, Any]:
     # Do some image processing
     return {"url": image_url, "size": 100, "format": "png"}
-
 
 # ❓ Before (Mergent)
 async def process_image_task(request: Any) -> Dict[str, Any]:
@@ -26,22 +24,16 @@ async def process_image_task(request: Any) -> Dict[str, Any]:
         print(f"Image processing failed: {e}")
         raise
 
-
-# !!
-
-
 # ❓ After (Hatchet)
 class ImageProcessInput(BaseModel):
     image_url: str
     filters: List[str]
 
-
 class ImageProcessOutput(BaseModel):
     processed_url: str
     metadata: Dict[str, Any]
 
-
-@hatchet.task(
+@hatchet-dev/typescript-sdk.task(
     name="image-processor",
     retries=3,
     execution_timeout="10m",
@@ -62,10 +54,6 @@ async def image_processor(input: ImageProcessInput, ctx: Context) -> ImageProces
             "applied_filters": input.filters,
         },
     )
-
-
-# !!
-
 
 async def run() -> None:
     # ❓ Running a task (Mergent)
@@ -96,7 +84,6 @@ async def run() -> None:
         print(response.json())
     except Exception as e:
         print(f"Error: {e}")
-    # !!
 
     # ❓ Running a task (Hatchet)
     result = await image_processor.aio_run(
@@ -105,8 +92,6 @@ async def run() -> None:
 
     # you can await fully typed results
     print(result)
-    # !!
-
 
 async def schedule() -> None:
     # ❓ Scheduling tasks (Mergent)
@@ -117,7 +102,6 @@ async def schedule() -> None:
             "delay": "5m"
         }
     }
-    # !!
 
     print(options)
 
@@ -135,4 +119,3 @@ async def schedule() -> None:
         "0 * * * *",
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"]),
     )
-    # !!

@@ -3,10 +3,12 @@ import sleep from '@hatchet/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
+// HH-input 1 input
 export type SimpleInput = {
   Message: string;
 };
-
+// HH-retries 4
+// HH-func 3 input,ctx
 export const simple = hatchet.task({
   name: 'simple',
   retries: 3,

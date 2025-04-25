@@ -12,7 +12,6 @@ logging_workflow = hatchet.workflow(
     name="LoggingWorkflow",
 )
 
-
 @logging_workflow.task()
 def root_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
     for i in range(12):
@@ -23,11 +22,9 @@ def root_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
     return {"status": "success"}
 
-
 # ‼️
 
 # ❓ ContextLogger
-
 
 @logging_workflow.task()
 def context_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
@@ -38,6 +35,5 @@ def context_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
         time.sleep(0.1)
 
     return {"status": "success"}
-
 
 # ‼️

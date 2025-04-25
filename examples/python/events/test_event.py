@@ -3,20 +3,17 @@ import pytest
 from hatchet_sdk.clients.events import BulkPushEventOptions, BulkPushEventWithMetadata
 from hatchet_sdk.hatchet import Hatchet
 
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_event_push(hatchet: Hatchet) -> None:
     e = hatchet.event.push("user:create", {"test": "test"})
 
     assert e.eventId is not None
 
-
 @pytest.mark.asyncio(loop_scope="session")
 async def test_async_event_push(hatchet: Hatchet) -> None:
     e = await hatchet.event.aio_push("user:create", {"test": "test"})
 
     assert e.eventId is not None
-
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_async_event_bulk_push(hatchet: Hatchet) -> None:

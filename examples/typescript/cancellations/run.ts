@@ -1,6 +1,6 @@
-/* eslint-disable no-console */
+
 // ❓ Running a Task with Results
-import sleep from '@hatchet/util/sleep';
+import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { cancellation } from './workflow';
 import { hatchet } from '../hatchet-client';
 // ...
@@ -40,7 +40,7 @@ async function main() {
 
   const res3 = await Promise.all([run2.output, run4.output]);
   console.log(res3);
-  // !!
+
 }
 
 if (require.main === module) {

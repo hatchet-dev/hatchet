@@ -1,4 +1,4 @@
-// import sleep from '@hatchet/util/sleep';
+// import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 // ❓ Durable Event
@@ -17,7 +17,6 @@ export const durableEvent = hatchet.durableTask({
     };
   },
 });
-// !!
 
 export const durableEventWithFilter = hatchet.durableTask({
   name: 'durable-event-with-filter',
@@ -28,7 +27,6 @@ export const durableEventWithFilter = hatchet.durableTask({
       eventKey: 'user:update',
       expression: "input.userId == '1234'",
     });
-    // !!
 
     console.log('res', res);
 
@@ -37,4 +35,3 @@ export const durableEventWithFilter = hatchet.durableTask({
     };
   },
 });
-// !!

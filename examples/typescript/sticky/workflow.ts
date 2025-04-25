@@ -1,5 +1,5 @@
-/* eslint-disable no-console */
-import { StickyStrategy } from '@hatchet/protoc/workflows';
+
+import { StickyStrategy } from '@hatchet-dev/typescript-sdk/protoc/workflows';
 import { hatchet } from '../hatchet-client';
 import { child } from '../child_workflows/workflow';
 
@@ -23,4 +23,3 @@ export const sticky = hatchet.task({
     };
   },
 });
-// !!

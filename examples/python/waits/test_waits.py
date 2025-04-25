@@ -6,7 +6,6 @@ import pytest
 from examples.waits.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
 
-
 @pytest.mark.skipif(
     os.getenv("CI", "false").lower() == "true",
     reason="Skipped in CI because of unreliability",

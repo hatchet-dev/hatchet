@@ -6,8 +6,6 @@ async function main() {
   const scheduled = await simple.delay(tomorrow, {
     Message: 'hello',
   });
-
-  // eslint-disable-next-line no-console
   console.log(scheduled.metadata.id);
 
   await hatchet.schedules.delete(scheduled);

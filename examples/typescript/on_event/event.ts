@@ -6,9 +6,6 @@ async function main() {
   const res = await hatchet.events.push<Input>('simple-event:create', {
     Message: 'hello',
   });
-  // !!
-
-  // eslint-disable-next-line no-console
   console.log(res.eventId);
 }
 

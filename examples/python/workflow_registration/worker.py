@@ -12,7 +12,6 @@ wf_five = hatchet.workflow(name="wf_five")
 
 # define tasks here
 
-
 def main() -> None:
     # 👀 Register workflows directly when instantiating the worker
     worker = hatchet.worker("test-worker", slots=1, workflows=[wf_one, wf_two])
@@ -24,7 +23,6 @@ def main() -> None:
     worker.register_workflows([wf_four, wf_five])
 
     worker.start()
-
 
 # ‼️
 

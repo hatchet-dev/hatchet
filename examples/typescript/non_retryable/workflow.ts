@@ -1,4 +1,4 @@
-import { NonRetryableError } from '@hatchet-dev/typescript-sdk/task';
+import { NonRetryableError } from '@hatchet-dev/typescript-sdk/v1/task';
 import { hatchet } from '../hatchet-client';
 
 export const nonRetryableWorkflow = hatchet.workflow({
@@ -13,7 +13,6 @@ const shouldNotRetry = nonRetryableWorkflow.task({
   },
   retries: 1,
 });
-// !!
 
 // Create a task that should retry
 const shouldRetryWrongErrorType = nonRetryableWorkflow.task({

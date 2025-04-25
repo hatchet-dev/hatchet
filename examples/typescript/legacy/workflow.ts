@@ -1,4 +1,4 @@
-import { Workflow } from '@hatchet/workflow';
+import { Workflow } from '@hatchet-dev/typescript-sdk/workflow';
 
 export const simple: Workflow = {
   id: 'legacy-workflow',

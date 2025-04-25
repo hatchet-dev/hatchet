@@ -8,18 +8,15 @@ hatchet = Hatchet(debug=True)
 
 streaming_workflow = hatchet.workflow(name="StreamingWorkflow")
 
-
 @streaming_workflow.task()
 async def step1(input: EmptyModel, ctx: Context) -> None:
     for i in range(10):
         await asyncio.sleep(1)
         ctx.put_stream(f"Processing {i}")
 
-
 def main() -> None:
     worker = hatchet.worker("test-worker", workflows=[streaming_workflow])
     worker.start()
-
 
 # ‼️
 

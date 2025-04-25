@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+
 import { hatchet } from '../hatchet-client';
 
 // ❓ Simple Step Retries
@@ -9,7 +9,6 @@ export const retries = hatchet.task({
     throw new Error('intentional failure');
   },
 });
-// !!
 
 // ❓ Retries with Count
 export const retriesWithCount = hatchet.task({
@@ -30,7 +29,6 @@ export const retriesWithCount = hatchet.task({
     };
   },
 });
-// !!
 
 // ❓ Retries with Backoff
 export const withBackoff = hatchet.task({
@@ -47,4 +45,3 @@ export const withBackoff = hatchet.task({
     throw new Error('intentional failure');
   },
 });
-// !!

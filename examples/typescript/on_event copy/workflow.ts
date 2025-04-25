@@ -18,7 +18,6 @@ export const lower = hatchet.workflow<Input, LowerOutput>({
     event: 'simple-event:create',
   },
 });
-// !!
 
 lower.task({
   name: 'lower',

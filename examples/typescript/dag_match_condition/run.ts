@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+
 import { dagWithConditions } from './workflow';
 
 async function main() {

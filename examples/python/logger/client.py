@@ -1,6 +1,5 @@
 # ❓ RootLogger
 
-
 import logging
 
 from hatchet_sdk import ClientConfig, Hatchet

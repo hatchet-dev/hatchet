@@ -10,7 +10,6 @@ hatchet = Hatchet(debug=True)
 dedupe_parent_wf = hatchet.workflow(name="DedupeParent")
 dedupe_child_wf = hatchet.workflow(name="DedupeChild")
 
-
 @dedupe_parent_wf.task(execution_timeout=timedelta(minutes=1))
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
     print("spawning child")
@@ -37,7 +36,6 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
 
     return {"results": result}
 
-
 @dedupe_child_wf.task()
 async def process(input: EmptyModel, ctx: Context) -> dict[str, str]:
     await asyncio.sleep(3)
@@ -45,19 +43,16 @@ async def process(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("child process")
     return {"status": "success"}
 
-
 @dedupe_child_wf.task()
 async def process2(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("child process2")
     return {"status2": "success"}
-
 
 def main() -> None:
     worker = hatchet.worker(
         "fanout-worker", slots=100, workflows=[dedupe_parent_wf, dedupe_child_wf]
     )
     worker.start()
-
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,4 @@
-/* eslint-disable no-plusplus */
+
 // ❓ Declaring a Child
 import { hatchet } from '../hatchet-client';
 
@@ -14,7 +14,6 @@ export const child = hatchet.task({
     };
   },
 });
-// !!
 
 // ❓ Declaring a Parent
 
@@ -40,4 +39,3 @@ export const parent = hatchet.task({
     };
   },
 });
-// !!

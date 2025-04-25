@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 
@@ -16,18 +16,16 @@ async function main() {
   // in a database or other persistent storage for later use
   const scheduledRunId = scheduled.metadata.id;
   console.log(scheduledRunId);
-  // !!
 
   // ❓ Delete a Scheduled Run
   await hatchet.schedules.delete(scheduled);
-  // !!
 
   // ❓ List Scheduled Runs
   const scheduledRuns = await hatchet.schedules.list({
     workflowId: simple.id,
   });
   console.log(scheduledRuns);
-  // !!
+
 }
 
 if (require.main === module) {

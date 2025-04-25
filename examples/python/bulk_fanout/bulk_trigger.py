@@ -6,7 +6,6 @@ from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
 hatchet = Hatchet()
 
-
 async def main() -> None:
     results = bulk_parent_wf.run_many(
         workflows=[
@@ -25,7 +24,6 @@ async def main() -> None:
 
     for result in results:
         print(result)
-
 
 if __name__ == "__main__":
     asyncio.run(main())

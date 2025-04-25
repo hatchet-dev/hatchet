@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+
 import { hatchet } from '../hatchet-client';
 
 // ❓ On Failure Task
@@ -22,4 +22,3 @@ failureWorkflow.onFailure({
     };
   },
 });
-// !!

@@ -1,14 +1,12 @@
-import { Priority } from '@hatchet-dev/typescript-sdk';
+import { Priority } from '@hatchet-dev/typescript-sdk/v1';
 import { priority } from './workflow';
 
-/* eslint-disable no-console */
 async function main() {
   try {
     console.log('running priority workflow');
 
     // ❓ Run a Task with a Priority
     const run = priority.run(new Date(Date.now() + 60 * 60 * 1000), { priority: Priority.HIGH });
-    // !!
 
     // ❓ Schedule and cron
     const scheduled = priority.schedule(
@@ -23,12 +21,11 @@ async function main() {
       {},
       { priority: Priority.HIGH }
     );
-    // !!
 
     const [scheduledResult, delayedResult] = await Promise.all([scheduled, delayed]);
     console.log('scheduledResult', scheduledResult);
     console.log('delayedResult', delayedResult);
-    // !!
+
   } catch (e) {
     console.log('error', e);
   }
