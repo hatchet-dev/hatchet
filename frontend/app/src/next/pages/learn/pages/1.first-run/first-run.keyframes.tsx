@@ -17,7 +17,7 @@ export const codeKeyFrames: Highlights<
 > = {
   typescript: {
     client: {
-      setup: {
+      client: {
         lines: [3],
       },
     },

@@ -1,4 +1,7 @@
-import snips, { Snippet as StdSnippet, snippets } from './generated/snips';
+import originalSnips, {
+  Snippet as StdSnippet,
+  snippets,
+} from './generated/snips';
 
 type Snippet = StdSnippet & {
   key: string;
@@ -41,9 +44,9 @@ function transformSnips<T extends object>(obj: T): Snip<T> {
 }
 
 // Transform the original snips object
-const transformedSnips = transformSnips(snips);
+const snips = transformSnips(originalSnips);
 
 // Export the transformed object
-export { transformedSnips };
+export { snips };
 
-export default transformedSnips;
+export default snips;

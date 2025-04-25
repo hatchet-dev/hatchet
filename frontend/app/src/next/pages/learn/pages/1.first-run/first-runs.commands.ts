@@ -14,7 +14,7 @@ export interface CommandConfig extends SharedCommandConfig {
 const shared: Record<SupportedLanguage, SharedCommandConfig> = {
   typescript: {
     repo: 'hatchet-ts-quickstart',
-    clone: `git clone https://github.com/hatchet-dev/hatchet-ts-quickstart &&\ncd hatchet-ts-quickstart`,
+    clone: `git clone https://github.com/hatchet-dev/hatchet-typescript-quickstart &&\ncd hatchet-typescript-quickstart`,
   },
   python: {
     repo: 'hatchet-python-quickstart',
@@ -48,31 +48,31 @@ export const commands: Commands<CommandConfig> = {
   poetry: {
     ...shared.python,
     install: 'poetry install',
-    startWorker: 'poetry run python main.py',
-    runTask: 'poetry run python main.py',
+    startWorker: 'poetry run python worker.py',
+    runTask: 'poetry run python run.py',
   },
   uv: {
     ...shared.python,
     install: 'pip install -r requirements.txt',
-    startWorker: 'python main.py',
-    runTask: 'python main.py',
+    startWorker: 'python worker.py',
+    runTask: 'python run.py',
   },
   pip: {
     ...shared.python,
     install: 'pip install -r requirements.txt',
-    startWorker: 'python main.py',
-    runTask: 'python main.py',
+    startWorker: 'python worker.py',
+    runTask: 'python run.py',
   },
   pipenv: {
     ...shared.python,
     install: 'pipenv install',
-    startWorker: 'pipenv run python main.py',
-    runTask: 'pipenv run python main.py',
+    startWorker: 'pipenv run python worker.py',
+    runTask: 'pipenv run python run.py',
   },
   go: {
     ...shared.go,
     install: 'go mod tidy',
-    startWorker: 'go run main.go',
-    runTask: 'go run main.go',
+    startWorker: 'go run cmd/worker/main.go',
+    runTask: 'go run cmd/run/main.go',
   },
 };

@@ -37,6 +37,7 @@ function LessonContent<
     currentStepIndex,
     codeBlocksRef,
     stepCardsRef,
+    highlights,
   } = useLesson();
 
   const steps = Object.entries(lesson.steps).map(([key, step], stepIndex) => {
@@ -76,9 +77,12 @@ function LessonContent<
           ref={(el) => (codeBlocksRef.current[key as S] = el)}
         >
           <div>
+            {/* TODO: Add highlight strings */}
             <Card className="shadow-none border-none bg-transparent">
               <CardContent className="space-y-6 py-0 px-0">
                 <Snippet
+                  highlightLines={highlights[key as S]?.lines}
+                  // highlightStrings={highlights[key as S]?.strings}
                   src={
                     typedStep.code?.[language as SupportedLanguage]?.key || ''
                   }

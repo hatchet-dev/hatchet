@@ -4,6 +4,7 @@ import { snippets } from '@/next/lib/docs/snips';
 interface GithubSnippetProps {
   src: string;
   highlightLines?: number[];
+  highlightStrings?: string[];
   showLineNumbers?: boolean;
   title?: string;
 }
@@ -27,7 +28,8 @@ export const Snippet = ({ src, ...props }: GithubSnippetProps) => {
       <CodeBlock
         value={snippet.content}
         language={snippet.language}
-        //   highlightLines={snippet.highlights}
+        highlightLines={props.highlightLines}
+        highlightStrings={props.highlightStrings}
         {...props}
         title={props.title || snippet.source}
         link={`https://github.com/hatchet-dev/hatchet/blob/main/${snippet.source}`}

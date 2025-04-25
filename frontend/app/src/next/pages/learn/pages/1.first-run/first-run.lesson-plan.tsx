@@ -25,7 +25,7 @@ import { CreateTokenDialog } from '@/next/pages/authenticated/dashboard/settings
 import { TaskExecution } from '@/next/pages/learn/components/task-executor';
 import { WorkerListener } from '@/next/pages/learn/components/worker-listener';
 import { Link } from 'react-router-dom';
-import snips from '@/next/lib/docs/snips';
+import originalSnips from '@/next/lib/docs/snips';
 
 const useLesson = untypedUseLesson<
   FirstRunStepKeys,
@@ -75,36 +75,37 @@ export const lessonPlan: LessonPlan<
       title: 'Configure Hatchet Client',
       description: ClientStep,
       code: {
-        typescript: snips.typescript.quickstart.hatchet_client['*'],
-        python: snips.python.quickstart.hatchet_client['*'],
-        go: snips.go.quickstart.hatchet_client.hatchet_client['*'],
+        typescript: originalSnips.typescript.quickstart.hatchet_client['*'],
+        python: originalSnips.python.quickstart.hatchet_client['*'],
+        go: originalSnips.go.quickstart.hatchet_client.hatchet_client['*'],
       },
     },
     task: {
       title: 'Define a Task',
       description: TaskStep,
       code: {
-        typescript: snips.typescript.quickstart.workflows.first_task['*'],
-        python: snips.python.quickstart.workflows.first_task['*'],
-        go: snips.go.quickstart.workflows.first_task['*'],
+        typescript:
+          originalSnips.typescript.quickstart.workflows.first_task['*'],
+        python: originalSnips.python.quickstart.workflows.first_task['*'],
+        go: originalSnips.go.quickstart.workflows.first_task['*'],
       },
     },
     worker: {
       title: 'Register Your First Worker',
       description: WorkerStep,
       code: {
-        typescript: snips.typescript.quickstart.worker['*'],
-        python: snips.python.quickstart.worker['*'],
-        go: snips.go.quickstart.cmd.worker.main['*'],
+        typescript: originalSnips.typescript.quickstart.worker['*'],
+        python: originalSnips.python.quickstart.worker['*'],
+        go: originalSnips.go.quickstart.cmd.worker.main['*'],
       },
     },
     run: {
       title: 'Run Your Task',
       description: RunStep,
       code: {
-        typescript: snips.typescript.quickstart.run['*'],
-        python: snips.python.quickstart.run['*'],
-        go: snips.go.quickstart.cmd.run.main['*'],
+        typescript: originalSnips.typescript.quickstart.run['*'],
+        python: originalSnips.python.quickstart.run['*'],
+        go: originalSnips.go.quickstart.cmd.run.main['*'],
       },
     },
   },
@@ -252,8 +253,11 @@ function ClientStep() {
           API, allowing you to define and execute tasks.
         </p>
         <p>
-          It is recommended to instantiate the client in a separate file from
-          your main application code and import it as needed.
+          It is recommended to{' '}
+          <Highlight frame="client">
+            instantiate the client in a separate file from your main application
+            code and import it as needed.
+          </Highlight>
         </p>
       </CardContent>
     </Card>
