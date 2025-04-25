@@ -120,7 +120,7 @@ class Runner:
             case ActionType.CANCEL_STEP_RUN:
                 log = f"cancel: step run:  {action.action_id}/{action.step_run_id}/{action.retry_count}"
                 logger.info(log)
-                asyncio.create_task(self.handle_cancel_action(action.key))
+                asyncio.create_task(self.handle_cancel_action(action))
             case ActionType.START_GET_GROUP_KEY:
                 log = f"run: get group key:  {action.action_id}/{action.get_group_key_run_id}"
                 logger.info(log)
@@ -416,7 +416,8 @@ class Runner:
             logger.exception(f"Failed to terminate thread: {e}")
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    async def handle_cancel_action(self, key: ActionKey) -> None:
+    async def handle_cancel_action(self, action: Action) -> None:
+        key = action.key
         try:
             # call cancel to signal the context to stop
             if key in self.contexts:
