@@ -1,0 +1,20 @@
+{
+  "name": "hatchet-typescript-quickstart",
+  "version": "1.0.0",
+  "description": "This is an example project demonstrating how to use Hatchet with Typescript.",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx ts-node src/worker.ts",
+    "run:simple": "npx ts-node src/run.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.13.13",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@hatchet-dev/typescript-sdk-dev/typescript-sdk": "1.0.0"
+  }
+}

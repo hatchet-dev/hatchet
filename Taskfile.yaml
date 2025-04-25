@@ -55,6 +55,9 @@ tasks:
         EOF
   pre:
     cmds:
+      # FIXME: Remove this once we have a better way to handle pre-commit reliably
+      - pre-commit run --all-files
+      - pre-commit run --all-files
       - pre-commit run --all-files
   start-db:
     cmds:
@@ -191,7 +194,7 @@ tasks:
       - |
         # Create a trap to kill the watcher when the task exits
         trap 'kill $(jobs -p) 2>/dev/null' EXIT
-        
+
         npx chokidar "sdks/**/*.{py,ts,go}" --ignore "**/node_modules/**" --ignore "**/.git/**" --ignore "**/dist/**" --ignore "**/build/**" --initial -c "cd frontend/docs/ && pnpm run generate-examples && cd ../app/ && pnpm run sync-docs" &
-        
+
         cd frontend/docs/ && pnpm run taskfile-dev

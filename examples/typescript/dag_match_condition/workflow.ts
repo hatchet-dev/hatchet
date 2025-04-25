@@ -39,7 +39,3 @@ dagWithConditions.task({
     };
   },
 });
-     Completed: true,
-    };
-  },
-});

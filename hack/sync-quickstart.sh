@@ -115,4 +115,4 @@ echo "Sync completed successfully!"
 
 # Clean up
 cd - > /dev/null
-rm -rf "$TEMP_DIR" 
+rm -rf "$TEMP_DIR"

@@ -14,3 +14,14 @@ updates:
     directory: "/examples/typescript"
     schedule:
       interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/examples/typescript/quickstart"
+    schedule:
+      interval: "daily"
+
+
+  - package-ecosystem: "gomod"
+    directory: "/examples/go/quickstart"
+    schedule:
+      interval: "daily"
