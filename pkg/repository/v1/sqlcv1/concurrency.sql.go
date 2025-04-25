@@ -792,13 +792,13 @@ WITH slots AS (
         )
 )
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'CANCELLED' AS "operation"
 FROM
     slots_to_cancel
@@ -814,7 +814,7 @@ WHERE
     )
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'RUNNING' AS "operation"
 FROM
     updated_slots
@@ -1014,13 +1014,13 @@ WITH slots AS (
         )
 )
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'CANCELLED' AS "operation"
 FROM
     slots_to_cancel
@@ -1036,7 +1036,7 @@ WHERE
     )
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'RUNNING' AS "operation"
 FROM
     updated_slots
@@ -1190,13 +1190,13 @@ WITH filled_parent_slots AS (
         )
 )
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'SCHEDULING_TIMED_OUT' AS "operation"
 FROM
     schedule_timeout_slots
 UNION ALL
 SELECT
-    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
+    sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, ARRAY_REPLACE(next_parent_strategy_ids, NULL, -1)::BIGINT[] AS next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at,
     'RUNNING' AS "operation"
 FROM
     updated_slots

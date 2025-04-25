@@ -2187,7 +2187,22 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	stepIdToStrats := make(map[string][]*sqlcv1.V1StepConcurrency)
 
 	sort.SliceStable(strats, func(i, j int) bool {
-		return strats[i].ID < strats[j].ID
+		iStrat := strats[i]
+		jStrat := strats[j]
+
+		if iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid && iStrat.ParentStrategyID.Int64 != jStrat.ParentStrategyID.Int64 {
+			return iStrat.ParentStrategyID.Int64 < jStrat.ParentStrategyID.Int64
+		}
+
+		if iStrat.ParentStrategyID.Valid && !jStrat.ParentStrategyID.Valid {
+			return true
+		}
+
+		if !iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid {
+			return false
+		}
+
+		return iStrat.ID < jStrat.ID
 	})
 
 	for _, strat := range strats {
