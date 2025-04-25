@@ -1,0 +1,29 @@
+name: Sync Python Quickstart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'examples/python/quickstart/**'
+  workflow_dispatch:
+    inputs:
+      manual_trigger:
+        description: 'Manually trigger the sync'
+        default: 'true'
+        required: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Run sync script
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          ./hack/sync-quickstart.sh --source-dir "examples/python/quickstart" --target-repo "hatchet-dev/hatchet-python-quickstart"
