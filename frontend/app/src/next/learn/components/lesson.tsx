@@ -1,8 +1,8 @@
-import { TwoColumnLayout } from '@/next/components/layouts/two-column.layout';
 import { GithubCode } from '@/next/components/ui/code/github-code';
 import { cn } from '@/next/lib/utils';
 import { Button } from '@/next/components/ui/button';
 import { LessonProvider, useLesson } from '@/next/learn/hooks/use-lesson';
+import { Card, CardContent } from '@/next/components/ui/card';
 import {
   LessonPlan,
   SupportedLanguage,
@@ -37,104 +37,101 @@ function LessonContent<
     stepCardsRef,
   } = useLesson();
 
-  return (
-    <TwoColumnLayout
-      left={
-        <div className="space-y-8 pb-[600px]">
-          {Object.entries(lesson.steps).map(([key, step]) => {
-            const typedStep = step as LessonStep;
-            const isActive = key === activeStep;
-            const stepIndex = stepKeys.indexOf(key as S);
-            const isCompleted = stepIndex < currentStepIndex;
+  const steps = Object.entries(lesson.steps).map(([key, step], i) => {
+    const typedStep = step as LessonStep;
+    const isActive = key === activeStep;
+    const stepIndex = stepKeys.indexOf(key as S);
+    const isCompleted = stepIndex < currentStepIndex;
+    const languageCode = typedStep.githubCode?.[language as SupportedLanguage];
 
-            return (
-              <div
-                key={key}
-                ref={(el) => (stepCardsRef.current[key as S] = el)}
-                className={cn('transition-opacity duration-200', {
-                  'opacity-100': isActive || isCompleted,
-                  'opacity-50': !isActive && !isCompleted,
-                })}
-              >
-                {typedStep.description()}
-                {isActive && currentStepIndex < stepKeys.length - 1 && (
-                  <div className="mt-4 flex justify-end gap-2 items-center">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setActiveStep(stepKeys[currentStepIndex - 1]);
-                      }}
-                    >
-                      Skip Tutorial
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        const nextStep = stepKeys[currentStepIndex + 1];
-                        setActiveStep(nextStep);
-                      }}
-                    >
-                      Continue
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      }
-      right={
-        <>
-          <div className="space-y-8 pb-[600px]">
-            {Object.entries(lesson.steps).map(([key, step]) => {
-              const typedStep = step as LessonStep;
-              const languageCode =
-                typedStep.githubCode?.[language as SupportedLanguage];
-              if (!languageCode) {
-                return null;
-              }
-
-              const stepIndex = stepKeys.indexOf(key as S);
-
-              return (
-                <div
-                  key={key}
-                  ref={(el) => (codeBlocksRef.current[key as S] = el)}
-                  className={cn('transition-opacity duration-200', {
-                    'opacity-100': stepIndex <= currentStepIndex,
-                    'opacity-50': stepIndex > currentStepIndex,
-                  })}
-                >
-                  {typedStep.content && <div>{typedStep.content()}</div>}
-                  {languageCode && (
-                    <GithubCode
-                      className={cn({
-                        'opacity-30': stepIndex > currentStepIndex,
-                      })}
-                      key={key}
-                      highlightLines={highlights[key as S]?.lines}
-                      highlightStrings={highlights[key as S]?.strings}
-                      {...lesson.codeBlockDefaults}
-                      language={language}
-                      repo={
-                        (typeof languageCode === 'string'
-                          ? lesson.codeBlockDefaults.repos[
-                              language as SupportedLanguage
-                            ]
-                          : languageCode.repo) || ''
-                      }
-                      path={
-                        typeof languageCode === 'string'
-                          ? languageCode
-                          : languageCode.path
-                      }
-                    />
-                  )}
-                </div>
-              );
+    return (
+      <div key={key} className="flex gap-16">
+        <div
+          className="w-[38.2%]"
+          ref={(el) => (stepCardsRef.current[key as S] = el)}
+        >
+          <div
+            className={cn('transition-opacity duration-200', {
+              'opacity-100': isActive || isCompleted,
+              'opacity-50': !isActive && !isCompleted,
             })}
+          >
+            {typedStep.description()}
+            {stepIndex !== stepKeys.length - 1 && (
+              <div className="mt-4 flex justify-end gap-2 items-center">
+                {i == 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActiveStep(stepKeys[currentStepIndex - 1]);
+                    }}
+                  >
+                    Skip Tutorial
+                  </Button>
+                )}
+                <Button
+                  variant={isActive ? 'default' : 'outline'}
+                  onClick={() => {
+                    setActiveStep(stepKeys[i + 1]);
+                  }}
+                >
+                  {currentStepIndex == 0 ? 'Get Started' : 'Continue'}
+                </Button>
+              </div>
+            )}
           </div>
-        </>
-      }
-    />
+        </div>
+
+        {languageCode && (
+          <div
+            className="w-[61.8%] pt-16"
+            ref={(el) => (codeBlocksRef.current[key as S] = el)}
+          >
+            <div
+              className={cn('transition-opacity duration-200', {
+                'opacity-100': stepIndex <= currentStepIndex,
+                'opacity-50': stepIndex > currentStepIndex,
+              })}
+            >
+              <Card>
+                <CardContent className="space-y-6 py-4">
+                  {typedStep.content && <div>{typedStep.content()}</div>}
+                  <GithubCode
+                    className={cn({
+                      'opacity-30': stepIndex > currentStepIndex,
+                    })}
+                    key={key}
+                    highlightLines={highlights[key as S]?.lines}
+                    highlightStrings={highlights[key as S]?.strings}
+                    {...lesson.codeBlockDefaults}
+                    language={language}
+                    repo={
+                      (typeof languageCode === 'string'
+                        ? lesson.codeBlockDefaults.repos[
+                            language as SupportedLanguage
+                          ]
+                        : languageCode.repo) || ''
+                    }
+                    path={
+                      typeof languageCode === 'string'
+                        ? languageCode
+                        : languageCode.path
+                    }
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  });
+
+  return (
+    <div className="h-[calc(100vh-4rem)] overflow-y-auto p-4">
+      <div className="mx-auto max-w-7xl pt-48">
+        <div className="flex flex-col gap-48 pb-48">{steps}</div>
+      </div>
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   useEffect,
   createContext,
   useContext,
+  useCallback,
 } from 'react';
 import {
   HighlightStateMap,
@@ -26,7 +27,7 @@ export interface LessonState<
   language: SupportedLanguage;
   setLanguage: (language: SupportedLanguage) => void;
   activeStep: S;
-  setActiveStep: (step: S, onlyContent?: boolean) => void;
+  setActiveStep: (step: S) => void;
   extra: Partial<E>;
   setExtra: (e: Partial<E>) => void;
   highlights: HighlightStateMap<S>;
@@ -61,7 +62,6 @@ export function LessonProvider<
   );
   const [extra, setExtra] = useState(lesson.extraDefaults);
   const [highlights, setHighlightState] = useState<HighlightStateMap<S>>({});
-  const [onlyContent, setOnlyContent] = useState(false);
 
   const codeBlocksRef = useRef<Record<S, HTMLDivElement | null>>(
     Object.keys(lesson.steps).reduce(
@@ -83,24 +83,21 @@ export function LessonProvider<
     ),
   );
 
+  const stepKeys = Object.keys(lesson.steps) as S[];
+  const currentStepIndex = stepKeys.indexOf(activeStep);
+
   useEffect(() => {
     const activeBlock = codeBlocksRef.current[activeStep];
-    const activeCard = stepCardsRef.current[activeStep];
 
     // Add scroll margin to both elements
     if (activeBlock) {
       activeBlock.style.scrollMarginTop = '2rem';
       activeBlock.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    if (activeCard && !onlyContent) {
-      activeCard.style.scrollMarginTop = '2rem';
-      activeCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [activeStep, onlyContent]);
+  }, [activeStep]);
 
-  const setActiveStep = (step: S, onlyContent?: boolean) => {
+  const setActiveStep = (step: S) => {
     setActiveStepState(step);
-    setOnlyContent(!!onlyContent);
   };
 
   const commands = useMemo(() => {
@@ -124,17 +121,17 @@ export function LessonProvider<
     return lesson.codeKeyFrames[language];
   }, [language, lesson]);
 
-  const stepKeys = Object.keys(lesson.steps) as S[];
-  const currentStepIndex = stepKeys.indexOf(activeStep);
-
   const setExtraWithLanguage = (e: Partial<E>) =>
     setExtra((prev) => ({
       ...prev,
       [language]: { ...prev[language], ...e },
     }));
 
-  const setHighlights = (highlightState?: HighlightStateMap<S>) =>
-    setHighlightState(highlightState || {});
+  const setHighlights = useCallback(
+    (highlightState?: HighlightStateMap<S>) =>
+      setHighlightState(highlightState || {}),
+    [setHighlightState],
+  );
 
   const value = {
     language,

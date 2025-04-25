@@ -72,7 +72,16 @@ export const lessonPlan: LessonPlan<
   steps: {
     intro: {
       title: 'Welcome to Hatchet',
-      description: IntroStep,
+      content: () => <IntroStep />,
+      description: () => (
+        <p>
+          Hatchet is a platform for building and running distributed
+          applications. <br />
+          <br />
+          This lesson will walk you through the process of setting up your
+          environment and running your first task.
+        </p>
+      ),
     },
     setup: {
       title: 'Setup Your Environment',

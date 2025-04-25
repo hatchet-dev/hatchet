@@ -31,7 +31,7 @@ export function Highlight<F extends string>({
     // Get the first step key from the frame's keyframe mapping
     const stepKey = Object.keys(codeKeyFrames[frame])[0];
     if (stepKey) {
-      setActiveStep(stepKey, true);
+      setActiveStep(stepKey);
     }
   }, [setActiveStep, codeKeyFrames, frame]);
 
@@ -45,10 +45,12 @@ export function Highlight<F extends string>({
         'cursor-help',
         'underline underline-offset-4 decoration-dotted decoration-2 decoration-muted-foreground decoration-offset-4',
       )}
+      onClick={() => {
+        // setActive();
+      }}
       onMouseEnter={() => {
-        setActive();
         setHighlights(codeKeyFrames[frame]);
-        setHasHovered(true);
+        // setHasHovered(true);
       }}
       onMouseLeave={() => {
         setHighlights({});
