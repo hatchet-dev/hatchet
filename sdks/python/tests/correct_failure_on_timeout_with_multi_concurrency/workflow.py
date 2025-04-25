@@ -18,7 +18,6 @@ hatchet = Hatchet(debug=True)
 
 multiple_concurrent_cancellations_test_workflow = hatchet.workflow(
     name="multiple-concurrent-cancellations-bug-test",
-    on_events=["workflow:run"],
     input_validator=InputModel,
     concurrency=ConcurrencyExpression(
         expression="input.concurrency_key",
@@ -33,11 +32,11 @@ async def blocking_task(input: InputModel, ctx: Context) -> None:
     await asyncio.sleep(15)
 
 
-@multiple_concurrent_cancellations_test_workflow.task()
+@multiple_concurrent_cancellations_test_workflow.task(parents=[blocking_task])
 async def step_2(input: InputModel, ctx: Context) -> None:
     pass
 
 
-@multiple_concurrent_cancellations_test_workflow.task()
+@multiple_concurrent_cancellations_test_workflow.task(parents=[blocking_task])
 async def step_3(input: InputModel, ctx: Context) -> None:
     pass
