@@ -88,6 +88,9 @@ class ActionType(str, Enum):
     START_GET_GROUP_KEY = "START_GET_GROUP_KEY"
 
 
+ActionKey = str
+
+
 class Action(BaseModel):
     worker_id: str
     tenant_id: str
@@ -140,6 +143,13 @@ class Action(BaseModel):
         }
 
         return {k: v for k, v in attrs.items() if v}
+
+    @property
+    def key(self) -> ActionKey:
+        if self.action_type == ActionType.START_GET_GROUP_KEY:
+            return f"{self.get_group_key_run_id}/{self.retry_count}"
+        else:
+            return f"{self.step_run_id}/{self.retry_count}"
 
 
 def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:
