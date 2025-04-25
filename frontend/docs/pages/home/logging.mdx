@@ -5,7 +5,6 @@ import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
-
 export const LoggerWorkflowTs = {
   path: "src/examples/logger.ts",
 };
@@ -15,10 +14,7 @@ export const ByoLoggerTs = {
 };
 
 export const getStaticProps = ({}) =>
-  getSnippets([
-    LoggerWorkflowTs,
-    ByoLoggerTs,
-  ]);
+  getSnippets([LoggerWorkflowTs, ByoLoggerTs]);
 
 # Logging
 
