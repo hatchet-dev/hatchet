@@ -515,28 +515,7 @@ export const snippets: Snippets = {
     "content": "// ❓ Declaring a Task\nimport sleep from '@hatchet-dev/typescript-sdk/util/sleep';\nimport { hatchet } from '../hatchet-client';\n\n// (optional) Define the input type for the workflow\nexport type SimpleInput = {\n  Message: string;\n};\n\nexport const simple = hatchet.task({\n  name: 'simple',\n  retries: 3,\n  fn: async (input: SimpleInput, ctx) => {\n    ctx.log('hello from the workflow');\n    await sleep(100);\n    ctx.log('goodbye from the workflow');\n    await sleep(100);\n    if (ctx.retryCount() < 2) {\n      throw new Error('test error');\n    }\n    return {\n      TransformedMessage: input.Message.toLowerCase(),\n    };\n  },\n});\n\n// see ./worker.ts and ./run.ts for how to run the workflow\n",
     "language": "ts",
     "source": "examples/typescript/simple/workflow.ts",
-    "highlights": {
-      "retries": {
-        "lines": [
-          9,
-          10,
-          11,
-          12
-        ],
-        "strings": []
-      },
-      "func": {
-        "lines": [
-          9,
-          10,
-          11
-        ],
-        "strings": [
-          "input",
-          "ctx"
-        ]
-      }
-    }
+    "highlights": {}
   },
   "L1VzZXJzL2dhYnJpZWxydXR0bmVyL2Rldi9oYXRjaGV0L2V4YW1wbGVzL3R5cGVzY3JpcHQvc3RpY2t5L3J1bi50cw__": {
     "content": "\nimport { retries } from '../retries/workflow';\n\nasync function main() {\n  try {\n    const res = await retries.run({});\n    console.log(res);\n  } catch (e) {\n    console.log('error', e);\n  }\n}\n\nif (require.main === module) {\n  main()\n    .catch(console.error)\n    .finally(() => process.exit(0));\n}\n",

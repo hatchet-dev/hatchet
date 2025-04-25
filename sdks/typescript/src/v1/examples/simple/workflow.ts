@@ -6,8 +6,7 @@ import { hatchet } from '../hatchet-client';
 export type SimpleInput = {
   Message: string;
 };
-// HH-retries 4
-// HH-func 3 input,ctx
+
 export const simple = hatchet.task({
   name: 'simple',
   retries: 3,
