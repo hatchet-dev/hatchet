@@ -3,6 +3,9 @@ const meta = {
   home: {
     title: 'User Guide',
     type: 'page',
+    theme: {
+      toc: false,
+    },
   },
   _setup: {
     display: 'hidden',
@@ -15,26 +18,13 @@ const meta = {
     'getting-started': 'Getting Started',
     cpu: 'CPU Machine Types',
     gpu: 'GPU Machine Types',
-    '-- SDKs': {
-      type: 'separator',
-      title: 'SDK Deployment Guides',
-    },
-    python: {
-      title: 'Python ↗',
-      href: '/sdks/python-sdk/docker',
-    },
-    typescript: {
-      title: 'TypeScript ↗',
-      href: '/sdks/typescript-sdk/docker',
-    },
-    golang: {
-      title: 'Golang ↗',
-      href: '/sdks/go-sdk',
-    },
   },
-  'self-hosting': {
+  self_hosting: {
     title: 'Self Hosting',
     type: 'page',
+    theme: {
+      toc: false,
+    },
   },
   blog: {
     title: 'Blog',
@@ -44,6 +34,9 @@ const meta = {
     title: 'Contributing',
     type: 'page',
     display: 'hidden',
+    theme: {
+      toc: false,
+    },
   },
   sdks: {
     title: 'SDK Reference',
@@ -51,21 +44,10 @@ const meta = {
     items: {
       python: {
         title: 'Python',
-        href: '/sdks/python-sdk',
-        type: 'page',
-      },
-      typescript: {
-        title: 'TypeScript',
-        href: '/sdks/typescript-sdk',
-        type: 'page',
-      },
-      golang: {
-        title: 'Golang',
-        href: '/sdks/go-sdk',
+        href: '/sdks/python/client',
         type: 'page',
       },
     },
-    display: 'hidden',
   },
   v0: {
     title: 'V0 (Old docs)',

@@ -38,7 +38,7 @@ export default function ScheduledRunsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['scheduled-runs']} size="icon" />
+            <DocsButton doc={docs.home.scheduled_runs} size="icon" />
           </HeadlineActionItem>
           {canManage && (
             <HeadlineActionItem>

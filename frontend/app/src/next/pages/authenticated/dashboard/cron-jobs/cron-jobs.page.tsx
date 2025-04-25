@@ -38,7 +38,7 @@ export default function CronJobsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['cron-runs']} size="icon" />
+            <DocsButton doc={docs.home.cron_runs} size="icon" />
           </HeadlineActionItem>
           {canManage && (
             <HeadlineActionItem>

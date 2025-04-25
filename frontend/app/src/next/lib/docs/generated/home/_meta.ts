@@ -8,7 +8,7 @@ const meta = {
     title: 'Introduction',
     href: '/home/',
   },
-  'hatchet-cloud-quickstart': {
+  hatchet_cloud_quickstart: {
     title: 'Hatchet Cloud Quickstart',
     href: '/home/hatchet-cloud-quickstart',
   },
@@ -20,7 +20,7 @@ const meta = {
     title: 'Setup',
     href: '/home/setup',
   },
-  'your-first-task': {
+  your_first_task: {
     title: 'Tasks',
     href: '/home/your-first-task',
   },
@@ -28,7 +28,7 @@ const meta = {
     title: 'Workers',
     href: '/home/workers',
   },
-  'running-your-task': {
+  running_your_task: {
     title: 'Running Tasks',
     href: '/home/running-your-task',
   },
@@ -40,38 +40,33 @@ const meta = {
     title: 'Ways of Running Tasks',
     type: 'separator',
   },
-  'running-tasks': {
+  running_tasks: {
     title: 'Introduction',
     href: '/home/running-tasks',
   },
-  'run-with-results': {
+  run_with_results: {
     title: 'Run and Wait Trigger',
     href: '/home/run-with-results',
   },
-  'run-no-wait': {
+  run_no_wait: {
     title: 'Run Without Wait Trigger',
     href: '/home/run-no-wait',
   },
-  'scheduled-runs': {
+  scheduled_runs: {
     title: 'Scheduled Trigger',
     href: '/home/scheduled-runs',
   },
-  'cron-runs': {
+  cron_runs: {
     title: 'Cron Trigger',
     href: '/home/cron-runs',
   },
-  'run-on-event': {
+  run_on_event: {
     title: 'Event Trigger',
     href: '/home/run-on-event',
   },
-  'bulk-run': {
+  bulk_run: {
     title: 'Bulk Run Many',
     href: '/home/bulk-run',
-  },
-  'streaming-results': {
-    title: 'Streaming Results',
-    display: 'hidden',
-    href: '/home/streaming-results',
   },
   '--flow-control': {
     title: 'Flow Control',
@@ -81,14 +76,13 @@ const meta = {
     title: 'Concurrency',
     href: '/home/concurrency',
   },
-  'rate-limits': {
+  rate_limits: {
     title: 'Rate Limits',
     href: '/home/rate-limits',
   },
-  'running-from-external-services': {
-    title: 'Running from External Services',
-    display: 'hidden',
-    href: '/home/running-from-external-services',
+  priority: {
+    title: 'Priority',
+    href: '/home/priority',
   },
   '--advanced-workflows': {
     title: 'Workflows',
@@ -102,19 +96,19 @@ const meta = {
     title: 'Directed Acyclic Graphs (DAGs)',
     href: '/home/dags',
   },
-  'conditional-workflows': {
+  conditional_workflows: {
     title: 'Conditional Workflows',
     href: '/home/conditional-workflows',
   },
-  'on-failure-tasks': {
+  on_failure_tasks: {
     title: 'On Failure Tasks',
     href: '/home/on-failure-tasks',
   },
-  'child-spawning': {
+  child_spawning: {
     title: 'Child Spawning',
     href: '/home/child-spawning',
   },
-  'additional-metadata': {
+  additional_metadata: {
     title: 'Additional Metadata',
     href: '/home/additional-metadata',
   },
@@ -122,19 +116,19 @@ const meta = {
     title: 'Durable Execution',
     type: 'separator',
   },
-  'durable-execution': {
+  durable_execution: {
     title: 'Durable Execution',
     href: '/home/durable-execution',
   },
-  'durable-events': {
+  durable_events: {
     title: 'Durable Events',
     href: '/home/durable-events',
   },
-  'durable-sleep': {
+  durable_sleep: {
     title: 'Durable Sleep',
     href: '/home/durable-sleep',
   },
-  'durable-best-practices': {
+  durable_best_practices: {
     title: 'Best Practices',
     href: '/home/durable-best-practices',
   },
@@ -146,11 +140,11 @@ const meta = {
     title: 'Timeouts',
     href: '/home/timeouts',
   },
-  'retry-policies': {
+  retry_policies: {
     title: 'Retry Policies',
     href: '/home/retry-policies',
   },
-  'bulk-retries-and-cancellations': {
+  bulk_retries_and_cancellations: {
     title: 'Bulk Retries and Cancellations',
     href: '/home/bulk-retries-and-cancellations',
   },
@@ -158,15 +152,15 @@ const meta = {
     title: 'Advanced Assignment',
     type: 'separator',
   },
-  'sticky-assignment': {
+  sticky_assignment: {
     title: 'Sticky Assignment',
     href: '/home/sticky-assignment',
   },
-  'worker-affinity': {
+  worker_affinity: {
     title: 'Worker Affinity',
     href: '/home/worker-affinity',
   },
-  'manual-slot-release': {
+  manual_slot_release: {
     title: 'Manual Slot Release',
     href: '/home/manual-slot-release',
   },
@@ -194,7 +188,7 @@ const meta = {
     title: 'Managed Compute',
     href: '/home/compute',
   },
-  'worker-healthchecks': {
+  worker_healthchecks: {
     title: 'Worker Health Checks',
     href: '/home/worker-healthchecks',
   },
@@ -211,23 +205,23 @@ const meta = {
     title: 'V1 Migration Guides',
     type: 'separator',
   },
-  'v1-sdk-improvements': {
+  v1_sdk_improvements: {
     title: 'SDK Improvements',
     href: '/home/v1-sdk-improvements',
   },
-  'migration-guide-engine': {
+  migration_guide_engine: {
     title: 'Engine Migration Guide',
     href: '/home/migration-guide-engine',
   },
-  'migration-guide-python': {
+  migration_guide_python: {
     title: 'Python Migration Guide',
     href: '/home/migration-guide-python',
   },
-  'migration-guide-typescript': {
+  migration_guide_typescript: {
     title: 'Typescript Migration Guide',
     href: '/home/migration-guide-typescript',
   },
-  'migration-guide-go': {
+  migration_guide_go: {
     title: 'Go Migration Guide',
     href: '/home/migration-guide-go',
   },
@@ -242,6 +236,10 @@ const meta = {
   pydantic: {
     title: 'Pydantic',
     href: '/home/pydantic',
+  },
+  lifespans: {
+    title: 'Lifespans',
+    href: '/home/lifespans',
   },
   blog: {
     title: 'Blog',

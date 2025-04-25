@@ -131,7 +131,7 @@ export function ScheduledRunsTable({
                         Create Scheduled Run
                       </Button>
                     }
-                    <DocsButton doc={docs.home['scheduled-runs']} />
+                    <DocsButton doc={docs.home.scheduled_runs} />
                   </div>
                 </TableCell>
               </TableRow>

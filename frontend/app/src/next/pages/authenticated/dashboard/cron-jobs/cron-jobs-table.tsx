@@ -133,7 +133,7 @@ export default function CronJobsTable({
                       <Plus className="h-4 w-4 mr-2" />
                       Create Cron Job
                     </Button>
-                    <DocsButton doc={docs.home['cron-runs']} />
+                    <DocsButton doc={docs.home.cron_runs} />
                   </div>
                 </TableCell>
               </TableRow>

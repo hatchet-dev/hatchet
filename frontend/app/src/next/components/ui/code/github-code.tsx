@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { Code, CodeProps } from './code';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/next/hooks/utils/use-toast';

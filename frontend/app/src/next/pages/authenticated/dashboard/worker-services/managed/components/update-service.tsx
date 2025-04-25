@@ -34,7 +34,6 @@ interface SectionActionsProps {
 }
 
 const SectionActions = ({
-  section,
   hasChanged,
   onRevert,
   onDeploy,

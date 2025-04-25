@@ -8,11 +8,11 @@ const meta = {
     type: 'separator',
     title: 'Docker',
   },
-  'hatchet-lite': {
+  hatchet_lite: {
     title: 'Hatchet Lite',
     href: '/self-hosting/hatchet-lite',
   },
-  'docker-compose': {
+  docker_compose: {
     title: 'Docker Compose',
     href: '/self-hosting/docker-compose',
   },
@@ -20,11 +20,11 @@ const meta = {
     type: 'separator',
     title: 'Kubernetes',
   },
-  'kubernetes-quickstart': {
+  kubernetes_quickstart: {
     title: 'Quickstart',
     href: '/self-hosting/kubernetes-quickstart',
   },
-  'kubernetes-glasskube': {
+  kubernetes_glasskube: {
     title: 'Installing with Glasskube',
     href: '/self-hosting/kubernetes-glasskube',
   },
@@ -32,15 +32,15 @@ const meta = {
     title: 'Networking',
     href: '/self-hosting/networking',
   },
-  'kubernetes-helm-configuration': {
+  kubernetes_helm_configuration: {
     title: 'Configuring the Helm Chart',
     href: '/self-hosting/kubernetes-helm-configuration',
   },
-  'kubernetes-external-database': {
+  kubernetes_external_database: {
     title: 'Setting up an External Database',
     href: '/self-hosting/kubernetes-external-database',
   },
-  'high-availability': {
+  high_availability: {
     title: 'High Availability',
     href: '/self-hosting/high-availability',
   },
@@ -48,21 +48,37 @@ const meta = {
     type: 'separator',
     title: 'Managing Hatchet',
   },
-  'configuration-options': {
-    title: 'Configuration Options',
+  configuration_options: {
+    title: 'Engine Configuration Options',
     href: '/self-hosting/configuration-options',
+  },
+  prometheus_metrics: {
+    title: 'Prometheus Metrics',
+    href: '/self-hosting/prometheus-metrics',
+  },
+  worker_configuration_options: {
+    title: 'Worker Configuration Options',
+    href: '/self-hosting/worker-configuration-options',
   },
   benchmarking: {
     title: 'Benchmarking',
     href: '/self-hosting/benchmarking',
   },
-  'data-retention': {
+  data_retention: {
     title: 'Data Retention',
     href: '/self-hosting/data-retention',
   },
-  'improving-performance': {
+  improving_performance: {
     title: 'Improving Performance',
     href: '/self-hosting/improving-performance',
+  },
+  read_replicas: {
+    title: 'Read Replicas',
+    href: '/self-hosting/read-replicas',
+  },
+  sampling: {
+    title: 'Trace Sampling',
+    href: '/self-hosting/sampling',
   },
 };
 export default meta;

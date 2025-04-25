@@ -34,9 +34,6 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
   const {
     data: runs,
     filters: { setFilter },
-    timeRange: {
-      filters: { startTime },
-    },
   } = useRuns();
 
   const definitionId = useMemo(

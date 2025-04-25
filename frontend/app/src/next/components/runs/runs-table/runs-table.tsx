@@ -277,7 +277,7 @@ export function RunsTable({
               Trigger a new run to get started.
             </p>
             <DocsButton
-              doc={docs.home['running-tasks']}
+              doc={docs.home.running_tasks}
               titleOverride="Running Tasks"
             />
           </div>

@@ -166,7 +166,7 @@ const PayloadContent = ({ taskId }: Pick<RunDetailSheetProps, 'taskId'>) => {
           collapsed
           actions={
             <div className="flex items-center gap-2">
-              <DocsButton doc={docs.home['additional-metadata']} size="icon" />
+              <DocsButton doc={docs.home.additional_metadata} size="icon" />
             </div>
           }
         />
@@ -208,7 +208,7 @@ const PayloadContent = ({ taskId }: Pick<RunDetailSheetProps, 'taskId'>) => {
         collapsed
         actions={
           <div className="flex items-center gap-2">
-            <DocsButton doc={docs.home['additional-metadata']} size="icon" />
+            <DocsButton doc={docs.home.additional_metadata} size="icon" />
           </div>
         }
       />

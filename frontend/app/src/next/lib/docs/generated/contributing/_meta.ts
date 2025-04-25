@@ -4,7 +4,7 @@ const meta = {
     title: 'Contributing',
     href: '/contributing/',
   },
-  'github-app-setup': {
+  github_app_setup: {
     title: 'GitHub App Setup',
     href: '/contributing/github-app-setup',
   },

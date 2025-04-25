@@ -114,7 +114,7 @@ function RateLimitsTable() {
         emptyState={
           <div className="flex flex-col items-center justify-center p-8 gap-4">
             <p className="text-muted-foreground">No rate limits found.</p>
-            <DocsButton doc={docs.home['rate-limits']} size="lg" />
+            <DocsButton doc={docs.home.rate_limits} size="lg" />
           </div>
         }
       />
@@ -136,7 +136,7 @@ export default function RateLimitsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['rate-limits']} size="icon" />
+            <DocsButton doc={docs.home.rate_limits} size="icon" />
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>

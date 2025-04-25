@@ -4,7 +4,7 @@ const meta = {
     title: 'Overview',
     href: '/home/compute/',
   },
-  'getting-started': {
+  getting_started: {
     title: 'Getting Started',
     href: '/home/compute/getting-started',
   },
@@ -16,15 +16,15 @@ const meta = {
     title: 'GPU Machine Types',
     href: '/home/compute/gpu',
   },
-  'git-ops': {
+  git_ops: {
     title: 'GitOps',
     href: '/home/compute/git-ops',
   },
-  'auto-scaling': {
+  auto_scaling: {
     title: 'Auto Scaling',
     href: '/home/compute/auto-scaling',
   },
-  'environment-variables': {
+  environment_variables: {
     title: 'Environment Variables',
     href: '/home/compute/environment-variables',
   },

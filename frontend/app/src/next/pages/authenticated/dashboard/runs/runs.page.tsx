@@ -67,7 +67,7 @@ export default function RunsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['running-tasks']} size="icon" />
+            <DocsButton doc={docs.home.running_tasks} size="icon" />
           </HeadlineActionItem>
           <HeadlineActionItem>
             <Button onClick={() => setShowTriggerModal(true)}>
