@@ -2,7 +2,12 @@
 /* eslint-disable no-nested-ternary */
 import { InternalHatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
-import { Action, ActionKey, ActionListener, createActionKey } from '@clients/dispatcher/action-listener';
+import {
+  Action,
+  ActionKey,
+  ActionListener,
+  createActionKey,
+} from '@clients/dispatcher/action-listener';
 import {
   StepActionEvent,
   StepActionEventType,
@@ -34,7 +39,6 @@ import {
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { Context, CreateStep, DurableContext, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
-import { create } from 'domain';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
