@@ -314,10 +314,15 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 
 	msgs := msgqueuev1.JSONConvert[tasktypesv1.SignalTaskCancelledPayload](msg.Payloads)
 
-	taskIds := make([]int64, 0)
+	taskIdsToRetryCounts := make(map[int64]int32)
 
 	for _, innerMsg := range msgs {
-		taskIds = append(taskIds, innerMsg.TaskId)
+		taskIdsToRetryCounts[innerMsg.TaskId] = innerMsg.RetryCount
+	}
+
+	taskIds := make([]int64, 0)
+	for taskId := range taskIdsToRetryCounts {
+		taskIds = append(taskIds, taskId)
 	}
 
 	tasks, err := d.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
@@ -346,6 +351,18 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 			d.l.Warn().Msgf("task %d not found", msg.TaskId)
 			continue
 		}
+
+		retryCount, ok := taskIdsToRetryCounts[msg.TaskId]
+		if !ok {
+			d.l.Warn().Msgf("task %d not found in retry counts", msg.TaskId)
+			continue
+		}
+
+		// Since we're handling cancellations, we need to use
+		// the _incoming_ retry count, not the one in the database,
+		// since we want to cancel the retry count of the task that was
+		// passed in.
+		task.RetryCount = retryCount
 
 		workerIdToTasks[msg.WorkerId] = append(workerIdToTasks[msg.WorkerId], task)
 	}
