@@ -267,9 +267,9 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_cancel_action(
         self,
-        wrapped: Callable[[str], Coroutine[None, None, Exception | None]],
+        wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
         instance: Runner,
-        args: tuple[str],
+        args: tuple[Action],
         kwargs: Any,
     ) -> Exception | None:
         step_run_id = args[0]
