@@ -20,19 +20,13 @@ async def hatchet() -> AsyncGenerator[Hatchet, None]:
 def worker() -> Generator[Popen[bytes], None, None]:
     command = ["poetry", "run", "python", "examples/worker.py"]
 
-    gen = hatchet_worker(command)
-
-    yield next(gen)
-
-    gen.close()
+    with hatchet_worker(command) as proc:
+        yield proc
 
 
 @pytest.fixture(scope="session")
 def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
-    command = cast(list[str], request.param)
+    command, port = cast(tuple[list[str], int], request.param)
 
-    gen = hatchet_worker(command)
-
-    yield next(gen)
-
-    gen.close()
+    with hatchet_worker(command, port) as proc:
+        yield proc

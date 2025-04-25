@@ -2,6 +2,7 @@ import logging
 import os
 import subprocess
 import time
+from contextlib import contextmanager
 from io import BytesIO
 from threading import Thread
 from typing import Callable, Generator
@@ -10,7 +11,7 @@ import psutil
 import requests
 
 
-def wait_for_worker_health() -> bool:
+def wait_for_worker_health(healthcheck_port: int) -> bool:
     worker_healthcheck_attempts = 0
     max_healthcheck_attempts = 25
 
@@ -21,7 +22,7 @@ def wait_for_worker_health() -> bool:
             )
 
         try:
-            requests.get("http://localhost:8001/health", timeout=5)
+            requests.get(f"http://localhost:{healthcheck_port}/health", timeout=5)
 
             return True
         except Exception:
@@ -35,13 +36,18 @@ def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
         print(line.decode().strip())
 
 
+@contextmanager
 def hatchet_worker(
     command: list[str],
+    healthcheck_port: int = 8001,
 ) -> Generator[subprocess.Popen[bytes], None, None]:
     logging.info(f"Starting background worker: {' '.join(command)}")
 
+    os.environ["HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT"] = str(healthcheck_port)
+    env = os.environ.copy()
+
     proc = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=os.environ.copy()
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
     )
 
     # Check if the process is still running
@@ -51,7 +57,7 @@ def hatchet_worker(
     Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
     Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()
 
-    wait_for_worker_health()
+    wait_for_worker_health(healthcheck_port=healthcheck_port)
 
     yield proc
 
