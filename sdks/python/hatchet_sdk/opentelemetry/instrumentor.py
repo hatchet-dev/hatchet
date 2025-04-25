@@ -272,12 +272,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Action],
         kwargs: Any,
     ) -> Exception | None:
-        step_run_id = args[0]
+        action = args[0]
 
         with self._tracer.start_as_current_span(
             "hatchet.cancel_step_run",
             attributes={
-                "hatchet.step_run_id": step_run_id,
+                "hatchet.step_run_id": action.step_run_id,
             },
         ):
             return await wrapped(*args, **kwargs)
