@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/workflows"
+	v1_workflows "github.com/hatchet-dev/hatchet/examples/go/workflows"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"

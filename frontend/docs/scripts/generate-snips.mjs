@@ -20,17 +20,17 @@ function extractQuestions(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   const lines = content.split('\n');
   const questions = [];
-  
+
   // Match both Python (#) and JS/TS (//) style comments followed by ❓ or ?
   const questionRegex = /^[\s]*(\/\/|#).*[❓?]/;
-  
+
   lines.forEach((line) => {
     if (questionRegex.test(line)) {
       const comment = line.trim().replace(/^[\s]*(\/\/|#)[\s]*/, '');
       questions.push(cleanQuestionText(comment));
     }
   });
-  
+
   return questions;
 }
 
@@ -74,36 +74,36 @@ function processDirectory(dirPath) {
       // Process file
       const fileName = normalizeKey(path.basename(item, path.extname(item)));
       const ext = path.extname(fullPath).slice(1) || 'txt';
-      
+
       // Check if this is a root file (directly in language directory)
-      const isRootFile = path.dirname(fullPath) === dirPath && 
+      const isRootFile = path.dirname(fullPath) === dirPath &&
         ['ts', 'js', 'py', 'go'].includes(ext);
-      
+
       // Include if it's a root file or one of our specific file types
       if (isRootFile || ['run', 'worker', 'workflow'].includes(fileName)) {
         const content = fs.readFileSync(fullPath, 'utf8');
         const snippetId = createSnippetId(fullPath);
-        
+
         // Store the snippet content and metadata
         snippetsMap.set(snippetId, {
           content,
           language: ext,
           source: path.relative(projectRoot, fullPath)
         });
-        
+
         const questions = extractQuestions(fullPath);
-        
+
         // Create an object with "*" as the first key and empty question
         const fileObj = {
           "*": ":"+snippetId
         };
-        
+
         // Add each question as a key pointing to the same snippetId
         questions.forEach(question => {
           const normalizedQuestion = normalizeKey(question);
           fileObj[normalizedQuestion] = `${question}:${snippetId}`;
         });
-        
+
         // For root files, store under a special key
         if (isRootFile) {
           result[fileName] = fileObj;
@@ -151,4 +151,4 @@ export default snips;
 `;
 
 fs.writeFileSync(outputPath, fileContent, 'utf8');
-console.log('Successfully generated snips file at:', outputPath); 
+console.log('Successfully generated snips file at:', outputPath);

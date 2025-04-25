@@ -14,13 +14,13 @@ export const Snippet = ({ src }: GithubSnippetProps) => {
   }
 
   const [question, filePath] = src.split(":");
-  
+
   // Get the snippet content from the snippets object
   const snippet = snippets[filePath];
   if (!snippet) {
     throw new Error(`Snippet content not found: ${filePath}`);
   }
-  
+
   return (
     <CodeBlock
       source={{

@@ -19,15 +19,15 @@ const IGNORE_LIST = [
     '*.test.*',
     '*.spec.*',
     '*.test-d.*',
-    
+
     // Python specific
     '__pycache__',
     '.pytest_cache',
     '*.pyc',
-    
+
     // System files
     '.DS_Store',
-    
+
     // Development directories
     'node_modules',
     '.git',
@@ -93,7 +93,7 @@ async function restorePreservedFiles(dir, preserved) {
 async function removeDirectoryContents(dir) {
     try {
         const entries = await fs.readdir(dir, { withFileTypes: true });
-        
+
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
@@ -185,16 +185,16 @@ async function main() {
     for (const { source, dest } of mappings) {
         // Create destination if it doesn't exist
         await fs.mkdir(dest, { recursive: true });
-        
+
         // Backup preserved files
         const preserved = await backupPreservedFiles(dest);
-        
+
         console.log(`Cleaning ${dest}...`);
         await removeDirectoryContents(dest);
-        
+
         console.log(`Copying ${source} to ${dest}...`);
         await copyDirectory(source, dest);
-        
+
         // Restore preserved files
         await restorePreservedFiles(dest, preserved);
     }
@@ -202,4 +202,4 @@ async function main() {
     console.log('Examples copied successfully!');
 }
 
-main().catch(console.error); 
+main().catch(console.error);
