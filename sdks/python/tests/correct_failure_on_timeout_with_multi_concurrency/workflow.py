@@ -1,4 +1,4 @@
-import asyncio
+import random
 
 from pydantic import BaseModel
 
@@ -12,12 +12,13 @@ from hatchet_sdk import (
 
 class InputModel(BaseModel):
     concurrency_key: str
+    constant: str
 
 
 hatchet = Hatchet(debug=True)
 
 multiple_concurrent_cancellations_test_workflow = hatchet.workflow(
-    name="multiple-concurrent-cancellations-bug-test",
+    name="workflow-bug-test",
     input_validator=InputModel,
     concurrency=ConcurrencyExpression(
         expression="input.concurrency_key",
@@ -27,16 +28,41 @@ multiple_concurrent_cancellations_test_workflow = hatchet.workflow(
 )
 
 
-@multiple_concurrent_cancellations_test_workflow.task(execution_timeout="10s")
-async def blocking_task(input: InputModel, ctx: Context) -> None:
-    await asyncio.sleep(15)
+@multiple_concurrent_cancellations_test_workflow.task(
+    concurrency=[
+        ConcurrencyExpression(
+            expression="input.concurrency_key",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        ),
+        ConcurrencyExpression(
+            expression="input.constant",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        ),
+    ],
+)
+async def step_1(input: InputModel, ctx: Context) -> None:
+    if random.choice([True, False]):
+        raise Exception("Error for bug")
 
 
-@multiple_concurrent_cancellations_test_workflow.task(parents=[blocking_task])
+@multiple_concurrent_cancellations_test_workflow.task(
+    parents=[step_1],
+    concurrency=[
+        ConcurrencyExpression(
+            expression="input.concurrency_key",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        ),
+        ConcurrencyExpression(
+            expression="input.constant",
+            max_runs=1,
+            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        ),
+    ],
+)
 async def step_2(input: InputModel, ctx: Context) -> None:
-    pass
+    if random.choice([True, False]):
+        raise Exception("Error for bug")
 
-
-@multiple_concurrent_cancellations_test_workflow.task(parents=[blocking_task])
-async def step_3(input: InputModel, ctx: Context) -> None:
-    pass
