@@ -11,7 +11,7 @@ interface GithubSnippetProps {
 // This is a server component that will be rendered at build time
 export const Snippet = ({ src, ...props }: GithubSnippetProps) => {
   if (!src) {
-    throw new Error('src is required');
+    return null;
   }
 
   const [, filePath] = src.split(':');

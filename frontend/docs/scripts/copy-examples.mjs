@@ -7,7 +7,9 @@ const rootDir = new URL('../../..', import.meta.url).pathname;
 const PRESERVE_FILES = [
     'package.json',
     'pnpm-lock.yaml',
-    'pyproject.toml'
+    'pyproject.toml',
+    'README.md',
+    'tsconfig.json',
 ];
 
 // Files and directories to ignore during copying

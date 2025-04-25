@@ -30,3 +30,4 @@ async def test_durable(hatchet: Hatchet) -> None:
     assert any(w.name == "e2e-test-worker" for w in active_workers)
     assert any(w.name.endswith("e2e-test-worker_durable") for w in active_workers)
     assert result["durable_task"]["status"] == "success"
+

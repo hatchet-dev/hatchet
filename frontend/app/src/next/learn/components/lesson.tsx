@@ -1,4 +1,3 @@
-import { GithubCode } from '@/next/components/ui/code/github-code';
 import { Button } from '@/next/components/ui/button';
 import { LessonProvider, useLesson } from '@/next/learn/hooks/use-lesson';
 import { Card, CardContent } from '@/next/components/ui/card';
@@ -11,6 +10,7 @@ import { cn } from '@/next/lib/utils';
 import { Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import { Snippet } from '@/next/components/ui/code/snippet';
 
 export function Lesson<
   S extends string,
@@ -33,7 +33,6 @@ function LessonContent<
     language,
     activeStep,
     setActiveStep,
-    highlights,
     stepKeys,
     currentStepIndex,
     codeBlocksRef,
@@ -43,7 +42,6 @@ function LessonContent<
   const steps = Object.entries(lesson.steps).map(([key, step], stepIndex) => {
     const typedStep = step as LessonStep;
     const isActive = key === activeStep;
-    const languageCode = typedStep.githubCode?.[language as SupportedLanguage];
 
     return (
       <div
@@ -73,39 +71,41 @@ function LessonContent<
           </div>
         </div>
 
-        {languageCode && (
-          <div
-            className="md:w-3/5 w-full pt-6 md:pt-0"
-            ref={(el) => (codeBlocksRef.current[key as S] = el)}
-          >
-            <div>
-              <Card className="shadow-none border-none bg-transparent">
-                <CardContent className="space-y-6 py-0 px-0">
-                  {typedStep.content && <div>{typedStep.content()}</div>}
-                  <GithubCode
-                    key={key}
-                    highlightLines={highlights[key as S]?.lines}
-                    highlightStrings={highlights[key as S]?.strings}
-                    {...lesson.codeBlockDefaults}
-                    language={language}
-                    repo={
-                      (typeof languageCode === 'string'
-                        ? lesson.codeBlockDefaults.repos[
-                            language as SupportedLanguage
-                          ]
-                        : languageCode.repo) || ''
-                    }
-                    path={
-                      typeof languageCode === 'string'
-                        ? languageCode
-                        : languageCode.path
-                    }
-                  />
-                </CardContent>
-              </Card>
-            </div>
+        <div
+          className="md:w-3/5 w-full pt-6 md:pt-0"
+          ref={(el) => (codeBlocksRef.current[key as S] = el)}
+        >
+          <div>
+            <Card className="shadow-none border-none bg-transparent">
+              <CardContent className="space-y-6 py-0 px-0">
+                <Snippet
+                  src={
+                    typedStep.code?.[language as SupportedLanguage]?.key || ''
+                  }
+                />
+                {/* <GithubCode
+                  key={key}
+                  highlightLines={highlights[key as S]?.lines}
+                  highlightStrings={highlights[key as S]?.strings}
+                  {...lesson.codeBlockDefaults}
+                  language={language}
+                  repo={
+                    (typeof languageCode === 'string'
+                      ? lesson.codeBlockDefaults.repos[
+                          language as SupportedLanguage
+                        ]
+                      : languageCode.repo) || ''
+                  }
+                  path={
+                    typeof languageCode === 'string'
+                      ? languageCode
+                      : languageCode.path
+                  }
+                /> */}
+              </CardContent>
+            </Card>
           </div>
-        )}
+        </div>
       </div>
     );
   });

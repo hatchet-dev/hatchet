@@ -1,4 +1,4 @@
-import { ConcurrencyLimitStrategy } from '@hatchet-dev/typescript-sdk/protoc/v1/workflows';
+import { ConcurrencyLimitStrategy } from '@hatchet-dev/typescript-sdk-dev/typescript-sdk/protoc/v1/workflows';
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow

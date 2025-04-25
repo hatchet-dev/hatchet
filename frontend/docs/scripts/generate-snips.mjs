@@ -254,7 +254,7 @@ if (!fs.existsSync(libDir)) {
 const fileContent = `// This file is auto-generated. Do not edit directly.
 
 // Types for snippets
-type Snippet = {
+export type Snippet = {
   content: string;
   language: string;
   source: string;
