@@ -57,9 +57,7 @@ export function LessonProvider<
   C,
 >({ children, lesson }: LessonProviderProps<S, E, C>) {
   const [language, setLanguage] = useState(lesson.defaultLanguage);
-  const [activeStep, setActiveStepState] = useState<S>(
-    Object.keys(lesson.steps)[0] as S,
-  );
+  const [activeStep, setActiveStepState] = useState<S>();
   const [extra, setExtra] = useState(lesson.extraDefaults);
   const [highlights, setHighlightState] = useState<HighlightStateMap<S>>({});
 
@@ -84,10 +82,10 @@ export function LessonProvider<
   );
 
   const stepKeys = Object.keys(lesson.steps) as S[];
-  const currentStepIndex = stepKeys.indexOf(activeStep);
+  const currentStepIndex = activeStep ? stepKeys.indexOf(activeStep) : 0;
 
   useEffect(() => {
-    const activeBlock = codeBlocksRef.current[activeStep];
+    const activeBlock = activeStep ? codeBlocksRef.current[activeStep] : null;
 
     // Add scroll margin to both elements
     if (activeBlock) {

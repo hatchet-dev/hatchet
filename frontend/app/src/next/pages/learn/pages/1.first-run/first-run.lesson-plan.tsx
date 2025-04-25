@@ -33,7 +33,7 @@ const useLesson = untypedUseLesson<
   CommandConfig
 >;
 
-export type FirstRunStepKeys = 'intro' | 'setup' | 'task' | 'worker' | 'run';
+export type FirstRunStepKeys = 'setup' | 'task' | 'worker' | 'run';
 
 export type FirstRunExtra = {
   language: SupportedLanguage;
@@ -69,20 +69,9 @@ export const lessonPlan: LessonPlan<
       go: 'hatchet-dev/hatchet-go-quickstart',
     },
   },
+  intro: <IntroStep />,
+  duration: '~5 minutes',
   steps: {
-    intro: {
-      title: 'Welcome to Hatchet',
-      content: () => <IntroStep />,
-      description: () => (
-        <p>
-          Hatchet is a platform for building and running distributed
-          applications. <br />
-          <br />
-          This lesson will walk you through the process of setting up your
-          environment and running your first task.
-        </p>
-      ),
-    },
     setup: {
       title: 'Setup Your Environment',
       description: SetupStep,
@@ -124,18 +113,16 @@ export const lessonPlan: LessonPlan<
 
 function IntroStep() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Welcome to Hatchet</CardTitle>
-        <CardDescription>
-          Hatchet is a platform for building and running distributed
-          applications. <br />
-          <br />
-          This lesson will walk you through the process of setting up your
-          environment and running your first task.
-        </CardDescription>
-      </CardHeader>
-    </Card>
+    <>
+      <CardTitle>Learn Hatchet in 5 minutes</CardTitle>
+      <CardDescription>
+        Hatchet is a platform for building and running distributed applications.{' '}
+        <br />
+        <br />
+        This lesson will walk you through the process of setting up your
+        environment and running your first task.
+      </CardDescription>
+    </>
   );
 }
 
