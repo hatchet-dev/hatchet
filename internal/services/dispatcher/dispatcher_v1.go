@@ -35,7 +35,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Input
 	}
 
-	action := populateAssignedAction(tenantId, task)
+	action := populateAssignedAction(tenantId, task, task.RetryCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -50,11 +50,12 @@ func (worker *subscribedWorker) CancelTask(
 	ctx context.Context,
 	tenantId string,
 	task *sqlcv1.V1Task,
+	retryCount int32,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task)
+	action := populateAssignedAction(tenantId, task, retryCount)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -64,9 +65,9 @@ func (worker *subscribedWorker) CancelTask(
 	return worker.stream.Send(action)
 }
 
-func populateAssignedAction(tenantId string, task *sqlcv1.V1Task) *contracts.AssignedAction {
+func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
 	action := &contracts.AssignedAction{
-		TenantId:      tenantId,
+		TenantId:      tenantID,
 		JobId:         sqlchelpers.UUIDToStr(task.StepID), // FIXME
 		JobName:       task.StepReadableID,
 		JobRunId:      sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
@@ -75,7 +76,7 @@ func populateAssignedAction(tenantId string, task *sqlcv1.V1Task) *contracts.Ass
 		ActionId:      task.ActionID,
 		StepName:      task.StepReadableID,
 		WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
-		RetryCount:    task.RetryCount,
+		RetryCount:    retryCount,
 		Priority:      task.Priority.Int32,
 	}
 
@@ -314,10 +315,15 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 
 	msgs := msgqueuev1.JSONConvert[tasktypesv1.SignalTaskCancelledPayload](msg.Payloads)
 
-	taskIds := make([]int64, 0)
+	taskIdsToRetryCounts := make(map[int64][]int32)
 
 	for _, innerMsg := range msgs {
-		taskIds = append(taskIds, innerMsg.TaskId)
+		taskIdsToRetryCounts[innerMsg.TaskId] = append(taskIdsToRetryCounts[innerMsg.TaskId], innerMsg.RetryCount)
+	}
+
+	taskIds := make([]int64, 0)
+	for taskId := range taskIdsToRetryCounts {
+		taskIds = append(taskIds, taskId)
 	}
 
 	tasks, err := d.repov1.Tasks().ListTasks(ctx, msg.TenantID, taskIds)
@@ -347,6 +353,11 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 			continue
 		}
 
+		if !ok {
+			d.l.Warn().Msgf("task %d not found in retry counts", msg.TaskId)
+			continue
+		}
+
 		workerIdToTasks[msg.WorkerId] = append(workerIdToTasks[msg.WorkerId], task)
 	}
 
@@ -366,10 +377,19 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueuev
 
 		for _, w := range workers {
 			for _, task := range tasks {
-				err = w.CancelTask(ctx, msg.TenantID, task)
+				retryCounts, ok := taskIdsToRetryCounts[task.ID]
 
-				if err != nil {
-					multiErr = multierror.Append(multiErr, fmt.Errorf("could not send job to worker: %w", err))
+				if !ok {
+					d.l.Warn().Msgf("task %d not found in retry counts", task.ID)
+					continue
+				}
+
+				for _, retryCount := range retryCounts {
+					err = w.CancelTask(ctx, msg.TenantID, task, retryCount)
+
+					if err != nil {
+						multiErr = multierror.Append(multiErr, fmt.Errorf("could not send job to worker: %w", err))
+					}
 				}
 			}
 		}
