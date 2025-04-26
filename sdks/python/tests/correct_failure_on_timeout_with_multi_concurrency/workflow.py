@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 
 from pydantic import BaseModel
 
@@ -8,6 +9,8 @@ from hatchet_sdk import (
     Context,
     Hatchet,
 )
+
+TIMEOUT_SECONDS = 3
 
 
 class InputModel(BaseModel):
@@ -35,6 +38,7 @@ multiple_concurrent_cancellations_test_workflow = hatchet.workflow(
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
         ),
     ],
+    execution_timeout=timedelta(seconds=TIMEOUT_SECONDS),
 )
 async def step_1(input: InputModel, ctx: Context) -> None:
     await asyncio.sleep(3)
@@ -50,6 +54,7 @@ async def step_1(input: InputModel, ctx: Context) -> None:
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
         ),
     ],
+    execution_timeout=timedelta(seconds=TIMEOUT_SECONDS),
 )
 async def step_2(input: InputModel, ctx: Context) -> None:
     pass
