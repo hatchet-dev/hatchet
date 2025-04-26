@@ -39,7 +39,6 @@ type QueueRepository interface {
 }
 
 type RateLimitRepository interface {
-	ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error)
 	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error)
 }
 

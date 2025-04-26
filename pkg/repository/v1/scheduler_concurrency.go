@@ -68,7 +68,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		acquired, err := c.queries.TryConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		acquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
 			return nil, err
@@ -271,7 +271,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, err
@@ -282,7 +282,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		err := c.queries.ConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		err := c.queries.AdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
 			return nil, err
@@ -470,7 +470,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, err
@@ -481,7 +481,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		err := c.queries.ConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		err := c.queries.AdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
 			return nil, err

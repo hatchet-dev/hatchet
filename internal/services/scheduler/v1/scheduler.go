@@ -193,8 +193,9 @@ func (s *Scheduler) Start() (func() error, error) {
 	_, err := s.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
-			s.runTenantSetQueues(ctx),
+			s.runSetTenants(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -332,7 +333,7 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message)
 	return nil
 }
 
-func (s *Scheduler) runTenantSetQueues(ctx context.Context) func() {
+func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	return func() {
 		s.l.Debug().Msgf("partition: checking step run requeue")
 
