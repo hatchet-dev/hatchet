@@ -156,7 +156,7 @@ Parameters:
 
 | Name                  | Type                          | Description                                                                                                                               | Default                     |
 | --------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `name`                | `str \| None`                 | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator. | `None`                      |
+| `name`                | `str \| None`                 | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator. | `None`                      |
 | `schedule_timeout`    | `Duration`                    | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.              | `DEFAULT_SCHEDULE_TIMEOUT`  |
 | `execution_timeout`   | `Duration`                    | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.               | `DEFAULT_EXECUTION_TIMEOUT` |
 | `retries`             | `int`                         | The number of times to retry the on-success task before failing                                                                           | `0`                         |
@@ -167,9 +167,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                                |
-| ----------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                          | Description                              |
+| ----------------------------------------------------------------------------- | ---------------------------------------- |
+| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
 
 #### `run`
 
@@ -277,7 +277,9 @@ Returns:
 
 #### `run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -293,7 +295,9 @@ Returns:
 
 #### `aio_run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -512,7 +516,9 @@ Returns:
 
 #### `run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
@@ -528,7 +534,9 @@ Returns:
 
 #### `aio_run_many_no_wait`
 
-Run a workflow in bulk without waiting for all runs to complete. This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+Run a workflow in bulk without waiting for all runs to complete.
+
+This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
 
 Parameters:
 
