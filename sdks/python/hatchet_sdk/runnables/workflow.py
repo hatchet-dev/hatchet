@@ -804,7 +804,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             )
 
             if self._on_success_task:
-                raise ValueError("Only one on-failure task is allowed")
+                raise ValueError("Only one on-success task is allowed")
 
             self._on_success_task = task
 
