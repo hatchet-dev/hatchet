@@ -1,4 +1,4 @@
-import random
+import asyncio
 
 from pydantic import BaseModel
 
@@ -12,7 +12,6 @@ from hatchet_sdk import (
 
 class InputModel(BaseModel):
     concurrency_key: str
-    constant: str
 
 
 hatchet = Hatchet(debug=True)
@@ -35,16 +34,11 @@ multiple_concurrent_cancellations_test_workflow = hatchet.workflow(
             max_runs=1,
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
         ),
-        ConcurrencyExpression(
-            expression="input.constant",
-            max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-        ),
     ],
 )
 async def step_1(input: InputModel, ctx: Context) -> None:
-    if random.choice([True, False]):
-        raise Exception("Error for bug")
+    await asyncio.sleep(3)
+    raise Exception("Error for bug")
 
 
 @multiple_concurrent_cancellations_test_workflow.task(
@@ -55,14 +49,7 @@ async def step_1(input: InputModel, ctx: Context) -> None:
             max_runs=1,
             limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
         ),
-        ConcurrencyExpression(
-            expression="input.constant",
-            max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-        ),
     ],
 )
 async def step_2(input: InputModel, ctx: Context) -> None:
-    if random.choice([True, False]):
-        raise Exception("Error for bug")
-
+    pass
