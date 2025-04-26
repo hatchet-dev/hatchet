@@ -1314,27 +1314,25 @@ func getParentInDAGGroupMatch(
 					Action:            sqlcv1.V1MatchConditionActionCANCEL,
 				})
 		}
+	} else {
+		res = append(res, GroupMatchCondition{
+			GroupId:           cancelGroupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionCANCEL,
+		}, GroupMatchCondition{
+			GroupId:           cancelGroupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionCANCEL,
+		})
 	}
-
-	// always add the original cancel group match conditions. these can't be modified otherwise DAGs risk
-	// getting stuck in a concurrency queue.
-	res = append(res, GroupMatchCondition{
-		GroupId:           cancelGroupId,
-		EventType:         sqlcv1.V1EventTypeINTERNAL,
-		EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-		ReadableDataKey:   parentReadableId,
-		EventResourceHint: &parentExternalId,
-		Expression:        "true",
-		Action:            sqlcv1.V1MatchConditionActionCANCEL,
-	}, GroupMatchCondition{
-		GroupId:           cancelGroupId,
-		EventType:         sqlcv1.V1EventTypeINTERNAL,
-		EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-		ReadableDataKey:   parentReadableId,
-		EventResourceHint: &parentExternalId,
-		Expression:        "true",
-		Action:            sqlcv1.V1MatchConditionActionCANCEL,
-	})
 
 	return res
 }
