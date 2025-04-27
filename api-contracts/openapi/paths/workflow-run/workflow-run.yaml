@@ -39,6 +39,12 @@ replayWorkflowRuns:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: One or more workflow runs not found or do not belong to the tenant
       "429":
         content:
           application/json:
