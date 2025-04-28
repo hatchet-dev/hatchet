@@ -47,12 +47,7 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {date ? (
-            label +
-            ':  ' +
-            format(date, 'PPP HH:mm') +
-            ' (' +
-            format(date, 'z') +
-            ')'
+            label + ':  ' + format(date, 'PPP HH:mm:ss')
           ) : (
             <span>{label}</span>
           )}

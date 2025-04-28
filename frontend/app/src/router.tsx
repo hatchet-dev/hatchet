@@ -8,8 +8,6 @@ import {
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 
-import { routes as nextRoutes } from './next/router';
-
 export const routes: RouteObject[] = [
   {
     path: '/',
@@ -20,7 +18,6 @@ export const routes: RouteObject[] = [
       </Root>
     ),
     children: [
-      ...nextRoutes,
       {
         path: '/auth',
         lazy: async () =>
