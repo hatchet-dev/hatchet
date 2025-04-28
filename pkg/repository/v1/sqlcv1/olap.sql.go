@@ -11,20 +11,45 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS event_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS event_inserted_at,
+        UNNEST($3::UUID[]) AS run_external_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS run_inserted_at
+)
+INSERT INTO v1_event_to_run_olap(
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_inserted_at
+)
+SELECT
+    COALESCE(lt.task_id, lt.dag_id) AS run_id,
+    i.run_inserted_at,
+    i.event_id,
+    i.event_inserted_at
+FROM inputs i
+JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+RETURNING run_id, run_inserted_at, event_id, event_inserted_at
+`
+
 type BulkCreateEventTriggersParams struct {
-	RunID         int64              `json:"run_id"`
-	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
-	EventID       pgtype.UUID        `json:"event_id"`
-	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
+	Eventids         []int64              `json:"eventids"`
+	Eventinsertedats []pgtype.Timestamptz `json:"eventinsertedats"`
+	Runexternalids   []pgtype.UUID        `json:"runexternalids"`
+	Runinsertedats   []pgtype.Timestamptz `json:"runinsertedats"`
 }
 
-type BulkCreateEventsParams struct {
-	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ID                 pgtype.UUID        `json:"id"`
-	SeenAt             pgtype.Timestamptz `json:"seen_at"`
-	Key                string             `json:"key"`
-	Payload            []byte             `json:"payload"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
+func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) error {
+	_, err := db.Exec(ctx, bulkCreateEventTriggers,
+		arg.Eventids,
+		arg.Eventinsertedats,
+		arg.Runexternalids,
+		arg.Runinsertedats,
+	)
+	return err
 }
 
 type CreateDAGsOLAPParams struct {
@@ -94,9 +119,7 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_events_olap'::text, $2::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $2::date)
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -628,12 +651,7 @@ WITH task_partitions AS (
     SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $1::date) AS p
 ), runs_partitions AS (
     SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $1::date) AS p
-), events_partitions AS (
-    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $1::date) AS p
-), event_trigger_partitions AS (
-    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $1::date) AS p
 )
-
 SELECT
     parent_table, partition_name
 FROM
@@ -652,20 +670,6 @@ SELECT
     parent_table, partition_name
 FROM
     runs_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    events_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    event_trigger_partitions
 `
 
 type ListOLAPPartitionsBeforeDateRow struct {
