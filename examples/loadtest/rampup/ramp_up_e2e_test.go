@@ -14,25 +14,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// This runs before all tests
-	t := &testing.T{}
-	postRun := harness.StartEngine(t)
-
-	// Run all tests in this package
-	code := m.Run()
-
-	if code != 0 {
-		log.Printf("TestMain: code %d", code)
-		os.Exit(code)
-	}
-
-	postRun()
-
-	// determine if t is failed
-	if t.Failed() {
-		log.Printf("TestMain: test failed")
-		os.Exit(1)
-	}
+	harness.RunTestWithEngine(m)
 }
 
 func TestRampUp(t *testing.T) {
