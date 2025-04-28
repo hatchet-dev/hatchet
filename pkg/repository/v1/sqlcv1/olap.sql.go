@@ -31,7 +31,7 @@ SELECT
     i.event_id,
     i.event_inserted_at
 FROM inputs i
-LEFT JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
 RETURNING run_id, run_inserted_at, event_id, event_inserted_at
 `
 
