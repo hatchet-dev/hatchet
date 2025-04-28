@@ -16,11 +16,13 @@ export const processFiles = async (): Promise<string[]> => {
   const { SOURCE_DIRS, OUTPUT_DIR, IGNORE_LIST, PRESERVE_FILES } = config;
 
   console.log(`${colors.bright}${colors.blue}🚀 Starting snips processing...${colors.reset}`);
-  console.log(`${colors.cyan}Source directories: ${SOURCE_DIRS.join(', ')}${colors.reset}`);
+  console.log(
+    `${colors.cyan}Source directories: ${Object.keys(SOURCE_DIRS).join(', ')}${colors.reset}`,
+  );
   console.log(`${colors.cyan}Output directory: ${OUTPUT_DIR}${colors.reset}`);
 
   // Handle case when no source directories are provided
-  if (!SOURCE_DIRS || SOURCE_DIRS.length === 0) {
+  if (!SOURCE_DIRS || Object.keys(SOURCE_DIRS).length === 0) {
     console.log(`${colors.red}No source directories provided!${colors.reset}`);
     return [];
   }
@@ -41,10 +43,10 @@ export const processFiles = async (): Promise<string[]> => {
   const toRestore = await clean(OUTPUT_DIR, PRESERVE_FILES);
 
   // Process directories
-  for (const sourceDir of SOURCE_DIRS) {
+  for (const [language, sourceDir] of Object.entries(SOURCE_DIRS)) {
     console.log(`${colors.magenta}Processing directory: ${sourceDir}${colors.reset}`);
     // Recursively process the directory
-    await processDirectory(sourceDir, OUTPUT_DIR, IGNORE_LIST);
+    await processDirectory(sourceDir, path.join(OUTPUT_DIR, language), IGNORE_LIST);
   }
 
   // Restore the preserved files
@@ -58,9 +60,12 @@ export const processFiles = async (): Promise<string[]> => {
 
   // Return files from the first directory for testing purposes
   try {
-    return await fs.readdir(SOURCE_DIRS[0]);
+    return await fs.readdir(Object.values(SOURCE_DIRS)[0]);
   } catch (error) {
-    console.error(`${colors.red}Error reading directory ${SOURCE_DIRS[0]}:${colors.reset}`, error);
+    console.error(
+      `${colors.red}Error reading directory ${Object.values(SOURCE_DIRS)[0]}:${colors.reset}`,
+      error,
+    );
     throw error;
   }
 };

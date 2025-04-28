@@ -3,7 +3,7 @@ import { Processor } from '../processors/processor.interface';
 import { snippetProcessor } from '../processors/snippets/snippet.processor';
 
 export type Config = {
-  SOURCE_DIRS: string[];
+  SOURCE_DIRS: { [key: string]: string };
   OUTPUT_DIR: string;
   PRESERVE_FILES: string[] | RegExp[];
   IGNORE_LIST: string[];
