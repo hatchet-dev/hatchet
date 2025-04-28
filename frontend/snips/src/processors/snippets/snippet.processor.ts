@@ -15,8 +15,14 @@ const TOKENS = {
 };
 
 const getFileName = (name: string) => {
-  const extension = name.split('.').pop();
-  const fileName = name.split('.').slice(0, -1).join('-');
+  const lastDotIndex = name.lastIndexOf('.');
+  const extension = lastDotIndex !== -1 ? name.slice(lastDotIndex + 1) : '';
+  const fileName = lastDotIndex !== -1 ? name.slice(0, lastDotIndex) : name;
+
+  if (name.startsWith('.')) {
+    return { extension, fileName: extension };
+  }
+
   return { extension, fileName };
 };
 
@@ -131,7 +137,13 @@ const processBlocksAndHighlights = (
  * that exports a default Snippet with that content.
  */
 const processSnippet: ContentProcessor = async ({ path, name, content }) => {
-  const { extension, fileName } = getFileName(name);
+  const parsedName = getFileName(name);
+
+  if (!parsedName) {
+    return [];
+  }
+
+  const { extension, fileName } = parsedName;
 
   const language =
     extension && extension in LANGUAGE_MAP
@@ -151,7 +163,7 @@ const processSnippet: ContentProcessor = async ({ path, name, content }) => {
   };
 
   // Generate TypeScript content that exports the snippet
-  const tsContent = `import { Snippet } from '@/types';
+  const tsContent = `import { Snippet } from '@/lib/generated/snips/types';
 
 const snippet: Snippet = ${JSON.stringify(snippet, null, 2)
     .replace(/'/g, "\\'") // First escape any single quotes
@@ -178,6 +190,13 @@ const processDirectory: DirectoryProcessor = async ({ dir }) => {
     return;
   }
 
+  if (dir.endsWith('snips')) {
+    //copy types.ts to the directory
+    const typesPath = path.join(__dirname, '../../types.ts');
+    await fs.copyFile(typesPath, path.join(dir, 'types.ts'));
+    console.log(`Copied types.ts to ${dir}`);
+  }
+
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const snippets = entries.filter(
     (entry) => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'index.ts',
@@ -190,23 +209,24 @@ const processDirectory: DirectoryProcessor = async ({ dir }) => {
 
   // Generate import and export statements for files
   const fileImports = snippets.map((file) => {
-    const baseName = file.name.replace('.ts', '').replace(/-/g, '_');
+    console.log(file.name);
+    const baseName = sanitizeFileName(file.name);
     return `import ${baseName} from './${file.name.replace('.ts', '')}';`;
   });
 
   const fileExports = snippets.map((file) => {
-    const baseName = file.name.replace('.ts', '').replace(/-/g, '_');
-    return `export { ${baseName} as ${baseName} }`;
+    const baseName = sanitizeFileName(file.name);
+    return `export { ${baseName} }`;
   });
 
   // Generate import and export statements for directories
   const dirImports = directories.map((dir) => {
-    const importName = dir.name.replace(/-/g, '_');
+    const importName = sanitizeFileName(dir.name);
     return `import * as ${importName} from './${dir.name}';`;
   });
 
   const dirExports = directories.map((dir) => {
-    const importName = dir.name.replace(/-/g, '_');
+    const importName = sanitizeFileName(dir.name);
     return `export { ${importName} };`;
   });
 
@@ -216,7 +236,15 @@ const processDirectory: DirectoryProcessor = async ({ dir }) => {
 
   // Write the index.ts file
   await fs.writeFile(path.join(dir, 'index.ts'), indexContent, 'utf-8');
-  console.log(`Created index.ts in ${dir}`);
+};
+
+const sanitizeFileName = (name: string) => {
+  return name
+    .toLowerCase()
+    .replace('.ts', '')
+    .replace('do', '_do')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/ /g, '_');
 };
 
 export const snippetProcessor: Processor = {

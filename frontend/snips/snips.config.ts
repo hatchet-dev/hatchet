@@ -30,6 +30,10 @@ export const config: Config = {
     '*.spec.*',
     '*.test-d.*',
 
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'package.json',
+
     // Python specific
     '__pycache__',
     '.pytest_cache',

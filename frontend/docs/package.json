@@ -4,14 +4,15 @@
   "description": "Nextra docs template",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "taskfile-dev": "npm run generate-examples && next dev",
+    "taskfile-dev": "pnpm run generate-examples && next dev",
     "dev": "task docs",
-    "build": "npm run generate-examples && next build",
+    "build": "pnpm run generate-examples && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
     "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write",
+    "generate-examples": "echo 'todo...'"
   },
   "repository": {
     "type": "git",
