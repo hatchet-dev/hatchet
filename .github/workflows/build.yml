@@ -6,13 +6,35 @@ on:
       - 'frontend/docs/**'
 
 jobs:
-  frontend:
+  sync-frontend:
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Sync frontend content
-        uses: ./.github/workflows/sync-frontend.yml
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9.15.4
+      - name: Install dependencies
+        run: |
+          cd frontend/app
+          pnpm install --frozen-lockfile
+      - name: Sync content
+        run: |
+          cd frontend/app
+          npm run sync-examples
+          npm run sync-docs
+
+  frontend:
+    needs: sync-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
@@ -81,12 +103,11 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
+    needs: sync-frontend
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Sync frontend content
-        uses: ./.github/workflows/sync-frontend.yml
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -117,12 +138,11 @@ jobs:
             .
 
   lite-amd:
+    needs: sync-frontend
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Sync frontend content
-        uses: ./.github/workflows/sync-frontend.yml
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -153,12 +173,11 @@ jobs:
             .
 
   dashboard-arm:
+    needs: sync-frontend
     runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Sync frontend content
-        uses: ./.github/workflows/sync-frontend.yml
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -173,12 +192,11 @@ jobs:
             .
 
   dashboard-amd:
+    needs: sync-frontend
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
-      - name: Sync frontend content
-        uses: ./.github/workflows/sync-frontend.yml
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
