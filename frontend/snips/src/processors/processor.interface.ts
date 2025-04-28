@@ -7,6 +7,10 @@ type ContentProcessorProps = {
 export type ContentProcessor = (props: ContentProcessorProps) => Promise<{
   filename?: string;
   content: string;
+  outDir?: string;
 }>;
 
-export type Processor = ContentProcessor;
+export type Processor = {
+  process: ContentProcessor;
+  outDir?: string;
+};

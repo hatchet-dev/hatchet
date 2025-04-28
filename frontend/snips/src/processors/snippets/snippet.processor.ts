@@ -11,7 +11,7 @@ const getFileName = (name: string) => {
  * Processes content by creating a TypeScript string
  * that exports a default Snippet with that content.
  */
-export const snippetProcessor: ContentProcessor = async ({ path, name, content }) => {
+const processSnippet: ContentProcessor = async ({ path, name, content }) => {
   const { extension, fileName } = getFileName(name);
 
   const language =
@@ -38,4 +38,9 @@ export default snippet;
     filename: `${fileName}.ts`,
     content: tsContent,
   };
+};
+
+export const snippetProcessor = {
+  process: processSnippet,
+  outDir: 'snips',
 };

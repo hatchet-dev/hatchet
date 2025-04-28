@@ -2,17 +2,9 @@ import { getConfig } from '../utils/config';
 import fs from 'fs/promises';
 import { Dirent } from 'fs';
 import path from 'path';
-import { clean, restore } from './clean';
+import { clean, restore } from './clean-build';
 import { colors } from '../utils/colors';
-
-interface ProcessorResult {
-  content: string;
-  filename?: string;
-}
-
-interface Processor {
-  (params: { path: string; name: string; content: string }): Promise<ProcessorResult>;
-}
+import { Processor } from '@/processors/processor.interface';
 
 /**
  * Processes files in the source directory, preserving the directory structure
@@ -89,13 +81,22 @@ const processFile = async (
   let currentOutputPath = outputPath;
 
   for (const processor of processors) {
-    const result = await processor({
+    const result = await processor.process({
       path: sourcePath,
       name: entry.name,
       content: currentContent,
     });
 
     currentContent = result.content;
+
+    const previousPath = currentOutputPath;
+
+    const previousPathParts = previousPath.split('/');
+    currentOutputPath = path.join(
+      previousPathParts[0],
+      processor.outDir || '',
+      ...previousPathParts.slice(1),
+    );
 
     if (result.filename) {
       const previousPath = currentOutputPath;
