@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -193,6 +194,9 @@ func newWorkflowRepository(shared *sharedRepository) WorkflowRepository {
 }
 
 func (w *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId string, workflowIds []pgtype.UUID) (map[pgtype.UUID]string, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-workflow-names-by-ids")
+	defer span.End()
+
 	workflowNames, err := w.queries.ListWorkflowNamesByIds(ctx, w.pool, workflowIds)
 
 	if err != nil {

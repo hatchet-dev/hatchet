@@ -172,11 +172,11 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 }
 
 func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list-only-tasks")
 	defer span.End()
+
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var (
 		statuses = []sqlcv1.V1ReadableStatusOlap{
