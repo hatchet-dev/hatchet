@@ -305,6 +305,9 @@ class AdminClient:
             additional_metadata=options.additional_metadata,
             desired_worker_id=desired_worker_id,
             priority=options.priority,
+            namespace=options.namespace,
+            sticky=options.sticky,
+            key=options.key,
         )
 
         namespace = options.namespace or self.namespace
