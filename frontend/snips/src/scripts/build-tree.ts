@@ -52,6 +52,15 @@ export const processFiles = async (): Promise<string[]> => {
   // Restore the preserved files
   await restore(toRestore);
 
+  // Process all directories with all processors recursively
+  const { PROCESSORS } = config;
+  for (const processor of PROCESSORS) {
+    console.log(
+      `${colors.magenta}Running directory processor recursively: ${processor.constructor.name}${colors.reset}`,
+    );
+    await processFinalDirectoryRecursively(OUTPUT_DIR, processor);
+  }
+
   const endTime = Date.now();
   const duration = (endTime - startTime) / 1000;
   console.log(
@@ -89,36 +98,39 @@ const processFile = async (
   const content = await fs.readFile(sourcePath, 'utf-8');
 
   processors.forEach(async (processor) => {
-    const results = await processor.process({
+    const results = await processor.processFile({
       path: outputPath,
       name: entry.name,
       content: content,
     });
 
-    results.forEach(async (result) => {
-      const previousPath = outputPath;
+    await Promise.all(
+      results.map(async (result) => {
+        const previousPath = outputPath;
 
-      const previousPathParts = previousPath.split('/');
-      let currentOutputPath = path.join(
-        previousPathParts[0],
-        result.outDir || '',
-        ...previousPathParts.slice(1),
-      );
-
-      if (result.filename) {
-        const previousPath = currentOutputPath;
-        currentOutputPath = path.join(path.dirname(currentOutputPath), result.filename);
-        console.log(
-          `${colors.yellow}  ⟳ Processor changed filename: ${path.basename(previousPath)} → ${result.filename}${colors.reset}`,
+        const previousPathParts = previousPath.split('/');
+        let currentOutputPath = path.join(
+          previousPathParts[0],
+          result.outDir || '',
+          ...previousPathParts.slice(1),
         );
-      }
 
-      await ensureDirectoryExists(path.dirname(currentOutputPath));
-      await fs.writeFile(currentOutputPath, result.content, 'utf-8');
-      console.log(
-        `${colors.green}  ✓ Processed file written to: ${currentOutputPath}${colors.reset}`,
-      );
-    });
+        if (result.filename) {
+          const previousPath = currentOutputPath;
+          currentOutputPath = path.join(path.dirname(currentOutputPath), result.filename);
+          console.log(
+            `${colors.yellow}  ⟳ Processor changed filename: ${path.basename(previousPath)} → ${result.filename}${colors.reset}`,
+          );
+        }
+
+        await ensureDirectoryExists(path.dirname(currentOutputPath));
+        await fs.writeFile(currentOutputPath, result.content, 'utf-8');
+
+        console.log(
+          `${colors.green}  ✓ Processed file written to: ${currentOutputPath}${colors.reset}`,
+        );
+      }),
+    );
   });
 };
 
@@ -162,10 +174,12 @@ export const processDirectory = async (
     const entries = await fs.readdir(sourceDir, { withFileTypes: true });
     console.log(`${colors.cyan}Found ${entries.length} entries in ${sourceDir}${colors.reset}`);
 
-    entries.forEach(async (entry) => {
-      const sourcePath = path.join(sourceDir, entry.name);
-      await processEntry(entry, sourcePath, outputDir, ignoreList, PROCESSORS);
-    });
+    await Promise.all(
+      entries.map(async (entry) => {
+        const sourcePath = path.join(sourceDir, entry.name);
+        await processEntry(entry, sourcePath, outputDir, ignoreList, PROCESSORS);
+      }),
+    );
   } catch (error) {
     console.error(`${colors.red}Error processing directory ${sourceDir}:${colors.reset}`, error);
     throw error;
@@ -187,6 +201,27 @@ const shouldIgnore = (name: string, ignoreList: string[] | RegExp[]): boolean =>
     }
     return name === pattern;
   });
+};
+
+/**
+ * Recursively processes a directory and all its subdirectories with a given processor
+ */
+const processFinalDirectoryRecursively = async (
+  dirPath: string,
+  processor: Processor,
+): Promise<void> => {
+  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+
+  // Process the current directory
+  await processor.processDirectory({ dir: dirPath });
+
+  // Process all subdirectories
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const subDirPath = path.join(dirPath, entry.name);
+      await processFinalDirectoryRecursively(subDirPath, processor);
+    }
+  }
 };
 
 processFiles();

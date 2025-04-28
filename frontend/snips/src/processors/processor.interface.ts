@@ -10,8 +10,14 @@ type ProcessedFile = {
   outDir?: string;
 };
 
+type DirectoryProcessorProps = {
+  dir: string;
+};
+
 export type ContentProcessor = (props: ContentProcessorProps) => Promise<ProcessedFile[]>;
+export type DirectoryProcessor = (props: DirectoryProcessorProps) => Promise<void>;
 
 export type Processor = {
-  process: ContentProcessor;
+  processFile: ContentProcessor;
+  processDirectory: DirectoryProcessor;
 };

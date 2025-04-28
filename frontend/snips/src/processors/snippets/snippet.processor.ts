@@ -1,6 +1,8 @@
+import fs from 'fs/promises';
 import { getConfig } from '../../utils/config';
 import { Snippet, LANGUAGE_MAP, Block, Highlight } from '../../types';
-import { ContentProcessor } from '../processor.interface';
+import { ContentProcessor, DirectoryProcessor, Processor } from '../processor.interface';
+import path from 'path';
 
 const TOKENS = {
   BLOCK: {
@@ -167,6 +169,55 @@ export default snippet;
   ];
 };
 
-export const snippetProcessor = {
-  process: processSnippet,
+const processDirectory: DirectoryProcessor = async ({ dir }) => {
+  if (!dir.includes('snips')) {
+    return;
+  }
+
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const snippets = entries.filter(
+    (entry) => entry.isFile() && entry.name.endsWith('.ts') && entry.name !== 'index.ts',
+  );
+  const directories = entries.filter((entry) => entry.isDirectory());
+
+  if (snippets.length === 0 && directories.length === 0) {
+    return;
+  }
+
+  // Generate import and export statements for files
+  const fileImports = snippets.map((file) => {
+    const baseName = file.name.replace('.ts', '');
+    const normalizedName = baseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return `import * as ${normalizedName} from './${baseName}';`;
+  });
+
+  const fileExports = snippets.map((file) => {
+    const baseName = file.name.replace('.ts', '');
+    const normalizedName = baseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return `export { ${normalizedName} };`;
+  });
+
+  // Generate import and export statements for directories
+  const dirImports = directories.map((dir) => {
+    const normalizedName = dir.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return `import * as ${normalizedName} from './${dir.name}';`;
+  });
+
+  const dirExports = directories.map((dir) => {
+    const normalizedName = dir.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return `export { ${normalizedName} };`;
+  });
+
+  const indexContent = [...fileImports, ...dirImports, '', ...fileExports, ...dirExports, ''].join(
+    '\n',
+  );
+
+  // Write the index.ts file
+  await fs.writeFile(path.join(dir, 'index.ts'), indexContent, 'utf-8');
+  console.log(`Created index.ts in ${dir}`);
+};
+
+export const snippetProcessor: Processor = {
+  processFile: processSnippet,
+  processDirectory: processDirectory,
 };
