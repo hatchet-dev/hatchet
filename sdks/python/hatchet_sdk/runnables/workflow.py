@@ -879,7 +879,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         workflows = self.client.workflows.list(workflow_name=self.name)
 
         if not workflows.rows:
-            logger.warning(f"No workflows found for {self.name}")
+            logger.warning(f"No runs found for {self.name}")
             return []
 
         workflow = workflows.rows[0]

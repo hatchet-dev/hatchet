@@ -327,7 +327,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         workflows = self.client.workflows.list(workflow_name=self._workflow.name)
 
         if not workflows.rows:
-            logger.warning(f"No workflows found for {self.name}")
+            logger.warning(f"No runs found for {self.name}")
             return []
 
         workflow = workflows.rows[0]
