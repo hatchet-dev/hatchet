@@ -141,19 +141,6 @@ class AdminClient:
             priority=_options.priority,
         )
 
-    def _prepare_put_workflow_request(
-        self,
-        name: str,
-        workflow: workflow_protos.CreateWorkflowVersionRequest,
-        overrides: workflow_protos.CreateWorkflowVersionRequest | None = None,
-    ) -> workflow_protos.CreateWorkflowVersionRequest:
-        if overrides is not None:
-            workflow.MergeFrom(overrides)
-
-        workflow.name = name
-
-        return workflow
-
     def _parse_schedule(
         self, schedule: datetime | timestamp_pb2.Timestamp
     ) -> timestamp_pb2.Timestamp:
@@ -191,11 +178,9 @@ class AdminClient:
     @tenacity_retry
     async def aio_put_workflow(
         self,
-        name: str,
         workflow: workflow_protos.CreateWorkflowVersionRequest,
-        overrides: workflow_protos.CreateWorkflowVersionRequest | None = None,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
-        return await asyncio.to_thread(self.put_workflow, name, workflow, overrides)
+        return await asyncio.to_thread(self.put_workflow, workflow)
 
     @tenacity_retry
     async def aio_put_rate_limit(
@@ -221,12 +206,8 @@ class AdminClient:
     @tenacity_retry
     def put_workflow(
         self,
-        name: str,
         workflow: workflow_protos.CreateWorkflowVersionRequest,
-        overrides: workflow_protos.CreateWorkflowVersionRequest | None = None,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
-        opts = self._prepare_put_workflow_request(name, workflow, overrides)
-
         if self.client is None:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
@@ -234,7 +215,7 @@ class AdminClient:
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
             self.client.PutWorkflow(
-                opts,
+                workflow,
                 metadata=get_metadata(self.token),
             ),
         )
