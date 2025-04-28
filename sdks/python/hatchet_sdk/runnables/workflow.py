@@ -851,7 +851,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def list_runs(
         self,
-        since: datetime = datetime.now() - timedelta(hours=1),
+        since: datetime | None = None,
         until: datetime | None = None,
         limit: int = 100,
         offset: int | None = None,
@@ -886,7 +886,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         response = self.client.runs.list(
             workflow_ids=[workflow.metadata.id],
-            since=since,
+            since=since or datetime.now() - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -901,7 +901,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_list_runs(
         self,
-        since: datetime = datetime.now() - timedelta(hours=1),
+        since: datetime | None = None,
         until: datetime | None = None,
         limit: int = 100,
         offset: int | None = None,
@@ -928,7 +928,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         return await asyncio.to_thread(
             self.list_runs,
-            since=since,
+            since=since or datetime.now() - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
