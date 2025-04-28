@@ -59,18 +59,27 @@ export const config: Config = {
     {
       from: '@hatchet',
       to: '@hatchet-dev/typescript-sdk',
+      fileTypes: ['ts']
     },
   ],
 
   // Patterns to remove from code files
   REMOVAL_PATTERNS: [
     {
-      regex: /^\s*(\/\/|#)\s*HH-.*$/gm,
+      regex: '# HH-',
       description: 'HH- style comments',
     },
     {
-      regex: /^\s*(\/\/|#)\s*!!\s*$/gm,
+      regex: '# !!',
       description: 'End marker comments',
+    },
+    {
+      regex: '// !!',
+      description: 'End marker comments',
+    },
+    {
+      regex: '// HH-',
+      description: 'HH- style comments',
     },
     {
       regex: /^\s*\/\*\s*eslint-.*\*\/$/gm,

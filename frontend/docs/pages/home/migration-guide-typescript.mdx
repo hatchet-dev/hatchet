@@ -11,15 +11,15 @@ This guide will help you migrate Hatchet workflows from the V0 SDK to the V1 SDK
 
 First, we've exposed a new `hatchet.task` method in the V1 SDK for single function tasks.
 
-<Snippet src={snips.typescript.simple.workflow["*"]} />
+<Snippet src={snips.typescript.simple.workflow} block="ALL" />
 
 DAGs are still defined as workflows, but they can now be declared using the `hatchet.workflow` method.
 
-<Snippet src={snips.typescript.dag.workflow.declaring_a_dag_workflow} />
+<Snippet src={snips.typescript.dag.workflow} block="declaring_a_dag_workflow" />
 
 You can now run work for tasks and workflows by directly interacting with the returned object.
 
-<Snippet src={snips.typescript.simple.run.running_a_task} />
+<Snippet src={snips.typescript.simple.run} block="running_a_task" />
 
 There are a few important things to note when migrating to the new SDK:
 
@@ -35,10 +35,16 @@ The new SDK also provides improved type support for spawning child tasks from ar
 
 First, we declare a child task:
 
-<Snippet src={snips.typescript.child_workflows.workflow.declaring_a_child} />
+<Snippet
+  src={snips.typescript.child_workflows.workflow}
+  block="declaring_a_child"
+/>
 
 Next, we spawn that child from a parent task:
 
-<Snippet src={snips.typescript.child_workflows.workflow.declaring_a_parent} />
+<Snippet
+  src={snips.typescript.child_workflows.workflow}
+  block="declaring_a_parent"
+/>
 
 In this example, the compiler knows what to expect for the types of `input` and `ctx` for each of the tasks, as well as the type of the input of the `child` task when spawning it from the `parent` task.

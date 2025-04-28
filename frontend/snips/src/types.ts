@@ -27,3 +27,5 @@ export const LANGUAGE_MAP = {
   go: 'go',
   unknown: 'unknown',
 };
+
+export default {};

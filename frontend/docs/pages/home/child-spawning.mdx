@@ -21,11 +21,11 @@ To implement child task spawning, you first need to create both parent and child
 
 First, we'll declare a couple of tasks for the parent and child:
 
-<Snippet src={snips.python.fanout.worker.fanoutparent} />
+<Snippet src={snips.python.fanout.worker} block="fanoutparent" />
 
 We also created a step on the parent task that spawns the child tasks. Now, we'll add a couple of steps to the child task:
 
-<Snippet src={snips.python.fanout.worker.fanoutchild} />
+<Snippet src={snips.python.fanout.worker} block="fanoutchild" />
 
 And that's it! The fanout parent will run and spawn the child, and then will collect the results from its steps.
 

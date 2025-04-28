@@ -10,9 +10,10 @@ export type Config = {
   REPLACEMENTS: Array<{
     from: string;
     to: string;
+    fileTypes?: string[];
   }>;
   REMOVAL_PATTERNS: Array<{
-    regex: RegExp;
+    regex: string | RegExp;
     description: string;
   }>;
   PROCESSORS?: Processor[];

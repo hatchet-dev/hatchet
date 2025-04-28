@@ -29,7 +29,7 @@ You can use either Python's built-in `logging` package, or the `context.log` met
 
 You can pass a custom logger to the `Hatchet` class when initializing it. For example:
 
-<Snippet src={snips.python.logger.client.rootlogger} />
+<Snippet src={snips.python.logger.client} block="rootlogger" />
 
 It's recommended that you pass the root logger to the `Hatchet` class, as this will ensure that all logs are captured by the Hatchet logger. If you have workflows defined in multiple files, they should be children of the root logger. For example, with the following file structure:
 
@@ -43,17 +43,17 @@ It's recommended that you pass the root logger to the `Hatchet` class, as this w
 
 You should pass the root logger to the `Hatchet` class in `client.py`:
 
-<Snippet src={snips.python.logger.client.rootlogger} />
+<Snippet src={snips.python.logger.client} block="rootlogger" />
 
 And then in `workflows/workflow.py`, you should create a child logger:
 
-<Snippet src={snips.python.logger.workflow.loggingworkflow} />
+<Snippet src={snips.python.logger.workflow} block="loggingworkflow" />
 
 ## Using the `context.log` method
 
 You can also use the `context.log` method to log messages from your workflows. This method is available on the `Context` object that is passed to each task in your workflow. For example:
 
-<Snippet src={snips.python.logger.workflow.contextlogger} />
+<Snippet src={snips.python.logger.workflow} block="contextlogger" />
 
 Each task is currently limited to 1000 log lines.
 

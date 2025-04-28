@@ -31,16 +31,19 @@ First, you can set a default priority at the workflow level:
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-<Snippet src={snips.python.priority.worker.default_priority} />
+<Snippet src={snips.python.priority.worker} block="default_priority" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-<Snippet src={snips.typescript.priority.workflow.task_priority_in_a_workflow} />
+<Snippet
+  src={snips.typescript.priority.workflow}
+  block="task_priority_in_a_workflow"
+/>
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows.priority.default_priority} />
+    <Snippet src={snips.go.workflows.priority} block="default_priority" />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -54,16 +57,19 @@ When you trigger a run, you can set the priority of the triggered run to overrid
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-<Snippet src={snips.python.priority.trigger.runtime_priority} />
+<Snippet src={snips.python.priority.trigger} block="runtime_priority" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-<Snippet src={snips.typescript.priority.run.run_a_task_with_a_priority} />
+<Snippet
+  src={snips.typescript.priority.run}
+  block="run_a_task_with_a_priority"
+/>
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.run.priority.running_a_task_with_priority} />
+    <Snippet src={snips.go.run.priority} block="running_a_task_with_priority" />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -73,16 +79,16 @@ Similarly, you can also assign a priority to scheduled and cron workflows.
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-<Snippet src={snips.python.priority.trigger.scheduled_priority} />
+<Snippet src={snips.python.priority.trigger} block="scheduled_priority" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-<Snippet src={snips.typescript.priority.run.schedule_and_cron} />
+<Snippet src={snips.typescript.priority.run} block="schedule_and_cron" />
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.run.priority.schedule_and_cron} />
+    <Snippet src={snips.go.run.priority} block="schedule_and_cron" />
 
   </Tabs.Tab>
 </UniversalTabs>

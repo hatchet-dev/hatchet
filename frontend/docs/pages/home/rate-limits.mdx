@@ -45,7 +45,7 @@ This pattern is especially useful for:
 
 We can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
 
-<Snippet src={snips.python.rate_limit.worker.dynamic} />
+<Snippet src={snips.python.rate_limit.worker} block="dynamic" />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -53,13 +53,13 @@ We can add one or more rate limits to a task by adding the `rate_limits` configu
 
 We can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
 
-<Snippet src={snips.typescript.rate_limit.workflow.dynamic} />
+<Snippet src={snips.typescript.rate_limit.workflow} block="dynamic" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 > Note: Go requires both a key and KeyExpr be set and the LimitValueExpr must be a CEL.
 
-<Snippet src={snips.go.workflows.ratelimit.dynamic_rate_limit} />
+<Snippet src={snips.go.workflows.ratelimit} block="dynamic_rate_limit" />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -98,12 +98,12 @@ hatchet.rate_limits.put(RATE_LIMIT_KEY, 10, RateLimitDuration.MINUTE)
 
 {" "}
 
-<Snippet src={snips.typescript.rate_limit.workflow.upsert_rate_limit} />
+<Snippet src={snips.typescript.rate_limit.workflow} block="upsert_rate_limit" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-    <Snippet src={snips.go.workflows.ratelimit.upsert_rate_limit} />
+    <Snippet src={snips.go.workflows.ratelimit} block="upsert_rate_limit" />
 
   </Tabs.Tab>
 
@@ -116,16 +116,16 @@ With your rate limit key defined, specify the units of consumption for a specifi
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-<Snippet src={snips.python.rate_limit.worker.static} />
+<Snippet src={snips.python.rate_limit.worker} block="static" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-<Snippet src={snips.typescript.rate_limit.workflow.static} />
+<Snippet src={snips.typescript.rate_limit.workflow} block="static" />
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <Snippet src={snips.go.workflows.ratelimit.static_rate_limit} />
+    <Snippet src={snips.go.workflows.ratelimit} block="static_rate_limit" />
 
   </Tabs.Tab>
 </UniversalTabs>

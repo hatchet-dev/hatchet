@@ -41,11 +41,11 @@ Hatchet's Python SDK has drawn inspiration from FastAPI and is similarly a Pydan
 
 When working with Hatchet, you can define inputs and outputs of your tasks as Pydantic models, which the SDK will then serialize and deserialize for you internally. This means that you can write a task like this:
 
-<Snippet src={snips.python.child.worker.simple} />
+<Snippet src={snips.python.child.worker} block="simple" />
 
 In this example, we've defined a single Hatchet task that takes a Pydantic model as input, and returns a Pydantic model as output. This means that if you want to trigger this task from somewhere else in your codebase, you can do something like this:
 
-<Snippet src={snips.python.child.trigger.running_a_task} />
+<Snippet src={snips.python.child.trigger} block="running_a_task" />
 
 The different flavors of `.run` methods are type-safe: The input is typed and can be statically type checked, and is also validated by Pydantic at runtime. This means that when triggering tasks, you don't need to provide a set of untyped positional or keyword arguments, like you might if using Celery.
 
@@ -55,7 +55,7 @@ The different flavors of `.run` methods are type-safe: The input is typed and ca
 
 You can also _schedule_ a task for the future (similar to Celery's `eta` or `countdown` features) using the `.schedule` method:
 
-<Snippet src={snips.python.child.trigger.schedule_a_task} />
+<Snippet src={snips.python.child.trigger} block="schedule_a_task" />
 
 Importantly, Hatchet will not hold scheduled tasks in memory, so it's perfectly safe to schedule tasks for arbitrarily far in the future.
 
@@ -63,7 +63,7 @@ Importantly, Hatchet will not hold scheduled tasks in memory, so it's perfectly 
 
 Finally, Hatchet also has first-class support for cron jobs. You can either create crons dynamically:
 
-<Snippet src={snips.python.cron.programatic_async.create} />
+<Snippet src={snips.python.cron.programatic_async} block="create" />
 
 Or you can define them declaratively when you create your workflow:
 

@@ -26,18 +26,20 @@ const getFileName = (name: string) => {
   return { extension, fileName };
 };
 
-const sanitizeContent = (content: string) => {
+const sanitizeContent = (content: string, extension: string) => {
   const { REMOVAL_PATTERNS, REPLACEMENTS } = getConfig();
 
   let cleanedContent = content;
 
-  REMOVAL_PATTERNS.forEach((pattern) => {
-    cleanedContent = cleanedContent.replace(pattern.regex, '');
-  });
+  for (const pattern of REMOVAL_PATTERNS) {
+    cleanedContent = cleanedContent.replaceAll(pattern.regex, '');
+  }
 
-  REPLACEMENTS.forEach((replacement) => {
-    cleanedContent = cleanedContent.replace(replacement.from, replacement.to);
-  });
+  for (const replacement of REPLACEMENTS) {
+    if (!replacement.fileTypes || replacement.fileTypes.includes(extension)) {
+      cleanedContent = cleanedContent.replaceAll(replacement.from, replacement.to);
+    }
+  }
 
   return cleanedContent;
 };
@@ -62,7 +64,7 @@ const processBlocks = (content: string, language: string): { blocks: { [key: str
     const currentLineNumber = index + 1 - removedLines; // Adjust for removed lines
 
     if (trimmedLine.startsWith(`${commentStyle} ${TOKENS.BLOCK.START}`)) {
-      const key = trimmedLine.replace(`${commentStyle} ${TOKENS.BLOCK.START}`, '').trim();
+      const key = trimmedLine.replaceAll(`${commentStyle} ${TOKENS.BLOCK.START}`, '').trim();
       currentBlock = { start: currentLineNumber + 1, key }; // Start on next line
     } else if (trimmedLine.startsWith(`${commentStyle} ${TOKENS.BLOCK.END}`) && currentBlock) {
       blocks[normalizeKey(currentBlock.key)] = {
@@ -83,8 +85,9 @@ const processBlocks = (content: string, language: string): { blocks: { [key: str
 const normalizeKey = (key: string) =>
   key
     .toLowerCase()
-    .replace(/ /g, '_')
-    .replace(/[^a-z0-9_]/g, '');
+    .replaceAll(/ /g, '_')
+    .replaceAll(/[-]/g, '_')
+    .replaceAll(/[^a-z0-9_]/g, '');
 
 const processHighlights = (content: string, language: string): { [key: string]: Highlight } => {
   const lines = content.split('\n');
@@ -150,7 +153,7 @@ const processSnippet: ContentProcessor = async ({ path, name, content }) => {
       ? LANGUAGE_MAP[extension as keyof typeof LANGUAGE_MAP]
       : 'unknown';
 
-  const cleanedContent = sanitizeContent(content);
+  const cleanedContent = sanitizeContent(content, extension);
   const { blocks, highlights } = processBlocksAndHighlights(content, language);
 
   // Create a Snippet object
@@ -166,8 +169,8 @@ const processSnippet: ContentProcessor = async ({ path, name, content }) => {
   const tsContent = `import { Snippet } from '@/lib/generated/snips/types';
 
 const snippet: Snippet = ${JSON.stringify(snippet, null, 2)
-    .replace(/'/g, "\\'") // First escape any single quotes
-    .replace(/"/g, "'")};  // Then replace double quotes with single quotes
+    .replaceAll(/'/g, "\\'") // First escape any single quotes
+    .replaceAll(/"/g, "'")};  // Then replace double quotes with single quotes
 
 export default snippet;
 `;
@@ -211,7 +214,7 @@ const processDirectory: DirectoryProcessor = async ({ dir }) => {
   const fileImports = snippets.map((file) => {
     console.log(file.name);
     const baseName = sanitizeFileName(file.name);
-    return `import ${baseName} from './${file.name.replace('.ts', '')}';`;
+    return `import ${baseName} from './${file.name.replaceAll('.ts', '')}';`;
   });
 
   const fileExports = snippets.map((file) => {
@@ -241,10 +244,11 @@ const processDirectory: DirectoryProcessor = async ({ dir }) => {
 const sanitizeFileName = (name: string) => {
   return name
     .toLowerCase()
-    .replace('.ts', '')
-    .replace('do', '_do')
-    .replace(/[^a-z0-9_]/g, '')
-    .replace(/ /g, '_');
+    .replaceAll('.ts', '')
+    .replaceAll('do', '_do')
+    .replaceAll(/[-]/g, '_')
+    .replaceAll(/ /g, '_')
+    .replaceAll(/[^a-z0-9_]/g, '');
 };
 
 export const snippetProcessor: Processor = {
