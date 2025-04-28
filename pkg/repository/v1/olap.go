@@ -211,6 +211,7 @@ type OLAPRepository interface {
 	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
+	CreateEvent(ctx context.Context, tenantId string, event sqlcv1.CreateEventParams) (*sqlcv1.V1EventsOlap, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1332,4 +1333,6 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	}
 
 	return tasksWithData, idsToDepth, nil
+func (r *OLAPRepositoryImpl) CreateEvent(ctx context.Context, tenantId string, event sqlcv1.CreateEventParams) (*sqlcv1.V1EventsOlap, error) {
+	return r.queries.CreateEvent(ctx, r.pool, event)
 }
