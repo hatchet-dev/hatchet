@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Sync frontend content
+        uses: ./.github/workflows/sync-frontend.yml
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
