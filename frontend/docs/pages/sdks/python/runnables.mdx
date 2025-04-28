@@ -47,7 +47,7 @@ Methods:
 | Name                   | Description                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `task`                 | A decorator to transform a function into a Hatchet task that runs as part of a workflow.                                                         |
-| `durable_task`         | A decorator to transform a function into a durable Hatchet task that run as part of a workflow.                                                  |
+| `durable_task`         | A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.                                                 |
 | `on_failure_task`      | A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.     |
 | `on_success_task`      | A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed. |
 | `run`                  | Run the workflow synchronously and wait for it to complete.                                                                                      |
@@ -62,6 +62,8 @@ Methods:
 | `aio_schedule`         | Schedule a workflow to run at a specific time.                                                                                                   |
 | `create_cron`          | Create a cron job for the workflow.                                                                                                              |
 | `aio_create_cron`      | Create a cron job for the workflow.                                                                                                              |
+| `list_runs`            | List runs of the workflow.                                                                                                                       |
+| `aio_list_runs`        | List runs of the workflow.                                                                                                                       |
 
 ### Functions
 
@@ -387,6 +389,54 @@ Returns:
 | --------------- | ----------------------------------------------------------- |
 | `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
 
+#### `list_runs`
+
+List runs of the workflow.
+
+Parameters:
+
+| Name                      | Type                         | Description                                 | Default                      |
+| ------------------------- | ---------------------------- | ------------------------------------------- | ---------------------------- |
+| `since`                   | `datetime`                   | The start time for the runs to be listed.   | `now() - timedelta(hours=1)` |
+| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`                       |
+| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`                        |
+| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`                       |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`                       |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`                       |
+| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`                       |
+| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`                       |
+| `only_tasks`              | `bool`                       | Whether to list only task runs.             | `False`                      |
+
+Returns:
+
+| Type                  | Description                                                              |
+| --------------------- | ------------------------------------------------------------------------ |
+| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
+
+#### `aio_list_runs`
+
+List runs of the workflow.
+
+Parameters:
+
+| Name                      | Type                         | Description                                 | Default                      |
+| ------------------------- | ---------------------------- | ------------------------------------------- | ---------------------------- |
+| `since`                   | `datetime`                   | The start time for the runs to be listed.   | `now() - timedelta(hours=1)` |
+| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`                       |
+| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`                        |
+| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`                       |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`                       |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`                       |
+| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`                       |
+| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`                       |
+| `only_tasks`              | `bool`                       | Whether to list only task runs.             | `False`                      |
+
+Returns:
+
+| Type                  | Description                                                              |
+| --------------------- | ------------------------------------------------------------------------ |
+| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
+
 ## Standalone
 
 Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
@@ -407,6 +457,8 @@ Methods:
 | `aio_schedule`         | Schedule a workflow to run at a specific time.                            |
 | `create_cron`          | Create a cron job for the workflow.                                       |
 | `aio_create_cron`      | Create a cron job for the workflow.                                       |
+| `list_runs`            | List runs of the workflow.                                                |
+| `aio_list_runs`        | List runs of the workflow.                                                |
 
 ### Functions
 
@@ -625,3 +677,49 @@ Returns:
 | Type            | Description                                                 |
 | --------------- | ----------------------------------------------------------- |
 | `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
+
+#### `list_runs`
+
+List runs of the workflow.
+
+Parameters:
+
+| Name                      | Type                         | Description                                 | Default                      |
+| ------------------------- | ---------------------------- | ------------------------------------------- | ---------------------------- |
+| `since`                   | `datetime`                   | The start time for the runs to be listed.   | `now() - timedelta(hours=1)` |
+| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`                       |
+| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`                        |
+| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`                       |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`                       |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`                       |
+| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`                       |
+| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`                       |
+
+Returns:
+
+| Type                  | Description                                                              |
+| --------------------- | ------------------------------------------------------------------------ |
+| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
+
+#### `aio_list_runs`
+
+List runs of the workflow.
+
+Parameters:
+
+| Name                      | Type                         | Description                                 | Default                      |
+| ------------------------- | ---------------------------- | ------------------------------------------- | ---------------------------- |
+| `since`                   | `datetime`                   | The start time for the runs to be listed.   | `now() - timedelta(hours=1)` |
+| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`                       |
+| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`                        |
+| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`                       |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`                       |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`                       |
+| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`                       |
+| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`                       |
+
+Returns:
+
+| Type                  | Description                                                              |
+| --------------------- | ------------------------------------------------------------------------ |
+| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
