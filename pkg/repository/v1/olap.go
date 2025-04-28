@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -441,6 +442,9 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 }
 
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-tasks-olap")
+	defer span.End()
+
 	tx, err := r.readPool.Begin(ctx)
 
 	if err != nil {
@@ -549,6 +553,9 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-dag-id-olap")
+	defer span.End()
+
 	tx, err := r.readPool.Begin(ctx)
 	taskIdToDagExternalId := make(map[int64]uuid.UUID)
 
@@ -631,6 +638,9 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")
+	defer span.End()
+
 	tx, err := r.readPool.Begin(ctx)
 
 	if err != nil {
