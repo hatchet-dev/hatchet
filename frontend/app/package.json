@@ -5,8 +5,8 @@
   "type": "module",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "npm run sync-docs && vite",
-    "build": "npm run sync-docs && tsc && vite build",
+    "dev": "npm run sync-docs && npm run sync-examples && vite",
+    "build": "npm run sync-docs && npm run sync-examples && tsc && vite build",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",
     "eslint:check": "eslint \"{src,apps,libs,test}/**/*.{ts,tsx,js}\"",
@@ -14,7 +14,8 @@
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
     "preview": "vite preview",
-    "sync-docs": "tsx src/next/lib/docs/sync-docs.ts && eslint \"src/next/lib/docs/generated/**/*.{ts,tsx,js}\" --fix --cache && prettier \"src/next/lib/docs/generated/**/*.{ts,tsx}\" --write"
+    "sync-docs": "tsx src/next/lib/docs/sync-docs.ts && eslint \"src/next/lib/docs/generated/**/*.{ts,tsx,js}\" --fix --cache && prettier \"src/next/lib/docs/generated/**/*.{ts,tsx}\" --write",
+    "sync-examples": "cd ../snips/ && pnpm i && pnpm generate && pnpm run copy:app"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

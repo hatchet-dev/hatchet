@@ -40,7 +40,7 @@ function processMdxFile(filePath) {
         const blockName = pathParts[pathParts.length - 1];
         // Remove the last part from the src
         const newSrc = pathParts.slice(0, -1).join('.');
-        
+
         modified = true;
         return `<Snippet src={${newSrc}} block="${blockName}" />`;
     });
@@ -65,4 +65,4 @@ function main() {
     console.log('Migration complete!');
 }
 
-main(); 
+main();

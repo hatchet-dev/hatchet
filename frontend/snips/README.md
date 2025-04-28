@@ -27,7 +27,7 @@ const client = createClient({
 // Use the wrapResult utility to handle errors
 const fetchData = async () => {
   const result = await wrapResult(fetch('https://api.example.com/data'));
-  
+
   if (result.success) {
     return result.data;
   } else {
@@ -63,4 +63,4 @@ When adding new functionality to this library, please follow these guidelines:
 2. Add utility functions to appropriate files in `src/`
 3. Export public API from `src/index.ts`
 4. Update documentation
-5. Run tests if applicable 
+5. Run tests if applicable

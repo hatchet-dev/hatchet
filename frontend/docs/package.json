@@ -12,7 +12,8 @@
     "lint:fix": "npm run prettier:fix",
     "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
     "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write",
-    "generate-examples": "echo 'todo...'"
+    "generate-examples": "cd ../snips/ && pnpm i && pnpm generate && pnpm run copy:docs"
+
   },
   "repository": {
     "type": "git",

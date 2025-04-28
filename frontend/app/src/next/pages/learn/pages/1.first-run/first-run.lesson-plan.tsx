@@ -25,7 +25,7 @@ import { CreateTokenDialog } from '@/next/pages/authenticated/dashboard/settings
 import { TaskExecution } from '@/next/pages/learn/components/task-executor';
 import { WorkerListener } from '@/next/pages/learn/components/worker-listener';
 import { Link } from 'react-router-dom';
-import originalSnips from '@/next/lib/docs/snips';
+import snippets from '@/next/lib/docs/snips';
 
 const useLesson = untypedUseLesson<
   FirstRunStepKeys,
@@ -75,36 +75,36 @@ export const lessonPlan: LessonPlan<
       title: 'Configure Hatchet Client',
       description: ClientStep,
       code: {
-        typescript: originalSnips.typescript.quickstart.hatchet_client,
-        python: originalSnips.python.quickstart.hatchet_client,
-        go: originalSnips.go.quickstart.hatchet_client.hatchet_client,
+        typescript: snippets.typescript.quickstart.hatchet_client,
+        python: snippets.python.quickstart.hatchet_client,
+        go: snippets.go.quickstart.hatchet_client.hatchet_client,
       },
     },
     task: {
       title: 'Define a Task',
       description: TaskStep,
       code: {
-        typescript: originalSnips.typescript.quickstart.workflows.first_task,
-        python: originalSnips.python.quickstart.workflows.first_task,
-        go: originalSnips.go.quickstart.workflows.first_task,
+        typescript: snippets.typescript.quickstart.workflows.first_task,
+        python: snippets.python.quickstart.workflows.first_task,
+        go: snippets.go.quickstart.workflows.first_task,
       },
     },
     worker: {
       title: 'Register Your First Worker',
       description: WorkerStep,
       code: {
-        typescript: originalSnips.typescript.quickstart.worker,
-        python: originalSnips.python.quickstart.worker,
-        go: originalSnips.go.quickstart.cmd.worker.main,
+        typescript: snippets.typescript.quickstart.worker,
+        python: snippets.python.quickstart.worker,
+        go: snippets.go.quickstart.cmd.worker.main,
       },
     },
     run: {
       title: 'Run Your Task',
       description: RunStep,
       code: {
-        typescript: originalSnips.typescript.quickstart.run,
-        python: originalSnips.python.quickstart.run,
-        go: originalSnips.go.quickstart.cmd.run.main,
+        typescript: snippets.typescript.quickstart.run,
+        python: snippets.python.quickstart.run,
+        go: snippets.go.quickstart.cmd.run.main,
       },
     },
   },

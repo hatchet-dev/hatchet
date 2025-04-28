@@ -20,4 +20,4 @@
   },
   "include": ["src/**/*.ts", "scripts/generate-snips.ts", "scripts/copy-examples.ts"],
   "exclude": ["node_modules", "dist"]
-} 
+}

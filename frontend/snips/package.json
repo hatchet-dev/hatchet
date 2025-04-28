@@ -28,7 +28,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "copy:docs": "rm -rf ../docs/lib/generated/snips && cp -r ./out/snips ../docs/lib/generated/snips",
-    "copy:app:watch": "npm run copy:docs && npm run dev"
+    "copy:app": "rm -rf ../app/src/next/lib/docs/generated/snips && cp -r ./out/snips ../app/src/next/lib/docs/generated/snips && find ../app/src/next/lib/docs/generated/snips -type f -exec sed -i '' 's|@/lib/generated/snips/|@/next/lib/docs/generated/snips/|g' {} +",
+    "copy:all": "npm run copy:docs && npm run copy:app",
+    "generate:copy": "npm run generate && npm run copy:all"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

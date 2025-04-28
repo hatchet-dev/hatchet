@@ -1,38 +1,47 @@
 import { CodeBlock } from './code-block';
-import { snippets } from '@/next/lib/docs/snips';
-
-interface GithubSnippetProps {
-  src: string;
-  highlightLines?: number[];
-  highlightStrings?: string[];
-  showLineNumbers?: boolean;
-  title?: string;
+import { Snippet as SnippetType } from '@/next/lib/docs/snips';
+interface SnippetProps {
+  src?: SnippetType;
+  block?: keyof SnippetType['blocks'] | 'ALL';
 }
 
+const languageMap = {
+  typescript: 'typescript',
+  python: 'py',
+  go: 'go',
+  unknown: 'unknown',
+};
+
 // This is a server component that will be rendered at build time
-export const Snippet = ({ src, ...props }: GithubSnippetProps) => {
-  if (!src) {
-    return null;
+export const Snippet = ({ src, block }: SnippetProps) => {
+  if (!src || !src.content) {
+    throw new Error('src is required');
   }
 
-  const [, filePath] = src.split(':');
+  let content = src.content;
 
-  // Get the snippet content from the snippets object
-  const snippet = snippets[filePath];
-  if (!snippet) {
-    throw new Error(`Snippet content not found: ${filePath}`);
+  if (block && block !== 'ALL' && src.blocks) {
+    if (!(block in src.blocks)) {
+      throw new Error(
+        `Block ${block} not found in ${src.source} ${JSON.stringify(src.blocks, null, 2)}`,
+      );
+    }
+
+    const lines = src.content.split('\n');
+    content = lines
+      .slice(src.blocks[block].start - 1, src.blocks[block].stop)
+      .join('\n');
   }
 
   return (
     <>
       <CodeBlock
-        value={snippet.content}
-        language={snippet.language}
-        highlightLines={props.highlightLines}
-        highlightStrings={props.highlightStrings}
-        {...props}
-        title={props.title || snippet.source}
-        link={`https://github.com/hatchet-dev/hatchet/blob/main/${snippet.source}`}
+        value={content}
+        language={languageMap[src.language as keyof typeof languageMap]}
+        // highlightLines={src.blocks?.[block]?.start}
+        // highlightStrings={src.blocks?.[block]?.stop}
+        title={src.source}
+        link={`https://github.com/hatchet-dev/hatchet/blob/main/${src.source}`}
       />
     </>
   );
