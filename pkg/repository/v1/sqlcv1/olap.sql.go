@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :exec
+const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :many
 WITH inputs AS (
     SELECT
         UNNEST($1::BIGINT[]) AS event_id,
@@ -31,7 +31,8 @@ SELECT
     i.event_id,
     i.event_inserted_at
 FROM inputs i
-JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+LEFT JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+RETURNING run_id, run_inserted_at, event_id, event_inserted_at
 `
 
 type BulkCreateEventTriggersParams struct {
@@ -41,14 +42,34 @@ type BulkCreateEventTriggersParams struct {
 	Runinsertedats   []pgtype.Timestamptz `json:"runinsertedats"`
 }
 
-func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) error {
-	_, err := db.Exec(ctx, bulkCreateEventTriggers,
+func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) ([]*V1EventToRunOlap, error) {
+	rows, err := db.Query(ctx, bulkCreateEventTriggers,
 		arg.Eventids,
 		arg.Eventinsertedats,
 		arg.Runexternalids,
 		arg.Runinsertedats,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1EventToRunOlap
+	for rows.Next() {
+		var i V1EventToRunOlap
+		if err := rows.Scan(
+			&i.RunID,
+			&i.RunInsertedAt,
+			&i.EventID,
+			&i.EventInsertedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type CreateDAGsOLAPParams struct {
