@@ -76,21 +76,25 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 
 	now := time.Now().UTC()
 
-	olapEvent, err := i.repov1.OLAP().CreateEvent(
-		context.Background(),
-		tenantId,
-		sqlcv1.CreateEventParams{
-			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-			Generatedat:        sqlchelpers.TimestamptzFromTime(now),
-			Key:                key,
-			Payload:            data,
-			AdditionalMetadata: metadata,
-		},
-	)
+	go func() error {
+		olapEvent, err := i.repov1.OLAP().CreateEvent(
+			context.Background(),
+			tenantId,
+			sqlcv1.CreateEventParams{
+				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+				Generatedat:        sqlchelpers.TimestamptzFromTime(now),
+				Key:                key,
+				Payload:            data,
+				AdditionalMetadata: metadata,
+			},
+		)
 
-	if err != nil || olapEvent == nil {
-		return nil, fmt.Errorf("could not create event in OLAP: %w", err)
-	}
+		if err != nil || olapEvent == nil {
+			return fmt.Errorf("could not create event in OLAP: %v", err)
+		}
+
+		return nil
+	}()
 
 	return &dbsqlc.Event{
 		ID:                 sqlchelpers.UUIDFromStr(eventId),
