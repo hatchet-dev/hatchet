@@ -23,6 +23,10 @@ jobs:
         run: |
           cd frontend/app
           pnpm install --frozen-lockfile
+      - name: Create directories
+        run: |
+          mkdir -p frontend/app/src/next/lib/docs/generated && \
+          mkdir -p frontend/app/src/next/lib/docs/generated/snips
       - name: Sync content
         run: |
           cd frontend/app
