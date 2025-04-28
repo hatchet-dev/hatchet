@@ -23,22 +23,16 @@ jobs:
         run: |
           cd frontend/app
           pnpm install --frozen-lockfile
-      - name: Create directories
-        run: |
-          mkdir -p frontend/app/src/next/lib/docs/generated && \
-          mkdir -p frontend/app/src/next/lib/docs/generated/snips
       - name: Sync content
         run: |
           cd frontend/app
-          npm run sync-examples
           npm run sync-docs
+          npm run sync-examples
 
   frontend:
     needs: sync-frontend
     runs-on: ubuntu-latest
     steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
@@ -110,8 +104,6 @@ jobs:
     needs: sync-frontend
     runs-on: hatchet-arm64-2
     steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -145,8 +137,6 @@ jobs:
     needs: sync-frontend
     runs-on: ubuntu-latest
     steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -180,8 +170,6 @@ jobs:
     needs: sync-frontend
     runs-on: hatchet-arm64-2
     steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -199,8 +187,6 @@ jobs:
     needs: sync-frontend
     runs-on: ubuntu-latest
     steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
