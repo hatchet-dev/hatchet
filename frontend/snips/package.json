@@ -27,9 +27,9 @@
     "generate": "tsc && ts-node src/scripts/build-tree.ts",
     "test": "jest",
     "test:watch": "jest --watch",
-    "copy:docs": "rm -rf ../docs/lib/generated/snips && cp -r ./out/snips ../docs/lib/generated/snips",
-    "copy:app": "rm -rf ../app/src/next/lib/docs/generated/snips && cp -r ./out/snips ../app/src/next/lib/docs/generated/snips && find ../app/src/next/lib/docs/generated/snips -type f -exec sed -i '' 's|@/lib/generated/snips/|@/next/lib/docs/generated/snips/|g' {} +",
-    "copy:all": "npm run copy:docs && npm run copy:app",
+    "copy:docs": "node src/scripts/replace-paths.js docs",
+    "copy:app": "node src/scripts/replace-paths.js app",
+    "copy:all": "node src/scripts/replace-paths.js",
     "generate:copy": "npm run generate && npm run copy:all"
   },
   "devDependencies": {
