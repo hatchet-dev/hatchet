@@ -18,6 +18,7 @@
   "scripts": {
     "build": "echo 'build hatchet sdk with `npm run tsc:build` to ensure it is not build during the publish step' && exit 0",
     "prepare": "npm run build",
+    "postinstall": "node scripts/version-check.js",
     "dump-version": "node -e \"console.log('export const HATCHET_VERSION = \\'' + require('./package.json').version + '\\';');\" > src/version.ts",
     "tsc:build": "npm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
@@ -43,10 +44,10 @@
   "license": "MIT",
   "devDependencies": {
     "@tsd/typescript": "^5.8.2",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.14",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "autoprefixer": "^10.4.21",
     "dotenv-cli": "^7.4.4",
     "eslint": "^8.56.0",
@@ -69,6 +70,7 @@
     "pino": "^9.6.0",
     "prettier": "^3.5.3",
     "resolve-tspaths": "^0.8.23",
+    "semver": "^7.7.1",
     "ts-jest": "^29.3.1",
     "ts-node": "^10.9.2",
     "ts-proto": "^2.7.0",
