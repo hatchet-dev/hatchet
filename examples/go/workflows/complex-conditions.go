@@ -37,7 +37,7 @@ type TaskConditionWorkflowResult struct {
 type taskOpts = create.WorkflowTask[struct{}, TaskConditionWorkflowResult]
 
 func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[struct{}, TaskConditionWorkflowResult] {
-	// ❓ Create a workflow
+	// > Create a workflow
 	wf := factory.NewWorkflow[struct{}, TaskConditionWorkflowResult](
 		create.WorkflowCreateOpts[struct{}]{
 			Name: "TaskConditionWorkflow",
@@ -46,7 +46,7 @@ func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 	)
 	// !!
 
-	// ❓ Add base task
+	// > Add base task
 	start := wf.Task(
 		taskOpts{
 			Name: "start",
@@ -59,7 +59,7 @@ func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 	)
 	// !!
 
-	// ❓ Add wait for sleep
+	// > Add wait for sleep
 	waitForSleep := wf.Task(
 		taskOpts{
 			Name:    "waitForSleep",
@@ -74,7 +74,7 @@ func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 	)
 	// !!
 
-	// ❓ Add skip on event
+	// > Add skip on event
 	skipOnEvent := wf.Task(
 		taskOpts{
 			Name:    "skipOnEvent",
@@ -90,7 +90,7 @@ func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 	)
 	// !!
 
-	// ❓ Add branching
+	// > Add branching
 	leftBranch := wf.Task(
 		taskOpts{
 			Name:    "leftBranch",
@@ -118,7 +118,7 @@ func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 	)
 	// !!
 
-	// ❓ Add wait for event
+	// > Add wait for event
 	waitForEvent := wf.Task(
 		taskOpts{
 			Name:    "waitForEvent",
@@ -136,7 +136,7 @@ func TaskConditionWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 	)
 	// !!
 
-	// ❓ Add sum
+	// > Add sum
 	wf.Task(
 		taskOpts{
 			Name: "sum",

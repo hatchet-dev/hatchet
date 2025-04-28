@@ -16,7 +16,7 @@ type RetriesResult struct{}
 
 // Simple retries example that always fails
 func Retries(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RetriesInput, RetriesResult] {
-	// ❓ Simple Step Retries
+	// > Simple Step Retries
 	retries := factory.NewTask(
 		create.StandaloneTask{
 			Name:    "retries-task",
@@ -26,7 +26,7 @@ func Retries(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RetriesInput
 		},
 		hatchet,
 	)
-	// ‼️
+	// !!
 
 	return retries
 }
@@ -38,7 +38,7 @@ type RetriesWithCountResult struct {
 
 // Retries example that succeeds after a certain number of retries
 func RetriesWithCount(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RetriesWithCountInput, RetriesWithCountResult] {
-	// ❓ Retries with Count
+	// > Retries with Count
 	retriesWithCount := factory.NewTask(
 		create.StandaloneTask{
 			Name:    "fail-twice-task",
@@ -59,7 +59,7 @@ func RetriesWithCount(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Ret
 		},
 		hatchet,
 	)
-	// ‼️
+	// !!
 
 	return retriesWithCount
 }
@@ -69,7 +69,7 @@ type BackoffResult struct{}
 
 // Retries example with simple backoff (no configuration in this API version)
 func WithBackoff(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[BackoffInput, BackoffResult] {
-	// ❓ Retries with Backoff
+	// > Retries with Backoff
 	withBackoff := factory.NewTask(
 		create.StandaloneTask{
 			Name: "with-backoff-task",
@@ -85,7 +85,7 @@ func WithBackoff(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[BackoffI
 		},
 		hatchet,
 	)
-	// ‼️
+	// !!
 
 	return withBackoff
 }

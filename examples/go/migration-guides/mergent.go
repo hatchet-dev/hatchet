@@ -26,7 +26,7 @@ func ProcessImage(imageURL string, filters []string) (map[string]interface{}, er
 	}, nil
 }
 
-// ❓ Before (Mergent)
+// > Before (Mergent)
 type MergentRequest struct {
 	ImageURL string   `json:"image_url"`
 	Filters  []string `json:"filters"`
@@ -51,7 +51,7 @@ func ProcessImageMergent(req MergentRequest) (*MergentResponse, error) {
 
 // !!
 
-// ❓ After (Hatchet)
+// > After (Hatchet)
 type ImageProcessInput struct {
 	ImageURL string   `json:"image_url"`
 	Filters  []string `json:"filters"`
@@ -102,7 +102,7 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 
 	// Example of running a task
 	_ = func() error {
-		// ❓ Running a task
+		// > Running a task
 		result, err := processor.Run(context.Background(), ImageProcessInput{
 			ImageURL: "https://example.com/image.png",
 			Filters:  []string{"blur"},
@@ -117,7 +117,7 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 
 	// Example of registering a task on a worker
 	_ = func() error {
-		// ❓ Declaring a Worker
+		// > Declaring a Worker
 		w, err := hatchet.Worker(v1worker.WorkerOpts{
 			Name: "image-processor-worker",
 			Workflows: []workflow.WorkflowBase{
@@ -144,7 +144,7 @@ func RunMergentTask() error {
 }
 
 func RunningTasks(hatchet v1.HatchetClient) error {
-	// ❓ Running a task (Mergent)
+	// > Running a task (Mergent)
 	task := struct {
 		Request struct {
 			URL     string            `json:"url"`
@@ -193,7 +193,7 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 	fmt.Printf("Mergent task created with status: %d\n", res.StatusCode)
 	// !!
 
-	// ❓ Running a task (Hatchet)
+	// > Running a task (Hatchet)
 	processor := ImageProcessor(hatchet)
 
 	result, err := processor.Run(context.Background(), ImageProcessInput{
@@ -206,7 +206,7 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 	fmt.Printf("Result: %+v\n", result)
 	// !!
 
-	// ❓ Scheduling tasks (Hatchet)
+	// > Scheduling tasks (Hatchet)
 	// Schedule the task to run at a specific time
 	scheduleRef, err := processor.Schedule(
 		context.Background(),

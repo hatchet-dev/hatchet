@@ -2,7 +2,7 @@
 /* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 import { SimpleOutput } from './stub-workflow';
-// ❓ Enqueuing a Workflow (Fire and Forget)
+// > Enqueuing a Workflow (Fire and Forget)
 import { simple } from './workflow';
 // ...
 
@@ -19,7 +19,7 @@ async function main() {
   console.log(runId);
   // !!
 
-  // ❓ Subscribing to results
+  // > Subscribing to results
   // the return object of the enqueue method is a WorkflowRunRef which includes a listener for the result of the workflow
   const result = await run.result();
   console.log(result);

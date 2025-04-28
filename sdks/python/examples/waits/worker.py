@@ -1,4 +1,4 @@
-# ❓ Create a workflow
+# > Create a workflow
 
 import random
 from datetime import timedelta
@@ -31,7 +31,7 @@ task_condition_workflow = hatchet.workflow(name="TaskConditionWorkflow")
 # !!
 
 
-# ❓ Add base task
+# > Add base task
 @task_condition_workflow.task()
 def start(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
@@ -40,7 +40,7 @@ def start(input: EmptyModel, ctx: Context) -> StepOutput:
 # !!
 
 
-# ❓ Add wait for sleep
+# > Add wait for sleep
 @task_condition_workflow.task(
     parents=[start], wait_for=[SleepCondition(timedelta(seconds=10))]
 )
@@ -51,7 +51,7 @@ def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
 # !!
 
 
-# ❓ Add skip on event
+# > Add skip on event
 @task_condition_workflow.task(
     parents=[start],
     wait_for=[SleepCondition(timedelta(seconds=30))],
@@ -64,7 +64,7 @@ def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
 # !!
 
 
-# ❓ Add branching
+# > Add branching
 @task_condition_workflow.task(
     parents=[wait_for_sleep],
     skip_if=[
@@ -94,7 +94,7 @@ def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
 # !!
 
 
-# ❓ Add wait for event
+# > Add wait for event
 @task_condition_workflow.task(
     parents=[start],
     wait_for=[
@@ -111,7 +111,7 @@ def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
 # !!
 
 
-# ❓ Add sum
+# > Add sum
 @task_condition_workflow.task(
     parents=[
         start,

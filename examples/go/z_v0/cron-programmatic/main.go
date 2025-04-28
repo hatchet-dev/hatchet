@@ -11,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-// ❓ Create
+// > Create
 // ... normal workflow definition
 type printOutput struct{}
 
@@ -114,7 +114,7 @@ func ListCrons() {
 		panic(err)
 	}
 
-	// ❓ List
+	// > List
 	crons, err := c.Cron().List(context.Background())
 	// !!
 
@@ -134,7 +134,7 @@ func DeleteCron(id string) {
 		panic(err)
 	}
 
-	// ❓ Delete
+	// > Delete
 	// 👀 id is the cron's metadata id, can get it via cron.Metadata.Id
 	err = c.Cron().Delete(context.Background(), id)
 	// !!

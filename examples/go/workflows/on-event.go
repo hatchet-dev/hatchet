@@ -22,7 +22,7 @@ type UpperTaskOutput struct {
 	TransformedMessage string
 }
 
-// ❓ Run workflow on event
+// > Run workflow on event
 const SimpleEvent = "simple-event:create"
 
 func Lower(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[EventInput, LowerTaskOutput] {

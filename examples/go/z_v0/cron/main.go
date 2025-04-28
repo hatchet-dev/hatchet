@@ -11,7 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-// ❓ Workflow Definition Cron Trigger
+// > Workflow Definition Cron Trigger
 // ... normal workflow definition
 type printOutput struct{}
 

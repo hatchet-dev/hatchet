@@ -6,7 +6,7 @@ from hatchet_sdk.rate_limit import RateLimit, RateLimitDuration
 hatchet = Hatchet(debug=True)
 
 
-# ❓ Workflow
+# > Workflow
 class RateLimitInput(BaseModel):
     user_id: str
 
@@ -18,7 +18,7 @@ rate_limit_workflow = hatchet.workflow(
 # !!
 
 
-# ❓ Static
+# > Static
 RATE_LIMIT_KEY = "test-limit"
 
 
@@ -29,7 +29,7 @@ def step_1(input: RateLimitInput, ctx: Context) -> None:
 
 # !!
 
-# ❓ Dynamic
+# > Dynamic
 
 
 @rate_limit_workflow.task(

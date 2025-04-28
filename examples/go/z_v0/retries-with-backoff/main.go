@@ -14,7 +14,7 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-// ❓ Backoff
+// > Backoff
 
 // ... normal function definition
 func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
@@ -96,4 +96,4 @@ func main() {
 	// ,
 }
 
-// ‼️
+// !!

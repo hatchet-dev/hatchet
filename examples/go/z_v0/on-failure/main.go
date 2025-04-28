@@ -15,7 +15,7 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-// ❓ OnFailure Step
+// > OnFailure Step
 // This workflow will fail because the step will throw an error
 // we define an onFailure step to handle this case
 
@@ -106,4 +106,4 @@ func main() {
 	// ,
 }
 
-// ‼️
+// !!

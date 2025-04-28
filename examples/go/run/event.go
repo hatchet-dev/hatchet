@@ -19,7 +19,7 @@ func event() {
 	if err != nil {
 		panic(err)
 	}
-	// ❓ Pushing an Event
+	// > Pushing an Event
 	err = hatchet.Events().Push(
 		context.Background(),
 		"simple-event:create",

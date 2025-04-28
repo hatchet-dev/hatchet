@@ -3,7 +3,7 @@ import { Workflow } from '../../workflow';
 
 const hatchet = Hatchet.init();
 
-// ❓ Workflow Definition Cron Trigger
+// > Workflow Definition Cron Trigger
 // Adding a cron trigger to a workflow is as simple as adding a `cron expression` to the `on` prop of the workflow definition
 
 export const simpleCronWorkflow: Workflow = {
@@ -24,7 +24,7 @@ export const simpleCronWorkflow: Workflow = {
   ],
   // ,
 };
-// ‼️
+// !!
 
 async function main() {
   const worker = await hatchet.worker('example-worker');

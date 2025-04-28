@@ -22,7 +22,7 @@ func bulk() {
 	}
 
 	ctx := context.Background()
-	// ❓ Bulk Run Tasks
+	// > Bulk Run Tasks
 	simple := v1_workflows.Simple(hatchet)
 	bulkRunIds, err := simple.RunBulkNoWait(ctx, []v1_workflows.SimpleInput{
 		{

@@ -2,7 +2,7 @@ import { Config } from '@/utils/config';
 
 export const config: Config = {
   // Directories to process
-  SOURCE_DIRS: ['./test_dir/src'],
+  SOURCE_DIRS: ['../../sdks/typescript/src/v1/examples'],
 
   // Output directory
   OUTPUT_DIR: 'out',

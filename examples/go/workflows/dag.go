@@ -22,16 +22,16 @@ type DagResult struct {
 }
 
 func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput, DagResult] {
-	// ❓ Declaring a Workflow
+	// > Declaring a Workflow
 	simple := factory.NewWorkflow[DagInput, DagResult](
 		create.WorkflowCreateOpts[DagInput]{
 			Name: "simple-dag",
 		},
 		hatchet,
 	)
-	// ‼️
+	// !!
 
-	// ❓ Defining a Task
+	// > Defining a Task
 	simple.Task(
 		create.WorkflowTask[DagInput, DagResult]{
 			Name: "step",
@@ -41,9 +41,9 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 			}, nil
 		},
 	)
-	// ‼️
+	// !!
 
-	// ❓ Adding a Task with a parent
+	// > Adding a Task with a parent
 	step1 := simple.Task(
 		create.WorkflowTask[DagInput, DagResult]{
 			Name: "step-1",
@@ -73,7 +73,7 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 			}, nil
 		},
 	)
-	// ‼️
+	// !!
 
 	return simple
 }

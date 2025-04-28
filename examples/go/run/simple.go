@@ -23,7 +23,7 @@ func simple() {
 	}
 
 	ctx := context.Background()
-	// ❓ Running a Task
+	// > Running a Task
 	simple := v1_workflows.Simple(hatchet)
 	result, err := simple.Run(ctx, v1_workflows.SimpleInput{
 		Message: "Hello, World!",
@@ -36,7 +36,7 @@ func simple() {
 	fmt.Println(result.TransformedMessage)
 	// !!
 
-	// ❓ Running Multiple Tasks
+	// > Running Multiple Tasks
 	var results []string
 	var resultsMutex sync.Mutex
 	var errs []error
@@ -84,7 +84,7 @@ func simple() {
 	wg.Wait()
 	// !!
 
-	// ❓ Running a Task Without Waiting
+	// > Running a Task Without Waiting
 	simple = v1_workflows.Simple(hatchet)
 	runRef, err := simple.RunNoWait(ctx, v1_workflows.SimpleInput{
 		Message: "Hello, World!",
@@ -100,7 +100,7 @@ func simple() {
 	fmt.Println(runId)
 	// !!
 
-	// ❓ Subscribing to results
+	// > Subscribing to results
 	// finally, we can wait for the task to complete and get the result
 	finalResult, err := runRef.Result()
 

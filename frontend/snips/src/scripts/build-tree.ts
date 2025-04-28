@@ -12,6 +12,7 @@ import { Processor } from '@/processors/processor.interface';
  */
 export const processFiles = async (): Promise<string[]> => {
   const config = getConfig();
+  const startTime = Date.now();
   const { SOURCE_DIRS, OUTPUT_DIR, IGNORE_LIST, PRESERVE_FILES } = config;
 
   console.log(`${colors.bright}${colors.blue}🚀 Starting snips processing...${colors.reset}`);
@@ -49,7 +50,11 @@ export const processFiles = async (): Promise<string[]> => {
   // Restore the preserved files
   await restore(toRestore);
 
-  console.log(`${colors.bright}${colors.green}✓ Processing complete!${colors.reset}`);
+  const endTime = Date.now();
+  const duration = (endTime - startTime) / 1000;
+  console.log(
+    `${colors.bright}${colors.green}✓ Processing complete in ${duration} seconds!${colors.reset}`,
+  );
 
   // Return files from the first directory for testing purposes
   try {
@@ -77,39 +82,39 @@ const processFile = async (
   processors: Processor[],
 ): Promise<void> => {
   const content = await fs.readFile(sourcePath, 'utf-8');
-  let currentContent = content;
-  let currentOutputPath = outputPath;
 
-  for (const processor of processors) {
-    const result = await processor.process({
+  processors.forEach(async (processor) => {
+    const results = await processor.process({
       path: sourcePath,
       name: entry.name,
-      content: currentContent,
+      content: content,
     });
 
-    currentContent = result.content;
+    results.forEach(async (result) => {
+      const previousPath = outputPath;
 
-    const previousPath = currentOutputPath;
-
-    const previousPathParts = previousPath.split('/');
-    currentOutputPath = path.join(
-      previousPathParts[0],
-      processor.outDir || '',
-      ...previousPathParts.slice(1),
-    );
-
-    if (result.filename) {
-      const previousPath = currentOutputPath;
-      currentOutputPath = path.join(path.dirname(currentOutputPath), result.filename);
-      console.log(
-        `${colors.yellow}  ⟳ Processor changed filename: ${path.basename(previousPath)} → ${result.filename}${colors.reset}`,
+      const previousPathParts = previousPath.split('/');
+      let currentOutputPath = path.join(
+        previousPathParts[0],
+        result.outDir || '',
+        ...previousPathParts.slice(1),
       );
-    }
-  }
 
-  await ensureDirectoryExists(path.dirname(currentOutputPath));
-  await fs.writeFile(currentOutputPath, currentContent, 'utf-8');
-  console.log(`${colors.green}  ✓ Processed file written to: ${currentOutputPath}${colors.reset}`);
+      if (result.filename) {
+        const previousPath = currentOutputPath;
+        currentOutputPath = path.join(path.dirname(currentOutputPath), result.filename);
+        console.log(
+          `${colors.yellow}  ⟳ Processor changed filename: ${path.basename(previousPath)} → ${result.filename}${colors.reset}`,
+        );
+      }
+
+      await ensureDirectoryExists(path.dirname(currentOutputPath));
+      await fs.writeFile(currentOutputPath, result.content, 'utf-8');
+      console.log(
+        `${colors.green}  ✓ Processed file written to: ${currentOutputPath}${colors.reset}`,
+      );
+    });
+  });
 };
 
 /**
@@ -152,10 +157,10 @@ export const processDirectory = async (
     const entries = await fs.readdir(sourceDir, { withFileTypes: true });
     console.log(`${colors.cyan}Found ${entries.length} entries in ${sourceDir}${colors.reset}`);
 
-    for (const entry of entries) {
+    entries.forEach(async (entry) => {
       const sourcePath = path.join(sourceDir, entry.name);
       await processEntry(entry, sourcePath, outputDir, ignoreList, PROCESSORS);
-    }
+    });
   } catch (error) {
     console.error(`${colors.red}Error processing directory ${sourceDir}:${colors.reset}`, error);
     throw error;

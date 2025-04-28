@@ -15,7 +15,7 @@ type NonRetryableResult struct{}
 
 // NonRetryableError returns a workflow which throws a non-retryable error
 func NonRetryableError(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[NonRetryableInput, NonRetryableResult] {
-	// ❓ Non Retryable Error
+	// > Non Retryable Error
 	retries := factory.NewTask(
 		create.StandaloneTask{
 			Name:    "non-retryable-task",
@@ -25,7 +25,7 @@ func NonRetryableError(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[No
 		},
 		hatchet,
 	)
-	// ‼️
+	// !!
 
 	return retries
 }

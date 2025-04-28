@@ -1,4 +1,4 @@
-# ❓ RootLogger
+# > RootLogger
 
 
 import logging
@@ -16,4 +16,4 @@ hatchet = Hatchet(
     ),
 )
 
-# ‼️
+# !!

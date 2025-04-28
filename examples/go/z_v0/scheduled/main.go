@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-// ❓ Create
+// > Create
 // ... normal workflow definition
 type printOutput struct{}
 
@@ -114,7 +114,7 @@ func ListScheduledWorkflows() {
 		panic(err)
 	}
 
-	// ❓ List
+	// > List
 	schedules, err := c.Schedule().List(context.Background())
 	// !!
 
@@ -134,7 +134,7 @@ func DeleteScheduledWorkflow(id string) {
 		panic(err)
 	}
 
-	// ❓ Delete
+	// > Delete
 	// 👀 id is the schedule's metadata id, can get it via schedule.Metadata.Id
 	err = c.Schedule().Delete(context.Background(), id)
 	// !!

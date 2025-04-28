@@ -10,7 +10,7 @@ type LowerOutput = {
   };
 };
 
-// ❓ Run workflow on event
+// > Run workflow on event
 export const lower = hatchet.workflow<Input, LowerOutput>({
   name: 'lower',
   on: {

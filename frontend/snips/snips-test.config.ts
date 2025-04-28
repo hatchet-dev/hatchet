@@ -1,11 +1,11 @@
-import { SnipsConfig } from './src/types';
+import { Config } from '@/utils/config';
 
-export const config: SnipsConfig = {
+export const config: Config = {
   // Directories to process
-  SOURCE_DIRS: ['examples'],
+  SOURCE_DIRS: ['./test_dir/src'],
 
   // Output directory
-  OUTPUT_DIR: 'dist',
+  OUTPUT_DIR: 'out',
 
   // Files to preserve during removal
   PRESERVE_FILES: [
@@ -70,4 +70,7 @@ export const config: SnipsConfig = {
     },
     {
       regex: /\s*(\/\/|#)\s*eslint-disable-next-line.*$/gm,
- 
+      description: 'ESLint disable line comments',
+    },
+  ],
+};

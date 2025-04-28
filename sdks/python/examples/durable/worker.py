@@ -4,7 +4,7 @@ from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, UserEventC
 
 hatchet = Hatchet(debug=True)
 
-# ❓ Create a durable workflow
+# > Create a durable workflow
 durable_workflow = hatchet.workflow(name="DurableWorkflow")
 # !!
 
@@ -12,7 +12,7 @@ durable_workflow = hatchet.workflow(name="DurableWorkflow")
 ephemeral_workflow = hatchet.workflow(name="EphemeralWorkflow")
 
 
-# ❓ Add durable task
+# > Add durable task
 EVENT_KEY = "durable-example:event"
 SLEEP_TIME = 5
 

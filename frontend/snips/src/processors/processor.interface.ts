@@ -4,13 +4,14 @@ type ContentProcessorProps = {
   content: string;
 };
 
-export type ContentProcessor = (props: ContentProcessorProps) => Promise<{
+type ProcessedFile = {
   filename?: string;
   content: string;
   outDir?: string;
-}>;
+};
+
+export type ContentProcessor = (props: ContentProcessorProps) => Promise<ProcessedFile[]>;
 
 export type Processor = {
   process: ContentProcessor;
-  outDir?: string;
 };

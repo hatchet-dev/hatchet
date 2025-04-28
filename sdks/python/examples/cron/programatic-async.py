@@ -14,7 +14,7 @@ async def create_cron() -> None:
         name="CronWorkflow", input_validator=DynamicCronInput
     )
 
-    # ❓ Create
+    # > Create
     cron_trigger = await dynamic_cron_workflow.aio_create_cron(
         cron_name="customer-a-daily-report",
         expression="0 12 * * *",
@@ -27,14 +27,14 @@ async def create_cron() -> None:
     cron_trigger.metadata.id  # the id of the cron trigger
     # !!
 
-    # ❓ List
+    # > List
     await hatchet.cron.aio_list()
     # !!
 
-    # ❓ Get
+    # > Get
     cron_trigger = await hatchet.cron.aio_get(cron_id=cron_trigger.metadata.id)
     # !!
 
-    # ❓ Delete
+    # > Delete
     await hatchet.cron.aio_delete(cron_id=cron_trigger.metadata.id)
     # !!

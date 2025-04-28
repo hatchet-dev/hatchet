@@ -9,7 +9,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 hatchet = Hatchet(debug=True)
 
 
-# ❓ Use the lifespan in a task
+# > Use the lifespan in a task
 class TaskOutput(BaseModel):
     num_rows: int
     external_ids: list[UUID]
@@ -59,7 +59,7 @@ async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
         )
 
 
-# ❓ Define a lifespan
+# > Define a lifespan
 class Lifespan(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

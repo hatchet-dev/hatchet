@@ -1,13 +1,23 @@
+export type Highlight = {
+  lines: number[];
+  strings: string[];
+};
+
+export type Block = {
+  start: number;
+  stop: number;
+};
+
 // Types for snippets
 export type Snippet = {
   content: string;
   language: string;
   source: string;
+  blocks?: {
+    [key: string]: Block;
+  };
   highlights?: {
-    [key: string]: {
-      lines: number[];
-      strings: string[];
-    };
+    [key: string]: Highlight;
   };
 };
 

@@ -1,4 +1,4 @@
-// ❓ Declaring a Worker
+// > Declaring a Worker
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 import { parent, child } from './workflow-with-child';

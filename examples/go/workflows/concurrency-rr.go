@@ -23,7 +23,7 @@ type TransformedOutput struct {
 }
 
 func ConcurrencyRoundRobin(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ConcurrencyInput, TransformedOutput] {
-	// ❓ Concurrency Strategy With Key
+	// > Concurrency Strategy With Key
 	var maxRuns int32 = 1
 	strategy := types.GroupRoundRobin
 
@@ -53,7 +53,7 @@ func ConcurrencyRoundRobin(hatchet v1.HatchetClient) workflow.WorkflowDeclaratio
 }
 
 func MultipleConcurrencyKeys(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[ConcurrencyInput, TransformedOutput] {
-	// ❓ Multiple Concurrency Keys
+	// > Multiple Concurrency Keys
 	strategy := types.GroupRoundRobin
 	var maxRuns int32 = 20
 

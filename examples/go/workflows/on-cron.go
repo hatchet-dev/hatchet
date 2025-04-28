@@ -22,7 +22,7 @@ type OnCronOutput struct {
 	Job JobResult `json:"job"`
 }
 
-// ❓ Workflow Definition Cron Trigger
+// > Workflow Definition Cron Trigger
 func OnCron(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[OnCronInput, OnCronOutput] {
 	// Create a standalone task that transforms a message
 	cronTask := factory.NewTask(

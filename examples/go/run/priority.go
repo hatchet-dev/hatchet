@@ -27,7 +27,7 @@ func priority() {
 
 	priorityWorkflow := v1_workflows.Priority(hatchet)
 
-	// ❓ Running a Task with Priority
+	// > Running a Task with Priority
 	priority := int32(3)
 
 	runId, err := priorityWorkflow.RunNoWait(ctx, v1_workflows.PriorityInput{
@@ -41,7 +41,7 @@ func priority() {
 
 	fmt.Println(runId)
 
-	// ❓ Schedule and cron
+	// > Schedule and cron
 	schedulePriority := int32(3)
 	runAt := time.Now().Add(time.Minute)
 

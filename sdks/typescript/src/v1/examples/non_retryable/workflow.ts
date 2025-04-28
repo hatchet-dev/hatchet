@@ -5,7 +5,7 @@ export const nonRetryableWorkflow = hatchet.workflow({
   name: 'no-retry-workflow',
 });
 
-// ❓ Non-retrying task
+// > Non-retrying task
 const shouldNotRetry = nonRetryableWorkflow.task({
   name: 'should-not-retry',
   fn: () => {

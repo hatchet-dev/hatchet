@@ -25,7 +25,7 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 	// Create a simple standalone task using the task factory
 	// Note the use of typed generics for both input and output
 
-	// ❓ Declaring a Task
+	// > Declaring a Task
 	simple := factory.NewTask(
 		create.StandaloneTask{
 			Name: "simple-task",
@@ -37,23 +37,23 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 		},
 		hatchet,
 	)
-	// ‼️
+	// !!
 
 	// Example of running a task
 	_ = func() error {
-		// ❓ Running a Task
+		// > Running a Task
 		result, err := simple.Run(context.Background(), SimpleInput{Message: "Hello, World!"})
 		if err != nil {
 			return err
 		}
 		fmt.Println(result.TransformedMessage)
-		// ‼️
+		// !!
 		return nil
 	}
 
 	// Example of registering a task on a worker
 	_ = func() error {
-		// ❓ Declaring a Worker
+		// > Declaring a Worker
 		w, err := hatchet.Worker(v1worker.WorkerOpts{
 			Name: "simple-worker",
 			Workflows: []workflow.WorkflowBase{
@@ -67,7 +67,7 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 		if err != nil {
 			return err
 		}
-		// ‼️
+		// !!
 		return nil
 	}
 
@@ -76,7 +76,7 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 
 func ParentTask(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, SimpleResult] {
 
-	// ❓ Spawning Tasks from within a Task
+	// > Spawning Tasks from within a Task
 	simple := Simple(hatchet)
 
 	parent := factory.NewTask(
@@ -97,7 +97,7 @@ func ParentTask(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInp
 		},
 		hatchet,
 	)
-	// ‼️
+	// !!
 
 	return parent
 }

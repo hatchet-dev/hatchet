@@ -21,7 +21,7 @@ func cron() {
 	if err != nil {
 		panic(err)
 	}
-	// ❓ Create
+	// > Create
 	simple := v1_workflows.Simple(hatchet)
 
 	ctx := context.Background()
@@ -43,11 +43,11 @@ func cron() {
 	fmt.Println(result.Metadata.Id)
 	// !!
 
-	// ❓ Delete
+	// > Delete
 	hatchet.Crons().Delete(ctx, result.Metadata.Id)
 	// !!
 
-	// ❓ List
+	// > List
 	crons, err := hatchet.Crons().List(ctx, rest.CronWorkflowListParams{
 		AdditionalMetadata: &[]string{"user:daily-run"},
 	})

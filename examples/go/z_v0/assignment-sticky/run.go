@@ -26,7 +26,7 @@ func run() (func() error, error) {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
-	// ❓ StickyWorker
+	// > StickyWorker
 
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -66,13 +66,13 @@ func run() (func() error, error) {
 		},
 	)
 
-	// ‼️
+	// !!
 
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	// ❓ StickyChild
+	// > StickyChild
 
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -89,7 +89,7 @@ func run() (func() error, error) {
 		},
 	)
 
-	// ‼️
+	// !!
 
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)

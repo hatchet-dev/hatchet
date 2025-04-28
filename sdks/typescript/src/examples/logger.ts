@@ -10,7 +10,7 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-// ❓ Logger
+// > Logger
 
 const workflow: Workflow = {
   id: 'logger-example',
@@ -35,7 +35,7 @@ const workflow: Workflow = {
   ],
 };
 
-// ‼️
+// !!
 
 async function main() {
   const worker = await hatchet.worker('logger-worker', 1);
