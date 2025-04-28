@@ -286,6 +286,8 @@ func (s *Scheduler) Start() (func() error, error) {
 
 		wg.Wait()
 
+		s.pubBuffer.Stop()
+
 		return nil
 	}
 
