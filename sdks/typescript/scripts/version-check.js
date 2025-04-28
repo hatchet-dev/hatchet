@@ -1,32 +1,65 @@
+/* eslint-disable no-console */
 const fs = require('fs');
 const path = require('path');
 const semver = require('semver');
 
-// Get the current package version
-const currentVersion = require('../package.json').version;
-
-// Try to find the previous version from node_modules
-const previousVersionPath = path.join(
-  process.cwd(),
-  'node_modules',
-  '@hatchet-dev',
-  'typescript-sdk',
-  'package.json'
-);
-let previousVersion = null;
+const WARNINGS = {
+  '1.4.0':
+    'Breaking Changes in v1.4.0: This release fixes a critical bug which makes the runNoWait methods async. You will need to await this method to access the runRef.',
+};
 
 try {
-  if (fs.existsSync(previousVersionPath)) {
-    previousVersion = require(previousVersionPath).version;
+  // Get the current package version
+  // eslint-disable-next-line global-require
+  const currentVersion = require('../package.json').version;
+
+  // Look for the package.json in various possible locations
+  const possiblePaths = [
+    // npm
+    path.join(process.cwd(), 'package.json'),
+    // pnpm
+    path.join(process.cwd(), '..', 'package.json'),
+    // yarn
+    path.join(process.cwd(), '..', '..', 'package.json'),
+    // monorepo setup
+    path.join(process.cwd(), '..', '..', '..', 'package.json'),
+  ];
+
+  let parentPackagePath = null;
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      parentPackagePath = possiblePath;
+      break;
+    }
+  }
+
+  if (parentPackagePath) {
+    const parentPackage = JSON.parse(fs.readFileSync(parentPackagePath, 'utf8'));
+    const dependencies = {
+      ...parentPackage.dependencies,
+      ...parentPackage.devDependencies,
+    };
+
+    const installedVersion = dependencies['@hatchet-dev/typescript-sdk'];
+
+    // If there's no installed version, this is a first-time install
+    if (!installedVersion) {
+      // Show all warnings for the current version
+      for (const [version, warning] of Object.entries(WARNINGS)) {
+        if (semver.gte(currentVersion, version)) {
+          console.warn('\x1b[33m%s\x1b[0m', warning);
+        }
+      }
+    } else {
+      // Check for specific version warnings
+      for (const [version, warning] of Object.entries(WARNINGS)) {
+        if (semver.gte(currentVersion, version) && semver.lt(installedVersion, version)) {
+          console.warn('\x1b[33m%s\x1b[0m', warning);
+        }
+      }
+    }
   }
 } catch (error) {
-  // If we can't read the previous version, that's okay
-}
-
-// If we have a previous version and it's less than 1.4.0, show the warning
-if (previousVersion && semver.lt(previousVersion, '1.4.0') && semver.gte(currentVersion, '1.4.0')) {
-  console.warn(
-    '\x1b[33m%s\x1b[0m',
-    'WARNING: This release fixes a critical bug which makes the runNoWait methods async. You will need to await this method to access the runRef.'
-  );
+  // Silently fail - this is just a warning system
+  // console.error(error);
 }

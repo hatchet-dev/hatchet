@@ -70,7 +70,6 @@
     "pino": "^9.6.0",
     "prettier": "^3.5.3",
     "resolve-tspaths": "^0.8.23",
-    "semver": "^7.7.1",
     "ts-jest": "^29.3.1",
     "ts-node": "^10.9.2",
     "ts-proto": "^2.7.0",
@@ -88,6 +87,7 @@
     "nice-grpc-common": "^2.0.2",
     "protobufjs": "^7.4.0",
     "qs": "^6.14.0",
+    "semver": "^7.7.1",
     "yaml": "^2.7.1",
     "zod": "^3.24.2"
   },
