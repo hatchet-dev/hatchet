@@ -1,9 +1,6 @@
 // Types for snippets
 export type Snippet = {
   content: string;
-};
-
-export type EXTRA = {
   language: string;
   source: string;
   highlights?: {
@@ -12,4 +9,11 @@ export type EXTRA = {
       strings: string[];
     };
   };
+};
+
+export const LANGUAGE_MAP = {
+  ts: 'typescript ',
+  py: 'python',
+  go: 'go',
+  unknown: 'unknown',
 };

@@ -1,79 +1,40 @@
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import { getConfig, Config } from '@/utils/config';
 import { processFiles } from './build-tree';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
-// Mock the config module
-jest.mock('@/utils/config');
+async function compareDirectories(actualDir: string, expectedDir: string) {
+  const actualFiles = await fs.readdir(actualDir);
+  const expectedFiles = await fs.readdir(expectedDir);
 
-let tempDir: string;
-let testSourceDir: string;
+  // Check that both directories have exactly the same files
+  expect(actualFiles.sort()).toEqual(expectedFiles.sort());
 
-// Simple test configuration
-const CONFIG: Config = {
-  SOURCE_DIRS: [],
-  OUTPUT_DIR: '',
-  IGNORE_LIST: [],
-  PRESERVE_FILES: [],
-  REPLACEMENTS: [],
-  REMOVAL_PATTERNS: [],
-  PROCESSORS: [],
-};
+  for (const file of actualFiles) {
+    const actualPath = path.join(actualDir, file);
+    const expectedPath = path.join(expectedDir, file);
+
+    const actualStat = await fs.stat(actualPath);
+    const expectedStat = await fs.stat(expectedPath);
+
+    if (actualStat.isDirectory() && expectedStat.isDirectory()) {
+      await compareDirectories(actualPath, expectedPath);
+    } else if (actualStat.isFile() && expectedStat.isFile()) {
+      const actualContent = await fs.readFile(actualPath, 'utf8');
+      const expectedContent = await fs.readFile(expectedPath, 'utf8');
+      expect(actualContent).toEqual(expectedContent);
+    } else {
+      throw new Error(`Mismatched types for ${file}`);
+    }
+  }
+}
 
 describe('processFiles', () => {
-  beforeEach(async () => {
-    jest.clearAllMocks();
+  it('should process files correctly', async () => {
+    await processFiles();
 
-    // Create temporary test directories
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'build-tree-test-'));
-    testSourceDir = path.join(tempDir, 'source');
-    const testOutputDir = path.join(tempDir, 'output');
+    const actualDir = path.join(__dirname, '../../out');
+    const expectedDir = path.join(__dirname, '../../test_dir/expected');
 
-    // Create source directory
-    await fs.mkdir(testSourceDir, { recursive: true });
-
-    // Update config with temp directories
-    CONFIG.SOURCE_DIRS = [testSourceDir];
-    CONFIG.OUTPUT_DIR = testOutputDir;
-
-    (getConfig as jest.Mock).mockReturnValue(CONFIG);
-  });
-
-  afterEach(async () => {
-    // Clean up temporary directory
-    await fs.rm(tempDir, { recursive: true, force: true });
-  });
-
-  it('should read files from the source directory', async () => {
-    // Create test files
-    await fs.writeFile(path.join(testSourceDir, 'file1.ts'), 'content1');
-    await fs.writeFile(path.join(testSourceDir, 'file2.ts'), 'content2');
-
-    const files = await processFiles();
-
-    expect(files).toEqual(['file1.ts', 'file2.ts']);
-  });
-
-  it('should return empty array when there are no source directories', async () => {
-    // Mock getConfig to return empty SOURCE_DIRS
-    (getConfig as jest.Mock).mockReturnValue({
-      ...CONFIG,
-      SOURCE_DIRS: [],
-    });
-
-    const files = await processFiles();
-
-    expect(files).toEqual([]);
-  });
-
-  it('should propagate errors from fs.readdir', async () => {
-    // Use a non-existent directory
-    (getConfig as jest.Mock).mockReturnValue({
-      ...CONFIG,
-      SOURCE_DIRS: [path.join(tempDir, 'nonexistent')],
-    });
-
-    await expect(processFiles()).rejects.toThrow();
+    await compareDirectories(actualDir, expectedDir);
   });
 });

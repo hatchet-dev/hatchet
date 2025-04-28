@@ -5,7 +5,7 @@ import { snippetProcessor } from '../processors/snippets/snippet.processor';
 export type Config = {
   SOURCE_DIRS: string[];
   OUTPUT_DIR: string;
-  PRESERVE_FILES: string[];
+  PRESERVE_FILES: string[] | RegExp[];
   IGNORE_LIST: string[];
   REPLACEMENTS: Array<{
     from: string;

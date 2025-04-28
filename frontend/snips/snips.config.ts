@@ -2,7 +2,7 @@ import { Config } from '@/utils/config';
 
 export const config: Config = {
   // Directories to process
-  SOURCE_DIRS: ['./test_dir'],
+  SOURCE_DIRS: ['./test_dir/src'],
 
   // Output directory
   OUTPUT_DIR: 'out',
