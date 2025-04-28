@@ -1,4 +1,5 @@
-from datetime import datetime
+import asyncio
+from datetime import datetime, timedelta
 from typing import Any, Generic, cast, get_type_hints
 
 from hatchet_sdk.clients.admin import (
@@ -7,7 +8,10 @@ from hatchet_sdk.clients.admin import (
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import EmptyModel, R, TWorkflowInput
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
@@ -294,3 +298,88 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def to_task(self) -> Task[TWorkflowInput, R]:
         return self._task
+
+    def list_runs(
+        self,
+        since: datetime = datetime.now() - timedelta(hours=1),
+        until: datetime | None = None,
+        limit: int = 100,
+        offset: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List runs of the workflow.
+
+        :param since: The start time for the runs to be listed.
+        :param until: The end time for the runs to be listed.
+        :param limit: The maximum number of runs to be listed.
+        :param offset: The offset for pagination.
+        :param statuses: The statuses of the runs to be listed.
+        :param additional_metadata: Additional metadata for filtering the runs.
+        :param worker_id: The ID of the worker that ran the tasks.
+        :param parent_task_external_id: The external ID of the parent task.
+
+        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
+        """
+        workflows = self.client.workflows.list(workflow_name=self._workflow.name)
+
+        if not workflows.rows:
+            logger.warning(f"No workflows found for {self.name}")
+            return []
+
+        workflow = workflows.rows[0]
+
+        response = self.client.runs.list(
+            workflow_ids=[workflow.metadata.id],
+            since=since,
+            only_tasks=True,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
+            until=until,
+            additional_metadata=additional_metadata,
+            worker_id=worker_id,
+            parent_task_external_id=parent_task_external_id,
+        )
+
+        return response.rows
+
+    async def aio_list_runs(
+        self,
+        since: datetime = datetime.now() - timedelta(hours=1),
+        until: datetime | None = None,
+        limit: int = 100,
+        offset: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+    ) -> list[V1TaskSummary]:
+        """
+        List runs of the workflow.
+
+        :param since: The start time for the runs to be listed.
+        :param until: The end time for the runs to be listed.
+        :param limit: The maximum number of runs to be listed.
+        :param offset: The offset for pagination.
+        :param statuses: The statuses of the runs to be listed.
+        :param additional_metadata: Additional metadata for filtering the runs.
+        :param worker_id: The ID of the worker that ran the tasks.
+        :param parent_task_external_id: The external ID of the parent task.
+
+        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
+        """
+        return await asyncio.to_thread(
+            self.list_runs,
+            since=since,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
+            until=until,
+            additional_metadata=additional_metadata,
+            worker_id=worker_id,
+            parent_task_external_id=parent_task_external_id,
+        )
