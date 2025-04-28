@@ -1,13 +1,7 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-nested-ternary */
-import { LegacyHatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
-import {
-  Action,
-  ActionKey,
-  ActionListener,
-  createActionKey,
-} from '@clients/dispatcher/action-listener';
+import { Action, ActionListener } from '@clients/dispatcher/action-listener';
 import {
   StepActionEvent,
   StepActionEventType,
@@ -26,12 +20,21 @@ import {
   WorkflowConcurrencyOpts,
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
-import { WebhookHandler } from '@clients/worker/handler';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
-import { WorkflowDefinition } from '@hatchet/v1/declaration';
-import { CreateWorkflowTaskOpts, NonRetryableError } from '@hatchet/v1/task';
-import { V0Context, CreateStep, V0DurableContext, mapRateLimit, StepRunFunction } from '../../step';
-import { WorkerLabels } from '../dispatcher/dispatcher-client';
+import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
+import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
+import {
+  CreateOnFailureTaskOpts,
+  CreateOnSuccessTaskOpts,
+  CreateWorkflowTaskOpts,
+  NonRetryableError,
+} from '@hatchet/v1/task';
+import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
+import { HatchetClient } from '@hatchet/v1';
+
+import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
+import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
+import { Context, DurableContext } from './context';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
 
@@ -42,8 +45,8 @@ export interface WorkerOpts {
   labels?: WorkerLabels;
 }
 
-export class V0Worker {
-  client: LegacyHatchetClient;
+export class V1Worker {
+  client: HatchetClient;
   name: string;
   workerId: string | undefined;
   killing: boolean;
@@ -52,8 +55,8 @@ export class V0Worker {
   action_registry: ActionRegistry;
   workflow_registry: Array<WorkflowDefinition | Workflow> = [];
   listener: ActionListener | undefined;
-  futures: Record<ActionKey, HatchetPromise<any>> = {};
-  contexts: Record<ActionKey, V0Context<any, any>> = {};
+  futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
+  contexts: Record<Action['stepRunId'], Context<any, any>> = {};
   maxRuns?: number;
 
   logger: Logger;
@@ -63,7 +66,7 @@ export class V0Worker {
   labels: WorkerLabels = {};
 
   constructor(
-    client: LegacyHatchetClient,
+    client: HatchetClient,
     options: {
       name: string;
       handleKill?: boolean;
@@ -117,21 +120,22 @@ export class V0Worker {
   }
 
   getHandler(workflows: Workflow[]) {
+    throw new Error('Not implemented');
     // TODO v1
-    for (const workflow of workflows) {
-      const wf: Workflow = {
-        ...workflow,
-        id: this.client.config.namespace + workflow.id,
-      };
+    // for (const workflow of workflows) {
+    //   const wf: Workflow = {
+    //     ...workflow,
+    //     id: this.client.config.namespace + workflow.id,
+    //   };
 
-      this.registerActions(wf);
-    }
+    //   this.registerActions(wf);
+    // }
 
-    return new WebhookHandler(this, workflows);
+    // return new WebhookHandler(this, workflows);
   }
 
   async registerWebhook(webhook: WebhookWorkerCreateRequest) {
-    return this.client.admin.registerWebhook({ ...webhook });
+    return this.client._v0.admin.registerWebhook({ ...webhook });
   }
 
   /**
@@ -139,6 +143,205 @@ export class V0Worker {
    */
   async register_workflow(initWorkflow: Workflow) {
     return this.registerWorkflow(initWorkflow);
+  }
+
+  registerDurableActionsV1(workflow: WorkflowDefinition) {
+    const newActions = workflow._durableTasks.reduce<ActionRegistry>((acc, task) => {
+      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
+        task.fn(ctx.input, ctx as DurableContext<any, any>);
+      return acc;
+    }, {});
+
+    this.action_registry = {
+      ...this.action_registry,
+      ...newActions,
+    };
+  }
+
+  private registerActionsV1(workflow: WorkflowDefinition) {
+    const newActions = workflow._tasks.reduce<ActionRegistry>((acc, task) => {
+      acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
+        task.fn(ctx.input, ctx);
+      return acc;
+    }, {});
+
+    const onFailureFn = workflow.onFailure
+      ? typeof workflow.onFailure === 'function'
+        ? workflow.onFailure
+        : workflow.onFailure.fn
+      : undefined;
+
+    const onFailureAction = onFailureFn
+      ? {
+          [onFailureTaskName(workflow)]: (ctx: Context<any, any>) => onFailureFn(ctx.input, ctx),
+        }
+      : {};
+
+    this.action_registry = {
+      ...this.action_registry,
+      ...newActions,
+      ...onFailureAction,
+    };
+  }
+
+  async registerWorkflowV1(initWorkflow: BaseWorkflowDeclaration<any, any>) {
+    // patch the namespace
+    const workflow: WorkflowDefinition = {
+      ...initWorkflow.definition,
+      name: (this.client.config.namespace + initWorkflow.definition.name).toLowerCase(),
+    };
+
+    try {
+      const { concurrency } = workflow;
+
+      let onFailureTask: CreateTaskOpts | undefined;
+
+      if (workflow.onFailure && typeof workflow.onFailure === 'function') {
+        onFailureTask = {
+          readableId: 'on-failure-task',
+          action: onFailureTaskName(workflow),
+          timeout: '60s',
+          inputs: '{}',
+          parents: [],
+          retries: 0,
+          rateLimits: [],
+          workerLabels: {},
+          concurrency: [],
+        };
+      }
+
+      if (workflow.onFailure && typeof workflow.onFailure === 'object') {
+        const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
+
+        onFailureTask = {
+          readableId: 'on-failure-task',
+          action: onFailureTaskName(workflow),
+          timeout: onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
+          scheduleTimeout: onFailure.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          inputs: '{}',
+          parents: [],
+          retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
+          rateLimits: mapRateLimit(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: toPbWorkerLabel(
+            onFailure.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
+          ),
+          concurrency: [],
+          backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
+          backoffMaxSeconds:
+            onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+        };
+      }
+
+      let onSuccessTask: CreateWorkflowTaskOpts<any, any> | undefined;
+
+      if (workflow.onSuccess && typeof workflow.onSuccess === 'function') {
+        const parents = getLeaves(workflow._tasks);
+
+        onSuccessTask = {
+          name: 'on-success-task',
+          fn: workflow.onSuccess,
+          timeout: '60s',
+          parents,
+          retries: 0,
+          rateLimits: [],
+          desiredWorkerLabels: {},
+          concurrency: [],
+        };
+      }
+
+      if (workflow.onSuccess && typeof workflow.onSuccess === 'object') {
+        const onSuccess = workflow.onSuccess as CreateOnSuccessTaskOpts<any, any>;
+        const parents = getLeaves(workflow._tasks);
+
+        onSuccessTask = {
+          name: 'on-success-task',
+          fn: onSuccess.fn,
+          timeout: onSuccess.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
+          scheduleTimeout: onSuccess.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          parents,
+          retries: onSuccess.retries || workflow.taskDefaults?.retries || 0,
+          rateLimits: onSuccess.rateLimits || workflow.taskDefaults?.rateLimits,
+          desiredWorkerLabels: onSuccess.desiredWorkerLabels || workflow.taskDefaults?.workerLabels,
+          concurrency: onSuccess.concurrency || workflow.taskDefaults?.concurrency,
+          backoff: onSuccess.backoff || workflow.taskDefaults?.backoff,
+        };
+      }
+
+      if (onSuccessTask) {
+        workflow._tasks.push(onSuccessTask);
+      }
+
+      // cron and event triggers
+      if (workflow.on) {
+        this.logger.warn(
+          `\`on\` for event and cron triggers is deprecated and will be removed soon, use \`onEvents\` and \`onCrons\` instead for ${
+            workflow.name
+          }`
+        );
+      }
+
+      const eventTriggers = [
+        ...(workflow.onEvents || []),
+        ...(workflow.on?.event ? [workflow.on.event] : []),
+      ];
+      const cronTriggers = [
+        ...(workflow.onCrons || []),
+        ...(workflow.on?.cron ? [workflow.on.cron] : []),
+      ];
+
+      const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
+      const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
+
+      const registeredWorkflow = this.client._v0.admin.putWorkflowV1({
+        name: workflow.name,
+        description: workflow.description || '',
+        version: workflow.version || '',
+        eventTriggers,
+        cronTriggers,
+        sticky: workflow.sticky,
+        concurrencyArr,
+        onFailureTask,
+        defaultPriority: workflow.defaultPriority,
+        tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
+          readableId: task.name,
+          action: `${workflow.name}:${task.name}`,
+          timeout:
+            task.executionTimeout ||
+            task.timeout ||
+            workflow.taskDefaults?.executionTimeout ||
+            '60s',
+          scheduleTimeout: task.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
+          inputs: '{}',
+          parents: task.parents?.map((p) => p.name) ?? [],
+          userData: '{}',
+          retries: task.retries || workflow.taskDefaults?.retries || 0,
+          rateLimits: mapRateLimit(task.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: toPbWorkerLabel(
+            task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
+          ),
+          backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
+          backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+          conditions: taskConditionsToPb(task),
+          concurrency: task.concurrency
+            ? Array.isArray(task.concurrency)
+              ? task.concurrency
+              : [task.concurrency]
+            : workflow.taskDefaults?.concurrency
+              ? Array.isArray(workflow.taskDefaults.concurrency)
+                ? workflow.taskDefaults.concurrency
+                : [workflow.taskDefaults.concurrency]
+              : [],
+        })),
+        concurrency: concurrencySolo,
+      });
+      this.registeredWorkflowPromises.push(registeredWorkflow);
+      await registeredWorkflow;
+      this.workflow_registry.push(workflow);
+    } catch (e: any) {
+      throw new HatchetError(`Could not register workflow: ${e.message}`);
+    }
+
+    this.registerActionsV1(workflow);
   }
 
   async registerWorkflow(initWorkflow: Workflow) {
@@ -186,7 +389,7 @@ export class V0Worker {
           }
         : undefined;
 
-      const registeredWorkflow = this.client.admin.putWorkflow({
+      const registeredWorkflow = this.client._v0.admin.putWorkflow({
         name: workflow.id,
         description: workflow.description,
         version: workflow.version || '',
@@ -239,8 +442,8 @@ export class V0Worker {
 
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
-      const context = new V0DurableContext(action, this.client, this);
-      this.contexts[createActionKey(action)] = context;
+      const context = new DurableContext(action, this.client, this);
+      this.contexts[action.stepRunId] = context;
 
       const step = this.action_registry[actionId];
 
@@ -266,7 +469,7 @@ export class V0Worker {
             result || null,
             action.retryCount
           );
-          await this.client.dispatcher.sendStepActionEvent(event);
+          await this.client._v0.dispatcher.sendStepActionEvent(event);
         } catch (actionEventError: any) {
           this.logger.error(
             `Could not send completed action event: ${actionEventError.message || actionEventError}`
@@ -282,7 +485,7 @@ export class V0Worker {
           );
 
           try {
-            await this.client.dispatcher.sendStepActionEvent(failureEvent);
+            await this.client._v0.dispatcher.sendStepActionEvent(failureEvent);
           } catch (failureEventError: any) {
             this.logger.error(
               `Could not send failed action event: ${failureEventError.message || failureEventError}`
@@ -294,8 +497,8 @@ export class V0Worker {
           );
         } finally {
           // delete the run from the futures
-          delete this.futures[createActionKey(action)];
-          delete this.contexts[createActionKey(action)];
+          delete this.futures[action.stepRunId];
+          delete this.contexts[action.stepRunId];
         }
       };
 
@@ -320,13 +523,13 @@ export class V0Worker {
             },
             action.retryCount
           );
-          await this.client.dispatcher.sendStepActionEvent(event);
+          await this.client._v0.dispatcher.sendStepActionEvent(event);
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
           // delete the run from the futures
-          delete this.futures[createActionKey(action)];
-          delete this.contexts[createActionKey(action)];
+          delete this.futures[action.stepRunId];
+          delete this.contexts[action.stepRunId];
         }
       };
 
@@ -342,7 +545,7 @@ export class V0Worker {
           await success(result);
         })()
       );
-      this.futures[createActionKey(action)] = future;
+      this.futures[action.stepRunId] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(
@@ -352,7 +555,7 @@ export class V0Worker {
         undefined,
         action.retryCount
       );
-      this.client.dispatcher.sendStepActionEvent(event).catch((e) => {
+      this.client._v0.dispatcher.sendStepActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
       });
 
@@ -369,10 +572,14 @@ export class V0Worker {
   async handleStartGroupKeyRun(action: Action) {
     const { actionId } = action;
 
-    try {
-      const context = new V0Context(action, this.client, this);
+    this.logger.error(
+      'Concurrency Key Functions have been deprecated and will be removed in a future release. Use Concurrency Expressions instead.'
+    );
 
-      const key = createActionKey(action);
+    try {
+      const context = new Context(action, this.client, this);
+
+      const key = action.getGroupKeyRunId;
 
       if (!key) {
         this.logger.error(`No group key run id provided for action ${actionId}`);
@@ -404,7 +611,7 @@ export class V0Worker {
             GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_COMPLETED,
             result
           );
-          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+          this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
         } catch (e: any) {
@@ -426,7 +633,7 @@ export class V0Worker {
             GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_FAILED,
             error
           );
-          this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+          this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
             this.logger.error(`Could not send action event: ${e.message}`);
           });
         } catch (e: any) {
@@ -446,7 +653,7 @@ export class V0Worker {
         action,
         GroupKeyActionEventType.GROUP_KEY_EVENT_TYPE_STARTED
       );
-      this.client.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
+      this.client._v0.dispatcher.sendGroupKeyActionEvent(event).catch((e) => {
         this.logger.error(`Could not send action event: ${e.message}`);
       });
 
@@ -501,11 +708,11 @@ export class V0Worker {
     const { stepRunId } = action;
     try {
       this.logger.info(`Cancelling step run ${action.stepRunId}`);
-      const future = this.futures[createActionKey(action)];
-      const context = this.contexts[createActionKey(action)];
+      const future = this.futures[stepRunId];
+      const context = this.contexts[stepRunId];
 
-      if (context && context.controller) {
-        context.controller.abort('Cancelled by worker');
+      if (context && context.abortController) {
+        context.abortController.abort('Cancelled by worker');
       }
 
       if (future) {
@@ -518,8 +725,8 @@ export class V0Worker {
     } catch (e: any) {
       this.logger.error('Could not cancel step run: ', e);
     } finally {
-      delete this.futures[createActionKey(action)];
-      delete this.contexts[createActionKey(action)];
+      delete this.futures[stepRunId];
+      delete this.contexts[stepRunId];
     }
   }
 
@@ -560,7 +767,7 @@ export class V0Worker {
     }
 
     try {
-      this.listener = await this.client.dispatcher.getActionListener({
+      this.listener = await this.client._v0.dispatcher.getActionListener({
         workerName: this.name,
         services: ['default'],
         actions: Object.keys(this.action_registry),
@@ -614,7 +821,7 @@ export class V0Worker {
       return this.labels;
     }
 
-    this.client.dispatcher.upsertWorkerLabels(this.workerId, labels);
+    this.client._v0.dispatcher.upsertWorkerLabels(this.workerId, labels);
 
     return this.labels;
   }
