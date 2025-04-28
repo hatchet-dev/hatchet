@@ -25,10 +25,6 @@ export default {
   "cron-runs": "Cron Trigger",
   "run-on-event": "Event Trigger",
   "bulk-run": "Bulk Run Many",
-  "streaming-results": {
-    title: "Streaming Results",
-    display: "hidden",
-  },
   "--flow-control": {
     title: "Flow Control",
     type: "separator",
@@ -36,10 +32,6 @@ export default {
   concurrency: "Concurrency",
   "rate-limits": "Rate Limits",
   priority: "Priority",
-  "running-from-external-services": {
-    title: "Running from External Services",
-    display: "hidden",
-  },
   "--advanced-workflows": {
     title: "Workflows",
     type: "separator",

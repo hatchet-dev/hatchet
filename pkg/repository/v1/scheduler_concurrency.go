@@ -68,7 +68,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		acquired, err := c.queries.TryConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		acquired, err := c.queries.TryAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
 			return nil, err
@@ -182,8 +182,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			}
 
 			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
@@ -191,6 +189,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
 					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			default:
 				queued = append(queued, TaskWithQueue{
 					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
@@ -225,8 +225,6 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			}
 
 			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
@@ -234,6 +232,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
 					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			default:
 				queued = append(queued, TaskWithQueue{
 					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
@@ -271,7 +271,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, err
@@ -282,7 +282,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		err := c.queries.ConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		err := c.queries.AdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
 			return nil, err
@@ -336,8 +336,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			}
 
 			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
@@ -352,6 +350,8 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
 					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			default:
 				queued = append(queued, TaskWithQueue{
 					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
@@ -417,8 +417,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			}
 
 			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
@@ -433,6 +431,8 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
 					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			default:
 				queued = append(queued, TaskWithQueue{
 					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
@@ -470,7 +470,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 
 	defer rollback()
 
-	err = c.queries.ConcurrencyAdvisoryLock(ctx, tx, strategy.ID)
+	err = c.queries.AdvisoryLock(ctx, tx, strategy.ID)
 
 	if err != nil {
 		return nil, err
@@ -481,7 +481,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	var nextConcurrencyStrategies []int64
 
 	if strategy.ParentStrategyID.Valid {
-		err := c.queries.ConcurrencyAdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
+		err := c.queries.AdvisoryLock(ctx, tx, PARENT_STRATEGY_LOCK_OFFSET+strategy.ParentStrategyID.Int64)
 
 		if err != nil {
 			return nil, err
@@ -566,8 +566,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			}
 
 			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
@@ -582,6 +580,8 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
 					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			default:
 				queued = append(queued, TaskWithQueue{
 					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
@@ -647,8 +647,6 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 			}
 
 			switch {
-			case len(r.NextStrategyIds) > 0:
-				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
@@ -663,6 +661,8 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 					TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
 					WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 				})
+			case len(r.NextStrategyIds) > 0:
+				nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 			default:
 				queued = append(queued, TaskWithQueue{
 					TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{

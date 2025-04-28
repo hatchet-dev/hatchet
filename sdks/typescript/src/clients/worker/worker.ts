@@ -2,7 +2,12 @@
 /* eslint-disable no-nested-ternary */
 import { LegacyHatchetClient } from '@clients/hatchet-client';
 import HatchetError from '@util/errors/hatchet-error';
-import { Action, ActionListener } from '@clients/dispatcher/action-listener';
+import {
+  Action,
+  ActionKey,
+  ActionListener,
+  createActionKey,
+} from '@clients/dispatcher/action-listener';
 import {
   StepActionEvent,
   StepActionEventType,
@@ -47,8 +52,8 @@ export class V0Worker {
   action_registry: ActionRegistry;
   workflow_registry: Array<WorkflowDefinition | Workflow> = [];
   listener: ActionListener | undefined;
-  futures: Record<Action['stepRunId'], HatchetPromise<any>> = {};
-  contexts: Record<Action['stepRunId'], V0Context<any, any>> = {};
+  futures: Record<ActionKey, HatchetPromise<any>> = {};
+  contexts: Record<ActionKey, V0Context<any, any>> = {};
   maxRuns?: number;
 
   logger: Logger;
@@ -235,7 +240,7 @@ export class V0Worker {
     try {
       // Note: we always use a DurableContext since its a superset of the Context class
       const context = new V0DurableContext(action, this.client, this);
-      this.contexts[action.stepRunId] = context;
+      this.contexts[createActionKey(action)] = context;
 
       const step = this.action_registry[actionId];
 
@@ -289,8 +294,8 @@ export class V0Worker {
           );
         } finally {
           // delete the run from the futures
-          delete this.futures[action.stepRunId];
-          delete this.contexts[action.stepRunId];
+          delete this.futures[createActionKey(action)];
+          delete this.contexts[createActionKey(action)];
         }
       };
 
@@ -320,8 +325,8 @@ export class V0Worker {
           this.logger.error(`Could not send action event: ${e.message}`);
         } finally {
           // delete the run from the futures
-          delete this.futures[action.stepRunId];
-          delete this.contexts[action.stepRunId];
+          delete this.futures[createActionKey(action)];
+          delete this.contexts[createActionKey(action)];
         }
       };
 
@@ -337,7 +342,7 @@ export class V0Worker {
           await success(result);
         })()
       );
-      this.futures[action.stepRunId] = future;
+      this.futures[createActionKey(action)] = future;
 
       // Send the action event to the dispatcher
       const event = this.getStepActionEvent(
@@ -367,7 +372,7 @@ export class V0Worker {
     try {
       const context = new V0Context(action, this.client, this);
 
-      const key = action.getGroupKeyRunId;
+      const key = createActionKey(action);
 
       if (!key) {
         this.logger.error(`No group key run id provided for action ${actionId}`);
@@ -496,8 +501,8 @@ export class V0Worker {
     const { stepRunId } = action;
     try {
       this.logger.info(`Cancelling step run ${action.stepRunId}`);
-      const future = this.futures[stepRunId];
-      const context = this.contexts[stepRunId];
+      const future = this.futures[createActionKey(action)];
+      const context = this.contexts[createActionKey(action)];
 
       if (context && context.controller) {
         context.controller.abort('Cancelled by worker');
@@ -513,8 +518,8 @@ export class V0Worker {
     } catch (e: any) {
       this.logger.error('Could not cancel step run: ', e);
     } finally {
-      delete this.futures[stepRunId];
-      delete this.contexts[stepRunId];
+      delete this.futures[createActionKey(action)];
+      delete this.contexts[createActionKey(action)];
     }
   }
 

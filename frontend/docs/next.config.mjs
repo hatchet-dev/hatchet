@@ -140,6 +140,16 @@ const nextConfig = {
         destination: "/home/child-spawning",
         permanent: false,
       },
+      {
+        source: "/sdks/python-sdk/:path*",
+        destination: "/sdks/python/client",
+        permanent: false,
+      },
+      {
+        source: "/sdks/python",
+        destination: "/sdks/python/client",
+        permanent: false,
+      }
     ];
   },
 }
