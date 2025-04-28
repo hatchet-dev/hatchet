@@ -85,7 +85,7 @@ const processFile = async (
 
   processors.forEach(async (processor) => {
     const results = await processor.process({
-      path: sourcePath,
+      path: outputPath,
       name: entry.name,
       content: content,
     });

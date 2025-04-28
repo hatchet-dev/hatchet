@@ -57,7 +57,7 @@ const processBlocks = (content: string, language: string): { blocks: { [key: str
       const key = trimmedLine.replace(`${commentStyle} ${TOKENS.BLOCK.START}`, '').trim();
       currentBlock = { start: currentLineNumber + 1, key }; // Start on next line
     } else if (trimmedLine.startsWith(`${commentStyle} ${TOKENS.BLOCK.END}`) && currentBlock) {
-      blocks[currentBlock.key] = {
+      blocks[normalizeKey(currentBlock.key)] = {
         start: currentBlock.start,
         stop: currentLineNumber - 1, // -1 because we want the line before the !!
       };
@@ -71,6 +71,8 @@ const processBlocks = (content: string, language: string): { blocks: { [key: str
 
   return { blocks };
 };
+
+const normalizeKey = (key: string) => key.toLowerCase().replace(/ /g, '_');
 
 const processHighlights = (content: string, language: string): { [key: string]: Highlight } => {
   const lines = content.split('\n');
@@ -95,7 +97,7 @@ const processHighlights = (content: string, language: string): { [key: string]: 
       const startLine = currentLineNumber + 1;
       const lines = Array.from({ length: lineCount }, (_, i) => startLine + i);
 
-      highlights[key] = {
+      highlights[normalizeKey(key)] = {
         lines,
         strings,
       };
