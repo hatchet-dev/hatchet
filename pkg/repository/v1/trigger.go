@@ -187,16 +187,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		runInsertedAts = append(runInsertedAts, task.InsertedAt)
 	}
 
-	olapRepository := newOLAPRepository(r.sharedRepository, time.Hour*1)
+	olapRepository := newOLAPRepository(r.sharedRepository, time.Hour*24)
 
-	fmt.Println(sqlcv1.BulkCreateEventTriggersParams{
-		Eventids:         eventIds,
-		Eventinsertedats: eventInsertedAts,
-		Runexternalids:   runExternalIds,
-		Runinsertedats:   runInsertedAts,
-	})
-
-	err = olapRepository.BulkCreateEventTriggers(ctx, tenantId, sqlcv1.BulkCreateEventTriggersParams{
+	_, err = olapRepository.BulkCreateEventTriggers(ctx, tenantId, sqlcv1.BulkCreateEventTriggersParams{
 		Eventids:         eventIds,
 		Eventinsertedats: eventInsertedAts,
 		Runexternalids:   runExternalIds,
@@ -204,7 +197,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	})
 
 	if err != nil {
-		fmt.Println("Error in bulk create event triggers:", err)
 		return nil, nil, err
 	}
 
