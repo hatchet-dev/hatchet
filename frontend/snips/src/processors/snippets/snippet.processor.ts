@@ -74,7 +74,11 @@ const processBlocks = (content: string, language: string): { blocks: { [key: str
   return { blocks };
 };
 
-const normalizeKey = (key: string) => key.toLowerCase().replace(/ /g, '_');
+const normalizeKey = (key: string) =>
+  key
+    .toLowerCase()
+    .replace(/ /g, '_')
+    .replace(/[^a-z0-9_]/g, '');
 
 const processHighlights = (content: string, language: string): { [key: string]: Highlight } => {
   const lines = content.split('\n');
@@ -186,26 +190,24 @@ const processDirectory: DirectoryProcessor = async ({ dir }) => {
 
   // Generate import and export statements for files
   const fileImports = snippets.map((file) => {
-    const baseName = file.name.replace('.ts', '');
-    const normalizedName = baseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    return `import * as ${normalizedName} from './${baseName}';`;
+    const baseName = file.name.replace('.ts', '').replace(/-/g, '_');
+    return `import ${baseName} from './${file.name.replace('.ts', '')}';`;
   });
 
   const fileExports = snippets.map((file) => {
-    const baseName = file.name.replace('.ts', '');
-    const normalizedName = baseName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    return `export { ${normalizedName} };`;
+    const baseName = file.name.replace('.ts', '').replace(/-/g, '_');
+    return `export { ${baseName} as ${baseName} }`;
   });
 
   // Generate import and export statements for directories
   const dirImports = directories.map((dir) => {
-    const normalizedName = dir.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    return `import * as ${normalizedName} from './${dir.name}';`;
+    const importName = dir.name.replace(/-/g, '_');
+    return `import * as ${importName} from './${dir.name}';`;
   });
 
   const dirExports = directories.map((dir) => {
-    const normalizedName = dir.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    return `export { ${normalizedName} };`;
+    const importName = dir.name.replace(/-/g, '_');
+    return `export { ${importName} };`;
   });
 
   const indexContent = [...fileImports, ...dirImports, '', ...fileExports, ...dirExports, ''].join(
