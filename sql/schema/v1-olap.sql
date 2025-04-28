@@ -383,7 +383,7 @@ CREATE TABLE v1_events_olap (
     payload JSONB NOT NULL,
     additional_metadata JSONB,
 
-    PRIMARY KEY (tenant_id, id)
+    PRIMARY KEY (tenant_id, id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE TABLE v1_event_to_run_olap (
@@ -392,7 +392,7 @@ CREATE TABLE v1_event_to_run_olap (
     event_id BIGINT NOT NULL,
     event_inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (event_id, event_inserted_at, event_inserted_at run_id, run_inserted_at)
+    PRIMARY KEY (event_id, event_inserted_at, run_id, run_inserted_at)
 ) PARTITION BY RANGE(event_inserted_at);
 
 
