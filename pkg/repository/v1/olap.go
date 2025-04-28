@@ -212,6 +212,7 @@ type OLAPRepository interface {
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	CreateEvent(ctx context.Context, tenantId string, event sqlcv1.CreateEventParams) (*sqlcv1.V1EventsOlap, error)
+	BulkCreateEventTriggers(ctx context.Context, tenantId string, events sqlcv1.BulkCreateEventTriggersParams) error
 }
 
 type OLAPRepositoryImpl struct {
@@ -1335,4 +1336,8 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	return tasksWithData, idsToDepth, nil
 func (r *OLAPRepositoryImpl) CreateEvent(ctx context.Context, tenantId string, event sqlcv1.CreateEventParams) (*sqlcv1.V1EventsOlap, error) {
 	return r.queries.CreateEvent(ctx, r.pool, event)
+}
+
+func (r *OLAPRepositoryImpl) BulkCreateEventTriggers(ctx context.Context, tenantId string, events sqlcv1.BulkCreateEventTriggersParams) error {
+	return r.queries.BulkCreateEventTriggers(ctx, r.pool, events)
 }

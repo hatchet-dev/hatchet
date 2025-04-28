@@ -11,6 +11,47 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS event_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS event_inserted_at,
+        UNNEST($3::UUID[]) AS run_external_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS run_inserted_at
+)
+INSERT INTO v1_event_to_run_olap(
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_inserted_at
+)
+SELECT
+    COALESCE(lt.task_id, lt.dag_id) AS run_id,
+    i.run_inserted_at,
+    i.event_id,
+    i.event_inserted_at
+FROM inputs i
+JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+RETURNING run_id, run_inserted_at, event_id, event_inserted_at
+`
+
+type BulkCreateEventTriggersParams struct {
+	Eventids         []int64              `json:"eventids"`
+	Eventinsertedats []pgtype.Timestamptz `json:"eventinsertedats"`
+	Runexternalids   []pgtype.UUID        `json:"runexternalids"`
+	Runinsertedats   []pgtype.Timestamptz `json:"runinsertedats"`
+}
+
+func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) error {
+	_, err := db.Exec(ctx, bulkCreateEventTriggers,
+		arg.Eventids,
+		arg.Eventinsertedats,
+		arg.Runexternalids,
+		arg.Runinsertedats,
+	)
+	return err
+}
+
 type CreateDAGsOLAPParams struct {
 	TenantID             pgtype.UUID        `json:"tenant_id"`
 	ID                   int64              `json:"id"`

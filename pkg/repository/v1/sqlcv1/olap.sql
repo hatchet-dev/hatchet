@@ -1271,3 +1271,26 @@ VALUES (
     sqlc.narg('additionalMetadata')::JSONB
 )
 RETURNING *;
+
+-- name: BulkCreateEventTriggers :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@eventIds::BIGINT[]) AS event_id,
+        UNNEST(@eventInsertedAts::TIMESTAMPTZ[]) AS event_inserted_at,
+        UNNEST(@runExternalIds::UUID[]) AS run_external_id,
+        UNNEST(@runInsertedAts::TIMESTAMPTZ[]) AS run_inserted_at
+)
+INSERT INTO v1_event_to_run_olap(
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_inserted_at
+)
+SELECT
+    COALESCE(lt.task_id, lt.dag_id) AS run_id,
+    i.run_inserted_at,
+    i.event_id,
+    i.event_inserted_at
+FROM inputs i
+JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+RETURNING *;

@@ -25,6 +25,9 @@ type EventTriggerOpts struct {
 	Data []byte
 
 	AdditionalMetadata []byte
+
+	OlapEventId         int64
+	OlapEventInsertedAt time.Time
 }
 
 type TriggerTaskData struct {
@@ -113,6 +116,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	eventKeys := make([]string, 0, len(opts))
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
 	uniqueEventKeys := make(map[string]struct{})
+	eventInsertedAts := make([]pgtype.Timestamptz, 0, len(opts))
+	eventIds := make([]int64, 0, len(opts))
 
 	for _, opt := range opts {
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
@@ -123,6 +128,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 		uniqueEventKeys[opt.Key] = struct{}{}
 		eventKeys = append(eventKeys, opt.Key)
+
+		eventIds = append(eventIds, opt.OlapEventId)
+		eventInsertedAts = append(eventInsertedAts, sqlchelpers.TimestamptzFromTime(opt.OlapEventInsertedAt))
 	}
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
@@ -168,6 +176,35 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
 
 	if err != nil {
+		return nil, nil, err
+	}
+
+	runExternalIds := make([]pgtype.UUID, 0, len(opts))
+	runInsertedAts := make([]pgtype.Timestamptz, 0, len(opts))
+
+	for _, task := range tasks {
+		runExternalIds = append(runExternalIds, task.ExternalID)
+		runInsertedAts = append(runInsertedAts, task.InsertedAt)
+	}
+
+	olapRepository := newOLAPRepository(r.sharedRepository, time.Hour*1)
+
+	fmt.Println(sqlcv1.BulkCreateEventTriggersParams{
+		Eventids:         eventIds,
+		Eventinsertedats: eventInsertedAts,
+		Runexternalids:   runExternalIds,
+		Runinsertedats:   runInsertedAts,
+	})
+
+	err = olapRepository.BulkCreateEventTriggers(ctx, tenantId, sqlcv1.BulkCreateEventTriggersParams{
+		Eventids:         eventIds,
+		Eventinsertedats: eventInsertedAts,
+		Runexternalids:   runExternalIds,
+		Runinsertedats:   runInsertedAts,
+	})
+
+	if err != nil {
+		fmt.Println("Error in bulk create event triggers:", err)
 		return nil, nil, err
 	}
 

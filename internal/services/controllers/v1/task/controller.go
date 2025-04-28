@@ -811,12 +811,33 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
 
 	for _, msg := range msgs {
+		now := time.Now().UTC()
+
+		olapEvent, err := tc.repov1.OLAP().CreateEvent(
+			context.Background(),
+			tenantId,
+			sqlcv1.CreateEventParams{
+				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+				Generatedat:        sqlchelpers.TimestamptzFromTime(now),
+				Key:                msg.EventKey,
+				Payload:            msg.EventData,
+				AdditionalMetadata: msg.EventAdditionalMetadata,
+			},
+		)
+
 		opts = append(opts, v1.EventTriggerOpts{
-			EventId:            msg.EventId,
-			Key:                msg.EventKey,
-			Data:               msg.EventData,
-			AdditionalMetadata: msg.EventAdditionalMetadata,
+			EventId:             msg.EventId,
+			Key:                 msg.EventKey,
+			Data:                msg.EventData,
+			AdditionalMetadata:  msg.EventAdditionalMetadata,
+			OlapEventId:         olapEvent.ID,
+			OlapEventInsertedAt: olapEvent.InsertedAt.Time,
 		})
+
+		if err != nil || olapEvent == nil {
+			tc.l.Error().Err(err).Msg("could not create OLAP event")
+			continue
+		}
 	}
 
 	tasks, dags, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)

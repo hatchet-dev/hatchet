@@ -15,7 +15,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type EventResult struct {
@@ -68,33 +67,13 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		return nil, fmt.Errorf("could not create event task: %w", err)
 	}
 
+	now := time.Now().UTC()
+
 	err = i.mqv1.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}
-
-	now := time.Now().UTC()
-
-	go func() error {
-		olapEvent, err := i.repov1.OLAP().CreateEvent(
-			context.Background(),
-			tenantId,
-			sqlcv1.CreateEventParams{
-				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-				Generatedat:        sqlchelpers.TimestamptzFromTime(now),
-				Key:                key,
-				Payload:            data,
-				AdditionalMetadata: metadata,
-			},
-		)
-
-		if err != nil || olapEvent == nil {
-			return fmt.Errorf("could not create event in OLAP: %v", err)
-		}
-
-		return nil
-	}()
 
 	return &dbsqlc.Event{
 		ID:                 sqlchelpers.UUIDFromStr(eventId),
