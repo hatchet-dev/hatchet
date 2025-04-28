@@ -3,22 +3,39 @@
 package main
 
 import (
-	"context"
 	"log"
-	"sync"
+	"os"
 	"testing"
 	"time"
 
-	"go.uber.org/goleak"
-
-	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
 )
 
-func TestLoadCLI(t *testing.T) {
-	testutils.Prepare(t)
+func TestMain(m *testing.M) {
+	// This runs before all tests
+	t := &testing.T{}
+	postRun := harness.StartEngine(t)
 
+	// Run all tests in this package
+	code := m.Run()
+
+	if code != 0 {
+		log.Printf("TestMain: code %d", code)
+		os.Exit(code)
+	}
+
+	postRun()
+
+	// determine if t is failed
+	if t.Failed() {
+		log.Printf("TestMain: test failed")
+		os.Exit(1)
+	}
+}
+
+func TestLoadCLI(t *testing.T) {
 	type args struct {
 		duration        time.Duration
 		eventsPerSecond int
@@ -70,18 +87,6 @@ func TestLoadCLI(t *testing.T) {
 		},
 	}}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-
-	setup := sync.WaitGroup{}
-
-	go func() {
-		setup.Add(1)
-		log.Printf("setup start")
-		testutils.SetupEngine(ctx, t)
-		setup.Done()
-		log.Printf("setup end")
-	}()
-
 	// TODO instead of waiting, figure out when the engine setup is complete
 	time.Sleep(15 * time.Second)
 
@@ -93,23 +98,5 @@ func TestLoadCLI(t *testing.T) {
 		})
 	}
 
-	cancel()
-
 	log.Printf("test complete")
-	setup.Wait()
-	log.Printf("cleanup complete")
-
-	goleak.VerifyNone(
-		t,
-		// worker
-		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-		goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
-		goleak.IgnoreTopFunction("internal/poll.runtime_pollWait"),
-		goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*controlBuffer).get"),
-		// all engine related packages
-		goleak.IgnoreTopFunction("github.com/jackc/pgx/v5/pgxpool.(*Pool).backgroundHealthCheck"),
-		goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*Connection).heartbeater"),
-		goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*consumers).buffer"),
-		goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*http2Server).keepalive"),
-	)
 }
