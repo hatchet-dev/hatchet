@@ -126,7 +126,7 @@ class Worker:
         self.durable_action_queue: "Queue[Action | STOP_LOOP_TYPE]" = self.ctx.Queue()
         self.durable_event_queue: "Queue[ActionEvent]" = self.ctx.Queue()
 
-        self.loop: asyncio.AbstractEventLoop | None
+        self.loop: asyncio.AbstractEventLoop | None = None
 
         self.client = Client(config=self.config, debug=self.debug)
 
