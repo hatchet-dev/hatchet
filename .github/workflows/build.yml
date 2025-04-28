@@ -83,6 +83,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Sync frontend content
+        uses: ./.github/workflows/sync-frontend.yml
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -117,6 +119,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Sync frontend content
+        uses: ./.github/workflows/sync-frontend.yml
       - name: Build lite
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -151,6 +155,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Sync frontend content
+        uses: ./.github/workflows/sync-frontend.yml
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
@@ -169,6 +175,8 @@ jobs:
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Sync frontend content
+        uses: ./.github/workflows/sync-frontend.yml
       - name: Build dashboard
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
