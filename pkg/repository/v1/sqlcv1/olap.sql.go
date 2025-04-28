@@ -11,78 +11,45 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type BulkCreateEventTriggersParams struct {
-	RunID         int64              `json:"run_id"`
-	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
-	EventID       int64              `json:"event_id"`
-	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-}
-
-const bulkCreateEvents = `-- name: BulkCreateEvents :many
-WITH to_insert AS (
+const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :exec
+WITH inputs AS (
     SELECT
-        UNNEST($1::UUID[]) AS tenant_id,
-        UNNEST($2::UUID[]) AS external_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
-        UNNEST($4::TEXT[]) AS key,
-        UNNEST($5::JSONB[]) AS payload,
-        UNNEST($6::JSONB[]) AS additional_metadata
+        UNNEST($1::BIGINT[]) AS event_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS event_inserted_at,
+        UNNEST($3::UUID[]) AS run_external_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS run_inserted_at
 )
-INSERT INTO v1_events_olap (
-    tenant_id,
-    external_id,
-    seen_at,
-    key,
-    payload,
-    additional_metadata
+INSERT INTO v1_event_to_run_olap(
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_inserted_at
 )
-SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata
-FROM to_insert
-RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+SELECT
+    COALESCE(lt.task_id, lt.dag_id) AS run_id,
+    i.run_inserted_at,
+    i.event_id,
+    i.event_inserted_at
+FROM inputs i
+JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+RETURNING run_id, run_inserted_at, event_id, event_inserted_at
 `
 
-type BulkCreateEventsParams struct {
-	Tenantids           []pgtype.UUID        `json:"tenantids"`
-	Externalids         []pgtype.UUID        `json:"externalids"`
-	Seenats             []pgtype.Timestamptz `json:"seenats"`
-	Keys                []string             `json:"keys"`
-	Payloads            [][]byte             `json:"payloads"`
-	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
+type BulkCreateEventTriggersParams struct {
+	Eventids         []int64              `json:"eventids"`
+	Eventinsertedats []pgtype.Timestamptz `json:"eventinsertedats"`
+	Runexternalids   []pgtype.UUID        `json:"runexternalids"`
+	Runinsertedats   []pgtype.Timestamptz `json:"runinsertedats"`
 }
 
-func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1EventsOlap, error) {
-	rows, err := db.Query(ctx, bulkCreateEvents,
-		arg.Tenantids,
-		arg.Externalids,
-		arg.Seenats,
-		arg.Keys,
-		arg.Payloads,
-		arg.Additionalmetadatas,
+func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) error {
+	_, err := db.Exec(ctx, bulkCreateEventTriggers,
+		arg.Eventids,
+		arg.Eventinsertedats,
+		arg.Runexternalids,
+		arg.Runinsertedats,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1EventsOlap
-	for rows.Next() {
-		var i V1EventsOlap
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.ExternalID,
-			&i.SeenAt,
-			&i.Key,
-			&i.Payload,
-			&i.AdditionalMetadata,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return err
 }
 
 type CreateDAGsOLAPParams struct {
@@ -152,10 +119,7 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_events_olap'::text, $2::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $2::date),
-    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $2::date)
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -477,12 +441,11 @@ WITH task_external_ids AS (
         $6::UUID IS NULL
         OR (id, inserted_at) IN (
             SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_event_lookup_table_olap lt
-            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            FROM v1_events_olap e
+            JOIN v1_event_to_run_olap etr ON (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
             WHERE
-                lt.tenant_id = $1::uuid
-                AND lt.external_id = $6::UUID
+                e.tenant_id = $1::UUID
+                AND e.id = $6::UUID
         )
     )
 )
@@ -511,12 +474,12 @@ GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid                  pgtype.UUID        `json:"tenantid"`
-	Createdafter              pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
-	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
-	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
+	Tenantid             pgtype.UUID        `json:"tenantid"`
+	Createdafter         pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore        pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
+	ParentTaskExternalId pgtype.UUID        `json:"parentTaskExternalId"`
+	TriggeringEventId    pgtype.UUID        `json:"triggeringEventId"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -535,7 +498,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.ParentTaskExternalId,
-		arg.TriggeringEventExternalId,
+		arg.TriggeringEventId,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
@@ -571,7 +534,7 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+    SELECT tenant_id, id, seen_at, key, payload, additional_metadata
     FROM v1_events_olap e
     WHERE
         e.tenant_id = $1
@@ -579,7 +542,7 @@ WITH included_events AS (
             $2::TEXT[] IS NULL OR
             "key" = ANY($2::TEXT[])
         )
-    ORDER BY e.id DESC, e.seen_at DESC
+    ORDER BY e.seen_at DESC
     OFFSET
         COALESCE($3::BIGINT, 0)
     LIMIT
@@ -607,7 +570,6 @@ WITH included_events AS (
 SELECT
     e.tenant_id,
     e.id AS event_id,
-    e.external_id AS event_external_id,
     e.seen_at AS event_seen_at,
     e.key AS event_key,
     e.payload AS event_payload,
@@ -633,8 +595,7 @@ type ListEventsParams struct {
 
 type ListEventsRow struct {
 	TenantID                pgtype.UUID        `json:"tenant_id"`
-	EventID                 int64              `json:"event_id"`
-	EventExternalID         pgtype.UUID        `json:"event_external_id"`
+	EventID                 pgtype.UUID        `json:"event_id"`
 	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
 	EventKey                string             `json:"event_key"`
 	EventPayload            []byte             `json:"event_payload"`
@@ -663,7 +624,6 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.EventID,
-			&i.EventExternalID,
 			&i.EventSeenAt,
 			&i.EventKey,
 			&i.EventPayload,
@@ -691,14 +651,7 @@ WITH task_partitions AS (
     SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $1::date) AS p
 ), runs_partitions AS (
     SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $1::date) AS p
-), events_partitions AS (
-    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $1::date) AS p
-), event_trigger_partitions AS (
-    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $1::date) AS p
-), events_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $1::date) AS p
 )
-
 SELECT
     parent_table, partition_name
 FROM
@@ -717,27 +670,6 @@ SELECT
     parent_table, partition_name
 FROM
     runs_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    events_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    event_trigger_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    events_lookup_table_partitions
 `
 
 type ListOLAPPartitionsBeforeDateRow struct {
@@ -1157,7 +1089,6 @@ WITH input AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
-
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
     JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
@@ -1210,13 +1141,11 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    o.output,
-    mrc.max_retry_count::int as retry_count
+    o.output
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
 LEFT JOIN task_output o ON r.run_id = o.run_id
-LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC
 `
 
@@ -1245,7 +1174,6 @@ type PopulateDAGMetadataRow struct {
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	Output               []byte               `json:"output"`
-	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -1276,7 +1204,6 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.FinishedAt,
 			&i.ErrorMessage,
 			&i.Output,
-			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1289,19 +1216,15 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 }
 
 const populateSingleTaskRunData = `-- name: PopulateSingleTaskRunData :one
-WITH selected_retry_count AS (
+WITH latest_retry_count AS (
     SELECT
-        CASE
-            WHEN $4::int IS NOT NULL THEN $4::int
-            ELSE MAX(retry_count)::int
-        END AS retry_count
+        MAX(retry_count) AS retry_count
     FROM
         v1_task_events_olap
     WHERE
         tenant_id = $1::uuid
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
-    LIMIT 1
 ), relevant_events AS (
     SELECT
         tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
@@ -1311,7 +1234,7 @@ WITH selected_retry_count AS (
         tenant_id = $1::uuid
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
-        AND retry_count = (SELECT retry_count FROM selected_retry_count)
+        AND retry_count = (SELECT retry_count FROM latest_retry_count)
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
@@ -1372,8 +1295,7 @@ SELECT
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
     e.error_message as error_message,
-    sc.spawned_children,
-    (SELECT retry_count FROM selected_retry_count) as retry_count
+    sc.spawned_children
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -1396,7 +1318,6 @@ type PopulateSingleTaskRunDataParams struct {
 	Tenantid       pgtype.UUID        `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
-	RetryCount     pgtype.Int4        `json:"retry_count"`
 }
 
 type PopulateSingleTaskRunDataRow struct {
@@ -1430,16 +1351,10 @@ type PopulateSingleTaskRunDataRow struct {
 	Output               []byte               `json:"output"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	SpawnedChildren      pgtype.Int8          `json:"spawned_children"`
-	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
-	row := db.QueryRow(ctx, populateSingleTaskRunData,
-		arg.Tenantid,
-		arg.Taskid,
-		arg.Taskinsertedat,
-		arg.RetryCount,
-	)
+	row := db.QueryRow(ctx, populateSingleTaskRunData, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
 	var i PopulateSingleTaskRunDataRow
 	err := row.Scan(
 		&i.TenantID,
@@ -1472,7 +1387,6 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.Output,
 		&i.ErrorMessage,
 		&i.SpawnedChildren,
-		&i.RetryCount,
 	)
 	return &i, err
 }
@@ -1504,8 +1418,7 @@ WITH input AS (
         t.additional_metadata,
         t.readable_status,
         t.parent_task_external_id,
-        t.workflow_run_id,
-        t.latest_retry_count
+        t.workflow_run_id
     FROM
         v1_tasks_olap t
     JOIN
@@ -1625,8 +1538,7 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
-    o.output::jsonb as output,
-    t.latest_retry_count as retry_count
+    o.output::jsonb as output
 FROM
     tasks t
 LEFT JOIN
@@ -1673,7 +1585,6 @@ type PopulateTaskRunDataRow struct {
 	QueuedAt             pgtype.Timestamptz   `json:"queued_at"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	Output               []byte               `json:"output"`
-	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -1710,7 +1621,6 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.QueuedAt,
 			&i.ErrorMessage,
 			&i.Output,
-			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}
