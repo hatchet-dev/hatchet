@@ -195,6 +195,6 @@ tasks:
         # Create a trap to kill the watcher when the task exits
         trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
-        npx chokidar "sdks/**/*.{py,ts,go}" --ignore "**/node_modules/**" --ignore "**/.git/**" --ignore "**/dist/**" --ignore "**/build/**" --initial -c "cd frontend/docs/ && pnpm run generate-examples && cd ../app/ && pnpm run sync-docs" &
+        npx chokidar "sdks/**/*.{py,ts,go}" --ignore "**/node_modules/**" --ignore "**/.git/**" --ignore "**/dist/**" --ignore "**/build/**" --initial -c "echo 'TODO: Add a task to generate and sync the docs'" &
 
         cd frontend/docs/ && pnpm run taskfile-dev

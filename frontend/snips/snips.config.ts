@@ -39,6 +39,10 @@ export const config: Config = {
     '.pytest_cache',
     '*.pyc',
 
+    // Go specific
+    'go.mod',
+    'go.sum',
+
     // System files
     '.DS_Store',
 

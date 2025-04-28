@@ -26,7 +26,9 @@
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
     "generate": "tsc && ts-node src/scripts/build-tree.ts",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "copy:docs": "rm -rf ../docs/lib/generated/snips && cp -r ./out/snips ../docs/lib/generated/snips",
+    "copy:app:watch": "npm run copy:docs && npm run dev"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
