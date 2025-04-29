@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -33,7 +33,7 @@
     "eslint:fix": "eslint \"{src,tests}/**/*.{ts,tsx,js}\" --fix",
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
-    "prepublish": "cp package.json dist/package.json; cp README.md dist/",
+    "prepublish": "cp package.json dist/package.json; cp README.md dist/; cp -r scripts dist/",
     "publish:ci": "rm -rf ./dist && npm run dump-version && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks",
     "publish:ci:alpha": "rm -rf ./dist && npm run dump-version && npm run tsc:build && npm run prepublish && cd dist && npm publish --access public --no-git-checks --tag alpha",
     "generate-docs": "typedoc",
