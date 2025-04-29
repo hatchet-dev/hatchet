@@ -4,8 +4,8 @@ import emit from './emit';
 import main from './main';
 import run from './run';
 
-export { cli_e2e_test }
-export { _do }
-export { emit }
-export { main }
-export { run }
+export { cli_e2e_test };
+export { _do };
+export { emit };
+export { main };
+export { run };

@@ -26,7 +26,7 @@ import * as sticky from './sticky';
 import * as timeouts from './timeouts';
 import * as with_timeouts from './with_timeouts';
 
-export { hatchet_client }
+export { hatchet_client };
 export { cancellations };
 export { child_workflows };
 export { concurrency_rr };
