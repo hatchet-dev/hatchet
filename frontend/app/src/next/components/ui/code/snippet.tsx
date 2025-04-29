@@ -13,7 +13,7 @@ const languageMap = {
   unknown: 'txt',
 };
 
-// This is a server component that will be rendered at build time
+// This will be rendered at build time
 export const Snippet = ({ src, block }: SnippetProps) => {
   if (!src.content) {
     throw new Error(`src content is required: ${src.source}`);

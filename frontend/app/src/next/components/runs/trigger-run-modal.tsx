@@ -8,6 +8,13 @@ import {
 import { Button } from '@/next/components/ui/button';
 import { Input } from '@/next/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/next/components/ui/select';
 import CronPrettifier from 'cronstrue';
 import { TimePicker } from '@/next/components/ui/time-picker';
 import useDefinitions from '@/next/hooks/use-definitions';
@@ -300,24 +307,28 @@ function TriggerRunModalContent({
           {!disabledCapabilities.includes('workflow') && (
             <div>
               <label className="text-sm font-medium">Workflow</label>
-              <select
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2"
+              <Select
                 value={selectedWorkflowId}
-                onChange={(e) => {
-                  setSelectedWorkflowId(e.target.value);
-                  setSelectedRunId(''); // Reset selected run when workflow changes
+                onValueChange={(value) => {
+                  setSelectedWorkflowId(value);
+                  setSelectedRunId('');
                 }}
               >
-                <option value="">Select a workflow</option>
-                {workflows?.map((workflow: Workflow) => (
-                  <option
-                    key={workflow.metadata.id}
-                    value={workflow.metadata.id}
-                  >
-                    {workflow.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select a workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Select a workflow</SelectItem>
+                  {workflows?.map((workflow: Workflow) => (
+                    <SelectItem
+                      key={workflow.metadata.id}
+                      value={workflow.metadata.id}
+                    >
+                      {workflow.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
