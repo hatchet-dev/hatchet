@@ -392,6 +392,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	if err != nil {
 		tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
+		return err
 	}
 
 	return nil
