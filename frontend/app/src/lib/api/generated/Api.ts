@@ -94,6 +94,7 @@ import {
   V1TaskStatus,
   V1TaskSummary,
   V1TaskSummaryList,
+  V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
@@ -418,6 +419,34 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get the timings for a workflow run
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetTimings
+   * @summary List timings for a workflow run
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings
+   * @secure
+   */
+  v1WorkflowRunGetTimings = (
+    v1WorkflowRun: string,
+    query?: {
+      /**
+       * The depth to retrieve children
+       * @format int64
+       */
+      depth?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1TaskTimingList, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/task-timings`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Get a summary of task run metrics for a tenant
    *
    * @tags Task
@@ -434,6 +463,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       since: string;
+      /**
+       * The end time to get metrics for
+       * @format date-time
+       */
+      until?: string;
       /** The workflow id to find runs for */
       workflow_ids?: string[];
       /**
