@@ -25,9 +25,6 @@ type EventTriggerOpts struct {
 	Data []byte
 
 	AdditionalMetadata []byte
-
-	OlapEventId         int64
-	OlapEventInsertedAt time.Time
 }
 
 type TriggerTaskData struct {
@@ -87,7 +84,7 @@ type createDAGOpts struct {
 }
 
 type TriggerRepository interface {
-	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
+	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, []*EventDataForOlap, error)
 
 	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
 
@@ -106,18 +103,23 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	}
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
+type EventDataForOlap struct {
+	EventKey                string
+	TaskExternalId          string
+	EventAdditionalMetadata []byte
+	EventPayload            []byte
+}
+
+func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, []*EventDataForOlap, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	eventKeys := make([]string, 0, len(opts))
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
 	uniqueEventKeys := make(map[string]struct{})
-	eventInsertedAts := make([]pgtype.Timestamptz, 0, len(opts))
-	eventIds := make([]int64, 0, len(opts))
 
 	for _, opt := range opts {
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
@@ -128,9 +130,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 		uniqueEventKeys[opt.Key] = struct{}{}
 		eventKeys = append(eventKeys, opt.Key)
-
-		eventIds = append(eventIds, opt.OlapEventId)
-		eventInsertedAts = append(eventInsertedAts, sqlchelpers.TimestamptzFromTime(opt.OlapEventInsertedAt))
 	}
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
@@ -140,11 +139,12 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list workflows for events: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
+	eventKeysTaskExternalIds := make([]*EventDataForOlap, 0)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.EventKey]
@@ -161,14 +161,22 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			}
 
 			additionalMetadata := triggerConverter.ToMetadata(opt.AdditionalMetadata)
+			externalId := uuid.NewString()
 
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:  sqlchelpers.UUIDToStr(workflow.WorkflowVersionId),
 				workflowId:         sqlchelpers.UUIDToStr(workflow.WorkflowId),
 				workflowName:       workflow.WorkflowName,
-				externalId:         uuid.NewString(),
+				externalId:         externalId,
 				input:              opt.Data,
 				additionalMetadata: additionalMetadata,
+			})
+
+			eventKeysTaskExternalIds = append(eventKeysTaskExternalIds, &EventDataForOlap{
+				EventKey:                workflow.EventKey,
+				TaskExternalId:          externalId,
+				EventAdditionalMetadata: additionalMetadata,
+				EventPayload:            opt.Data,
 			})
 		}
 	}
@@ -176,33 +184,16 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-
-	runExternalIds := make([]pgtype.UUID, 0, len(opts))
-	runInsertedAts := make([]pgtype.Timestamptz, 0, len(opts))
-
-	for _, task := range tasks {
-		runExternalIds = append(runExternalIds, task.ExternalID)
-		runInsertedAts = append(runInsertedAts, task.InsertedAt)
-	}
-
-	olapRepository := newOLAPRepository(r.sharedRepository, time.Hour*24)
-
-	_, err = olapRepository.BulkCreateEventTriggers(ctx, tenantId, sqlcv1.BulkCreateEventTriggersParams{
-		Eventids:         eventIds,
-		Eventinsertedats: eventInsertedAts,
-		Runexternalids:   runExternalIds,
-		Runinsertedats:   runInsertedAts,
-	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	post()
 
-	return tasks, dags, nil
+	return tasks, dags, eventKeysTaskExternalIds, nil
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {

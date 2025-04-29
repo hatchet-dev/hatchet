@@ -811,36 +811,50 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
 
 	for _, msg := range msgs {
-		now := time.Now().UTC()
-
-		olapEvent, err := tc.repov1.OLAP().CreateEvent(
-			context.Background(),
-			tenantId,
-			sqlcv1.CreateEventParams{
-				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-				Generatedat:        sqlchelpers.TimestamptzFromTime(now),
-				Key:                msg.EventKey,
-				Payload:            msg.EventData,
-				AdditionalMetadata: msg.EventAdditionalMetadata,
-			},
-		)
-
 		opts = append(opts, v1.EventTriggerOpts{
-			EventId:             msg.EventId,
-			Key:                 msg.EventKey,
-			Data:                msg.EventData,
-			AdditionalMetadata:  msg.EventAdditionalMetadata,
-			OlapEventId:         olapEvent.ID,
-			OlapEventInsertedAt: olapEvent.InsertedAt.Time,
+			EventId:            msg.EventId,
+			Key:                msg.EventKey,
+			Data:               msg.EventData,
+			AdditionalMetadata: msg.EventAdditionalMetadata,
 		})
-
-		if err != nil || olapEvent == nil {
-			tc.l.Error().Err(err).Msg("could not create OLAP event")
-			continue
-		}
 	}
 
-	tasks, dags, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+	tasks, dags, eventData, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+
+	if err != nil {
+		return fmt.Errorf("could not trigger tasks from events: %w", err)
+	}
+
+	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
+
+	for _, event := range eventData {
+		for _, task := range tasks {
+			if task.ExternalID.String() == event.TaskExternalId {
+				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+					TaskExternalId:          event.TaskExternalId,
+					TaskInsertedAt:          task.InsertedAt.Time,
+					EventGeneratedAt:        time.Now(),
+					EventKey:                event.EventKey,
+					EventPayload:            event.EventPayload,
+					EventAdditionalMetadata: event.EventAdditionalMetadata,
+				})
+			}
+		}
+
+	}
+
+	msg, err := tasktypes.CreatedEventTriggerMessage(
+		tenantId,
+		tasktypes.CreatedEventTriggerPayload{
+			Payloads: eventTriggerOpts,
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create event trigger message: %w", err)
+	}
+
+	tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)

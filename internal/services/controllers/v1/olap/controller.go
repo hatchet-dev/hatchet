@@ -292,6 +292,8 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 		return tc.handleCreatedDAG(context.Background(), tenantId, payloads)
 	case "create-monitoring-event":
 		return tc.handleCreateMonitoringEvent(context.Background(), tenantId, payloads)
+	case "created-event-trigger":
+		return tc.handleCreateEventTriggers(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -330,6 +332,58 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	}
 
 	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
+}
+
+func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
+
+	eventIds := make([]int64, 0)
+	eventInsertedAts := make([]pgtype.Timestamptz, 0)
+	runExternalIds := make([]pgtype.UUID, 0)
+	runInsertedAts := make([]pgtype.Timestamptz, 0)
+
+	for _, msg := range msgs {
+		for _, payload := range msg.Payloads {
+			opts := sqlcv1.CreateEventParams{
+				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+				Generatedat:        sqlchelpers.TimestamptzFromTime(payload.EventGeneratedAt),
+				Key:                payload.EventKey,
+				Payload:            payload.EventPayload,
+				AdditionalMetadata: payload.EventAdditionalMetadata,
+			}
+
+			event, err := tc.repo.OLAP().CreateEvent(ctx, tenantId, opts)
+
+			if err != nil {
+				tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
+				continue
+			}
+
+			eventIds = append(eventIds, event.ID)
+			eventInsertedAts = append(eventInsertedAts, event.InsertedAt)
+			runExternalIds = append(runExternalIds, sqlchelpers.UUIDFromStr(payload.TaskExternalId))
+			runInsertedAts = append(runInsertedAts, sqlchelpers.TimestamptzFromTime(payload.TaskInsertedAt))
+		}
+	}
+
+	bulkOpts := sqlcv1.BulkCreateEventTriggersParams{
+		Eventids:         eventIds,
+		Eventinsertedats: eventInsertedAts,
+		Runexternalids:   runExternalIds,
+		Runinsertedats:   runInsertedAts,
+	}
+
+	_, err := tc.repo.OLAP().BulkCreateEventTriggers(
+		ctx,
+		tenantId,
+		bulkOpts,
+	)
+
+	if err != nil {
+		tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
+	}
+
+	return nil
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
