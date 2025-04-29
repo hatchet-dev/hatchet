@@ -1,4 +1,4 @@
-import { HatchetClient } from '@hatchet';
+import Hatchet from '@hatchet/sdk';
 
 // HH-client 1 Client
-export const hatchet = HatchetClient.init();
+export const hatchet = Hatchet.init();

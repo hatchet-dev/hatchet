@@ -1,3 +1,3 @@
-import { HatchetClient } from '@hatchet-dev/typescript-sdk';
+import Hatchet from '@hatchet-dev/typescript-sdk/sdk';
 
-export const hatchet = HatchetClient.init();
+export const hatchet = Hatchet.init();

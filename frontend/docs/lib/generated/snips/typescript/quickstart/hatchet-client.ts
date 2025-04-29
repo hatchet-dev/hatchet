@@ -2,7 +2,7 @@ import { Snippet } from '@/lib/generated/snips/types';
 
 const snippet: Snippet = {
   'language': 'typescript ',
-  'content': 'import { HatchetClient } from \'@hatchet-dev/typescript-sdk\';\n\nexport const hatchet = HatchetClient.init();\n',
+  'content': 'import Hatchet from \'@hatchet-dev/typescript-sdk/sdk\';\n\nexport const hatchet = Hatchet.init();\n',
   'source': 'out/typescript/quickstart/hatchet-client.ts',
   'blocks': {},
   'highlights': {
