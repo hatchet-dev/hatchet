@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/modules/rabbitmq"
 	"go.uber.org/goleak"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-admin/cli/seed"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
@@ -20,6 +24,25 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
+
+func getEnvConfig() (string, bool, string) {
+	// Get migration strategy: penultimate or latest
+	migrateStrategy := os.Getenv("TESTING_MATRIX_MIGRATE")
+	if migrateStrategy == "" {
+		migrateStrategy = "latest" // Default value
+	}
+
+	// Get RabbitMQ enabled status
+	rabbitmqEnabled := strings.ToLower(os.Getenv("TESTING_MATRIX_RABBITMQ_ENABLED")) == "true"
+
+	// Get PostgreSQL version
+	pgVersion := os.Getenv("TESTING_MATRIX_PG_VERSION")
+	if pgVersion == "" {
+		pgVersion = "16-alpine" // Default value
+	}
+
+	return migrateStrategy, rabbitmqEnabled, pgVersion
+}
 
 func RunTestWithEngine(m *testing.M) {
 	// This runs before all tests
@@ -60,10 +83,14 @@ func startEngine() func() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	postgresConnStr, cleanupPostgres := startPostgres(ctx)
+	// Get configuration values from environment
+	migrateStrategy, rabbitmqEnabled, pgVersion := getEnvConfig()
+
+	log.Printf("Starting engine with migration strategy: %s, RabbitMQ enabled: %t, PostgreSQL version: %s", migrateStrategy, rabbitmqEnabled, pgVersion)
+
+	postgresConnStr, cleanupPostgres := startPostgres(ctx, pgVersion)
 
 	os.Setenv("DATABASE_URL", postgresConnStr)
-	os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
 	os.Setenv("SERVER_GRPC_INSECURE", "true")
 	os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
 	os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
@@ -77,8 +104,23 @@ func startEngine() func() {
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT", "console")
 	os.Setenv("SERVER_DEFAULT_ENGINE_VERSION", "V1")
 
+	var cleanupRabbitMQ func() error
+	if rabbitmqEnabled {
+		rabbitMQConnStr, rabbitMQCleanup := startRabbitMQ(ctx)
+		os.Setenv("SERVER_MSGQUEUE_KIND", "rabbitmq")
+		os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", rabbitMQConnStr)
+		cleanupRabbitMQ = rabbitMQCleanup
+	} else {
+		os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
+		cleanupRabbitMQ = func() error { return nil }
+	}
+
 	// Run migrations
-	migrate.RunMigrations(ctx)
+	if migrateStrategy == "penultimate" {
+		migrate.RunMigrations(ctx, migrate.WithUpToPenultimate())
+	} else {
+		migrate.RunMigrations(ctx)
+	}
 
 	cf := loader.NewConfigLoader("")
 
@@ -119,13 +161,21 @@ func startEngine() func() {
 		if err != nil {
 			log.Fatalf("failed to cleanup postgres: %v", err)
 		}
+
+		if rabbitmqEnabled {
+			err = cleanupRabbitMQ()
+
+			if err != nil {
+				log.Fatalf("failed to cleanup rabbitmq: %v", err)
+			}
+		}
 	}
 }
 
-func startPostgres(ctx context.Context) (string, func() error) {
+func startPostgres(ctx context.Context, pgVersion string) (string, func() error) {
 	postgresContainer, err := postgres.Run(
 		ctx,
-		"postgres:16-alpine",
+		fmt.Sprintf("postgres:%s", pgVersion),
 		postgres.WithDatabase("test"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
@@ -171,6 +221,63 @@ func startPostgres(ctx context.Context) (string, func() error) {
 	}
 
 	log.Fatalf("failed to connect to postgres container after 10 attempts: %v", err)
+
+	// this should never be reached
+	return "", func() error {
+		return nil
+	}
+}
+
+func startRabbitMQ(ctx context.Context) (string, func() error) {
+	rabbitContainer, err := rabbitmq.Run(
+		ctx,
+		"rabbitmq:3-management-alpine",
+	)
+
+	if err != nil {
+		log.Fatalf("failed to start rabbitmq container: %v", err)
+	}
+
+	// Get the connection URL for RabbitMQ
+	amqpURI, err := rabbitContainer.AmqpURL(ctx)
+	if err != nil {
+		log.Fatalf("failed to get AMQP URL: %v", err)
+	}
+
+	// loop until RabbitMQ is ready
+	for i := 0; i < 10; i++ {
+		var conn *amqp.Connection
+		conn, err = amqp.Dial(amqpURI)
+
+		if err != nil {
+			time.Sleep(time.Second * 2)
+			continue
+		}
+
+		// make sure we can create a channel
+		var ch *amqp.Channel
+		ch, err = conn.Channel()
+
+		if err != nil {
+			conn.Close()
+			time.Sleep(time.Second * 2)
+			continue
+		}
+
+		ch.Close()
+		conn.Close()
+
+		return amqpURI, func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer cancel()
+			if err := rabbitContainer.Terminate(ctx); err != nil {
+				return fmt.Errorf("failed to terminate rabbitmq container: %w", err)
+			}
+			return nil
+		}
+	}
+
+	log.Fatalf("failed to connect to rabbitmq container after 10 attempts: %v", err)
 
 	// this should never be reached
 	return "", func() error {

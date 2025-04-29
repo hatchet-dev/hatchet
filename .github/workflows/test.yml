@@ -293,8 +293,11 @@ jobs:
   load:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+    strategy:
+      matrix:
+        migrate-strategy: ["latest", "penultimate"]
+        rabbitmq-enabled: ["true", "false"]
+        pg-version: ["17-alpine", "16-alpine", "15-alpine"]
 
     steps:
       - uses: actions/checkout@v4
@@ -318,6 +321,7 @@ jobs:
       - name: Test
         run: |
           go test -tags load ./... -p 1 -v -race -failfast
-
-      - name: Teardown
-        run: docker compose down
+        env:
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}

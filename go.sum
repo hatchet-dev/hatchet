@@ -359,6 +359,8 @@ github.com/testcontainers/testcontainers-go v0.37.0 h1:L2Qc0vkTw2EHWQ08djon0D2uw
 github.com/testcontainers/testcontainers-go v0.37.0/go.mod h1:QPzbxZhQ6Bclip9igjLFj6z0hs01bU8lrl2dHQmgFGM=
 github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0 h1:hsVwFkS6s+79MbKEO+W7A1wNIw1fmkMtF4fg83m6kbc=
 github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0/go.mod h1:Qj/eGbRbO/rEYdcRLmN+bEojzatP/+NS1y8ojl2PQsc=
+github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.37.0 h1:JiPjs8fV3qpHWDKyNEhA4Phtjwduj/bgd14Ltz9fzy0=
+github.com/testcontainers/testcontainers-go/modules/rabbitmq v0.37.0/go.mod h1:5tThy7LY0XMUQCR72cWfqPstL3lxBiG6GVYRhwbj8ZQ=
 github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164 h1:yhVO0Yhq84FjdcotvFFvDJRNHJ7mO743G12VdcW4Evc=
 github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164/go.mod h1:HhtDVdE/PRZFRia834tkmcwuscnaAzda1RJUW9Pr3Rg=
 github.com/tink-crypto/tink-go-gcpkms v0.0.0-20230602082706-31d0d09ccc8d h1:+In5BwTMe2nF3FC6LrYqg71jDyaOOMZ4EQBFUhFq23g=
