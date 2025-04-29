@@ -606,9 +606,9 @@ SELECT
 FROM
     v1_lookup_table_olap lt
 JOIN
-    v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    v1_dag_to_task_olap dt ON (lt.dag_id, lt.inserted_at)= (dt.dag_id, dt.dag_inserted_at)
 JOIN
-    v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (lt.tenant_id, dt.task_id, dt.task_inserted_at)
+    v1_tasks_olap t ON (t.id, t.inserted_at) = (dt.task_id, dt.task_inserted_at)
 WHERE
     lt.external_id = ANY($1::uuid[])
     AND lt.tenant_id = $2::uuid
