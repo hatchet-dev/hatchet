@@ -6,7 +6,7 @@ export type SimpleInput = {
   Message: string;
 };
 
-// ❓ Process what you can handle
+// > Process what you can handle
 export const simple = hatchet.task({
   name: 'simple',
   concurrency: {

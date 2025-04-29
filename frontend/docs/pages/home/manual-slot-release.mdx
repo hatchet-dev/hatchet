@@ -1,17 +1,14 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const SlotReleasePy = {
-  path: "examples/manual_slot_release/worker.py",
-};
 
 export const SlotReleaseTS = {
   path: "src/examples/manual_slot_release.ts",
 };
 
-export const getStaticProps = ({}) =>
-  getSnippets([SlotReleasePy, SlotReleaseTS]);
+export const getStaticProps = ({}) => getSnippets([SlotReleaseTS]);
 
 # Manual Slot Release
 
@@ -33,7 +30,7 @@ You can manually release a slot in from within a running task in your workflow u
 
 <UniversalTabs items={['Python', 'Typescript']}>
 <Tabs.Tab>
-<GithubSnippet src={SlotReleasePy} target="SlotRelease" />
+<Snippet src={snips.python.manual_slot_release.worker} block="slotrelease" />
 
 </Tabs.Tab>
 

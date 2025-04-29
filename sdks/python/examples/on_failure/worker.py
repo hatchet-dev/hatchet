@@ -7,7 +7,7 @@ hatchet = Hatchet(debug=True)
 
 ERROR_TEXT = "step1 failed"
 
-# ❓ OnFailure Step
+# > OnFailure Step
 # This workflow will fail because the step will throw an error
 # we define an onFailure step to handle this case
 
@@ -32,10 +32,10 @@ def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
-# ‼️
+# !!
 
 
-# ❓ OnFailure With Details
+# > OnFailure With Details
 # We can access the failure details in the onFailure step
 # via the context method
 
@@ -62,7 +62,7 @@ def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
     raise Exception("unexpected failure")
 
 
-# ‼️
+# !!
 
 
 def main() -> None:

@@ -1,4 +1,4 @@
-# ❓ WorkflowRegistration
+# > WorkflowRegistration
 
 from hatchet_sdk import Hatchet
 
@@ -26,7 +26,7 @@ def main() -> None:
     worker.start()
 
 
-# ‼️
+# !!
 
 if __name__ == "__main__":
     main()

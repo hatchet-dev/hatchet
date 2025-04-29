@@ -3,7 +3,7 @@ import { StickyStrategy } from '@hatchet/protoc/workflows';
 import { hatchet } from '../hatchet-client';
 import { child } from '../child_workflows/workflow';
 
-// ❓ Sticky Task
+// > Sticky Task
 export const sticky = hatchet.task({
   name: 'sticky',
   retries: 3,

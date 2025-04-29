@@ -4,7 +4,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-# ❓ Streaming
+# > Streaming
 
 streaming_workflow = hatchet.workflow(name="StreamingWorkflow")
 
@@ -21,7 +21,7 @@ def main() -> None:
     worker.start()
 
 
-# ‼️
+# !!
 
 if __name__ == "__main__":
     main()

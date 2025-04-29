@@ -5,7 +5,7 @@ hatchet = Hatchet(debug=True)
 EVENT_KEY = "user:update"
 
 
-# ❓ Durable Event
+# > Durable Event
 @hatchet.durable_task(name="DurableEventTask")
 async def durable_event_task(input: EmptyModel, ctx: DurableContext) -> None:
     res = await ctx.aio_wait_for(
@@ -23,7 +23,7 @@ async def durable_event_task(input: EmptyModel, ctx: DurableContext) -> None:
 async def durable_event_task_with_filter(
     input: EmptyModel, ctx: DurableContext
 ) -> None:
-    # ❓ Durable Event With Filter
+    # > Durable Event With Filter
     res = await ctx.aio_wait_for(
         "event",
         UserEventCondition(

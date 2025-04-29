@@ -70,6 +70,8 @@ type ListWorkflowRunOpts struct {
 type ReadTaskRunMetricsOpts struct {
 	CreatedAfter time.Time
 
+	CreatedBefore *time.Time
+
 	WorkflowIds []uuid.UUID
 
 	ParentTaskExternalID *pgtype.UUID
@@ -186,7 +188,7 @@ type OLAPRepository interface {
 
 	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error)
-	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error)
+	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, pgtype.UUID, error)
 
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
@@ -207,6 +209,8 @@ type OLAPRepository interface {
 	// ListTasksByExternalIds returns a list of tasks based on their external ids or the external id of their parent DAG.
 	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
 	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
+
+	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -411,15 +415,16 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 	}, nil
 }
 
-func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error) {
-	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.readPool, sqlcv1.PopulateSingleTaskRunDataParams{
+func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, pgtype.UUID, error) {
+	emptyUUID := pgtype.UUID{}
+	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.pool, sqlcv1.PopulateSingleTaskRunDataParams{
 		Taskid:         taskId,
 		Tenantid:       tenantId,
 		Taskinsertedat: taskInsertedAt,
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, emptyUUID, err
 	}
 
 	workflowRunId := pgtype.UUID{}
@@ -434,11 +439,11 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 		})
 
 		if err != nil {
-			return nil, nil, err
+			return nil, emptyUUID, err
 		}
 	}
 
-	return taskRun, &workflowRunId, nil
+	return taskRun, workflowRunId, nil
 }
 
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error) {
@@ -889,12 +894,18 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		parentTaskExternalId = *opts.ParentTaskExternalID
 	}
 
-	res, err := r.queries.GetTenantStatusMetrics(context.Background(), r.readPool, sqlcv1.GetTenantStatusMetricsParams{
+	params := sqlcv1.GetTenantStatusMetricsParams{
 		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
 		Createdafter:         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		WorkflowIds:          workflowIds,
 		ParentTaskExternalId: parentTaskExternalId,
-	})
+	}
+
+	if opts.CreatedBefore != nil {
+		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(*opts.CreatedBefore)
+	}
+
+	res, err := r.queries.GetTenantStatusMetrics(context.Background(), r.pool, params)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1264,4 +1275,61 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunDisplayNames(ctx context.Context, te
 		Tenantid:    tenantId,
 		Externalids: externalIds,
 	})
+}
+
+func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error) {
+	if depth > 10 {
+		return nil, nil, fmt.Errorf("depth too large")
+	}
+
+	// start out by getting a list of task external ids for the workflow run id
+	rootTaskExternalIds := make([]pgtype.UUID, 0)
+
+	rootTasks, err := r.queries.FlattenTasksByExternalIds(ctx, r.pool, sqlcv1.FlattenTasksByExternalIdsParams{
+		Externalids: []pgtype.UUID{workflowRunId},
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, task := range rootTasks {
+		rootTaskExternalIds = append(rootTaskExternalIds, task.ExternalID)
+	}
+
+	runsList, err := r.queries.GetRunsListRecursive(ctx, r.pool, sqlcv1.GetRunsListRecursiveParams{
+		Taskexternalids: rootTaskExternalIds,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Depth:           depth,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+
+	// associate each run external id with a depth
+	idsToDepth := make(map[string]int32)
+
+	for _, row := range runsList {
+		taskIds = append(taskIds, row.ID)
+		taskInsertedAts = append(taskInsertedAts, row.InsertedAt)
+
+		idsToDepth[sqlchelpers.UUIDToStr(row.ExternalID)] = row.Depth
+	}
+
+	tasksWithData, err := r.queries.PopulateTaskRunData(ctx, r.pool, sqlcv1.PopulateTaskRunDataParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, err
+	}
+
+	return tasksWithData, idsToDepth, nil
 }

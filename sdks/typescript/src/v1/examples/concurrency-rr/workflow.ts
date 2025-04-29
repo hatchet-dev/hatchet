@@ -17,7 +17,7 @@ const sleep = (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-// ❓ Concurrency Strategy With Key
+// > Concurrency Strategy With Key
 export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: {
@@ -38,7 +38,7 @@ simpleConcurrency.task({
   },
 });
 
-// ❓ Multiple Concurrency Keys
+// > Multiple Concurrency Keys
 export const multipleConcurrencyKeys = hatchet.workflow<SimpleInput, SimpleOutput>({
   name: 'simple-concurrency',
   concurrency: [

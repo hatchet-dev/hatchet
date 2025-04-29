@@ -1,4 +1,4 @@
-// ❓ Client Run Methods
+// > Client Run Methods
 import { hatchet } from '../hatchet-client';
 
 hatchet.run('simple', { Message: 'Hello, World!' });
