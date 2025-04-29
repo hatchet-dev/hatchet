@@ -354,13 +354,12 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 }
 
 func (w *Worker) registerAction(service, verb string, method any, compute *compute.Compute) error {
-
-	actionId := fmt.Sprintf("%s:%s", service, verb)
+	actionID := strings.ToLower(fmt.Sprintf("%s:%s", service, verb))
 
 	// if the service is "concurrency", then this is a special action
 	if service == "concurrency" {
-		w.actions[actionId] = &actionImpl{
-			name:                 actionId,
+		w.actions[actionID] = &actionImpl{
+			name:                 actionID,
 			runConcurrencyAction: method.(GetWorkflowConcurrencyGroupFn),
 			method:               method,
 			service:              service,
@@ -378,14 +377,14 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 	}
 
 	// if action has already been registered, ensure that the method is the same
-	if currMethod, ok := w.actions[actionId]; ok {
+	if currMethod, ok := w.actions[actionID]; ok {
 		if reflect.ValueOf(currMethod.MethodFn()).Pointer() != reflect.ValueOf(method).Pointer() {
-			return fmt.Errorf("action %s is already registered with function %s", actionId, getFnName(currMethod.MethodFn()))
+			return fmt.Errorf("action %s is already registered with function %s", actionID, getFnName(currMethod.MethodFn()))
 		}
 	}
 
-	w.actions[actionId] = &actionImpl{
-		name:    actionId,
+	w.actions[actionID] = &actionImpl{
+		name:    actionID,
 		run:     actionFunc,
 		method:  method,
 		service: service,
