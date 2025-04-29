@@ -337,45 +337,53 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
-	seenEventKeysSet := make(map[string]bool)
-
-	bulkCreateEventParams := make([]sqlcv1.BulkCreateEventsParams, 0)
-	bulkCreateTriggersParams := make([]sqlcv1.BulkCreateEventTriggersParams, 0)
+	eventIds := make([]int64, 0)
+	eventInsertedAts := make([]pgtype.Timestamptz, 0)
+	runExternalIds := make([]pgtype.UUID, 0)
+	runInsertedAts := make([]pgtype.Timestamptz, 0)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
-			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				bulkCreateTriggersParams = append(bulkCreateTriggersParams, sqlcv1.BulkCreateEventTriggersParams{
-					RunID:         *payload.MaybeRunId,
-					RunInsertedAt: sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventID:       sqlchelpers.UUIDFromStr(payload.EventId),
-					EventSeenAt:   sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
-				})
-			}
-
-			_, eventAlreadySeen := seenEventKeysSet[payload.EventId]
-
-			if eventAlreadySeen {
-				continue
-			}
-
-			seenEventKeysSet[payload.EventId] = true
-			bulkCreateEventParams = append(bulkCreateEventParams, sqlcv1.BulkCreateEventsParams{
-				TenantID:           sqlchelpers.UUIDFromStr(tenantId),
-				ID:                 sqlchelpers.UUIDFromStr(payload.EventId),
-				SeenAt:             sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
+			opts := sqlcv1.CreateEventParams{
+				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+				Generatedat:        sqlchelpers.TimestamptzFromTime(payload.EventGeneratedAt),
 				Key:                payload.EventKey,
 				Payload:            payload.EventPayload,
 				AdditionalMetadata: payload.EventAdditionalMetadata,
-			})
+			}
+
+			event, err := tc.repo.OLAP().CreateEvent(ctx, tenantId, opts)
+
+			if err != nil {
+				tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
+				continue
+			}
+
+			eventIds = append(eventIds, event.ID)
+			eventInsertedAts = append(eventInsertedAts, event.InsertedAt)
+			runExternalIds = append(runExternalIds, sqlchelpers.UUIDFromStr(payload.TaskExternalId))
+			runInsertedAts = append(runInsertedAts, sqlchelpers.TimestamptzFromTime(payload.TaskInsertedAt))
 		}
 	}
 
-	return tc.repo.OLAP().BulkCreateEventsAndTriggers(
+	bulkOpts := sqlcv1.BulkCreateEventTriggersParams{
+		Eventids:         eventIds,
+		Eventinsertedats: eventInsertedAts,
+		Runexternalids:   runExternalIds,
+		Runinsertedats:   runInsertedAts,
+	}
+
+	_, err := tc.repo.OLAP().BulkCreateEventTriggers(
 		ctx,
-		bulkCreateEventParams,
-		bulkCreateTriggersParams,
+		tenantId,
+		bulkOpts,
 	)
+
+	if err != nil {
+		tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
+	}
+
+	return nil
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
