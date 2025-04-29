@@ -1,8 +1,8 @@
 package main
 
 import (
-	hatchet_client "hatchet-go-quickstart/hatchet_client"
-	workflows "hatchet-go-quickstart/workflows"
+	hatchet_client "github.com/hatchet-dev/hatchet/pkg/examples/quickstart/hatchet_client"
+	workflows "github.com/hatchet-dev/hatchet/pkg/examples/quickstart/workflows"
 
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/v1/worker"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	hatchet_client "hatchet-go-quickstart/hatchet_client"
-	workflows "hatchet-go-quickstart/workflows"
+	hatchet_client "github.com/hatchet-dev/hatchet/pkg/examples/quickstart/hatchet_client"
+	workflows "github.com/hatchet-dev/hatchet/pkg/examples/quickstart/workflows"
 )
 
 func main() {
