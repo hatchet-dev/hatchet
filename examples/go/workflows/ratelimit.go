@@ -93,4 +93,3 @@ func RateLimit(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RateLimitI
 
 	return rateLimitTask
 }
-

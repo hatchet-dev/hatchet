@@ -37,5 +37,3 @@ def context_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
         time.sleep(0.1)
 
     return {"status": "success"}
-
-

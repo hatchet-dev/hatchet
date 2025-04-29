@@ -1,7 +1,7 @@
 // > Create a workflow
 import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { ParentCondition } from '@hatchet-dev/typescript-sdk/v1/conditions/parent-condition';
-import { Context } from '@hatchet-dev/typescript-sdk/step';
+import { Context } from '@hatchet-dev/typescript-sdk/v1/client/worker/context';
 import { hatchet } from '../hatchet-client';
 
 export const taskConditionWorkflow = hatchet.workflow({

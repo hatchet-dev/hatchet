@@ -15,4 +15,3 @@ hatchet = Hatchet(
         logger=root_logger,
     ),
 )
-

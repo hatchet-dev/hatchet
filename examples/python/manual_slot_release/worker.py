@@ -19,5 +19,3 @@ def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
     print("NON RESOURCE INTENSIVE PROCESS")
     return {"status": "success"}
-
-
