@@ -19,7 +19,7 @@ import (
 )
 
 func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
-	spanContext, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
+	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
 	var (
@@ -89,7 +89,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
-		spanContext,
+		ctx,
 		tenantId,
 		opts,
 	)
@@ -107,7 +107,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	tasks, taskIdToDagExternalId, err := t.config.V1.OLAP().ListTasksByDAGId(
-		spanContext,
+		ctx,
 		tenantId,
 		dagExternalIds,
 	)
@@ -123,7 +123,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	workflowNames, err := t.config.V1.Workflows().ListWorkflowNamesByIds(
-		spanContext,
+		ctx,
 		tenantId,
 		pgWorkflowIds,
 	)
@@ -170,7 +170,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 }
 
 func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
-	spanContext, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
+	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
 	var (
@@ -235,7 +235,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
-		spanContext,
+		ctx,
 		tenantId,
 		opts,
 	)
@@ -255,11 +255,11 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
-	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
-	defer span.End()
-
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
+	defer span.End()
 
 	if request.Params.OnlyTasks {
 		return t.OnlyTasks(spanContext, request, tenantId)
