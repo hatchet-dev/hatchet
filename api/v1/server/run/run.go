@@ -301,10 +301,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		if scheduled == nil {
-			return nil, "", fmt.Errorf("cron workflow not found")
-		}
-
 		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
 	})
 
