@@ -63,7 +63,7 @@ async def dummy_runs() -> None:
 
 @pytest.mark.skip()
 @pytest.mark.asyncio()
-async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
+async def test_priority(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high", "default"]
     N = 30
@@ -138,7 +138,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
 
 @pytest.mark.skip()
 @pytest.mark.asyncio()
-async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
+async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
     sleep_time = 3
     n = 30
@@ -226,7 +226,7 @@ async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> No
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def crons(
-    hatchet: Hatchet, dummy_runs: None
+    hatchet: Hatchet
 ) -> AsyncGenerator[tuple[str, str, int], None]:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high"]
