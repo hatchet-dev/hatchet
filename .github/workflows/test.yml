@@ -68,7 +68,7 @@ jobs:
         run: go generate ./...
 
       - name: Test
-        run: go test ./... -v -failfast
+        run: go test $(go list ./... | grep -v "^github.com/hatchet-dev/hatchet/examples") -v -failfast
 
   integration:
     runs-on: ubuntu-latest
