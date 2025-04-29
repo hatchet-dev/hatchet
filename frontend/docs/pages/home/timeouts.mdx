@@ -4,12 +4,6 @@ import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "@/components/code";
 
-export const TimeoutGo = {
-  path: "examples/timeout/main.go",
-};
-
-export const getStaticProps = ({}) => getSnippets([TimeoutGo]);
-
 # Timeouts in Hatchet
 
 Timeouts are an important concept in Hatchet that allow you to control how long a task is allowed to run before it is considered to have failed. This is useful for ensuring that your tasks don't run indefinitely and consume unnecessary resources. Timeouts in Hatchet are treated as failures and the task will be [retried](./retry-policies.mdx) if specified.
@@ -54,7 +48,7 @@ You can specify execution and scheduling timeouts for a task using the `executio
 
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={TimeoutGo} target="TimeoutStep" />
+    <Snippet src={snips.go.workflows.timeouts} block="execution_timeout" />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -85,7 +79,7 @@ For example:
   <Snippet src={snips.typescript.with_timeouts.workflow} block="refresh_timeout" />
   </Tabs.Tab>
   <Tabs.Tab>
-  <GithubSnippet src={TimeoutGo} target="RefreshTimeout" />
+  <Snippet src={snips.go.workflows.timeouts} block="refresh_timeout" />
   </Tabs.Tab>
 </UniversalTabs>
 

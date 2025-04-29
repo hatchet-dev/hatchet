@@ -3,12 +3,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { Snippet } from "@/components/code";
 import snips from "@/lib/snips";
 
-export const SimpleTs = "examples/typescript/simple/bulk.ts";
-export const SimplePy = "examples/python/child/bulk.py";
-export const SimpleGo = "examples/v1/run/bulk.go";
-export const FanoutPy = "examples/python/child/simple-fanout.py";
-export const ParentTaskGo = "examples/v1/workflows/simple.go";
-
 # Bulk Run Many Tasks
 
 Often you may want to run a task multiple times with different inputs. There is significant overhead (i.e. network roundtrips) to write the task, so if you're running multiple tasks, it's best to use the bulk run methods.
