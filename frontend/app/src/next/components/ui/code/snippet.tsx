@@ -1,22 +1,31 @@
+import { useMemo } from 'react';
 import { CodeBlock } from './code-block';
 import { Snippet as SnippetType } from '@/next/lib/docs/snips';
 interface SnippetProps {
-  src?: SnippetType;
+  src: SnippetType;
   block?: keyof SnippetType['blocks'] | 'ALL';
 }
 
 const languageMap = {
-  typescript: 'typescript',
+  typescript: 'ts',
   python: 'py',
   go: 'go',
-  unknown: 'unknown',
+  unknown: 'txt',
 };
 
 // This is a server component that will be rendered at build time
 export const Snippet = ({ src, block }: SnippetProps) => {
-  if (!src || !src.content) {
-    throw new Error('src is required');
+  if (!src.content) {
+    throw new Error(`src content is required: ${src.source}`);
   }
+
+  const language = useMemo(() => {
+    const normalizedLanguage = src.language?.toLowerCase().trim();
+    if (normalizedLanguage && normalizedLanguage in languageMap) {
+      return languageMap[normalizedLanguage as keyof typeof languageMap];
+    }
+    return 'txt';
+  }, [src.language]);
 
   let content = src.content;
 
@@ -37,9 +46,9 @@ export const Snippet = ({ src, block }: SnippetProps) => {
     <>
       <CodeBlock
         value={content}
-        language={languageMap[src.language as keyof typeof languageMap]}
+        language={language}
         // highlightLines={src.blocks?.[block]?.start}
-        // highlightStrings={src.blocks?.[block]?.stop}
+        // highlightLines={src.blocks?.[block]?.stop}
         title={src.source}
         link={`https://github.com/hatchet-dev/hatchet/blob/main/${src.source}`}
       />
