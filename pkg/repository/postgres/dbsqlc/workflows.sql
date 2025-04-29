@@ -814,6 +814,8 @@ WHERE
     AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
+    AND (@cronName::TEXT IS NULL OR c."name" = @cronName::TEXT)
+    AND (@workflowName::TEXT IS NULL OR w."name" = @workflowName::TEXT)
 ORDER BY
     case when @orderBy = 'name ASC' THEN w."name" END ASC,
     case when @orderBy = 'name DESC' THEN w."name" END DESC,

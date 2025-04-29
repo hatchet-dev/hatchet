@@ -332,6 +332,14 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 		countOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
 	}
 
+	if opts.CronName != nil {
+		listOpts.Cronname = *opts.CronName
+	}
+
+	if opts.WorkflowName != nil {
+		listOpts.Workflowname = *opts.WorkflowName
+	}
+
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
 	if err != nil {
 		return nil, 0, err

@@ -58,6 +58,14 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 		listOpts.WorkflowId = &workflowIdStr
 	}
 
+	if request.Params.CronName != nil {
+		listOpts.CronName = request.Params.CronName
+	}
+
+	if request.Params.WorkflowName != nil {
+		listOpts.WorkflowName = request.Params.WorkflowName
+	}
+
 	if request.Params.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
 
