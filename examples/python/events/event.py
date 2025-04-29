@@ -4,4 +4,3 @@ hatchet = Hatchet()
 
 # > Event trigger
 hatchet.event.push("user:create", {})
-

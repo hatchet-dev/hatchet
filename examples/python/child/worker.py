@@ -26,7 +26,6 @@ def step1(input: SimpleInput, ctx: Context) -> SimpleOutput:
 
 
 
-
 def main() -> None:
     worker = hatchet.worker("test-worker", slots=1, workflows=[child_task])
     worker.start()

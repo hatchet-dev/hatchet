@@ -34,7 +34,6 @@ def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 
-
 # > OnFailure With Details
 # We can access the failure details in the onFailure step
 # via the context method
@@ -60,7 +59,6 @@ def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
         return {"status": "success"}
 
     raise Exception("unexpected failure")
-
 
 
 

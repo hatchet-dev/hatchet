@@ -4,6 +4,7 @@ async function main() {
   const res = await parent.run({
     N: 10,
   });
+
   console.log(res.Result);
 }
 

@@ -1,5 +1,3 @@
-
-
 import { hatchet } from '../hatchet-client';
 import { SimpleOutput } from './stub-workflow';
 // > Enqueuing a Workflow (Fire and Forget)
@@ -17,7 +15,6 @@ async function main() {
   // It may be helpful to store the run ID of the workflow
   // in a database or other persistent storage for later use
   console.log(runId);
-  
 
   // > Subscribing to results
   // the return object of the enqueue method is a WorkflowRunRef which includes a listener for the result of the workflow
@@ -28,7 +25,6 @@ async function main() {
   const ref = hatchet.runRef<SimpleOutput>(runId);
   const result2 = await ref.result();
   console.log(result2);
-  
 }
 
 if (require.main === module) {

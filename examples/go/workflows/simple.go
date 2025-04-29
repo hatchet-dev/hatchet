@@ -37,7 +37,6 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 		},
 		hatchet,
 	)
-	
 
 	// Example of running a task
 	_ = func() error {
@@ -47,7 +46,6 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 			return err
 		}
 		fmt.Println(result.TransformedMessage)
-		
 		return nil
 	}
 
@@ -67,7 +65,6 @@ func Simple(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInput, 
 		if err != nil {
 			return err
 		}
-		
 		return nil
 	}
 
@@ -97,7 +94,6 @@ func ParentTask(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[SimpleInp
 		},
 		hatchet,
 	)
-	
 
 	return parent
 }

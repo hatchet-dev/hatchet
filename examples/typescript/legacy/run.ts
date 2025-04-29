@@ -5,6 +5,7 @@ async function main() {
   const res = await hatchet.run<{ Message: string }, { step2: string }>(simple, {
     Message: 'hello',
   });
+
   console.log(res.step2);
 }
 

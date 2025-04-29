@@ -1,4 +1,3 @@
-
 import { StickyStrategy } from '@hatchet-dev/typescript-sdk/protoc/workflows';
 import { hatchet } from '../hatchet-client';
 import { child } from '../child_workflows/workflow';
@@ -23,4 +22,3 @@ export const sticky = hatchet.task({
     };
   },
 });
-

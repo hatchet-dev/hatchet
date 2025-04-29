@@ -1,4 +1,3 @@
-
 import { hatchet } from '../hatchet-client';
 
 // > On Failure Task
@@ -22,4 +21,3 @@ failureWorkflow.onFailure({
     };
   },
 });
-

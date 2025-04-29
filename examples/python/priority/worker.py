@@ -25,7 +25,6 @@ priority_workflow = hatchet.workflow(
 )
 
 
-
 @priority_workflow.task()
 def priority_task(input: EmptyModel, ctx: Context) -> None:
     print("Priority:", ctx.priority)

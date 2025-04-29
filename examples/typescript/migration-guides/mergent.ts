@@ -19,7 +19,6 @@ export async function processImageTask(req: { body: { imageUrl: string; filters:
   }
 }
 
-
 // > After (Hatchet)
 type ImageProcessInput = {
   imageUrl: string;
@@ -56,7 +55,6 @@ export const imageProcessor = hatchet.task({
   },
 });
 
-
 async function run() {
   // > Running a task (Mergent)
   const options = {
@@ -77,7 +75,6 @@ async function run() {
     .then((response) => response.json())
     .then((response) => console.log(response))
     .catch((err) => console.error(err));
-  
 
   // > Running a task (Hatchet)
   const result = await imageProcessor.run({
@@ -87,7 +84,6 @@ async function run() {
 
   // you can await fully typed results
   console.log(result);
-  
 }
 
 async function schedule() {
@@ -99,7 +95,6 @@ async function schedule() {
       delay: '5m',
     }),
   };
-  
 
   // > Scheduling tasks (Hatchet)
   // Schedule the task to run at a specific time
@@ -114,5 +109,4 @@ async function schedule() {
     imageUrl: 'https://example.com/image.png',
     filters: ['blur'],
   });
-  
 }

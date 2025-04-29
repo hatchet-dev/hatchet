@@ -17,7 +17,6 @@ rate_limit_workflow = hatchet.workflow(
 
 
 
-
 # > Static
 RATE_LIMIT_KEY = "test-limit"
 
@@ -25,7 +24,6 @@ RATE_LIMIT_KEY = "test-limit"
 @rate_limit_workflow.task(rate_limits=[RateLimit(static_key=RATE_LIMIT_KEY, units=1)])
 def step_1(input: RateLimitInput, ctx: Context) -> None:
     print("executed step_1")
-
 
 
 
@@ -44,7 +42,6 @@ def step_1(input: RateLimitInput, ctx: Context) -> None:
 )
 def step_2(input: RateLimitInput, ctx: Context) -> None:
     print("executed step_2")
-
 
 
 

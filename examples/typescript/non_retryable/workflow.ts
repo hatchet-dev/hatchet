@@ -14,7 +14,6 @@ const shouldNotRetry = nonRetryableWorkflow.task({
   retries: 1,
 });
 
-
 // Create a task that should retry
 const shouldRetryWrongErrorType = nonRetryableWorkflow.task({
   name: 'should-retry-wrong-error-type',

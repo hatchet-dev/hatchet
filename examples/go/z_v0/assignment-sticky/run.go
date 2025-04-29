@@ -66,7 +66,6 @@ func run() (func() error, error) {
 		},
 	)
 
-	
 
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
@@ -89,7 +88,6 @@ func run() (func() error, error) {
 		},
 	)
 
-	
 
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)

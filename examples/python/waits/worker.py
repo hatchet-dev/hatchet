@@ -30,12 +30,10 @@ task_condition_workflow = hatchet.workflow(name="TaskConditionWorkflow")
 
 
 
-
 # > Add base task
 @task_condition_workflow.task()
 def start(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
-
 
 
 
@@ -50,7 +48,6 @@ def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 
-
 # > Add skip on event
 @task_condition_workflow.task(
     parents=[start],
@@ -59,7 +56,6 @@ def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
 )
 def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
-
 
 
 
@@ -93,7 +89,6 @@ def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 
-
 # > Add wait for event
 @task_condition_workflow.task(
     parents=[start],
@@ -106,7 +101,6 @@ def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
 )
 def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
-
 
 
 
@@ -144,7 +138,6 @@ def sum(input: EmptyModel, ctx: Context) -> RandomSum:
     )
 
     return RandomSum(sum=one + two + three + four + five + six)
-
 
 
 

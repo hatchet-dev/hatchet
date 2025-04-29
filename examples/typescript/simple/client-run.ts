@@ -15,4 +15,3 @@ hatchet.crons.create('simple', {
   expression: '0 0 * * *',
   input: { Message: 'Hello, World!' },
 });
-

@@ -5,6 +5,7 @@ async function main() {
     Message: 'hello',
     N: 5,
   });
+
   console.log(res.parent.Sum);
 }
 

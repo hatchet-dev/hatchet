@@ -39,7 +39,6 @@ def sync_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
 
 
 
-
 @lifespan_workflow.task()
 async def async_lifespan_task(input: EmptyModel, ctx: Context) -> TaskOutput:
     pool = cast(Lifespan, ctx.lifespan).pool
@@ -81,7 +80,6 @@ async def lifespan() -> AsyncGenerator[Lifespan, None]:
 worker = hatchet.worker(
     "test-worker", slots=1, workflows=[lifespan_workflow], lifespan=lifespan
 )
-
 
 
 def main() -> None:

@@ -22,7 +22,6 @@ high_prio = priority_workflow.run_no_wait(
     )
 )
 
-
 # > Scheduled priority
 schedule = priority_workflow.schedule(
     run_at=datetime.now() + timedelta(minutes=1),
@@ -34,7 +33,6 @@ cron = priority_workflow.create_cron(
     expression="0 * * * *",
     priority=3,
 )
-
 
 # > Default priority
 low_prio = priority_workflow.run_no_wait(

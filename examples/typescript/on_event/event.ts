@@ -6,6 +6,7 @@ async function main() {
   const res = await hatchet.events.push<Input>('simple-event:create', {
     Message: 'hello',
   });
+
   console.log(res.eventId);
 }
 

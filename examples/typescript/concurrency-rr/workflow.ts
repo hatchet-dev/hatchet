@@ -27,7 +27,6 @@ export const simpleConcurrency = hatchet.workflow<SimpleInput, SimpleOutput>({
   },
 });
 
-
 simpleConcurrency.task({
   name: 'to-lower',
   fn: async (input) => {
@@ -54,7 +53,6 @@ export const multipleConcurrencyKeys = hatchet.workflow<SimpleInput, SimpleOutpu
     },
   ],
 });
-
 
 multipleConcurrencyKeys.task({
   name: 'to-lower',

@@ -1,4 +1,3 @@
-
 import { hatchet } from '../hatchet-client';
 import { simple, SimpleInput } from './workflow';
 
@@ -16,7 +15,6 @@ async function main() {
   // 👀 Access the results of the Task
   console.log(res[0].TransformedMessage);
   console.log(res[1].TransformedMessage);
-  
 
   // > Bulk Run Tasks from within a Task
   const parent = hatchet.task({
@@ -43,7 +41,6 @@ async function main() {
       };
     },
   });
-  
 }
 
 if (require.main === module) {

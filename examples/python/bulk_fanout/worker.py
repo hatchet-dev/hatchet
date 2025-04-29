@@ -42,7 +42,6 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, An
 
 
 
-
 @bulk_child_wf.task()
 def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     print(f"child process {input.a}")

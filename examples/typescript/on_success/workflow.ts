@@ -1,4 +1,3 @@
-
 import { hatchet } from '../hatchet-client';
 
 // > On Success DAG
@@ -32,4 +31,3 @@ onSuccessDag.onSuccess({
     };
   },
 });
-

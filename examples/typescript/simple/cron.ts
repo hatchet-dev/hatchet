@@ -9,16 +9,17 @@ async function main() {
 
   // it may be useful to save the cron id for later
   const cronId = cron.metadata.id;
+
   console.log(cron.metadata.id);
 
   // > Delete
   await hatchet.crons.delete(cronId);
-  
 
   // > List
   const crons = await hatchet.crons.list({
     workflowId: simple.id,
   });
+
   console.log(crons);
 }
 

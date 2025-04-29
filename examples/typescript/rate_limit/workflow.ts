@@ -8,7 +8,6 @@ hatchet.ratelimits.upsert({
   duration: RateLimitDuration.SECOND,
 });
 
-
 // > Static
 const RATE_LIMIT_KEY = 'api-service-rate-limit';
 
@@ -26,7 +25,6 @@ const task1 = hatchet.task({
 });
 
 
-
 // > Dynamic
 const task2 = hatchet.task({
   name: 'task2',
@@ -42,4 +40,3 @@ const task2 = hatchet.task({
     },
   ],
 });
-

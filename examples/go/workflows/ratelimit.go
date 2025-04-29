@@ -29,7 +29,6 @@ func upsertRateLimit(hatchet v1.HatchetClient) {
 			Duration: types.Second,
 		},
 	)
-	
 }
 
 // > Static Rate Limit
@@ -63,7 +62,6 @@ func StaticRateLimit(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Rate
 }
 
 
-
 // > Dynamic Rate Limit
 func RateLimit(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RateLimitInput, RateLimitOutput] {
 	// Create a standalone task that transforms a message
@@ -95,5 +93,4 @@ func RateLimit(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[RateLimitI
 
 	return rateLimitTask
 }
-
 

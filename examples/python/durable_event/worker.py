@@ -18,7 +18,6 @@ async def durable_event_task(input: EmptyModel, ctx: DurableContext) -> None:
 
 
 
-
 @hatchet.durable_task(name="DurableEventWithFilterTask")
 async def durable_event_task_with_filter(
     input: EmptyModel, ctx: DurableContext
@@ -30,7 +29,6 @@ async def durable_event_task_with_filter(
             event_key="user:update", expression="input.user_id == '1234'"
         ),
     )
-    
 
     print("got event", res)
 

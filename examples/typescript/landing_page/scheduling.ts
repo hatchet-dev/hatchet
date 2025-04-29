@@ -9,4 +9,3 @@ const scheduled = simple.schedule(tomorrow, {
 const cron = simple.cron('every-day', '0 0 * * *', {
   Message: 'Hello, World!',
 });
-

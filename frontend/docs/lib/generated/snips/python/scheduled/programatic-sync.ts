@@ -2,7 +2,7 @@ import { Snippet } from '@/lib/generated/snips/types';
 
 const snippet: Snippet = {
   'language': 'python',
-  'content': 'from datetime import datetime, timedelta\n\nfrom hatchet_sdk import Hatchet\n\nhatchet = Hatchet()\n\n# > Create\nscheduled_run = hatchet.scheduled.create(\n    workflow_name=\'simple-workflow\',\n    trigger_at=datetime.now() + timedelta(seconds=10),\n    input={\n        \'data\': \'simple-workflow-data\',\n    },\n    additional_metadata={\n        \'customer_id\': \'customer-a\',\n    },\n)\n\nid = scheduled_run.metadata.id  # the id of the scheduled run trigger\n\n\n# > Delete\nhatchet.scheduled.delete(scheduled_id=scheduled_run.metadata.id)\n\n\n# > List\nscheduled_runs = hatchet.scheduled.list()\n\n\n# > Get\nscheduled_run = hatchet.scheduled.get(scheduled_id=scheduled_run.metadata.id)\n\n',
+  'content': 'from datetime import datetime, timedelta\n\nfrom hatchet_sdk import Hatchet\n\nhatchet = Hatchet()\n\n# > Create\nscheduled_run = hatchet.scheduled.create(\n    workflow_name=\'simple-workflow\',\n    trigger_at=datetime.now() + timedelta(seconds=10),\n    input={\n        \'data\': \'simple-workflow-data\',\n    },\n    additional_metadata={\n        \'customer_id\': \'customer-a\',\n    },\n)\n\nid = scheduled_run.metadata.id  # the id of the scheduled run trigger\n\n# > Delete\nhatchet.scheduled.delete(scheduled_id=scheduled_run.metadata.id)\n\n# > List\nscheduled_runs = hatchet.scheduled.list()\n\n# > Get\nscheduled_run = hatchet.scheduled.get(scheduled_id=scheduled_run.metadata.id)\n',
   'source': 'out/python/scheduled/programatic-sync.py',
   'blocks': {
     'create': {

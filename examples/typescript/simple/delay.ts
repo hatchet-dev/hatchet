@@ -6,6 +6,7 @@ async function main() {
   const scheduled = await simple.delay(tomorrow, {
     Message: 'hello',
   });
+
   console.log(scheduled.metadata.id);
 
   await hatchet.schedules.delete(scheduled);

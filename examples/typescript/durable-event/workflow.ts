@@ -18,7 +18,6 @@ export const durableEvent = hatchet.durableTask({
   },
 });
 
-
 export const durableEventWithFilter = hatchet.durableTask({
   name: 'durable-event-with-filter',
   executionTimeout: '10m',
@@ -28,7 +27,6 @@ export const durableEventWithFilter = hatchet.durableTask({
       eventKey: 'user:update',
       expression: "input.userId == '1234'",
     });
-    
 
     console.log('res', res);
 
@@ -37,4 +35,3 @@ export const durableEventWithFilter = hatchet.durableTask({
     };
   },
 });
-

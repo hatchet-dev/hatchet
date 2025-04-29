@@ -21,4 +21,3 @@ def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
-

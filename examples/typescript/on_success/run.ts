@@ -1,4 +1,3 @@
-
 import { onSuccessDag } from './workflow';
 
 async function main() {

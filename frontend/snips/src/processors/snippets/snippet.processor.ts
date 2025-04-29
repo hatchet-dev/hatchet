@@ -31,10 +31,13 @@ const sanitizeContent = (content: string, extension: string) => {
 
   let cleanedContent = content;
 
-  for (const pattern of REMOVAL_PATTERNS) {
-    cleanedContent = cleanedContent.replaceAll(pattern.regex, '');
-  }
+  // First remove entire lines that match removal patterns
+  const lines = cleanedContent.split('\n');
+  cleanedContent = lines
+    .filter((line) => !REMOVAL_PATTERNS.some((pattern) => line.match(pattern.regex)))
+    .join('\n');
 
+  // Then apply replacements
   for (const replacement of REPLACEMENTS) {
     if (!replacement.fileTypes || replacement.fileTypes.includes(extension)) {
       cleanedContent = cleanedContent.replaceAll(replacement.from, replacement.to);

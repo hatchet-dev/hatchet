@@ -8,7 +8,6 @@ export const taskConditionWorkflow = hatchet.workflow({
   name: 'TaskConditionWorkflow',
 });
 
-
 // > Add base task
 const start = taskConditionWorkflow.task({
   name: 'start',
@@ -18,7 +17,6 @@ const start = taskConditionWorkflow.task({
     };
   },
 });
-
 
 // > Add wait for sleep
 const waitForSleep = taskConditionWorkflow.task({
@@ -32,7 +30,6 @@ const waitForSleep = taskConditionWorkflow.task({
   },
 });
 
-
 // > Add skip on event
 const skipOnEvent = taskConditionWorkflow.task({
   name: 'skipOnEvent',
@@ -45,7 +42,6 @@ const skipOnEvent = taskConditionWorkflow.task({
     };
   },
 });
-
 
 // > Add branching
 const leftBranch = taskConditionWorkflow.task({
@@ -70,7 +66,6 @@ const rightBranch = taskConditionWorkflow.task({
   },
 });
 
-
 // > Add wait for event
 const waitForEvent = taskConditionWorkflow.task({
   name: 'waitForEvent',
@@ -82,7 +77,6 @@ const waitForEvent = taskConditionWorkflow.task({
     };
   },
 });
-
 
 // > Add sum
 taskConditionWorkflow.task({
@@ -101,4 +95,3 @@ taskConditionWorkflow.task({
     };
   },
 });
-

@@ -19,7 +19,6 @@ export const lower = hatchet.workflow<Input, LowerOutput>({
   onEvents: ['simple-event:create'],
 });
 
-
 lower.task({
   name: 'lower',
   fn: (input) => {

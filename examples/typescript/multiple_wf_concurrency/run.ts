@@ -15,6 +15,7 @@ async function main() {
       GroupKey: 'B',
     },
   ]);
+
   console.log(res[0]['to-lower'].TransformedMessage);
   console.log(res[1]['to-lower'].TransformedMessage);
   console.log(res[2]['to-lower'].TransformedMessage);

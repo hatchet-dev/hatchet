@@ -18,7 +18,6 @@ export const cancellation = hatchet.task({
   },
 });
 
-
 // > Abort Signal
 export const abortSignal = hatchet.task({
   name: 'abort-signal',
@@ -38,6 +37,5 @@ export const abortSignal = hatchet.task({
     }
   },
 });
-
 
 // see ./worker.ts and ./run.ts for how to run the workflow

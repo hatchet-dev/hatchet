@@ -28,7 +28,6 @@ concurrency_multiple_keys_workflow = hatchet.workflow(
 )
 
 
-
 @concurrency_multiple_keys_workflow.task(
     concurrency=[
         ConcurrencyExpression(

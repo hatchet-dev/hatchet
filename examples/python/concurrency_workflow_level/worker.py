@@ -40,7 +40,6 @@ concurrency_workflow_level_workflow = hatchet.workflow(
 )
 
 
-
 @concurrency_workflow_level_workflow.task()
 async def task_1(input: WorkflowInput, ctx: Context) -> None:
     await asyncio.sleep(SLEEP_TIME)

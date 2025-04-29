@@ -29,7 +29,6 @@ def step1b(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 
 
 
-
 # > StickyChild
 
 sticky_child_workflow = hatchet.workflow(
@@ -51,7 +50,6 @@ async def step2(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
 @sticky_child_workflow.task()
 def child(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker.id()}
-
 
 
 

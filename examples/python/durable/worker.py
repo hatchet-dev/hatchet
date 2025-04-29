@@ -8,7 +8,6 @@ hatchet = Hatchet(debug=True)
 durable_workflow = hatchet.workflow(name="DurableWorkflow")
 
 
-
 ephemeral_workflow = hatchet.workflow(name="EphemeralWorkflow")
 
 
@@ -38,7 +37,6 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str]
     return {
         "status": "success",
     }
-
 
 
 

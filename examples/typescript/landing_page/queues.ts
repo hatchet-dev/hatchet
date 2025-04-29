@@ -1,4 +1,3 @@
-
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -15,11 +14,9 @@ async function main() {
       };
     },
   });
-  
 
   // > Running a Task
   const result = await simple.run({ Message: 'Hello, World!' });
-  
 }
 
 if (require.main === module) {

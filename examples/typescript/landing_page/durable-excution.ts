@@ -1,4 +1,3 @@
-
 import { Or } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { hatchet } from '../hatchet-client';
 
@@ -28,11 +27,9 @@ async function main() {
       };
     },
   });
-  
 
   // > Running a Task
   const result = await simple.run({ Message: 'Hello, World!' });
-  
 }
 
 if (require.main === module) {

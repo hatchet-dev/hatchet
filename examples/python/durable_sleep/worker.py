@@ -15,7 +15,6 @@ async def durable_sleep_task(input: EmptyModel, ctx: DurableContext) -> None:
 
 
 
-
 def main() -> None:
     worker = hatchet.worker("durable-sleep-worker", workflows=[durable_sleep_task])
     worker.start()

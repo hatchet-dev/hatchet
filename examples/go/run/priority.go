@@ -33,7 +33,6 @@ func priority() {
 	runId, err := priorityWorkflow.RunNoWait(ctx, v1_workflows.PriorityInput{
 		UserId: "1234",
 	}, client.WithPriority(priority))
-	
 
 	if err != nil {
 		panic(err)
@@ -52,10 +51,8 @@ func priority() {
 	cronId, _ := priorityWorkflow.Cron(ctx, "my-cron", "* * * * *", v1_workflows.PriorityInput{
 		UserId: "1234",
 	}, client.WithPriority(schedulePriority))
-	
 
 	fmt.Println(scheduledRunId)
 	fmt.Println(cronId)
 
-	
 }

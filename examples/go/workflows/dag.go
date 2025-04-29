@@ -29,7 +29,6 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 		},
 		hatchet,
 	)
-	
 
 	// > Defining a Task
 	simple.Task(
@@ -41,7 +40,6 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 			}, nil
 		},
 	)
-	
 
 	// > Adding a Task with a parent
 	step1 := simple.Task(
@@ -73,7 +71,6 @@ func DagWorkflow(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[DagInput
 			}, nil
 		},
 	)
-	
 
 	return simple
 }

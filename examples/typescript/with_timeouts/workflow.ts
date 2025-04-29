@@ -32,7 +32,6 @@ export const withTimeouts = hatchet.task({
   },
 });
 
-
 // > Refresh Timeout
 export const refreshTimeout = hatchet.task({
   name: 'refresh-timeout',
@@ -57,4 +56,3 @@ export const refreshTimeout = hatchet.task({
     };
   },
 });
-

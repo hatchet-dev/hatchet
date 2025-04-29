@@ -19,4 +19,3 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     return {"results": result}
 
 
-
