@@ -61,7 +61,6 @@ async def dummy_runs() -> None:
     return None
 
 
-@pytest.mark.skip()
 @pytest.mark.asyncio()
 async def test_priority(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
@@ -135,8 +134,6 @@ async def test_priority(hatchet: Hatchet) -> None:
         """Runs should finish after starting (this is mostly a test for engine datetime handling bugs)"""
         assert curr.finished_at >= curr.started_at
 
-
-@pytest.mark.skip()
 @pytest.mark.asyncio()
 async def test_priority_via_scheduling(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
@@ -262,7 +259,6 @@ def time_until_next_minute() -> float:
 
     return (next_minute - now).total_seconds()
 
-@pytest.mark.skip()
 @pytest.mark.asyncio()
 async def test_priority_via_cron(hatchet: Hatchet, crons: tuple[str, str, int]) -> None:
     workflow_id, test_run_id, n = crons
