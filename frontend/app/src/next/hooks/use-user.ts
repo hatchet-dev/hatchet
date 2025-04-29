@@ -12,7 +12,8 @@ import {
 } from '@tanstack/react-query';
 import { AxiosResponse } from 'axios';
 import { useToast } from './utils/use-toast';
-
+import { ROUTES } from '@/next/lib/routes';
+import { clearTenant } from './use-tenant';
 interface UserState {
   data?: User;
   memberships?: TenantMember[];
@@ -40,21 +41,11 @@ export default function useUser({
   const userQuery = useQuery({
     queryKey: ['user:get'],
     queryFn: async () => {
-      try {
-        const response = await api.userGetCurrent();
-        if (response.status === 403) {
-          throw new Error('Forbidden');
-        }
-        return response.data;
-      } catch (error) {
-        toast({
-          title: 'Error fetching user data',
-
-          variant: 'destructive',
-          error,
-        });
-        throw error;
+      const response = await api.userGetCurrent();
+      if (response.status === 403) {
+        throw new Error('Forbidden');
       }
+      return response.data;
     },
     retry: 0,
     refetchInterval,
@@ -115,7 +106,8 @@ export default function useUser({
     },
     onSuccess: () => {
       // force a page reload to ensure the user is logged out
-      window.location.href = '/auth/login';
+      clearTenant();
+      window.location.href = ROUTES.auth.login;
     },
   });
 

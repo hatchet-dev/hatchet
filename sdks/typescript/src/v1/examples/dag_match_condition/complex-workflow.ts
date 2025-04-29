@@ -1,4 +1,4 @@
-// ❓ Create a workflow
+// > Create a workflow
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { ParentCondition } from '@hatchet/v1/conditions/parent-condition';
 import { Context } from '@hatchet/step';
@@ -9,7 +9,7 @@ export const taskConditionWorkflow = hatchet.workflow({
 });
 // !!
 
-// ❓ Add base task
+// > Add base task
 const start = taskConditionWorkflow.task({
   name: 'start',
   fn: () => {
@@ -20,7 +20,7 @@ const start = taskConditionWorkflow.task({
 });
 // !!
 
-// ❓ Add wait for sleep
+// > Add wait for sleep
 const waitForSleep = taskConditionWorkflow.task({
   name: 'waitForSleep',
   parents: [start],
@@ -33,7 +33,7 @@ const waitForSleep = taskConditionWorkflow.task({
 });
 // !!
 
-// ❓ Add skip on event
+// > Add skip on event
 const skipOnEvent = taskConditionWorkflow.task({
   name: 'skipOnEvent',
   parents: [start],
@@ -47,7 +47,7 @@ const skipOnEvent = taskConditionWorkflow.task({
 });
 // !!
 
-// ❓ Add branching
+// > Add branching
 const leftBranch = taskConditionWorkflow.task({
   name: 'leftBranch',
   parents: [waitForSleep],
@@ -71,7 +71,7 @@ const rightBranch = taskConditionWorkflow.task({
 });
 // !!
 
-// ❓ Add wait for event
+// > Add wait for event
 const waitForEvent = taskConditionWorkflow.task({
   name: 'waitForEvent',
   parents: [start],
@@ -84,7 +84,7 @@ const waitForEvent = taskConditionWorkflow.task({
 });
 // !!
 
-// ❓ Add sum
+// > Add sum
 taskConditionWorkflow.task({
   name: 'sum',
   parents: [start, waitForSleep, waitForEvent, skipOnEvent, leftBranch, rightBranch],

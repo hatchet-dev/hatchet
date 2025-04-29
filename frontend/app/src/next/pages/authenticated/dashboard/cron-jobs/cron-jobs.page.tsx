@@ -7,7 +7,7 @@ import {
   HeadlineActions,
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import CronJobsTable from './cron-jobs-table';
 import useCan from '@/next/hooks/use-can';
 import { cronJobs } from '@/next/lib/can/features/cron-jobs.permissions';
@@ -38,7 +38,7 @@ export default function CronJobsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['cron-runs']} size="icon" />
+            <DocsButton doc={docs.home.cron_runs} size="icon" />
           </HeadlineActionItem>
           {canManage && (
             <HeadlineActionItem>

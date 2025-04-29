@@ -2,9 +2,9 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet()
 
-# ❓ Event trigger
+# > Event trigger
 event_workflow = hatchet.workflow(name="EventWorkflow", on_events=["user:create"])
-# ‼️
+# !!
 
 
 @event_workflow.task()

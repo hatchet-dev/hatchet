@@ -100,12 +100,22 @@ export function useTimeFilters() {
 interface TimeFilterProviderProps {
   children: React.ReactNode;
   options?: TimeFilterOptions;
+  initialTimeRange?: {
+    startTime?: string;
+    endTime?: string;
+    activePreset?: keyof typeof TIME_PRESETS;
+  };
 }
 
-export function TimeFilterProvider({ children }: TimeFilterProviderProps) {
+export function TimeFilterProvider({
+  children,
+  initialTimeRange,
+}: TimeFilterProviderProps) {
   const [state, setState] = React.useState<TimeFilterState>({
-    activePreset: '1h',
-    lastActivePreset: '1h',
+    activePreset: initialTimeRange?.activePreset || '1h',
+    lastActivePreset: initialTimeRange?.activePreset || '1h',
+    startTime: initialTimeRange?.startTime,
+    endTime: initialTimeRange?.endTime,
   });
 
   // Initialize storage for time filter

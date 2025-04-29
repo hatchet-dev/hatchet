@@ -4,7 +4,7 @@
 
 1. Make sure all prerequisite dependencies are installed:
 
-   - [Go 1.23+](https://go.dev/doc/install)
+   - [Go 1.24+](https://go.dev/doc/install)
    - [Node.js v18+](https://nodejs.org/en/download) - we recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions.
    - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
    - [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)

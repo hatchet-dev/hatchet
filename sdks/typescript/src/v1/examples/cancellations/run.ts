@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-// ❓ Running a Task with Results
+// > Running a Task with Results
 import sleep from '@hatchet/util/sleep';
 import { cancellation } from './workflow';
 import { hatchet } from '../hatchet-client';

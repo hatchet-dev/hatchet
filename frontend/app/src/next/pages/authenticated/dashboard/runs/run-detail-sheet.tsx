@@ -4,7 +4,7 @@ import { RunDataCard } from '@/next/components/runs/run-output-card';
 import { InfoSheet } from '@/next/components/ui/info-sheet';
 import { RunId } from '@/next/components/runs/run-id';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { V1TaskStatus, V1WorkflowType } from '@/lib/api';
 import {
   Tabs,
@@ -166,7 +166,7 @@ const PayloadContent = ({ taskId }: Pick<RunDetailSheetProps, 'taskId'>) => {
           collapsed
           actions={
             <div className="flex items-center gap-2">
-              <DocsButton doc={docs.home['additional-metadata']} size="icon" />
+              <DocsButton doc={docs.home.additional_metadata} size="icon" />
             </div>
           }
         />
@@ -208,7 +208,7 @@ const PayloadContent = ({ taskId }: Pick<RunDetailSheetProps, 'taskId'>) => {
         collapsed
         actions={
           <div className="flex items-center gap-2">
-            <DocsButton doc={docs.home['additional-metadata']} size="icon" />
+            <DocsButton doc={docs.home.additional_metadata} size="icon" />
           </div>
         }
       />

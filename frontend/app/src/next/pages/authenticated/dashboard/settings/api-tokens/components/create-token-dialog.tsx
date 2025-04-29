@@ -20,6 +20,7 @@ import {
 import useApiTokens from '@/next/hooks/use-api-tokens';
 import useUser from '@/next/hooks/use-user';
 import { Code } from '@/next/components/ui/code';
+import useTenant from '@/next/hooks/use-tenant';
 interface CreateTokenDialogProps {
   onSuccess?: (data?: CreateAPITokenResponse) => void;
   close: () => void;
@@ -39,6 +40,7 @@ export function CreateTokenDialog({
   close,
 }: CreateTokenDialogProps) {
   const { data: user } = useUser();
+  const { tenant } = useTenant();
 
   const defaultToken = useMemo(() => {
     if (!user?.name) {
@@ -78,13 +80,20 @@ export function CreateTokenDialog({
     <DialogContent className="max-w-[600px]">
       <DialogHeader>
         <DialogTitle>
-          {token ? 'Token Created' : 'Create API Token'}
+          {token ? (
+            'Token Created'
+          ) : (
+            <>
+              Create API Token for{' '}
+              <span className="font-mono">{tenant?.name}</span>
+            </>
+          )}
         </DialogTitle>
       </DialogHeader>
       <DialogDescription>
         {token
           ? 'Your new API token has been created.'
-          : 'Tokens are private and should not be shared. They are used to connect your workers to the Hatchet API and engine.'}
+          : 'Tokens are private and should not be shared. They are used to connect your workers to your Hatchet Tenant via SDKs and API.'}
       </DialogDescription>
 
       {token ? (

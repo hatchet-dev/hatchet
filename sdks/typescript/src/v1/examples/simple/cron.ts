@@ -2,7 +2,7 @@ import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 
 async function main() {
-  // ❓ Create
+  // > Create
   const cron = await simple.cron('simple-daily', '0 0 * * *', {
     Message: 'hello',
   });
@@ -14,11 +14,11 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log(cron.metadata.id);
 
-  // ❓ Delete
+  // > Delete
   await hatchet.crons.delete(cronId);
   // !!
 
-  // ❓ List
+  // > List
   const crons = await hatchet.crons.list({
     workflowId: simple.id,
   });

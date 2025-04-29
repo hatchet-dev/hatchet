@@ -10,7 +10,7 @@ import {
   PageTitle,
 } from '@/next/components/ui/page-header';
 import { Separator } from '@/next/components/ui/separator';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -67,7 +67,7 @@ export default function RunsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['running-tasks']} size="icon" />
+            <DocsButton doc={docs.home.running_tasks} size="icon" />
           </HeadlineActionItem>
           <HeadlineActionItem>
             <Button onClick={() => setShowTriggerModal(true)}>

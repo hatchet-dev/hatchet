@@ -3,7 +3,7 @@ import { hatchet } from '../hatchet-client';
 import { simple, SimpleInput } from './workflow';
 
 async function main() {
-  // ❓ Bulk Run a Task
+  // > Bulk Run a Task
   const res = await simple.run([
     {
       Message: 'HeLlO WoRlD',
@@ -18,7 +18,7 @@ async function main() {
   console.log(res[1].TransformedMessage);
   // !!
 
-  // ❓ Bulk Run Tasks from within a Task
+  // > Bulk Run Tasks from within a Task
   const parent = hatchet.task({
     name: 'simple',
     fn: async (input: SimpleInput, ctx) => {

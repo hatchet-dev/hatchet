@@ -5,7 +5,7 @@ export type SimpleInput = {
   Message: string;
 };
 
-// ❓ Route tasks to workers with matching labels
+// > Route tasks to workers with matching labels
 export const simple = hatchet.task({
   name: 'simple',
   desiredWorkerLabels: {

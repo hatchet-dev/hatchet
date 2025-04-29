@@ -21,7 +21,7 @@ bulk_parent_wf = hatchet.workflow(name="BulkFanoutParent", input_validator=Paren
 bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildInput)
 
 
-# ❓ BulkFanoutParent
+# > BulkFanoutParent
 @bulk_parent_wf.task(execution_timeout=timedelta(minutes=5))
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
     # 👀 Create each workflow run to spawn
@@ -40,7 +40,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, An
     return {"results": spawn_results}
 
 
-# ‼️
+# !!
 
 
 @bulk_child_wf.task()

@@ -36,20 +36,27 @@ export function OnboardingLayout() {
     </div>
   );
 
-  if (
-    !invites.loading &&
-    invites.list.length > 0 &&
-    !location.pathname.startsWith(ROUTES.onboarding.invites)
-  ) {
-    return <Navigate to={ROUTES.onboarding.invites} />;
-  }
+  // if pathname is either ROUTES.onboarding.invites or ROUTES.onboarding.newTenant
 
   if (
-    !invites.loading &&
-    invites.list.length === 0 &&
-    !location.pathname.startsWith(ROUTES.onboarding.newTenant)
+    location.pathname === ROUTES.onboarding.invites ||
+    location.pathname === ROUTES.onboarding.newTenant
   ) {
-    return <Navigate to={ROUTES.onboarding.newTenant} />;
+    if (
+      !invites.loading &&
+      invites.list.length > 0 &&
+      !location.pathname.startsWith(ROUTES.onboarding.invites)
+    ) {
+      return <Navigate to={ROUTES.onboarding.invites} />;
+    }
+
+    if (
+      !invites.loading &&
+      invites.list.length === 0 &&
+      !location.pathname.startsWith(ROUTES.onboarding.newTenant)
+    ) {
+      return <Navigate to={ROUTES.onboarding.newTenant} />;
+    }
   }
 
   return (

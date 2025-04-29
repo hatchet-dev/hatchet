@@ -9,6 +9,7 @@ import Root from './pages/root.layout.tsx';
 import { authRoutes } from './pages/auth/auth.router.tsx';
 import { authenticatedRoutes } from './pages/authenticated/authenticated.router.tsx';
 import { BASE_PATH } from './lib/routes';
+import { learnRoutes } from './pages/learn/learn.router.tsx';
 
 export const routes: RouteObject[] = [
   {
@@ -19,7 +20,7 @@ export const routes: RouteObject[] = [
         <ErrorBoundary />
       </Root>
     ),
-    children: [...authRoutes, ...authenticatedRoutes],
+    children: [...authRoutes, ...authenticatedRoutes, ...learnRoutes],
   },
 ];
 

@@ -10,7 +10,7 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-# ❓ Default priority
+# > Default priority
 DEFAULT_PRIORITY = 1
 SLEEP_TIME = 0.25
 

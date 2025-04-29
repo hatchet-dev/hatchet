@@ -8,7 +8,7 @@ from hatchet_sdk.runnables.types import EmptyModel
 hatchet = Hatchet(debug=True)
 
 
-# ❓ Running a Task from within a Task
+# > Running a Task from within a Task
 @hatchet.task(name="SpawnTask")
 async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     # Simply run the task with the input we received
@@ -19,4 +19,4 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     return {"results": result}
 
 
-# ‼️
+# !!

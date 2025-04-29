@@ -9,7 +9,7 @@ import {
 import { Separator } from '@/next/components/ui/separator';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { ColumnDef } from '@tanstack/react-table';
 import {
   Pagination,
@@ -114,7 +114,7 @@ function RateLimitsTable() {
         emptyState={
           <div className="flex flex-col items-center justify-center p-8 gap-4">
             <p className="text-muted-foreground">No rate limits found.</p>
-            <DocsButton doc={docs.home['rate-limits']} size="lg" />
+            <DocsButton doc={docs.home.rate_limits} size="lg" />
           </div>
         }
       />
@@ -136,7 +136,7 @@ export default function RateLimitsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['rate-limits']} size="icon" />
+            <DocsButton doc={docs.home.rate_limits} size="icon" />
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>

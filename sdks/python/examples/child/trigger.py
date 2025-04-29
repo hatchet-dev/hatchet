@@ -2,13 +2,13 @@
 
 import asyncio
 
-# ❓ Running a Task
+# > Running a Task
 from examples.child.worker import SimpleInput, child_task
 
 child_task.run(SimpleInput(message="Hello, World!"))
 # !!
 
-# ❓ Schedule a Task
+# > Schedule a Task
 from datetime import datetime, timedelta
 
 child_task.schedule(
@@ -18,13 +18,13 @@ child_task.schedule(
 
 
 async def main() -> None:
-    # ❓ Running a Task AIO
+    # > Running a Task AIO
     result = await child_task.aio_run(SimpleInput(message="Hello, World!"))
     # !!
 
     print(result)
 
-    # ❓ Running Multiple Tasks
+    # > Running Multiple Tasks
     result1 = child_task.aio_run(SimpleInput(message="Hello, World!"))
     result2 = child_task.aio_run(SimpleInput(message="Hello, Moon!"))
 

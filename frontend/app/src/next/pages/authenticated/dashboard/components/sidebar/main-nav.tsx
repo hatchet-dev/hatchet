@@ -29,6 +29,7 @@ type SupportItem = {
   title: string;
   url: string;
   icon: React.ElementType;
+  target?: string;
 };
 
 export type NavSection = {
@@ -161,11 +162,13 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         title: 'Join Our Community',
         url: ROUTES.common.community,
         icon: FaDiscord,
+        target: '_blank',
       },
       {
         title: 'Restart Tutorial',
-        url: ROUTES.common.tutorial,
+        url: ROUTES.learn.firstRun,
         icon: FaPlay,
+        target: '_self',
       },
     ],
     navSecondary: [

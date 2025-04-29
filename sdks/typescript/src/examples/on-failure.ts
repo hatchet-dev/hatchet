@@ -3,7 +3,7 @@ import { Workflow } from '../workflow';
 
 const hatchet = Hatchet.init();
 
-// ❓ OnFailure Step
+// > OnFailure Step
 // This workflow will fail because the step will throw an error
 // we define an onFailure step to handle this case
 
@@ -38,11 +38,11 @@ const workflow: Workflow = {
     },
   },
 };
-// ‼️
+// !!
 
-// ❓ OnFailure With Details
+// > OnFailure With Details
 // Coming soon to TypeScript! https://github.com/hatchet-dev/hatchet-typescript/issues/447
-// ‼️
+// !!
 
 async function main() {
   const worker = await hatchet.worker('example-worker', 1);

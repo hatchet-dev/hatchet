@@ -1,15 +1,7 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const CancelPy = {
-  path: "examples/bulk_operations/cancel.py",
-};
-export const ReplayPy = {
-  path: "examples/bulk_operations/replay.py",
-};
-
-export const getStaticProps = ({}) => getSnippets([CancelPy, ReplayPy]);
+import { Snippet } from "@/components/code";
+import snips from "@/lib/snips";
 
 # Bulk Cancellations and Replays
 
@@ -36,15 +28,15 @@ The first way to bulk cancel or replay runs is by providing a list of run ids. T
 
     First, we'll start by fetching a task via the REST API.
 
-    <GithubSnippet src={CancelPy} target="Setup" />
+    <Snippet src={snips.python.bulk_operations.cancel} block="setup" />
 
     Now that we have a task, we'll get runs for it, so that we can use them to bulk cancel by run id.
 
-    <GithubSnippet src={CancelPy} target="List runs" />
+    <Snippet src={snips.python.bulk_operations.cancel} block="list_runs" />
 
     And finally, we can cancel the runs in bulk.
 
-    <GithubSnippet src={CancelPy} target="Cancel by run ids" />
+    <Snippet src={snips.python.bulk_operations.cancel} block="cancel_by_run_ids" />
 
     <Callout type="info">
       Note that the Python SDK also exposes async versions of each of these methods:
@@ -73,7 +65,7 @@ The second way to bulk cancel or replay runs is by providing a list of filters. 
 
     The example below provides some filters you might use to cancel or replay runs in bulk. Importantly, these filters are very similar to the filters you can use in the Hatchet Dashboard to filter which task runs are displaying.
 
-    <GithubSnippet src={CancelPy} target="Cancel by filters" />
+    <Snippet src={snips.python.bulk_operations.cancel} block="cancel_by_filters" />
 
     Running this request will cancel all task runs matching the filters provided.
 

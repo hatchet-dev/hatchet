@@ -41,7 +41,7 @@ import {
 } from '@/next/components/ui/filters/filters';
 import { AdditionalMetadata } from '@/next/components/ui/additional-meta';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 
 export default function CronJobsTable({
   onCreateClicked,
@@ -133,7 +133,7 @@ export default function CronJobsTable({
                       <Plus className="h-4 w-4 mr-2" />
                       Create Cron Job
                     </Button>
-                    <DocsButton doc={docs.home['cron-runs']} />
+                    <DocsButton doc={docs.home.cron_runs} />
                   </div>
                 </TableCell>
               </TableRow>

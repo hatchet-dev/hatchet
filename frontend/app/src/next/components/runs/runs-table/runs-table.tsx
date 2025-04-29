@@ -16,7 +16,7 @@ import {
 } from '@/next/components/ui/filters/filters';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { RowSelectionState, OnChangeFn } from '@tanstack/react-table';
 import { MdOutlineReplay, MdOutlineCancel } from 'react-icons/md';
 import { Button } from '@/next/components/ui/button';
@@ -277,7 +277,7 @@ export function RunsTable({
               Trigger a new run to get started.
             </p>
             <DocsButton
-              doc={docs.home['running-tasks']}
+              doc={docs.home.running_tasks}
               titleOverride="Running Tasks"
             />
           </div>
