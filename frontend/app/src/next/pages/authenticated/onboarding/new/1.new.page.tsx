@@ -59,7 +59,6 @@ export default function OnboardingNewPage() {
         },
       });
     } catch (error) {
-      console.log(error);
       if (error instanceof Error) {
         setError('name', {
           type: 'server',

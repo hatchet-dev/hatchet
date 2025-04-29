@@ -85,10 +85,7 @@ export function LessonProvider<
   const currentStepIndex = activeStep ? stepKeys.indexOf(activeStep) : -1;
 
   useEffect(() => {
-    console.log('activeStep', activeStep);
     const activeBlock = activeStep ? stepCardsRef.current[activeStep] : null;
-
-    console.log('activeBlock', activeBlock);
 
     // Add scroll margin to both elements
     if (!activeBlock) {
@@ -100,7 +97,6 @@ export function LessonProvider<
   }, [activeStep]);
 
   const setActiveStep = (step: S) => {
-    console.log('setting active step', step);
     setActiveStepState(step);
   };
 

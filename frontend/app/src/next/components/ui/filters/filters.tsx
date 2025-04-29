@@ -230,7 +230,6 @@ interface FilterTaskSelectProps<T> extends FilterBuilderProps<T> {
 
 export function FilterTaskSelect<T>({ ...props }: FilterTaskSelectProps<T>) {
   const { data: options = [] } = useDefinitions();
-  console.log('options', options);
   return (
     <FilterSelect<T, string>
       options={options.map((o) => ({

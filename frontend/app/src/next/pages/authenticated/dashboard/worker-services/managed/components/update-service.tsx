@@ -156,7 +156,6 @@ export function UpdateServiceContent() {
         ManagedServiceDetailTabs.BUILDS,
       );
 
-      console.log('to', to);
       navigate(to);
     } catch (error) {
       console.error('Failed to update service:', error);
