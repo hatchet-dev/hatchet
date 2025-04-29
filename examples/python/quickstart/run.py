@@ -1,10 +1,10 @@
 import asyncio
 
-from .workflows.first_task import first_task, SimpleInput
+from .workflows.first_task import SimpleInput, first_task
 
 
 async def main() -> None:
-    result = await first_task.aio_run(SimpleInput(Message="Hello World!"))
+    result = await first_task.aio_run(SimpleInput(message="Hello World!"))
 
     print(
         "Finished running task, and got the transformed message! The transformed message is:",

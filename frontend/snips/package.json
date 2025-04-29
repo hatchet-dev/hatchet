@@ -24,7 +24,7 @@
     "eslint:fix": "eslint \"{src,apps,libs,test}/**/*.{ts,tsx,js}\" --fix",
     "prettier:check": "prettier \"src/**/*.{ts,tsx}\" --list-different",
     "prettier:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
-    "generate": "mkdir -p out && cp -r ../../examples ./out/examples && tsc && ts-node src/scripts/build-tree.ts",
+    "generate": "rm -rf out && mkdir -p out && cp -r ../../examples ./out/examples && tsc && ts-node src/scripts/build-tree.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "copy:docs": "rm -rf ../docs/lib/generated/snips && cp -r ./out/snips ../docs/lib/generated/snips",

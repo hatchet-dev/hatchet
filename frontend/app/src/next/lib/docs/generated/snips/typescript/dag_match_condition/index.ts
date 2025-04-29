@@ -4,8 +4,8 @@ import run from './run';
 import worker from './worker';
 import workflow from './workflow';
 
-export { complex_workflow };
-export { event };
-export { run };
-export { worker };
-export { workflow };
+export { complex_workflow }
+export { event }
+export { run }
+export { worker }
+export { workflow }

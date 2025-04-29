@@ -1,5 +1,6 @@
-from hatchet_sdk import Context
 from pydantic import BaseModel
+
+from hatchet_sdk import Context
 
 from ..hatchet_client import hatchet
 
@@ -13,7 +14,7 @@ class SimpleOutput(BaseModel):
 
 
 # Declare the task to run
-@hatchet.task(name="first-task")
+@hatchet.task(name="first-task", input_validator=SimpleInput)
 def first_task(input: SimpleInput, ctx: Context) -> SimpleOutput:
     print("first-task task called")
 

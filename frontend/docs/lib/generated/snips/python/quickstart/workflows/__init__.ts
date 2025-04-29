@@ -2,7 +2,7 @@ import { Snippet } from '@/lib/generated/snips/types';
 
 const snippet: Snippet = {
   'language': 'python',
-  'content': 'from .first_task import my_task\n',
+  'content': '',
   'source': 'out/python/quickstart/workflows/__init__.py',
   'blocks': {},
   'highlights': {}
