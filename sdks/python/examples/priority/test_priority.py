@@ -166,6 +166,7 @@ async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> No
     attempts = 0
 
     while True:
+        print("Sleeping for priority in scheduling test, attempts:", attempts)
         if attempts >= SLEEP_TIME * n * 2:
             raise TimeoutError("Timed out waiting for runs to finish")
 
@@ -267,6 +268,7 @@ async def test_priority_via_cron(hatchet: Hatchet, crons: tuple[str, str, int]) 
     attempts = 0
 
     while True:
+        print("Sleeping for priority in cron test, attempts:", attempts)
         if attempts >= SLEEP_TIME * n * 2:
             raise TimeoutError("Timed out waiting for runs to finish")
 
