@@ -66,18 +66,18 @@ List task runs according to a set of filters.
 
 Parameters:
 
-| Name                      | Type                         | Description                                         | Default                      |
-| ------------------------- | ---------------------------- | --------------------------------------------------- | ---------------------------- |
-| `since`                   | `datetime`                   | The start time for filtering task runs.             | `now() - timedelta(hours=1)` |
-| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False`                      |
-| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`                       |
-| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`                       |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`                       |
-| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`                       |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`                       |
-| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`                       |
-| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`                       |
-| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`                       |
+| Name                      | Type                         | Description                                         | Default |
+| ------------------------- | ---------------------------- | --------------------------------------------------- | ------- |
+| `since`                   | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
+| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False` |
+| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`  |
+| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`  |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
+| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
+| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
+| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
+| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
 
 Returns:
 
@@ -91,18 +91,18 @@ List task runs according to a set of filters.
 
 Parameters:
 
-| Name                      | Type                         | Description                                         | Default                      |
-| ------------------------- | ---------------------------- | --------------------------------------------------- | ---------------------------- |
-| `since`                   | `datetime`                   | The start time for filtering task runs.             | `now() - timedelta(hours=1)` |
-| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False`                      |
-| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`                       |
-| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`                       |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`                       |
-| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`                       |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`                       |
-| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`                       |
-| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`                       |
-| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`                       |
+| Name                      | Type                         | Description                                         | Default |
+| ------------------------- | ---------------------------- | --------------------------------------------------- | ------- |
+| `since`                   | `datetime \| None`           | The start time for filtering task runs.             | `None`  |
+| `only_tasks`              | `bool`                       | Whether to only list task runs.                     | `False` |
+| `offset`                  | `int \| None`                | The offset for pagination.                          | `None`  |
+| `limit`                   | `int \| None`                | The maximum number of task runs to return.          | `None`  |
+| `statuses`                | `list[V1TaskStatus] \| None` | The statuses to filter task runs by.                | `None`  |
+| `until`                   | `datetime \| None`           | The end time for filtering task runs.               | `None`  |
+| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata to filter task runs by.         | `None`  |
+| `workflow_ids`            | `list[str] \| None`          | The workflow IDs to filter task runs by.            | `None`  |
+| `worker_id`               | `str \| None`                | The worker ID to filter task runs by.               | `None`  |
+| `parent_task_external_id` | `str \| None`                | The parent task external ID to filter task runs by. | `None`  |
 
 Returns:
 
