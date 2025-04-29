@@ -1254,7 +1254,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 		}
 
 		// upsert the action
-		_, err := r.queries.UpsertAction(
+		action, err := r.queries.UpsertAction(
 			ctx,
 			tx,
 			dbsqlc.UpsertActionParams{
@@ -1271,7 +1271,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 			ID:             sqlchelpers.UUIDFromStr(stepId),
 			Tenantid:       tenantId,
 			Jobid:          sqlchelpers.UUIDFromStr(jobId),
-			Actionid:       stepOpts.Action,
+			Actionid:       action.ActionId,
 			Timeout:        timeout,
 			Readableid:     stepOpts.ReadableId,
 			CustomUserData: customUserData,

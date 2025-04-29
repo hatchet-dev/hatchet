@@ -1,3 +1,5 @@
+//go:build !e2e && !load && !rampup && !integration
+
 // Copyright (c) 2020 Filip Wojciechowski
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy

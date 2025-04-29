@@ -30,17 +30,12 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 		var eventsPerSecond int
 		go func() {
 			took := <-hook
-
-			if took == 0 {
-				return
-			}
-
 			panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
 		}()
 		for {
 			// emit amount * increase events per second
 			eventsPerSecond = startEventsPerSecond + (amount * int(time.Since(start).Seconds()) / int(increase.Seconds()))
-			increase += 1
+			increase++
 			if eventsPerSecond < 1 {
 				eventsPerSecond = 1
 			}
@@ -48,7 +43,7 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 			select {
 			case <-time.After(time.Second / time.Duration(eventsPerSecond)):
 				mx.Lock()
-				id += 1
+				id++
 
 				go func(id int64) {
 					var err error

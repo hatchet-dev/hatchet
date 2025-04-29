@@ -20,7 +20,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 
 func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, hook chan<- time.Duration, executedCh chan<- int64) (int64, int64) {
 	c, err := client.New(
-		client.WithLogLevel("warn"),
+		client.WithLogLevel("warn"), // nolint: staticcheck
 	)
 
 	if err != nil {
@@ -46,10 +46,10 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 
 	var concurrencyOpts *worker.WorkflowConcurrency
 	if concurrency > 0 {
-		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency))
+		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency)) // nolint: gosec
 	}
 
-	err = w.On(
+	err = w.On( // nolint: staticcheck
 		worker.Event("load-test:event"),
 		&worker.WorkflowJob{
 			Name:        "load-test",
@@ -85,9 +85,9 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 					if duplicate {
 						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
 					} else {
-						uniques += 1
+						uniques++
 					}
-					count += 1
+					count++
 					executed = append(executed, input.ID)
 					mx.Unlock()
 

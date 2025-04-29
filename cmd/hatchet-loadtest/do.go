@@ -12,7 +12,7 @@ type avgResult struct {
 	avg   time.Duration
 }
 
-func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration, slots int, failureRate float32, payloadSize string, eventFanout int) error {
+func do(namespace string, duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration, slots int, failureRate float32, payloadSize string, eventFanout int) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -38,7 +38,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 			if count == 1 {
 				avg = d
 			} else {
-				avg = avg + (d-avg)/time.Duration(count)
+				avg += (d - avg) / time.Duration(count)
 			}
 		}
 		durationsResult <- avgResult{count: count, avg: avg}
@@ -46,11 +46,15 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 
 	go func() {
 		if workerDelay > 0 {
+			// run a worker to register the workflow
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			run(ctx, namespace, delay, durations, concurrency, slots, failureRate, eventFanout)
+			cancel()
 			l.Info().Msgf("wait %s before starting the worker", workerDelay)
 			time.Sleep(workerDelay)
 		}
 		l.Info().Msg("starting worker now")
-		count, uniques := run(ctx, delay, durations, concurrency, slots, failureRate, eventFanout)
+		count, uniques := run(ctx, namespace, delay, durations, concurrency, slots, failureRate, eventFanout)
 		close(durations)
 		ch <- count
 		ch <- uniques
@@ -70,13 +74,13 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 			if count == 1 {
 				avg = d
 			} else {
-				avg = avg + (d-avg)/time.Duration(count)
+				avg += (d - avg) / time.Duration(count)
 			}
 		}
 		scheduledResult <- avgResult{count: count, avg: avg}
 	}()
 
-	emitted := emit(ctx, eventsPerSecond, duration, scheduled, payloadSize)
+	emitted := emit(ctx, namespace, eventsPerSecond, duration, scheduled, payloadSize)
 	close(scheduled)
 
 	executed := <-ch

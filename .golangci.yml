@@ -31,21 +31,24 @@ linters:
       - path: (.+)\.go$
         text: by other packages, and that stutters; consider calling this
       - path: (.+)\.go$
-        text: 'var-naming:'
+        text: "var-naming:"
       - path: (.+)\.go$
-        text: 'receiver-naming:'
+        text: "receiver-naming:"
       - path: (.+)\.go$
-        text: 'unexported-return:'
+        text: "unexported-return:"
       - path: (.+)\.go$
-        text: 'unused-parameter: parameter'
+        text: "unused-parameter: parameter"
       - path: (.+)\.go$
-        text: 'context-keys-type: should not use basic type string'
+        text: "context-keys-type: should not use basic type string"
       - path: (.+)\.go$
         text: error strings should not be capitalized
+
     paths:
       - third_party$
       - builtin$
       - examples$
+      - '(.+)_test\.go'
+      - "cmd/hatchet-loadtest/rampup/(.+).go"
 formatters:
   enable:
     - gofmt

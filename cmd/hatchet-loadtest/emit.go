@@ -21,13 +21,15 @@ type Event struct {
 func parseSize(s string) int {
 	s = strings.ToLower(strings.TrimSpace(s))
 	var multiplier int
-	if strings.HasSuffix(s, "kb") {
+
+	switch {
+	case strings.HasSuffix(s, "kb"):
 		multiplier = 1024
 		s = strings.TrimSuffix(s, "kb")
-	} else if strings.HasSuffix(s, "mb") {
+	case strings.HasSuffix(s, "mb"):
 		multiplier = 1024 * 1024
 		s = strings.TrimSuffix(s, "mb")
-	} else {
+	default:
 		multiplier = 1
 	}
 	num, err := strconv.Atoi(strings.TrimSpace(s))
@@ -37,8 +39,11 @@ func parseSize(s string) int {
 	return num * multiplier
 }
 
-func emit(ctx context.Context, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string) int64 {
-	c, err := client.New()
+func emit(ctx context.Context, namespace string, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string) int64 {
+	c, err := client.New(
+		client.WithNamespace(namespace),
+	)
+
 	if err != nil {
 		panic(err)
 	}
@@ -61,6 +66,7 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 			defer wg.Done()
 			for ev := range jobCh {
 				l.Info().Msgf("pushing event %d", ev.ID)
+
 				err := c.Event().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
 					"event_id": fmt.Sprintf("%d", ev.ID),
 				}))

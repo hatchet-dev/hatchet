@@ -49,9 +49,9 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 					if e == s {
 						if includeDroppedEvents {
 							panic(fmt.Errorf("event %d did not execute in time", s))
-						} else {
-							l.Warn().Msgf("event %d did not execute in time", s)
 						}
+
+						l.Warn().Msgf("event %d did not execute in time", s)
 					}
 				}
 			}(s)
