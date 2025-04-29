@@ -386,9 +386,15 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	return tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
-		bulkCreateEventParams,
-		bulkCreateTriggersParams,
+		tenantId,
+		bulkOpts,
 	)
+
+	if err != nil {
+		tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
+	}
+
+	return nil
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
