@@ -765,7 +765,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
         A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed.
 
-        :param name: The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.
+        :param name: The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator.
 
         :param schedule_timeout: The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.
 
@@ -803,8 +803,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 parents=[],
             )
 
-            if self._on_failure_task:
-                raise ValueError("Only one on-failure task is allowed")
+            if self._on_success_task:
+                raise ValueError("Only one on-success task is allowed")
 
             self._on_success_task = task
 

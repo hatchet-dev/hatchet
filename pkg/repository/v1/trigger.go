@@ -1283,15 +1283,36 @@ func getParentInDAGGroupMatch(
 
 	if len(actionsToOverrides[sqlcv1.V1MatchConditionActionCANCEL]) > 0 {
 		for _, override := range actionsToOverrides[sqlcv1.V1MatchConditionActionCANCEL] {
-			res = append(res, GroupMatchCondition{
-				GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-				ReadableDataKey:   parentReadableId,
-				EventResourceHint: &parentExternalId,
-				Expression:        override.Expression.String,
-				Action:            sqlcv1.V1MatchConditionActionCANCEL,
-			})
+			res = append(res,
+				GroupMatchCondition{
+					GroupId:   sqlchelpers.UUIDToStr(override.OrGroupID),
+					EventType: sqlcv1.V1EventTypeINTERNAL,
+					// The custom cancel condition matches on the completed event
+					EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+					ReadableDataKey:   parentReadableId,
+					EventResourceHint: &parentExternalId,
+					Expression:        override.Expression.String,
+					Action:            sqlcv1.V1MatchConditionActionCANCEL,
+				},
+				// always add the original cancel group match conditions. these can't be modified otherwise DAGs risk
+				// getting stuck in a concurrency queue.
+				GroupMatchCondition{
+					GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+					ReadableDataKey:   parentReadableId,
+					EventResourceHint: &parentExternalId,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCANCEL,
+				}, GroupMatchCondition{
+					GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+					ReadableDataKey:   parentReadableId,
+					EventResourceHint: &parentExternalId,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCANCEL,
+				})
 		}
 	} else {
 		res = append(res, GroupMatchCondition{

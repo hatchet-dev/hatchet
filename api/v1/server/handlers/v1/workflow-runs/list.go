@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -17,6 +18,9 @@ import (
 )
 
 func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
+	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list-only-tasks")
+	defer span.End()
+
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -87,7 +91,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
-		ctx.Request().Context(),
+		spanContext,
 		tenantId,
 		opts,
 	)
@@ -105,7 +109,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	}
 
 	tasks, taskIdToDagExternalId, err := t.config.V1.OLAP().ListTasksByDAGId(
-		ctx.Request().Context(),
+		spanContext,
 		tenantId,
 		dagExternalIds,
 	)
@@ -121,7 +125,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	}
 
 	workflowNames, err := t.config.V1.Workflows().ListWorkflowNamesByIds(
-		ctx.Request().Context(),
+		spanContext,
 		tenantId,
 		pgWorkflowIds,
 	)
@@ -168,6 +172,9 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 }
 
 func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
+	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list-only-tasks")
+	defer span.End()
+
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -233,7 +240,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1Workfl
 	}
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
-		ctx.Request().Context(),
+		spanContext,
 		tenantId,
 		opts,
 	)

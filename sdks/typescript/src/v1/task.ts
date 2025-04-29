@@ -1,8 +1,9 @@
 import { ConcurrencyLimitStrategy } from '@hatchet/protoc/v1/workflows';
-import { Context, CreateStep, DurableContext } from '@hatchet/step';
+import { CreateStep } from '@hatchet/step';
 import { Conditions } from './conditions';
 import { Duration } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
+import { Context, DurableContext } from './client/worker/context';
 
 /**
  * Options for configuring the concurrency for a task.
