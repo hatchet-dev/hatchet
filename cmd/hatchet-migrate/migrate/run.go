@@ -22,26 +22,7 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
-type runMigrationsOpt struct {
-	upToPenultimate bool
-}
-
-type RunMigrationsOpt func(*runMigrationsOpt)
-
-func WithUpToPenultimate() RunMigrationsOpt {
-	return func(o *runMigrationsOpt) {
-		o.upToPenultimate = true
-	}
-}
-
-func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
-	// Set default options
-	options := &runMigrationsOpt{}
-
-	for _, opt := range opts {
-		opt(options)
-	}
-
+func RunMigrations(ctx context.Context) {
 	var db *sql.DB
 	var conn *sql.Conn
 
@@ -234,32 +215,9 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
 	}
 	goose.SetBaseFS(fsys)
 
-	switch {
-	case options.upToPenultimate:
-		// Get the second-to-last migration version.
-		migrations, err := listMigrations()
-
-		if err != nil {
-			log.Fatalf("goose: failed to list migrations: %v", err)
-		}
-
-		if len(migrations) < 2 {
-			log.Fatalf("goose: not enough migrations to roll back to penultimate version")
-		}
-
-		// Get the second-to-last migration version.
-		secondToLastVersion := migrations[len(migrations)-2].Version
-
-		err = goose.UpTo(db, ".", secondToLastVersion)
-
-		if err != nil {
-			log.Fatalf("goose: failed to apply migrations up to penultimate version: %v", err)
-		}
-	default:
-		err = goose.Up(db, ".")
-		if err != nil {
-			log.Fatalf("goose: failed to apply migrations: %v", err)
-		}
+	err = goose.Up(db, ".")
+	if err != nil {
+		log.Fatalf("goose: failed to apply migrations: %v", err)
 	}
 }
 
@@ -315,14 +273,4 @@ func parseTableIdentifier(name string) (schema, table string) {
 		return "", name
 	}
 	return schema, table
-}
-
-// listAllDBVersions returns a list of all migrations, ordered ascending.
-func listMigrations() (goose.Migrations, error) {
-	var (
-		minVersion = int64(0)
-		maxVersion = int64((1 << 63) - 1)
-	)
-
-	return goose.CollectMigrations(".", minVersion, maxVersion)
 }
