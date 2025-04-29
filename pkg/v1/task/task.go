@@ -2,7 +2,6 @@ package task
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -198,7 +197,7 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
-	base.Action = getActionID(workflowName, t.Name)
+	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 
@@ -250,7 +249,7 @@ func durationToSeconds(d time.Duration) string {
 func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
-	base.Action = getActionID(workflowName, t.Name)
+	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 	return base
@@ -261,7 +260,7 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *cr
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 
 	base.ReadableId = "on-failure"
-	base.Action = getActionID(workflowName, "on-failure")
+	base.Action = fmt.Sprintf("%s:%s", workflowName, "on-failure")
 
 	return base
 }
@@ -279,8 +278,4 @@ func (t *DurableTaskDeclaration[I]) GetName() string {
 // Implement GetName for NamedTask
 func (t *NamedTaskImpl) GetName() string {
 	return t.Name
-}
-
-func getActionID(workflowName, taskName string) string {
-	return strings.ToLower(fmt.Sprintf("%s:%s", workflowName, taskName))
 }
