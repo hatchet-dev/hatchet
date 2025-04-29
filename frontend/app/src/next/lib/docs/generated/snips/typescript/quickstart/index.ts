@@ -6,10 +6,10 @@ import tsconfig from './tsconfig';
 import worker from './worker';
 import * as workflows from './workflows';
 
-export { readme }
-export { gitignore }
-export { hatchet_client }
-export { run }
-export { tsconfig }
-export { worker }
+export { readme };
+export { gitignore };
+export { hatchet_client };
+export { run };
+export { tsconfig };
+export { worker };
 export { workflows };

@@ -5,9 +5,9 @@ import event from './event';
 import priority from './priority';
 import simple from './simple';
 
-export { all }
-export { bulk }
-export { cron }
-export { event }
-export { priority }
-export { simple }
+export { all };
+export { bulk };
+export { cron };
+export { event };
+export { priority };
+export { simple };
