@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors" // Import added
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -18,6 +19,7 @@ import (
 
 func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request gen.WorkflowRunUpdateReplayRequestObject) (gen.WorkflowRunUpdateReplayResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	workflowRunIds := make([]string, len(request.Body.WorkflowRunIds))
@@ -36,6 +38,14 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if all requested workflow runs were found
+	if len(filteredWorkflowRuns.Rows) != len(workflowRunIds) {
+		// Return 404 if not all runs were found
+		return gen.WorkflowRunUpdateReplay404JSONResponse(
+			apierrors.NewAPIErrors("One or more workflow runs not found or do not belong to the tenant"),
+		), nil
 	}
 
 	var allErrs error
@@ -60,13 +70,24 @@ func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request 
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 60*time.Second)
 	defer cancel()
 
+	// Fetch the runs again to return in the response (already verified they exist and belong to the tenant)
+	// This second fetch is primarily for getting the latest state to return to the user.
 	newWorkflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenantId, &repository.ListWorkflowRunsOpts{
 		Ids:   workflowRunIds,
 		Limit: &limit,
 	})
 
+	// This error should ideally not happen if the previous check passed, but handle defensively
 	if err != nil {
 		return nil, err
+	}
+
+	// If somehow the second fetch returns a different count (highly unlikely given the initial check),
+	// it indicates a potential race condition or data inconsistency. Returning 404 is still appropriate.
+	if len(newWorkflowRuns.Rows) != len(workflowRunIds) {
+		return gen.WorkflowRunUpdateReplay404JSONResponse(
+			apierrors.NewAPIErrors("Mismatch fetching workflow runs after queueing replay, please try again."),
+		), nil
 	}
 
 	rows := make([]gen.WorkflowRun, len(newWorkflowRuns.Rows))
