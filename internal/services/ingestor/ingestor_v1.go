@@ -67,13 +67,13 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		return nil, fmt.Errorf("could not create event task: %w", err)
 	}
 
-	now := time.Now().UTC()
-
 	err = i.mqv1.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}
+
+	now := time.Now().UTC()
 
 	return &dbsqlc.Event{
 		ID:                 sqlchelpers.UUIDFromStr(eventId),
