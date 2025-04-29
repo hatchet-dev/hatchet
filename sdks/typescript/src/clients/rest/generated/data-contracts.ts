@@ -11,190 +11,190 @@
  */
 
 export enum V1LogLineLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
 }
 
 export enum V1TaskRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
 }
 
 export enum V1TaskStatus {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED',
+  QUEUED = "QUEUED",
+  RUNNING = "RUNNING",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  FAILED = "FAILED",
 }
 
 export enum WebhookWorkerRequestMethod {
-  GET = 'GET',
-  POST = 'POST',
-  PUT = 'PUT',
+  GET = "GET",
+  POST = "POST",
+  PUT = "PUT",
 }
 
 export enum LogLineOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
+  Asc = "asc",
+  Desc = "desc",
 }
 
 export enum LogLineOrderByField {
-  CreatedAt = 'createdAt',
+  CreatedAt = "createdAt",
 }
 
 export enum LogLineLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
 }
 
 export enum PullRequestState {
-  Open = 'open',
-  Closed = 'closed',
+  Open = "open",
+  Closed = "closed",
 }
 
 export enum WorkerRuntimeSDKs {
-  GOLANG = 'GOLANG',
-  PYTHON = 'PYTHON',
-  TYPESCRIPT = 'TYPESCRIPT',
+  GOLANG = "GOLANG",
+  PYTHON = "PYTHON",
+  TYPESCRIPT = "TYPESCRIPT",
 }
 
 export enum StepRunEventSeverity {
-  INFO = 'INFO',
-  WARNING = 'WARNING',
-  CRITICAL = 'CRITICAL',
+  INFO = "INFO",
+  WARNING = "WARNING",
+  CRITICAL = "CRITICAL",
 }
 
 export enum StepRunEventReason {
-  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
-  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
-  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
-  ASSIGNED = 'ASSIGNED',
-  STARTED = 'STARTED',
-  ACKNOWLEDGED = 'ACKNOWLEDGED',
-  FINISHED = 'FINISHED',
-  FAILED = 'FAILED',
-  RETRYING = 'RETRYING',
-  CANCELLED = 'CANCELLED',
-  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
-  REASSIGNED = 'REASSIGNED',
-  TIMED_OUT = 'TIMED_OUT',
-  SLOT_RELEASED = 'SLOT_RELEASED',
-  RETRIED_BY_USER = 'RETRIED_BY_USER',
-  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED',
-  WORKFLOW_RUN_GROUP_KEY_FAILED = 'WORKFLOW_RUN_GROUP_KEY_FAILED',
+  REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
+  REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
+  SCHEDULING_TIMED_OUT = "SCHEDULING_TIMED_OUT",
+  ASSIGNED = "ASSIGNED",
+  STARTED = "STARTED",
+  ACKNOWLEDGED = "ACKNOWLEDGED",
+  FINISHED = "FINISHED",
+  FAILED = "FAILED",
+  RETRYING = "RETRYING",
+  CANCELLED = "CANCELLED",
+  TIMEOUT_REFRESHED = "TIMEOUT_REFRESHED",
+  REASSIGNED = "REASSIGNED",
+  TIMED_OUT = "TIMED_OUT",
+  SLOT_RELEASED = "SLOT_RELEASED",
+  RETRIED_BY_USER = "RETRIED_BY_USER",
+  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED",
+  WORKFLOW_RUN_GROUP_KEY_FAILED = "WORKFLOW_RUN_GROUP_KEY_FAILED",
 }
 
 export enum StepRunStatus {
-  PENDING = 'PENDING',
-  PENDING_ASSIGNMENT = 'PENDING_ASSIGNMENT',
-  ASSIGNED = 'ASSIGNED',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  CANCELLING = 'CANCELLING',
-  BACKOFF = 'BACKOFF',
+  PENDING = "PENDING",
+  PENDING_ASSIGNMENT = "PENDING_ASSIGNMENT",
+  ASSIGNED = "ASSIGNED",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  CANCELLING = "CANCELLING",
+  BACKOFF = "BACKOFF",
 }
 
 export enum JobRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  BACKOFF = 'BACKOFF',
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  BACKOFF = "BACKOFF",
 }
 
 export enum WorkflowKind {
-  FUNCTION = 'FUNCTION',
-  DURABLE = 'DURABLE',
-  DAG = 'DAG',
+  FUNCTION = "FUNCTION",
+  DURABLE = "DURABLE",
+  DAG = "DAG",
 }
 
 export enum WorkflowRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
-  BACKOFF = 'BACKOFF',
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  QUEUED = "QUEUED",
+  BACKOFF = "BACKOFF",
 }
 
 export enum WorkflowRunOrderByDirection {
-  ASC = 'ASC',
-  DESC = 'DESC',
+  ASC = "ASC",
+  DESC = "DESC",
 }
 
 export enum WorkflowRunOrderByField {
-  CreatedAt = 'createdAt',
-  StartedAt = 'startedAt',
-  FinishedAt = 'finishedAt',
-  Duration = 'duration',
+  CreatedAt = "createdAt",
+  StartedAt = "startedAt",
+  FinishedAt = "finishedAt",
+  Duration = "duration",
 }
 
 export enum CronWorkflowsOrderByField {
-  Name = 'name',
-  CreatedAt = 'createdAt',
+  Name = "name",
+  CreatedAt = "createdAt",
 }
 
 export enum ScheduledRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
-  SCHEDULED = 'SCHEDULED',
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  QUEUED = "QUEUED",
+  SCHEDULED = "SCHEDULED",
 }
 
 export enum ScheduledWorkflowsOrderByField {
-  TriggerAt = 'triggerAt',
-  CreatedAt = 'createdAt',
+  TriggerAt = "triggerAt",
+  CreatedAt = "createdAt",
 }
 
 export enum RateLimitOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
+  Asc = "asc",
+  Desc = "desc",
 }
 
 export enum RateLimitOrderByField {
-  Key = 'key',
-  Value = 'value',
-  LimitValue = 'limitValue',
+  Key = "key",
+  Value = "value",
+  LimitValue = "limitValue",
 }
 
 export enum EventOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
+  Asc = "asc",
+  Desc = "desc",
 }
 
 export enum EventOrderByField {
-  CreatedAt = 'createdAt',
+  CreatedAt = "createdAt",
 }
 
 export enum TenantResource {
-  WORKER = 'WORKER',
-  WORKER_SLOT = 'WORKER_SLOT',
-  EVENT = 'EVENT',
-  WORKFLOW_RUN = 'WORKFLOW_RUN',
-  TASK_RUN = 'TASK_RUN',
-  CRON = 'CRON',
-  SCHEDULE = 'SCHEDULE',
+  WORKER = "WORKER",
+  WORKER_SLOT = "WORKER_SLOT",
+  EVENT = "EVENT",
+  WORKFLOW_RUN = "WORKFLOW_RUN",
+  TASK_RUN = "TASK_RUN",
+  CRON = "CRON",
+  SCHEDULE = "SCHEDULE",
 }
 
 export enum TenantMemberRole {
-  OWNER = 'OWNER',
-  ADMIN = 'ADMIN',
-  MEMBER = 'MEMBER',
+  OWNER = "OWNER",
+  ADMIN = "ADMIN",
+  MEMBER = "MEMBER",
 }
 
 export interface APIMeta {
@@ -404,7 +404,7 @@ export interface Tenant {
   /** Whether to alert tenant members. */
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
-  version: 'V0' | 'V1';
+  version: "V0" | "V1";
 }
 
 export interface TenantMember {
@@ -737,7 +737,11 @@ export interface WorkflowConcurrency {
    */
   maxRuns: number;
   /** The strategy to use when the concurrency limit is reached. */
-  limitStrategy: 'CANCEL_IN_PROGRESS' | 'DROP_NEWEST' | 'QUEUE_NEWEST' | 'GROUP_ROUND_ROBIN';
+  limitStrategy:
+    | "CANCEL_IN_PROGRESS"
+    | "DROP_NEWEST"
+    | "QUEUE_NEWEST"
+    | "GROUP_ROUND_ROBIN";
   /** An action which gets the concurrency group for the WorkflowRun. */
   getConcurrencyGroup: string;
 }
@@ -944,7 +948,7 @@ export interface ScheduledWorkflows {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   workflowRunId?: string;
-  method: 'DEFAULT' | 'API';
+  method: "DEFAULT" | "API";
   /**
    * @format int32
    * @min 1
@@ -969,7 +973,7 @@ export interface CronWorkflows {
   input?: Record<string, any>;
   additionalMetadata?: Record<string, any>;
   enabled: boolean;
-  method: 'DEFAULT' | 'API';
+  method: "DEFAULT" | "API";
   /**
    * @format int32
    * @min 1
@@ -1177,7 +1181,7 @@ export interface Worker {
   metadata: APIResourceMeta;
   /** The name of the worker. */
   name: string;
-  type: 'SELFHOSTED' | 'MANAGED' | 'WEBHOOK';
+  type: "SELFHOSTED" | "MANAGED" | "WEBHOOK";
   /**
    * The time this worker last sent a heartbeat.
    * @format date-time
@@ -1197,7 +1201,7 @@ export interface Worker {
   /** The recent step runs for the worker. */
   recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
-  status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
+  status?: "ACTIVE" | "INACTIVE" | "PAUSED";
   /** The maximum number of runs this worker can execute concurrently. */
   maxRuns?: number;
   /** The number of runs this worker can execute concurrently. */
@@ -1543,7 +1547,7 @@ export interface V1TaskSummary {
    */
   tenantId: string;
   /** The type of the workflow (whether it's a DAG or a task) */
-  type: 'DAG' | 'TASK';
+  type: "DAG" | "TASK";
   /** @format uuid */
   workflowId: string;
   workflowName?: string;
@@ -1574,26 +1578,26 @@ export interface V1TaskEventList {
     /** @format date-time */
     timestamp: string;
     eventType:
-      | 'REQUEUED_NO_WORKER'
-      | 'REQUEUED_RATE_LIMIT'
-      | 'SCHEDULING_TIMED_OUT'
-      | 'ASSIGNED'
-      | 'STARTED'
-      | 'FINISHED'
-      | 'FAILED'
-      | 'RETRYING'
-      | 'CANCELLED'
-      | 'TIMED_OUT'
-      | 'REASSIGNED'
-      | 'SLOT_RELEASED'
-      | 'TIMEOUT_REFRESHED'
-      | 'RETRIED_BY_USER'
-      | 'SENT_TO_WORKER'
-      | 'RATE_LIMIT_ERROR'
-      | 'ACKNOWLEDGED'
-      | 'CREATED'
-      | 'QUEUED'
-      | 'SKIPPED';
+      | "REQUEUED_NO_WORKER"
+      | "REQUEUED_RATE_LIMIT"
+      | "SCHEDULING_TIMED_OUT"
+      | "ASSIGNED"
+      | "STARTED"
+      | "FINISHED"
+      | "FAILED"
+      | "RETRYING"
+      | "CANCELLED"
+      | "TIMED_OUT"
+      | "REASSIGNED"
+      | "SLOT_RELEASED"
+      | "TIMEOUT_REFRESHED"
+      | "RETRIED_BY_USER"
+      | "SENT_TO_WORKER"
+      | "RATE_LIMIT_ERROR"
+      | "ACKNOWLEDGED"
+      | "CREATED"
+      | "QUEUED"
+      | "SKIPPED";
     message: string;
     errorMessage?: string;
     output?: string;
