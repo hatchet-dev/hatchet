@@ -356,7 +356,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 			if err != nil {
 				tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
-				continue
+				return err
 			}
 
 			eventIds = append(eventIds, event.ID)
@@ -381,6 +381,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	if err != nil {
 		tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
+		return err
 	}
 
 	return nil
