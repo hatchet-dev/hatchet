@@ -4,9 +4,10 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-# ❓ Streaming
+# > Streaming
 
 streaming_workflow = hatchet.workflow(name="StreamingWorkflow")
+
 
 @streaming_workflow.task()
 async def step1(input: EmptyModel, ctx: Context) -> None:
@@ -14,11 +15,13 @@ async def step1(input: EmptyModel, ctx: Context) -> None:
         await asyncio.sleep(1)
         ctx.put_stream(f"Processing {i}")
 
+
 def main() -> None:
     worker = hatchet.worker("test-worker", workflows=[streaming_workflow])
     worker.start()
 
-# ‼️
+
+
 
 if __name__ == "__main__":
     main()

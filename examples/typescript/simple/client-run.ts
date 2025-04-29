@@ -1,4 +1,4 @@
-// ❓ Client Run Methods
+// > Client Run Methods
 import { hatchet } from '../hatchet-client';
 
 hatchet.run('simple', { Message: 'Hello, World!' });
@@ -15,3 +15,4 @@ hatchet.crons.create('simple', {
   expression: '0 0 * * *',
   input: { Message: 'Hello, World!' },
 });
+

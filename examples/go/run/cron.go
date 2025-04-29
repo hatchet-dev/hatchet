@@ -41,17 +41,17 @@ func cron() {
 
 	// it may be useful to save the cron id for later
 	fmt.Println(result.Metadata.Id)
-	// !!
+	
 
 	// > Delete
 	hatchet.Crons().Delete(ctx, result.Metadata.Id)
-	// !!
+	
 
 	// > List
 	crons, err := hatchet.Crons().List(ctx, rest.CronWorkflowListParams{
 		AdditionalMetadata: &[]string{"user:daily-run"},
 	})
-	// !!
+	
 	if err != nil {
 		panic(err)
 	}

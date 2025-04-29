@@ -58,7 +58,12 @@ export const processFiles = async (): Promise<string[]> => {
     console.log(
       `${colors.magenta}Running directory processor recursively: ${processor.constructor.name}${colors.reset}`,
     );
-    await processFinalDirectoryRecursively(OUTPUT_DIR, processor);
+    try {
+      await processFinalDirectoryRecursively(OUTPUT_DIR, processor);
+    } catch (error) {
+      console.error(`${colors.red}Error processing directory recursively:${colors.reset}`, error);
+      // Continue with other processors even if one fails
+    }
   }
 
   const endTime = Date.now();

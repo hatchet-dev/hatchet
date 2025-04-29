@@ -4,14 +4,16 @@ from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
+
 class DynamicCronInput(BaseModel):
     name: str
+
 
 dynamic_cron_workflow = hatchet.workflow(
     name="CronWorkflow", input_validator=DynamicCronInput
 )
 
-# ❓ Create
+# > Create
 cron_trigger = dynamic_cron_workflow.create_cron(
     cron_name="customer-a-daily-report",
     expression="0 12 * * *",
@@ -21,13 +23,18 @@ cron_trigger = dynamic_cron_workflow.create_cron(
     },
 )
 
+
 id = cron_trigger.metadata.id  # the id of the cron trigger
 
-# ❓ List
+
+# > List
 cron_triggers = hatchet.cron.list()
 
-# ❓ Get
+
+# > Get
 cron_trigger = hatchet.cron.get(cron_id=cron_trigger.metadata.id)
 
-# ❓ Delete
+
+# > Delete
 hatchet.cron.delete(cron_id=cron_trigger.metadata.id)
+

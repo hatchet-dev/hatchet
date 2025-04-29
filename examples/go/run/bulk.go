@@ -38,5 +38,5 @@ func bulk() {
 	}
 
 	fmt.Println(bulkRunIds)
-	// !!
+	
 }

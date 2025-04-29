@@ -9,11 +9,13 @@ from hatchet_sdk.context.context import Context
 
 from .hatchet_client import hatchet
 
+
 async def process_image(image_url: str, filters: List[str]) -> Dict[str, Any]:
     # Do some image processing
     return {"url": image_url, "size": 100, "format": "png"}
 
-# ❓ Before (Mergent)
+
+# > Before (Mergent)
 async def process_image_task(request: Any) -> Dict[str, Any]:
     image_url = request.json["image_url"]
     filters = request.json["filters"]
@@ -24,16 +26,22 @@ async def process_image_task(request: Any) -> Dict[str, Any]:
         print(f"Image processing failed: {e}")
         raise
 
-# ❓ After (Hatchet)
+
+
+
+
+# > After (Hatchet)
 class ImageProcessInput(BaseModel):
     image_url: str
     filters: List[str]
+
 
 class ImageProcessOutput(BaseModel):
     processed_url: str
     metadata: Dict[str, Any]
 
-@hatchet-dev/typescript-sdk.task(
+
+@hatchet.task(
     name="image-processor",
     retries=3,
     execution_timeout="10m",
@@ -55,8 +63,12 @@ async def image_processor(input: ImageProcessInput, ctx: Context) -> ImageProces
         },
     )
 
+
+
+
+
 async def run() -> None:
-    # ❓ Running a task (Mergent)
+    # > Running a task (Mergent)
     headers: Mapping[str, str] = {
         "Authorization": "Bearer <token>",
         "Content-Type": "application/json",
@@ -84,17 +96,20 @@ async def run() -> None:
         print(response.json())
     except Exception as e:
         print(f"Error: {e}")
+    
 
-    # ❓ Running a task (Hatchet)
+    # > Running a task (Hatchet)
     result = await image_processor.aio_run(
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"])
     )
 
     # you can await fully typed results
     print(result)
+    
+
 
 async def schedule() -> None:
-    # ❓ Scheduling tasks (Mergent)
+    # > Scheduling tasks (Mergent)
     options = {
         # same options as before
         "json": {
@@ -102,10 +117,11 @@ async def schedule() -> None:
             "delay": "5m"
         }
     }
+    
 
     print(options)
 
-    # ❓ Scheduling tasks (Hatchet)
+    # > Scheduling tasks (Hatchet)
     # Schedule the task to run at a specific time
     run_at = datetime.now() + timedelta(days=1)
     await image_processor.aio_schedule(
@@ -119,3 +135,4 @@ async def schedule() -> None:
         "0 * * * *",
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"]),
     )
+    

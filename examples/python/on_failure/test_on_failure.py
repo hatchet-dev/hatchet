@@ -6,6 +6,7 @@ from examples.on_failure.worker import on_failure_wf
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run_timeout(hatchet: Hatchet) -> None:
     run = on_failure_wf.run_no_wait()

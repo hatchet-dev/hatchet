@@ -7,7 +7,7 @@ function processImage(
   // Do some image processing
   return Promise.resolve({ url: imageUrl, size: 100, format: 'png' });
 }
-// ❓ Before (Mergent)
+// > Before (Mergent)
 export async function processImageTask(req: { body: { imageUrl: string; filters: string[] } }) {
   const { imageUrl, filters } = req.body;
   try {
@@ -19,7 +19,8 @@ export async function processImageTask(req: { body: { imageUrl: string; filters:
   }
 }
 
-// ❓ After (Hatchet)
+
+// > After (Hatchet)
 type ImageProcessInput = {
   imageUrl: string;
   filters: string[];
@@ -55,8 +56,9 @@ export const imageProcessor = hatchet.task({
   },
 });
 
+
 async function run() {
-  // ❓ Running a task (Mergent)
+  // > Running a task (Mergent)
   const options = {
     method: 'POST',
     headers: { Authorization: 'Bearer <token>', 'Content-Type': 'application/json' },
@@ -75,8 +77,9 @@ async function run() {
     .then((response) => response.json())
     .then((response) => console.log(response))
     .catch((err) => console.error(err));
+  
 
-  // ❓ Running a task (Hatchet)
+  // > Running a task (Hatchet)
   const result = await imageProcessor.run({
     imageUrl: 'https://example.com/image.png',
     filters: ['blur'],
@@ -84,11 +87,11 @@ async function run() {
 
   // you can await fully typed results
   console.log(result);
-
+  
 }
 
 async function schedule() {
-  // ❓ Scheduling tasks (Mergent)
+  // > Scheduling tasks (Mergent)
   const options = {
     // same options as before
     body: JSON.stringify({
@@ -96,8 +99,9 @@ async function schedule() {
       delay: '5m',
     }),
   };
+  
 
-  // ❓ Scheduling tasks (Hatchet)
+  // > Scheduling tasks (Hatchet)
   // Schedule the task to run at a specific time
   const runAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
   imageProcessor.schedule(runAt, {
@@ -110,5 +114,5 @@ async function schedule() {
     imageUrl: 'https://example.com/image.png',
     filters: ['blur'],
   });
-
+  
 }

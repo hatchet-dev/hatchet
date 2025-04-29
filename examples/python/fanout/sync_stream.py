@@ -4,6 +4,7 @@ from examples.fanout.worker import ParentInput, parent_wf
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
+
 def main() -> None:
 
     hatchet = Hatchet()
@@ -32,6 +33,7 @@ def main() -> None:
         print(event.type, event.payload)
 
     print("DONE.")
+
 
 if __name__ == "__main__":
     main()

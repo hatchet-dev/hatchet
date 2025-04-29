@@ -41,7 +41,7 @@ func Cancellation(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Cancell
 		},
 		hatchet,
 	)
-	// !!
+	
 
 	return cancellation
 }

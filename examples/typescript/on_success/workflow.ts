@@ -1,7 +1,7 @@
 
 import { hatchet } from '../hatchet-client';
 
-// ❓ On Success DAG
+// > On Success DAG
 export const onSuccessDag = hatchet.workflow({
   name: 'on-success-dag',
 });
@@ -32,3 +32,4 @@ onSuccessDag.onSuccess({
     };
   },
 });
+

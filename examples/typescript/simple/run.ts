@@ -3,7 +3,7 @@ import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 
 async function main() {
-  // ❓ Running a Task
+  // > Running a Task
   const res = await simple.run(
     {
       Message: 'HeLlO WoRlD',
@@ -17,11 +17,11 @@ async function main() {
 
   // 👀 Access the results of the Task
   console.log(res.TransformedMessage);
-
+  
 }
 
 export async function extra() {
-  // ❓ Running Multiple Tasks
+  // > Running Multiple Tasks
   const res1 = simple.run({
     Message: 'HeLlO WoRlD',
   });
@@ -34,8 +34,9 @@ export async function extra() {
 
   console.log(results[0].TransformedMessage);
   console.log(results[1].TransformedMessage);
+  
 
-  // ❓ Spawning Tasks from within a Task
+  // > Spawning Tasks from within a Task
   const parent = hatchet.task({
     name: 'parent',
     fn: async (input, ctx) => {
@@ -49,7 +50,7 @@ export async function extra() {
       };
     },
   });
-
+  
 }
 
 if (require.main === module) {

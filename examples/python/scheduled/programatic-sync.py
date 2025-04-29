@@ -4,7 +4,7 @@ from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
-# ❓ Create
+# > Create
 scheduled_run = hatchet.scheduled.create(
     workflow_name="simple-workflow",
     trigger_at=datetime.now() + timedelta(seconds=10),
@@ -18,11 +18,15 @@ scheduled_run = hatchet.scheduled.create(
 
 id = scheduled_run.metadata.id  # the id of the scheduled run trigger
 
-# ❓ Delete
+
+# > Delete
 hatchet.scheduled.delete(scheduled_id=scheduled_run.metadata.id)
 
-# ❓ List
+
+# > List
 scheduled_runs = hatchet.scheduled.list()
 
-# ❓ Get
+
+# > Get
 scheduled_run = hatchet.scheduled.get(scheduled_id=scheduled_run.metadata.id)
+

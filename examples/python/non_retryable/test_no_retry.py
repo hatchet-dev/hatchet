@@ -10,8 +10,10 @@ from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 
+
 def find_id(runs: V1WorkflowRunDetails, match: str) -> str:
     return next(t.metadata.id for t in runs.tasks if match in t.display_name)
+
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_no_retry(hatchet: Hatchet) -> None:

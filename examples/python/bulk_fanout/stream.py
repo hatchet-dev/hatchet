@@ -5,6 +5,7 @@ from examples.bulk_fanout.worker import ParentInput, bulk_parent_wf
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
+
 async def main() -> None:
     hatchet = Hatchet()
 
@@ -29,6 +30,7 @@ async def main() -> None:
 
     async for event in listener:
         print(event.type, event.payload)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

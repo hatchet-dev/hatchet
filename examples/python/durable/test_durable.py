@@ -6,6 +6,7 @@ import pytest
 from examples.durable.worker import EVENT_KEY, SLEEP_TIME, durable_workflow
 from hatchet_sdk import Hatchet
 
+
 @pytest.mark.skipif(
     os.getenv("CI", "false").lower() == "true",
     reason="Skipped in CI because of unreliability",

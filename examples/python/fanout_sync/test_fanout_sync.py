@@ -1,5 +1,6 @@
 from examples.fanout_sync.worker import ParentInput, sync_fanout_parent
 
+
 def test_run() -> None:
     N = 2
 

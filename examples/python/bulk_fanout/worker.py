@@ -8,16 +8,20 @@ from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 
 hatchet = Hatchet(debug=True)
 
+
 class ParentInput(BaseModel):
     n: int = 100
+
 
 class ChildInput(BaseModel):
     a: str
 
+
 bulk_parent_wf = hatchet.workflow(name="BulkFanoutParent", input_validator=ParentInput)
 bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildInput)
 
-# ❓ BulkFanoutParent
+
+# > BulkFanoutParent
 @bulk_parent_wf.task(execution_timeout=timedelta(minutes=5))
 async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, Any]]]:
     # 👀 Create each workflow run to spawn
@@ -35,23 +39,28 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, list[dict[str, An
 
     return {"results": spawn_results}
 
-# ‼️
+
+
+
 
 @bulk_child_wf.task()
 def process(input: ChildInput, ctx: Context) -> dict[str, str]:
     print(f"child process {input.a}")
     return {"status": "success " + input.a}
 
+
 @bulk_child_wf.task()
 def process2(input: ChildInput, ctx: Context) -> dict[str, str]:
     print("child process2")
     return {"status2": "success"}
+
 
 def main() -> None:
     worker = hatchet.worker(
         "fanout-worker", slots=40, workflows=[bulk_parent_wf, bulk_child_wf]
     )
     worker.start()
+
 
 if __name__ == "__main__":
     main()

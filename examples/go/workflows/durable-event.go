@@ -46,7 +46,7 @@ func DurableEvent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Durable
 		},
 		hatchet,
 	)
-	// !!
+	
 
 	factory.NewDurableTask(
 		create.StandaloneTask{
@@ -55,7 +55,7 @@ func DurableEvent(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Durable
 		func(ctx worker.DurableHatchetContext, input DurableEventInput) (*DurableEventOutput, error) {
 			// > Durable Event With Filter
 			eventData, err := ctx.WaitForEvent("user:update", "input.user_id == '1234'")
-			// !!
+			
 
 			if err != nil {
 				return nil, err

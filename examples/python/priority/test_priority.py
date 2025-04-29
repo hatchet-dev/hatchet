@@ -14,10 +14,12 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 Priority = Literal["low", "medium", "high", "default"]
 
+
 class RunPriorityStartedAt(BaseModel):
     priority: Priority
     started_at: datetime
     finished_at: datetime
+
 
 def priority_to_int(priority: Priority) -> int:
     match priority:
@@ -31,6 +33,7 @@ def priority_to_int(priority: Priority) -> int:
             return DEFAULT_PRIORITY
         case _:
             raise ValueError(f"Invalid priority: {priority}")
+
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def dummy_runs() -> None:
@@ -55,6 +58,7 @@ async def dummy_runs() -> None:
     await asyncio.sleep(3)
 
     return None
+
 
 @pytest.mark.asyncio()
 async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
@@ -128,6 +132,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
 
         """Runs should finish after starting (this is mostly a test for engine datetime handling bugs)"""
         assert curr.finished_at >= curr.started_at
+
 
 @pytest.mark.asyncio()
 async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
@@ -213,6 +218,7 @@ async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> No
         """Runs should finish after starting (this is mostly a test for engine datetime handling bugs)"""
         assert curr.finished_at >= curr.started_at
 
+
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def crons(
     hatchet: Hatchet, dummy_runs: None
@@ -244,11 +250,13 @@ async def crons(
 
     await asyncio.gather(*[hatchet.cron.aio_delete(cron.metadata.id) for cron in crons])
 
+
 def time_until_next_minute() -> float:
     now = datetime.now()
     next_minute = now.replace(second=0, microsecond=0, minute=now.minute + 1)
 
     return (next_minute - now).total_seconds()
+
 
 @pytest.mark.asyncio()
 async def test_priority_via_cron(hatchet: Hatchet, crons: tuple[str, str, int]) -> None:

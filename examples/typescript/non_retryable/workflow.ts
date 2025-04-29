@@ -5,7 +5,7 @@ export const nonRetryableWorkflow = hatchet.workflow({
   name: 'no-retry-workflow',
 });
 
-// ❓ Non-retrying task
+// > Non-retrying task
 const shouldNotRetry = nonRetryableWorkflow.task({
   name: 'should-not-retry',
   fn: () => {
@@ -13,6 +13,7 @@ const shouldNotRetry = nonRetryableWorkflow.task({
   },
   retries: 1,
 });
+
 
 // Create a task that should retry
 const shouldRetryWrongErrorType = nonRetryableWorkflow.task({

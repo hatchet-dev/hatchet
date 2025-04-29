@@ -2,7 +2,7 @@
 import { Priority } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 
-// ❓ Simple Task Priority
+// > Simple Task Priority
 export const priority = hatchet.task({
   name: 'priority',
   defaultPriority: Priority.MEDIUM,
@@ -13,11 +13,13 @@ export const priority = hatchet.task({
   },
 });
 
-// ❓ Task Priority in a Workflow
+
+// > Task Priority in a Workflow
 export const priorityWf = hatchet.workflow({
   name: 'priorityWf',
   defaultPriority: Priority.LOW,
 });
+
 
 priorityWf.task({
   name: 'child-medium',

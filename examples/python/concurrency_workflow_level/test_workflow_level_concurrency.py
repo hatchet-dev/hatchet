@@ -27,6 +27,7 @@ characters: list[Character] = [
     "Karenin",
 ]
 
+
 class RunMetadata(BaseModel):
     test_run_id: str
     key: str
@@ -48,6 +49,7 @@ class RunMetadata(BaseModel):
 
     def __str__(self) -> str:
         return self.key
+
 
 @pytest.mark.asyncio()
 async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
@@ -129,10 +131,12 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     for id, group in overlapping_groups.items():
         assert is_valid_group(group), f"Group {id} is not valid"
 
+
 def are_overlapping(x: RunMetadata, y: RunMetadata) -> bool:
     return (x.started_at < y.finished_at and x.finished_at > y.started_at) or (
         x.finished_at > y.started_at and x.started_at < y.finished_at
     )
+
 
 def is_valid_group(group: list[RunMetadata]) -> bool:
     digits = Counter[str]()

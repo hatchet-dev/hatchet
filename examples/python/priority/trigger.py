@@ -5,7 +5,7 @@ from hatchet_sdk import ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
 
 priority_workflow.run_no_wait()
 
-# ❓ Runtime priority
+# > Runtime priority
 low_prio = priority_workflow.run_no_wait(
     options=TriggerWorkflowOptions(
         ## 👀 Adding priority and key to metadata to show them in the dashboard
@@ -22,7 +22,8 @@ high_prio = priority_workflow.run_no_wait(
     )
 )
 
-# ❓ Scheduled priority
+
+# > Scheduled priority
 schedule = priority_workflow.schedule(
     run_at=datetime.now() + timedelta(minutes=1),
     options=ScheduleTriggerWorkflowOptions(priority=3),
@@ -34,7 +35,8 @@ cron = priority_workflow.create_cron(
     priority=3,
 )
 
-# ❓ Default priority
+
+# > Default priority
 low_prio = priority_workflow.run_no_wait(
     options=TriggerWorkflowOptions(
         ## 👀 Adding priority and key to metadata to show them in the dashboard

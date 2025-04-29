@@ -2,7 +2,7 @@ import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import axios from 'axios';
 import { hatchet } from '../hatchet-client';
 
-// ❓ Declaring a Task
+// > Declaring a Task
 export const cancellation = hatchet.task({
   name: 'cancellation',
   fn: async (_, { cancelled }) => {
@@ -18,7 +18,8 @@ export const cancellation = hatchet.task({
   },
 });
 
-// ❓ Abort Signal
+
+// > Abort Signal
 export const abortSignal = hatchet.task({
   name: 'abort-signal',
   fn: async (_, { controller }) => {
@@ -37,5 +38,6 @@ export const abortSignal = hatchet.task({
     }
   },
 });
+
 
 // see ./worker.ts and ./run.ts for how to run the workflow

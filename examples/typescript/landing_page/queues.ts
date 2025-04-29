@@ -6,7 +6,7 @@ export type SimpleInput = {
   Message: string;
 };
 async function main() {
-  // ❓ Declaring a Task
+  // > Declaring a Task
   const simple = hatchet.task({
     name: 'simple',
     fn: (input: SimpleInput) => {
@@ -15,10 +15,11 @@ async function main() {
       };
     },
   });
+  
 
-  // ❓ Running a Task
+  // > Running a Task
   const result = await simple.run({ Message: 'Hello, World!' });
-
+  
 }
 
 if (require.main === module) {

@@ -11,9 +11,11 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-# ❓ Concurrency Strategy With Key
+
+# > Concurrency Strategy With Key
 class WorkflowInput(BaseModel):
     group: str
+
 
 concurrency_limit_rr_workflow = hatchet.workflow(
     name="ConcurrencyDemoWorkflowRR",
@@ -24,7 +26,8 @@ concurrency_limit_rr_workflow = hatchet.workflow(
     ),
     input_validator=WorkflowInput,
 )
-# ‼️
+
+
 
 @concurrency_limit_rr_workflow.task()
 def step1(input: WorkflowInput, ctx: Context) -> None:
@@ -32,6 +35,7 @@ def step1(input: WorkflowInput, ctx: Context) -> None:
     time.sleep(2)
     print("finished step1")
     pass
+
 
 def main() -> None:
     worker = hatchet.worker(
@@ -41,6 +45,7 @@ def main() -> None:
     )
 
     worker.start()
+
 
 if __name__ == "__main__":
     main()

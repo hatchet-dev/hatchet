@@ -10,7 +10,7 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-# ❓ Default priority
+# > Default priority
 DEFAULT_PRIORITY = 1
 SLEEP_TIME = 0.25
 
@@ -24,10 +24,13 @@ priority_workflow = hatchet.workflow(
     ),
 )
 
+
+
 @priority_workflow.task()
 def priority_task(input: EmptyModel, ctx: Context) -> None:
     print("Priority:", ctx.priority)
     time.sleep(SLEEP_TIME)
+
 
 def main() -> None:
     worker = hatchet.worker(
@@ -37,6 +40,7 @@ def main() -> None:
     )
 
     worker.start()
+
 
 if __name__ == "__main__":
     main()

@@ -49,7 +49,7 @@ func ProcessImageMergent(req MergentRequest) (*MergentResponse, error) {
 	}, nil
 }
 
-// !!
+
 
 // > After (Hatchet)
 type ImageProcessInput struct {
@@ -98,7 +98,7 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 		},
 		hatchet,
 	)
-	// !!
+	
 
 	// Example of running a task
 	_ = func() error {
@@ -112,7 +112,7 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 		}
 		fmt.Printf("Result: %+v\n", result)
 		return nil
-		// !!
+		
 	}
 
 	// Example of registering a task on a worker
@@ -132,7 +132,7 @@ func ImageProcessor(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[Image
 			return err
 		}
 		return nil
-		// !!
+		
 	}
 
 	return processor
@@ -191,7 +191,7 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 	defer res.Body.Close()
 
 	fmt.Printf("Mergent task created with status: %d\n", res.StatusCode)
-	// !!
+	
 
 	// > Running a task (Hatchet)
 	processor := ImageProcessor(hatchet)
@@ -204,7 +204,7 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 		return err
 	}
 	fmt.Printf("Result: %+v\n", result)
-	// !!
+	
 
 	// > Scheduling tasks (Hatchet)
 	// Schedule the task to run at a specific time
@@ -230,7 +230,7 @@ func RunningTasks(hatchet v1.HatchetClient) error {
 			Filters:  []string{"blur"},
 		},
 	)
-	// !!
+	
 	if err != nil {
 		return err
 	}

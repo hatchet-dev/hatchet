@@ -1,4 +1,4 @@
-// ❓ Declaring a Worker
+// > Declaring a Worker
 import { hatchet } from '../hatchet-client';
 import { cancellation } from './workflow';
 
@@ -16,3 +16,4 @@ async function main() {
 if (require.main === module) {
   main();
 }
+

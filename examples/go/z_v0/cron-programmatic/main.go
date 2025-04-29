@@ -104,7 +104,7 @@ func main() {
 	// ,
 }
 
-// !!
+
 
 func ListCrons() {
 
@@ -116,7 +116,7 @@ func ListCrons() {
 
 	// > List
 	crons, err := c.Cron().List(context.Background())
-	// !!
+	
 
 	if err != nil {
 		panic(err)
@@ -137,7 +137,7 @@ func DeleteCron(id string) {
 	// > Delete
 	// 👀 id is the cron's metadata id, can get it via cron.Metadata.Id
 	err = c.Cron().Delete(context.Background(), id)
-	// !!
+	
 
 	if err != nil {
 		panic(err)

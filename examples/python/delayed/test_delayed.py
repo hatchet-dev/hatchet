@@ -3,6 +3,7 @@
 
 # from tests.utils import fixture_bg_worker
 
+
 # worker = fixture_bg_worker(["poetry", "run", "manual_trigger"])
 
 # # @pytest.mark.asyncio(loop_scope="session")

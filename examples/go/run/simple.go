@@ -34,7 +34,7 @@ func simple() {
 	}
 
 	fmt.Println(result.TransformedMessage)
-	// !!
+	
 
 	// > Running Multiple Tasks
 	var results []string
@@ -82,7 +82,7 @@ func simple() {
 	}()
 
 	wg.Wait()
-	// !!
+	
 
 	// > Running a Task Without Waiting
 	simple = v1_workflows.Simple(hatchet)
@@ -98,7 +98,7 @@ func simple() {
 	// or check on the status of the task
 	runId := runRef.RunId()
 	fmt.Println(runId)
-	// !!
+	
 
 	// > Subscribing to results
 	// finally, we can wait for the task to complete and get the result
@@ -109,5 +109,5 @@ func simple() {
 	}
 
 	fmt.Println(finalResult)
-	// !!
+	
 }

@@ -27,7 +27,7 @@ func event() {
 			Message: "Hello, World!",
 		},
 	)
-	// !!
+	
 
 	if err != nil {
 		panic(err)

@@ -1,4 +1,5 @@
 import { Config } from '@/utils/config';
+import path from 'path';
 
 export const config: Config = {
   // Directories to process

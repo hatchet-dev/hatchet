@@ -5,14 +5,15 @@ from hatchet_sdk import Context, EmptyModel, Hatchet, TaskDefaults
 
 hatchet = Hatchet(debug=True)
 
-# ❓ ScheduleTimeout
+# > ScheduleTimeout
 timeout_wf = hatchet.workflow(
     name="TimeoutWorkflow",
     task_defaults=TaskDefaults(execution_timeout=timedelta(minutes=2)),
 )
-# ‼️
 
-# ❓ ExecutionTimeout
+
+
+# > ExecutionTimeout
 # 👀 Specify an execution timeout on a task
 @timeout_wf.task(
     execution_timeout=timedelta(seconds=4), schedule_timeout=timedelta(minutes=10)
@@ -21,11 +22,13 @@ def timeout_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
     time.sleep(5)
     return {"status": "success"}
 
-# ‼️
+
+
 
 refresh_timeout_wf = hatchet.workflow(name="RefreshTimeoutWorkflow")
 
-# ❓ RefreshTimeout
+
+# > RefreshTimeout
 @refresh_timeout_wf.task(execution_timeout=timedelta(seconds=4))
 def refresh_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
@@ -34,7 +37,9 @@ def refresh_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
     return {"status": "success"}
 
-# ‼️
+
+
+
 
 def main() -> None:
     worker = hatchet.worker(
@@ -42,6 +47,7 @@ def main() -> None:
     )
 
     worker.start()
+
 
 if __name__ == "__main__":
     main()

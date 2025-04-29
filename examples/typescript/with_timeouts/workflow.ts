@@ -1,4 +1,4 @@
-// ❓ Declaring a Task
+// > Declaring a Task
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
@@ -7,7 +7,7 @@ export type SimpleInput = {
   Message: string;
 };
 
-// ❓ Execution Timeout
+// > Execution Timeout
 export const withTimeouts = hatchet.task({
   name: 'with-timeouts',
   // time the task can wait in the queue before it is cancelled
@@ -32,7 +32,8 @@ export const withTimeouts = hatchet.task({
   },
 });
 
-// ❓ Refresh Timeout
+
+// > Refresh Timeout
 export const refreshTimeout = hatchet.task({
   name: 'refresh-timeout',
   executionTimeout: '10s',
@@ -56,3 +57,4 @@ export const refreshTimeout = hatchet.task({
     };
   },
 });
+

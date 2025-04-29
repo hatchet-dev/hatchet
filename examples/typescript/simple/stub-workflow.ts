@@ -1,4 +1,4 @@
-// ❓ Declaring an External Workflow Reference
+// > Declaring an External Workflow Reference
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -25,3 +25,4 @@ simple.run({ Message: 'Hello, World!' });
 simple.runNoWait({ Message: 'Hello, World!' });
 simple.schedule(new Date(), { Message: 'Hello, World!' });
 simple.cron('my-cron', '0 0 * * *', { Message: 'Hello, World!' });
+

@@ -10,7 +10,7 @@ type OnCronOutput = {
   };
 };
 
-// ❓ Run Workflow on Cron
+// > Run Workflow on Cron
 export const onCron = hatchet.workflow<Input, OnCronOutput>({
   name: 'on-cron-workflow',
   on: {
@@ -18,6 +18,7 @@ export const onCron = hatchet.workflow<Input, OnCronOutput>({
     cron: '*/15 * * * *',
   },
 });
+
 
 onCron.task({
   name: 'job',

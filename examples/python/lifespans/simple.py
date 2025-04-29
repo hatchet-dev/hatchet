@@ -1,4 +1,4 @@
-# ❓ Lifespan
+# > Lifespan
 
 from typing import AsyncGenerator, cast
 
@@ -8,16 +8,20 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
+
 class Lifespan(BaseModel):
     foo: str
     pi: float
 
+
 async def lifespan() -> AsyncGenerator[Lifespan, None]:
     yield Lifespan(foo="bar", pi=3.14)
 
-@hatchet-dev/typescript-sdk.task(name="LifespanWorkflow")
+
+@hatchet.task(name="LifespanWorkflow")
 def lifespan_task(input: EmptyModel, ctx: Context) -> Lifespan:
     return cast(Lifespan, ctx.lifespan)
+
 
 def main() -> None:
     worker = hatchet.worker(
@@ -25,7 +29,8 @@ def main() -> None:
     )
     worker.start()
 
-# ‼️
+
+
 
 if __name__ == "__main__":
     main()

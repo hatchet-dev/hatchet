@@ -2,6 +2,6 @@ from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
-# ❓ Event trigger
+# > Event trigger
 hatchet.event.push("user:create", {})
-# ‼️
+

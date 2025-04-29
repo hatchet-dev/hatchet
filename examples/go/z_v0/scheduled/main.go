@@ -105,7 +105,7 @@ func main() {
 	// ,
 }
 
-// !!
+
 
 func ListScheduledWorkflows() {
 	c, err := client.New()
@@ -116,7 +116,7 @@ func ListScheduledWorkflows() {
 
 	// > List
 	schedules, err := c.Schedule().List(context.Background())
-	// !!
+	
 
 	if err != nil {
 		panic(err)
@@ -137,7 +137,7 @@ func DeleteScheduledWorkflow(id string) {
 	// > Delete
 	// 👀 id is the schedule's metadata id, can get it via schedule.Metadata.Id
 	err = c.Schedule().Delete(context.Background(), id)
-	// !!
+	
 
 	if err != nil {
 		panic(err)

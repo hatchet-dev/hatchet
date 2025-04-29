@@ -15,16 +15,19 @@ SLEEP_TIME = 2
 DIGIT_MAX_RUNS = 8
 NAME_MAX_RUNS = 3
 
-# ❓ Concurrency Strategy With Key
+
+# > Concurrency Strategy With Key
 class WorkflowInput(BaseModel):
     name: str
     digit: str
+
 
 concurrency_multiple_keys_workflow = hatchet.workflow(
     name="ConcurrencyWorkflowManyKeys",
     input_validator=WorkflowInput,
 )
-# ‼️
+
+
 
 @concurrency_multiple_keys_workflow.task(
     concurrency=[
@@ -43,6 +46,7 @@ concurrency_multiple_keys_workflow = hatchet.workflow(
 async def concurrency_task(input: WorkflowInput, ctx: Context) -> None:
     await asyncio.sleep(SLEEP_TIME)
 
+
 def main() -> None:
     worker = hatchet.worker(
         "concurrency-worker-multiple-keys",
@@ -51,6 +55,7 @@ def main() -> None:
     )
 
     worker.start()
+
 
 if __name__ == "__main__":
     main()

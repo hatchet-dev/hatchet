@@ -1,4 +1,4 @@
-// ❓ Declaring a Task
+// > Declaring a Task
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -46,5 +46,7 @@ export const parent = hatchet.task({
     };
   },
 });
+
+
 
 // see ./worker.ts and ./run.ts for how to run the workflow
