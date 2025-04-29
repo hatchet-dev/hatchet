@@ -333,14 +333,17 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 	}
 
 	if opts.CronName != nil {
-		listOpts.Cronname = *opts.CronName
+		listOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
+		countOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
 	}
 
 	if opts.WorkflowName != nil {
-		listOpts.Workflowname = *opts.WorkflowName
+		listOpts.WorkflowName = sqlchelpers.TextFromStr(*opts.WorkflowName)
+		countOpts.WorkflowName = sqlchelpers.TextFromStr(*opts.WorkflowName)
 	}
 
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+
 	if err != nil {
 		return nil, 0, err
 	}

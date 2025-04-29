@@ -172,6 +172,8 @@ class CronClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: CronWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
+        workflow_name: str | None = None,
+        cron_name: str | None = None,
     ) -> CronWorkflowsList:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
@@ -182,6 +184,8 @@ class CronClient(BaseRestClient):
         :param additional_metadata: Filter by additional metadata keys.
         :param order_by_field: The field to order the list by.
         :param order_by_direction: The direction to order the list by.
+        :param workflow_name: The name of the workflow to filter by.
+        :param cron_name: The name of the cron trigger to filter by.
 
         :return: A list of cron workflows.
         """
@@ -193,6 +197,8 @@ class CronClient(BaseRestClient):
             additional_metadata=additional_metadata,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
+            workflow_name=workflow_name,
+            cron_name=cron_name,
         )
 
     def list(
@@ -203,6 +209,8 @@ class CronClient(BaseRestClient):
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: CronWorkflowsOrderByField | None = None,
         order_by_direction: WorkflowRunOrderByDirection | None = None,
+        workflow_name: str | None = None,
+        cron_name: str | None = None,
     ) -> CronWorkflowsList:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
@@ -213,6 +221,8 @@ class CronClient(BaseRestClient):
         :param additional_metadata: Filter by additional metadata keys.
         :param order_by_field: The field to order the list by.
         :param order_by_direction: The direction to order the list by.
+        :param workflow_name: The name of the workflow to filter by.
+        :param cron_name: The name of the cron trigger to filter by.
 
         :return: A list of cron workflows.
         """
@@ -227,6 +237,8 @@ class CronClient(BaseRestClient):
                 ),
                 order_by_field=order_by_field,
                 order_by_direction=order_by_direction,
+                workflow_name=workflow_name,
+                cron_name=cron_name,
             )
 
     def get(self, cron_id: str) -> CronWorkflows:

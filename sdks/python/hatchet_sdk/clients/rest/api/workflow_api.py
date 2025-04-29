@@ -88,6 +88,12 @@ class WorkflowApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The workflow id to get runs for."),
         ] = None,
+        workflow_name: Annotated[
+            Optional[StrictStr], Field(description="The workflow name to get runs for.")
+        ] = None,
+        cron_name: Annotated[
+            Optional[StrictStr], Field(description="The cron name to get runs for.")
+        ] = None,
         additional_metadata: Annotated[
             Optional[List[StrictStr]],
             Field(description="A list of metadata key value pairs to filter by"),
@@ -123,6 +129,10 @@ class WorkflowApi:
         :type limit: int
         :param workflow_id: The workflow id to get runs for.
         :type workflow_id: str
+        :param workflow_name: The workflow name to get runs for.
+        :type workflow_name: str
+        :param cron_name: The cron name to get runs for.
+        :type cron_name: str
         :param additional_metadata: A list of metadata key value pairs to filter by
         :type additional_metadata: List[str]
         :param order_by_field: The order by field
@@ -156,6 +166,8 @@ class WorkflowApi:
             offset=offset,
             limit=limit,
             workflow_id=workflow_id,
+            workflow_name=workflow_name,
+            cron_name=cron_name,
             additional_metadata=additional_metadata,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
@@ -198,6 +210,12 @@ class WorkflowApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The workflow id to get runs for."),
         ] = None,
+        workflow_name: Annotated[
+            Optional[StrictStr], Field(description="The workflow name to get runs for.")
+        ] = None,
+        cron_name: Annotated[
+            Optional[StrictStr], Field(description="The cron name to get runs for.")
+        ] = None,
         additional_metadata: Annotated[
             Optional[List[StrictStr]],
             Field(description="A list of metadata key value pairs to filter by"),
@@ -233,6 +251,10 @@ class WorkflowApi:
         :type limit: int
         :param workflow_id: The workflow id to get runs for.
         :type workflow_id: str
+        :param workflow_name: The workflow name to get runs for.
+        :type workflow_name: str
+        :param cron_name: The cron name to get runs for.
+        :type cron_name: str
         :param additional_metadata: A list of metadata key value pairs to filter by
         :type additional_metadata: List[str]
         :param order_by_field: The order by field
@@ -266,6 +288,8 @@ class WorkflowApi:
             offset=offset,
             limit=limit,
             workflow_id=workflow_id,
+            workflow_name=workflow_name,
+            cron_name=cron_name,
             additional_metadata=additional_metadata,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
@@ -308,6 +332,12 @@ class WorkflowApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The workflow id to get runs for."),
         ] = None,
+        workflow_name: Annotated[
+            Optional[StrictStr], Field(description="The workflow name to get runs for.")
+        ] = None,
+        cron_name: Annotated[
+            Optional[StrictStr], Field(description="The cron name to get runs for.")
+        ] = None,
         additional_metadata: Annotated[
             Optional[List[StrictStr]],
             Field(description="A list of metadata key value pairs to filter by"),
@@ -343,6 +373,10 @@ class WorkflowApi:
         :type limit: int
         :param workflow_id: The workflow id to get runs for.
         :type workflow_id: str
+        :param workflow_name: The workflow name to get runs for.
+        :type workflow_name: str
+        :param cron_name: The cron name to get runs for.
+        :type cron_name: str
         :param additional_metadata: A list of metadata key value pairs to filter by
         :type additional_metadata: List[str]
         :param order_by_field: The order by field
@@ -376,6 +410,8 @@ class WorkflowApi:
             offset=offset,
             limit=limit,
             workflow_id=workflow_id,
+            workflow_name=workflow_name,
+            cron_name=cron_name,
             additional_metadata=additional_metadata,
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
@@ -401,6 +437,8 @@ class WorkflowApi:
         offset,
         limit,
         workflow_id,
+        workflow_name,
+        cron_name,
         additional_metadata,
         order_by_field,
         order_by_direction,
@@ -440,6 +478,14 @@ class WorkflowApi:
         if workflow_id is not None:
 
             _query_params.append(("workflowId", workflow_id))
+
+        if workflow_name is not None:
+
+            _query_params.append(("workflowName", workflow_name))
+
+        if cron_name is not None:
+
+            _query_params.append(("cronName", cron_name))
 
         if additional_metadata is not None:
 

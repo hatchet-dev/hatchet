@@ -80,6 +80,8 @@ WHERE
     AND ($3::uuid IS NULL OR w."id" = $3::uuid)
     AND ($4::jsonb IS NULL OR
         c."additionalMetadata" @> $4::jsonb)
+    AND ($5::TEXT IS NULL OR c."name" = $5::TEXT)
+    AND ($6::TEXT IS NULL OR w."name" = $6::TEXT)
 `
 
 type CountCronWorkflowsParams struct {
@@ -87,6 +89,8 @@ type CountCronWorkflowsParams struct {
 	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
 	Workflowid         pgtype.UUID `json:"workflowid"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	CronName           pgtype.Text `json:"cronName"`
+	WorkflowName       pgtype.Text `json:"workflowName"`
 }
 
 // Get all of the latest workflow versions for the tenant
@@ -96,6 +100,8 @@ func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, arg CountCron
 		arg.Crontriggerid,
 		arg.Workflowid,
 		arg.AdditionalMetadata,
+		arg.CronName,
+		arg.WorkflowName,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -1659,8 +1665,8 @@ type ListCronWorkflowsParams struct {
 	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
 	Workflowid         pgtype.UUID `json:"workflowid"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
-	Cronname           string      `json:"cronname"`
-	Workflowname       string      `json:"workflowname"`
+	CronName           pgtype.Text `json:"cronName"`
+	WorkflowName       pgtype.Text `json:"workflowName"`
 	Orderby            interface{} `json:"orderby"`
 	Offset             interface{} `json:"offset"`
 	Limit              interface{} `json:"limit"`
@@ -1701,8 +1707,8 @@ func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWo
 		arg.Crontriggerid,
 		arg.Workflowid,
 		arg.AdditionalMetadata,
-		arg.Cronname,
-		arg.Workflowname,
+		arg.CronName,
+		arg.WorkflowName,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
