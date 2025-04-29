@@ -43,17 +43,19 @@ export const Snippet = ({ src, block }: SnippetProps) => {
       .join('\n');
   }
 
+  const fixedSource = src.source.replace('out/', 'examples/');
+
   return (
     <>
       <CodeBlock
-      source={{
-        githubUrl: `https://github.com/hatchet-dev/hatchet/blob/main/${src.source}`,
-        raw: content || '',
-        language: language,
-        props: {
-          path: src.source
-        }
-      }}
+        source={{
+          githubUrl: `https://github.com/hatchet-dev/hatchet/blob/main/${fixedSource}`,
+          raw: content || '',
+          language: language,
+          props: {
+            path: fixedSource,
+          },
+        }}
     />
     </>
   );
