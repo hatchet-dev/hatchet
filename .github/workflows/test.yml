@@ -68,7 +68,7 @@ jobs:
         run: go generate ./...
 
       - name: Test
-        run: go test $(go list ./... | grep -v "^github.com/hatchet-dev/hatchet/examples") -v -failfast
+        run: go test $(go list ./... | grep -v "quickstart") -v -failfast
 
   integration:
     runs-on: ubuntu-latest
@@ -109,7 +109,7 @@ jobs:
           task generate-local-encryption-keys
 
       - name: Test
-        run: go test -tags integration ./... -v -failfast
+        run: go test -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
 
       - name: Teardown
         run: docker compose down
