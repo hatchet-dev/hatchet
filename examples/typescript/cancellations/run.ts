@@ -4,8 +4,8 @@ import { cancellation } from './workflow';
 import { hatchet } from '../hatchet-client';
 // ...
 async function main() {
-  const run = cancellation.runNoWait({});
-  const run1 = cancellation.runNoWait({});
+  const run = await cancellation.runNoWait({});
+  const run1 = await cancellation.runNoWait({});
 
   await sleep(1000);
 
@@ -25,8 +25,8 @@ async function main() {
 
   console.log(resReplay);
 
-  const run2 = cancellation.runNoWait({}, { additionalMetadata: { test: 'abc' } });
-  const run4 = cancellation.runNoWait({}, { additionalMetadata: { test: 'test' } });
+  const run2 = await cancellation.runNoWait({}, { additionalMetadata: { test: 'abc' } });
+  const run4 = await cancellation.runNoWait({}, { additionalMetadata: { test: 'test' } });
 
   await sleep(1000);
 

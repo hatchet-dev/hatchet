@@ -244,7 +244,7 @@ func (s *Scheduler) Start() (func() error, error) {
 				}
 
 				go func(results *v1.QueueResults) {
-					err = s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(results.TenantId), results)
+					err := s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(results.TenantId), results)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("could not schedule step runs")
@@ -285,6 +285,8 @@ func (s *Scheduler) Start() (func() error, error) {
 		}
 
 		wg.Wait()
+
+		s.pubBuffer.Stop()
 
 		return nil
 	}

@@ -131,7 +131,7 @@ class RunsClient(BaseRestClient):
 
     async def aio_list(
         self,
-        since: datetime = datetime.now() - timedelta(hours=1),
+        since: datetime | None = None,
         only_tasks: bool = False,
         offset: int | None = None,
         limit: int | None = None,
@@ -160,7 +160,7 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(
             self.list,
-            since=since,
+            since=since or datetime.now() - timedelta(days=1),
             only_tasks=only_tasks,
             offset=offset,
             limit=limit,
@@ -174,7 +174,7 @@ class RunsClient(BaseRestClient):
 
     def list(
         self,
-        since: datetime = datetime.now() - timedelta(hours=1),
+        since: datetime | None = None,
         only_tasks: bool = False,
         offset: int | None = None,
         limit: int | None = None,
@@ -204,7 +204,7 @@ class RunsClient(BaseRestClient):
         with self.client() as client:
             return self._wra(client).v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
-                since=since,
+                since=since or datetime.now() - timedelta(days=1),
                 only_tasks=only_tasks,
                 offset=offset,
                 limit=limit,

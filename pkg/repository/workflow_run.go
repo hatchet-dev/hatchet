@@ -444,6 +444,12 @@ type ListCronWorkflowsOpts struct {
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the name of the cron to filter by
+	CronName *string `validate:"omitempty"`
+
+	// (optional) the name of the workflow to filter by
+	WorkflowName *string `validate:"omitempty"`
 }
 
 type WorkflowRunAPIRepository interface {

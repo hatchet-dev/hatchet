@@ -19,10 +19,10 @@ export const withTimeouts = hatchet.task({
     await sleep(15000);
 
     // get the abort controller
-    const { controller } = ctx;
+    const { abortController } = ctx;
 
     // if the abort controller is aborted, throw an error
-    if (controller.signal.aborted) {
+    if (abortController.signal.aborted) {
       throw new Error('cancelled');
     }
 
@@ -43,11 +43,11 @@ export const refreshTimeout = hatchet.task({
     await sleep(15000);
 
     // get the abort controller
-    const { controller } = ctx;
+    const { abortController } = ctx;
 
     // now this condition will not be met
     // if the abort controller is aborted, throw an error
-    if (controller.signal.aborted) {
+    if (abortController.signal.aborted) {
       throw new Error('cancelled');
     }
 

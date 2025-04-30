@@ -10,14 +10,14 @@ import worker from './worker';
 import workflow_with_child from './workflow-with-child';
 import workflow from './workflow';
 
-export { bulk };
-export { client_run };
-export { cron };
-export { delay };
-export { enqueue };
-export { run };
-export { schedule };
-export { stub_workflow };
-export { worker };
-export { workflow_with_child };
-export { workflow };
+export { bulk }
+export { client_run }
+export { cron }
+export { delay }
+export { enqueue }
+export { run }
+export { schedule }
+export { stub_workflow }
+export { worker }
+export { workflow_with_child }
+export { workflow }

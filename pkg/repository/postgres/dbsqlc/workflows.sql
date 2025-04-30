@@ -814,6 +814,8 @@ WHERE
     AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
+    AND (sqlc.narg('cronName')::TEXT IS NULL OR c."name" = sqlc.narg('cronName')::TEXT)
+    AND (sqlc.narg('workflowName')::TEXT IS NULL OR w."name" = sqlc.narg('workflowName')::TEXT)
 ORDER BY
     case when @orderBy = 'name ASC' THEN w."name" END ASC,
     case when @orderBy = 'name DESC' THEN w."name" END DESC,
@@ -856,7 +858,10 @@ WHERE
     AND (@cronTriggerId::uuid IS NULL OR c."id" = @cronTriggerId::uuid)
     AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
-        c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb);
+        c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
+    AND (sqlc.narg('cronName')::TEXT IS NULL OR c."name" = sqlc.narg('cronName')::TEXT)
+    AND (sqlc.narg('workflowName')::TEXT IS NULL OR w."name" = sqlc.narg('workflowName')::TEXT)
+;
 
 -- name: DeleteWorkflowTriggerCronRef :exec
 DELETE FROM "WorkflowTriggerCronRef"

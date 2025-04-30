@@ -720,9 +720,9 @@ SELECT
 FROM
     v1_lookup_table_olap lt
 JOIN
-    v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    v1_dag_to_task_olap dt ON (lt.dag_id, lt.inserted_at)= (dt.dag_id, dt.dag_inserted_at)
 JOIN
-    v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (lt.tenant_id, dt.task_id, dt.task_inserted_at)
+    v1_tasks_olap t ON (t.id, t.inserted_at) = (dt.task_id, dt.task_inserted_at)
 WHERE
     lt.external_id = ANY($1::uuid[])
     AND lt.tenant_id = $2::uuid
@@ -878,11 +878,9 @@ WITH input AS (
         d.workflow_version_id,
         d.parent_task_external_id
     FROM v1_runs_olap r
-    JOIN v1_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
-    WHERE
-        (r.inserted_at, r.id) IN (SELECT inserted_at, id FROM input)
-        AND r.tenant_id = $3::uuid
-        AND r.kind = 'DAG'
+    JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
+    JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
+    WHERE r.tenant_id = $3::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
     SELECT
         r.run_id,

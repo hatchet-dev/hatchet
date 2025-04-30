@@ -7,6 +7,7 @@ import * as dag_match_condition from './dag_match_condition';
 import * as deep from './deep';
 import * as durable_event from './durable-event';
 import * as durable_sleep from './durable-sleep';
+import * as high_memory from './high-memory';
 import * as inferred_typing from './inferred-typing';
 import * as landing_page from './landing_page';
 import * as legacy from './legacy';
@@ -26,7 +27,7 @@ import * as sticky from './sticky';
 import * as timeouts from './timeouts';
 import * as with_timeouts from './with_timeouts';
 
-export { hatchet_client };
+export { hatchet_client }
 export { cancellations };
 export { child_workflows };
 export { concurrency_rr };
@@ -35,6 +36,7 @@ export { dag_match_condition };
 export { deep };
 export { durable_event };
 export { durable_sleep };
+export { high_memory };
 export { inferred_typing };
 export { landing_page };
 export { legacy };

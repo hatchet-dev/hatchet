@@ -370,6 +370,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
+		d.pubBuffer.Stop()
+
 		// drain the existing connections
 		d.l.Debug().Msg("draining existing connections")
 

@@ -185,7 +185,7 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 	buf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIdBuffer(msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
+		buf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
 	// this places some backpressure on the consumer if buffers are full
@@ -226,10 +226,10 @@ type msgIdBuffer struct {
 	flushInterval time.Duration
 }
 
-func newMsgIdBuffer(tenantId, msgId string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
+func newMsgIDBuffer(ctx context.Context, tenantID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
-		tenantId:              tenantId,
-		msgId:                 msgId,
+		tenantId:              tenantID,
+		msgId:                 msgID,
 		msgIdBufferCh:         make(chan *msgWithResultCh, bufferSize),
 		notifier:              make(chan struct{}),
 		dst:                   dst,
@@ -238,22 +238,19 @@ func newMsgIdBuffer(tenantId, msgId string, dst DstFunc, flushInterval time.Dura
 		flushInterval:         flushInterval,
 	}
 
-	err := b.startFlusher()
-
-	if err != nil {
-		// TODO: remove panic
-		panic(err)
-	}
+	b.startFlusher(ctx)
 
 	return b
 }
 
-func (m *msgIdBuffer) startFlusher() error {
+func (m *msgIdBuffer) startFlusher(ctx context.Context) {
 	ticker := time.NewTicker(m.flushInterval)
 
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case <-ticker.C:
 				go m.flush()
 			case <-m.notifier:
@@ -263,8 +260,6 @@ func (m *msgIdBuffer) startFlusher() error {
 			}
 		}
 	}()
-
-	return nil
 }
 
 func (m *msgIdBuffer) flush() {
