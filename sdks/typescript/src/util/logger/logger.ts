@@ -1,9 +1,9 @@
 export abstract class Logger {
-  abstract debug(message: string): void;
-  abstract info(message: string): void;
-  abstract green(message: string): void;
-  abstract warn(message: string, error?: Error): void;
-  abstract error(message: string, error?: Error): void;
+  abstract debug(message: string, extra?: any): void;
+  abstract info(message: string, extra?: any): void;
+  abstract green(message: string, extra?: any): void;
+  abstract warn(message: string, error?: Error, extra?: any): void;
+  abstract error(message: string, error?: Error, extra?: any): void;
 }
 
 export type LogLevel = 'OFF' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';

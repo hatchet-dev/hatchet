@@ -16,23 +16,23 @@ class PinoLogger implements Logger {
     this.context = context;
   }
 
-  debug(message: string): void {
+  debug(message: string, extra?: any): void {
     logger.debug(message);
   }
 
-  info(message: string): void {
+  info(message: string, extra?: any): void {
     logger.info(message);
   }
 
-  green(message: string): void {
+  green(message: string, extra?: any): void {
     logger.info(`%c${message}`);
   }
 
-  warn(message: string, error?: Error): void {
+  warn(message: string, error?: Error, extra?: any): void {
     logger.warn(`${message} ${error}`);
   }
 
-  error(message: string, error?: Error): void {
+  error(message: string, error?: Error, extra?: any): void {
     logger.error(`${message} ${error}`);
   }
 }

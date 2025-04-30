@@ -27,6 +27,11 @@ type TriggerData = Record<string, Record<string, any>>;
 
 type ChildRunOpts = RunOpts & { key?: string; sticky?: boolean };
 
+type LogExtra = {
+  extra?: any;
+  error?: Error;
+};
+
 interface ContextData<T, K> {
   input: T;
   triggers: TriggerData;
@@ -49,7 +54,7 @@ export class Context<T, K = {}> {
   worker: ContextWorker;
 
   overridesData: Record<string, any> = {};
-  logger: Logger;
+  _logger: Logger;
 
   spawnIndex: number = 0;
 
@@ -60,7 +65,7 @@ export class Context<T, K = {}> {
       this.action = action;
       this.v1 = v1;
       this.worker = new ContextWorker(worker);
-      this.logger = v1.config.logger(`Context Logger`, v1.config.log_level);
+      this._logger = v1.config.logger(`Context Logger`, v1.config.log_level);
 
       // if this is a getGroupKeyRunId, the data is the workflow input
       if (action.getGroupKeyRunId !== '') {
@@ -125,7 +130,7 @@ export class Context<T, K = {}> {
     const errors = this.data.step_run_errors || {};
 
     if (Object.keys(errors).length === 0) {
-      this.logger.error(
+      this._logger.error(
         'No run errors found. `ctx.errors` is intended to be run in an on-failure task, and will only work on engine versions more recent than v0.53.10'
       );
     }
@@ -202,28 +207,57 @@ export class Context<T, K = {}> {
    * @param message - The message to log.
    * @param level - The log level (optional).
    */
-  log(message: string, level?: LogLevel) {
+  log(message: string, level?: LogLevel, extra?: LogExtra) {
     const { stepRunId } = this.action;
 
     if (!stepRunId) {
       // log a warning
-      this.logger.warn('cannot log from context without stepRunId');
+      this._logger.warn('cannot log from context without stepRunId');
       return;
     }
 
     const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
+    const contextExtra = {
+      workflowRunId: this.action.workflowRunId,
+      taskRunId: this.action.stepRunId,
+      retryCount: this.action.retryCount,
+      workflowName: this.action.jobName,
+      ...extra?.extra,
+    };
 
     if (!level || level === 'INFO') {
-      logger.info(message);
+      logger.info(message, contextExtra);
     } else if (level === 'DEBUG') {
-      logger.debug(message);
+      logger.debug(message, contextExtra);
     } else if (level === 'WARN') {
-      logger.warn(message);
+      logger.warn(message, extra?.error, contextExtra);
     } else if (level === 'ERROR') {
-      logger.error(message);
+      logger.error(message, extra?.error, contextExtra);
     }
+
     // FIXME: this is a hack to get around the fact that the log level is not typed
     this.v1.event.putLog(stepRunId, message, level as any);
+  }
+
+  get logger() {
+    return {
+      info: (message: string, extra?: any) => {
+        this.log(message, 'INFO', { extra });
+      },
+      debug: (message: string, extra?: any) => {
+        this.log(message, 'DEBUG', { extra });
+      },
+      warn: (message: string, extra?: LogExtra) => {
+        this.log(message, 'WARN', extra);
+      },
+      error: (message: string, extra?: LogExtra) => {
+        this.log(message, 'ERROR', extra);
+      },
+      trace: (message: string, extra?: LogExtra) => {
+        const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
+        logger.trace(message, extra);
+      },
+    };
   }
 
   /**
@@ -236,7 +270,7 @@ export class Context<T, K = {}> {
 
     if (!stepRunId) {
       // log a warning
-      this.logger.warn('cannot refresh timeout from context without stepRunId');
+      this._logger.warn('cannot refresh timeout from context without stepRunId');
       return;
     }
 
@@ -264,7 +298,7 @@ export class Context<T, K = {}> {
 
     if (!stepRunId) {
       // log a warning
-      this.logger.warn('cannot log from context without stepRunId');
+      this._logger.warn('cannot log from context without stepRunId');
       return;
     }
 
