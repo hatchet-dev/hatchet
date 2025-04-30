@@ -1,5 +1,4 @@
 import { Config } from '@/utils/config';
-import path from 'path';
 
 export const config: Config = {
   // Directories to process
@@ -43,6 +42,7 @@ export const config: Config = {
     // Go specific
     'go.mod',
     'go.sum',
+    '*_test.go',
 
     // System files
     '.DS_Store',
@@ -64,7 +64,7 @@ export const config: Config = {
     {
       from: '@hatchet',
       to: '@hatchet-dev/typescript-sdk',
-      fileTypes: ['ts']
+      fileTypes: ['ts'],
     },
   ],
 
