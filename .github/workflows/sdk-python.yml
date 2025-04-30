@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -140,7 +140,7 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -k "test_priority or test_concurrency"
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2
 
       - name: Upload engine logs
         if: always()
