@@ -3,7 +3,7 @@ import { StickyStrategy, Workflow } from '../workflow';
 
 const hatchet = Hatchet.init();
 
-// ❓ StickyWorker
+// > StickyWorker
 
 const workflow: Workflow = {
   id: 'sticky-workflow',
@@ -28,9 +28,9 @@ const workflow: Workflow = {
   ],
 };
 
-// ‼️
+// !!
 
-// ❓ StickyChild
+// > StickyChild
 
 const childWorkflow: Workflow = {
   id: 'child-sticky-workflow',
@@ -58,7 +58,7 @@ const childWorkflow: Workflow = {
   ],
 };
 
-// ‼️
+// !!
 
 async function main() {
   const worker1 = await hatchet.worker('sticky-worker-1');

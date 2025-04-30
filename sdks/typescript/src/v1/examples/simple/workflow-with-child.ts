@@ -1,4 +1,4 @@
-// ❓ Declaring a Task
+// > Declaring a Task
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -10,9 +10,24 @@ export type ParentInput = {
   Message: string;
 };
 
-export const child = hatchet.task({
+export const child = hatchet.workflow<ChildInput>({
   name: 'child',
-  fn: (input: ChildInput) => {
+});
+
+export const child1 = child.task({
+  name: 'child1',
+  fn: (input: ChildInput, ctx) => {
+    ctx.log('hello from the child1');
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+
+export const child2 = child.task({
+  name: 'child2',
+  fn: (input: ChildInput, ctx) => {
+    ctx.log('hello from the child2');
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };
@@ -27,7 +42,7 @@ export const parent = hatchet.task({
     });
 
     return {
-      TransformedMessage: c.TransformedMessage,
+      TransformedMessage: 'not implemented',
     };
   },
 });

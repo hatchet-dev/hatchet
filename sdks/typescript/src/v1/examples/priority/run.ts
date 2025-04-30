@@ -6,11 +6,11 @@ async function main() {
   try {
     console.log('running priority workflow');
 
-    // ❓ Run a Task with a Priority
+    // > Run a Task with a Priority
     const run = priority.run(new Date(Date.now() + 60 * 60 * 1000), { priority: Priority.HIGH });
     // !!
 
-    // ❓ Schedule and cron
+    // > Schedule and cron
     const scheduled = priority.schedule(
       new Date(Date.now() + 60 * 60 * 1000),
       {},

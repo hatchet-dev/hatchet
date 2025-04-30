@@ -7,7 +7,7 @@ export type SimpleInput = {
   Message: string;
 };
 async function main() {
-  // ❓ Declaring a Durable Task
+  // > Declaring a Durable Task
   const simple = hatchet.durableTask({
     name: 'simple',
     fn: async (input: SimpleInput, ctx) => {
@@ -30,7 +30,7 @@ async function main() {
   });
   // !!
 
-  // ❓ Running a Task
+  // > Running a Task
   const result = await simple.run({ Message: 'Hello, World!' });
   // !!
 }

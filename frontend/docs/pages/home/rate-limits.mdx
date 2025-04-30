@@ -1,21 +1,7 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const RateLimitPy = {
-  path: "examples/rate_limit/worker.py",
-};
-
-export const RateLimitTs = {
-  path: "src/v1/examples/rate_limit/workflow.ts",
-};
-
-export const RateLimitGo = {
-  path: "examples/v1/workflows/ratelimit.go",
-};
-
-export const getStaticProps = ({}) =>
-  getSnippets([RateLimitPy, RateLimitTs, RateLimitGo]);
 
 # Rate Limiting Step Runs in Hatchet
 
@@ -59,7 +45,7 @@ This pattern is especially useful for:
 
 We can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
 
-<GithubSnippet src={RateLimitPy} target="Dynamic" />
+<Snippet src={snips.python.rate_limit.worker} block="dynamic" />
 
   </Tabs.Tab>
   <Tabs.Tab>
@@ -67,13 +53,13 @@ We can add one or more rate limits to a task by adding the `rate_limits` configu
 
 We can add one or more rate limits to a task by adding the `rate_limits` configuration to the task definition.
 
-<GithubSnippet src={RateLimitTs} target="Dynamic" />
+<Snippet src={snips.typescript.rate_limit.workflow} block="dynamic" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 > Note: Go requires both a key and KeyExpr be set and the LimitValueExpr must be a CEL.
 
-<GithubSnippet src={RateLimitGo} target="Dynamic Rate Limit" />
+<Snippet src={snips.go.workflows.ratelimit} block="dynamic_rate_limit" />
 
   </Tabs.Tab>
 </UniversalTabs>
@@ -112,12 +98,12 @@ hatchet.rate_limits.put(RATE_LIMIT_KEY, 10, RateLimitDuration.MINUTE)
 
 {" "}
 
-<GithubSnippet src={RateLimitTs} target="Upsert Rate Limit" />
+<Snippet src={snips.typescript.rate_limit.workflow} block="upsert_rate_limit" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-    <GithubSnippet src={RateLimitGo} target="Upsert Rate Limit" />
+    <Snippet src={snips.go.workflows.ratelimit} block="upsert_rate_limit" />
 
   </Tabs.Tab>
 
@@ -130,16 +116,16 @@ With your rate limit key defined, specify the units of consumption for a specifi
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
-<GithubSnippet src={RateLimitPy} target="Static" />
+<Snippet src={snips.python.rate_limit.worker} block="static" />
 
   </Tabs.Tab>
   <Tabs.Tab>
 
-<GithubSnippet src={RateLimitTs} target="Static" />
+<Snippet src={snips.typescript.rate_limit.workflow} block="static" />
 
   </Tabs.Tab>
   <Tabs.Tab>
-    <GithubSnippet src={RateLimitGo} target="Static Rate Limit" />
+    <Snippet src={snips.go.workflows.ratelimit} block="static_rate_limit" />
 
   </Tabs.Tab>
 </UniversalTabs>

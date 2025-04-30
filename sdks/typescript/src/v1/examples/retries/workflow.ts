@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 
-// ❓ Simple Step Retries
+// > Simple Step Retries
 export const retries = hatchet.task({
   name: 'retries',
   retries: 3,
@@ -11,12 +11,12 @@ export const retries = hatchet.task({
 });
 // !!
 
-// ❓ Retries with Count
+// > Retries with Count
 export const retriesWithCount = hatchet.task({
   name: 'retriesWithCount',
   retries: 3,
   fn: async (_, ctx) => {
-    // ❓ Get the current retry count
+    // > Get the current retry count
     const retryCount = ctx.retryCount();
 
     console.log(`Retry count: ${retryCount}`);
@@ -32,7 +32,7 @@ export const retriesWithCount = hatchet.task({
 });
 // !!
 
-// ❓ Retries with Backoff
+// > Retries with Backoff
 export const withBackoff = hatchet.task({
   name: 'withBackoff',
   retries: 10,

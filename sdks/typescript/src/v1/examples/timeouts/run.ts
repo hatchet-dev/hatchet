@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-// ❓ Running a Task with Results
+// > Running a Task with Results
 import { cancellation } from './workflow';
 // ...
 async function main() {

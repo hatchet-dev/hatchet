@@ -8,7 +8,7 @@ hatchet = Hatchet(debug=True)
 cancellation_workflow = hatchet.workflow(name="CancelWorkflow")
 
 
-# ❓ Self-cancelling task
+# > Self-cancelling task
 @cancellation_workflow.task()
 async def self_cancel(input: EmptyModel, ctx: Context) -> dict[str, str]:
     await asyncio.sleep(2)
@@ -24,7 +24,7 @@ async def self_cancel(input: EmptyModel, ctx: Context) -> dict[str, str]:
 # !!
 
 
-# ❓ Checking exit flag
+# > Checking exit flag
 @cancellation_workflow.task()
 def check_flag(input: EmptyModel, ctx: Context) -> dict[str, str]:
     for i in range(3):

@@ -1,12 +1,7 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const Lifespans = {
-  path: "examples/lifespans/worker.py",
-};
-
-export const getStaticProps = ({}) => getSnippets([Lifespans]);
 
 # Lifespans
 
@@ -29,7 +24,7 @@ Hatchet's Python SDK allows you define a **_lifespan_**, which is an async gener
 
 To use Hatchet's `lifespan` feature, define an async generator and pass it into your `worker`:
 
-<GithubSnippet src={Lifespans} target="Define a lifespan" />
+<Snippet src={snips.python.lifespans.worker} block="define_a_lifespan" />
 
 When the worker starts, it will run the lifespan up to the `yield`. Then, on worker shutdown, it will clean up by running everything after the `yield` (the same as with any other generator).
 
@@ -39,7 +34,10 @@ When the worker starts, it will run the lifespan up to the `yield`. Then, on wor
 
 Then, to use your lifespan in a task, you can extract it from the context with `Context.lifespan`.
 
-<GithubSnippet src={Lifespans} target="Use the lifespan in a task" />
+<Snippet
+  src={snips.python.lifespans.worker}
+  block="use_the_lifespan_in_a_task"
+/>
 
 <Callout type="info" emoji="💡">
   For type checking, cast the `Context.lifespan` to whatever type your lifespan

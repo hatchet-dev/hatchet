@@ -9,3 +9,22 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+
+
+  # // We need to update the quickstart examples for typescript, go, and python
+  - package-ecosystem: "npm"
+    directory: "/examples/typescript"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "gomod"
+    directory: "/examples/go/quickstart"
+    schedule:
+      interval: "daily"
+
+  # TODO python quickstart
+
+  - package-ecosystem: "pip"
+    directory: "/examples/python/quickstart"
+    schedule:
+      interval: "daily"
