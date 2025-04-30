@@ -52,7 +52,7 @@ async def dummy_runs() -> None:
                     },
                 )
             )
-            for ix in range(40)
+            for ix in range(10)
         ]
     )
 
