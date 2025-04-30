@@ -7,11 +7,11 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from pydantic import BaseModel
-from hatchet_sdk.logger import logger
 
 from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
 from hatchet_sdk import Hatchet, ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.logger import logger
 
 Priority = Literal["low", "medium", "high", "default"]
 
@@ -134,6 +134,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
         """Runs should finish after starting (this is mostly a test for engine datetime handling bugs)"""
         assert curr.finished_at >= curr.started_at
 
+
 @pytest.mark.asyncio()
 async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
@@ -167,7 +168,9 @@ async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> No
 
     while True:
         print("Sleeping for priority in scheduling test, attempts:", attempts)
-        logger.warning(f"Sleeping for priority in scheduling test, attempts: {attempts}")
+        logger.warning(
+            f"Sleeping for priority in scheduling test, attempts: {attempts}"
+        )
         if attempts >= SLEEP_TIME * n * 2:
             raise TimeoutError("Timed out waiting for runs to finish")
 
@@ -258,6 +261,7 @@ def time_until_next_minute() -> float:
     next_minute = now.replace(second=0, microsecond=0, minute=now.minute + 1)
 
     return (next_minute - now).total_seconds()
+
 
 @pytest.mark.asyncio()
 async def test_priority_via_cron(hatchet: Hatchet, crons: tuple[str, str, int]) -> None:

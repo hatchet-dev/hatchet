@@ -133,7 +133,9 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
     }
 
     for id, group in overlapping_groups.items():
-        assert is_valid_group(group), f"Group {id} is not valid"
+        assert is_valid_group(
+            group
+        ), f"Group {id} is not valid. Digit max runs: {DIGIT_MAX_RUNS}, name max runs: {NAME_MAX_RUNS}. Keys: {[s.key for s in group]}"
 
 
 def are_overlapping(x: RunMetadata, y: RunMetadata) -> bool:
