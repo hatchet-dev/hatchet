@@ -211,6 +211,17 @@ export class Context<T, K = {}> {
       return;
     }
 
+    const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
+
+    if (!level || level === 'INFO') {
+      logger.info(message);
+    } else if (level === 'DEBUG') {
+      logger.debug(message);
+    } else if (level === 'WARN') {
+      logger.warn(message);
+    } else if (level === 'ERROR') {
+      logger.error(message);
+    }
     // FIXME: this is a hack to get around the fact that the log level is not typed
     this.v1.event.putLog(stepRunId, message, level as any);
   }
