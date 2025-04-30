@@ -287,7 +287,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		scheduled, err := config.APIRepository.WorkflowRun().GetScheduledWorkflow(context.Background(), parentId, id)
 
-		if err != nil {
+		if err != nil || scheduled == nil {
 			return nil, "", err
 		}
 
