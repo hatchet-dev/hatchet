@@ -878,11 +878,9 @@ WITH input AS (
         d.workflow_version_id,
         d.parent_task_external_id
     FROM v1_runs_olap r
-    JOIN v1_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
-    WHERE
-        (r.inserted_at, r.id) IN (SELECT inserted_at, id FROM input)
-        AND r.tenant_id = $3::uuid
-        AND r.kind = 'DAG'
+    JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
+    JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
+    WHERE r.tenant_id = $3::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
     SELECT
         r.run_id,
