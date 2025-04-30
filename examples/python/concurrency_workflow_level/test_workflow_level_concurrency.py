@@ -4,6 +4,7 @@ from datetime import datetime
 from random import choice
 from typing import Literal
 from uuid import uuid4
+from hatchet_sdk.logger import logger
 
 import pytest
 from pydantic import BaseModel
@@ -54,6 +55,7 @@ class RunMetadata(BaseModel):
 @pytest.mark.asyncio()
 async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
+    logger.info(f"In test_workflow_level_concurrency with test run ID: {test_run_id}")
 
     run_refs = await concurrency_workflow_level_workflow.aio_run_many_no_wait(
         [
@@ -75,33 +77,20 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
         ]
     )
 
+    logger.info("Finished creating tasks, waiting for them to finish")
+
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(
-            workflow_name=concurrency_workflow_level_workflow.name,
-            limit=1_000,
-        )
-    ).rows
+    logger.info("Finished waiting for tasks to finish")
 
-    assert workflows
-
-    workflow = next(
-        (w for w in workflows if w.name == concurrency_workflow_level_workflow.name),
-        None,
-    )
-
-    assert workflow
-
-    assert workflow.name == concurrency_workflow_level_workflow.name
-
-    runs = await hatchet.runs.aio_list(
-        workflow_ids=[workflow.metadata.id],
+    runs = await concurrency_workflow_level_workflow.aio_list_runs(
         additional_metadata={
             "test_run_id": test_run_id,
         },
         limit=1_000,
     )
+
+    logger.info("Finished listing tasks")
 
     sorted_runs = sorted(
         [RunMetadata.parse(r) for r in runs.rows], key=lambda r: r.started_at
