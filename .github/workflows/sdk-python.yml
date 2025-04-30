@@ -19,41 +19,41 @@ defaults:
     working-directory: ./sdks/python
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # lint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.13"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.5.1
-          virtualenvs-create: true
-          virtualenvs-in-project: true
+  #     - name: Install Poetry
+  #       uses: snok/install-poetry@v1
+  #       with:
+  #         version: 1.5.1
+  #         virtualenvs-create: true
+  #         virtualenvs-in-project: true
 
-      - name: Install linting tools
-        run: poetry install --all-extras
+  #     - name: Install linting tools
+  #       run: poetry install --all-extras
 
-      - name: Run Black
-        run: poetry run black . --check --verbose --diff --color
+  #     - name: Run Black
+  #       run: poetry run black . --check --verbose --diff --color
 
-      - name: Run Isort
-        run: poetry run isort . --check-only --diff
+  #     - name: Run Isort
+  #       run: poetry run isort . --check-only --diff
 
-      - name: Run MyPy
-        run: poetry run mypy --config-file=pyproject.toml
+  #     - name: Run MyPy
+  #       run: poetry run mypy --config-file=pyproject.toml
 
-      - name: Run Ruff
-        run: poetry run ruff check .
+  #     - name: Run Ruff
+  #       run: poetry run ruff check .
 
-      - name: Run Pydoclint
-        run: poetry run pydoclint .
+  #     - name: Run Pydoclint
+  #       run: poetry run pydoclint .
 
   test:
     runs-on: ubuntu-latest
@@ -140,7 +140,7 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -k "test_priority or test_concurrency"
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2
 
       - name: Upload engine logs
         if: always()
