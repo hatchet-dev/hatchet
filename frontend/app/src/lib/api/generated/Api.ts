@@ -1732,6 +1732,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       workflowId?: string;
+      /** The workflow name to get runs for. */
+      workflowName?: string;
+      /** The cron name to get runs for. */
+      cronName?: string;
       /**
        * A list of metadata key value pairs to filter by
        * @example ["key1:value1","key2:value2"]
