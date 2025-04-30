@@ -50,6 +50,7 @@ SELECT
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
+    COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount"
 FROM
@@ -117,7 +118,8 @@ INSERT INTO "WorkflowVersion" (
     "workflowId",
     "scheduleTimeout",
     "sticky",
-    "kind"
+    "kind",
+    "defaultPriority"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -129,7 +131,8 @@ INSERT INTO "WorkflowVersion" (
     -- Deprecated: this is set but unused
     '5m',
     sqlc.narg('sticky')::"StickyStrategy",
-    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG')
+    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG'),
+    sqlc.narg('defaultPriority') :: integer
 ) RETURNING *;
 
 -- name: CreateJob :one
@@ -210,7 +213,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "input",
     "additionalMetadata",
     "id",
-    "method"
+    "method",
+    "priority"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
@@ -218,7 +222,8 @@ INSERT INTO "WorkflowTriggerCronRef" (
     sqlc.narg('input')::jsonb,
     sqlc.narg('additionalMetadata')::jsonb,
     gen_random_uuid(),
-    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT'),
+    COALESCE(sqlc.narg('priority')::integer, 1)
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one
@@ -433,6 +438,79 @@ WHERE
     w."deletedAt" IS NULL AND
     workflowVersions."deletedAt" IS NULL;
 
+-- name: CreateWorkflowConcurrencyV1 :one
+WITH inserted_wcs AS (
+    INSERT INTO v1_workflow_concurrency (
+      workflow_id,
+      workflow_version_id,
+      strategy,
+      expression,
+      tenant_id,
+      max_concurrency
+    )
+    VALUES (
+      @workflowId::uuid,
+      @workflowVersionId::uuid,
+      @limitStrategy::v1_concurrency_strategy,
+      @expression,
+      @tenantId::uuid,
+      COALESCE(sqlc.narg('maxRuns')::integer, 1)
+    )
+    RETURNING *
+), inserted_scs AS (
+    INSERT INTO v1_step_concurrency (
+      parent_strategy_id,
+      workflow_id,
+      workflow_version_id,
+      step_id,
+      strategy,
+      expression,
+      tenant_id,
+      max_concurrency
+    )
+    SELECT
+      wcs.id,
+      s."workflowId",
+      s."workflowVersionId",
+      s."id",
+      @limitStrategy::v1_concurrency_strategy,
+      @expression,
+      s."tenantId",
+      COALESCE(sqlc.narg('maxRuns')::integer, 1)
+    FROM (
+        SELECT
+          s."id",
+          wf."id" AS "workflowId",
+          wv."id" AS "workflowVersionId",
+          wf."tenantId"
+        FROM "Step" s
+        JOIN "Job" j ON s."jobId" = j."id"
+        JOIN "WorkflowVersion" wv ON j."workflowVersionId" = wv."id"
+        JOIN "Workflow" wf ON wv."workflowId" = wf."id"
+        WHERE
+          wv."id" = @workflowVersionId::uuid
+          AND j."kind" = 'DEFAULT'
+    ) s, inserted_wcs wcs
+    RETURNING *
+)
+SELECT
+    wcs.id,
+    ARRAY_AGG(scs.id)::bigint[] AS child_strategy_ids
+FROM
+    inserted_wcs wcs
+JOIN
+    inserted_scs scs ON scs.parent_strategy_id = wcs.id
+GROUP BY
+    wcs.id;
+
+-- name: UpdateWorkflowConcurrencyWithChildStrategyIds :exec
+-- Update the workflow concurrency row using its primary key.
+UPDATE v1_workflow_concurrency
+SET child_strategy_ids = @childStrategyIds::bigint[]
+WHERE workflow_id = @workflowId::uuid
+  AND workflow_version_id = @workflowVersionId::uuid
+  AND id = @workflowConcurrencyId::bigint;
+
 -- name: CreateStepConcurrency :one
 INSERT INTO v1_step_concurrency (
     workflow_id,
@@ -487,3 +565,16 @@ FROM
 WHERE
     step_id = ANY(@stepIds::uuid[])
     AND tenant_id = @tenantId::uuid;
+
+-- name: LockWorkflowVersion :one
+SELECT
+    "id"
+FROM
+    "WorkflowVersion"
+WHERE
+    "workflowId" = @workflowId::uuid AND
+    "deletedAt" IS NULL
+ORDER BY
+    "order" DESC
+LIMIT 1
+FOR UPDATE;

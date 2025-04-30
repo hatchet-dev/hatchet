@@ -606,9 +606,9 @@ SELECT
 FROM
     v1_lookup_table_olap lt
 JOIN
-    v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    v1_dag_to_task_olap dt ON (lt.dag_id, lt.inserted_at)= (dt.dag_id, dt.dag_inserted_at)
 JOIN
-    v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (lt.tenant_id, dt.task_id, dt.task_inserted_at)
+    v1_tasks_olap t ON (t.id, t.inserted_at) = (dt.task_id, dt.task_inserted_at)
 WHERE
     lt.external_id = ANY($1::uuid[])
     AND lt.tenant_id = $2::uuid
@@ -1082,6 +1082,7 @@ WITH input AS (
         t.action_id,
         t.step_id,
         t.workflow_id,
+        t.workflow_version_id,
         t.schedule_timeout,
         t.step_timeout,
         t.priority,
@@ -1182,6 +1183,7 @@ SELECT
     t.action_id,
     t.step_id,
     t.workflow_id,
+    t.workflow_version_id,
     t.schedule_timeout,
     t.step_timeout,
     t.priority,
@@ -1222,6 +1224,7 @@ type PopulateTaskRunDataRow struct {
 	ActionID           string               `json:"action_id"`
 	StepID             pgtype.UUID          `json:"step_id"`
 	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
 	ScheduleTimeout    string               `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text          `json:"step_timeout"`
 	Priority           pgtype.Int4          `json:"priority"`
@@ -1254,6 +1257,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.ActionID,
 			&i.StepID,
 			&i.WorkflowID,
+			&i.WorkflowVersionID,
 			&i.ScheduleTimeout,
 			&i.StepTimeout,
 			&i.Priority,

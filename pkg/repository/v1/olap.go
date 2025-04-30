@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -181,6 +182,8 @@ type UpdateDAGStatusRow struct {
 
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
+	SetReadReplicaPool(pool *pgxpool.Pool)
+
 	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error)
@@ -209,6 +212,8 @@ type OLAPRepository interface {
 type OLAPRepositoryImpl struct {
 	*sharedRepository
 
+	readPool *pgxpool.Pool
+
 	eventCache *lru.Cache[string, bool]
 
 	olapRetentionPeriod time.Duration
@@ -231,6 +236,7 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 
 	return &OLAPRepositoryImpl{
 		sharedRepository:    shared,
+		readPool:            shared.pool,
 		eventCache:          eventCache,
 		olapRetentionPeriod: olapRetentionPeriod,
 	}
@@ -303,6 +309,10 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	return nil
 }
 
+func (o *OLAPRepositoryImpl) SetReadReplicaPool(pool *pgxpool.Pool) {
+	o.readPool = pool
+}
+
 func StringToReadableStatus(status string) ReadableTaskStatus {
 	switch status {
 	case "QUEUED":
@@ -321,7 +331,7 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error) {
-	row, err := r.queries.ReadTaskByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(taskExternalId))
+	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool, sqlchelpers.UUIDFromStr(taskExternalId))
 
 	if err != nil {
 		return nil, err
@@ -367,7 +377,7 @@ func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 }
 
 func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error) {
-	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.pool, workflowRunExternalId)
+	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.readPool, workflowRunExternalId)
 
 	if err != nil {
 		return nil, err
@@ -402,7 +412,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error) {
-	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.pool, sqlcv1.PopulateSingleTaskRunDataParams{
+	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.readPool, sqlcv1.PopulateSingleTaskRunDataParams{
 		Taskid:         taskId,
 		Tenantid:       tenantId,
 		Taskinsertedat: taskInsertedAt,
@@ -418,7 +428,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 		dagId := taskRun.DagID.Int64
 		dagInsertedAt := taskRun.DagInsertedAt
 
-		workflowRunId, err = r.queries.GetWorkflowRunIdFromDagIdInsertedAt(ctx, r.pool, sqlcv1.GetWorkflowRunIdFromDagIdInsertedAtParams{
+		workflowRunId, err = r.queries.GetWorkflowRunIdFromDagIdInsertedAt(ctx, r.readPool, sqlcv1.GetWorkflowRunIdFromDagIdInsertedAtParams{
 			Dagid:         dagId,
 			Daginsertedat: dagInsertedAt,
 		})
@@ -432,7 +442,10 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId pgtyp
 }
 
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error) {
-	tx, err := r.pool.Begin(ctx)
+	ctx, span := telemetry.NewSpan(ctx, "list-tasks-olap")
+	defer span.End()
+
+	tx, err := r.readPool.Begin(ctx)
 
 	if err != nil {
 		return nil, 0, err
@@ -540,7 +553,10 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
-	tx, err := r.pool.Begin(ctx)
+	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-dag-id-olap")
+	defer span.End()
+
+	tx, err := r.readPool.Begin(ctx)
 	taskIdToDagExternalId := make(map[int64]uuid.UUID)
 
 	if err != nil {
@@ -588,7 +604,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.readPool.Begin(ctx)
 
 	if err != nil {
 		return nil, err
@@ -622,7 +638,10 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
-	tx, err := r.pool.Begin(ctx)
+	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")
+	defer span.End()
+
+	tx, err := r.readPool.Begin(ctx)
 
 	if err != nil {
 		return nil, 0, err
@@ -805,6 +824,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				InsertedAt:         task.InsertedAt,
 				ExternalID:         task.ExternalID,
 				WorkflowID:         task.WorkflowID,
+				WorkflowVersionId:  task.WorkflowVersionID,
 				DisplayName:        task.DisplayName,
 				ReadableStatus:     task.Status,
 				AdditionalMetadata: task.AdditionalMetadata,
@@ -827,7 +847,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 }
 
 func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error) {
-	rows, err := r.queries.ListTaskEvents(ctx, r.pool, sqlcv1.ListTaskEventsParams{
+	rows, err := r.queries.ListTaskEvents(ctx, r.readPool, sqlcv1.ListTaskEventsParams{
 		Tenantid:       sqlchelpers.UUIDFromStr(tenantId),
 		Taskid:         taskId,
 		Taskinsertedat: taskInsertedAt,
@@ -841,7 +861,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId str
 }
 
 func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error) {
-	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, r.pool, sqlcv1.ListTaskEventsForWorkflowRunParams{
+	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, r.readPool, sqlcv1.ListTaskEventsForWorkflowRunParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflowrunid: workflowRunId,
 	})
@@ -869,7 +889,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		parentTaskExternalId = *opts.ParentTaskExternalID
 	}
 
-	res, err := r.queries.GetTenantStatusMetrics(context.Background(), r.pool, sqlcv1.GetTenantStatusMetricsParams{
+	res, err := r.queries.GetTenantStatusMetrics(context.Background(), r.readPool, sqlcv1.GetTenantStatusMetricsParams{
 		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
 		Createdafter:         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		WorkflowIds:          workflowIds,
@@ -1194,7 +1214,7 @@ func (r *OLAPRepositoryImpl) CreateDAGs(ctx context.Context, tenantId string, da
 }
 
 func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error) {
-	rows, err := r.queries.GetTaskPointMetrics(ctx, r.pool, sqlcv1.GetTaskPointMetricsParams{
+	rows, err := r.queries.GetTaskPointMetrics(ctx, r.readPool, sqlcv1.GetTaskPointMetricsParams{
 		Interval:      durationToPgInterval(bucketInterval),
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Createdafter:  sqlchelpers.TimestamptzFromTime(*startTimestamp),
@@ -1213,7 +1233,7 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId s
 }
 
 func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error) {
-	return r.queries.ReadDAGByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(dagExternalId))
+	return r.queries.ReadDAGByExternalID(ctx, r.readPool, sqlchelpers.UUIDFromStr(dagExternalId))
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
@@ -1223,7 +1243,7 @@ func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantI
 		externalUUIDs = append(externalUUIDs, sqlchelpers.UUIDFromStr(id))
 	}
 
-	return r.queries.FlattenTasksByExternalIds(ctx, r.pool, sqlcv1.FlattenTasksByExternalIdsParams{
+	return r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
 		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Externalids: externalUUIDs,
 	})
@@ -1240,7 +1260,7 @@ func durationToPgInterval(d time.Duration) pgtype.Interval {
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error) {
-	return r.queries.ListWorkflowRunDisplayNames(ctx, r.pool, sqlcv1.ListWorkflowRunDisplayNamesParams{
+	return r.queries.ListWorkflowRunDisplayNames(ctx, r.readPool, sqlcv1.ListWorkflowRunDisplayNamesParams{
 		Tenantid:    tenantId,
 		Externalids: externalIds,
 	})

@@ -37,6 +37,7 @@ class Context:
         durable_event_listener: DurableEventListener | None,
         worker: WorkerContext,
         runs_client: RunsClient,
+        lifespan_context: Any | None,
     ):
         self.worker = worker
 
@@ -58,6 +59,8 @@ class Context:
         self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         self.input = self.data.input
+
+        self._lifespan_context = lifespan_context
 
     def was_skipped(self, task: "Task[TWorkflowInput, R]") -> bool:
         return self.data.parents.get(task.name, {}).get("skipped", False)
@@ -117,18 +120,25 @@ class Context:
         return self.input
 
     @property
+    def lifespan(self) -> Any:
+        return self._lifespan_context
+
+    @property
     def workflow_run_id(self) -> str:
         return self.action.workflow_run_id
+
+    def _set_cancellation_flag(self) -> None:
+        self.exit_flag = True
 
     def cancel(self) -> None:
         logger.debug("cancelling step...")
         self.runs_client.cancel(self.step_run_id)
-        self.exit_flag = True
+        self._set_cancellation_flag()
 
     async def aio_cancel(self) -> None:
         logger.debug("cancelling step...")
         await self.runs_client.aio_cancel(self.step_run_id)
-        self.exit_flag = True
+        self._set_cancellation_flag()
 
     # done returns true if the context has been cancelled
     def done(self) -> bool:
@@ -220,6 +230,10 @@ class Context:
     @property
     def parent_workflow_run_id(self) -> str | None:
         return self.action.parent_workflow_run_id
+
+    @property
+    def priority(self) -> int | None:
+        return self.action.priority
 
     @property
     def task_run_errors(self) -> dict[str, str]:

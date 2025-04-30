@@ -1,5 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
 
 #### Cd into your project directory
 
@@ -43,9 +44,7 @@ func Client() (client.Client, error) {
 
 #### Install the Hatchet SDK and required dependencies
 
-```bash copy
-go mod tidy
-```
+<InstallCommand installOnly />
 
 #### Import the Hatchet Client Factory
 

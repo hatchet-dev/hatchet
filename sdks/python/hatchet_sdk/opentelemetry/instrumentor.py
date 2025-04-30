@@ -59,7 +59,6 @@ def create_traceparent() -> str | None:
     :returns: A W3C-formatted traceparent header value if successful, None if the context
                     injection fails or no active span exists.\n
                     Example: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
-    :rtype: str | None:
     """
 
     carrier: dict[str, str] = {}
@@ -79,10 +78,9 @@ def parse_carrier_from_metadata(
 
     :param metadata: A dictionary containing metadata key-value pairs,
                      potentially including the `traceparent` header. Can be None.
-    :type metadata: dict[str, str] | None
+
     :returns: The extracted OpenTelemetry Context object if a valid `traceparent`
               is found in the metadata, otherwise None.
-    :rtype: Context | None
 
     :Example:
 
@@ -112,13 +110,12 @@ def inject_traceparent_into_metadata(
     `OTEL_TRACEPARENT_KEY`. If no `traceparent` is provided, it attempts to create one.
 
     :param metadata: The metadata dictionary to inject the `traceparent` into.
-    :type metadata: dict[str, str]
+
     :param traceparent: The `traceparent` string to inject. If None, attempts to use
                         the current span.
-    :type traceparent: str | None, optional
+
     :returns: A new metadata dictionary containing the original metadata plus
               the injected `traceparent`, if one was available or could be created.
-    :rtype: dict[str, str]
 
     :Example:
 
@@ -141,22 +138,23 @@ def inject_traceparent_into_metadata(
 
 
 class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
+    """
+    Hatchet OpenTelemetry instrumentor.
+
+    The instrumentor provides an OpenTelemetry integration for Hatchet by setting up
+    tracing and metrics collection.
+
+    :param tracer_provider: TracerProvider | None: The OpenTelemetry TracerProvider to use.
+            If not provided, the global tracer provider will be used.
+    :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
+            If not provided, a no-op meter provider will be used.
+    """
+
     def __init__(
         self,
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
     ):
-        """
-        Hatchet OpenTelemetry instrumentor.
-
-        The instrumentor provides an OpenTelemetry integration for Hatchet by setting up
-        tracing and metrics collection.
-
-        :param tracer_provider: TracerProvider | None: The OpenTelemetry TracerProvider to use.
-                If not provided, the global tracer provider will be used.
-        :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
-                If not provided, a no-op meter provider will be used.
-        """
 
         self.tracer_provider = tracer_provider or get_tracer_provider()
         self.meter_provider = meter_provider or NoOpMeterProvider()
@@ -269,17 +267,17 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     async def _wrap_handle_cancel_action(
         self,
-        wrapped: Callable[[str], Coroutine[None, None, Exception | None]],
+        wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
         instance: Runner,
-        args: tuple[str],
+        args: tuple[Action],
         kwargs: Any,
     ) -> Exception | None:
-        step_run_id = args[0]
+        action = args[0]
 
         with self._tracer.start_as_current_span(
             "hatchet.cancel_step_run",
             attributes={
-                "hatchet.step_run_id": step_run_id,
+                "hatchet.step_run_id": action.step_run_id,
             },
         ):
             return await wrapped(*args, **kwargs)

@@ -58,6 +58,9 @@ type CreateTaskOpts struct {
 	// (optional) the parent task inserted at
 	ParentTaskInsertedAt *time.Time
 
+	// (optional) The priority of a task, between 1 and 3
+	Priority *int32
+
 	// (optional) the child index for the task
 	ChildIndex *int64
 
@@ -1006,6 +1009,19 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId s
 		return nil, false, err
 	}
 
+	if len(toTimeout) == 0 {
+		return &TimeoutTasksResponse{
+			FailTasksResponse: &FailTasksResponse{
+				FinalizedTaskResponse: &FinalizedTaskResponse{
+					ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+					InternalEvents: make([]InternalTaskEvent, 0),
+				},
+				RetriedTasks: make([]RetriedTask, 0),
+			},
+			TimeoutTasks: make([]*sqlcv1.ListTasksToTimeoutRow, 0),
+		}, false, nil
+	}
+
 	// parse into FailTaskOpts
 	failOpts := make([]FailTaskOpts, 0, len(toTimeout))
 
@@ -1062,6 +1078,16 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 
 	if err != nil {
 		return nil, false, err
+	}
+
+	if len(toReassign) == 0 {
+		return &FailTasksResponse{
+			FinalizedTaskResponse: &FinalizedTaskResponse{
+				ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+				InternalEvents: make([]InternalTaskEvent, 0),
+			},
+			RetriedTasks: make([]RetriedTask, 0),
+		}, false, nil
 	}
 
 	// parse into FailTaskOpts
@@ -1521,7 +1547,15 @@ func (r *sharedRepository) insertTasks(
 		// we're assuming a v1 task.
 		inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		retryCounts[i] = 0
-		priorities[i] = 1
+
+		defaultPriority := stepConfig.DefaultPriority
+		priority := defaultPriority
+
+		if task.Priority != nil {
+			priority = *task.Priority
+		}
+
+		priorities[i] = priority
 
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 
@@ -1619,6 +1653,8 @@ func (r *sharedRepository) insertTasks(
 						}
 					}
 
+					// Make sure to fail the task with a user-friendly error if we can't parse the CEL for priority
+					// Can set fail task error which will insert with an initial state of failed
 					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
 						cel.WithInput(task.Input.Input),
 						cel.WithAdditionalMetadata(additionalMeta),
@@ -2151,7 +2187,22 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	stepIdToStrats := make(map[string][]*sqlcv1.V1StepConcurrency)
 
 	sort.SliceStable(strats, func(i, j int) bool {
-		return strats[i].ID < strats[j].ID
+		iStrat := strats[i]
+		jStrat := strats[j]
+
+		if iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid && iStrat.ParentStrategyID.Int64 != jStrat.ParentStrategyID.Int64 {
+			return iStrat.ParentStrategyID.Int64 < jStrat.ParentStrategyID.Int64
+		}
+
+		if iStrat.ParentStrategyID.Valid && !jStrat.ParentStrategyID.Valid {
+			return true
+		}
+
+		if !iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid {
+			return false
+		}
+
+		return iStrat.ID < jStrat.ID
 	})
 
 	for _, strat := range strats {

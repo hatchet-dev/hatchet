@@ -16,7 +16,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Label } from '@/components/v1/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Input } from '@/components/v1/ui/input';
-import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
 import {
   getRepoName,
   getRepoOwner,
@@ -49,6 +48,7 @@ import {
   managedCompute,
 } from '@/lib/can/features/managed-compute';
 import { useTenant } from '@/lib/atoms';
+import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
 
 interface UpdateWorkerFormProps {
   onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
@@ -75,7 +75,22 @@ const updateManagedWorkerSchema = z.object({
     })
     .optional(),
   isIac: z.boolean().default(false).optional(),
-  envVars: z.record(z.string()).optional(),
+  secrets: z.object({
+    add: z.array(
+      z.object({
+        key: z.string(),
+        value: z.string(),
+      }),
+    ),
+    update: z.array(
+      z.object({
+        id: z.string(),
+        key: z.string(),
+        value: z.string(),
+      }),
+    ),
+    delete: z.array(z.string()),
+  }),
   runtimeConfig: z
     .object({
       numReplicas: z.number().min(0).max(16).optional(),
@@ -139,7 +154,11 @@ export default function UpdateWorkerForm({
           },
         ],
       },
-      envVars: managedWorker.envVars,
+      secrets: {
+        add: [],
+        update: [],
+        delete: [],
+      },
       isIac: managedWorker.isIac,
       runtimeConfig:
         !managedWorker.isIac && managedWorker.runtimeConfigs?.length == 1
@@ -193,6 +212,25 @@ export default function UpdateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
+  // Set initial machine type based on current worker configuration
+  useEffect(() => {
+    if (
+      managedWorker?.runtimeConfigs &&
+      managedWorker.runtimeConfigs.length > 0
+    ) {
+      const config = managedWorker.runtimeConfigs[0];
+      const matchingType = machineTypes.find(
+        (m) =>
+          m.cpuKind === config.cpuKind &&
+          m.cpus === config.cpus &&
+          m.memoryMb === config.memoryMb,
+      );
+      if (matchingType) {
+        setMachineType(matchingType.title);
+      }
+    }
+  }, [managedWorker]);
+
   const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
@@ -212,8 +250,16 @@ export default function UpdateWorkerForm({
     ...queries.github.listBranches(tenantId, installation, repoOwner, repoName),
   });
 
-  const [envVars, setEnvVars] = useState<KeyValueType[]>(
-    envVarsRecordToKeyValueType(managedWorker.envVars),
+  const [secrets, setSecrets] = useState<KeyValueType[]>(
+    managedWorker.directSecrets?.map((secret) => ({
+      key: secret.key,
+      value: secret.hint || '',
+      hidden: false,
+      locked: false,
+      deleted: false,
+      id: secret.id,
+      hint: secret.hint,
+    })) || [],
   );
 
   const [isIac, setIsIac] = useState(managedWorker.isIac);
@@ -234,8 +280,8 @@ export default function UpdateWorkerForm({
   const numReplicasError =
     errors.runtimeConfig?.numReplicas?.message?.toString() ||
     fieldErrors?.numReplicas;
-  const envVarsError =
-    errors.envVars?.message?.toString() || fieldErrors?.envVars;
+  const secretsError =
+    errors.secrets?.add?.message?.toString() || fieldErrors?.secrets;
   const cpuKindError =
     errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
   const cpusError =
@@ -324,6 +370,33 @@ export default function UpdateWorkerForm({
 
     return can(managedCompute.selectCompute(computeType));
   }, [can, machineType]);
+
+  // Update form values when secrets change
+  useEffect(() => {
+    // Split secrets into add/update/delete
+    const toAdd = secrets.filter((s) => !s.id && !s.deleted);
+    const toUpdate = secrets.filter((s) => s.id && !s.deleted && s.isEditing);
+    const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
+
+    setValue(
+      'secrets.add',
+      toAdd.map((s) => ({
+        key: s.key,
+        value: s.value,
+      })),
+    );
+
+    setValue(
+      'secrets.update',
+      toUpdate.map((s) => ({
+        id: s.id!,
+        key: s.key,
+        value: s.value,
+      })),
+    );
+
+    setValue('secrets.delete', toDelete);
+  }, [secrets, setValue]);
 
   // if there are no github accounts linked, ask the user to link one
   if (
@@ -565,20 +638,21 @@ export default function UpdateWorkerForm({
               </div>
               <Label>Environment Variables</Label>
               <EnvGroupArray
-                values={envVars}
-                setValues={(value) => {
-                  setEnvVars(value);
-                  setValue(
-                    'envVars',
-                    value.reduce<Record<string, string>>((acc, item) => {
-                      acc[item.key] = item.value;
-                      return acc;
-                    }, {}),
-                  );
+                values={secrets}
+                setValues={setSecrets}
+                onUpdate={(updatedSecrets) => {
+                  // Update the secrets state with the new values
+                  setSecrets((prev) => {
+                    const newSecrets = prev.map((s) => {
+                      const updated = updatedSecrets.find((u) => u.id === s.id);
+                      return updated ? { ...s, ...updated } : s;
+                    });
+                    return newSecrets;
+                  });
                 }}
               />
-              {envVarsError && (
-                <div className="text-sm text-red-500">{envVarsError}</div>
+              {secretsError && (
+                <div className="text-sm text-red-500">{secretsError}</div>
               )}
               <Label>Machine Configuration Method</Label>
               <Tabs
@@ -1007,16 +1081,4 @@ export default function UpdateWorkerForm({
       </div>
     </>
   );
-}
-
-function envVarsRecordToKeyValueType(
-  envVars: Record<string, string>,
-): KeyValueType[] {
-  return Object.entries(envVars).map(([key, value]) => ({
-    key,
-    value,
-    hidden: false,
-    locked: false,
-    deleted: false,
-  }));
 }

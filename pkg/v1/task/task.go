@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -145,12 +146,11 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	}
 
 	if t.ExecutionTimeout != nil {
-		executionTimeout := t.ExecutionTimeout.String()
-		taskOpts.Timeout = executionTimeout
+		taskOpts.Timeout = durationToSeconds(*t.ExecutionTimeout)
 	}
 
 	if t.ScheduleTimeout != nil {
-		scheduleTimeout := t.ScheduleTimeout.String()
+		scheduleTimeout := durationToSeconds(*t.ScheduleTimeout)
 		taskOpts.ScheduleTimeout = &scheduleTimeout
 	}
 
@@ -174,12 +174,11 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 		}
 
 		if t.ExecutionTimeout == nil && taskDefaults.ExecutionTimeout != 0 {
-			executionTimeout := taskDefaults.ExecutionTimeout.String()
-			taskOpts.Timeout = executionTimeout
+			taskOpts.Timeout = durationToSeconds(taskDefaults.ExecutionTimeout)
 		}
 
 		if t.ScheduleTimeout == nil && taskDefaults.ScheduleTimeout != 0 {
-			scheduleTimeout := taskDefaults.ScheduleTimeout.String()
+			scheduleTimeout := durationToSeconds(taskDefaults.ScheduleTimeout)
 			taskOpts.ScheduleTimeout = &scheduleTimeout
 		}
 
@@ -199,7 +198,7 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
-	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
+	base.Action = getActionID(workflowName, t.Name)
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 
@@ -240,10 +239,18 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	return base
 }
 
+func durationToSeconds(d time.Duration) string {
+	if d == 0 {
+		return "0s"
+	}
+
+	return fmt.Sprintf("%ds", int(d.Seconds()))
+}
+
 func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts {
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
-	base.Action = fmt.Sprintf("%s:%s", workflowName, t.Name)
+	base.Action = getActionID(workflowName, t.Name)
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 	return base
@@ -254,7 +261,7 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *cr
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 
 	base.ReadableId = "on-failure"
-	base.Action = fmt.Sprintf("%s:%s", workflowName, "on-failure")
+	base.Action = getActionID(workflowName, "on-failure")
 
 	return base
 }
@@ -272,4 +279,8 @@ func (t *DurableTaskDeclaration[I]) GetName() string {
 // Implement GetName for NamedTask
 func (t *NamedTaskImpl) GetName() string {
 	return t.Name
+}
+
+func getActionID(workflowName, taskName string) string {
+	return strings.ToLower(fmt.Sprintf("%s:%s", workflowName, taskName))
 }

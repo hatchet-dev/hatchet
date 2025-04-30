@@ -7,10 +7,13 @@ from typing import Any, AsyncGenerator, cast
 
 import grpc
 import grpc.aio
-from grpc._cython import cygrpc  # type: ignore[attr-defined]
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.clients.event_ts import (
+    ThreadSafeEvent,
+    UnexpectedEOF,
+    read_with_interrupt,
+)
 from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
@@ -42,7 +45,7 @@ class GetActionListenerRequest(BaseModel):
     worker_name: str
     services: list[str]
     actions: list[str]
-    slots: int = 100
+    slots: int
     raw_labels: dict[str, str | int] = Field(default_factory=dict)
 
     labels: dict[str, WorkerLabels] = Field(default_factory=dict)
@@ -85,6 +88,9 @@ class ActionType(str, Enum):
     START_GET_GROUP_KEY = "START_GET_GROUP_KEY"
 
 
+ActionKey = str
+
+
 class Action(BaseModel):
     worker_id: str
     tenant_id: str
@@ -104,6 +110,8 @@ class Action(BaseModel):
     child_workflow_index: int | None = None
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
+
+    priority: int | None = None
 
     def _dump_payload_to_str(self) -> str:
         try:
@@ -135,6 +143,18 @@ class Action(BaseModel):
         }
 
         return {k: v for k, v in attrs.items() if v}
+
+    @property
+    def key(self) -> ActionKey:
+        """
+        This key is used to uniquely identify a single step run by its id + retry count.
+        It's used when storing references to a task, a context, etc. in a dictionary so that
+        we can look up those items in the dictionary by a unique key.
+        """
+        if self.action_type == ActionType.START_GET_GROUP_KEY:
+            return f"{self.get_group_key_run_id}/{self.retry_count}"
+        else:
+            return f"{self.step_run_id}/{self.retry_count}"
 
 
 def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:
@@ -265,7 +285,6 @@ class ActionListener:
                     await self.interrupt.wait()
 
                     if not t.done():
-                        # print a warning
                         logger.warning(
                             "Interrupted read_with_interrupt task of action listener"
                         )
@@ -275,13 +294,16 @@ class ActionListener:
 
                         break
 
-                    assigned_action, _ = t.result()
+                    result = t.result()
 
-                    if assigned_action is cygrpc.EOF:
+                    if isinstance(result, UnexpectedEOF):
+                        logger.debug("Handling EOF in Action Listener")
                         self.retries = self.retries + 1
                         break
 
                     self.retries = 0
+
+                    assigned_action = result.data
 
                     try:
                         action_payload = (
@@ -320,6 +342,7 @@ class ActionListener:
                         child_workflow_index=assigned_action.child_workflow_index,
                         child_workflow_key=assigned_action.child_workflow_key,
                         parent_workflow_run_id=assigned_action.parent_workflow_run_id,
+                        priority=assigned_action.priority,
                     )
 
                     yield action

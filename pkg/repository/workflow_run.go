@@ -136,6 +136,7 @@ func GetCreateWorkflowRunOptsFromParent(
 	childKey *string,
 	additionalMetadata map[string]interface{},
 	parentAdditionalMetadata map[string]interface{},
+	priority *int32,
 ) (*CreateWorkflowRunOpts, error) {
 	if input == nil {
 		input = []byte("{}")
@@ -147,6 +148,7 @@ func GetCreateWorkflowRunOptsFromParent(
 		ManualTriggerInput: StringPtr(string(input)),
 		TriggeredBy:        string(datautils.TriggeredByParent),
 		InputData:          input,
+		Priority:           priority,
 	}
 
 	WithParent(parentId, parentStepRunId, childIndex, childKey, additionalMetadata, parentAdditionalMetadata)(opts)

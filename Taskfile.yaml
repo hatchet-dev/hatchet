@@ -61,15 +61,16 @@ tasks:
       - docker compose down
   recreate-db-from-scratch:
     cmds:
-      - docker compose down
-      - docker volume rm oss_hatchet_postgres_data
-      - docker volume rm oss_hatchet_rabbitmq_data
+      - docker compose down -v
       - docker compose up -d
       - task: setup
       - task: init-dev-env
   set-etc-hosts:
     cmds:
       - sudo sh ./hack/dev/manage-hosts.sh add 127.0.0.1 app.dev.hatchet-tools.com
+  empty-migration:
+    cmds:
+      - goose -dir cmd/hatchet-migrate/migrate/migrations/ create {{.CLI_ARGS | default "empty_migration"}} sql
   migrate:
     cmds:
       - task: generate-sqlc

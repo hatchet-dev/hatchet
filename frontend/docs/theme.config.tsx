@@ -7,9 +7,9 @@ const config = {
     <Image src="/hatchet_logo.png" alt="Hatchet logo" width={120} height={35} />
   ),
   head: () => {
-    const { title } = useConfig()
+    const { title } = useConfig();
 
-    const fallbackTitle = "Hatchet Documentation"
+    const fallbackTitle = "Hatchet Documentation";
 
     return (
       <>
@@ -45,10 +45,6 @@ const config = {
   sidebar: {
     defaultMenuCollapseLevel: 2,
     toggleButton: true,
-  },
-  toc: {
-    backToTop: null,
-    component: null,
   },
   darkMode: true,
   nextThemes: {

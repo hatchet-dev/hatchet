@@ -25,6 +25,9 @@ type CronOpts struct {
 
 	// AdditionalMetadata is additional metadata to be stored with the cron trigger
 	AdditionalMetadata map[string]string
+
+	// Priority is the priority of the run triggered by the cron
+	Priority *int32
 }
 
 type CronClient interface {
@@ -82,6 +85,7 @@ func (c *cronClientImpl) Create(ctx context.Context, workflow string, opts *Cron
 			CronExpression:     opts.Expression,
 			Input:              opts.Input,
 			AdditionalMetadata: additionalMeta,
+			Priority:           opts.Priority,
 		},
 	)
 

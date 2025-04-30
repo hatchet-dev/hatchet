@@ -1,6 +1,7 @@
 package workflowruns
 
 import (
+	"context"
 	"strings"
 
 	"github.com/google/uuid"
@@ -8,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -16,9 +18,9 @@ import (
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
-func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
+	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
+	defer span.End()
 
 	var (
 		statuses = []sqlcv1.V1ReadableStatusOlap{
@@ -87,7 +89,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
-		ctx.Request().Context(),
+		ctx,
 		tenantId,
 		opts,
 	)
@@ -105,7 +107,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	}
 
 	tasks, taskIdToDagExternalId, err := t.config.V1.OLAP().ListTasksByDAGId(
-		ctx.Request().Context(),
+		ctx,
 		tenantId,
 		dagExternalIds,
 	)
@@ -121,7 +123,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	}
 
 	workflowNames, err := t.config.V1.Workflows().ListWorkflowNamesByIds(
-		ctx.Request().Context(),
+		ctx,
 		tenantId,
 		pgWorkflowIds,
 	)
@@ -167,9 +169,9 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
+	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
+	defer span.End()
 
 	var (
 		statuses = []sqlcv1.V1ReadableStatusOlap{
@@ -233,7 +235,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1Workfl
 	}
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
-		ctx.Request().Context(),
+		ctx,
 		tenantId,
 		opts,
 	)
@@ -253,10 +255,16 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1Workfl
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
+	defer span.End()
+
 	if request.Params.OnlyTasks {
-		return t.OnlyTasks(ctx, request)
+		return t.OnlyTasks(spanContext, request, tenantId)
 	} else {
-		return t.WithDags(ctx, request)
+		return t.WithDags(spanContext, request, tenantId)
 	}
 }
 

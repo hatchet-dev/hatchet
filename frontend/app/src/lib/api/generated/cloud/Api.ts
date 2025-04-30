@@ -37,10 +37,12 @@ import {
   UpdateTenantSubscription,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
-} from "./data-contracts";
-import { ContentType, HttpClient, RequestParams } from "./http-client";
+} from './data-contracts';
+import { ContentType, HttpClient, RequestParams } from './http-client';
 
-export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
+export class Api<
+  SecurityDataType = unknown,
+> extends HttpClient<SecurityDataType> {
   /**
    * @description Gets metadata for the Hatchet instance
    *
@@ -52,8 +54,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   metadataGet = (params: RequestParams = {}) =>
     this.request<APICloudMetadata, APIErrors>({
       path: `/api/v1/cloud/metadata`,
-      method: "GET",
-      format: "json",
+      method: 'GET',
+      format: 'json',
       ...params,
     });
   /**
@@ -68,7 +70,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateGithubAppOauthStart = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/cloud/users/github-app/start`,
-      method: "GET",
+      method: 'GET',
       secure: true,
       ...params,
     });
@@ -84,7 +86,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   userUpdateGithubAppOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/cloud/users/github-app/callback`,
-      method: "GET",
+      method: 'GET',
       secure: true,
       ...params,
     });
@@ -99,7 +101,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   githubUpdateGlobalWebhook = (params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github/webhook`,
-      method: "POST",
+      method: 'POST',
       ...params,
     });
   /**
@@ -113,7 +115,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   githubUpdateTenantWebhook = (webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github/webhook/${webhook}`,
-      method: "POST",
+      method: 'POST',
       ...params,
     });
   /**
@@ -139,10 +141,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ListGithubAppInstallationsResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -169,10 +171,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ListGithubReposResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/repos`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -199,7 +201,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/link`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
       ...params,
@@ -230,10 +232,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ListGithubBranchesResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/repos/${ghRepoOwner}/${ghRepoName}/branches`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -248,9 +250,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   managedWorkerList = (tenant: string, params: RequestParams = {}) =>
     this.request<ManagedWorkerList, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -262,14 +264,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/tenants/{tenant}/managed-worker
    * @secure
    */
-  managedWorkerCreate = (tenant: string, data: CreateManagedWorkerRequest, params: RequestParams = {}) =>
+  managedWorkerCreate = (
+    tenant: string,
+    data: CreateManagedWorkerRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker`,
-      method: "POST",
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -288,11 +294,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker/template`,
-      method: "POST",
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -307,9 +313,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   computeCostGet = (tenant: string, params: RequestParams = {}) =>
     this.request<MonthlyComputeCost, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker/cost`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -324,9 +330,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   managedWorkerGet = (managedWorker: string, params: RequestParams = {}) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -338,14 +344,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/managed-worker/{managed-worker}
    * @secure
    */
-  managedWorkerUpdate = (managedWorker: string, data: UpdateManagedWorkerRequest, params: RequestParams = {}) =>
+  managedWorkerUpdate = (
+    managedWorker: string,
+    data: UpdateManagedWorkerRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
-      method: "POST",
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -360,9 +370,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   managedWorkerDelete = (managedWorker: string, params: RequestParams = {}) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
-      method: "DELETE",
+      method: 'DELETE',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -374,10 +384,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/infra-as-code/{infra-as-code-request}
    * @secure
    */
-  infraAsCodeCreate = (infraAsCodeRequest: string, data: InfraAsCodeRequest, params: RequestParams = {}) =>
+  infraAsCodeCreate = (
+    infraAsCodeRequest: string,
+    data: InfraAsCodeRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/infra-as-code/${infraAsCodeRequest}`,
-      method: "POST",
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -392,12 +406,15 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/runtime-config/{runtime-config}/actions
    * @secure
    */
-  runtimeConfigListActions = (runtimeConfig: string, params: RequestParams = {}) =>
+  runtimeConfigListActions = (
+    runtimeConfig: string,
+    params: RequestParams = {},
+  ) =>
     this.request<RuntimeConfigActionsResponse, APIErrors>({
       path: `/api/v1/cloud/runtime-config/${runtimeConfig}/actions`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -427,10 +444,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<Matrix, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/metrics/cpu`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -460,10 +477,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<Matrix, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/metrics/memory`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -493,10 +510,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<Matrix, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/metrics/disk`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -524,16 +541,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       /** The search query to filter for */
       search?: string;
       /** The direction to sort the logs */
-      direction?: "forward" | "backward";
+      direction?: 'forward' | 'backward';
     },
     params: RequestParams = {},
   ) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/logs`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -555,10 +572,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/iac-logs`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -570,12 +587,15 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/instances
    * @secure
    */
-  managedWorkerInstancesList = (managedWorker: string, params: RequestParams = {}) =>
+  managedWorkerInstancesList = (
+    managedWorker: string,
+    params: RequestParams = {},
+  ) =>
     this.request<InstanceList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/instances`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -590,9 +610,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   buildGet = (build: string, params: RequestParams = {}) =>
     this.request<Build, APIErrors>({
       path: `/api/v1/cloud/build/${build}`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -607,9 +627,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   buildLogsList = (build: string, params: RequestParams = {}) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/cloud/build/${build}/logs`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -621,12 +641,15 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/events
    * @secure
    */
-  managedWorkerEventsList = (managedWorker: string, params: RequestParams = {}) =>
+  managedWorkerEventsList = (
+    managedWorker: string,
+    params: RequestParams = {},
+  ) =>
     this.request<ManagedWorkerEventList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/events`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -640,7 +663,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   lagoMessageCreate = (params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/billing/lago/webhook`,
-      method: "POST",
+      method: 'POST',
       ...params,
     });
   /**
@@ -655,9 +678,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantBillingStateGet = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantBillingState, APIErrors | APIError>({
       path: `/api/v1/billing/tenants/${tenant}`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -669,14 +692,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
    * @secure
    */
-  subscriptionUpsert = (tenant: string, data: UpdateTenantSubscription, params: RequestParams = {}) =>
+  subscriptionUpsert = (
+    tenant: string,
+    data: UpdateTenantSubscription,
+    params: RequestParams = {},
+  ) =>
     this.request<TenantSubscription, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/subscription`,
-      method: "PATCH",
+      method: 'PATCH',
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -697,9 +724,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       APIErrors
     >({
       path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -711,10 +738,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/tenants/{tenant}/logs
    * @secure
    */
-  logCreate = (tenant: string, data: VectorPushRequest, params: RequestParams = {}) =>
+  logCreate = (
+    tenant: string,
+    data: VectorPushRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/logs`,
-      method: "POST",
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -732,9 +763,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   featureFlagsList = (tenant: string, params: RequestParams = {}) =>
     this.request<FeatureFlags, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/feature-flags`,
-      method: "GET",
+      method: 'GET',
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -766,10 +797,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowRunEventsMetricsCounts, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/runs-metrics`,
-      method: "GET",
+      method: 'GET',
       query: query,
       secure: true,
-      format: "json",
+      format: 'json',
       ...params,
     });
   /**
@@ -788,7 +819,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/autoscaling`,
-      method: "POST",
+      method: 'POST',
       body: data,
       secure: true,
       type: ContentType.Json,

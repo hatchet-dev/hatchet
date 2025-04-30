@@ -250,6 +250,7 @@ export interface TriggerWorkflowRunRequest {
   workflowName: string;
   input: Uint8Array;
   additionalMetadata: Uint8Array;
+  priority?: number | undefined;
 }
 
 export interface TriggerWorkflowRunResponse {
@@ -270,7 +271,7 @@ export interface CreateWorkflowVersionRequest {
   cronTriggers: string[];
   /** (required) the workflow jobs */
   tasks: CreateTaskOpts[];
-  /** (optional) the workflow concurrency options */
+  /** Deprecated: use concurrency_arr instead */
   concurrency: Concurrency | undefined;
   /** (optional) the input for the cron trigger */
   cronInput?: string | undefined;
@@ -278,6 +279,10 @@ export interface CreateWorkflowVersionRequest {
   onFailureTask?: CreateTaskOpts | undefined;
   /** (optional) the sticky strategy for assigning steps to workers */
   sticky?: StickyStrategy | undefined;
+  /** (optional) the default priority for the workflow */
+  defaultPriority?: number | undefined;
+  /** (optional) the workflow concurrency options */
+  concurrencyArr: Concurrency[];
 }
 
 export interface Concurrency {
@@ -791,7 +796,12 @@ export const ReplayTasksResponse: MessageFns<ReplayTasksResponse> = {
 };
 
 function createBaseTriggerWorkflowRunRequest(): TriggerWorkflowRunRequest {
-  return { workflowName: '', input: new Uint8Array(0), additionalMetadata: new Uint8Array(0) };
+  return {
+    workflowName: '',
+    input: new Uint8Array(0),
+    additionalMetadata: new Uint8Array(0),
+    priority: undefined,
+  };
 }
 
 export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = {
@@ -807,6 +817,9 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
     }
     if (message.additionalMetadata.length !== 0) {
       writer.uint32(26).bytes(message.additionalMetadata);
+    }
+    if (message.priority !== undefined) {
+      writer.uint32(32).int32(message.priority);
     }
     return writer;
   },
@@ -842,6 +855,14 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
           message.additionalMetadata = reader.bytes();
           continue;
         }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.priority = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -858,6 +879,7 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
       additionalMetadata: isSet(object.additionalMetadata)
         ? bytesFromBase64(object.additionalMetadata)
         : new Uint8Array(0),
+      priority: isSet(object.priority) ? globalThis.Number(object.priority) : undefined,
     };
   },
 
@@ -872,6 +894,9 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
     if (message.additionalMetadata.length !== 0) {
       obj.additionalMetadata = base64FromBytes(message.additionalMetadata);
     }
+    if (message.priority !== undefined) {
+      obj.priority = Math.round(message.priority);
+    }
     return obj;
   },
 
@@ -883,6 +908,7 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
     message.workflowName = object.workflowName ?? '';
     message.input = object.input ?? new Uint8Array(0);
     message.additionalMetadata = object.additionalMetadata ?? new Uint8Array(0);
+    message.priority = object.priority ?? undefined;
     return message;
   },
 };
@@ -960,6 +986,8 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     cronInput: undefined,
     onFailureTask: undefined,
     sticky: undefined,
+    defaultPriority: undefined,
+    concurrencyArr: [],
   };
 }
 
@@ -997,6 +1025,12 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     }
     if (message.sticky !== undefined) {
       writer.uint32(80).int32(message.sticky);
+    }
+    if (message.defaultPriority !== undefined) {
+      writer.uint32(88).int32(message.defaultPriority);
+    }
+    for (const v of message.concurrencyArr) {
+      Concurrency.encode(v!, writer.uint32(98).fork()).join();
     }
     return writer;
   },
@@ -1088,6 +1122,22 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           message.sticky = reader.int32() as any;
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.defaultPriority = reader.int32();
+          continue;
+        }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.concurrencyArr.push(Concurrency.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1117,6 +1167,12 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         ? CreateTaskOpts.fromJSON(object.onFailureTask)
         : undefined,
       sticky: isSet(object.sticky) ? stickyStrategyFromJSON(object.sticky) : undefined,
+      defaultPriority: isSet(object.defaultPriority)
+        ? globalThis.Number(object.defaultPriority)
+        : undefined,
+      concurrencyArr: globalThis.Array.isArray(object?.concurrencyArr)
+        ? object.concurrencyArr.map((e: any) => Concurrency.fromJSON(e))
+        : [],
     };
   },
 
@@ -1152,6 +1208,12 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.sticky !== undefined) {
       obj.sticky = stickyStrategyToJSON(message.sticky);
     }
+    if (message.defaultPriority !== undefined) {
+      obj.defaultPriority = Math.round(message.defaultPriority);
+    }
+    if (message.concurrencyArr?.length) {
+      obj.concurrencyArr = message.concurrencyArr.map((e) => Concurrency.toJSON(e));
+    }
     return obj;
   },
 
@@ -1176,6 +1238,8 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         ? CreateTaskOpts.fromPartial(object.onFailureTask)
         : undefined;
     message.sticky = object.sticky ?? undefined;
+    message.defaultPriority = object.defaultPriority ?? undefined;
+    message.concurrencyArr = object.concurrencyArr?.map((e) => Concurrency.fromPartial(e)) || [];
     return message;
   },
 };

@@ -60,7 +60,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
             concurrency_multiple_keys_workflow.create_bulk_run_item(
                 WorkflowInput(
                     name=(name := choice(characters)),
-                    digit=(digit := choice([str(i) for i in range(3)])),
+                    digit=(digit := choice([str(i) for i in range(6)])),
                 ),
                 options=TriggerWorkflowOptions(
                     additional_metadata={
@@ -79,7 +79,8 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
 
     workflows = (
         await hatchet.workflows.aio_list(
-            workflow_name=concurrency_multiple_keys_workflow.name
+            workflow_name=concurrency_multiple_keys_workflow.name,
+            limit=1_000,
         )
     ).rows
 
@@ -99,6 +100,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
         additional_metadata={
             "test_run_id": test_run_id,
         },
+        limit=1_000,
     )
 
     sorted_runs = sorted(

@@ -19,9 +19,13 @@ const isTargetLine = (line: string, target: string) => {
 
 export const parseDocComments = (
   source: string,
-  target: string,
+  target?: string,
   collapsed: boolean = false
 ): string => {
+  if (!target) {
+    return source;
+  }
+
   const lines = source.split("\n");
   let isSnippet = false;
   let isCollecting = false;

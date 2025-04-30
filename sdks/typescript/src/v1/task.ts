@@ -1,13 +1,14 @@
 import { ConcurrencyLimitStrategy } from '@hatchet/protoc/v1/workflows';
-import { Context, CreateStep, DurableContext } from '@hatchet/step';
+import { CreateStep } from '@hatchet/step';
 import { Conditions } from './conditions';
 import { Duration } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
+import { Context, DurableContext } from './client/worker/context';
 
 /**
  * Options for configuring the concurrency for a task.
  */
-export type TaskConcurrency = {
+export type Concurrency = {
   /**
    * required the CEL expression to use for concurrency
    *
@@ -32,6 +33,11 @@ export type TaskConcurrency = {
    */
   limitStrategy?: ConcurrencyLimitStrategy;
 };
+
+/**
+ * @deprecated use Concurrency instead
+ */
+export type TaskConcurrency = Concurrency;
 
 export class NonRetryableError extends Error {
   constructor(message?: string) {
@@ -130,7 +136,7 @@ export type CreateBaseTaskOpts<
   /**
    * (optional) the concurrency options for the task
    */
-  concurrency?: TaskConcurrency | TaskConcurrency[];
+  concurrency?: Concurrency | Concurrency[];
 };
 
 export type CreateWorkflowTaskOpts<

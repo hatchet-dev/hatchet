@@ -61,6 +61,8 @@ type ServerConfigFile struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
+	Prometheus shared.PrometheusConfigFile `mapstructure:"prometheus" json:"prometheus,omitempty"`
+
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
 
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
@@ -68,6 +70,8 @@ type ServerConfigFile struct {
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
+
+	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -76,6 +80,14 @@ type ConfigFileAdditionalLoggers struct {
 
 	// PgxStats is a custom logger config for the pgx stats service
 	PgxStats shared.LoggerConfigFile `mapstructure:"pgxStats" json:"pgxStats,omitempty"`
+}
+
+type ConfigFileSampling struct {
+	// Enabled controls whether sampling is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	// SamplingRate is the rate at which to sample events. Default is 1.0 to sample all events.
+	SamplingRate float64 `mapstructure:"samplingRate" json:"samplingRate,omitempty" default:"1.0"`
 }
 
 // General server runtime options
@@ -492,6 +504,8 @@ type ServerConfig struct {
 
 	OpenTelemetry shared.OpenTelemetryConfigFile
 
+	Prometheus shared.PrometheusConfigFile
+
 	Email email.EmailService
 
 	TenantAlerter *alerting.TenantAlertManager
@@ -501,6 +515,8 @@ type ServerConfig struct {
 	SchedulingPool *v0.SchedulingPool
 
 	SchedulingPoolV1 *v1.SchedulingPool
+
+	Sampling ConfigFileSampling
 
 	Version string
 }
@@ -704,6 +720,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
 	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 
+	// prometheus options
+	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
+	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
+	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
+
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")
 	_ = v.BindEnv("tenantAlerting.slack.clientID", "SERVER_TENANT_ALERTING_SLACK_CLIENT_ID")
@@ -724,4 +745,7 @@ func BindAllEnv(v *viper.Viper) {
 	// we will fill this in from the server config if it is not set
 	_ = v.BindEnv("runtime.monitoring.tlsRootCAFile", "SERVER_MONITORING_TLS_ROOT_CA_FILE")
 
+	// sampling options
+	_ = v.BindEnv("sampling.enabled", "SERVER_SAMPLING_ENABLED")
+	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
 }

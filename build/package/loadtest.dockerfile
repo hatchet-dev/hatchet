@@ -1,6 +1,6 @@
 # Base Go environment
 # -------------------
-FROM golang:1.23-alpine as base
+FROM golang:1.24-alpine as base
 WORKDIR /hatchet
 
 COPY go.mod go.sum ./

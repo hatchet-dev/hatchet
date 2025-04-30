@@ -390,6 +390,12 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 		}
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateWorkflowTriggerCronRefForWorkflowParams{
 		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
 		Crontrigger:        opts.Cron,
@@ -400,6 +406,7 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 			Valid:                         true,
 			WorkflowTriggerCronRefMethods: dbsqlc.WorkflowTriggerCronRefMethodsAPI,
 		},
+		Priority: sqlchelpers.ToInt(priority),
 	}
 
 	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
@@ -642,11 +649,18 @@ func (r *workflowEngineRepository) CreateSchedules(
 		return nil, err
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateSchedulesParams{
 		Workflowrunid:      sqlchelpers.UUIDFromStr(workflowVersionId),
 		Input:              opts.Input,
 		Triggertimes:       make([]pgtype.Timestamp, len(opts.ScheduledTriggers)),
 		Additionalmetadata: opts.AdditionalMetadata,
+		Priority:           sqlchelpers.ToInt(priority),
 	}
 
 	for i, scheduledTrigger := range opts.ScheduledTriggers {
@@ -676,6 +690,12 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 		return nil, err
 	}
 
+	var priority int32 = 1
+
+	if opts.Priority != nil {
+		priority = *opts.Priority
+	}
+
 	createParams := dbsqlc.CreateWorkflowTriggerScheduledRefForWorkflowParams{
 		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
 		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
@@ -685,6 +705,7 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 			Valid:                              true,
 			WorkflowTriggerScheduledRefMethods: dbsqlc.WorkflowTriggerScheduledRefMethodsAPI,
 		},
+		Priority: sqlchelpers.ToInt(priority),
 	}
 
 	created, err := r.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, r.pool, createParams)
@@ -896,6 +917,29 @@ func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId stri
 func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
+	// Lock the previous workflow version to prevent concurrent version creation
+	_, err := r.queries.LockWorkflowVersion(ctx, tx, workflowId)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("failed to lock previous workflow version: %w", err)
+	}
+
+	if oldWorkflowVersion != nil {
+		// get the latest workflow version and if they are not the same, return an error
+		latestWorkflowVersion, err := r.GetLatestWorkflowVersion(
+			ctx,
+			sqlchelpers.UUIDToStr(tenantId),
+			sqlchelpers.UUIDToStr(workflowId),
+		)
+
+		if err != nil {
+			return "", err
+		}
+
+		if latestWorkflowVersion != nil && latestWorkflowVersion.WorkflowVersion.ID.String() != oldWorkflowVersion.WorkflowVersion.ID.String() {
+			return "", fmt.Errorf("workflow version %s already exists, race condition detected -- upgrade to v1 engine to avoid this issue", workflowVersionId)
+		}
+	}
+
 	var version pgtype.Text
 
 	if opts.Version != nil {
@@ -1075,6 +1119,11 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	}
 
 	for _, cronTrigger := range opts.CronTriggers {
+		var priority pgtype.Int4
+
+		if opts.DefaultPriority != nil {
+			priority = sqlchelpers.ToInt(*opts.DefaultPriority)
+		}
 
 		_, err := r.queries.CreateWorkflowTriggerCronRef(
 			ctx,
@@ -1087,6 +1136,7 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 					String: "",
 					Valid:  true,
 				},
+				Priority: priority,
 			},
 		)
 

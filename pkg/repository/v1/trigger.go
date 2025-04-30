@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -52,6 +54,8 @@ type TriggerTaskData struct {
 
 	// (optional) the child key
 	ChildKey *string `json:"child_key"`
+
+	Priority *int32 `json:"priority"`
 }
 
 type createDAGOpts struct {
@@ -142,13 +146,21 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
+			triggerConverter := &TriggeredByEvent{
+				l:        r.l,
+				eventId:  opt.EventId,
+				eventKey: workflow.EventKey,
+			}
+
+			additionalMetadata := triggerConverter.ToMetadata(opt.AdditionalMetadata)
+
 			triggerOpts = append(triggerOpts, triggerTuple{
 				workflowVersionId:  sqlchelpers.UUIDToStr(workflow.WorkflowVersionId),
 				workflowId:         sqlchelpers.UUIDToStr(workflow.WorkflowId),
 				workflowName:       workflow.WorkflowName,
 				externalId:         uuid.NewString(),
 				input:              opt.Data,
-				additionalMetadata: opt.AdditionalMetadata,
+				additionalMetadata: additionalMetadata,
 			})
 		}
 	}
@@ -214,6 +226,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 				parentTaskInsertedAt: opt.ParentTaskInsertedAt,
 				childIndex:           opt.ChildIndex,
 				childKey:             opt.ChildKey,
+				priority:             opt.Priority,
 			})
 		}
 	}
@@ -290,6 +303,54 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 	return nil
 }
 
+type TriggeredBy interface {
+	ToMetadata([]byte) []byte
+}
+
+type TriggeredByEvent struct {
+	l        *zerolog.Logger
+	eventId  string
+	eventKey string
+}
+
+func cleanAdditionalMetadata(additionalMetadata []byte) map[string]interface{} {
+	res := make(map[string]interface{})
+
+	if len(additionalMetadata) == 0 {
+		res = make(map[string]interface{})
+	} else {
+		err := json.Unmarshal(additionalMetadata, &res)
+
+		if err != nil {
+			res = make(map[string]interface{})
+		}
+	}
+
+	for key := range res {
+		if strings.HasPrefix(key, "hatchet__") {
+			delete(res, key)
+		}
+	}
+
+	return res
+}
+
+func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
+	res := cleanAdditionalMetadata(additionalMetadata)
+
+	res["hatchet__event_id"] = t.eventId
+	res["hatchet__event_key"] = t.eventKey
+
+	resBytes, err := json.Marshal(res)
+
+	if err != nil {
+		t.l.Error().Err(err).Msg("failed to marshal additional metadata")
+		return nil
+	}
+
+	return resBytes
+}
+
 type triggerTuple struct {
 	workflowVersionId string
 
@@ -304,6 +365,8 @@ type triggerTuple struct {
 	additionalMetadata []byte
 
 	desiredWorkerId *string
+
+	priority *int32
 
 	// relevant parameters for child workflows
 	parentExternalId     *string
@@ -691,6 +754,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						StepIndex:            stepIndex,
 						ChildIndex:           tuple.childIndex,
 						ChildKey:             tuple.childKey,
+						Priority:             tuple.priority,
 					}
 
 					if isDag {
@@ -1219,15 +1283,36 @@ func getParentInDAGGroupMatch(
 
 	if len(actionsToOverrides[sqlcv1.V1MatchConditionActionCANCEL]) > 0 {
 		for _, override := range actionsToOverrides[sqlcv1.V1MatchConditionActionCANCEL] {
-			res = append(res, GroupMatchCondition{
-				GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
-				EventType:         sqlcv1.V1EventTypeINTERNAL,
-				EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-				ReadableDataKey:   parentReadableId,
-				EventResourceHint: &parentExternalId,
-				Expression:        override.Expression.String,
-				Action:            sqlcv1.V1MatchConditionActionCANCEL,
-			})
+			res = append(res,
+				GroupMatchCondition{
+					GroupId:   sqlchelpers.UUIDToStr(override.OrGroupID),
+					EventType: sqlcv1.V1EventTypeINTERNAL,
+					// The custom cancel condition matches on the completed event
+					EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+					ReadableDataKey:   parentReadableId,
+					EventResourceHint: &parentExternalId,
+					Expression:        override.Expression.String,
+					Action:            sqlcv1.V1MatchConditionActionCANCEL,
+				},
+				// always add the original cancel group match conditions. these can't be modified otherwise DAGs risk
+				// getting stuck in a concurrency queue.
+				GroupMatchCondition{
+					GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+					ReadableDataKey:   parentReadableId,
+					EventResourceHint: &parentExternalId,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCANCEL,
+				}, GroupMatchCondition{
+					GroupId:           sqlchelpers.UUIDToStr(override.OrGroupID),
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+					ReadableDataKey:   parentReadableId,
+					EventResourceHint: &parentExternalId,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCANCEL,
+				})
 		}
 	} else {
 		res = append(res, GroupMatchCondition{

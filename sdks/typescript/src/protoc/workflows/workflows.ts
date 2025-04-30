@@ -406,6 +406,8 @@ export interface ScheduleWorkflowRequest {
   childKey?: string | undefined;
   /** (optional) the additional metadata for the workflow */
   additionalMetadata?: string | undefined;
+  /** (optional) the priority of the workflow */
+  priority?: number | undefined;
 }
 
 /** ScheduledWorkflow represents a scheduled workflow. */
@@ -1760,6 +1762,7 @@ function createBaseScheduleWorkflowRequest(): ScheduleWorkflowRequest {
     childIndex: undefined,
     childKey: undefined,
     additionalMetadata: undefined,
+    priority: undefined,
   };
 }
 
@@ -1791,6 +1794,9 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     }
     if (message.additionalMetadata !== undefined) {
       writer.uint32(66).string(message.additionalMetadata);
+    }
+    if (message.priority !== undefined) {
+      writer.uint32(72).int32(message.priority);
     }
     return writer;
   },
@@ -1866,6 +1872,14 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
           message.additionalMetadata = reader.string();
           continue;
         }
+        case 9: {
+          if (tag !== 72) {
+            break;
+          }
+
+          message.priority = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1891,6 +1905,7 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
       additionalMetadata: isSet(object.additionalMetadata)
         ? globalThis.String(object.additionalMetadata)
         : undefined,
+      priority: isSet(object.priority) ? globalThis.Number(object.priority) : undefined,
     };
   },
 
@@ -1920,6 +1935,9 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     if (message.additionalMetadata !== undefined) {
       obj.additionalMetadata = message.additionalMetadata;
     }
+    if (message.priority !== undefined) {
+      obj.priority = Math.round(message.priority);
+    }
     return obj;
   },
 
@@ -1936,6 +1954,7 @@ export const ScheduleWorkflowRequest: MessageFns<ScheduleWorkflowRequest> = {
     message.childIndex = object.childIndex ?? undefined;
     message.childKey = object.childKey ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
+    message.priority = object.priority ?? undefined;
     return message;
   },
 };

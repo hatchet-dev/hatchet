@@ -6,20 +6,15 @@ import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
 import { Logger } from '@util/logger';
-
 /**
  * Schema for creating a Cron Trigger.
  */
 export const CreateCronTriggerSchema = z.object({
   name: z.string(),
-  expression: z.string().refine((val) => {
-    // Basic cron validation regex
-    const cronRegex =
-      /^(\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([0-9]|1[0-9]|2[0-3])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\*\/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\*|([1-9]|1[0-2])|\*\/([1-9]|1[0-2])) (\*|([0-6])|\*\/([0-6]))$/;
-    return cronRegex.test(val);
-  }, 'Invalid cron expression'),
+  expression: z.string(),
   input: z.record(z.any()).optional(),
   additionalMetadata: z.record(z.string()).optional(),
+  priority: z.number().optional(),
 });
 
 /**
@@ -76,6 +71,7 @@ export class CronClient {
         cronExpression: parsedCron.expression,
         input: parsedCron.input ?? {},
         additionalMetadata: parsedCron.additionalMetadata ?? {},
+        priority: parsedCron.priority,
       });
       return response.data;
     } catch (err) {

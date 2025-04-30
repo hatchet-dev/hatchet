@@ -23,20 +23,17 @@ type LeaseManager struct {
 
 	tenantId pgtype.UUID
 
-	workerLeasesMu sync.Mutex
-	workerLeases   []*sqlcv1.Lease
-	workersCh      chan<- []*v1.ListActiveWorkersResult
+	workerLeases []*sqlcv1.Lease
+	workersCh    chan<- []*v1.ListActiveWorkersResult
 
-	queueLeasesMu sync.Mutex
-	queueLeases   []*sqlcv1.Lease
-	queuesCh      chan<- []string
+	queueLeases []*sqlcv1.Lease
+	queuesCh    chan<- []string
 
-	concurrencyLeasesMu sync.Mutex
 	concurrencyLeases   []*sqlcv1.Lease
 	concurrencyLeasesCh chan<- []*sqlcv1.V1StepConcurrency
 
 	cleanedUp bool
-	cleanupMu sync.Mutex
+	processMu sync.Mutex
 }
 
 func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*v1.ListActiveWorkersResult, <-chan []string, <-chan []*sqlcv1.V1StepConcurrency) {
@@ -61,10 +58,7 @@ func (l *LeaseManager) sendWorkerIds(workerIds []*v1.ListActiveWorkersResult) {
 		}
 	}()
 
-	// can't cleanup while sending
-	l.cleanupMu.Lock()
-	defer l.cleanupMu.Unlock()
-
+	// at this point, we have a cleanupMu lock, so it's safe to read
 	if l.cleanedUp {
 		return
 	}
@@ -82,10 +76,7 @@ func (l *LeaseManager) sendQueues(queues []string) {
 		}
 	}()
 
-	// can't cleanup while sending
-	l.cleanupMu.Lock()
-	defer l.cleanupMu.Unlock()
-
+	// at this point, we have a cleanupMu lock, so it's safe to read
 	if l.cleanedUp {
 		return
 	}
@@ -103,10 +94,7 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 		}
 	}()
 
-	// can't cleanup while sending
-	l.cleanupMu.Lock()
-	defer l.cleanupMu.Unlock()
-
+	// at this point, we have a cleanupMu lock, so it's safe to read
 	if l.cleanedUp {
 		return
 	}
@@ -118,12 +106,6 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 }
 
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
-	if ok := l.workerLeasesMu.TryLock(); !ok {
-		return nil
-	}
-
-	defer l.workerLeasesMu.Unlock()
-
 	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
 
 	if err != nil {
@@ -185,12 +167,6 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 }
 
 func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
-	if ok := l.queueLeasesMu.TryLock(); !ok {
-		return nil
-	}
-
-	defer l.queueLeasesMu.Unlock()
-
 	queues, err := l.lr.ListQueues(ctx, l.tenantId)
 
 	if err != nil {
@@ -249,12 +225,6 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 }
 
 func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
-	if ok := l.concurrencyLeasesMu.TryLock(); !ok {
-		return nil
-	}
-
-	defer l.concurrencyLeasesMu.Unlock()
-
 	strats, err := l.lr.ListConcurrencyStrategies(ctx, l.tenantId)
 
 	if err != nil {
@@ -325,39 +295,52 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// we acquire a processMu lock here to prevent cleanup from occurring simultaneously
+			l.processMu.Lock()
+
+			// we don't want to block the cleanup process, so we use a separate context with a timeout
+			loopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
 			wg := sync.WaitGroup{}
 
 			wg.Add(3)
 
 			go func() {
 				defer wg.Done()
-				if err := l.acquireWorkerLeases(ctx); err != nil {
+
+				if err := l.acquireWorkerLeases(loopCtx); err != nil {
 					l.conf.l.Error().Err(err).Msg("error acquiring worker leases")
 				}
 			}()
 
 			go func() {
 				defer wg.Done()
-				if err := l.acquireQueueLeases(ctx); err != nil {
+
+				if err := l.acquireQueueLeases(loopCtx); err != nil {
 					l.conf.l.Error().Err(err).Msg("error acquiring queue leases")
 				}
 			}()
 
 			go func() {
 				defer wg.Done()
-				if err := l.acquireConcurrencyLeases(ctx); err != nil {
+
+				if err := l.acquireConcurrencyLeases(loopCtx); err != nil {
 					l.conf.l.Error().Err(err).Msg("error acquiring concurrency leases")
 				}
 			}()
 
 			wg.Wait()
+
+			cancel()
+			l.processMu.Unlock()
 		}
 	}
 }
 
 func (l *LeaseManager) cleanup(ctx context.Context) error {
-	l.cleanupMu.Lock()
-	defer l.cleanupMu.Unlock()
+	// we acquire a process locks here to prevent concurrent cleanup and lease acquisition
+	l.processMu.Lock()
+	defer l.processMu.Unlock()
 
 	if l.cleanedUp {
 		return nil
@@ -365,37 +348,28 @@ func (l *LeaseManager) cleanup(ctx context.Context) error {
 
 	l.cleanedUp = true
 
-	// close channels
-	defer close(l.workersCh)
-	defer close(l.queuesCh)
-	defer close(l.concurrencyLeasesCh)
-
 	eg := errgroup.Group{}
 
 	eg.Go(func() error {
-		l.workerLeasesMu.Lock()
-		defer l.workerLeasesMu.Unlock()
-
 		return l.lr.ReleaseLeases(ctx, l.tenantId, l.workerLeases)
 	})
 
 	eg.Go(func() error {
-		l.queueLeasesMu.Lock()
-		defer l.queueLeasesMu.Unlock()
-
 		return l.lr.ReleaseLeases(ctx, l.tenantId, l.queueLeases)
 	})
 
 	eg.Go(func() error {
-		l.concurrencyLeasesMu.Lock()
-		defer l.concurrencyLeasesMu.Unlock()
-
 		return l.lr.ReleaseLeases(ctx, l.tenantId, l.concurrencyLeases)
 	})
 
 	if err := eg.Wait(); err != nil {
 		return err
 	}
+
+	// close channels: this is safe to do because each channel is guarded by l.cleanedUp + the process lock
+	close(l.workersCh)
+	close(l.queuesCh)
+	close(l.concurrencyLeasesCh)
 
 	return nil
 }

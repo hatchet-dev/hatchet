@@ -253,6 +253,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             .
@@ -277,6 +278,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             .
@@ -405,18 +407,21 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-lite-tmp:amd64 \
             . &
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-admin-tmp:amd64 \
             . &
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-migrate-tmp:amd64 \
             . &
@@ -455,18 +460,21 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-lite-tmp:arm64 \
             . &
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-admin-tmp:arm64 \
             . &
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-migrate-tmp:arm64 \
             . &
@@ -532,6 +540,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-api-tmp:amd64 \
             .
@@ -566,6 +575,7 @@ jobs:
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
+            --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-api-tmp:arm64 \
             .

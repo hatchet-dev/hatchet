@@ -45,10 +45,17 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		}
 	}
 
+	var priority *int32
+	if request.Body.Priority != nil {
+		newPrio := int32(*request.Body.Priority)
+		priority = &newPrio
+	}
+
 	grpcReq := &contracts.TriggerWorkflowRunRequest{
 		WorkflowName:       request.Body.WorkflowName,
 		Input:              inputBytes,
 		AdditionalMetadata: additionalMetadataBytes,
+		Priority:           priority,
 	}
 
 	resp, err := t.proxyTrigger.Do(

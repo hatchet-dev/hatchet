@@ -1,0 +1,50 @@
+# Rate Limits Client
+
+Bases: `BaseRestClient`
+
+The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
+
+Methods:
+
+| Name      | Description                       |
+| --------- | --------------------------------- |
+| `aio_put` | Put a rate limit for a given key. |
+| `put`     | Put a rate limit for a given key. |
+
+### Functions
+
+#### `aio_put`
+
+Put a rate limit for a given key.
+
+Parameters:
+
+| Name       | Type                | Description                        | Default    |
+| ---------- | ------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`               | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`               | The rate limit to set.             | _required_ |
+| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
+
+#### `put`
+
+Put a rate limit for a given key.
+
+Parameters:
+
+| Name       | Type                | Description                        | Default    |
+| ---------- | ------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`               | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`               | The rate limit to set.             | _required_ |
+| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |

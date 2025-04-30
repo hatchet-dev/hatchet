@@ -23,6 +23,8 @@ type ScheduleOpts struct {
 
 	// AdditionalMetadata is additional metadata to be stored with the cron trigger
 	AdditionalMetadata map[string]string
+
+	Priority *int32 `json:"priority,omitempty"`
 }
 
 type ScheduleClient interface {
@@ -79,6 +81,7 @@ func (c *scheduleClientImpl) Create(ctx context.Context, workflow string, opts *
 			TriggerAt:          opts.TriggerAt,
 			Input:              opts.Input,
 			AdditionalMetadata: additionalMeta,
+			Priority:           opts.Priority,
 		},
 	)
 

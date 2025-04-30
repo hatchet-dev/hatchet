@@ -988,22 +988,38 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 }
 
 func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, workflowRunIds map[string]bool) ([]string, bool) {
-	if msg.ID != "workflow-run-finished" {
-		return nil, false
-	}
+	switch msg.ID {
+	case "workflow-run-finished":
+		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
+		res := make([]string, 0)
 
-	payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
-	res := make([]string, 0)
-
-	for _, payload := range payloads {
-		if _, ok := workflowRunIds[payload.ExternalId]; ok {
-			res = append(res, payload.ExternalId)
+		for _, payload := range payloads {
+			if _, ok := workflowRunIds[payload.ExternalId]; ok {
+				res = append(res, payload.ExternalId)
+			}
 		}
-	}
 
-	if len(res) == 0 {
+		if len(res) == 0 {
+			return nil, false
+		}
+
+		return res, true
+	case "workflow-run-finished-candidate":
+		payloads := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
+		res := make([]string, 0)
+
+		for _, payload := range payloads {
+			if _, ok := workflowRunIds[payload.WorkflowRunId]; ok {
+				res = append(res, payload.WorkflowRunId)
+			}
+		}
+
+		if len(res) == 0 {
+			return nil, false
+		}
+
+		return res, true
+	default:
 		return nil, false
 	}
-
-	return res, true
 }

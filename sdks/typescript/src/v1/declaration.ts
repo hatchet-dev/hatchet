@@ -2,25 +2,32 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context, DurableContext } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
 import {
   CreateWorkflowTaskOpts,
   CreateOnFailureTaskOpts,
-  TaskConcurrency,
   TaskFn,
   CreateWorkflowDurableTaskOpts,
   CreateBaseTaskOpts,
   CreateOnSuccessTaskOpts,
+  Concurrency,
   DurableTaskFn,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
+import { Context, DurableContext } from './client/worker/context';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
+
+// eslint-disable-next-line no-shadow
+export enum Priority {
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+}
 
 /**
  * Additional metadata that can be attached to a workflow run.
@@ -32,9 +39,16 @@ type AdditionalMetadata = Record<string, string>;
  */
 export type RunOpts = {
   /**
-   * Additional metadata to attach to the workflow run.
+   * (optional) additional metadata to attach to the workflow run.
    */
   additionalMetadata?: AdditionalMetadata;
+
+  /**
+   * (optional) the priority for the workflow run.
+   *
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  priority?: Priority;
 };
 
 /**
@@ -90,7 +104,16 @@ export type CreateBaseWorkflowOpts = {
    */
   onEvents?: string[];
 
-  concurrency?: TaskConcurrency;
+  /**
+   * (optional) concurrency config for the workflow.
+   */
+  concurrency?: Concurrency | Concurrency[];
+
+  /**
+   * (optional) the priority for the workflow.
+   * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
+   */
+  defaultPriority?: Priority;
 };
 
 export type CreateTaskWorkflowOpts<
@@ -166,7 +189,7 @@ export type TaskDefaults = {
   /**
    * (optional) the concurrency options for the task.
    */
-  concurrency?: TaskConcurrency | TaskConcurrency[];
+  concurrency?: Concurrency | Concurrency[];
 };
 
 /**
@@ -239,12 +262,16 @@ export class BaseWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts, _standaloneTaskName?: string): WorkflowRunRef<O> {
+  async runNoWait(
+    input: I,
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.name, input, options);
 
     if (_standaloneTaskName) {
       res._standalone_task_name = _standaloneTaskName;
@@ -297,7 +324,7 @@ export class BaseWorkflowDeclaration<
       let resp: WorkflowRunRef<O>[] = [];
       for (let i = 0; i < input.length; i += 500) {
         const batch = input.slice(i, i + 500);
-        const batchResp = await this.client._v0.admin.runWorkflows<I, O>(
+        const batchResp = await this.client.admin.runWorkflows<I, O>(
           batch.map((inp) => ({
             workflowName: this.definition.name,
             input: inp,
@@ -319,7 +346,7 @@ export class BaseWorkflowDeclaration<
       return Promise.all(res);
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.definition.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
 
     if (_standaloneTaskName) {
       res._standalone_task_name = _standaloneTaskName;
@@ -344,7 +371,7 @@ export class BaseWorkflowDeclaration<
     const scheduled = this.client._v0.schedule.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
-      additionalMetadata: options?.additionalMetadata,
+      ...options,
     });
 
     return scheduled;
@@ -386,6 +413,7 @@ export class BaseWorkflowDeclaration<
     const cronDef = this.client._v0.cron.create(this.definition.name, {
       expression,
       input: input as JsonObject,
+      ...options,
       additionalMetadata: options?.additionalMetadata,
       name,
     });
@@ -661,7 +689,7 @@ export class TaskWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
+  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }

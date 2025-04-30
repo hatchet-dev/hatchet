@@ -1,4 +1,4 @@
-import { InternalHatchetClient } from '@clients/hatchet-client';
+import { LegacyHatchetClient } from '@clients/hatchet-client';
 import { StepActionEventType, ActionType, AssignedAction } from '@hatchet/protoc/dispatcher';
 import { ActionListener } from '@clients/dispatcher/action-listener';
 import { never } from 'zod';
@@ -22,6 +22,7 @@ const mockStart: AssignActionMock = {
   getGroupKeyRunId: 'groupKeyRun1',
   stepName: 'step1',
   retryCount: 0,
+  priority: 1,
 };
 
 const mockCancel: AssignActionMock = {
@@ -30,10 +31,10 @@ const mockCancel: AssignActionMock = {
 };
 
 describe('Worker', () => {
-  let hatchet: InternalHatchetClient;
+  let hatchet: LegacyHatchetClient;
 
   beforeEach(() => {
-    hatchet = new InternalHatchetClient(
+    hatchet = new LegacyHatchetClient(
       {
         token:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef',

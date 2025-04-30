@@ -2,9 +2,10 @@ package features
 
 import (
 	"context"
-	"regexp"
 
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
 
@@ -37,6 +38,8 @@ type CreateCronTrigger struct {
 
 	// AdditionalMetadata is optional metadata to associate with the cron trigger.
 	AdditionalMetadata map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	Priority *int32 `json:"priority,omitempty"`
 }
 
 // cronsClientImpl implements the CronsClient interface.
@@ -60,9 +63,10 @@ func NewCronsClient(
 
 // ValidateCronExpression validates that a string is a valid cron expression.
 func ValidateCronExpression(expression string) bool {
-	// Basic cron validation regex matching the TypeScript implementation
-	cronRegex := regexp.MustCompile(`^(\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([0-9]|1[0-9]|2[0-3])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\*\/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\*|([1-9]|1[0-2])|\*\/([1-9]|1[0-2])) (\*|([0-6])|\*\/([0-6]))$`)
-	return cronRegex.MatchString(expression)
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	_, err := parser.Parse(expression)
+
+	return err == nil
 }
 
 // Create creates a new cron workflow trigger.

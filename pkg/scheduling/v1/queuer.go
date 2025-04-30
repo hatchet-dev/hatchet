@@ -2,7 +2,6 @@ package v2
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -125,6 +125,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case carrier = <-q.notifyQueueCh:
 		}
 
+		prometheus.QueueInvocations.Inc()
+
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
 		telemetry.WithAttributes(span, telemetry.AttributeKV{
@@ -206,6 +208,39 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
 					q.l.Warn().Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
+				}
+
+				if numFlushed > 0 {
+					now := time.Now()
+
+					for _, assignedItem := range ar.assigned {
+						prometheus.AssignedTasks.Inc()
+
+						qi := assignedItem.QueueItem
+
+						// we only track queue times if this is the first retry, because the TaskInsertedAt will
+						// match the time the first queue item was created. we should eventually write an InsertedAt
+						// column to the queue item table to track this better.
+						if qi.RetryCount != 0 || !qi.TaskInsertedAt.Valid {
+							continue
+						}
+
+						prometheus.QueuedToAssigned.Inc()
+
+						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
+
+						if timeInQueueSeconds > 0 {
+							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
+						}
+					}
+				}
+
+				for range ar.schedulingTimedOut {
+					prometheus.SchedulingTimedOut.Inc()
+				}
+
+				for range ar.rateLimited {
+					prometheus.RateLimited.Inc()
 				}
 			}(r)
 		}
@@ -475,60 +510,4 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	}
 
 	return len(succeeded) + len(r.schedulingTimedOut)
-}
-
-func getLargerDuration(s1, s2 string) (string, error) {
-	i1, err := getDurationIndex(s1)
-	if err != nil {
-		return "", err
-	}
-
-	i2, err := getDurationIndex(s2)
-	if err != nil {
-		return "", err
-	}
-
-	if i1 > i2 {
-		return s1, nil
-	}
-
-	return s2, nil
-}
-
-func getDurationIndex(s string) (int, error) {
-	for i, d := range durationStrings {
-		if d == s {
-			return i, nil
-		}
-	}
-
-	return -1, fmt.Errorf("invalid duration string: %s", s)
-}
-
-var durationStrings = []string{
-	"SECOND",
-	"MINUTE",
-	"HOUR",
-	"DAY",
-	"WEEK",
-	"MONTH",
-	"YEAR",
-}
-
-func getWindowParamFromDurString(dur string) string {
-	// validate duration string
-	found := false
-
-	for _, d := range durationStrings {
-		if d == dur {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return "MINUTE"
-	}
-
-	return fmt.Sprintf("1 %s", dur)
 }

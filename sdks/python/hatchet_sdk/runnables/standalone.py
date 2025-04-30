@@ -75,6 +75,15 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> R:
+        """
+        Synchronously trigger a workflow run without waiting for it to complete.
+        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+
+        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+        """
         return self._extract_result(self._workflow.run(input, options))
 
     async def aio_run(
@@ -82,6 +91,16 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> R:
+        """
+        Run the workflow asynchronously and wait for it to complete.
+
+        This method triggers a workflow run, blocks until completion, and returns the final result.
+
+        :param input: The input data for the workflow, must match the workflow's input type.
+        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+
+        :returns: The result of the workflow execution as a dictionary.
+        """
         result = await self._workflow.aio_run(input, options)
         return self._extract_result(result)
 
@@ -90,6 +109,16 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
+        """
+        Run the workflow synchronously and wait for it to complete.
+
+        This method triggers a workflow run, blocks until completion, and returns the final result.
+
+        :param input: The input data for the workflow, must match the workflow's input type.
+        :param options: Additional options for workflow execution like metadata and parent workflow ID.
+
+        :returns: The result of the workflow execution as a dictionary.
+        """
         ref = self._workflow.run_no_wait(input, options)
 
         return TaskRunRef[TWorkflowInput, R](self, ref)
@@ -99,17 +128,40 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> TaskRunRef[TWorkflowInput, R]:
+        """
+        Asynchronously trigger a workflow run without waiting for it to complete.
+        This method is useful for starting a workflow run and immediately returning a reference to the run without blocking while the workflow runs.
+
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+
+        :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
+        """
         ref = await self._workflow.aio_run_no_wait(input, options)
 
         return TaskRunRef[TWorkflowInput, R](self, ref)
 
     def run_many(self, workflows: list[WorkflowRunTriggerConfig]) -> list[R]:
+        """
+        Run a workflow in bulk and wait for all runs to complete.
+        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of results for each workflow run.
+        """
         return [
             self._extract_result(result)
             for result in self._workflow.run_many(workflows)
         ]
 
     async def aio_run_many(self, workflows: list[WorkflowRunTriggerConfig]) -> list[R]:
+        """
+        Run a workflow in bulk and wait for all runs to complete.
+        This method triggers multiple workflow runs, blocks until all of them complete, and returns the final results.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of results for each workflow run.
+        """
         return [
             self._extract_result(result)
             for result in await self._workflow.aio_run_many(workflows)
@@ -118,6 +170,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     def run_many_no_wait(
         self, workflows: list[WorkflowRunTriggerConfig]
     ) -> list[TaskRunRef[TWorkflowInput, R]]:
+        """
+        Run a workflow in bulk without waiting for all runs to complete.
+
+        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
+        """
         refs = self._workflow.run_many_no_wait(workflows)
 
         return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
@@ -125,6 +185,15 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     async def aio_run_many_no_wait(
         self, workflows: list[WorkflowRunTriggerConfig]
     ) -> list[TaskRunRef[TWorkflowInput, R]]:
+        """
+        Run a workflow in bulk without waiting for all runs to complete.
+
+        This method triggers multiple workflow runs and immediately returns a list of references to the runs without blocking while the workflows run.
+
+        :param workflows: A list of `WorkflowRunTriggerConfig` objects, each representing a workflow run to be triggered.
+
+        :returns: A list of `WorkflowRunRef` objects, each representing a reference to a workflow run.
+        """
         refs = await self._workflow.aio_run_many_no_wait(workflows)
 
         return [TaskRunRef[TWorkflowInput, R](self, ref) for ref in refs]
@@ -135,6 +204,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
+        """
+        Schedule a workflow to run at a specific time.
+
+        :param run_at: The time at which to schedule the workflow.
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        :returns: A `WorkflowVersion` object representing the scheduled workflow.
+        """
         return self._workflow.schedule(
             run_at=run_at,
             input=input,
@@ -147,6 +224,14 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
+        """
+        Schedule a workflow to run at a specific time.
+
+        :param run_at: The time at which to schedule the workflow.
+        :param input: The input data for the workflow.
+        :param options: Additional options for workflow execution.
+        :returns: A `WorkflowVersion` object representing the scheduled workflow.
+        """
         return await self._workflow.aio_schedule(
             run_at=run_at,
             input=input,
@@ -159,12 +244,25 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> CronWorkflows:
+        """
+        Create a cron job for the workflow.
+
+        :param cron_name: The name of the cron job.
+        :param expression: The cron expression that defines the schedule for the cron job.
+        :param input: The input data for the workflow.
+        :param additional_metadata: Additional metadata for the cron job.
+        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+
+        :returns: A `CronWorkflows` object representing the created cron job.
+        """
         return self._workflow.create_cron(
             cron_name=cron_name,
             expression=expression,
             input=input,
             additional_metadata=additional_metadata,
+            priority=priority,
         )
 
     async def aio_create_cron(
@@ -173,12 +271,25 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         expression: str,
         input: TWorkflowInput = cast(TWorkflowInput, EmptyModel()),
         additional_metadata: JSONSerializableMapping = {},
+        priority: int | None = None,
     ) -> CronWorkflows:
+        """
+        Create a cron job for the workflow.
+
+        :param cron_name: The name of the cron job.
+        :param expression: The cron expression that defines the schedule for the cron job.
+        :param input: The input data for the workflow.
+        :param additional_metadata: Additional metadata for the cron job.
+        :param priority: The priority of the cron job. Must be between 1 and 3, inclusive.
+
+        :returns: A `CronWorkflows` object representing the created cron job.
+        """
         return await self._workflow.aio_create_cron(
             cron_name=cron_name,
             expression=expression,
             input=input,
             additional_metadata=additional_metadata,
+            priority=priority,
         )
 
     def to_task(self) -> Task[TWorkflowInput, R]:

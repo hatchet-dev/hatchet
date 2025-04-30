@@ -29,6 +29,7 @@ type ChildWorkflowOpts struct {
 	ChildKey           *string
 	DesiredWorkerId    *string
 	AdditionalMetadata *map[string]string
+	Priority           *int32
 }
 
 type WorkflowRun struct {
@@ -145,6 +146,7 @@ func (a *adminClientImpl) PutWorkflowV1(workflow *v1contracts.CreateWorkflowVers
 type scheduleOpts struct {
 	schedules []time.Time
 	input     any
+	priority  *int32
 }
 
 type ScheduleOptFunc func(*scheduleOpts)
@@ -192,6 +194,7 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		Name:      workflowName,
 		Schedules: pbSchedules,
 		Input:     string(inputBytes),
+		Priority:  opts.priority,
 	})
 
 	if err != nil {
@@ -218,6 +221,22 @@ func WithRunMetadata(metadata interface{}) RunOptFunc {
 	}
 }
 
+func WithPriority(priority int32) RunOptFunc {
+	return func(r *admincontracts.TriggerWorkflowRequest) error {
+		r.Priority = &priority
+
+		return nil
+	}
+}
+
+// func WithSticky(sticky bool) RunOptFunc {
+// 	return func(r *admincontracts.TriggerWorkflowRequest) error {
+// 		r.Sticky = &sticky
+
+// 		return nil
+// 	}
+// }
+
 func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (*Workflow, error) {
 	inputBytes, err := json.Marshal(input)
 
@@ -229,19 +248,19 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
 	}
 
-	request := admincontracts.TriggerWorkflowRequest{
+	request := &admincontracts.TriggerWorkflowRequest{
 		Name:  workflowName,
 		Input: string(inputBytes),
 	}
 
 	for _, optionFunc := range options {
-		err = optionFunc(&request)
+		err = optionFunc(request)
 		if err != nil {
 			return nil, fmt.Errorf("could not apply run option: %w", err)
 		}
 	}
 
-	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &request)
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), request)
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
@@ -332,6 +351,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		ChildKey:           opts.ChildKey,
 		DesiredWorkerId:    opts.DesiredWorkerId,
 		AdditionalMetadata: &metadata,
+		Priority:           opts.Priority,
 	})
 
 	if err != nil {
@@ -397,6 +417,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			ChildKey:           workflow.Opts.ChildKey,
 			DesiredWorkerId:    workflow.Opts.DesiredWorkerId,
 			AdditionalMetadata: &metadata,
+			Priority:           workflow.Opts.Priority,
 		}
 
 	}

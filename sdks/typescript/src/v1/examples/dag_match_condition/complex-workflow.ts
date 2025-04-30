@@ -1,7 +1,7 @@
 // ❓ Create a workflow
 import { Or, SleepCondition, UserEventCondition } from '@hatchet/v1/conditions';
 import { ParentCondition } from '@hatchet/v1/conditions/parent-condition';
-import { Context } from '@hatchet/step';
+import { Context } from '@hatchet/v1/client/worker/context';
 import { hatchet } from '../hatchet-client';
 
 export const taskConditionWorkflow = hatchet.workflow({
