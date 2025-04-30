@@ -158,7 +158,7 @@ jobs:
 
   publish:
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [lint, test]
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout Repository
