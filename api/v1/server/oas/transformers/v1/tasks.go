@@ -23,7 +23,7 @@ func jsonToMap(jsonBytes []byte) map[string]interface{} {
 }
 
 func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
-	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
+	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionID))
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -54,24 +54,25 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
-		Input:              jsonToMap(task.Input),
-		Output:             jsonToMap(task.Output),
-		Type:               gen.V1WorkflowTypeTASK,
-		DisplayName:        task.DisplayName,
-		Duration:           durationPtr,
-		StartedAt:          startedAt,
-		FinishedAt:         finishedAt,
-		AdditionalMetadata: &additionalMetadata,
-		ErrorMessage:       &task.ErrorMessage.String,
-		Status:             gen.V1TaskStatus(task.Status),
-		TenantId:           uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
-		WorkflowId:         uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
-		TaskId:             int(task.ID),
-		TaskInsertedAt:     task.InsertedAt.Time,
-		TaskExternalId:     taskExternalId,
-		StepId:             &stepId,
-		ActionId:           &task.ActionID,
-		WorkflowVersionId:  &workflowVersionId,
+		Input:                 jsonToMap(task.Input),
+		Output:                jsonToMap(task.Output),
+		Type:                  gen.V1WorkflowTypeTASK,
+		DisplayName:           task.DisplayName,
+		Duration:              durationPtr,
+		StartedAt:             startedAt,
+		FinishedAt:            finishedAt,
+		AdditionalMetadata:    &additionalMetadata,
+		ErrorMessage:          &task.ErrorMessage.String,
+		Status:                gen.V1TaskStatus(task.Status),
+		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
+		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
+		TaskId:                int(task.ID),
+		TaskInsertedAt:        task.InsertedAt.Time,
+		TaskExternalId:        taskExternalId,
+		StepId:                &stepId,
+		ActionId:              &task.ActionID,
+		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowRunID)),
+		WorkflowVersionId:     &workflowVersionID,
 	}
 }
 
@@ -228,8 +229,8 @@ func ToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	return toReturn
 }
 
-func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExternalId *pgtype.UUID) gen.V1TaskSummary {
-	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowVersionID))
+func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExternalId pgtype.UUID) gen.V1TaskSummary {
+	workflowVersionID := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowVersionID))
 	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -259,13 +260,6 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 
 	input := jsonToMap(taskWithData.Input)
 
-	var parsedWorkflowRunUUID *uuid.UUID
-
-	if workflowRunExternalId != nil && workflowRunExternalId.Valid {
-		id := uuid.MustParse(sqlchelpers.UUIDToStr(*workflowRunExternalId))
-		parsedWorkflowRunUUID = &id
-	}
-
 	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.StepID))
 
 	return gen.V1TaskSummary{
@@ -287,13 +281,13 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		TenantId:              uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.TenantID)),
 		WorkflowId:            uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowID)),
 		ErrorMessage:          &taskWithData.ErrorMessage.String,
-		WorkflowRunExternalId: parsedWorkflowRunUUID,
+		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(workflowRunExternalId)),
 		TaskExternalId:        uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.ExternalID)),
 		Type:                  gen.V1WorkflowTypeTASK,
 		NumSpawnedChildren:    int(taskWithData.SpawnedChildren.Int64),
 		StepId:                &stepId,
 		ActionId:              &taskWithData.ActionID,
-		WorkflowVersionId:     &workflowVersionId,
+		WorkflowVersionId:     &workflowVersionID,
 	}
 }
 
@@ -390,4 +384,49 @@ func ToWorkflowRunDetails(
 		TaskEvents: parsedTaskEvents,
 		Tasks:      parsedTasks,
 	}, nil
+}
+
+func ToTaskTimings(
+	timings []*sqlcv1.PopulateTaskRunDataRow,
+	idsToDepth map[string]int32,
+) []gen.V1TaskTiming {
+	toReturn := make([]gen.V1TaskTiming, len(timings))
+
+	for i, timing := range timings {
+		depth := idsToDepth[sqlchelpers.UUIDToStr(timing.ExternalID)]
+
+		toReturn[i] = gen.V1TaskTiming{
+			Metadata: gen.APIResourceMeta{
+				Id:        sqlchelpers.UUIDToStr(timing.ExternalID),
+				CreatedAt: timing.InsertedAt.Time,
+				UpdatedAt: timing.InsertedAt.Time,
+			},
+			Status:          gen.V1TaskStatus(timing.Status),
+			TaskDisplayName: timing.DisplayName,
+			TaskId:          int(timing.ID),
+			TaskInsertedAt:  timing.InsertedAt.Time,
+			TaskExternalId:  uuid.MustParse(sqlchelpers.UUIDToStr(timing.ExternalID)),
+			TenantId:        uuid.MustParse(sqlchelpers.UUIDToStr(timing.TenantID)),
+			Depth:           int(depth),
+		}
+
+		if timing.QueuedAt.Valid {
+			toReturn[i].QueuedAt = &timing.QueuedAt.Time
+		}
+
+		if timing.StartedAt.Valid {
+			toReturn[i].StartedAt = &timing.StartedAt.Time
+		}
+
+		if timing.FinishedAt.Valid {
+			toReturn[i].FinishedAt = &timing.FinishedAt.Time
+		}
+
+		if timing.ParentTaskExternalID.Valid {
+			parentId := uuid.MustParse(sqlchelpers.UUIDToStr(timing.ParentTaskExternalID))
+			toReturn[i].ParentTaskExternalId = &parentId
+		}
+	}
+
+	return toReturn
 }

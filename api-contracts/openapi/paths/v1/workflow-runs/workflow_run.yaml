@@ -322,3 +322,54 @@ trigger:
     summary: Create workflow run
     tags:
       - Workflow Runs
+
+getTimings:
+  get:
+    x-resources: ["tenant", "v1-workflow-run"]
+    description: Get the timings for a workflow run
+    operationId: v1-workflow-run:get:timings
+    parameters:
+      - description: The workflow run id to get
+        in: path
+        name: v1-workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The depth to retrieve children
+        in: query
+        name: depth
+        required: false
+        schema:
+          type: integer
+          format: int64
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskTimingList"
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List timings for a workflow run
+    tags:
+      - Workflow Runs
