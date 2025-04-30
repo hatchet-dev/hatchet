@@ -1,327 +1,327 @@
-# name: test
-# on:
-#   pull_request:
-#     paths-ignore:
-#       - "sdks/**"
-#       - "frontend/docs/**"
-
-# jobs:
-#   generate:
-#     runs-on: ubuntu-latest
-#     env:
-#       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
-
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Install Protoc
-#         uses: arduino/setup-protoc@v3
-#         with:
-#           version: "29.3"
-
-#       - name: Install Task
-#         uses: arduino/setup-task@v2
-
-#       - name: Setup Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: "1.24"
-
-#       - name: Setup pnpm
-#         uses: pnpm/action-setup@v4
-#         with:
-#           version: 9.15.4
-#           run_install: false
-
-#       - name: Install Atlas
-#         run: |
-#           curl -sSf https://atlasgo.sh | sh
-
-#       - name: Compose
-#         run: docker compose up -d
-
-#       - name: Generate
-#         run: |
-#           go run ./cmd/hatchet-migrate
-#           task pre-commit-install
-#           task generate-all
-
-#       - name: Check for diff
-#         run: git diff --exit-code
-
-#       - name: Teardown
-#         run: docker compose down
-
-#   unit:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-#       - name: Setup Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: "1.24"
-
-#       - name: Go deps
-#         run: go mod download
-
-#       - name: Generate
-#         run: go generate ./...
-
-#       - name: Test
-#         run: go test ./... -v -failfast
-
-#   integration:
-#     runs-on: ubuntu-latest
-#     env:
-#       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
-
-#     steps:
-#       - uses: actions/checkout@v4
-#       - name: Install Task
-#         uses: arduino/setup-task@v2
-
-#       - name: Setup Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: "1.24"
-
-#       - name: Setup pnpm
-#         uses: pnpm/action-setup@v4
-#         with:
-#           version: 9.15.4
-#           run_install: false
-
-#       - name: Install Atlas
-#         run: |
-#           curl -sSf https://atlasgo.sh | sh
-
-#       - name: Compose
-#         run: docker compose up -d
-
-#       - name: Go deps
-#         run: go mod download
-
-#       - name: Generate
-#         run: |
-#           go run ./cmd/hatchet-migrate
-#           task generate-go
-#           task generate-certs
-#           task generate-local-encryption-keys
-
-#       - name: Test
-#         run: go test -tags integration ./... -v -failfast
-
-#       - name: Teardown
-#         run: docker compose down
-
-#   e2e:
-#     runs-on: ubuntu-latest
-#     timeout-minutes: 30
-#     env:
-#       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
-
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Install Task
-#         uses: arduino/setup-task@v2
-#       - name: Setup Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: "1.24"
-
-#       - name: Setup pnpm
-#         uses: pnpm/action-setup@v4
-#         with:
-#           version: 9.15.4
-#           run_install: false
-
-#       - name: Install Atlas
-#         run: |
-#           curl -sSf https://atlasgo.sh | sh
-
-#       - name: Compose
-#         run: docker compose up -d
-
-#       - name: Go deps
-#         run: go mod download
-
-#       - name: Prepare
-#         run: |
-#           cat > .env <<EOF
-#           HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
-#           DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-#           HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-#           HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
-#           SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-#           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-#           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-#           SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
-#           SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
-#           SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
-
-#           SERVER_LOGGER_LEVEL=warn
-#           SERVER_LOGGER_FORMAT=console
-#           DATABASE_LOGGER_LEVEL=warn
-#           DATABASE_LOGGER_FORMAT=console
-
-#           DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-#           SERVER_PORT=8080
-#           SERVER_URL=http://localhost:8080
-
-#           SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
-#           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-#           SERVER_AUTH_COOKIE_INSECURE=false
-#           SERVER_AUTH_SET_EMAIL_VERIFIED=true
-#           EOF
-
-#       - name: Generate
-#         run: |
-#           go run ./cmd/hatchet-migrate
-#           task generate-go
-#           task generate-certs
-#           task generate-local-encryption-keys
-
-#       - name: Run engine
-#         run: |
-#           set -a
-#           . .env
-#           set +a
-
-#           go run ./cmd/hatchet-admin quickstart
-
-#           go run ./cmd/hatchet-engine --config ./generated/ &
-#           go run ./cmd/hatchet-api --config ./generated/ &
-#           sleep 30
-
-#       - name: Test
-#         run: |
-#           go test -tags e2e ./... -p 1 -v -failfast
-
-#       - name: Teardown
-#         run: docker compose down
-
-#   e2e-pgmq:
-#     runs-on: ubuntu-latest
-#     timeout-minutes: 30
-#     env:
-#       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
-
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Install Task
-#         uses: arduino/setup-task@v2
-#       - name: Setup Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: "1.22"
-
-#       - name: Setup pnpm
-#         uses: pnpm/action-setup@v4
-#         with:
-#           version: 9.15.4
-#           run_install: false
-
-#       - name: Install Atlas
-#         run: |
-#           curl -sSf https://atlasgo.sh | sh
-
-#       - name: Compose
-#         run: docker compose up -d
-
-#       - name: Go deps
-#         run: go mod download
-
-#       - name: Prepare
-#         run: |
-#           cat > .env <<EOF
-#           HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
-#           DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-#           HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-#           HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
-#           SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-#           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-#           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-#           SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
-#           SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
-#           SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
-
-#           SERVER_LOGGER_LEVEL=warn
-#           SERVER_LOGGER_FORMAT=console
-#           DATABASE_LOGGER_LEVEL=warn
-#           DATABASE_LOGGER_FORMAT=console
-
-#           DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-#           SERVER_PORT=8080
-#           SERVER_URL=http://localhost:8080
-
-#           SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
-#           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-#           SERVER_AUTH_COOKIE_INSECURE=false
-#           SERVER_AUTH_SET_EMAIL_VERIFIED=true
-
-#           SERVER_TASKQUEUE_KIND=postgres
-#           EOF
-
-#       - name: Generate
-#         run: |
-#           go run ./cmd/hatchet-migrate
-#           task generate-go
-#           task generate-certs
-#           task generate-local-encryption-keys
-
-#       - name: Run engine
-#         run: |
-#           set -a
-#           . .env
-#           set +a
-
-#           go run ./cmd/hatchet-admin quickstart
-
-#           go run ./cmd/hatchet-engine --config ./generated/ &
-#           go run ./cmd/hatchet-api --config ./generated/ &
-#           sleep 30
-
-#       - name: Test
-#         run: |
-#           go test -tags e2e ./... -p 1 -v -failfast
-
-#       - name: Teardown
-#         run: docker compose down
-
-#   load:
-#     runs-on: ubuntu-latest
-#     timeout-minutes: 30
-#     strategy:
-#       matrix:
-#         migrate-strategy: ["latest", "penultimate"]
-#         rabbitmq-enabled: ["true", "false"]
-#         pg-version: ["17-alpine", "16-alpine", "15-alpine"]
-
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Install Task
-#         uses: arduino/setup-task@v2
-#       - name: Setup Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: "1.24"
-
-#       - name: Setup pnpm
-#         uses: pnpm/action-setup@v4
-#         with:
-#           version: 9.15.4
-#           run_install: false
-
-#       - name: Go deps
-#         run: go mod download
-
-#       - name: Test
-#         run: |
-#           go test -tags load ./... -p 1 -v -race -failfast
-#         env:
-#           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
-#           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
-#           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+name: test
+on:
+  pull_request:
+    paths-ignore:
+      - "sdks/**"
+      - "frontend/docs/**"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "29.3"
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Generate
+        run: |
+          go run ./cmd/hatchet-migrate
+          task pre-commit-install
+          task generate-all
+
+      - name: Check for diff
+        run: git diff --exit-code
+
+      - name: Teardown
+        run: docker compose down
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Generate
+        run: go generate ./...
+
+      - name: Test
+        run: go test ./... -v -failfast
+
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Generate
+        run: |
+          go run ./cmd/hatchet-migrate
+          task generate-go
+          task generate-certs
+          task generate-local-encryption-keys
+
+      - name: Test
+        run: go test -tags integration ./... -v -failfast
+
+      - name: Teardown
+        run: docker compose down
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Prepare
+        run: |
+          cat > .env <<EOF
+          HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
+          DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+          HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
+          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
+          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
+          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+          SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
+          SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
+          SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
+
+          SERVER_LOGGER_LEVEL=warn
+          SERVER_LOGGER_FORMAT=console
+          DATABASE_LOGGER_LEVEL=warn
+          DATABASE_LOGGER_FORMAT=console
+
+          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+          SERVER_PORT=8080
+          SERVER_URL=http://localhost:8080
+
+          SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
+          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
+          SERVER_AUTH_COOKIE_INSECURE=false
+          SERVER_AUTH_SET_EMAIL_VERIFIED=true
+          EOF
+
+      - name: Generate
+        run: |
+          go run ./cmd/hatchet-migrate
+          task generate-go
+          task generate-certs
+          task generate-local-encryption-keys
+
+      - name: Run engine
+        run: |
+          set -a
+          . .env
+          set +a
+
+          go run ./cmd/hatchet-admin quickstart
+
+          go run ./cmd/hatchet-engine --config ./generated/ &
+          go run ./cmd/hatchet-api --config ./generated/ &
+          sleep 30
+
+      - name: Test
+        run: |
+          go test -tags e2e ./... -p 1 -v -failfast
+
+      - name: Teardown
+        run: docker compose down
+
+  e2e-pgmq:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh
+
+      - name: Compose
+        run: docker compose up -d
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Prepare
+        run: |
+          cat > .env <<EOF
+          HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
+          DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
+          HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+          HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
+          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
+          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
+          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
+          SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
+          SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
+          SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
+
+          SERVER_LOGGER_LEVEL=warn
+          SERVER_LOGGER_FORMAT=console
+          DATABASE_LOGGER_LEVEL=warn
+          DATABASE_LOGGER_FORMAT=console
+
+          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+          SERVER_PORT=8080
+          SERVER_URL=http://localhost:8080
+
+          SERVER_AUTH_COOKIE_SECRETS="kPpegRDNpofgkUsr HoWe67haMOF5qnaB"
+          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
+          SERVER_AUTH_COOKIE_INSECURE=false
+          SERVER_AUTH_SET_EMAIL_VERIFIED=true
+
+          SERVER_TASKQUEUE_KIND=postgres
+          EOF
+
+      - name: Generate
+        run: |
+          go run ./cmd/hatchet-migrate
+          task generate-go
+          task generate-certs
+          task generate-local-encryption-keys
+
+      - name: Run engine
+        run: |
+          set -a
+          . .env
+          set +a
+
+          go run ./cmd/hatchet-admin quickstart
+
+          go run ./cmd/hatchet-engine --config ./generated/ &
+          go run ./cmd/hatchet-api --config ./generated/ &
+          sleep 30
+
+      - name: Test
+        run: |
+          go test -tags e2e ./... -p 1 -v -failfast
+
+      - name: Teardown
+        run: docker compose down
+
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        migrate-strategy: ["latest", "penultimate"]
+        rabbitmq-enabled: ["true", "false"]
+        pg-version: ["17-alpine", "16-alpine", "15-alpine"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Test
+        run: |
+          go test -tags load ./... -p 1 -v -race -failfast
+        env:
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}

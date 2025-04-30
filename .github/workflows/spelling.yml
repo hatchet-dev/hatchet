@@ -1,9 +1,9 @@
-# name: spelling
-# on: pull_request
-# jobs:
-#   spelling:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-#       - uses: crate-ci/typos@master
-#         continue-on-error: true
+name: spelling
+on: pull_request
+jobs:
+  spelling:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@master
+        continue-on-error: true
