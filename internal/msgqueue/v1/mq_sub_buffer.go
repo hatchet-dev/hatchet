@@ -4,14 +4,46 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
-// default values for the buffer
-const SUB_FLUSH_INTERVAL = 10 * time.Millisecond
-const SUB_BUFFER_SIZE = 1000
-const SUB_MAX_CONCURRENCY = 10
+// nolint: staticcheck
+var (
+	SUB_FLUSH_INTERVAL  = 10 * time.Millisecond
+	SUB_BUFFER_SIZE     = 1000
+	SUB_MAX_CONCURRENCY = 10
+)
+
+func init() {
+	if os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL") != "" {
+		if v, err := time.ParseDuration(os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL")); err == nil {
+			SUB_FLUSH_INTERVAL = v
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_SIZE") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE")
+
+		maxSize, err := strconv.Atoi(v)
+
+		if err == nil {
+			SUB_BUFFER_SIZE = maxSize
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY")
+
+		maxConcurrency, err := strconv.Atoi(v)
+
+		if err == nil {
+			SUB_MAX_CONCURRENCY = maxConcurrency
+		}
+	}
+}
 
 type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
