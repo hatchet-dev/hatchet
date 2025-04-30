@@ -1,199 +1,199 @@
-name: build
-on:
-  pull_request:
-    paths-ignore:
-      - 'sdks/**'
-      - 'frontend/docs/**'
+# name: build
+# on:
+#   pull_request:
+#     paths-ignore:
+#       - 'sdks/**'
+#       - 'frontend/docs/**'
 
-jobs:
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build frontend
-        run: docker build -f ./build/package/frontend.dockerfile .
+# jobs:
+#   frontend:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build frontend
+#         run: docker build -f ./build/package/frontend.dockerfile .
 
-  api:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
+#   api:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build servers
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
-  api-arm:
-    runs-on: hatchet-arm64-2
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
+#   api-arm:
+#     runs-on: hatchet-arm64-2
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build servers
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
-  engine:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
+#   engine:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build servers
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
-  engine-arm:
-    runs-on: hatchet-arm64-2
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
+#   engine-arm:
+#     runs-on: hatchet-arm64-2
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build servers
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
-  admin:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
+#   admin:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build servers
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
-  admin-arm:
-    runs-on: hatchet-arm64-2
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build servers
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
+#   admin-arm:
+#     runs-on: hatchet-arm64-2
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build servers
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
-  migrate:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build migrate
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
+#   migrate:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build migrate
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
-  migrate-arm:
-    runs-on: hatchet-arm64-2
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build migrate
-        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
+#   migrate-arm:
+#     runs-on: hatchet-arm64-2
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build migrate
+#         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
-  lite-arm:
-    runs-on: hatchet-arm64-2
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build lite
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=lite \
-            --platform linux/arm64 \
-            -t hatchet-lite-tmp:arm64 \
-            . &
+#   lite-arm:
+#     runs-on: hatchet-arm64-2
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build lite
+#         run: |
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=lite \
+#             --platform linux/arm64 \
+#             -t hatchet-lite-tmp:arm64 \
+#             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=admin \
-            --platform linux/arm64 \
-            -t hatchet-admin-tmp:arm64 \
-            . &
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=admin \
+#             --platform linux/arm64 \
+#             -t hatchet-admin-tmp:arm64 \
+#             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=migrate \
-            --platform linux/arm64 \
-            -t hatchet-migrate-tmp:arm64 \
-            . &
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=migrate \
+#             --platform linux/arm64 \
+#             -t hatchet-migrate-tmp:arm64 \
+#             . &
 
-          wait
+#           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
-            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
-            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
-            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
-            --platform linux/arm64 \
-            .
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+#             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
+#             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
+#             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
+#             --platform linux/arm64 \
+#             .
 
-  lite-amd:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build lite
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=lite \
-            --platform linux/amd64 \
-            -t hatchet-lite-tmp:amd64 \
-            . &
+#   lite-amd:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build lite
+#         run: |
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=lite \
+#             --platform linux/amd64 \
+#             -t hatchet-lite-tmp:amd64 \
+#             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=admin \
-            --platform linux/amd64 \
-            -t hatchet-admin-tmp:amd64 \
-            . &
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=admin \
+#             --platform linux/amd64 \
+#             -t hatchet-admin-tmp:amd64 \
+#             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=migrate \
-            --platform linux/amd64 \
-            -t hatchet-migrate-tmp:amd64 \
-            . &
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=migrate \
+#             --platform linux/amd64 \
+#             -t hatchet-migrate-tmp:amd64 \
+#             . &
 
-          wait
+#           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
-            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
-            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
-            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
-            --platform linux/amd64 \
-            .
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+#             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
+#             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
+#             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
+#             --platform linux/amd64 \
+#             .
 
-  dashboard-arm:
-    runs-on: hatchet-arm64-2
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build dashboard
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=api \
-            --platform linux/arm64 \
-            -t hatchet-api-tmp:arm64 \
-            .
+#   dashboard-arm:
+#     runs-on: hatchet-arm64-2
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build dashboard
+#         run: |
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=api \
+#             --platform linux/arm64 \
+#             -t hatchet-api-tmp:arm64 \
+#             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
-            --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:arm64 \
-            --platform linux/arm64 \
-            .
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+#             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:arm64 \
+#             --platform linux/arm64 \
+#             .
 
-  dashboard-amd:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build dashboard
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=api \
-            --platform linux/amd64 \
-            -t hatchet-api-tmp:amd64 \
-            .
+#   dashboard-amd:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build dashboard
+#         run: |
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+#             --build-arg SERVER_TARGET=api \
+#             --platform linux/amd64 \
+#             -t hatchet-api-tmp:amd64 \
+#             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
-            --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:amd64 \
-            --platform linux/amd64 \
-            .
+#           DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+#             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:amd64 \
+#             --platform linux/amd64 \
+#             .
 
-  loadtest:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build loadtest
-        run: docker build -f ./build/package/loadtest.dockerfile .
+#   loadtest:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build loadtest
+#         run: docker build -f ./build/package/loadtest.dockerfile .
 
-  loadtest-arm:
-    runs-on: hatchet-arm64-2
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-      - name: Build loadtest
-        run: docker build -f ./build/package/loadtest.dockerfile .
+#   loadtest-arm:
+#     runs-on: hatchet-arm64-2
+#     steps:
+#       - name: Clone repository
+#         uses: actions/checkout@v4
+#       - name: Build loadtest
+#         run: docker build -f ./build/package/loadtest.dockerfile .
