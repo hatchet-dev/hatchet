@@ -138,7 +138,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
 async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
     sleep_time = 3
-    n = 31
+    n = 30
     choices: list[Priority] = ["low", "medium", "high", "default"]
     run_at = datetime.now() + timedelta(seconds=sleep_time)
 
