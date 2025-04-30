@@ -16,6 +16,7 @@ from examples.concurrency_multiple_keys.worker import (
 )
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.logger import logger
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
 characters: list[Character] = [
@@ -55,6 +56,8 @@ class RunMetadata(BaseModel):
 async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
+    logger.info(f"In test_multi_concurrency_key with test run ID: {test_run_id}")
+
     run_refs = await concurrency_multiple_keys_workflow.aio_run_many_no_wait(
         [
             concurrency_multiple_keys_workflow.create_bulk_run_item(
@@ -75,36 +78,23 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
         ]
     )
 
+    logger.info(f"Run references: {[str(r) for r in run_refs]}")
+
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(
-            workflow_name=concurrency_multiple_keys_workflow.name,
-            limit=1_000,
-        )
-    ).rows
+    logger.info(f"Finished waiting for tasks to finish with test run ID: {test_run_id}")
 
-    assert workflows
-
-    workflow = next(
-        (w for w in workflows if w.name == concurrency_multiple_keys_workflow.name),
-        None,
-    )
-
-    assert workflow
-
-    assert workflow.name == concurrency_multiple_keys_workflow.name
-
-    runs = await hatchet.runs.aio_list(
-        workflow_ids=[workflow.metadata.id],
+    runs = await concurrency_multiple_keys_workflow.aio_list_runs(
         additional_metadata={
             "test_run_id": test_run_id,
         },
         limit=1_000,
     )
 
+    logger.info(f"Runs: {[str(r) for r in runs]}")
+
     sorted_runs = sorted(
-        [RunMetadata.parse(r) for r in runs.rows], key=lambda r: r.started_at
+        [RunMetadata.parse(r) for r in runs], key=lambda r: r.started_at
     )
 
     overlapping_groups: dict[int, list[RunMetadata]] = {}

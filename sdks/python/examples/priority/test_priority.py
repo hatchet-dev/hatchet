@@ -85,20 +85,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(workflow_name=priority_workflow.name)
-    ).rows
-
-    assert workflows
-
-    workflow = next((w for w in workflows if w.name == priority_workflow.name), None)
-
-    assert workflow
-
-    assert workflow.name == priority_workflow.name
-
-    runs = await hatchet.runs.aio_list(
-        workflow_ids=[workflow.metadata.id],
+    runs = await priority_workflow.aio_list_runs(
         additional_metadata={
             "test_run_id": test_run_id,
         },
@@ -112,7 +99,7 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )

@@ -16,6 +16,7 @@ from examples.concurrency_workflow_level.worker import (
 )
 from hatchet_sdk import Hatchet, TriggerWorkflowOptions
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.logger import logger
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
 characters: list[Character] = [
@@ -55,6 +56,8 @@ class RunMetadata(BaseModel):
 async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 
+    logger.info(f"In test_workflow_level_concurrency with test run ID: {test_run_id}")
+
     run_refs = await concurrency_workflow_level_workflow.aio_run_many_no_wait(
         [
             concurrency_workflow_level_workflow.create_bulk_run_item(
@@ -75,36 +78,25 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
         ]
     )
 
-    await asyncio.gather(*[r.aio_result() for r in run_refs])
-
-    workflows = (
-        await hatchet.workflows.aio_list(
-            workflow_name=concurrency_workflow_level_workflow.name,
-            limit=1_000,
-        )
-    ).rows
-
-    assert workflows
-
-    workflow = next(
-        (w for w in workflows if w.name == concurrency_workflow_level_workflow.name),
-        None,
+    logger.info(
+        f"Created {len(run_refs)} run references with test run ID: {test_run_id}"
     )
 
-    assert workflow
+    await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    assert workflow.name == concurrency_workflow_level_workflow.name
+    logger.info("Finished waiting for tasks to finish")
 
-    runs = await hatchet.runs.aio_list(
-        workflow_ids=[workflow.metadata.id],
+    runs = await concurrency_workflow_level_workflow.aio_list_runs(
         additional_metadata={
             "test_run_id": test_run_id,
         },
         limit=1_000,
     )
 
+    logger.info(f"Fetched {len(runs)} runs with test run ID: {test_run_id}")
+
     sorted_runs = sorted(
-        [RunMetadata.parse(r) for r in runs.rows], key=lambda r: r.started_at
+        [RunMetadata.parse(r) for r in runs], key=lambda r: r.started_at
     )
 
     overlapping_groups: dict[int, list[RunMetadata]] = {}
