@@ -227,7 +227,7 @@ async def crons(
 ) -> AsyncGenerator[tuple[str, str, int], None]:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high"]
-    n = 25
+    n = 30
 
     crons = await asyncio.gather(
         *[
