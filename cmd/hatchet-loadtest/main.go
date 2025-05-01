@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // nolint: gosec
 )
 
 var l zerolog.Logger
@@ -44,11 +44,11 @@ func main() {
 			// enable pprof if requested
 			if os.Getenv("PPROF_ENABLED") == "true" {
 				go func() {
-					log.Println(http.ListenAndServe("localhost:6060", nil))
+					log.Println(http.ListenAndServe("localhost:6060", nil)) // nolint: gosec
 				}()
 			}
 
-			if err := do(duration, events, delay, wait, concurrency, workerDelay, slots, failureRate, payloadSize, eventFanout); err != nil {
+			if err := do(os.Getenv("HATCHET_CLIENT_NAMESPACE"), duration, events, delay, wait, concurrency, workerDelay, slots, failureRate, payloadSize, eventFanout); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}

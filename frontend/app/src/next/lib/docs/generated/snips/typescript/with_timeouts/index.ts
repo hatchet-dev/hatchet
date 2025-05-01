@@ -1,3 +1,3 @@
 import workflow from './workflow';
 
-export { workflow }
+export { workflow };

@@ -527,7 +527,7 @@ func (w *WorkflowStep) GetStepId(index int) string {
 func (w *WorkflowStep) GetActionId(svcName string, index int) string {
 	stepId := w.GetStepId(index)
 
-	return fmt.Sprintf("%s:%s", svcName, stepId)
+	return strings.ToLower(fmt.Sprintf("%s:%s", svcName, stepId))
 }
 
 func getFnName(fn any) string {

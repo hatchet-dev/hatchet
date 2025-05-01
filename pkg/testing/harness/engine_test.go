@@ -1,4 +1,4 @@
-//go:build load
+//go:build e2e
 
 package harness
 
