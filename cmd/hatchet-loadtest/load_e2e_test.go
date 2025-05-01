@@ -40,25 +40,25 @@ func TestLoadCLI(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// {
-		// 	name: "test with high step delay",
-		// 	args: args{
-		// 		duration:        240 * time.Second,
-		// 		eventsPerSecond: 10,
-		// 		delay:           10 * time.Second,
-		// 		wait:            60 * time.Second,
-		// 		concurrency:     0,
-		// 	},
-		// }, {
-		// 	name: "test simple with unlimited concurrency",
-		// 	args: args{
-		// 		duration:        240 * time.Second,
-		// 		eventsPerSecond: 10,
-		// 		delay:           0 * time.Second,
-		// 		wait:            60 * time.Second,
-		// 		concurrency:     0,
-		// 	},
-		// },
+		{
+			name: "test with high step delay",
+			args: args{
+				duration:        240 * time.Second,
+				eventsPerSecond: 10,
+				delay:           10 * time.Second,
+				wait:            60 * time.Second,
+				concurrency:     0,
+			},
+		}, {
+			name: "test simple with unlimited concurrency",
+			args: args{
+				duration:        240 * time.Second,
+				eventsPerSecond: 10,
+				delay:           0 * time.Second,
+				wait:            60 * time.Second,
+				concurrency:     0,
+			},
+		},
 		{
 			name: "test with global concurrency key",
 			args: args{
@@ -69,17 +69,17 @@ func TestLoadCLI(t *testing.T) {
 				concurrency:     10,
 			},
 		},
-		// {
-		// 	name: "test for many queued events and little worker throughput",
-		// 	args: args{
-		// 		duration:        240 * time.Second,
-		// 		eventsPerSecond: 10,
-		// 		delay:           0 * time.Second,
-		// 		workerDelay:     120 * time.Second, // will write 1200 events before the worker is ready
-		// 		wait:            120 * time.Second,
-		// 		concurrency:     0,
-		// 	},
-		// },
+		{
+			name: "test for many queued events and little worker throughput",
+			args: args{
+				duration:        240 * time.Second,
+				eventsPerSecond: 10,
+				delay:           0 * time.Second,
+				workerDelay:     120 * time.Second, // will write 1200 events before the worker is ready
+				wait:            120 * time.Second,
+				concurrency:     0,
+			},
+		},
 	}
 
 	// TODO instead of waiting, figure out when the engine setup is complete
