@@ -44,9 +44,9 @@ import * as waits from './waits';
 import * as worker_existing_loop from './worker_existing_loop';
 import * as workflow_registration from './workflow_registration';
 
-export { __init__ }
-export { hatchet_client }
-export { worker }
+export { __init__ };
+export { hatchet_client };
+export { worker };
 export { affinity_workers };
 export { api };
 export { blocked_async };
