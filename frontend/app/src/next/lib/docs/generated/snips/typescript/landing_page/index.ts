@@ -5,9 +5,9 @@ import queues from './queues';
 import scheduling from './scheduling';
 import task_routing from './task-routing';
 
-export { durable_excution }
-export { event_signaling }
-export { flow_control }
-export { queues }
-export { scheduling }
-export { task_routing }
+export { durable_excution };
+export { event_signaling };
+export { flow_control };
+export { queues };
+export { scheduling };
+export { task_routing };
