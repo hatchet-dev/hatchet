@@ -58,14 +58,22 @@ func TestLoadCLI(t *testing.T) {
 				wait:            60 * time.Second,
 				concurrency:     0,
 			},
-		},
-		{
+		}, {
+			name: "test with global concurrency key",
+			args: args{
+				duration:        240 * time.Second,
+				eventsPerSecond: 10,
+				delay:           0 * time.Second,
+				wait:            60 * time.Second,
+				concurrency:     10,
+			},
+		}, {
 			name: "test for many queued events and little worker throughput",
 			args: args{
 				duration:        240 * time.Second,
-				eventsPerSecond: 100,
+				eventsPerSecond: 10,
 				delay:           0 * time.Second,
-				workerDelay:     60 * time.Second,
+				workerDelay:     120 * time.Second, // will write 1200 events before the worker is ready
 				wait:            120 * time.Second,
 				concurrency:     0,
 			},
