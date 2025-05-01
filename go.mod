@@ -8,7 +8,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/creasty/defaults v1.8.0
 	github.com/fatih/color v1.18.0
-	github.com/getkin/kin-openapi v0.131.0
+	github.com/getkin/kin-openapi v0.132.0
 	github.com/go-co-op/gocron/v2 v2.16.1
 	github.com/google/go-github/v57 v57.0.0
 	github.com/gorilla/securecookie v1.1.2
@@ -25,7 +25,7 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
-	github.com/posthog/posthog-go v1.4.10
+	github.com/posthog/posthog-go v1.5.1
 	github.com/pressly/goose/v3 v3.24.2
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.9.1

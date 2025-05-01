@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -90,8 +92,16 @@ func startEngine() func() {
 
 	postgresConnStr, cleanupPostgres := startPostgres(ctx, pgVersion)
 
+	grpcPort, err := findAvailablePort(7070)
+
+	if err != nil {
+		log.Fatalf("failed to find available port: %v", err)
+	}
+
 	os.Setenv("DATABASE_URL", postgresConnStr)
 	os.Setenv("SERVER_GRPC_INSECURE", "true")
+	os.Setenv("SERVER_GRPC_PORT", strconv.Itoa(grpcPort))
+	os.Setenv("SERVER_HEALTHCHECK", "false")
 	os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
 	os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	os.Setenv("SERVER_LOGGER_LEVEL", "error")
@@ -363,4 +373,29 @@ func setTestingKeysInEnv() {
 	_ = os.Setenv("SERVER_ENCRYPTION_MASTER_KEYSET", string(masterKeyBytes))
 	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET", string(privateEc256))
 	_ = os.Setenv("SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET", string(publicEc256))
+}
+
+// findAvailablePort returns an available port starting from the given port
+// It will only attempt a maximum of 100 ports before giving up
+func findAvailablePort(startPort int) (int, error) {
+	port := startPort
+	maxAttempts := 100
+	// Use min to limit the search to either port+100 or 65535, whichever is smaller
+	maxPort := min(startPort+maxAttempts-1, 65535)
+
+	for port <= maxPort {
+		addr := ":" + strconv.Itoa(port)
+		listener, err := net.Listen("tcp", addr)
+
+		if err == nil {
+			// Port is available, close the listener and return the port
+			listener.Close()
+			return port, nil
+		}
+
+		// Try the next port
+		port++
+	}
+
+	return 0, fmt.Errorf("no available port found in range %d-%d", startPort, maxPort)
 }

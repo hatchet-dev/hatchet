@@ -57,6 +57,7 @@ tasks:
     cmds:
       # FIXME: Remove this once we have a better way to handle pre-commit reliably
       - cd frontend/snips/ && pnpm i && pnpm generate && pnpm run copy:all
+      - cd frontend/app/ && pnpm run lint:fix
       - pre-commit run --all-files
       - pre-commit run --all-files
       - pre-commit run --all-files

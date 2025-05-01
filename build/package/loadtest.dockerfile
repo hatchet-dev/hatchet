@@ -10,7 +10,7 @@ RUN go mod download
 COPY /pkg ./pkg
 COPY /internal ./internal
 COPY /api ./api
-COPY /examples/go/z_v0/loadtest/cli ./cli
+COPY /cmd/hatchet-loadtest ./cli
 
 # Go build environment
 # --------------------
