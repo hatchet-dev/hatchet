@@ -75,12 +75,6 @@ export const machineTypes = [
     memoryMb: 16384,
   },
   {
-    title: '1 CPU, 1 GB RAM (performance CPU)',
-    cpuKind: 'performance',
-    cpus: 1,
-    memoryMb: 1024,
-  },
-  {
     title: '1 CPU, 2 GB RAM (performance CPU)',
     cpuKind: 'performance',
     cpus: 1,
@@ -568,7 +562,7 @@ export default function CreateWorkerForm({
                       <div className="text-sm text-muted-foreground">
                         Not seeing your repository?{' '}
                         <a
-                          href="/api/v1/cloud/users/github-app/start"
+                          href={`/api/v1/cloud/users/github-app/start?redirect_to=/v1/managed-workers/create&with_repo_installation=true`}
                           className="text-indigo-400"
                         >
                           Link a new repository
