@@ -318,7 +318,7 @@ function TriggerRunModalContent({
                   <SelectValue placeholder="Select a workflow" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Select a workflow</SelectItem>
+                  <SelectItem value="placeholder">Select a workflow</SelectItem>
                   {workflows?.map((workflow: Workflow) => (
                     <SelectItem
                       key={workflow.metadata.id}
