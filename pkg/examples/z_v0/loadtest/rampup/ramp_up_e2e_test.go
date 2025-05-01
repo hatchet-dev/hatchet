@@ -1,4 +1,4 @@
-//go:build load
+//go:build rampup
 
 package rampup
 
