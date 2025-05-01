@@ -4,8 +4,8 @@ import trigger from './trigger';
 import worker from './worker';
 import workflow from './workflow';
 
-export { client }
-export { test_logger }
-export { trigger }
-export { worker }
-export { workflow }
+export { client };
+export { test_logger };
+export { trigger };
+export { worker };
+export { workflow };

@@ -1,23 +1,23 @@
-//go:build load
+//go:build rampup
 
 package rampup
 
 import (
-	"context"
 	"log"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/testing/harness"
 )
 
-func TestRampUp(t *testing.T) {
-	testutils.Prepare(t)
+func TestMain(m *testing.M) {
+	harness.RunTestWithEngine(m)
+}
 
+func TestRampUp(t *testing.T) {
 	type args struct {
 		duration time.Duration
 		increase time.Duration
@@ -76,18 +76,6 @@ func TestRampUp(t *testing.T) {
 		},
 	}}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-
-	setup := sync.WaitGroup{}
-
-	go func() {
-		setup.Add(1)
-		log.Printf("setup start")
-		testutils.SetupEngine(ctx, t)
-		setup.Done()
-		log.Printf("setup end")
-	}()
-
 	// TODO instead of waiting, figure out when the engine setup is complete
 	time.Sleep(15 * time.Second)
 
@@ -99,10 +87,4 @@ func TestRampUp(t *testing.T) {
 			}
 		})
 	}
-
-	cancel()
-
-	log.Printf("test complete")
-	setup.Wait()
-	log.Printf("cleanup complete")
 }

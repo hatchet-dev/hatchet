@@ -101,6 +101,9 @@ type ConfigFileRuntime struct {
 	// Healthcheck controls whether the server has a healthcheck endpoint
 	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
 
+	// HealthcheckPort is the port that the healthcheck server listens on
+	HealthcheckPort int `mapstructure:"healthcheckPort" json:"healthcheckPort,omitempty" default:"8733"`
+
 	// GRPCPort is the port that the grpc service listens on
 	GRPCPort int `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
 
@@ -536,6 +539,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.port", "SERVER_PORT")
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
 	_ = v.BindEnv("runtime.healthcheck", "SERVER_HEALTHCHECK")
+	_ = v.BindEnv("runtime.healthcheckPort", "SERVER_HEALTHCHECK_PORT")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")

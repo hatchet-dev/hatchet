@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -15,9 +16,10 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency, slots int, failureRate float32, eventFanout int) (int64, int64) {
+func run(ctx context.Context, namespace string, delay time.Duration, executions chan<- time.Duration, concurrency, slots int, failureRate float32, eventFanout int) (int64, int64) {
 	c, err := client.New(
-		client.WithLogLevel("warn"),
+		client.WithLogLevel("warn"), // nolint: staticcheck
+		client.WithNamespace(namespace),
 	)
 
 	if err != nil {
@@ -43,7 +45,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 
 	var concurrencyOpts *worker.WorkflowConcurrency
 	if concurrency > 0 {
-		concurrencyOpts = worker.Expression("'global'").MaxRuns(int32(concurrency))
+		concurrencyOpts = worker.Expression("'global'").MaxRuns(int32(concurrency)).LimitStrategy(types.GroupRoundRobin) // nolint: gosec
 	}
 
 	step := func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
@@ -79,7 +81,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 		time.Sleep(delay)
 
 		if failureRate > 0 {
-			if rand.Float32() < failureRate {
+			if rand.Float32() < failureRate { // nolint:gosec
 				return nil, fmt.Errorf("random failure")
 			}
 		}

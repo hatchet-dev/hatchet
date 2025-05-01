@@ -8,12 +8,12 @@ import run from './run';
 import worker from './worker';
 import * as workflows from './workflows';
 
-export { readme }
-export { __init__ }
-export { gitignore }
-export { hatchet_client }
-export { poetry }
-export { pyproject }
-export { run }
-export { worker }
+export { readme };
+export { __init__ };
+export { gitignore };
+export { hatchet_client };
+export { poetry };
+export { pyproject };
+export { run };
+export { worker };
 export { workflows };
