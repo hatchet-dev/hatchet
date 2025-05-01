@@ -30,6 +30,11 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 		var eventsPerSecond int
 		go func() {
 			took := <-hook
+
+			if took == 0 {
+				return
+			}
+
 			panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
 		}()
 		for {

@@ -77,6 +77,10 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 
 	time.Sleep(after)
 
+	close(scheduled)
+	close(executed)
+	close(hook)
+
 	log.Printf("✅ success")
 
 	return nil
