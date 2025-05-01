@@ -47,7 +47,7 @@ export const columns = (
             </Button>
           );
         }
-        return row.original.type != 'user' ? (
+        return row.original.type == 'installation' ? (
           <Button
             variant="outline"
             className="flex flex-row gap-2 px-2"

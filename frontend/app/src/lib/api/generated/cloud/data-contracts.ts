@@ -184,7 +184,7 @@ export interface GithubRepo {
 }
 
 export interface GithubAppInstallation {
-  type?: "user" | "tenant";
+  type?: "oauth" | "installation";
   metadata: APIResourceMeta;
   installation_settings_url: string;
   account_name: string;
