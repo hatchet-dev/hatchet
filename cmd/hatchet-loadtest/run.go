@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -44,7 +45,7 @@ func run(ctx context.Context, namespace string, delay time.Duration, executions 
 
 	var concurrencyOpts *worker.WorkflowConcurrency
 	if concurrency > 0 {
-		concurrencyOpts = worker.Expression("'global'").MaxRuns(int32(concurrency)) // nolint: gosec
+		concurrencyOpts = worker.Expression("'global'").MaxRuns(int32(concurrency)).LimitStrategy(types.GroupRoundRobin) // nolint: gosec
 	}
 
 	step := func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
