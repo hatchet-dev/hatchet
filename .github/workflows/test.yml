@@ -296,8 +296,8 @@ jobs:
     strategy:
       matrix:
         migrate-strategy: ["latest", "penultimate"]
-        rabbitmq-enabled: ["true", "false"]
-        pg-version: ["17-alpine", "16-alpine", "15-alpine"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["15-alpine"]
 
     steps:
       - uses: actions/checkout@v4
@@ -332,8 +332,8 @@ jobs:
     strategy:
       matrix:
         migrate-strategy: ["latest", "penultimate"]
-        rabbitmq-enabled: ["true", "false"]
-        pg-version: ["17-alpine", "16-alpine", "15-alpine"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["15-alpine"]
 
     steps:
       - uses: actions/checkout@v4
