@@ -3,14 +3,47 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
-const PUB_FLUSH_INTERVAL = 10 * time.Millisecond
-const PUB_BUFFER_SIZE = 1000
-const PUB_MAX_CONCURRENCY = 1
-const PUB_TIMEOUT = 10 * time.Second
+// nolint: staticcheck
+var (
+	PUB_FLUSH_INTERVAL  = 10 * time.Millisecond
+	PUB_BUFFER_SIZE     = 1000
+	PUB_MAX_CONCURRENCY = 1
+	PUB_TIMEOUT         = 10 * time.Second
+)
+
+func init() {
+	if os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL") != "" {
+		if v, err := time.ParseDuration(os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL")); err == nil {
+			PUB_FLUSH_INTERVAL = v
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_SIZE") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE")
+
+		maxSize, err := strconv.Atoi(v)
+
+		if err == nil {
+			PUB_BUFFER_SIZE = maxSize
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY")
+
+		maxConcurrency, err := strconv.Atoi(v)
+
+		if err == nil {
+			PUB_MAX_CONCURRENCY = maxConcurrency
+		}
+	}
+}
 
 type PubFunc func(m *Message) error
 
