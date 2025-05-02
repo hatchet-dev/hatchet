@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
@@ -23,6 +24,11 @@ import (
 func (d *DispatcherServiceImpl) RegisterDurableEvent(ctx context.Context, req *contracts.RegisterDurableEventRequest) (*contracts.RegisterDurableEventResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	if _, err := uuid.Parse(req.TaskId); err != nil {
+		d.l.Error().Msgf("task id %s is not a valid uuid", req.TaskId)
+		return nil, status.Error(codes.InvalidArgument, "task id is not a valid uuid")
+	}
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.TaskId, false)
 
@@ -231,6 +237,11 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 
 				d.l.Error().Err(err).Msg("could not receive message from client")
 				return
+			}
+
+			if _, err = uuid.Parse(req.TaskId); err != nil {
+				d.l.Warn().Msgf("task id %s is not a valid uuid", req.TaskId)
+				continue
 			}
 
 			// FIXME: buffer/batch this to make it more efficient
