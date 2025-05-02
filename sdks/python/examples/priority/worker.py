@@ -1,12 +1,6 @@
 import time
 
-from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
-    Context,
-    EmptyModel,
-    Hatchet,
-)
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
@@ -17,11 +11,6 @@ SLEEP_TIME = 0.25
 priority_workflow = hatchet.workflow(
     name="PriorityWorkflow",
     default_priority=DEFAULT_PRIORITY,
-    concurrency=ConcurrencyExpression(
-        max_runs=1,
-        expression="'true'",
-        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-    ),
 )
 # !!
 
