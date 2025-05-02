@@ -472,7 +472,7 @@ export class V0Context<T, K = {}> {
         const wf = workflows[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
           // eslint-disable-next-line no-param-reassign
-          ref._standalone_task_name = wf._standalone_task_name;
+          ref._standaloneTaskName = wf._standalone_task_name;
         }
         res.push(ref);
       });
@@ -563,7 +563,7 @@ export class V0Context<T, K = {}> {
       this.spawnIndex += 1;
 
       if (workflow instanceof TaskWorkflowDeclaration) {
-        resp._standalone_task_name = workflow._standalone_task_name;
+        resp._standaloneTaskName = workflow._standalone_task_name;
       }
 
       return resp;

@@ -47,7 +47,7 @@ export const columns = (
             </Button>
           );
         }
-        return (
+        return row.original.type == 'installation' ? (
           <Button
             variant="outline"
             className="flex flex-row gap-2 px-2"
@@ -56,6 +56,19 @@ export const columns = (
             <PlusCircleIcon className="h-4 w-4" />
             Link to tenant
           </Button>
+        ) : (
+          <a
+            href={
+              row.original.installation_settings_url +
+              `&redirect_to=${encodeURIComponent(window.location.pathname)}`
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Button variant="outline" className="flex flex-row gap-2 px-2">
+              Finish Setup
+            </Button>
+          </a>
         );
       },
       enableSorting: false,
@@ -69,7 +82,10 @@ export const columns = (
       cell: ({ row }) => {
         return (
           <a
-            href={row.original.installation_settings_url}
+            href={
+              row.original.installation_settings_url +
+              `&redirect_to=${encodeURIComponent(window.location.pathname)}`
+            }
             target="_blank"
             rel="noreferrer"
           >

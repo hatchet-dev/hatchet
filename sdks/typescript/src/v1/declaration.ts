@@ -274,7 +274,7 @@ export class BaseWorkflowDeclaration<
     const res = await this.client.admin.runWorkflow<I, O>(this.name, input, options);
 
     if (_standaloneTaskName) {
-      res._standalone_task_name = _standaloneTaskName;
+      res._standaloneTaskName = _standaloneTaskName;
     }
 
     return res;
@@ -339,7 +339,7 @@ export class BaseWorkflowDeclaration<
         const wf = input[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
           // eslint-disable-next-line no-param-reassign
-          ref._standalone_task_name = wf._standalone_task_name;
+          ref._standaloneTaskName = wf._standalone_task_name;
         }
         res.push(ref.result());
       });
@@ -349,7 +349,7 @@ export class BaseWorkflowDeclaration<
     const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
 
     if (_standaloneTaskName) {
-      res._standalone_task_name = _standaloneTaskName;
+      res._standaloneTaskName = _standaloneTaskName;
     }
 
     return res.result() as Promise<O>;

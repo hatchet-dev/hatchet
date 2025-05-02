@@ -87,13 +87,17 @@ function GithubInstallationsList() {
     setInstallationToLink(installationId);
   });
 
+  const currentPath = window.location.pathname;
+
   return (
     <div>
       <div className="flex flex-row justify-between items-center">
         <h3 className="text-xl font-semibold leading-tight text-foreground">
           Github Accounts
         </h3>
-        <a href="/api/v1/cloud/users/github-app/start">
+        <a
+          href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
+        >
           <Button key="create-api-token">Link new account</Button>
         </a>
       </div>

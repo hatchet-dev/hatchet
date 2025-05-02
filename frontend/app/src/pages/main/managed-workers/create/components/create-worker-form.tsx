@@ -562,7 +562,7 @@ export default function CreateWorkerForm({
                       <div className="text-sm text-muted-foreground">
                         Not seeing your repository?{' '}
                         <a
-                          href="/api/v1/cloud/users/github-app/start"
+                          href={`/api/v1/cloud/users/github-app/start?redirect_to=/managed-workers/create&with_repo_installation=true`}
                           className="text-indigo-400"
                         >
                           Link a new repository
