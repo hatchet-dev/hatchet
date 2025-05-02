@@ -110,7 +110,7 @@ def test_fallbacking_ensure_default_unchanged(
         task_defaults=TaskDefaults(),
     )
 
-    """If this test fails, it means that you changed the default values for the params to the `task` method on the Workflow"""
+    """If this test fails, it means that you changed the default values for the params to one of the `task` or `durable_task` decorators"""
     assert t.schedule_timeout == DEFAULT_SCHEDULE_TIMEOUT
     assert t.execution_timeout == DEFAULT_EXECUTION_TIMEOUT
     assert t.retries == DEFAULT_RETRIES
