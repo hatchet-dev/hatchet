@@ -23,10 +23,10 @@ hatchet = Hatchet()
 # but is not recommended for production.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=.ALL,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=.ALL,
-    allow_headers=.ALL
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 def start():
