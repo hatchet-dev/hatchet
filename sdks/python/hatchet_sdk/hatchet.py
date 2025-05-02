@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import timedelta
 from typing import Any, Callable, Type, Union, cast, overload
 
 from hatchet_sdk import Context, DurableContext
@@ -21,14 +22,13 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.standalone import Standalone
 from hatchet_sdk.runnables.types import (
-    DEFAULT_EXECUTION_TIMEOUT,
-    DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
     EmptyModel,
     R,
     StickyStrategy,
     TaskDefaults,
     TWorkflowInput,
+    TWorkflowOutput,
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
@@ -206,6 +206,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        output_validator: Type[TWorkflowOutput] | None = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -222,6 +223,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        output_validator: Type[TWorkflowOutput] | None = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -237,6 +239,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        output_validator: Type[TWorkflowOutput] | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -277,6 +280,7 @@ class Hatchet:
                 or cast(Type[TWorkflowInput], EmptyModel),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
+                output_validator=output_validator,
             ),
             self,
         )
@@ -294,8 +298,8 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
@@ -316,8 +320,8 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
@@ -339,8 +343,8 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
@@ -451,8 +455,8 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
@@ -475,8 +479,8 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
@@ -498,8 +502,8 @@ class Hatchet:
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
