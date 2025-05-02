@@ -37,13 +37,16 @@ export const columns = (
   {
     accessorKey: 'repositories_count',
     header: 'Repositories',
-    cell: ({ row }) => (
-      <GithubIntegrationProvider
-        initialInstallationId={row.original.metadata.id}
-      >
-        <GithubRepositoriesList />
-      </GithubIntegrationProvider>
-    ),
+    cell: ({ row }) =>
+      row.original.type === 'installation' ? (
+        <GithubIntegrationProvider
+          initialInstallationId={row.original.metadata.id}
+        >
+          <GithubRepositoriesList />
+        </GithubIntegrationProvider>
+      ) : (
+        <div>-</div>
+      ),
   },
   {
     accessorKey: 'created_at',
@@ -54,27 +57,43 @@ export const columns = (
     id: 'actions',
     cell: ({ row }) => (
       <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={row.original.is_linked_to_tenant}
-          onClick={() => onLinkClick(row.original.metadata.id)}
-        >
-          {row.original.is_linked_to_tenant ? (
-            <>
-              <CheckCircleIcon className="h-4 w-4" /> Linked
-            </>
-          ) : (
-            <>
-              <PlusCircle className="h-4 w-4" /> Link to tenant
-            </>
-          )}
-        </Button>
-        <Link to={row.original.installation_settings_url}>
-          <Button variant="ghost" size="sm">
-            <GearIcon className="h-4 w-4" /> Configure
-          </Button>
-        </Link>
+        {row.original.type === 'installation' ? (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={row.original.is_linked_to_tenant}
+              onClick={() => onLinkClick(row.original.metadata.id)}
+            >
+              {row.original.is_linked_to_tenant ? (
+                <>
+                  <CheckCircleIcon className="h-4 w-4" /> Linked
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="h-4 w-4" /> Link to tenant
+                </>
+              )}
+            </Button>
+            <Link
+              to={`${row.original.installation_settings_url}`}
+              target="_blank"
+            >
+              <Button variant="ghost" size="sm">
+                <GearIcon className="h-4 w-4" /> Configure
+              </Button>
+            </Link>
+          </>
+        ) : (
+          <Link
+            to={`${row.original.installation_settings_url}`}
+            target="_blank"
+          >
+            <Button variant="ghost" size="sm">
+              <PlusCircle className="h-4 w-4" /> Finish setup
+            </Button>
+          </Link>
+        )}
       </div>
     ),
   },

@@ -7,7 +7,7 @@ import { useManagedCompute } from '@/next/hooks/use-managed-compute';
 import { useManagedComputeDetail } from '@/next/hooks/use-managed-compute-detail';
 import { ROUTES } from '@/next/lib/routes';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BuildConfigValue, BuildConfig } from './config/build-config';
 import { EnvVarsEditor } from './config/env-vars/env-vars';
 import {
@@ -21,12 +21,18 @@ import {
 import { Summary } from './config/summary';
 import { Button } from '@/next/components/ui/button';
 import { Dialog, DialogContent } from '@/next/components/ui/dialog';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Lock } from 'lucide-react';
 import { Separator } from '@/next/components/ui/separator';
 import { DangerZone } from './config/danger-zone';
 import { ManagedServiceDetailTabs } from '../managed-service-detail.page';
 import { WorkerType } from '@/lib/api';
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from '@/next/components/ui/alert';
 interface SectionActionsProps {
+  canUpdate: boolean | undefined;
   section: string;
   hasChanged: boolean;
   onRevert: () => void;
@@ -34,10 +40,29 @@ interface SectionActionsProps {
 }
 
 const SectionActions = ({
+  canUpdate,
   hasChanged,
   onRevert,
   onDeploy,
 }: SectionActionsProps) => {
+  if (!canUpdate) {
+    return (
+      <Alert variant="warning">
+        <AlertTitle className="flex items-center gap-2">
+          <Lock className="h-4 w-4" /> You don't have permission to update this
+          service's configuration.
+        </AlertTitle>
+        <AlertDescription>
+          Your connected{' '}
+          <Link to={ROUTES.settings.github} className="underline">
+            GitHub app
+          </Link>{' '}
+          must have push permissions to the managed service's repository.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="flex justify-end gap-2 p-4">
       {hasChanged && (
@@ -167,11 +192,14 @@ export function UpdateServiceContent() {
     navigate(ROUTES.services.list);
   };
 
+  const canUpdate = service?.canUpdate;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <dl className="flex flex-col gap-4">
         <MachineConfig
           config={machineConfig}
+          disabled={!canUpdate}
           setConfig={(value) => {
             setMachineConfig(value);
             setHasChanged({
@@ -181,6 +209,7 @@ export function UpdateServiceContent() {
           }}
           actions={
             <SectionActions
+              canUpdate={canUpdate}
               section="machineConfig"
               hasChanged={hasChanged.machineConfig}
               onRevert={() => handleRevert('machineConfig')}
@@ -205,6 +234,7 @@ export function UpdateServiceContent() {
           }}
           actions={
             <SectionActions
+              canUpdate={canUpdate}
               section="secrets"
               hasChanged={hasChanged.secrets}
               onRevert={() => handleRevert('secrets')}
@@ -226,6 +256,7 @@ export function UpdateServiceContent() {
             }}
             actions={
               <SectionActions
+                canUpdate={canUpdate}
                 section="githubRepo"
                 hasChanged={hasChanged.githubRepo}
                 onRevert={() => handleRevert('githubRepo')}
@@ -249,6 +280,7 @@ export function UpdateServiceContent() {
           type="update"
           actions={
             <SectionActions
+              canUpdate={canUpdate}
               section="buildConfig"
               hasChanged={hasChanged.buildConfig}
               onRevert={() => handleRevert('buildConfig')}

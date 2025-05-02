@@ -25,6 +25,8 @@ import { useState, useEffect } from 'react';
 import { GitBranchIcon, GitForkIcon } from 'lucide-react';
 import { CreateManagedWorkerBuildConfigRequest } from '@/lib/api/generated/cloud/data-contracts';
 import { Spinner } from '@/next/components/ui/spinner';
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
 
 export type GithubRepoSelectorValue = Omit<
   CreateManagedWorkerBuildConfigRequest,
@@ -150,6 +152,11 @@ export function GithubRepoSelector({
         <CardTitle>Worker Source</CardTitle>
         <CardDescription>
           Select the GitHub repository you want to use for your worker service.
+          If you don't see the repository you want to use, please update your{' '}
+          <Link to={ROUTES.settings.github} className="underline">
+            GitHub integration
+          </Link>
+          .
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

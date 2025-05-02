@@ -50,6 +50,7 @@ interface MachineConfigProps {
   setConfig: (config: MachineConfigValue) => void;
   actions?: React.ReactNode;
   type?: 'create' | 'update';
+  disabled?: boolean;
 }
 
 export function MachineConfig({
@@ -57,6 +58,7 @@ export function MachineConfig({
   setConfig,
   actions,
   type = 'create',
+  disabled = false,
 }: MachineConfigProps) {
   const selectedMachineType = DefaultMachineTypes.find(
     (type) => type.cpuKind === config.cpuKind,
