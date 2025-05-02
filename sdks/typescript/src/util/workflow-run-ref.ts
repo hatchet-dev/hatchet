@@ -52,7 +52,7 @@ export default class WorkflowRunRef<T> {
   parentWorkflowRunId?: string;
   private client: RunListenerClient;
   private runs: RunsClient | undefined;
-  _standalone_task_name?: string;
+  _standaloneTaskName?: string;
 
   constructor(
     workflowRunId:
@@ -63,12 +63,14 @@ export default class WorkflowRunRef<T> {
         }>,
     client: RunListenerClient,
     runsClient?: RunsClient,
-    parentWorkflowRunId?: string
+    parentWorkflowRunId?: string,
+    standaloneTaskName?: string
   ) {
     this.workflowRunId = workflowRunId;
     this.parentWorkflowRunId = parentWorkflowRunId;
     this.client = client;
     this.runs = runsClient;
+    this._standaloneTaskName = standaloneTaskName;
   }
 
   // TODO docstrings
@@ -86,9 +88,7 @@ export default class WorkflowRunRef<T> {
     return this.client.stream(workflowRunId);
   }
 
-  // TODO not sure if i want this to be a get since it might be blocking for a long time..
-  get output() {
-    // TODO output for single task workflows
+  get output(): Promise<T> {
     return this.result();
   }
 
@@ -137,12 +137,12 @@ export default class WorkflowRunRef<T> {
                 }
               });
 
-              if (!this._standalone_task_name) {
+              if (!this._standaloneTaskName) {
                 resolve(outputs as T);
                 return;
               }
 
-              resolve(outputs[this._standalone_task_name] as T);
+              resolve(outputs[this._standaloneTaskName] as T);
               return;
             }
 
@@ -154,12 +154,12 @@ export default class WorkflowRunRef<T> {
               {} as T
             );
 
-            if (!this._standalone_task_name) {
+            if (!this._standaloneTaskName) {
               resolve(result);
               return;
             }
 
-            resolve((result as any)[this._standalone_task_name] as T);
+            resolve((result as any)[this._standaloneTaskName] as T);
             return;
           }
         }
