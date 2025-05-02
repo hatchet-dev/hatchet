@@ -117,6 +117,7 @@ def test_fallbacking_ensure_default_unchanged(
     assert t.backoff_factor == DEFAULT_BACKOFF_FACTOR
     assert t.backoff_max_seconds == DEFAULT_BACKOFF_MAX_SECONDS
 
+
 @pytest.mark.parametrize(
     "is_durable,is_standalone",
     [
@@ -146,10 +147,38 @@ def test_defaults_correctly_overridden_by_params_passed_in(
         backoff_max_seconds=5,
     )
 
-    """If this test fails, it means that you changed the default values for the params to the `task` method on the Workflow"""
     assert t.schedule_timeout == timedelta(seconds=9)
     assert t.execution_timeout == timedelta(seconds=2)
     assert t.retries == 6
     assert t.backoff_factor == 3
     assert t.backoff_max_seconds == 5
 
+
+@pytest.mark.parametrize(
+    "is_durable,is_standalone",
+    [
+        (False, False),
+        (True, False),
+        (False, True),
+        (True, True),
+    ],
+)
+def test_params_correctly_set_with_no_defaults(
+    hatchet: Hatchet, is_durable: bool, is_standalone: bool
+) -> None:
+    t = task(
+        hatchet=hatchet,
+        is_durable=is_durable,
+        task_defaults=TaskDefaults(),
+        schedule_timeout=timedelta(seconds=9),
+        execution_timeout=timedelta(seconds=2),
+        retries=6,
+        backoff_factor=3,
+        backoff_max_seconds=5,
+    )
+
+    assert t.schedule_timeout == timedelta(seconds=9)
+    assert t.execution_timeout == timedelta(seconds=2)
+    assert t.retries == 6
+    assert t.backoff_factor == 3
+    assert t.backoff_max_seconds == 5
