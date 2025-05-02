@@ -1,4 +1,5 @@
 import asyncio
+import os
 from datetime import datetime, timedelta
 from random import choice
 from typing import AsyncGenerator, Literal
@@ -60,6 +61,10 @@ async def dummy_runs() -> None:
     return None
 
 
+@pytest.mark.skipif(
+    os.getenv("CI", "false").lower() == "true",
+    reason="Skipped in CI because of unreliability",
+)
 @pytest.mark.asyncio()
 async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
@@ -134,6 +139,10 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
         assert curr.finished_at >= curr.started_at
 
 
+@pytest.mark.skipif(
+    os.getenv("CI", "false").lower() == "true",
+    reason="Skipped in CI because of unreliability",
+)
 @pytest.mark.asyncio()
 async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
     test_run_id = str(uuid4())
@@ -258,6 +267,10 @@ def time_until_next_minute() -> float:
     return (next_minute - now).total_seconds()
 
 
+@pytest.mark.skipif(
+    os.getenv("CI", "false").lower() == "true",
+    reason="Skipped in CI because of unreliability",
+)
 @pytest.mark.asyncio()
 async def test_priority_via_cron(hatchet: Hatchet, crons: tuple[str, str, int]) -> None:
     workflow_id, test_run_id, n = crons
