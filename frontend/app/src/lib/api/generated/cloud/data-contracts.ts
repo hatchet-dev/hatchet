@@ -75,6 +75,8 @@ export enum ManagedWorkerEventStatus {
   SUCCEEDED = "SUCCEEDED",
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
+  SCALE_UP = "SCALE_UP",
+  SCALE_DOWN = "SCALE_DOWN",
 }
 
 export interface APICloudMetadata {
