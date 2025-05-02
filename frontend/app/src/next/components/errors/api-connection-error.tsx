@@ -42,13 +42,12 @@ export function ApiConnectionError({
         <Alert variant="destructive">
           <IoCloudOfflineSharp className="h-4 w-4" />
           <AlertTitle className="text-lg">Can't connect to API</AlertTitle>
-          <AlertDescription>
+          <AlertDescription className="flex flex-col gap-8">
             Hatchet cannot connect to the API. Please check your connection and
             try again.
-            <div className="py-10">
+            <div>
               <code>{errorMessage}</code>
             </div>
-            <br />
             <div className="text-sm text-gray-500">
               {countdown
                 ? `Retrying in ${countdown} seconds...`

@@ -4,7 +4,7 @@ import useTenant from '@/next/hooks/use-tenant';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 interface PylonWindow extends Window {
-  pylon?: {
+  config?: {
     chat_settings: {
       app_id: string;
       email: string;
@@ -36,7 +36,7 @@ const SupportChat: React.FC<PropsWithChildren> = ({ children }) => {
     document.body.appendChild(script);
 
     // Configure Pylon settings
-    (window as PylonWindow).pylon = {
+    (window as PylonWindow).config = {
       chat_settings: {
         app_id: APP_ID,
         email: user.email || '',

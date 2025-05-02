@@ -72,7 +72,7 @@ export function MembersTable({ emptyState }: MembersTableProps) {
                   </div>
                 </TableCell>
                 <TableCell>{member.user.email}</TableCell>
-                <TableCell>{formatRole(member.role)}</TableCell>
+                <TableCell>{RoleMap[member.role]}</TableCell>
                 <TableCell>{formatDate(member.metadata.createdAt)}</TableCell>
                 <TableCell className="text-right">
                   {can(members.remove(member)) && (
@@ -183,15 +183,8 @@ function formatDate(date?: string) {
   return new Date(date).toLocaleDateString();
 }
 
-function formatRole(role: TenantMemberRole) {
-  switch (role) {
-    case TenantMemberRole.ADMIN:
-      return 'Admin';
-    case TenantMemberRole.MEMBER:
-      return 'Member';
-    case TenantMemberRole.OWNER:
-      return 'Owner';
-    default:
-      return role;
-  }
-}
+const RoleMap: Record<TenantMemberRole, string> = {
+  [TenantMemberRole.ADMIN]: 'Admin',
+  [TenantMemberRole.MEMBER]: 'Member',
+  [TenantMemberRole.OWNER]: 'Owner',
+};

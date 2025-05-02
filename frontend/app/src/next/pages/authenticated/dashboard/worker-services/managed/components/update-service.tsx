@@ -199,7 +199,6 @@ export function UpdateServiceContent() {
       <dl className="flex flex-col gap-4">
         <MachineConfig
           config={machineConfig}
-          disabled={!canUpdate}
           setConfig={(value) => {
             setMachineConfig(value);
             setHasChanged({
