@@ -6,13 +6,7 @@ A TypeScript utility library for use within the Hatchet monorepo.
 
 This package is intended for internal use within the Hatchet monorepo. You can add it to your project by adding it as a dependency in your package.json:
 
-```json
-{
-  "dependencies": {
-    "@hatchet/snips": "workspace:*"
-  }
-}
-```
+
 
 ## Usage
 

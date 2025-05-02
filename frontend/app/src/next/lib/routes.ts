@@ -28,7 +28,6 @@ export const ROUTES = {
   onboarding: {
     newTenant: `${FB.onboarding}/create-tenant`,
     invites: `${FB.onboarding}/invites`,
-    inviteTeam: `${FB.onboarding}/invite-team`,
   },
   learn: {
     firstRun: `${FB.learn}/first-run`,
@@ -84,7 +83,7 @@ export const ROUTES = {
   common: {
     community: `https://hatchet.run/discord`,
     feedback: `https://github.com/hatchet-dev/hatchet/issues`,
-    pricing: `https://cloud.onhatchet.run`,
+    pricing: `https://hatchet.run/pricing`,
     contact: `https://hatchet.run/office-hours`,
   },
 } as const;

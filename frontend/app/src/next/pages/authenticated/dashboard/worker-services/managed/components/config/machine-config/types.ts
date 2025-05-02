@@ -44,12 +44,7 @@ export const DefaultMachineTypes: MachineType[] = [
     cpus: 8,
     memoryMb: 16384,
   },
-  {
-    title: '1 CPU, 1 GB RAM (performance CPU)',
-    cpuKind: 'performance',
-    cpus: 1,
-    memoryMb: 1024,
-  },
+
   {
     title: '1 CPU, 2 GB RAM (performance CPU)',
     cpuKind: 'performance',

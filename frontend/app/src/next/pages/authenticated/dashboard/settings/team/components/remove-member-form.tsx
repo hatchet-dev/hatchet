@@ -71,7 +71,7 @@ export function RemoveMemberForm({ member, close }: RemoveMemberFormProps) {
           <AlertDialogTitle>Remove member</AlertDialogTitle>
           <AlertDialogDescription>
             Are you sure you want to remove {member.user.email} from this
-            workspace? This action cannot be undone.
+            tenant? This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <p className="text-destructive text-sm mt-2">{error}</p>}

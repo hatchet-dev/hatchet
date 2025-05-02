@@ -84,6 +84,7 @@ interface RunsState {
   >;
   refetch: () => Promise<unknown>;
   filters: ReturnType<typeof useFilters<RunsFilters>>;
+  hasFilters: boolean;
   pagination: ReturnType<typeof usePagination>;
   timeRange: ReturnType<typeof useTimeFilters>;
   histogram: UseQueryResult<V1TaskPointMetrics, Error>;
@@ -474,6 +475,10 @@ function RunsProviderContent({
     );
   }, [metricsRunsQuery.data, filters.filters.statuses]);
 
+  const hasFilters = useMemo(() => {
+    return Object.keys(filters.filters).length > 2;
+  }, [filters.filters]);
+
   const value = useMemo(
     () => ({
       data: listRunsQuery.data?.rows || [],
@@ -493,6 +498,7 @@ function RunsProviderContent({
       timeRange,
       histogram: histogramQuery,
       queueMetrics: queueMetricsQuery,
+      hasFilters,
     }),
     [
       listRunsQuery.data?.rows,
@@ -510,6 +516,7 @@ function RunsProviderContent({
       timeRange,
       histogramQuery,
       queueMetricsQuery,
+      hasFilters,
     ],
   );
 

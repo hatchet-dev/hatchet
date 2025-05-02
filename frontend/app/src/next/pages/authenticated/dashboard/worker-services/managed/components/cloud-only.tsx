@@ -5,6 +5,11 @@ import {
   CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { ROUTES } from '@/next/lib/routes';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/next/components/ui/alert';
 
 export function CloudOnly() {
   return (
@@ -60,7 +65,13 @@ export function CloudOnly() {
                 </div>
               </div>
             </div>
-
+            <Alert variant="warning" className="mb-6">
+              <AlertTitle>Cloud Only</AlertTitle>
+              <AlertDescription>
+                This feature is only available in Hatchet Cloud, contact your
+                administrator for more information.
+              </AlertDescription>
+            </Alert>
             <div className="flex flex-col gap-4 w-full">
               <Button
                 onClick={() => window.open(ROUTES.common.pricing, '_blank')}

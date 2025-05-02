@@ -21,24 +21,28 @@ import { RowSelectionState, OnChangeFn } from '@tanstack/react-table';
 import { MdOutlineReplay, MdOutlineCancel } from 'react-icons/md';
 import { Button } from '@/next/components/ui/button';
 import { RunsBulkActionDialog } from './bulk-action-dialog';
+import { Plus } from 'lucide-react';
 
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
   onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
+  onTriggerRunClick?: () => void;
 }
 
 export function RunsTable({
   onRowClick,
   selectedTaskId,
   onSelectionChange,
+  onTriggerRunClick,
 }: RunsTableProps) {
   const {
     data: runs,
     count,
     timeRange: { pause, isPaused },
     isLoading,
-    filters: { filters },
+    filters: { filters, clearAllFilters },
+    hasFilters,
     cancel,
     replay,
   } = useRuns();
@@ -276,10 +280,25 @@ export function RunsTable({
             <p className="text-sm text-muted-foreground">
               Trigger a new run to get started.
             </p>
-            <DocsButton
-              doc={docs.home.running_tasks}
-              titleOverride="Running Tasks"
-            />
+            <div className="flex flex-col gap-2">
+              <Button size="sm" onClick={onTriggerRunClick}>
+                <Plus className="h-4 w-4 mr-2" />
+                Trigger Run
+              </Button>
+              {hasFilters && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => clearAllFilters()}
+                >
+                  Clear Filters
+                </Button>
+              )}
+              <DocsButton
+                doc={docs.home.running_tasks}
+                titleOverride="Running Tasks"
+              />
+            </div>
           </div>
         }
         isLoading={isLoading}

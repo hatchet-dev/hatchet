@@ -1618,7 +1618,10 @@ type Workflow struct {
 	Name string `json:"name"`
 
 	// Tags The tags of the workflow.
-	Tags     *[]WorkflowTag         `json:"tags,omitempty"`
+	Tags *[]WorkflowTag `json:"tags,omitempty"`
+
+	// TenantId The tenant id of the workflow.
+	TenantId string                 `json:"tenantId"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 

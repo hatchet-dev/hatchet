@@ -86,6 +86,7 @@ export default function RunsPage() {
           <RunsTable
             onRowClick={handleRowClick}
             selectedTaskId={taskId?.taskId}
+            onTriggerRunClick={() => setShowTriggerModal(true)}
           />
         </dl>
         <TriggerRunModal

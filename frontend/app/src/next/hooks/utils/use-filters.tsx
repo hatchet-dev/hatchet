@@ -58,7 +58,7 @@ export function FilterProvider<T extends Record<string, any>>({
   // Initialize the storage with default values and a prefix to avoid collisions
   const state = useStateAdapter<T>(initialFilters, {
     type,
-    prefix: 'filter_',
+    prefix: '',
   });
 
   // Get current filters from the storage adapter

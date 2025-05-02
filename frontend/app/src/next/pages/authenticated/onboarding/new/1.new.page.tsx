@@ -54,7 +54,7 @@ export default function OnboardingNewPage() {
         onError: (error) => {
           setError('name', {
             type: 'server',
-            message: error.message || 'Failed to create workspace',
+            message: error.message || 'Failed to create tenant',
           });
         },
       });

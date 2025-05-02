@@ -1,27 +1,14 @@
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
-import { DocsButton } from '@/next/components/ui/docs-button';
-import {
-  Headline,
-  PageTitle,
-  HeadlineActions,
-  HeadlineActionItem,
-} from '@/next/components/ui/page-header';
+import { Headline, PageTitle } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Separator } from '@/next/components/ui/separator';
+import { baseDocsUrl } from '@/next/hooks/use-docs-sheet';
 
-import { Step, Steps } from '@/components/v1/ui/steps';
-import { Button } from '@/next/components/ui/button';
-import { useState } from 'react';
 function ServiceDetailPageContent() {
-  const [activeStep, setActiveStep] = useState(0);
-  const handleNext = () => {
-    setActiveStep(activeStep + 1);
-  };
-
   useBreadcrumbs(
     () => [
       {
@@ -36,29 +23,24 @@ function ServiceDetailPageContent() {
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage workers in a worker service">
+        <PageTitle description="Create workers that run in your own cloud or local environment.">
           New Selfhost Worker Service
         </PageTitle>
-        <HeadlineActions>
+        {/* <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home.compute} size="icon" />
+            <DocsButton doc={docs.home.workers} size="icon" />
           </HeadlineActionItem>
-        </HeadlineActions>
+        </HeadlineActions> */}
       </Headline>
       <Separator className="mt-4" />
+      {/* FIXME: embed docs in the page natively */}
       <div className="flex flex-col gap-4">
-        <Steps>
-          <Step
-            title="GitHub Repository"
-            open={activeStep === 0}
-            setOpen={(open: boolean) => setActiveStep(open ? 0 : -1)}
-          >
-            TODO
-            <div className="flex justify-end mt-4">
-              <Button onClick={handleNext}>Next</Button>
-            </div>
-          </Step>
-        </Steps>
+        <iframe
+          src={baseDocsUrl + docs.home.workers.href}
+          className="w-full h-[calc(100vh-200px)] rounded-md border"
+          title={`Documentation: ${docs.home.workers.title}`}
+          loading="lazy"
+        />
       </div>
     </BasicLayout>
   );

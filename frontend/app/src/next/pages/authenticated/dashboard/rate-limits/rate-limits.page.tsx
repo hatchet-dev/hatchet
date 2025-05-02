@@ -65,7 +65,6 @@ function RateLimitsTable() {
     metadata: { id: r.key },
   }));
 
-  // TODO: Fix this type
   const columns: ColumnDef<(typeof rateLimits)[number], unknown>[] = [
     {
       accessorKey: 'status',

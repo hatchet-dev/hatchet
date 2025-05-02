@@ -86,25 +86,6 @@ function LessonContent<
                     src={typedStep.code?.[language as SupportedLanguage]}
                   />
                 )}
-                {/* <GithubCode
-                  key={key}
-                  highlightLines={highlights[key as S]?.lines}
-                  highlightStrings={highlights[key as S]?.strings}
-                  {...lesson.codeBlockDefaults}
-                  language={language}
-                  repo={
-                    (typeof languageCode === 'string'
-                      ? lesson.codeBlockDefaults.repos[
-                          language as SupportedLanguage
-                        ]
-                      : languageCode.repo) || ''
-                  }
-                  path={
-                    typeof languageCode === 'string'
-                      ? languageCode
-                      : languageCode.path
-                  }
-                /> */}
               </CardContent>
             </Card>
           </div>

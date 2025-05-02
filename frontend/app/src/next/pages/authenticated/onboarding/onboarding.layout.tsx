@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { ChevronsUpDown } from 'lucide-react';
+import { ChevronsUpDown, UserIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +28,9 @@ export function OnboardingLayout() {
   const UserBlock = () => (
     <div className="flex items-center gap-2">
       <div className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-        {userData?.email?.[0]?.toUpperCase() || '?'}
+        {userData?.email?.[0]?.toUpperCase() || (
+          <UserIcon className="w-4 h-4" />
+        )}
       </div>
       <div className="flex flex-col">
         <span className="text-xs font-medium">{userData?.email || 'User'}</span>

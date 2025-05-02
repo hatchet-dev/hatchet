@@ -21,7 +21,7 @@ interface DocsContextValue {
   close: () => void;
 }
 
-const baseDocsUrl = 'https://docs.hatchet.run';
+export const baseDocsUrl = 'https://docs.hatchet.run';
 
 // Create a context for the docs state
 export const DocsContext = createContext<DocsContextValue | null>(null);

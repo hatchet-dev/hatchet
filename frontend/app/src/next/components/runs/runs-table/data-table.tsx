@@ -186,18 +186,6 @@ export function DataTable<TData extends IDGetter, TValue>({
       </TableRow>
     );
   }
-  if (!table.getRowModel().rows?.length) {
-    return (
-      <TableRow>
-        <TableCell
-          colSpan={columns.length}
-          className="h-48 text-center flex flex-col justify-center items-center"
-        >
-          {emptyState || 'No results found.'}
-        </TableCell>
-      </TableRow>
-    );
-  }
 
   return (
     <div className="rounded-md border">
@@ -222,6 +210,16 @@ export function DataTable<TData extends IDGetter, TValue>({
           ))}
         </TableHeader>
         <TableBody>
+          {!table.getRowModel().rows?.length && (
+            <TableRow>
+              <TableCell
+                colSpan={table.getHeaderGroups()[0].headers.length}
+                className="h-48 text-center py-8"
+              >
+                {emptyState || 'No results found.'}
+              </TableCell>
+            </TableRow>
+          )}
           {table.getRowModel().rows.map((row) => {
             const isSelected = row.getIsSelected();
             const isTaskSelected =

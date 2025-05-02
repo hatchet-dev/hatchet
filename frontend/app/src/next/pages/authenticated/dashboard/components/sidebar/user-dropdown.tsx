@@ -3,7 +3,7 @@ import useUser from '@/next/hooks/use-user';
 import useTenant from '@/next/hooks/use-tenant';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { Tenant } from '@/lib/api';
-
+import { UserIcon } from 'lucide-react';
 interface UserBlockProps {
   variant?: 'default' | 'compact';
 }
@@ -20,10 +20,9 @@ export function UserBlock({ variant = 'default' }: UserBlockProps) {
 
   return (
     <>
-      <Avatar className="h-8 w-8 rounded-lg">
-        {/* <AvatarImage src={user?.avatar} alt={user?.name} /> */}
-        <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-      </Avatar>
+      <div className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        {initials?.[0]?.toUpperCase() || <UserIcon className="w-4 h-4" />}
+      </div>
       {variant === 'default' && (
         <div className="grid flex-1 text-left text-sm leading-tight">
           <span className="truncate font-semibold">{name}</span>
@@ -58,7 +57,6 @@ export function TenantBlock({
   return (
     <>
       <Avatar className="h-8 w-8 rounded-lg">
-        {/* <AvatarImage src={user?.avatar} alt={user?.name} /> */}
         <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
       </Avatar>
       {variant === 'default' && (
