@@ -359,8 +359,14 @@ class ApiClient:
             return tuple(self.sanitize_for_serialization(sub_obj) for sub_obj in obj)
         elif isinstance(obj, (datetime.datetime, datetime.date)):
             if not obj.tzinfo:
-                logger.warning("timezone-naive datetime found. assuming UTC.")
-                obj = obj.replace(tzinfo=datetime.timezone.utc)
+                current_tz = (
+                    datetime.datetime.now(datetime.timezone(datetime.timedelta(0)))
+                    .astimezone()
+                    .tzinfo
+                    or datetime.timezone.utc
+                )
+                logger.warning(f"timezone-naive datetime found. assuming {current_tz}.")
+                obj = obj.replace(tzinfo=current_tz)
 
             return obj.isoformat()
         elif isinstance(obj, decimal.Decimal):
