@@ -90,11 +90,14 @@ def patch_api_client_datetime_format_on_post(content: str) -> str:
     pattern = r"([ \t]*)elif isinstance\(obj, \(datetime\.datetime, datetime\.date\)\):\s*\n\1[ \t]*return obj\.isoformat\(\)"
 
     replacement = (
-        r"\1elif isinstance(obj, (datetime.datetime, datetime.date)):\n"
+        r"\1## IMPORTANT: Checking `datetime` must come before `date` since `datetime` is a subclass of `date`\n"
+        r"\1elif isinstance(obj, datetime.datetime):\n"
         r"\1    if not obj.tzinfo:\n"
         r"\1        current_tz = (datetime.datetime.now(datetime.timezone(datetime.timedelta(0))).astimezone().tzinfo or datetime.timezone.utc)\n"
         r'\1        logger.warning(f"timezone-naive datetime found. assuming {current_tz}.")\n'
         r"\1        obj = obj.replace(tzinfo=current_tz)\n\n"
+        r"\1    return obj.isoformat()\n"
+        r"\1elif isinstance(obj, datetime.date):\n"
         r"\1    return obj.isoformat()"
     )
     return apply_patch(content, pattern, replacement)
