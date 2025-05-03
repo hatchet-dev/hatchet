@@ -42,6 +42,49 @@ def atomically_patch_file(
         print(f"No changes made to {file_path}")
 
 
+def patch_contract_import_paths(content: str) -> str:
+    return apply_patch(content, r"\bfrom v1\b", "from hatchet_sdk.contracts.v1")
+
+
+def patch_grpc_dispatcher_import(content: str) -> str:
+    return apply_patch(
+        content,
+        r"\bimport dispatcher_pb2 as dispatcher__pb2\b",
+        "from hatchet_sdk.contracts import dispatcher_pb2 as dispatcher__pb2",
+    )
+
+
+def patch_grpc_events_import(content: str) -> str:
+    return apply_patch(
+        content,
+        r"\bimport events_pb2 as events__pb2\b",
+        "from hatchet_sdk.contracts import events_pb2 as events__pb2",
+    )
+
+
+def patch_grpc_workflows_import(content: str) -> str:
+    return apply_patch(
+        content,
+        r"\bimport workflows_pb2 as workflows__pb2\b",
+        "from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2",
+    )
+
+
+def patch_grpc_init_signature(content: str) -> str:
+    return apply_patch(
+        content,
+        r"def __init__\(self, channel\):",
+        "def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:",
+    )
+
+
+def apply_patches_to_matching_files(
+    root: str, glob: str, patch_funcs: list[Callable[[str], str]]
+) -> None:
+    for file_path in Path(root).rglob(glob):
+        atomically_patch_file(str(file_path), patch_funcs)
+
+
 def patch_api_client_datetime_format_on_post(content: str) -> str:
     content = prepend_import(content, "from hatchet_sdk.logger import logger")
     pattern = r"([ \t]*)elif isinstance\(obj, \(datetime\.datetime, datetime\.date\)\):\s*\n\1[ \t]*return obj\.isoformat\(\)"
@@ -74,3 +117,19 @@ if __name__ == "__main__":
         "hatchet_sdk/clients/rest/models/workflow_runs_metrics.py",
         [patch_workflow_run_metrics_counts_return_type],
     )
+
+    grpc_patches: list[Callable[[str], str]] = [
+        patch_contract_import_paths,
+        patch_grpc_dispatcher_import,
+        patch_grpc_events_import,
+        patch_grpc_workflows_import,
+        patch_grpc_init_signature,
+    ]
+
+    pb2_patches: list[Callable[[str], str]] = [
+        patch_contract_import_paths,
+    ]
+
+    apply_patches_to_matching_files("hatchet_sdk/contracts", "*_grpc.py", grpc_patches)
+    apply_patches_to_matching_files("hatchet_sdk/contracts", "*_pb2.py", pb2_patches)
+    apply_patches_to_matching_files("hatchet_sdk/contracts", "*_pb2.pyi", pb2_patches)

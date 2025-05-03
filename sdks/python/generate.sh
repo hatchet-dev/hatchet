@@ -94,19 +94,8 @@ git restore pyproject.toml poetry.lock
 
 poetry install --all-extras
 
-# Fix relative imports in _grpc.py files
-find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
-find ./hatchet_sdk/contracts -type f -name '*_pb2.pyi' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
-find ./hatchet_sdk/contracts -type f -name '*_pb2.py' -print0 | xargs -0 sed -i '' 's/from v1/from hatchet_sdk.contracts.v1/g'
-
-find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/import dispatcher_pb2 as dispatcher__pb2/from hatchet_sdk.contracts import dispatcher_pb2 as dispatcher__pb2/g'
-find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/import events_pb2 as events__pb2/from hatchet_sdk.contracts import events_pb2 as events__pb2/g'
-find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/import workflows_pb2 as workflows__pb2/from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2/g'
-
-find ./hatchet_sdk/contracts -type f -name '*_grpc.py' -print0 | xargs -0 sed -i '' 's/def __init__(self, channel):/def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:/g'
-
 set +e
-# Note: Hack to run the linters without failing so that we can apply the patch
+# Note: Hack to run the linters without failing so that we can apply the patches
 ./lint.sh
 set -e
 
