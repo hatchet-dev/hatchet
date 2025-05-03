@@ -95,10 +95,8 @@ class V1TaskSummary(BaseModel):
     )
     workflow_id: StrictStr = Field(alias="workflowId")
     workflow_name: Optional[StrictStr] = Field(default=None, alias="workflowName")
-    workflow_run_external_id: Optional[StrictStr] = Field(
-        default=None,
-        description="The external ID of the workflow run",
-        alias="workflowRunExternalId",
+    workflow_run_external_id: StrictStr = Field(
+        description="The external ID of the workflow run", alias="workflowRunExternalId"
     )
     workflow_version_id: Optional[StrictStr] = Field(
         default=None,
