@@ -47,6 +47,8 @@ type ServerConfigFile struct {
 	// Used to bind the environment variable, since the array is not well supported
 	ServicesString string `mapstructure:"servicesString" json:"servicesString,omitempty"`
 
+	PausedControllers string `mapstructure:"pausedControllers" json:"pausedControllers,omitempty"`
+
 	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
 
 	EnableWorkerRetention bool `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
@@ -481,6 +483,8 @@ type ServerConfig struct {
 
 	Services []string
 
+	PausedControllers map[string]bool
+
 	EnableDataRetention bool
 
 	EnableWorkerRetention bool
@@ -548,6 +552,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
+	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
 	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
