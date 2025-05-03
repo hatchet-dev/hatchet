@@ -12,7 +12,6 @@
 """  # noqa: E501
 
 
-from hatchet_sdk.logger import logger
 import datetime
 import decimal
 import json
@@ -41,6 +40,7 @@ from hatchet_sdk.clients.rest.exceptions import (
     ServiceException,
     UnauthorizedException,
 )
+from hatchet_sdk.logger import logger
 
 RequestSerialized = Tuple[str, str, Dict[str, str], Optional[str], List[str]]
 
