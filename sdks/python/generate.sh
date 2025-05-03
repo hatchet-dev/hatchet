@@ -110,8 +110,8 @@ set +e
 ./lint.sh
 set -e
 
-# apply patch to openapi-generator generated code
-patch -p1 --no-backup-if-mismatch <./openapi_patch.patch
+# apply patches to openapi-generator generated code
+poetry run python apply_patches.py
 
 # Rerun the linters and fail if there are any issues
 ./lint.sh

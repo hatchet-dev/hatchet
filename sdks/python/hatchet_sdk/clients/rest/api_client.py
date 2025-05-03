@@ -12,6 +12,7 @@
 """  # noqa: E501
 
 
+from hatchet_sdk.logger import logger
 import datetime
 import decimal
 import json
@@ -357,6 +358,10 @@ class ApiClient:
         elif isinstance(obj, tuple):
             return tuple(self.sanitize_for_serialization(sub_obj) for sub_obj in obj)
         elif isinstance(obj, (datetime.datetime, datetime.date)):
+            if not obj.tzinfo:
+                logger.warning("timezone-naive datetime found. assuming UTC.")
+                obj = obj.replace(tzinfo=datetime.timezone.utc)
+
             return obj.isoformat()
         elif isinstance(obj, decimal.Decimal):
             return str(obj)
