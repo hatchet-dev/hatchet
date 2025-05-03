@@ -786,56 +786,60 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupRetention,
 		})
 
-		tasks, err := task.New(
-			task.WithAlerter(sc.Alerter),
-			task.WithMessageQueue(sc.MessageQueueV1),
-			task.WithRepository(sc.EngineRepository),
-			task.WithV1Repository(sc.V1),
-			task.WithLogger(sc.Logger),
-			task.WithPartition(p),
-			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
-		)
+		if isPaused, ok := sc.PausedControllers["task"]; !ok || !isPaused {
+			tasks, err := task.New(
+				task.WithAlerter(sc.Alerter),
+				task.WithMessageQueue(sc.MessageQueueV1),
+				task.WithRepository(sc.EngineRepository),
+				task.WithV1Repository(sc.V1),
+				task.WithLogger(sc.Logger),
+				task.WithPartition(p),
+				task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not create tasks controller: %w", err)
+			if err != nil {
+				return nil, fmt.Errorf("could not create tasks controller: %w", err)
+			}
+
+			cleanupTasks, err := tasks.Start()
+
+			if err != nil {
+				return nil, fmt.Errorf("could not start tasks controller: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "tasks controller",
+				Fn:   cleanupTasks,
+			})
 		}
 
-		cleanupTasks, err := tasks.Start()
+		if isPaused, ok := sc.PausedControllers["olap"]; !ok || !isPaused {
+			olap, err := olap.New(
+				olap.WithAlerter(sc.Alerter),
+				olap.WithMessageQueue(sc.MessageQueueV1),
+				olap.WithRepository(sc.V1),
+				olap.WithLogger(sc.Logger),
+				olap.WithPartition(p),
+				olap.WithTenantAlertManager(sc.TenantAlerter),
+				olap.WithSamplingConfig(sc.Sampling),
+			)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not start tasks controller: %w", err)
+			if err != nil {
+				return nil, fmt.Errorf("could not create olap controller: %w", err)
+			}
+
+			cleanupOlap, err := olap.Start()
+
+			if err != nil {
+				return nil, fmt.Errorf("could not start olap controller: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "olap controller",
+				Fn:   cleanupOlap,
+			})
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "tasks controller",
-			Fn:   cleanupTasks,
-		})
-
-		olap, err := olap.New(
-			olap.WithAlerter(sc.Alerter),
-			olap.WithMessageQueue(sc.MessageQueueV1),
-			olap.WithRepository(sc.V1),
-			olap.WithLogger(sc.Logger),
-			olap.WithPartition(p),
-			olap.WithTenantAlertManager(sc.TenantAlerter),
-			olap.WithSamplingConfig(sc.Sampling),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create olap controller: %w", err)
-		}
-
-		cleanupOlap, err := olap.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not start olap controller: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "olap controller",
-			Fn:   cleanupOlap,
-		})
 
 		cleanup1, err := p.StartTenantWorkerPartition(ctx)
 

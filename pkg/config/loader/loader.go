@@ -608,6 +608,14 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		services = strings.Split(cf.ServicesString, " ")
 	}
 
+	pausedControllers := make(map[string]bool)
+
+	if cf.PausedControllers != "" {
+		for _, controller := range strings.Split(cf.PausedControllers, " ") {
+			pausedControllers[controller] = true
+		}
+	}
+
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
@@ -630,6 +638,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		MessageQueue:           mq,
 		MessageQueueV1:         mqv1,
 		Services:               services,
+		PausedControllers:      pausedControllers,
 		InternalClientFactory:  internalClientFactory,
 		Logger:                 &l,
 		TLSConfig:              tls,
