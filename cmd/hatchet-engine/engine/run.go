@@ -786,7 +786,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupRetention,
 		})
 
-		if isPaused, ok := sc.PausedControllers["task"]; !ok || !isPaused {
+		if isControllerActive(sc.PausedControllers, TaskController) {
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
@@ -814,7 +814,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			})
 		}
 
-		if isPaused, ok := sc.PausedControllers["olap"]; !ok || !isPaused {
+		if isControllerActive(sc.PausedControllers, OLAPController) {
 			olap, err := olap.New(
 				olap.WithAlerter(sc.Alerter),
 				olap.WithMessageQueue(sc.MessageQueueV1),
@@ -1128,4 +1128,19 @@ func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown 
 			return nil
 		},
 	}
+}
+
+type ControllerName string
+
+const (
+	OLAPController ControllerName = "olap"
+	TaskController ControllerName = "task"
+)
+
+func isControllerActive(pausedControllers map[string]bool, controllerName ControllerName) bool {
+	if isPaused, ok := pausedControllers[string(controllerName)]; !ok || !isPaused {
+		return true
+	}
+
+	return false
 }
