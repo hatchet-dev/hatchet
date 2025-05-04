@@ -3,6 +3,9 @@ import logging
 import hashlib
 from typing import Dict, Any, Literal, Set
 from pydantic import BaseModel, Field
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from hatchet_sdk import (
     DurableContext,
@@ -18,9 +21,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize Hatchet
+# Initialize Hatchet and console
 logger.info("Initializing Hatchet client")
 hatchet = Hatchet(debug=True)
+console = Console()
 
 # Event keys for communication
 COMMAND_EVENT_KEY = "worker:command"
@@ -68,6 +72,40 @@ class WorkerResponse(BaseModel):
     )
 
 
+def create_command_table(command: 'CommandMessage') -> Table:
+    """Create a rich table for displaying the command"""
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value", style="green")
+    
+    # Add command info
+    table.add_row("Command", command.command)
+    table.add_row("Hash", command.calculate_hash())
+    
+    # Add data fields
+    for key, value in command.data.items():
+        table.add_row(key, str(value))
+    
+    return table
+
+
+def create_response_table(response: 'WorkerResponse') -> Table:
+    """Create a rich table for displaying the response"""
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value", style="green")
+    
+    # Add basic info
+    table.add_row("Message", response.message)
+    table.add_row("Message Hash", response.message_hash)
+    
+    # Add data fields
+    for key, value in response.data.items():
+        table.add_row(key, str(value))
+    
+    return table
+
+
 # Create workflow
 logger.info("Creating communication workflow")
 worker_workflow = hatchet.workflow(
@@ -89,7 +127,7 @@ async def communication_task(
         ctx: Durable task context
     """
     logger.info(f"Starting worker with command: {input.command}")
-    logger.debug(f"Initial input data: {input.data}")
+    logger.info(f"Initial input data: {input.data}")
     
     # Set for deduplication
     processed_hashes: Set[str] = set()
@@ -97,7 +135,7 @@ async def communication_task(
     while True:  # Keep running until stop command
         try:
             # Stream ready status
-            logger.debug("Sending ready status")
+            logger.info("Sending ready status")
             ready_response = WorkerResponse(
                 message="Waiting for command...",
                 data={"status": "ready"}
@@ -114,7 +152,7 @@ async def communication_task(
             # Parse command from event data
             try:
                 # Log raw event data for debugging
-                logger.debug(f"Received raw event data: {event_data}")
+                logger.info(f"Received raw event data: {event_data}")
                 
                 # Handle both string and dict formats
                 if isinstance(event_data, str):
@@ -147,21 +185,29 @@ async def communication_task(
                         }
                 
                 # Create command object
-                logger.debug(f"Using command data: {command_data}")
+                logger.info(f"Using command data: {command_data}")
                 command = CommandMessage.model_validate(command_data)
                 msg_hash = command.calculate_hash()
                 
                 # Skip if already processed (deduplication)
                 if msg_hash in processed_hashes:
-                    logger.debug(
+                    logger.info(
                         f"Skipping duplicate command with hash: {msg_hash}"
                     )
                     continue
                 
                 processed_hashes.add(msg_hash)
-                logger.info(
-                    f"Processed command: {command.command} (hash: {msg_hash})"
+                
+                # Display received command
+                table = create_command_table(command)
+                console.print(
+                    Panel(
+                        table,
+                        title="📥 Received Command",
+                        border_style="blue"
+                    )
                 )
+                
             except Exception as e:
                 import traceback
                 tb_str = traceback.format_exc()
@@ -177,6 +223,16 @@ async def communication_task(
                     message="Stopping worker...",
                     data={"status": "stopping"},
                     message_hash=msg_hash
+                )
+                
+                # Display and send response
+                table = create_response_table(final_response)
+                console.print(
+                    Panel(
+                        table,
+                        title="📤 Sending Response",
+                        border_style="green"
+                    )
                 )
                 ctx.put_stream(json.dumps(final_response.model_dump()))
                 break
@@ -196,8 +252,15 @@ async def communication_task(
                 message_hash=msg_hash
             )
             
-            # Stream response
-            logger.debug(f"Sending response with hash {msg_hash}")
+            # Display and send response
+            table = create_response_table(response)
+            console.print(
+                Panel(
+                    table,
+                    title="📤 Sending Response",
+                    border_style="green"
+                )
+            )
             ctx.put_stream(json.dumps(response.model_dump()))
             
         except Exception as e:
@@ -210,6 +273,16 @@ async def communication_task(
                 message=f"Error processing command: {str(e)}",
                 data={"error": str(e), "traceback": tb_str},
                 message_hash="error"
+            )
+            
+            # Display and send error response
+            table = create_response_table(error_response)
+            console.print(
+                Panel(
+                    table,
+                    title="⚠️ Error Response",
+                    border_style="red"
+                )
             )
             ctx.put_stream(json.dumps(error_response.model_dump()))
 

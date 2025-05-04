@@ -53,11 +53,11 @@ async def listen_for_worker_events(workflow_run_id: str) -> None:
         async for event in hatchet.listener.stream(
             workflow_run_id=workflow_run_id
         ):
-            logger.debug(f"Received event: {event}")
+            logger.info(f"Received event: {event}")
             if hasattr(event, 'payload') and event.payload:
                 try:
                     # Parse the response
-                    logger.debug(f"Parsing payload: {event.payload}")
+                    logger.info(f"Parsing payload: {event.payload}")
                     response = WorkerResponse.model_validate_json(
                         event.payload
                     )
@@ -123,7 +123,7 @@ async def send_command(
         
         # Calculate message hash for verification
         msg_hash = message.calculate_hash()
-        logger.debug(f"Message hash: {msg_hash}")
+        logger.info(f"Message hash: {msg_hash}")
         
         # Send command event with proper structure
         hatchet.event.push(
@@ -153,11 +153,18 @@ def main() -> None:
         # Start with an initial command
         initial_command = CommandMessage(
             command="start",
-            data={"init": True}
+            data={
+                "init": True, 
+                "timestamp": "2024-03-21T10:00:00Z", 
+                "command_id": "start"
+            }
         )
         
+        # Calculate hash for initial command
+        initial_hash = initial_command.calculate_hash()
+        
         # Start the workflow
-        logger.debug("Starting workflow with initial command")
+        logger.info("Starting workflow with initial command")
         ref = asyncio.run(
             worker_workflow.aio_run_no_wait(
                 input=initial_command,
@@ -172,52 +179,67 @@ def main() -> None:
         console.print(
             Panel(
                 f"ID: {ref.workflow_run_id}\n"
-                f"Hash: {initial_command.calculate_hash()}",
+                f"Hash: {initial_hash}",
                 title="🚀 Workflow Started",
                 border_style="green"
             )
         )
         
         async def cli_loop():
-            # Start the event listener
-            logger.debug("Starting event listener task")
-            listener = asyncio.create_task(
-                listen_for_worker_events(ref.workflow_run_id)
-            )
-            
+            # Initialize listener variable
+            listener = None
             try:
+                # Start the event listener first and wait a moment for it to connect
+                logger.info("Starting event listener task")
+                listener = asyncio.create_task(
+                    listen_for_worker_events(ref.workflow_run_id)
+                )
+                # Give the listener a moment to connect
+                await asyncio.sleep(0.5)
+                
                 while True:
-                    # Get command from user
-                    command = click.prompt(
-                        "\n📝 Enter command",
-                        type=str,
-                        default="ping"
-                    )
-                    logger.debug(f"User entered command: {command}")
-                    
-                    # Handle exit command
-                    if command.lower() in ["exit", "quit", "stop"]:
-                        logger.info("Stopping workflow")
-                        await send_command(
-                            ref.workflow_run_id, 
-                            "stop"
+                    try:
+                        # Get command from user
+                        command = click.prompt(
+                            "\n📝 Enter command",
+                            type=str,
+                            default="ping"
                         )
-                        console.print("\n👋 Goodbye!", style="cyan")
-                        break
-                    
-                    # Send the command with timestamp
-                    await send_command(
-                        ref.workflow_run_id,
-                        command,
-                        {
-                            "timestamp": "2024-03-21T10:00:00Z",
-                            "command_id": command.lower()
-                        }
-                    )
-                    
-                    # Small delay to prevent flooding
-                    await asyncio.sleep(0.1)
-                    
+                        logger.info(
+                            f"User entered command: {command}"
+                        )
+                        
+                        # Handle exit command
+                        if command.lower() in ["exit", "quit", "stop"]:
+                            logger.info("Stopping workflow")
+                            await send_command(
+                                ref.workflow_run_id, 
+                                "stop"
+                            )
+                            console.print("\n👋 Goodbye!", style="cyan")
+                            break
+                        
+                        # Send the command with timestamp
+                        await send_command(
+                            ref.workflow_run_id,
+                            command,
+                            {
+                                "timestamp": "2024-03-21T10:00:00Z",
+                                "command_id": command.lower()
+                            }
+                        )
+                        
+                        # Wait a moment for response
+                        await asyncio.sleep(0.2)
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing command: {e}")
+                        console.print(
+                            f"\n⚠️ Error: {e}", 
+                            style="red"
+                        )
+                        continue
+                
             except KeyboardInterrupt:
                 logger.warning("Interrupted by user")
                 console.print("\n⚠️ Interrupted by user", style="yellow")
@@ -225,12 +247,14 @@ def main() -> None:
                 console.print("\n👋 Goodbye!", style="cyan")
             
             finally:
-                # Cancel the listener
-                listener.cancel()
-                try:
-                    await listener
-                except asyncio.CancelledError:
-                    pass
+                # Ensure proper cleanup
+                logger.info("Cleaning up listener task")
+                if listener and not listener.done():
+                    listener.cancel()
+                    try:
+                        await listener
+                    except asyncio.CancelledError:
+                        pass
         
         # Run the CLI loop
         asyncio.run(cli_loop())
