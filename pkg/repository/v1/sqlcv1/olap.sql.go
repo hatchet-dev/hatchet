@@ -1469,17 +1469,51 @@ WITH lookup_task AS (
         v1_lookup_table_olap
     WHERE
         external_id = $1::uuid
+), task AS (
+    SELECT
+        t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id
+    FROM
+        v1_tasks_olap t
+    JOIN
+        lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
+), relevant_events AS (
+    SELECT
+        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+    FROM
+        v1_tasks_olap t
+    JOIN
+        lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
+    JOIN
+        v1_task_events_olap e ON (e.task_id, e.task_inserted_at, e.tenant_id, e.readable_status, e.retry_count) = (t.id, t.inserted_at, t.tenant_id, t.readable_status, t.latest_retry_count)
+), error_message AS (
+    SELECT
+        error_message
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'FAILED'
+    ORDER BY
+        event_timestamp DESC
+    LIMIT 1
+), task_output AS (
+    SELECT
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
+    LIMIT 1
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
-    e.output,
-    e.error_message
+    e.error_message AS error_message,
+    o.output AS output
 FROM
-    v1_tasks_olap t
-JOIN
-    lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
-JOIN
-    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
+    task t
+LEFT JOIN
+    error_message e ON true
+LEFT JOIN
+    task_output o ON true
 `
 
 type ReadTaskByExternalIDRow struct {
@@ -1507,8 +1541,8 @@ type ReadTaskByExternalIDRow struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
-	Output               []byte               `json:"output"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
+	Output               []byte               `json:"output"`
 }
 
 func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid pgtype.UUID) (*ReadTaskByExternalIDRow, error) {
@@ -1539,8 +1573,8 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.DagID,
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
-		&i.Output,
 		&i.ErrorMessage,
+		&i.Output,
 	)
 	return &i, err
 }
