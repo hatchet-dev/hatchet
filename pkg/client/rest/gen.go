@@ -309,8 +309,11 @@ type APIMeta struct {
 	AllowInvites *bool `json:"allowInvites,omitempty"`
 
 	// AllowSignup whether or not users can sign up for this instance
-	AllowSignup *bool           `json:"allowSignup,omitempty"`
-	Auth        *APIMetaAuth    `json:"auth,omitempty"`
+	AllowSignup *bool        `json:"allowSignup,omitempty"`
+	Auth        *APIMetaAuth `json:"auth,omitempty"`
+
+	// DecipherDsn the Decipher DSN
+	DecipherDsn *string         `json:"decipherDsn,omitempty"`
 	Posthog     *APIMetaPosthog `json:"posthog,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
