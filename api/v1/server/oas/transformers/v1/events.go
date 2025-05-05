@@ -26,14 +26,14 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow) gen.V1EventList {
 				UpdatedAt: row.EventGeneratedAt.Time,
 				Id:        strconv.FormatInt(row.EventID, 10),
 			},
-			WorkflowRunSummary: &gen.V1EventWorkflowRunSummary{
+			WorkflowRunSummary: gen.V1EventWorkflowRunSummary{
 				Cancelled: row.CancelledCount.Int64,
 				Succeeded: row.CompletedCount.Int64,
 				Queued:    row.QueuedCount.Int64,
 				Failed:    row.FailedCount.Int64,
 				Running:   row.RunningCount.Int64,
 			},
-			ExternalId: &externalId,
+			ExternalId: externalId,
 		}
 	}
 
