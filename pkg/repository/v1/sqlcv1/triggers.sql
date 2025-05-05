@@ -19,7 +19,8 @@ SELECT
     latest_versions."workflowVersionId",
     latest_versions."workflowId",
     latest_versions."workflowName",
-    eventRef."eventKey" as "eventKey"
+    eventRef."eventKey" as "eventKey",
+    eventRef."expression" as "eventExpression"
 FROM
     latest_versions
 JOIN
