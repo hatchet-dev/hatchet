@@ -197,8 +197,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		for _, opt := range opts {
 
 			if workflow.EventExpression.Valid && workflow.EventExpression.String != "" {
-				celResult, err := r.processWorkflowExpression(ctx, workflow, opt)
-				fmt.Println("CelResult", celResult)
+				shouldFilter, err := r.processWorkflowExpression(ctx, workflow, opt)
+				fmt.Println("CelResult", shouldFilter, workflow.EventExpression, string(opt.Data))
 
 				if err != nil {
 					r.l.Error().
@@ -210,7 +210,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 					continue
 				}
 
-				if !celResult {
+				if shouldFilter {
 					continue
 				}
 			}
