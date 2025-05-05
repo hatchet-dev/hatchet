@@ -51,7 +51,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
 
-	rows := transformers.ToEventList(events)
+	rows := transformers.ToV1EventList(events)
 
 	return gen.V1EventList200JSONResponse(
 		rows,

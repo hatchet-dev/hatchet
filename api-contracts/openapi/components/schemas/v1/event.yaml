@@ -1,0 +1,70 @@
+V1Event:
+  properties:
+    metadata:
+      $ref: "../metadata.yaml#/APIResourceMeta"
+    key:
+      type: string
+      description: The key for the event.
+    tenant:
+      $ref: "../_index.yaml#/Tenant"
+      description: The tenant associated with this event.
+    tenantId:
+      type: string
+      description: The ID of the tenant associated with this event.
+    workflowRunSummary:
+      $ref: "#/V1EventWorkflowRunSummary"
+      description: The workflow run summary for this event.
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the event.
+    externalId:
+      type: string
+      description: The external ID for the event.
+      format: uuid
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+  required:
+    - metadata
+    - key
+    - tenantId
+    - externalId
+    - workflowRunSummary
+
+V1EventList:
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/V1Event"
+      type: array
+
+V1EventWorkflowRunSummary:
+  properties:
+    running:
+      type: integer
+      format: int64
+      description: The number of running runs.
+    queued:
+      type: integer
+      format: int64
+      description: The number of queued runs.
+    succeeded:
+      type: integer
+      format: int64
+      description: The number of succeeded runs.
+    failed:
+      type: integer
+      format: int64
+      description: The number of failed runs.
+    cancelled:
+      type: integer
+      format: int64
+      description: The number of cancelled runs.
+  required:
+    - running
+    - queued
+    - succeeded
+    - failed
+    - cancelled

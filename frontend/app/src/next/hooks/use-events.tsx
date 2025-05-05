@@ -1,11 +1,11 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
-import api, { Event, PaginationResponse } from '@/lib/api';
+import api, { PaginationResponse, V1Event } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 
 interface EventsState {
-  data: Event[];
+  data: V1Event[];
   paginationData?: { current_page: number; num_pages: number };
   isLoading: boolean;
   invalidate: () => Promise<void>;

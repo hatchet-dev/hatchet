@@ -1,5 +1,5 @@
 import { Checkbox } from '@/components/ui/checkbox';
-import { Event } from '@/lib/api';
+import { V1Event } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
 import { Badge } from '@/next/components/ui/badge';
@@ -79,7 +79,7 @@ function EventsContent() {
   );
 }
 
-export const columns = (): ColumnDef<Event>[] => {
+export const columns = (): ColumnDef<V1Event>[] => {
   return [
     {
       id: 'select',

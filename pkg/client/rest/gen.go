@@ -481,9 +481,6 @@ type Event struct {
 	// AdditionalMetadata Additional metadata for the event.
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 
-	// ExternalId The external ID for the event.
-	ExternalId *openapi_types.UUID `json:"externalId,omitempty"`
-
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
@@ -1190,6 +1187,48 @@ type V1CancelTaskRequest struct {
 type V1DagChildren struct {
 	Children *[]V1TaskSummary    `json:"children,omitempty"`
 	DagId    *openapi_types.UUID `json:"dagId,omitempty"`
+}
+
+// V1Event defines model for V1Event.
+type V1Event struct {
+	// AdditionalMetadata Additional metadata for the event.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// ExternalId The external ID for the event.
+	ExternalId openapi_types.UUID `json:"externalId"`
+
+	// Key The key for the event.
+	Key      string          `json:"key"`
+	Metadata APIResourceMeta `json:"metadata"`
+	Tenant   *Tenant         `json:"tenant,omitempty"`
+
+	// TenantId The ID of the tenant associated with this event.
+	TenantId           string                    `json:"tenantId"`
+	WorkflowRunSummary V1EventWorkflowRunSummary `json:"workflowRunSummary"`
+}
+
+// V1EventList defines model for V1EventList.
+type V1EventList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1Event          `json:"rows,omitempty"`
+}
+
+// V1EventWorkflowRunSummary defines model for V1EventWorkflowRunSummary.
+type V1EventWorkflowRunSummary struct {
+	// Cancelled The number of cancelled runs.
+	Cancelled int64 `json:"cancelled"`
+
+	// Failed The number of failed runs.
+	Failed int64 `json:"failed"`
+
+	// Queued The number of queued runs.
+	Queued int64 `json:"queued"`
+
+	// Running The number of running runs.
+	Running int64 `json:"running"`
+
+	// Succeeded The number of succeeded runs.
+	Succeeded int64 `json:"succeeded"`
 }
 
 // V1LogLine defines model for V1LogLine.
@@ -11207,7 +11246,7 @@ func (r V1TaskEventListResponse) StatusCode() int {
 type V1EventListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EventList
+	JSON200      *V1EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 }
@@ -15299,7 +15338,7 @@ func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EventList
+		var dest V1EventList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

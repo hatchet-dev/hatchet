@@ -17,13 +17,6 @@ Event:
     additionalMetadata:
       type: object
       description: Additional metadata for the event.
-    externalId:
-      type: string
-      description: The external ID for the event.
-      format: uuid
-      example: bb214807-246e-43a5-a25d-41761d1cff9e
-      minLength: 36
-      maxLength: 36
   required:
     - metadata
     - key

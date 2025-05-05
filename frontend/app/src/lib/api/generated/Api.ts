@@ -86,6 +86,7 @@ import {
   UserTenantMembershipsList,
   V1CancelTaskRequest,
   V1DagChildren,
+  V1EventList,
   V1LogLineList,
   V1ReplayTaskRequest,
   V1TaskEventList,
@@ -581,7 +582,7 @@ export class Api<
     },
     params: RequestParams = {},
   ) =>
-    this.request<EventList, APIErrors>({
+    this.request<V1EventList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/events`,
       method: 'GET',
       query: query,
