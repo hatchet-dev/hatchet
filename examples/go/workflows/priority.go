@@ -49,3 +49,4 @@ func Priority(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[PriorityInp
 	)
 	return workflow
 }
+

@@ -9,7 +9,7 @@ export interface ComputeType {
 }
 
 // Represents the maximum number of worker pools a tenant can create based on their plan
-export const workerPoolLimits = {
+const workerPoolLimits = {
   free: 1,
   starter: 2,
   growth: 5,
@@ -17,7 +17,7 @@ export const workerPoolLimits = {
 };
 
 // Represents the maximum number of replicas per worker pool
-export const replicaLimits = {
+const replicaLimits = {
   free: 2,
   starter: 5,
   growth: 20,

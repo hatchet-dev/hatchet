@@ -1,0 +1,33 @@
+// Generated from /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/blog/_meta.js
+const meta = {
+  task_queue_modern_python: {
+    title: 'A task queue for modern Python applications',
+    href: '/blog/task-queue-modern-python',
+  },
+  postgres_events_table: {
+    title: 'Use Postgres for your events table',
+    href: '/blog/postgres-events-table',
+  },
+  migrating_off_prisma: {
+    title: 'Why we moved off Prisma',
+    href: '/blog/migrating-off-prisma',
+  },
+  problems_with_celery: {
+    title: 'The problems with Celery',
+    display: 'hidden',
+    href: '/blog/problems-with-celery',
+  },
+  multi_tenant_queues: {
+    title: 'An unfair advantage: multi-tenant queues in Postgres',
+    href: '/blog/multi-tenant-queues',
+  },
+  '--migration-guides': {
+    title: 'Migration Guides',
+    type: 'separator',
+  },
+  mergent_migration_guide: {
+    title: 'Migrating from Mergent',
+    href: '/blog/mergent-migration-guide',
+  },
+};
+export default meta;
