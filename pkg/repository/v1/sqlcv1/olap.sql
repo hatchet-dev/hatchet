@@ -1260,6 +1260,7 @@ WHERE
 -- name: CreateEvent :one
 INSERT INTO v1_events_olap (
     tenant_id,
+    external_id,
     generated_at,
     key,
     payload,
@@ -1267,6 +1268,7 @@ INSERT INTO v1_events_olap (
 )
 VALUES (
     @tenantId::UUID,
+    @externalId::UUID,
     @generatedAt::TIMESTAMPTZ,
     @key::TEXT,
     @payload::JSONB,

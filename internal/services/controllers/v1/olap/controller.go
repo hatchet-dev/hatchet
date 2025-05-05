@@ -346,6 +346,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		for _, payload := range msg.Payloads {
 			opts := sqlcv1.CreateEventParams{
 				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+				Externalid:         sqlchelpers.UUIDFromStr(payload.EventExternalId),
 				Generatedat:        sqlchelpers.TimestamptzFromTime(payload.EventGeneratedAt),
 				Key:                payload.EventKey,
 				Payload:            payload.EventPayload,

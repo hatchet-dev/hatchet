@@ -835,6 +835,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					TaskInsertedAt:          task.InsertedAt.Time,
 					EventGeneratedAt:        time.Now(),
 					EventKey:                event.EventKey,
+					EventExternalId:         event.EventId,
 					EventPayload:            event.EventPayload,
 					EventAdditionalMetadata: event.EventAdditionalMetadata,
 				})

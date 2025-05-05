@@ -105,6 +105,7 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 
 type EventDataForOlap struct {
 	EventKey                string
+	EventId                 string
 	TaskExternalId          string
 	EventAdditionalMetadata []byte
 	EventPayload            []byte
@@ -173,7 +174,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			})
 
 			eventKeysTaskExternalIds = append(eventKeysTaskExternalIds, &EventDataForOlap{
-				EventKey:                workflow.EventKey,
+				EventKey:                triggerConverter.eventKey,
+				EventId:                 triggerConverter.eventID,
 				TaskExternalId:          externalId,
 				EventAdditionalMetadata: additionalMetadata,
 				EventPayload:            opt.Data,
