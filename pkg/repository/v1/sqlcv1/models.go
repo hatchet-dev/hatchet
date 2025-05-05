@@ -2491,6 +2491,7 @@ type V1EventsOlap struct {
 	ID                 int64              `json:"id"`
 	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
 	GeneratedAt        pgtype.Timestamptz `json:"generated_at"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
 	Key                string             `json:"key"`
 	Payload            []byte             `json:"payload"`
 	AdditionalMetadata []byte             `json:"additional_metadata"`
