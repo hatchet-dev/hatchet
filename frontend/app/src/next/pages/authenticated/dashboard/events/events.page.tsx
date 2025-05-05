@@ -18,6 +18,7 @@ import {
   Pagination,
 } from '@/next/components/ui/pagination';
 import RelativeDate from '@/next/components/ui/relative-date';
+import { Separator } from '@/next/components/ui/separator';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import useTenant from '@/next/hooks/use-tenant';
 import docs from '@/next/lib/docs';
@@ -58,6 +59,7 @@ function EventsContent() {
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
+      <Separator className="my-4" />
       <DataTable
         columns={columns({
           onRowClick: () => {},
