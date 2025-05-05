@@ -195,10 +195,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
-
 			if workflow.EventExpression.Valid && workflow.EventExpression.String != "" {
 				shouldFilter, err := r.processWorkflowExpression(ctx, workflow, opt)
-				fmt.Println("CelResult", shouldFilter, workflow.EventExpression, string(opt.Data))
 
 				if err != nil {
 					r.l.Error().
@@ -206,8 +204,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 						Str("workflow_id", workflow.WorkflowId.String()).
 						Str("expression", workflow.EventExpression.String).
 						Msg("Failed to evaluate workflow expression")
-
-					continue
 				}
 
 				if shouldFilter {
