@@ -103,7 +103,7 @@ VALUES (
     $5::JSONB,
     $6::JSONB
 )
-RETURNING tenant_id, id, inserted_at, generated_at, key, payload, additional_metadata
+RETURNING tenant_id, id, inserted_at, generated_at, external_id, key, payload, additional_metadata
 `
 
 type CreateEventParams struct {
@@ -130,6 +130,7 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		&i.ID,
 		&i.InsertedAt,
 		&i.GeneratedAt,
+		&i.ExternalID,
 		&i.Key,
 		&i.Payload,
 		&i.AdditionalMetadata,
