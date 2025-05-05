@@ -92,7 +92,7 @@ function EventsProviderContent({ children }: EventsProviderProps) {
   );
 }
 
-export function WorkflowsProvider({
+export function EventsProvider({
   children,
   refetchInterval,
 }: EventsProviderProps) {

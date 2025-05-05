@@ -68,7 +68,7 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 
 	return gen.EventUpdateReplay200JSONResponse(
 		gen.EventList{
-			Rows: &rows,
+			Rows: rows,
 		},
 	), nil
 }

@@ -27,7 +27,7 @@ func ToEventList(events []*sqlcv1.ListEventsRow) gen.EventList {
 	}
 
 	return gen.EventList{
-		Rows:       &rows,
-		Pagination: &pagination,
+		Rows:       rows,
+		Pagination: pagination,
 	}
 }
