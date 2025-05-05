@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"hash/fnv"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -19,25 +20,6 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 	return &rateLimitRepository{
 		sharedRepository: shared,
 	}
-}
-
-func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error) {
-	rls, err := d.queries.ListRateLimitsForTenantNoMutate(ctx, d.pool, sqlcv1.ListRateLimitsForTenantNoMutateParams{
-		Tenantid: tenantId,
-		Limit:    MAX_TENANT_RATE_LIMITS,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]string, len(rls))
-
-	for i, rl := range rls {
-		ids[i] = rl.Key
-	}
-
-	return ids, nil
 }
 
 func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error) {
@@ -58,6 +40,14 @@ func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 	for k, v := range updates {
 		params.Keys = append(params.Keys, k)
 		params.Units = append(params.Units, int32(v)) // nolint: gosec
+	}
+
+	tenantInt := tenantAdvisoryInt(sqlchelpers.UUIDToStr(tenantId))
+
+	err = d.queries.AdvisoryLock(ctx, tx, tenantInt)
+
+	if err != nil {
+		return nil, nil, err
 	}
 
 	_, err = d.queries.BulkUpdateRateLimits(ctx, tx, params)
@@ -94,4 +84,11 @@ func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgt
 	}
 
 	return res, &nextRefillAt, err
+}
+
+func tenantAdvisoryInt(tenantID string) int64 {
+	hasher := fnv.New64a()
+	idBytes := []byte(tenantID)
+	hasher.Write(idBytes)
+	return int64(hasher.Sum64()) // nolint: gosec
 }

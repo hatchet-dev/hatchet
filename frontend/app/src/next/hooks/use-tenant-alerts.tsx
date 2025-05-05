@@ -195,6 +195,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   });
 
   const startSlackWebhookUrl = useMemo(() => {
+    // FIXME: This would be nice to grab from the generated API, but this can only be done as a request.
     return `/api/v1/tenants/${tenant?.metadata.id}/slack/start`;
   }, [tenant]);
 

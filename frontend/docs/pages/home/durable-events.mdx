@@ -1,21 +1,7 @@
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from "@/components/code";
-
-export const DurableGo = {
-  path: "examples/v1/workflows/durable-event.go",
-};
-
-export const DurableTs = {
-  path: "src/v1/examples/durable-event/workflow.ts",
-};
-
-export const DurablePy = {
-  path: "examples/durable_event/worker.py",
-};
-
-export const getStaticProps = ({}) =>
-  getSnippets([DurableGo, DurableTs, DurablePy]);
 
 ## Durable Events
 
@@ -28,17 +14,17 @@ Durable events are declared using the context method `WaitFor` (or utility metho
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
 
-<GithubSnippet src={DurablePy} target="Durable Event" />
+<Snippet src={snips.python.durable_event.worker} block="durable_event" />
 
 </Tabs.Tab>
 <Tabs.Tab title="Typescript">
 
-<GithubSnippet src={DurableTs} target="Durable Event" />
+<Snippet src={snips.typescript.durable_event.workflow} block="durable_event" />
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-<GithubSnippet src={DurableGo} target="Durable Event" />
+<Snippet src={snips.go.workflows.durable_event} block="durable_event" />
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -50,17 +36,26 @@ Durable events can be filtered using [CEL](https://github.com/google/cel-spec) e
 <UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
 
-<GithubSnippet src={DurablePy} target="Durable Event With Filter" />
+<Snippet
+  src={snips.python.durable_event.worker}
+  block="durable_event_with_filter"
+/>
 
 </Tabs.Tab>
 <Tabs.Tab title="Typescript">
 
-<GithubSnippet src={DurableTs} target="Durable Event With Filter" />
+<Snippet
+  src={snips.typescript.durable_event.workflow}
+  block="durable_event_with_filter"
+/>
 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-<GithubSnippet src={DurableGo} target="Durable Event With Filter" />
+<Snippet
+  src={snips.go.workflows.durable_event}
+  block="durable_event_with_filter"
+/>
 
 </Tabs.Tab>
 </UniversalTabs>

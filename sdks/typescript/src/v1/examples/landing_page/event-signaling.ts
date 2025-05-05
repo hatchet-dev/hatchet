@@ -5,7 +5,7 @@ export type SimpleInput = {
   Message: string;
 };
 
-// ❓ Trigger on an event
+// > Trigger on an event
 export const simple = hatchet.task({
   name: 'simple',
   onEvents: ['user:created'],

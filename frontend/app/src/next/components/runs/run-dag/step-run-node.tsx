@@ -7,7 +7,7 @@ import { Duration } from '@/next/components/ui/duration';
 import { RunsBadge } from '../runs-badge';
 import { ROUTES } from '@/next/lib/routes';
 
-export enum TabOption {
+enum TabOption {
   Output = 'output',
   ChildWorkflowRuns = 'child-workflow-runs',
   Input = 'input',
@@ -54,12 +54,15 @@ export default memo(({ data }: { data: NodeData }) => {
         <span className="step-run-backdrop absolute inset-[1px] bg-background transition-colors duration-200" />
         <div className="z-10 flex flex-row items-center justify-between gap-4 w-full">
           <div className="flex flex-row items-center justify-start gap-2 z-10">
-            <RunsBadge status={data.taskRun?.status} />
-            <div className="truncate flex-grow">{data.taskName}</div>
+            <RunsBadge status={data.taskRun?.status} variant="xs" />
+            <div className="truncate flex-grow max-w-[160px]">
+              {data.taskName}
+            </div>
           </div>
           {data.taskRun?.finishedAt && data.taskRun?.startedAt && (
             <div className="text-xs text-gray-500 dark:text-gray-400">
               <Duration
+                className="text-xs"
                 start={data.taskRun?.startedAt}
                 end={data.taskRun?.finishedAt}
                 status={data.taskRun?.status}

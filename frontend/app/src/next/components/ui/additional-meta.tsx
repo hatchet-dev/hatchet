@@ -13,7 +13,7 @@ import {
 
 const MAX_METADATA_LENGTH = 2;
 
-export interface AdditionalMetadataClick {
+interface AdditionalMetadataClick {
   key: string;
   value: any;
 }

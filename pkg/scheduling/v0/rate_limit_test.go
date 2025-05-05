@@ -1,3 +1,5 @@
+//go:build !e2e && !load && !rampup && !integration
+
 package v0
 
 import (

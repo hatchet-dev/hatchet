@@ -11,7 +11,7 @@ import {
   HeadlineActions,
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { WorkerTable } from '../components/worker-table';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerDetailSheet } from '../components/worker-detail-sheet';
@@ -21,9 +21,9 @@ import { Badge } from '@/next/components/ui/badge';
 import { WorkerType } from '@/lib/api';
 
 function ServiceDetailPageContent() {
-  const { serviceName = '', workerId } = useParams<{
+  const { serviceName = '', workerName } = useParams<{
     serviceName: string;
-    workerId?: string;
+    workerName?: string;
   }>();
   const decodedServiceName = decodeURIComponent(serviceName);
   const navigate = useNavigate();
@@ -68,12 +68,12 @@ function ServiceDetailPageContent() {
   return (
     <SheetViewLayout
       sheet={
-        <WorkerDetailProvider workerId={workerId || ''}>
+        <WorkerDetailProvider workerId={workerName || ''}>
           <WorkerDetailSheet
-            isOpen={!!workerId}
+            isOpen={!!workerName}
             onClose={handleCloseSheet}
             serviceName={decodedServiceName}
-            workerId={workerId || ''}
+            workerId={workerName || ''}
           />
         </WorkerDetailProvider>
       }

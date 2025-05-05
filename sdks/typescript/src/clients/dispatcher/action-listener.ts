@@ -1,4 +1,8 @@
-import { DispatcherClient as PbDispatcherClient, AssignedAction } from '@hatchet/protoc/dispatcher';
+import {
+  DispatcherClient as PbDispatcherClient,
+  AssignedAction,
+  ActionType,
+} from '@hatchet/protoc/dispatcher';
 
 import { Status } from 'nice-grpc';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
@@ -19,6 +23,23 @@ enum ListenStrategy {
 }
 
 export interface Action extends AssignedAction {}
+
+export type ActionKey = string;
+
+export function createActionKey(action: Action): ActionKey {
+  switch (action.actionType) {
+    case ActionType.START_GET_GROUP_KEY:
+      return `${action.getGroupKeyRunId}/${action.retryCount}`;
+    case ActionType.CANCEL_STEP_RUN:
+    case ActionType.START_STEP_RUN:
+    case ActionType.UNRECOGNIZED:
+      return `${action.stepRunId}/${action.retryCount}`;
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustivenessCheck: never = action.actionType;
+      throw new Error(`Unhandled action type: ${exhaustivenessCheck}`);
+  }
+}
 
 export class ActionListener {
   config: ClientConfig;

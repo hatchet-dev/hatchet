@@ -1,5 +1,4 @@
 import { V1TaskSummary, V1WorkflowRun, V1WorkflowType } from '@/lib/api';
-import { Duration } from 'date-fns';
 import {
   Tooltip,
   TooltipContent,
@@ -9,7 +8,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 
-export interface RunIdProps {
+interface RunIdProps {
   wfRun?: V1WorkflowRun;
   taskRun?: V1TaskSummary;
   onClick?: () => void;
@@ -72,7 +71,7 @@ export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
   );
 }
 
-export function splitTime(runId?: string) {
+function splitTime(runId?: string) {
   if (!runId) {
     return;
   }
@@ -80,14 +79,17 @@ export function splitTime(runId?: string) {
   return runId.split('-').slice(0, -1).join('-');
 }
 
-export function getFriendlyTaskRunId(run?: V1TaskSummary) {
+function getFriendlyTaskRunId(run?: V1TaskSummary) {
   if (!run) {
     return;
   }
 
-  return run.actionId
-    ? run.actionId?.split(':')?.at(1)
-    : getFriendlyWorkflowRunId(run);
+  if (run.actionId) {
+    const runIdPrefix = run.metadata.id.split('-')[0];
+    return run.actionId?.split(':')?.at(1) + '-' + runIdPrefix;
+  }
+
+  return getFriendlyWorkflowRunId(run);
 }
 
 export function getFriendlyWorkflowRunId(run?: V1WorkflowRun) {
@@ -99,37 +101,4 @@ export function getFriendlyWorkflowRunId(run?: V1WorkflowRun) {
   const runIdPrefix = run.metadata.id.split('-')[0];
 
   return displayNameParts + '-' + runIdPrefix;
-}
-
-export function formatDuration(duration: Duration, rawTimeMs: number): string {
-  const parts = [];
-
-  if (duration.days) {
-    parts.push(`${duration.days}d`);
-  }
-
-  if (duration.hours) {
-    parts.push(`${duration.hours}h`);
-  }
-
-  if (duration.minutes) {
-    parts.push(`${duration.minutes}m`);
-  }
-
-  if (rawTimeMs < 10000 && duration.seconds) {
-    const ms = Math.floor((rawTimeMs % 1000) / 10);
-    parts.push(`${duration.seconds}.${ms.toString().padStart(2, '0')}s`);
-    return parts.join(' ');
-  }
-
-  if (duration.seconds) {
-    parts.push(`${duration.seconds}s`);
-  }
-
-  if (rawTimeMs < 1000) {
-    const ms = rawTimeMs % 1000;
-    parts.push(`${ms}ms`);
-  }
-
-  return parts.join(' ');
 }

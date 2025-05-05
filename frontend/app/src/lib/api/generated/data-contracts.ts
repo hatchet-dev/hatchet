@@ -371,6 +371,65 @@ export interface V1WorkflowRunDetails {
   tasks: V1TaskSummary[];
 }
 
+export interface V1TaskTiming {
+  metadata: APIResourceMeta;
+  /** The depth of the task in the waterfall. */
+  depth: number;
+  status: V1TaskStatus;
+  /** The display name of the task run. */
+  taskDisplayName: string;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentTaskExternalId?: string;
+  /**
+   * The timestamp the task run was queued.
+   * @format date-time
+   */
+  queuedAt?: string;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+}
+
+export interface V1TaskTimingList {
+  pagination: PaginationResponse;
+  /** The list of task timings */
+  rows: V1TaskTiming[];
+}
+
 export interface V1TaskRunMetric {
   status: V1TaskStatus;
   count: number;
@@ -972,6 +1031,8 @@ export interface Workflow {
   tags?: WorkflowTag[];
   /** The jobs of the workflow. */
   jobs?: Job[];
+  /** The tenant id of the workflow. */
+  tenantId: string;
 }
 
 export interface WorkflowVersionMeta {

@@ -10,7 +10,7 @@ export const onboardingRoutes: RouteObject[] = [
       {
         path: ROUTES.onboarding.newTenant,
         lazy: () =>
-          import('./new/new.page').then((module) => ({
+          import('./new/1.new.page').then((module) => ({
             element: <module.default />,
           })),
       },

@@ -7,7 +7,7 @@ import { Dialog } from '@/next/components/ui/dialog/dialog';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import useCan from '@/next/hooks/use-can';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { apiTokens } from '@/next/lib/can/features/api-tokens.permissions';
 import {
   Alert,

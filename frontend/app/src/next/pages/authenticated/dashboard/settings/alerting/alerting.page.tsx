@@ -61,7 +61,6 @@ const AlertingSettings: React.FC = () => {
             alertingSettings={alertingSettings}
             isLoading={isLoading}
             onSubmit={async (opts) => {
-              console.log('opts', opts);
               await update.mutateAsync(opts);
             }}
             fieldErrors={{}}

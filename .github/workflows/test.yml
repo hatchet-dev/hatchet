@@ -2,8 +2,8 @@ name: test
 on:
   pull_request:
     paths-ignore:
-      - 'sdks/**'
-      - 'frontend/docs/**'
+      - "sdks/**"
+      - "frontend/docs/**"
 
 jobs:
   generate:
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -59,7 +59,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.24"
 
       - name: Go deps
         run: go mod download
@@ -68,7 +68,7 @@ jobs:
         run: go generate ./...
 
       - name: Test
-        run: go test ./... -v -failfast
+        run: go test $(go list ./... | grep -v "quickstart") -v -failfast
 
   integration:
     runs-on: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -109,7 +109,7 @@ jobs:
           task generate-local-encryption-keys
 
       - name: Test
-        run: go test -tags integration ./... -v -failfast
+        run: go test -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
 
       - name: Teardown
         run: docker compose down
@@ -128,7 +128,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -293,8 +293,11 @@ jobs:
   load:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+    strategy:
+      matrix:
+        migrate-strategy: ["latest", "penultimate"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["15-alpine"]
 
     steps:
       - uses: actions/checkout@v4
@@ -304,7 +307,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -312,64 +315,25 @@ jobs:
           version: 9.15.4
           run_install: false
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
-      - name: Compose
-        run: docker compose up -d
-
       - name: Go deps
         run: go mod download
 
-      - name: Prepare
-        run: |
-          cat > .env <<EOF
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          SERVER_PORT=8080
-          SERVER_URL=http://localhost:8080
-          SERVER_AUTH_COOKIE_SECRETS="something something"
-          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-          SERVER_AUTH_COOKIE_INSECURE=false
-          SERVER_AUTH_SET_EMAIL_VERIFIED=true
-          SERVER_LOGGER_LEVEL=warn
-          SERVER_LOGGER_FORMAT=console
-          DATABASE_LOGGER_LEVEL=warn
-          DATABASE_LOGGER_FORMAT=console
-          EOF
-
-      - name: Generate
-        run: |
-          go run ./cmd/hatchet-migrate
-          task generate-go
-          task generate-certs
-          task generate-local-encryption-keys
-
-      - name: Setup
-        run: |
-          set -a
-          . .env
-          set +a
-
-          go run ./cmd/hatchet-admin quickstart --generated-config-dir ./generated/
-
       - name: Test
         run: |
-          export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
+          go test -tags load ./... -p 5 -v -race -failfast
+        env:
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
 
-          go test -tags load ./... -p 1 -v -race -failfast
-
-      - name: Teardown
-        run: docker compose down
-
-  load-pgmq:
+  rampup:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+    strategy:
+      matrix:
+        migrate-strategy: ["latest", "penultimate"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["15-alpine"]
 
     steps:
       - uses: actions/checkout@v4
@@ -379,7 +343,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -387,56 +351,13 @@ jobs:
           version: 9.15.4
           run_install: false
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
-      - name: Compose
-        run: docker compose up -d
-
       - name: Go deps
         run: go mod download
 
-      - name: Prepare
-        run: |
-          cat > .env <<EOF
-          DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-          SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-          SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-          SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          SERVER_PORT=8080
-          SERVER_URL=http://localhost:8080
-          SERVER_AUTH_COOKIE_SECRETS="something something"
-          SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
-          SERVER_AUTH_COOKIE_INSECURE=false
-          SERVER_AUTH_SET_EMAIL_VERIFIED=true
-          SERVER_LOGGER_LEVEL=warn
-          SERVER_LOGGER_FORMAT=console
-          DATABASE_LOGGER_LEVEL=warn
-          DATABASE_LOGGER_FORMAT=console
-          SERVER_TASKQUEUE_KIND=postgres
-          EOF
-
-      - name: Generate
-        run: |
-          go run ./cmd/hatchet-migrate
-          task generate-go
-          task generate-certs
-          task generate-local-encryption-keys
-
-      - name: Setup
-        run: |
-          set -a
-          . .env
-          set +a
-
-          go run ./cmd/hatchet-admin quickstart --generated-config-dir ./generated/
-
       - name: Test
         run: |
-          export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)"
-
-          RAMP_UP_DURATION_TIMEOUT=20s go test -tags load ./... -p 1 -v -race -failfast
-
-      - name: Teardown
-        run: docker compose down
+          go test -tags rampup ./... -p 5 -v -race -failfast
+        env:
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}

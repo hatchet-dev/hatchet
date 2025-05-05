@@ -10,7 +10,7 @@ import {
   PageTitle,
 } from '@/next/components/ui/page-header';
 import { Separator } from '@/next/components/ui/separator';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -21,7 +21,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { RunDetailProvider } from '@/next/hooks/use-run-detail';
 import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
-export interface RunsPageSheetProps {
+interface RunsPageSheetProps {
   workflowRunId: string;
   taskId: string;
 }
@@ -67,7 +67,7 @@ export default function RunsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['running-tasks']} size="icon" />
+            <DocsButton doc={docs.home.running_tasks} size="icon" />
           </HeadlineActionItem>
           <HeadlineActionItem>
             <Button onClick={() => setShowTriggerModal(true)}>
@@ -86,6 +86,7 @@ export default function RunsPage() {
           <RunsTable
             onRowClick={handleRowClick}
             selectedTaskId={taskId?.taskId}
+            onTriggerRunClick={() => setShowTriggerModal(true)}
           />
         </dl>
         <TriggerRunModal

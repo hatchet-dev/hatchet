@@ -8,12 +8,24 @@ import {
 import { Button } from '@/next/components/ui/button';
 import { Input } from '@/next/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/next/components/ui/select';
 import CronPrettifier from 'cronstrue';
 import { TimePicker } from '@/next/components/ui/time-picker';
 import useDefinitions from '@/next/hooks/use-definitions';
 import { useNavigate } from 'react-router-dom';
 import { useState, useMemo, useEffect } from 'react';
-import { Workflow } from '@/lib/api';
+import {
+  V1WorkflowRunDetails,
+  Workflow,
+  ScheduledWorkflows,
+  CronWorkflows,
+} from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
 import { CronsProvider, useCrons } from '@/next/hooks/use-crons';
 import { SchedulesProvider, useSchedules } from '@/next/hooks/use-schedules';
@@ -25,6 +37,13 @@ import { FaCodeBranch } from 'react-icons/fa';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
+type TriggerRunCapability =
+  | 'workflow'
+  | 'fromRecent'
+  | 'input'
+  | 'additionalMeta'
+  | 'timing';
+
 type TriggerRunModalProps = {
   show: boolean;
   onClose: () => void;
@@ -33,7 +52,12 @@ type TriggerRunModalProps = {
   defaultAddlMeta?: string;
   defaultWorkflowId?: string;
   defaultRunId?: string;
+  onRun?: (
+    run: V1WorkflowRunDetails | ScheduledWorkflows | CronWorkflows,
+  ) => void;
+  disabledCapabilities?: TriggerRunCapability[];
 };
+
 export function TriggerRunModal(props: TriggerRunModalProps) {
   return (
     <CronsProvider>
@@ -85,6 +109,8 @@ function TriggerRunModalContent({
   defaultAddlMeta = '{}',
   defaultWorkflowId,
   defaultRunId,
+  disabledCapabilities = [],
+  onRun,
 }: TriggerRunModalProps) {
   const navigate = useNavigate();
   const { data: workflows } = useDefinitions();
@@ -165,7 +191,11 @@ function TriggerRunModalContent({
               return;
             }
             onClose();
-            navigate(ROUTES.runs.detail(workflowRun.run.metadata.id));
+            if (onRun) {
+              onRun(workflowRun);
+            } else {
+              navigate(ROUTES.runs.detail(workflowRun.run.metadata.id));
+            }
           },
           onError: (error) => {
             setErrors([error.message]);
@@ -189,9 +219,13 @@ function TriggerRunModalContent({
           },
         },
         {
-          onSuccess: () => {
+          onSuccess: (schedule) => {
             onClose();
-            navigate(ROUTES.scheduled.list);
+            if (onRun) {
+              onRun(schedule);
+            } else {
+              navigate(ROUTES.scheduled.list);
+            }
           },
           onError: (error: any) => {
             if (error?.response?.data?.errors) {
@@ -222,9 +256,13 @@ function TriggerRunModalContent({
           },
         },
         {
-          onSuccess: () => {
+          onSuccess: (cron) => {
             onClose();
-            navigate(ROUTES.crons.list);
+            if (onRun) {
+              onRun(cron);
+            } else {
+              navigate(ROUTES.crons.list);
+            }
           },
           onError: (error: any) => {
             if (error?.response?.data?.errors) {
@@ -258,7 +296,7 @@ function TriggerRunModalContent({
         </DialogHeader>
 
         <div className="space-y-4">
-          {selectedRunId && (
+          {selectedRunId && !disabledCapabilities.includes('fromRecent') && (
             <RunDetailProvider runId={selectedRunId}>
               <WithPreviousInput
                 setInput={setInput}
@@ -266,210 +304,229 @@ function TriggerRunModalContent({
               />
             </RunDetailProvider>
           )}
-          <div>
-            <label className="text-sm font-medium">Workflow</label>
-            <select
-              className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2"
-              value={selectedWorkflowId}
-              onChange={(e) => {
-                setSelectedWorkflowId(e.target.value);
-                setSelectedRunId(''); // Reset selected run when workflow changes
-              }}
-            >
-              <option value="">Select a workflow</option>
-              {workflows?.map((workflow: Workflow) => (
-                <option key={workflow.metadata.id} value={workflow.metadata.id}>
-                  {workflow.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium flex items-center gap-2">
-              <FaCodeBranch className="text-muted-foreground" size={16} />
-              From Recent Run
-            </label>
-            <select
-              className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              value={selectedRunId}
-              disabled={!selectedWorkflowId}
-              onChange={(e) => {
-                const runId = e.target.value;
-                setSelectedRunId(runId);
-              }}
-            >
-              <option value="">Select a recent run</option>
-              {recentRuns
-                ?.filter((run) => run.workflowId === selectedWorkflowId)
-                .map((run) => (
-                  <option key={run.metadata.id} value={run.metadata.id}>
-                    {getFriendlyWorkflowRunId(run)}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Input</label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setInput('{}');
+          {!disabledCapabilities.includes('workflow') && (
+            <div>
+              <label className="text-sm font-medium">Workflow</label>
+              <Select
+                value={selectedWorkflowId}
+                onValueChange={(value) => {
+                  setSelectedWorkflowId(value);
                   setSelectedRunId('');
                 }}
-                className="h-8 px-2"
               >
-                Clear
-              </Button>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select a workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="placeholder">Select a workflow</SelectItem>
+                  {workflows?.map((workflow: Workflow) => (
+                    <SelectItem
+                      key={workflow.metadata.id}
+                      value={workflow.metadata.id}
+                    >
+                      {workflow.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <CodeEditor
-              language="json"
-              className="mt-1"
-              height="180px"
-              code={input}
-              setCode={(code) => code && setInput(code)}
-            />
-          </div>
+          )}
 
-          <div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Additional Metadata</label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setAddlMeta('{}')}
-                className="h-8 px-2"
+          {!disabledCapabilities.includes('fromRecent') && (
+            <div>
+              <label className="text-sm font-medium flex items-center gap-2">
+                <FaCodeBranch className="text-muted-foreground" size={16} />
+                From Recent Run
+              </label>
+              <select
+                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                value={selectedRunId}
+                disabled={!selectedWorkflowId}
+                onChange={(e) => {
+                  const runId = e.target.value;
+                  setSelectedRunId(runId);
+                }}
               >
-                Clear
-              </Button>
+                <option value="">Select a recent run</option>
+                {recentRuns
+                  ?.filter((run) => run.workflowId === selectedWorkflowId)
+                  .map((run) => (
+                    <option key={run.metadata.id} value={run.metadata.id}>
+                      {getFriendlyWorkflowRunId(run)}
+                    </option>
+                  ))}
+              </select>
             </div>
-            <CodeEditor
-              language="json"
-              className="mt-1"
-              height="90px"
-              code={addlMeta}
-              setCode={(code) => code && setAddlMeta(code)}
-            />
-          </div>
+          )}
 
-          <div>
-            <label className="text-sm font-medium">Timing</label>
-            <Tabs
-              value={timingOption}
-              onValueChange={(value: string) =>
-                setTimingOption(value as TimingOption)
-              }
-            >
-              <TabsList>
-                <TabsTrigger value="now">Now</TabsTrigger>
-                <TabsTrigger value="schedule">Schedule</TabsTrigger>
-                <TabsTrigger value="cron">Cron</TabsTrigger>
-              </TabsList>
-              <TabsContent value="now" />
-              <TabsContent value="schedule">
-                <div className="mt-4">
-                  <div className="font-bold mb-2">Select Date and Time</div>
-                  <div className="flex gap-2">
-                    <TimePicker
-                      date={scheduleTime}
-                      setDate={setScheduleTime}
-                      timezone="Local"
+          {!disabledCapabilities.includes('input') && (
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Input</label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setInput('{}');
+                    setSelectedRunId('');
+                  }}
+                  className="h-8 px-2"
+                >
+                  Clear
+                </Button>
+              </div>
+              <CodeEditor
+                language="json"
+                className="mt-1"
+                height="180px"
+                code={input}
+                setCode={(code) => code && setInput(code)}
+              />
+            </div>
+          )}
+
+          {!disabledCapabilities.includes('additionalMeta') && (
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">
+                  Additional Metadata
+                </label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAddlMeta('{}')}
+                  className="h-8 px-2"
+                >
+                  Clear
+                </Button>
+              </div>
+              <CodeEditor
+                language="json"
+                className="mt-1"
+                height="90px"
+                code={addlMeta}
+                setCode={(code) => code && setAddlMeta(code)}
+              />
+            </div>
+          )}
+
+          {!disabledCapabilities.includes('timing') && (
+            <div>
+              <label className="text-sm font-medium">Timing</label>
+              <Tabs
+                value={timingOption}
+                onValueChange={(value: string) =>
+                  setTimingOption(value as TimingOption)
+                }
+              >
+                <TabsList>
+                  <TabsTrigger value="now">Now</TabsTrigger>
+                  <TabsTrigger value="schedule">Schedule</TabsTrigger>
+                  <TabsTrigger value="cron">Cron</TabsTrigger>
+                </TabsList>
+                <TabsContent value="now" />
+                <TabsContent value="schedule">
+                  <div className="mt-4">
+                    <div className="font-bold mb-2">Select Date and Time</div>
+                    <div className="flex gap-2">
+                      <TimePicker
+                        date={scheduleTime}
+                        setDate={setScheduleTime}
+                        timezone="Local"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setScheduleTime(new Date())}
+                      >
+                        Now
+                      </Button>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setSeconds(newTime.getSeconds() + 15);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +15s
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 1);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +1m
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 5);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +5m
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 15);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +15m
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 60);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +60m
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value="cron">
+                  <div className="mt-4">
+                    <div className="font-bold mb-2">Cron Expression</div>
+                    <Input
+                      type="text"
+                      value={cronName}
+                      onChange={(e) => setCronName(e.target.value)}
+                      placeholder="e.g., cron-name"
+                      className="w-full mb-2"
                     />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setScheduleTime(new Date())}
-                    >
-                      Now
-                    </Button>
+                    <div className="font-bold mb-2">Cron Expression</div>
+                    <Input
+                      type="text"
+                      value={cronExpression}
+                      onChange={(e) => setCronExpression(e.target.value)}
+                      placeholder="e.g., 0 0 * * *"
+                      className="w-full"
+                    />
+                    <div className="text-sm text-muted-foreground mt-1">
+                      {cronPretty.error || `(runs ${cronPretty.pretty} UTC)`}
+                    </div>
                   </div>
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newTime = new Date(scheduleTime || new Date());
-                        newTime.setSeconds(newTime.getSeconds() + 15);
-                        setScheduleTime(newTime);
-                      }}
-                    >
-                      +15s
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newTime = new Date(scheduleTime || new Date());
-                        newTime.setMinutes(newTime.getMinutes() + 1);
-                        setScheduleTime(newTime);
-                      }}
-                    >
-                      +1m
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newTime = new Date(scheduleTime || new Date());
-                        newTime.setMinutes(newTime.getMinutes() + 5);
-                        setScheduleTime(newTime);
-                      }}
-                    >
-                      +5m
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newTime = new Date(scheduleTime || new Date());
-                        newTime.setMinutes(newTime.getMinutes() + 15);
-                        setScheduleTime(newTime);
-                      }}
-                    >
-                      +15m
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newTime = new Date(scheduleTime || new Date());
-                        newTime.setMinutes(newTime.getMinutes() + 60);
-                        setScheduleTime(newTime);
-                      }}
-                    >
-                      +60m
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="cron">
-                <div className="mt-4">
-                  <div className="font-bold mb-2">Cron Expression</div>
-                  <Input
-                    type="text"
-                    value={cronName}
-                    onChange={(e) => setCronName(e.target.value)}
-                    placeholder="e.g., cron-name"
-                    className="w-full mb-2"
-                  />
-                  <div className="font-bold mb-2">Cron Expression</div>
-                  <Input
-                    type="text"
-                    value={cronExpression}
-                    onChange={(e) => setCronExpression(e.target.value)}
-                    placeholder="e.g., 0 0 * * *"
-                    className="w-full"
-                  />
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {cronPretty.error || `(runs ${cronPretty.pretty} UTC)`}
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
 
           {errors.length > 0 && (
             <div className="text-sm text-destructive">

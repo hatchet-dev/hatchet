@@ -191,6 +191,38 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
+	// a pool for read replicas, if enabled
+	var readReplicaPool *pgxpool.Pool
+
+	if cf.ReadReplicaEnabled {
+		if cf.ReadReplicaDatabaseURL == "" {
+			return nil, fmt.Errorf("read replica database url is required if read replica is enabled")
+		}
+
+		readReplicaConfig, err := pgxpool.ParseConfig(cf.ReadReplicaDatabaseURL)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
+		}
+
+		if cf.ReadReplicaMaxConns != 0 {
+			readReplicaConfig.MaxConns = int32(cf.ReadReplicaMaxConns) // nolint: gosec
+		}
+
+		if cf.ReadReplicaMinConns != 0 {
+			readReplicaConfig.MinConns = int32(cf.ReadReplicaMinConns) // nolint: gosec
+		}
+
+		readReplicaConfig.MaxConnLifetime = 15 * 60 * time.Second
+		readReplicaConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+
+		readReplicaPool, err = pgxpool.NewWithConfig(context.Background(), readReplicaConfig)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to read replica database: %w", err)
+		}
+	}
+
 	ch := cache.New(cf.CacheDuration)
 
 	entitlementRepo := postgresdb.NewEntitlementRepository(pool, &scf.Runtime, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
@@ -227,6 +259,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create api repository: %w", err)
+	}
+
+	if readReplicaPool != nil {
+		v1.OLAP().SetReadReplicaPool(readReplicaPool)
 	}
 
 	return &database.Layer{
@@ -612,6 +648,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
 		Decipher:               &cf.Decipher,
+		Sampling:               cf.Sampling,
 	}, nil
 }
 

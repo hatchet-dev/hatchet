@@ -289,6 +289,8 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			return err
 		}
 
+		tc.pubBuffer.Stop()
+
 		if err := tc.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}

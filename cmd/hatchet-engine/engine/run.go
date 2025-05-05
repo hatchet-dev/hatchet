@@ -162,7 +162,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
-		cleanup, err := h.Start()
+		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
 		}
@@ -374,6 +374,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
 			olap.WithTenantAlertManager(sc.TenantAlerter),
+			olap.WithSamplingConfig(sc.Sampling),
 		)
 
 		if err != nil {
@@ -642,7 +643,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if healthProbes {
 		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
 
-		cleanup, err := h.Start()
+		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
@@ -818,6 +819,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
 			olap.WithTenantAlertManager(sc.TenantAlerter),
+			olap.WithSamplingConfig(sc.Sampling),
 		)
 
 		if err != nil {

@@ -246,6 +246,8 @@ const RUN_STATUS_VARIANTS: Record<ManagedWorkerEventStatus, string> = {
   FAILED: 'border-transparent rounded-full bg-red-500',
   CANCELLED: 'border-transparent rounded-full bg-gray-500',
   IN_PROGRESS: 'border-transparent rounded-full bg-yellow-500',
+  SCALE_UP: 'border-transparent rounded-full bg-blue-500',
+  SCALE_DOWN: 'border-transparent rounded-full bg-purple-500',
 };
 
 function EventIndicator({ severity }: { severity: ManagedWorkerEventStatus }) {

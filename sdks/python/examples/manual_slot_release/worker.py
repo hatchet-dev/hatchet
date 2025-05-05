@@ -4,7 +4,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet()
 
-# ❓ SlotRelease
+# > SlotRelease
 
 slot_release_workflow = hatchet.workflow(name="SlotReleaseWorkflow")
 
@@ -21,4 +21,4 @@ def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
-# ‼️
+# !!

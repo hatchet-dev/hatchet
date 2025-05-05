@@ -37,6 +37,7 @@
     "baseUrl": "." /* Specify the base directory to resolve non-relative module names. */,
     "paths": {
       // NOTE: also set in jest.config.ts
+      "@hatchet-dev/typescript-sdk/*": ["./src/*"],
       "@hatchet/*": ["./src/*"],
       "@util/*": ["./src/util/*"],
       "@models/*": ["./src/models/*"],

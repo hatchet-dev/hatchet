@@ -375,7 +375,7 @@ export default function UpdateWorkerForm({
   useEffect(() => {
     // Split secrets into add/update/delete
     const toAdd = secrets.filter((s) => !s.id && !s.deleted);
-    const toUpdate = secrets.filter((s) => s.id && !s.deleted);
+    const toUpdate = secrets.filter((s) => s.id && !s.deleted && s.isEditing);
     const toDelete = secrets.filter((s) => s.id && s.deleted).map((s) => s.id!);
 
     setValue(
@@ -443,6 +443,21 @@ export default function UpdateWorkerForm({
         Change the configuration of your service. This will trigger a
         redeployment of all workers.
       </div>
+      {!managedWorker.canUpdate && (
+        <Alert className="mt-4" variant="warn">
+          <ExclamationTriangleIcon className="h-4 w-4" />
+          <AlertTitle className="font-semibold">
+            You do not have permission to update this service.
+          </AlertTitle>
+          <AlertDescription>
+            Please make sure your linked{' '}
+            <a href="/v1/tenant-settings/github" className="text-indigo-400">
+              Github account
+            </a>{' '}
+            has write access to the repository.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="mt-6 flex flex-col gap-4">
         <div>
           <div className="grid gap-4">
@@ -1072,7 +1087,12 @@ export default function UpdateWorkerForm({
         </Accordion>
         <Button
           onClick={handleSubmit(onSubmit)}
-          disabled={!installation || !repoOwnerName || !branch}
+          disabled={
+            !managedWorker.canUpdate ||
+            !installation ||
+            !repoOwnerName ||
+            !branch
+          }
           className="w-fit px-8"
         >
           {isLoading && <PlusIcon className="h-4 w-4 animate-spin" />}

@@ -1,6 +1,6 @@
 import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
 
-export interface MachineType {
+interface MachineType {
   title: string;
   cpuKind: string;
   cpus: number;
@@ -44,12 +44,7 @@ export const DefaultMachineTypes: MachineType[] = [
     cpus: 8,
     memoryMb: 16384,
   },
-  {
-    title: '1 CPU, 1 GB RAM (performance CPU)',
-    cpuKind: 'performance',
-    cpus: 1,
-    memoryMb: 1024,
-  },
+
   {
     title: '1 CPU, 2 GB RAM (performance CPU)',
     cpuKind: 'performance',
@@ -82,7 +77,7 @@ export const DefaultMachineTypes: MachineType[] = [
   },
 ];
 
-export type Region = {
+type Region = {
   name: string;
   value: ManagedWorkerRegion;
   emoji: string;
@@ -255,6 +250,3 @@ export const regions: Region[] = [
     emoji: '🇨🇦',
   },
 ];
-
-export type ScalingType = 'Autoscaling' | 'Static';
-export const scalingTypes: ScalingType[] = ['Static', 'Autoscaling'];

@@ -17,9 +17,9 @@ import {
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { useState } from 'react';
 
-export type RunOutputCardVariant = 'input' | 'output' | 'metadata';
+type RunOutputCardVariant = 'input' | 'output' | 'metadata';
 
-export interface RunOutputCardProps {
+interface RunOutputCardProps {
   title: string;
   description?: string;
   output?: any;

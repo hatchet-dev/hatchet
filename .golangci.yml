@@ -1,47 +1,65 @@
-run:
-  timeout: 5m
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
-    - gofmt
-    - unused
-    - gosimple
-    - exportloopref
+    - errcheck
     - gocritic
     - gosec
-    - errcheck
-    - goimports
+    - govet
+    - ineffassign
     - revive
     - staticcheck
-    - vet
-    - stylecheck
     - unconvert
-    - ineffassign
+    - unused
+  settings:
+    staticcheck:
+      checks:
+        - -SA1029
+        - -SA4006
+        - -ST1003
+        - -ST1005
+        - -ST1016
+        - all
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: (.+)\.go$
+        text: by other packages, and that stutters; consider calling this
+      - path: (.+)\.go$
+        text: "var-naming:"
+      - path: (.+)\.go$
+        text: "receiver-naming:"
+      - path: (.+)\.go$
+        text: "unexported-return:"
+      - path: (.+)\.go$
+        text: "unused-parameter: parameter"
+      - path: (.+)\.go$
+        text: "context-keys-type: should not use basic type string"
+      - path: (.+)\.go$
+        text: error strings should not be capitalized
 
-linters-settings:
-  goimports:
-    local-prefixes: github.com/hatchet-dev/hatchet
-  staticcheck:
-    checks:
-      - all
-      - "-ST1003"
-      - "-SA4006"
-      - "-SA1029"
-  stylecheck:
-    checks:
-      - all
-      - "-ST1003"
-      - "-SA4006"
-      - "-ST1016"
-      - "-ST1005"
-
-issues:
-  exclude-files: []
-  exclude:
-    - "by other packages, and that stutters; consider calling this"
-    - "var-naming:"
-    - "receiver-naming:"
-    - "unexported-return:"
-    - "unused-parameter: parameter"
-    - "context-keys-type: should not use basic type string"
-    - "error strings should not be capitalized"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - '(.+)_test\.go'
+      - "cmd/hatchet-loadtest/rampup/(.+).go"
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/hatchet-dev/hatchet
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

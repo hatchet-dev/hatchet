@@ -5,7 +5,7 @@ const hatchet = Hatchet.init();
 
 let numRetries = 0;
 
-// ❓ Backoff
+// > Backoff
 const workflow: Workflow = {
   // ... normal workflow definition
   id: 'retries-with-backoff',
@@ -36,7 +36,7 @@ const workflow: Workflow = {
     },
   ],
 };
-// ‼️
+// !!
 
 async function main() {
   const worker = await hatchet.worker('backoff-worker');

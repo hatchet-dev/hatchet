@@ -1342,6 +1342,49 @@ type V1TaskSummaryList struct {
 	Rows []V1TaskSummary `json:"rows"`
 }
 
+// V1TaskTiming defines model for V1TaskTiming.
+type V1TaskTiming struct {
+	// Depth The depth of the task in the waterfall.
+	Depth int `json:"depth"`
+
+	// FinishedAt The timestamp the task run finished.
+	FinishedAt *time.Time      `json:"finishedAt,omitempty"`
+	Metadata   APIResourceMeta `json:"metadata"`
+
+	// ParentTaskExternalId The external ID of the parent task.
+	ParentTaskExternalId *openapi_types.UUID `json:"parentTaskExternalId,omitempty"`
+
+	// QueuedAt The timestamp the task run was queued.
+	QueuedAt *time.Time `json:"queuedAt,omitempty"`
+
+	// StartedAt The timestamp the task run started.
+	StartedAt *time.Time   `json:"startedAt,omitempty"`
+	Status    V1TaskStatus `json:"status"`
+
+	// TaskDisplayName The display name of the task run.
+	TaskDisplayName string `json:"taskDisplayName"`
+
+	// TaskExternalId The external ID of the task.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+
+	// TaskId The ID of the task.
+	TaskId int `json:"taskId"`
+
+	// TaskInsertedAt The timestamp the task was inserted.
+	TaskInsertedAt time.Time `json:"taskInsertedAt"`
+
+	// TenantId The ID of the tenant.
+	TenantId openapi_types.UUID `json:"tenantId"`
+}
+
+// V1TaskTimingList defines model for V1TaskTimingList.
+type V1TaskTimingList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of task timings
+	Rows []V1TaskTiming `json:"rows"`
+}
+
 // V1TriggerWorkflowRunRequest defines model for V1TriggerWorkflowRunRequest.
 type V1TriggerWorkflowRunRequest struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
@@ -1578,7 +1621,10 @@ type Workflow struct {
 	Name string `json:"name"`
 
 	// Tags The tags of the workflow.
-	Tags     *[]WorkflowTag         `json:"tags,omitempty"`
+	Tags *[]WorkflowTag `json:"tags,omitempty"`
+
+	// TenantId The tenant id of the workflow.
+	TenantId string                 `json:"tenantId"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 
@@ -1881,6 +1927,12 @@ type V1WorkflowRunTaskEventsListParams struct {
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// V1WorkflowRunGetTimingsParams defines parameters for V1WorkflowRunGetTimings.
+type V1WorkflowRunGetTimingsParams struct {
+	// Depth The depth to retrieve children
+	Depth *int64 `form:"depth,omitempty" json:"depth,omitempty"`
+}
+
 // StepRunListArchivesParams defines parameters for StepRunListArchives.
 type StepRunListArchivesParams struct {
 	// Offset The number to skip
@@ -2008,6 +2060,12 @@ type CronWorkflowListParams struct {
 
 	// WorkflowId The workflow id to get runs for.
 	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
+
+	// WorkflowName The workflow name to get runs for.
+	WorkflowName *string `form:"workflowName,omitempty" json:"workflowName,omitempty"`
+
+	// CronName The cron name to get runs for.
+	CronName *string `form:"cronName,omitempty" json:"cronName,omitempty"`
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
@@ -2390,6 +2448,9 @@ type ClientInterface interface {
 
 	// V1WorkflowRunTaskEventsList request
 	V1WorkflowRunTaskEventsList(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunGetTimings request
+	V1WorkflowRunGetTimings(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunListArchives request
 	StepRunListArchives(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3044,6 +3105,18 @@ func (c *Client) V1WorkflowRunGet(ctx context.Context, v1WorkflowRun openapi_typ
 
 func (c *Client) V1WorkflowRunTaskEventsList(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WorkflowRunTaskEventsListRequest(c.Server, v1WorkflowRun, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunGetTimings(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunGetTimingsRequest(c.Server, v1WorkflowRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5635,6 +5708,62 @@ func NewV1WorkflowRunTaskEventsListRequest(server string, v1WorkflowRun openapi_
 	return req, nil
 }
 
+// NewV1WorkflowRunGetTimingsRequest generates requests for V1WorkflowRunGetTimings
+func NewV1WorkflowRunGetTimingsRequest(server string, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-workflow-run", runtime.ParamLocationPath, v1WorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/workflow-runs/%s/task-timings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Depth != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "depth", runtime.ParamLocationQuery, *params.Depth); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewStepRunListArchivesRequest generates requests for StepRunListArchives
 func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, params *StepRunListArchivesParams) (*http.Request, error) {
 	var err error
@@ -8017,6 +8146,38 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 
 		}
 
+		if params.WorkflowName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowName", runtime.ParamLocationQuery, *params.WorkflowName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.CronName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cronName", runtime.ParamLocationQuery, *params.CronName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.AdditionalMetadata != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
@@ -10068,6 +10229,9 @@ type ClientWithResponsesInterface interface {
 	// V1WorkflowRunTaskEventsListWithResponse request
 	V1WorkflowRunTaskEventsListWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunTaskEventsListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunTaskEventsListResponse, error)
 
+	// V1WorkflowRunGetTimingsWithResponse request
+	V1WorkflowRunGetTimingsWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetTimingsResponse, error)
+
 	// StepRunListArchivesWithResponse request
 	StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error)
 
@@ -11001,6 +11165,31 @@ func (r V1WorkflowRunTaskEventsListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1WorkflowRunTaskEventsListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunGetTimingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1TaskTimingList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunGetTimingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunGetTimingsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13218,6 +13407,15 @@ func (c *ClientWithResponses) V1WorkflowRunTaskEventsListWithResponse(ctx contex
 	return ParseV1WorkflowRunTaskEventsListResponse(rsp)
 }
 
+// V1WorkflowRunGetTimingsWithResponse request returning *V1WorkflowRunGetTimingsResponse
+func (c *ClientWithResponses) V1WorkflowRunGetTimingsWithResponse(ctx context.Context, v1WorkflowRun openapi_types.UUID, params *V1WorkflowRunGetTimingsParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunGetTimingsResponse, error) {
+	rsp, err := c.V1WorkflowRunGetTimings(ctx, v1WorkflowRun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunGetTimingsResponse(rsp)
+}
+
 // StepRunListArchivesWithResponse request returning *StepRunListArchivesResponse
 func (c *ClientWithResponses) StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error) {
 	rsp, err := c.StepRunListArchives(ctx, stepRun, params, reqEditors...)
@@ -15181,6 +15379,53 @@ func ParseV1WorkflowRunTaskEventsListResponse(rsp *http.Response) (*V1WorkflowRu
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1TaskEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunGetTimingsResponse parses an HTTP response from a V1WorkflowRunGetTimingsWithResponse call
+func ParseV1WorkflowRunGetTimingsResponse(rsp *http.Response) (*V1WorkflowRunGetTimingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunGetTimingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1TaskTimingList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

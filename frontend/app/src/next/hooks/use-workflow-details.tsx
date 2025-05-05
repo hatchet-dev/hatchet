@@ -1,6 +1,10 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
-import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
+import api, {
+  WorkflowUpdateRequest,
+  Workflow,
+  WorkflowVersion,
+} from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { FilterProvider } from './utils/use-filters';
@@ -13,9 +17,9 @@ interface WorkflowDetailsFilters {
 }
 
 interface WorkflowDetailsState {
-  workflow: any;
-  workflowVersion: any;
-  currentVersion: string | undefined;
+  workflow?: Workflow;
+  workflowVersion?: WorkflowVersion;
+  currentVersion?: string;
   hasGithubIntegration: boolean;
   deleteWorkflow: () => void;
   pauseWorkflow: () => void;
@@ -52,12 +56,14 @@ function WorkflowDetailsProviderContent({
   const { toast } = useToast();
 
   const workflowQuery = useQuery({
-    ...queries.workflows.get(workflowId),
+    queryKey: ['workflow:get', workflowId],
+    queryFn: async () => (await api.workflowGet(workflowId)).data,
     refetchInterval: 1000,
   });
 
   const workflowVersionQuery = useQuery({
-    ...queries.workflows.getVersion(workflowId),
+    queryKey: ['workflow-version:get', workflowId],
+    queryFn: async () => (await api.workflowVersionGet(workflowId)).data,
     refetchInterval: 1000,
   });
 

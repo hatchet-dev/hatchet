@@ -84,6 +84,7 @@ interface RunsState {
   >;
   refetch: () => Promise<unknown>;
   filters: ReturnType<typeof useFilters<RunsFilters>>;
+  hasFilters: boolean;
   pagination: ReturnType<typeof usePagination>;
   timeRange: ReturnType<typeof useTimeFilters>;
   histogram: UseQueryResult<V1TaskPointMetrics, Error>;
@@ -94,6 +95,12 @@ interface RunsProviderProps {
   children: React.ReactNode;
   initialFilters?: RunsFilters;
   initialPagination?: PaginationProviderProps;
+  initialTimeRange?: {
+    startTime?: string;
+    endTime?: string;
+    activePreset?: '30m' | '1h' | '6h' | '24h' | '7d';
+  };
+  refetchInterval?: number;
 }
 
 const RunsContext = createContext<RunsState | null>(null);
@@ -109,29 +116,38 @@ export function useRuns() {
 export function RunsProvider({
   children,
   initialFilters,
+  refetchInterval,
+  initialTimeRange,
   initialPagination = {
     initialPageSize: 50,
   },
 }: RunsProviderProps) {
   return (
     <FilterProvider initialFilters={initialFilters}>
-      <TimeFilterProvider>
+      <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
-          <RunsProviderContent>{children}</RunsProviderContent>
+          <RunsProviderContent refetchInterval={refetchInterval}>
+            {children}
+          </RunsProviderContent>
         </PaginationProvider>
       </TimeFilterProvider>
     </FilterProvider>
   );
 }
 
-function RunsProviderContent({ children }: { children: React.ReactNode }) {
+function RunsProviderContent({
+  children,
+  refetchInterval = 1000 * 5,
+}: {
+  children: React.ReactNode;
+  refetchInterval?: number;
+}) {
   const { tenant } = useTenant();
   const { toast } = useToast();
 
   const filters = useFilters<RunsFilters>();
   const pagination = usePagination();
   const timeRange = useTimeFilters();
-  const refetchInterval = 1000 * 5; // 5 seconds
 
   const listRunsQuery = useQuery({
     queryKey: [
@@ -459,6 +475,10 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
     );
   }, [metricsRunsQuery.data, filters.filters.statuses]);
 
+  const hasFilters = useMemo(() => {
+    return Object.keys(filters.filters).length > 2;
+  }, [filters.filters]);
+
   const value = useMemo(
     () => ({
       data: listRunsQuery.data?.rows || [],
@@ -478,6 +498,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       timeRange,
       histogram: histogramQuery,
       queueMetrics: queueMetricsQuery,
+      hasFilters,
     }),
     [
       listRunsQuery.data?.rows,
@@ -495,6 +516,7 @@ function RunsProviderContent({ children }: { children: React.ReactNode }) {
       timeRange,
       histogramQuery,
       queueMetricsQuery,
+      hasFilters,
     ],
   );
 

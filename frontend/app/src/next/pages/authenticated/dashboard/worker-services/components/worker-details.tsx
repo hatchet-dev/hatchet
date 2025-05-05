@@ -23,7 +23,10 @@ import {
   WorkerDetailProvider,
   useWorkerDetail,
 } from '@/next/hooks/use-worker-detail';
-
+import { WrongTenant } from '@/next/components/errors/unauthorized';
+import useTenant from '@/next/hooks/use-tenant';
+import { formatDuration } from '@/next/lib/utils/formatDuration';
+import { intervalToDuration } from 'date-fns';
 // Extending Worker type with additional properties that may exist
 interface IWorkerDetails {
   language?: string;
@@ -60,6 +63,7 @@ function WorkerDetailsContent({
   worker: providedWorker,
   showActions = true,
 }: WorkerDetailsProps) {
+  const { tenant } = useTenant();
   const { data: workerDetail, update } = useWorkerDetail();
 
   // Use provided worker if available, otherwise use the one from the hook
@@ -114,27 +118,25 @@ function WorkerDetailsContent({
       return 'Never connected';
     }
 
-    const lastHeartbeat = new Date(currentWorker.lastHeartbeatAt);
-    const now = new Date();
-    const diffMs = now.getTime() - lastHeartbeat.getTime();
-
-    // Convert to seconds, minutes, hours
-    const diffSeconds = Math.floor(diffMs / 1000);
-    const diffMinutes = Math.floor(diffSeconds / 60);
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) {
-      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    }
-    if (diffHours > 0) {
-      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    }
-    if (diffMinutes > 0) {
-      return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
-    }
-    return `${diffSeconds} second${diffSeconds !== 1 ? 's' : ''} ago`;
+    return formatDuration(
+      intervalToDuration({
+        start: currentWorker.lastHeartbeatAt,
+        end: new Date(),
+      }),
+      new Date().getTime() - new Date(currentWorker.lastHeartbeatAt).getTime(),
+    );
   };
+
+  // wrong tenant selected error
+  if (tenant?.metadata.id !== currentWorker.tenantId) {
+    return (
+      <div className="flex flex-1 flex-col gap-4 p-4">
+        {currentWorker?.tenantId && (
+          <WrongTenant desiredTenantId={currentWorker.tenantId} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-4">

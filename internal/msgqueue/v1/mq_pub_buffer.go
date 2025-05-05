@@ -3,14 +3,47 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
-const PUB_FLUSH_INTERVAL = 10 * time.Millisecond
-const PUB_BUFFER_SIZE = 1000
-const PUB_MAX_CONCURRENCY = 1
-const PUB_TIMEOUT = 10 * time.Second
+// nolint: staticcheck
+var (
+	PUB_FLUSH_INTERVAL  = 10 * time.Millisecond
+	PUB_BUFFER_SIZE     = 1000
+	PUB_MAX_CONCURRENCY = 1
+	PUB_TIMEOUT         = 10 * time.Second
+)
+
+func init() {
+	if os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL") != "" {
+		if v, err := time.ParseDuration(os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL")); err == nil {
+			PUB_FLUSH_INTERVAL = v
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_SIZE") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE")
+
+		maxSize, err := strconv.Atoi(v)
+
+		if err == nil {
+			PUB_BUFFER_SIZE = maxSize
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY")
+
+		maxConcurrency, err := strconv.Atoi(v)
+
+		if err == nil {
+			PUB_MAX_CONCURRENCY = maxConcurrency
+		}
+	}
+}
 
 type PubFunc func(m *Message) error
 
@@ -21,12 +54,23 @@ type MQPubBuffer struct {
 
 	// buffers is keyed on (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
 	buffers sync.Map
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewMQPubBuffer(mq MessageQueue) *MQPubBuffer {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &MQPubBuffer{
-		mq: mq,
+		mq:     mq,
+		ctx:    ctx,
+		cancel: cancel,
 	}
+}
+
+func (m *MQPubBuffer) Stop() {
+	m.cancel()
 }
 
 type msgWithErrCh struct {
@@ -44,7 +88,7 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 	buf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIdPubBuffer(msg.TenantID, msg.ID, func(msg *Message) error {
+		buf, _ = m.buffers.LoadOrStore(k, newMsgIDPubBuffer(m.ctx, msg.TenantID, msg.ID, func(msg *Message) error {
 			msgCtx, cancel := context.WithTimeout(context.Background(), PUB_TIMEOUT)
 			defer cancel()
 
@@ -90,10 +134,10 @@ type msgIdPubBuffer struct {
 	serialize func(t any) ([]byte, error)
 }
 
-func newMsgIdPubBuffer(tenantId, msgId string, pub PubFunc) *msgIdPubBuffer {
+func newMsgIDPubBuffer(ctx context.Context, tenantID, msgID string, pub PubFunc) *msgIdPubBuffer {
 	b := &msgIdPubBuffer{
-		tenantId:         tenantId,
-		msgId:            msgId,
+		tenantId:         tenantID,
+		msgId:            msgID,
 		msgIdPubBufferCh: make(chan *msgWithErrCh, PUB_BUFFER_SIZE),
 		notifier:         make(chan struct{}),
 		pub:              pub,
@@ -101,22 +145,20 @@ func newMsgIdPubBuffer(tenantId, msgId string, pub PubFunc) *msgIdPubBuffer {
 		semaphore:        make(chan struct{}, PUB_MAX_CONCURRENCY),
 	}
 
-	err := b.startFlusher()
-
-	if err != nil {
-		// TODO: remove panic
-		panic(err)
-	}
+	b.startFlusher(ctx)
 
 	return b
 }
 
-func (m *msgIdPubBuffer) startFlusher() error {
+func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
 	ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
 
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				m.flush()
+				return
 			case <-ticker.C:
 				go m.flush()
 			case <-m.notifier:
@@ -124,8 +166,6 @@ func (m *msgIdPubBuffer) startFlusher() error {
 			}
 		}
 	}()
-
-	return nil
 }
 
 func (m *msgIdPubBuffer) flush() {

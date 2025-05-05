@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v0/randomticker"
 )
 
 type ConcurrencyResults struct {
@@ -89,7 +90,8 @@ func (c *ConcurrencyManager) notify(ctx context.Context) {
 }
 
 func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := randomticker.NewRandomTicker(500*time.Millisecond, 5*time.Second)
+	defer ticker.Stop()
 
 	for {
 		var carrier map[string]string

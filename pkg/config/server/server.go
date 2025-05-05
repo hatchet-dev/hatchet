@@ -72,6 +72,8 @@ type ServerConfigFile struct {
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
+
+	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -80,6 +82,14 @@ type ConfigFileAdditionalLoggers struct {
 
 	// PgxStats is a custom logger config for the pgx stats service
 	PgxStats shared.LoggerConfigFile `mapstructure:"pgxStats" json:"pgxStats,omitempty"`
+}
+
+type ConfigFileSampling struct {
+	// Enabled controls whether sampling is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	// SamplingRate is the rate at which to sample events. Default is 1.0 to sample all events.
+	SamplingRate float64 `mapstructure:"samplingRate" json:"samplingRate,omitempty" default:"1.0"`
 }
 
 // General server runtime options
@@ -92,6 +102,9 @@ type ConfigFileRuntime struct {
 
 	// Healthcheck controls whether the server has a healthcheck endpoint
 	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
+
+	// HealthcheckPort is the port that the healthcheck server listens on
+	HealthcheckPort int `mapstructure:"healthcheckPort" json:"healthcheckPort,omitempty" default:"8733"`
 
 	// GRPCPort is the port that the grpc service listens on
 	GRPCPort int `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
@@ -515,6 +528,8 @@ type ServerConfig struct {
 
 	SchedulingPoolV1 *v1.SchedulingPool
 
+	Sampling ConfigFileSampling
+
 	Version string
 }
 
@@ -533,6 +548,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.port", "SERVER_PORT")
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
 	_ = v.BindEnv("runtime.healthcheck", "SERVER_HEALTHCHECK")
+	_ = v.BindEnv("runtime.healthcheckPort", "SERVER_HEALTHCHECK_PORT")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
@@ -746,4 +762,7 @@ func BindAllEnv(v *viper.Viper) {
 	// we will fill this in from the server config if it is not set
 	_ = v.BindEnv("runtime.monitoring.tlsRootCAFile", "SERVER_MONITORING_TLS_ROOT_CA_FILE")
 
+	// sampling options
+	_ = v.BindEnv("sampling.enabled", "SERVER_SAMPLING_ENABLED")
+	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
 }

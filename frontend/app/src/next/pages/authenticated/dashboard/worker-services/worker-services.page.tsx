@@ -64,7 +64,7 @@ import {
   HeadlineActions,
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';

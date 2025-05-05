@@ -14,7 +14,7 @@ import {
   PageTitle,
 } from '@/next/components/ui/page-header';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { Separator } from '@/next/components/ui/separator';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Button } from '@/next/components/ui/button';
@@ -38,7 +38,7 @@ export default function ScheduledRunsPage() {
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <DocsButton doc={docs.home['scheduled-runs']} size="icon" />
+            <DocsButton doc={docs.home.scheduled_runs} size="icon" />
           </HeadlineActionItem>
           {canManage && (
             <HeadlineActionItem>

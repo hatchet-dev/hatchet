@@ -10,7 +10,7 @@ import {
   HeadlineActions,
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
-import docs from '@/next/docs-meta-data';
+import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerDetailSheet } from '../components/worker-detail-sheet';
 import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
@@ -30,7 +30,15 @@ import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
 
-function ServiceDetailPageContent({ workerId }: { workerId: string }) {
+export enum ManagedServiceDetailTabs {
+  INSTANCES = 'instances',
+  LOGS = 'logs',
+  BUILDS = 'builds',
+  METRICS = 'metrics',
+  CONFIGURATION = 'configuration',
+}
+
+function ServiceDetailPageContent({ workerName }: { workerName: string }) {
   const navigate = useNavigate();
 
   const { data: service } = useManagedComputeDetail();
@@ -61,12 +69,12 @@ function ServiceDetailPageContent({ workerId }: { workerId: string }) {
   return (
     <SheetViewLayout
       sheet={
-        <WorkerDetailProvider workerId={workerId || ''}>
+        <WorkerDetailProvider workerId={workerName || ''}>
           <WorkerDetailSheet
-            isOpen={!!workerId}
+            isOpen={!!workerName}
             onClose={handleCloseSheet}
             serviceName={service?.name || ''}
-            workerId={workerId || ''}
+            workerId={workerName || ''}
           />
         </WorkerDetailProvider>
       }
@@ -82,13 +90,25 @@ function ServiceDetailPageContent({ workerId }: { workerId: string }) {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <Tabs defaultValue="instances" className="w-full" state="query">
+      <Tabs
+        defaultValue={ManagedServiceDetailTabs.INSTANCES}
+        className="w-full"
+        state="query"
+      >
         <TabsList>
-          <TabsTrigger value="instances">Workers</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="builds">Builds & Deployments</TabsTrigger>
-          <TabsTrigger value="metrics">Metrics</TabsTrigger>
-          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.INSTANCES}>
+            Workers
+          </TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.LOGS}>Logs</TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.BUILDS}>
+            Builds & Deployments
+          </TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.METRICS}>
+            Metrics
+          </TabsTrigger>
+          <TabsTrigger value={ManagedServiceDetailTabs.CONFIGURATION}>
+            Configuration
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="instances">
           <WorkersTab serviceName={service?.name || ''} />
@@ -109,16 +129,16 @@ function ServiceDetailPageContent({ workerId }: { workerId: string }) {
 }
 
 export default function ServiceDetailPage() {
-  const { serviceName, workerId } = useParams<{
+  const { serviceName, workerName } = useParams<{
     serviceName: string;
-    workerId?: string;
+    workerName?: string;
   }>();
 
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
         <ManagedComputeDetailProvider managedWorkerId={serviceName || ''}>
-          <ServiceDetailPageContent workerId={workerId || ''} />
+          <ServiceDetailPageContent workerName={workerName || ''} />
         </ManagedComputeDetailProvider>
       </WorkersProvider>
     </ManagedComputeProvider>

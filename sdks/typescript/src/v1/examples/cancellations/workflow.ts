@@ -2,7 +2,7 @@ import sleep from '@hatchet/util/sleep';
 import axios from 'axios';
 import { hatchet } from '../hatchet-client';
 
-// ❓ Declaring a Task
+// > Declaring a Task
 export const cancellation = hatchet.task({
   name: 'cancellation',
   fn: async (_, { cancelled }) => {
@@ -19,13 +19,13 @@ export const cancellation = hatchet.task({
 });
 // !!
 
-// ❓ Abort Signal
+// > Abort Signal
 export const abortSignal = hatchet.task({
   name: 'abort-signal',
-  fn: async (_, { controller }) => {
+  fn: async (_, { abortController }) => {
     try {
       const response = await axios.get('https://api.example.com/data', {
-        signal: controller.signal,
+        signal: abortController.signal,
       });
       // Handle the response
     } catch (error) {

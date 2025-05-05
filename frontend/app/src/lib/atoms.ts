@@ -25,7 +25,7 @@ const lastTenantKey = 'lastTenant';
 
 const lastTenantAtomInit = atom(getInitialValue<Tenant>(lastTenantKey));
 
-export const lastTenantAtom = atom(
+const lastTenantAtom = atom(
   (get) => get(lastTenantAtomInit),
   (_get, set, newVal: Tenant) => {
     set(lastTenantAtomInit, newVal);

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from 'react';
-import docMetadata from '@/next/docs-meta-data';
+import docMetadata from '@/next/lib/docs';
 
 export const pages = docMetadata;
 
@@ -14,14 +14,14 @@ export interface DocsSheet {
   title: string;
 }
 
-export interface DocsContextValue {
+interface DocsContextValue {
   sheet: DocsSheet;
   open: (doc: DocRef) => void;
   toggle: (doc: DocRef) => void;
   close: () => void;
 }
 
-const baseDocsUrl = 'https://docs.hatchet.run';
+export const baseDocsUrl = 'https://docs.hatchet.run';
 
 // Create a context for the docs state
 export const DocsContext = createContext<DocsContextValue | null>(null);

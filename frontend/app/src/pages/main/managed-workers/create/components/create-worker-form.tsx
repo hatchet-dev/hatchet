@@ -75,12 +75,6 @@ export const machineTypes = [
     memoryMb: 16384,
   },
   {
-    title: '1 CPU, 1 GB RAM (performance CPU)',
-    cpuKind: 'performance',
-    cpus: 1,
-    memoryMb: 1024,
-  },
-  {
     title: '1 CPU, 2 GB RAM (performance CPU)',
     cpuKind: 'performance',
     cpus: 1,
@@ -152,6 +146,10 @@ export const regions = [
   {
     name: 'Ezeiza, Argentina',
     value: ManagedWorkerRegion.Eze,
+  },
+  {
+    name: 'Frankfurt, Germany',
+    value: ManagedWorkerRegion.Fra,
   },
   {
     name: 'Guadalajara, Mexico',
@@ -564,7 +562,7 @@ export default function CreateWorkerForm({
                       <div className="text-sm text-muted-foreground">
                         Not seeing your repository?{' '}
                         <a
-                          href="/api/v1/cloud/users/github-app/start"
+                          href={`/api/v1/cloud/users/github-app/start?redirect_to=/managed-workers/create&with_repo_installation=true`}
                           className="text-indigo-400"
                         >
                           Link a new repository

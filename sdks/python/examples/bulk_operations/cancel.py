@@ -1,4 +1,4 @@
-# ❓ Setup
+# > Setup
 
 from datetime import datetime, timedelta
 
@@ -14,11 +14,11 @@ workflow = workflows.rows[0]
 
 # !!
 
-# ❓ List runs
+# > List runs
 workflow_runs = hatchet.runs.list(workflow_ids=[workflow.metadata.id])
 # !!
 
-# ❓ Cancel by run ids
+# > Cancel by run ids
 workflow_run_ids = [workflow_run.metadata.id for workflow_run in workflow_runs.rows]
 
 bulk_cancel_by_ids = BulkCancelReplayOpts(ids=workflow_run_ids)
@@ -26,7 +26,7 @@ bulk_cancel_by_ids = BulkCancelReplayOpts(ids=workflow_run_ids)
 hatchet.runs.bulk_cancel(bulk_cancel_by_ids)
 # !!
 
-# ❓ Cancel by filters
+# > Cancel by filters
 
 bulk_cancel_by_filters = BulkCancelReplayOpts(
     filters=RunFilter(

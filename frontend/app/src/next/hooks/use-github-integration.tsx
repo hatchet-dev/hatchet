@@ -21,7 +21,7 @@ import { useApiError } from '@/lib/hooks';
 import { cloudApi } from '@/lib/api/api';
 import { useToast } from './utils/use-toast';
 import useApiMeta from './use-api-meta';
-export type { GithubAppInstallation, GithubBranch, GithubRepo };
+export type { GithubAppInstallation };
 
 // Main hook return type
 interface GithubIntegrationState {

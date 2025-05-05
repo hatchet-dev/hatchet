@@ -67,10 +67,19 @@ export class Api<
    * @request GET:/api/v1/cloud/users/github-app/start
    * @secure
    */
-  userUpdateGithubAppOauthStart = (params: RequestParams = {}) =>
+  userUpdateGithubAppOauthStart = (
+    query?: {
+      /** Redirect To */
+      redirect_to?: string;
+      /** With Repo Installation */
+      with_repo_installation?: boolean;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<any, void>({
       path: `/api/v1/cloud/users/github-app/start`,
       method: "GET",
+      query: query,
       secure: true,
       ...params,
     });

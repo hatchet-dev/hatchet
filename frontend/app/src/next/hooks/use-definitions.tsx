@@ -2,12 +2,6 @@ import api, { Workflow, WorkflowWorkersCount } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
-  createContext,
-  useContext,
-  PropsWithChildren,
-  createElement,
-} from 'react';
-import {
   PaginationManager,
   PaginationManagerNoOp,
 } from './utils/use-pagination';
@@ -46,31 +40,11 @@ export default function useDefinitions({
         if (!res.data.rows) {
           return {
             rows: [],
-            slots: {},
           };
         }
 
-        // Fetch workers count for all workflows
-        const workersPromises = res.data.rows.map((workflow) =>
-          api.workflowGetWorkersCount(
-            tenant?.metadata.id || '',
-            workflow.metadata.id,
-          ),
-        );
-        const workersResults = await Promise.all(workersPromises);
-
-        // Create slots object with all workflows
-        const slots = res.data.rows.reduce(
-          (acc, workflow, index) => {
-            acc[workflow.name] = workersResults[index].data;
-            return acc;
-          },
-          {} as { [name: string]: WorkflowWorkersCount },
-        );
-
         return {
           rows: res.data.rows,
-          slots,
         };
       } catch (error) {
         toast({
@@ -81,7 +55,6 @@ export default function useDefinitions({
         });
         return {
           rows: [],
-          slots: {},
         };
       }
     },
@@ -89,39 +62,6 @@ export default function useDefinitions({
 
   return {
     data: listDefinitionsQuery.data?.rows || [],
-    slots: listDefinitionsQuery.data?.slots || {},
     isLoading: listDefinitionsQuery.isLoading,
   };
-}
-
-// Context implementation (to maintain compatibility with components)
-interface DefinitionsContextType extends DefinitionsState {}
-
-const DefinitionsContext = createContext<DefinitionsContextType | undefined>(
-  undefined,
-);
-
-export const useDefinitionsContext = () => {
-  const context = useContext(DefinitionsContext);
-  if (context === undefined) {
-    throw new Error(
-      'useDefinitionsContext must be used within a DefinitionsProvider',
-    );
-  }
-  return context;
-};
-
-interface DefinitionsProviderProps extends PropsWithChildren {
-  options?: UseDefinitionsOptions;
-}
-
-export function DefinitionsProvider(props: DefinitionsProviderProps) {
-  const { children, options = {} } = props;
-  const definitionsState = useDefinitions(options);
-
-  return createElement(
-    DefinitionsContext.Provider,
-    { value: definitionsState },
-    children,
-  );
 }

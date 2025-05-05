@@ -8,7 +8,7 @@ from hatchet_sdk import (
 
 hatchet = Hatchet(debug=True)
 
-# ❓ StickyWorker
+# > StickyWorker
 
 
 sticky_workflow = hatchet.workflow(
@@ -28,9 +28,9 @@ def step1b(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker.id()}
 
 
-# ‼️
+# !!
 
-# ❓ StickyChild
+# > StickyChild
 
 sticky_child_workflow = hatchet.workflow(
     name="StickyChildWorkflow", sticky=StickyStrategy.SOFT
@@ -53,7 +53,7 @@ def child(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker.id()}
 
 
-# ‼️
+# !!
 
 
 def main() -> None:

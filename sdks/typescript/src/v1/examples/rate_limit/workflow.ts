@@ -1,7 +1,7 @@
 import { RateLimitDuration } from '@hatchet/protoc/v1/workflows';
 import { hatchet } from '../hatchet-client';
 
-// ❓ Upsert Rate Limit
+// > Upsert Rate Limit
 hatchet.ratelimits.upsert({
   key: 'api-service-rate-limit',
   limit: 10,
@@ -9,7 +9,7 @@ hatchet.ratelimits.upsert({
 });
 // !!
 
-// ❓ Static
+// > Static
 const RATE_LIMIT_KEY = 'api-service-rate-limit';
 
 const task1 = hatchet.task({
@@ -27,7 +27,7 @@ const task1 = hatchet.task({
 
 // !!
 
-// ❓ Dynamic
+// > Dynamic
 const task2 = hatchet.task({
   name: 'task2',
   fn: (input: { userId: string }) => {

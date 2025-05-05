@@ -2,7 +2,6 @@
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-dupe-class-members */
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Context, DurableContext } from '@hatchet/step';
 import { CronWorkflows, ScheduledWorkflows } from '@hatchet/clients/rest/generated/data-contracts';
 import { Workflow as WorkflowV0 } from '@hatchet/workflow';
 import { IHatchetClient } from './client/client.interface';
@@ -19,6 +18,7 @@ import {
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
 import { InputType, OutputType, UnknownInputType, JsonObject } from './types';
+import { Context, DurableContext } from './client/worker/context';
 
 const UNBOUND_ERR = new Error('workflow unbound to hatchet client, hint: use client.run instead');
 
@@ -262,15 +262,19 @@ export class BaseWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts, _standaloneTaskName?: string): WorkflowRunRef<O> {
+  async runNoWait(
+    input: I,
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.name, input, options);
 
     if (_standaloneTaskName) {
-      res._standalone_task_name = _standaloneTaskName;
+      res._standaloneTaskName = _standaloneTaskName;
     }
 
     return res;
@@ -320,7 +324,7 @@ export class BaseWorkflowDeclaration<
       let resp: WorkflowRunRef<O>[] = [];
       for (let i = 0; i < input.length; i += 500) {
         const batch = input.slice(i, i + 500);
-        const batchResp = await this.client._v0.admin.runWorkflows<I, O>(
+        const batchResp = await this.client.admin.runWorkflows<I, O>(
           batch.map((inp) => ({
             workflowName: this.definition.name,
             input: inp,
@@ -335,17 +339,17 @@ export class BaseWorkflowDeclaration<
         const wf = input[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
           // eslint-disable-next-line no-param-reassign
-          ref._standalone_task_name = wf._standalone_task_name;
+          ref._standaloneTaskName = wf._standalone_task_name;
         }
         res.push(ref.result());
       });
       return Promise.all(res);
     }
 
-    const res = this.client._v0.admin.runWorkflow<I, O>(this.definition.name, input, options);
+    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
 
     if (_standaloneTaskName) {
-      res._standalone_task_name = _standaloneTaskName;
+      res._standaloneTaskName = _standaloneTaskName;
     }
 
     return res.result() as Promise<O>;
@@ -685,7 +689,7 @@ export class TaskWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  runNoWait(input: I, options?: RunOpts): WorkflowRunRef<O> {
+  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }

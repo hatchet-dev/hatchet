@@ -16,9 +16,15 @@
   "ignorePatterns": ["dist"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
-    "project": ["./tsconfig.json", "./tsconfig.node.json"]
+    "project": ["./tsconfig.json", "./tsconfig.node.json"],
+    "warnOnUnsupportedTypeScriptVersion": false
   },
   "plugins": ["react-refresh", "import", "unused-imports", "prettier"],
+  "settings": {
+    "react": {
+      "version": "18.3.1"
+    }
+  },
   "rules": {
     "@typescript-eslint/no-shadow": "off",
     "@typescript-eslint/no-throw-literal": "off",

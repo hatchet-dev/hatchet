@@ -1,4 +1,4 @@
-// ❓ Declaring a Task
+// > Declaring a Task
 import sleep from '@hatchet/util/sleep';
 import { hatchet } from '../hatchet-client';
 
@@ -7,7 +7,7 @@ export type SimpleInput = {
   Message: string;
 };
 
-// ❓ Execution Timeout
+// > Execution Timeout
 export const withTimeouts = hatchet.task({
   name: 'with-timeouts',
   // time the task can wait in the queue before it is cancelled
@@ -19,10 +19,10 @@ export const withTimeouts = hatchet.task({
     await sleep(15000);
 
     // get the abort controller
-    const { controller } = ctx;
+    const { abortController } = ctx;
 
     // if the abort controller is aborted, throw an error
-    if (controller.signal.aborted) {
+    if (abortController.signal.aborted) {
       throw new Error('cancelled');
     }
 
@@ -33,7 +33,7 @@ export const withTimeouts = hatchet.task({
 });
 // !!
 
-// ❓ Refresh Timeout
+// > Refresh Timeout
 export const refreshTimeout = hatchet.task({
   name: 'refresh-timeout',
   executionTimeout: '10s',
@@ -44,11 +44,11 @@ export const refreshTimeout = hatchet.task({
     await sleep(15000);
 
     // get the abort controller
-    const { controller } = ctx;
+    const { abortController } = ctx;
 
     // now this condition will not be met
     // if the abort controller is aborted, throw an error
-    if (controller.signal.aborted) {
+    if (abortController.signal.aborted) {
       throw new Error('cancelled');
     }
 

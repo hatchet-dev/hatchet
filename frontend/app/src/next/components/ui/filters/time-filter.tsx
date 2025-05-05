@@ -5,7 +5,6 @@ import {
   TIME_PRESETS,
   useTimeFilters,
 } from '@/next/hooks/utils/use-time-filters';
-import { Pause } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,8 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
-import { VscRecord } from 'react-icons/vsc';
-
+import { TbSnowflake, TbSnowflakeOff } from 'react-icons/tb';
 interface TimeFilterProps {
   startField?: string;
   endField?: string;
@@ -70,16 +68,16 @@ export function TogglePause() {
           >
             {isPaused ? (
               <>
-                <VscRecord className="h-4 w-4" />
-                <span className="text-xs">Resume New Runs</span>
+                <TbSnowflakeOff className="h-4 w-4" />
+                <span className="text-xs">Unfreeze</span>
               </>
             ) : (
-              <Pause className="h-4 w-4" />
+              <TbSnowflake className="h-4 w-4" />
             )}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {isPaused ? undefined : 'Pause New Runs'}
+          {isPaused ? undefined : 'Freeze new runs'}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

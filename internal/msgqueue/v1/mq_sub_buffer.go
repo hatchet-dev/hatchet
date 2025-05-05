@@ -4,14 +4,46 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
 
-// default values for the buffer
-const SUB_FLUSH_INTERVAL = 10 * time.Millisecond
-const SUB_BUFFER_SIZE = 1000
-const SUB_MAX_CONCURRENCY = 10
+// nolint: staticcheck
+var (
+	SUB_FLUSH_INTERVAL  = 10 * time.Millisecond
+	SUB_BUFFER_SIZE     = 1000
+	SUB_MAX_CONCURRENCY = 10
+)
+
+func init() {
+	if os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL") != "" {
+		if v, err := time.ParseDuration(os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL")); err == nil {
+			SUB_FLUSH_INTERVAL = v
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_SIZE") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE")
+
+		maxSize, err := strconv.Atoi(v)
+
+		if err == nil {
+			SUB_BUFFER_SIZE = maxSize
+		}
+	}
+
+	if os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY") != "" {
+		v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY")
+
+		maxConcurrency, err := strconv.Atoi(v)
+
+		if err == nil {
+			SUB_MAX_CONCURRENCY = maxConcurrency
+		}
+	}
+}
 
 type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
@@ -185,7 +217,7 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 	buf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf, _ = m.buffers.LoadOrStore(k, newMsgIdBuffer(msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
+		buf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
 	// this places some backpressure on the consumer if buffers are full
@@ -226,10 +258,10 @@ type msgIdBuffer struct {
 	flushInterval time.Duration
 }
 
-func newMsgIdBuffer(tenantId, msgId string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
+func newMsgIDBuffer(ctx context.Context, tenantID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
-		tenantId:              tenantId,
-		msgId:                 msgId,
+		tenantId:              tenantID,
+		msgId:                 msgID,
 		msgIdBufferCh:         make(chan *msgWithResultCh, bufferSize),
 		notifier:              make(chan struct{}),
 		dst:                   dst,
@@ -238,22 +270,19 @@ func newMsgIdBuffer(tenantId, msgId string, dst DstFunc, flushInterval time.Dura
 		flushInterval:         flushInterval,
 	}
 
-	err := b.startFlusher()
-
-	if err != nil {
-		// TODO: remove panic
-		panic(err)
-	}
+	b.startFlusher(ctx)
 
 	return b
 }
 
-func (m *msgIdBuffer) startFlusher() error {
+func (m *msgIdBuffer) startFlusher(ctx context.Context) {
 	ticker := time.NewTicker(m.flushInterval)
 
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case <-ticker.C:
 				go m.flush()
 			case <-m.notifier:
@@ -263,8 +292,6 @@ func (m *msgIdBuffer) startFlusher() error {
 			}
 		}
 	}()
-
-	return nil
 }
 
 func (m *msgIdBuffer) flush() {

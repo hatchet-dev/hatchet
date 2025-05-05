@@ -898,7 +898,7 @@ BEGIN
     ON CONFLICT (external_id) DO NOTHING;
 
     -- NOTE: this comes after the insert into v1_dag_to_task and v1_lookup_table, because we case on these tables for cleanup
-    FOR rec IN SELECT UNNEST(concurrency_parent_strategy_ids) AS parent_strategy_id, workflow_version_id, workflow_run_id FROM new_table WHERE initial_state != 'QUEUED' AND concurrency_parent_strategy_ids[1] IS NOT NULL ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id LOOP
+    FOR rec IN SELECT UNNEST(concurrency_parent_strategy_ids) AS parent_strategy_id, workflow_version_id, workflow_run_id FROM new_table WHERE initial_state != 'QUEUED' ORDER BY parent_strategy_id, workflow_version_id, workflow_run_id LOOP
         IF rec.parent_strategy_id IS NOT NULL THEN
             PERFORM cleanup_workflow_concurrency_slots(
                 rec.parent_strategy_id,
@@ -983,6 +983,7 @@ BEGIN
         FROM new_table nt
         JOIN old_table ot ON ot.id = nt.id
         WHERE nt.initial_state = 'QUEUED'
+            -- Concurrency strategy id should never be null
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
@@ -1138,6 +1139,7 @@ BEGIN
         WHERE
             dr.retry_after <= NOW()
             AND t.initial_state = 'QUEUED'
+            -- Check to see if the task has a concurrency strategy
             AND t.concurrency_strategy_ids[1] IS NOT NULL
     )
     INSERT INTO v1_concurrency_slot (

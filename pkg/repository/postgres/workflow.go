@@ -332,7 +332,18 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 		countOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
 	}
 
+	if opts.CronName != nil {
+		listOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
+		countOpts.CronName = sqlchelpers.TextFromStr(*opts.CronName)
+	}
+
+	if opts.WorkflowName != nil {
+		listOpts.WorkflowName = sqlchelpers.TextFromStr(*opts.WorkflowName)
+		countOpts.WorkflowName = sqlchelpers.TextFromStr(*opts.WorkflowName)
+	}
+
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1243,7 +1254,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 		}
 
 		// upsert the action
-		_, err := r.queries.UpsertAction(
+		action, err := r.queries.UpsertAction(
 			ctx,
 			tx,
 			dbsqlc.UpsertActionParams{
@@ -1260,7 +1271,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 			ID:             sqlchelpers.UUIDFromStr(stepId),
 			Tenantid:       tenantId,
 			Jobid:          sqlchelpers.UUIDFromStr(jobId),
-			Actionid:       stepOpts.Action,
+			Actionid:       action.ActionId,
 			Timeout:        timeout,
 			Readableid:     stepOpts.ReadableId,
 			CustomUserData: customUserData,

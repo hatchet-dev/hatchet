@@ -29,6 +29,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
+import { Checkbox } from '@/next/components/ui/checkbox';
 
 interface WorkerTableProps {
   serviceName: string;
@@ -238,18 +239,16 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
             <TableRow>
               <TableHead className="w-12">
                 <div className="flex items-center justify-center">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={
                       selectedWorkers.length > 0 &&
                       selectedWorkers.length === filteredWorkers?.length
                     }
-                    onChange={
+                    onCheckedChange={
                       selectedWorkers.length === filteredWorkers?.length
                         ? clearSelection
                         : selectAllWorkers
                     }
-                    className="h-4 w-4"
                   />
                 </div>
               </TableHead>

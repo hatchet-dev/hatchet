@@ -4,7 +4,7 @@ import { Workflow } from '../workflow';
 
 const hatchet = Hatchet.init();
 
-// ❓ AffinityWorkflow
+// > AffinityWorkflow
 
 const workflow: Workflow = {
   id: 'affinity-workflow',
@@ -28,7 +28,7 @@ const workflow: Workflow = {
   ],
 };
 
-// ‼️
+// !!
 
 const childWorkflow: Workflow = {
   id: 'child-affinity-workflow',
@@ -65,7 +65,7 @@ const childWorkflow: Workflow = {
 };
 
 async function main() {
-  // ❓ AffinityWorker
+  // > AffinityWorker
 
   const worker1 = await hatchet.worker('affinity-worker-1', {
     labels: {
@@ -74,7 +74,7 @@ async function main() {
     },
   });
 
-  // ‼️
+  // !!
 
   await worker1.registerWorkflow(workflow);
   await worker1.registerWorkflow(childWorkflow);

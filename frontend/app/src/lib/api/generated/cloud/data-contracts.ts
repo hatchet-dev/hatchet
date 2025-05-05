@@ -44,6 +44,7 @@ export enum ManagedWorkerRegion {
   Dfw = "dfw",
   Ewr = "ewr",
   Eze = "eze",
+  Fra = "fra",
   Gdl = "gdl",
   Gig = "gig",
   Gru = "gru",
@@ -74,6 +75,8 @@ export enum ManagedWorkerEventStatus {
   SUCCEEDED = "SUCCEEDED",
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
+  SCALE_UP = "SCALE_UP",
+  SCALE_DOWN = "SCALE_DOWN",
 }
 
 export interface APICloudMetadata {
@@ -183,6 +186,7 @@ export interface GithubRepo {
 }
 
 export interface GithubAppInstallation {
+  type?: "oauth" | "installation";
   metadata: APIResourceMeta;
   installation_settings_url: string;
   account_name: string;
@@ -207,6 +211,7 @@ export interface ManagedWorker {
   directSecrets: ManagedWorkerSecret[];
   globalSecrets: ManagedWorkerSecret[];
   runtimeConfigs?: ManagedWorkerRuntimeConfig[];
+  canUpdate?: boolean;
 }
 
 export interface ManagedWorkerList {

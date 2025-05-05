@@ -16,7 +16,7 @@ DIGIT_MAX_RUNS = 8
 NAME_MAX_RUNS = 3
 
 
-# ❓ Concurrency Strategy With Key
+# > Concurrency Strategy With Key
 class WorkflowInput(BaseModel):
     name: str
     digit: str
@@ -26,7 +26,7 @@ concurrency_multiple_keys_workflow = hatchet.workflow(
     name="ConcurrencyWorkflowManyKeys",
     input_validator=WorkflowInput,
 )
-# ‼️
+# !!
 
 
 @concurrency_multiple_keys_workflow.task(

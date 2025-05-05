@@ -2,7 +2,7 @@ import { APICloudMetadata } from '@/lib/api/generated/cloud/data-contracts';
 import { Tenant } from '@/lib/api/generated/data-contracts';
 import { BillingContext } from '@/lib/atoms';
 
-export type EvaluateContext = {
+type EvaluateContext = {
   tenant?: Tenant;
   billing?: BillingContext;
   meta?: APICloudMetadata;

@@ -8,8 +8,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -201,28 +199,6 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	t.concurrencyStrategies = newArr
-}
-
-func (t *tenantManager) refreshAll(ctx context.Context) {
-	t.queuersMu.RLock()
-
-	eg := errgroup.Group{}
-
-	for i := range t.queuers {
-		index := i
-
-		eg.Go(func() error {
-			queuer := t.queuers[index]
-			queuer.queue(ctx)
-			return nil
-		})
-	}
-
-	t.queuersMu.RUnlock()
-
-	if err := eg.Wait(); err != nil {
-		t.cf.l.Error().Err(err).Msg("error replenishing all queues")
-	}
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
