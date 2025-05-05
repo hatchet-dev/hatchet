@@ -1314,6 +1314,39 @@ VALUES (
 ;
 
 -- name: ListEvents :many
+WITH included_events AS (
+    SELECT *
+    FROM v1_events_olap e
+    WHERE
+        e.tenant_id = @tenantId
+        AND (
+            sqlc.narg('keys')::TEXT[] IS NULL OR
+            "key" = ANY(sqlc.narg('keys')::TEXT[])
+        )
+    OFFSET
+        COALESCE(sqlc.narg('offset')::BIGINT, 0)
+    LIMIT
+        COALESCE(sqlc.narg('limit')::BIGINT, 50)
+), status_counts AS (
+    SELECT
+        e.tenant_id,
+        e.id,
+        e.inserted_at,
+        COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count
+    FROM
+        included_events e
+    LEFT JOIN
+        v1_event_to_run_olap etr ON (e.id, e.inserted_at) = (etr.event_id, etr.event_inserted_at)
+    LEFT JOIN
+        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    GROUP BY
+        e.tenant_id, e.id, e.inserted_at
+)
+
 SELECT
     e.tenant_id,
     e.id AS event_id,
@@ -1322,30 +1355,14 @@ SELECT
     e.key AS event_key,
     e.payload AS event_payload,
     e.additional_metadata AS event_additional_metadata,
-    r.id AS run_id,
-    r.inserted_at AS run_inserted_at,
-    r.external_id AS run_external_id,
-    r.readable_status AS run_readable_status,
-    r.kind AS run_kind,
-    r.workflow_id AS run_workflow_id,
-    r.workflow_version_id AS run_workflow_version_id,
-    r.additional_metadata AS run_additional_metadata,
-    r.parent_task_external_id AS run_parent_task_external_id
+    sc.queued_count,
+    sc.running_count,
+    sc.completed_count,
+    sc.cancelled_count,
+    sc.failed_count
 FROM
-    v1_events_olap e
-LEFT JOIN
-    v1_event_to_run_olap etr ON (e.id, e.inserted_at) = (etr.event_id, etr.event_inserted_at)
-LEFT JOIN
-    v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
-WHERE
-    e.tenant_id = @tenantId AND
-    (
-        sqlc.narg('keys')::text[] IS NULL OR
-        e."key" = ANY(sqlc.narg('keys')::text[])
-    )
-OFFSET
-    COALESCE(sqlc.narg('offset')::BIGINT, 0)
-LIMIT
-    COALESCE(sqlc.narg('limit')::BIGINT, 50)
+    included_events e
+JOIN
+    status_counts sc ON (e.tenant_id, e.id, e.inserted_at) = (sc.tenant_id, sc.id, sc.inserted_at)
 ;
 

@@ -23,6 +23,13 @@ func ToEventList(events []*sqlcv1.ListEventsRow) gen.EventList {
 				UpdatedAt: row.EventGeneratedAt.Time,
 				Id:        strconv.FormatInt(row.EventID, 10),
 			},
+			WorkflowRunSummary: &gen.EventWorkflowRunSummary{
+				Cancelled: &row.CancelledCount,
+				Succeeded: &row.CompletedCount,
+				Queued:    &row.QueuedCount,
+				Failed:    &row.FailedCount,
+				Running:   &row.RunningCount,
+			},
 		}
 	}
 
