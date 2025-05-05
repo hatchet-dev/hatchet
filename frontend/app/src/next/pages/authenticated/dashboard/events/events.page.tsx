@@ -7,12 +7,12 @@ import {
   PageSizeSelector,
   Pagination,
 } from '@/next/components/ui/pagination';
-import { useEvents } from '@/next/hooks/use-events';
+import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import useTenant from '@/next/hooks/use-tenant';
 import { cn } from '@/next/lib/utils';
 import { ColumnDef } from '@tanstack/react-table';
 
-export default function EventsPage() {
+function EventsContent() {
   const { tenant } = useTenant();
 
   const { data, isLoading } = useEvents();
@@ -101,3 +101,11 @@ export const columns = (selectAll?: boolean): ColumnDef<Event>[] => [
     enableHiding: false,
   },
 ];
+
+export default function EventsPage() {
+  return (
+    <EventsProvider>
+      <EventsContent />
+    </EventsProvider>
+  );
+}

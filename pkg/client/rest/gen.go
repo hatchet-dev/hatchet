@@ -508,8 +508,8 @@ type EventKeyList struct {
 
 // EventList defines model for EventList.
 type EventList struct {
-	Pagination PaginationResponse `json:"pagination"`
-	Rows       []Event            `json:"rows"`
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]Event            `json:"rows,omitempty"`
 }
 
 // EventOrderByDirection defines model for EventOrderByDirection.

@@ -134,8 +134,8 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 
 	return gen.EventList200JSONResponse(
 		gen.EventList{
-			Rows: rows,
-			Pagination: gen.PaginationResponse{
+			Rows: &rows,
+			Pagination: &gen.PaginationResponse{
 				NumPages:    &totalPages,
 				NextPage:    &nextPage,
 				CurrentPage: &currPage,
