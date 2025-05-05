@@ -116,6 +116,38 @@ type TriggerFromEventsResult struct {
 	Runs  []*RunWithEventTriggerOpts
 }
 
+func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workflow *sqlcv1.ListWorkflowsForEventsRow, opt EventTriggerOpts) (bool, error) {
+	if !workflow.Exp.Valid || workflow.EventExpression.String == "" {
+		return true, nil
+	}
+
+	var inputData map[string]interface{}
+	if opt.Data != nil {
+		err := json.Unmarshal(opt.Data, &inputData)
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal input data: %w", err)
+		}
+	} else {
+		inputData = make(map[string]interface{})
+	}
+
+	match, err := r.celParser.EvaluateBooleanExpression(
+		workflow.EventExpression.String,
+		inputData,
+	)
+
+	if err != nil {
+		r.l.Warn().
+			Err(err).
+			Str("workflow_id", workflow.WorkflowId.String()).
+			Str("expression", workflow.EventExpression.String).
+			Msg("Failed to evaluate workflow expression")
+
+		return false, nil
+	}
+
+	return match, nil
+}
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
@@ -163,6 +195,26 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
+
+			if workflow.EventExpression.Valid && workflow.EventExpression.String != "" {
+				celResult, err := r.processWorkflowExpression(ctx, workflow, opt)
+				fmt.Println("CelResult", celResult)
+
+				if err != nil {
+					r.l.Error().
+						Err(err).
+						Str("workflow_id", workflow.WorkflowId.String()).
+						Str("expression", workflow.EventExpression.String).
+						Msg("Failed to evaluate workflow expression")
+
+					continue
+				}
+
+				if !celResult {
+					continue
+				}
+			}
+
 			triggerConverter := &TriggeredByEvent{
 				l:        r.l,
 				eventID:  opt.EventId,

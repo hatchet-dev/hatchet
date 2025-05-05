@@ -294,3 +294,31 @@ func (p *CELParser) CheckStepRunOutAgainstKnownV1(out *StepRunOut, knownType sql
 
 	return nil
 }
+
+func (p *CELParser) EvaluateBooleanExpression(expr string, inputData map[string]interface{}) (bool, error) {
+	ast, issues := p.stepRunEnv.Compile(expr)
+
+	if issues != nil && issues.Err() != nil {
+		return false, fmt.Errorf("failed to compile expression: %w", issues.Err())
+	}
+
+	program, err := p.stepRunEnv.Program(ast)
+	if err != nil {
+		return false, fmt.Errorf("failed to create program: %w", err)
+	}
+
+	evalContext := map[string]interface{}{
+		"input": inputData,
+	}
+
+	out, _, err := program.Eval(evalContext)
+	if err != nil {
+		return false, fmt.Errorf("failed to evaluate expression: %w", err)
+	}
+
+	if out.Type() != types.BoolType {
+		return false, fmt.Errorf("expression did not evaluate to a boolean: got %s", out.Type().TypeName())
+	}
+
+	return out.Value().(bool), nil
+}
