@@ -3,6 +3,7 @@ import { Event } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
 import { Badge } from '@/next/components/ui/badge';
+import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
@@ -21,8 +22,10 @@ import { Separator } from '@/next/components/ui/separator';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import useTenant from '@/next/hooks/use-tenant';
 import docs from '@/next/lib/docs';
+import { ROUTES } from '@/next/lib/routes';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
+import { Link } from 'react-router-dom';
 
 function EventsContent() {
   const { tenant } = useTenant();
@@ -108,7 +111,11 @@ export const columns = (): ColumnDef<Event>[] => {
         <DataTableColumnHeader column={column} title="ID" />
       ),
       cell: ({ row }) => (
-        <div className="w-full">{row.original.metadata.id}</div>
+        <div className="w-full">
+          <Link to={ROUTES.events.detail(row.original.externalId)}>
+            <Button variant="link">{row.original.externalId}</Button>
+          </Link>
+        </div>
       ),
       enableSorting: false,
       enableHiding: true,
@@ -186,7 +193,25 @@ export const columns = (): ColumnDef<Event>[] => {
         }
 
         return (
-          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+          <AdditionalMetadata
+            metadata={Object.keys(row.original.additionalMetadata)
+              .filter(
+                (k) => !['hatchet__event_id', 'hatchet__event_key'].includes(k),
+              )
+              .reduce<Record<string, unknown>>((acc, k) => {
+                const m = row.original.additionalMetadata as Record<
+                  string,
+                  unknown
+                >;
+
+                if (!m) {
+                  return acc;
+                }
+
+                acc[k] = m[k];
+                return acc;
+              }, {})}
+          />
         );
       },
       enableSorting: false,

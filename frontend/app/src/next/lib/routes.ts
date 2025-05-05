@@ -32,6 +32,7 @@ export const ROUTES = {
   },
   events: {
     list: `${FB.events}`,
+    detail: (externalId: string) => `${FB.events}/${externalId}`,
   },
   learn: {
     firstRun: `${FB.learn}/first-run`,

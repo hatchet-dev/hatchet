@@ -3,7 +3,9 @@ package transformers
 import (
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -14,6 +16,7 @@ func ToEventList(events []*sqlcv1.ListEventsRow) gen.EventList {
 
 	for i, row := range events {
 		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
+		externalId := uuid.MustParse(sqlchelpers.UUIDToStr(row.EventExternalID))
 
 		rows[i] = gen.Event{
 			AdditionalMetadata: &additionalMetadata,
@@ -30,6 +33,7 @@ func ToEventList(events []*sqlcv1.ListEventsRow) gen.EventList {
 				Failed:    &row.FailedCount.Int64,
 				Running:   &row.RunningCount.Int64,
 			},
+			ExternalId: &externalId,
 		}
 	}
 

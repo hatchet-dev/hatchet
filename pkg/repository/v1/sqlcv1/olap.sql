@@ -1350,6 +1350,7 @@ WITH included_events AS (
 SELECT
     e.tenant_id,
     e.id AS event_id,
+    e.external_id AS event_external_id,
     e.inserted_at AS event_inserted_at,
     e.generated_at AS event_generated_at,
     e.key AS event_key,

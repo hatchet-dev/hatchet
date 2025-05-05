@@ -481,6 +481,9 @@ type Event struct {
 	// AdditionalMetadata Additional metadata for the event.
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 
+	// ExternalId The external ID for the event.
+	ExternalId *openapi_types.UUID `json:"externalId,omitempty"`
+
 	// Key The key for the event.
 	Key      string          `json:"key"`
 	Metadata APIResourceMeta `json:"metadata"`
