@@ -1,15 +1,19 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Event } from '@/lib/api';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
+import { Badge } from '@/next/components/ui/badge';
+import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
 import {
   PageSelector,
   PageSizeSelector,
   Pagination,
 } from '@/next/components/ui/pagination';
+import RelativeDate from '@/next/components/ui/relative-date';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import useTenant from '@/next/hooks/use-tenant';
 import { cn } from '@/next/lib/utils';
+import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
 
 function EventsContent() {
@@ -34,9 +38,11 @@ function EventsContent() {
   }
 
   return (
-    <>
+    <div className="p-8">
       <DataTable
-        columns={columns()}
+        columns={columns({
+          onRowClick: () => {},
+        })}
         data={data || []}
         emptyState={
           <div className="flex flex-col items-center justify-center gap-4 py-8">
@@ -49,58 +55,143 @@ function EventsContent() {
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>
-    </>
+    </div>
   );
 }
 
-export const columns = (selectAll?: boolean): ColumnDef<Event>[] => [
-  {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={selectAll || table.getIsAllPageRowsSelected()}
-        onCheckedChange={(value: boolean) =>
-          table.toggleAllPageRowsSelected(!!value)
-        }
-        aria-label="Select all"
-        className="translate-y-[2px]"
-        disabled={selectAll}
-      />
-    ),
-    cell: ({ row }) => (
-      <div
-        className={cn(
-          `pl-${row.depth * 4}`,
-          'flex flex-row items-center justify-start gap-x-2 max-w-6 mr-2',
-        )}
-      >
+export const columns = ({
+  onRowClick,
+}: {
+  onRowClick?: (row: Event) => void;
+}): ColumnDef<Event>[] => {
+  return [
+    {
+      id: 'select',
+      header: ({ table }) => (
         <Checkbox
-          checked={selectAll || row.getIsSelected()}
-          onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-          disabled={selectAll}
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && 'indeterminate')
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
         />
-      </div>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'key',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="" />,
-    cell: ({ row }) => {
-      const key = row.getValue('key') as string;
-      return (
-        <div className="flex items-center justify-center h-full">{key}</div>
-      );
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          className="translate-y-[2px]"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
     },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
+    {
+      accessorKey: 'EventId',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Event Id" />
+      ),
+      cell: ({ row }) => (
+        <div className="w-full">{row.original.metadata.id}</div>
+      ),
+      enableSorting: false,
+      enableHiding: true,
     },
-    enableSorting: false,
-    enableHiding: false,
-  },
-];
+    {
+      accessorKey: 'key',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Event" />
+      ),
+      cell: ({ row }) => (
+        <div className="w-full">
+          <Button
+            className="w-fit cursor-pointer pl-0"
+            variant="link"
+            onClick={() => {
+              onRowClick?.(row.original);
+            }}
+          >
+            {row.getValue('key')}
+          </Button>
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'Seen at',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Seen at" />
+      ),
+      cell: ({ row }) => {
+        return (
+          <div>
+            <RelativeDate date={row.original.metadata.createdAt} />
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'Runs',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Runs" />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.workflowRunSummary) {
+          return <div>None</div>;
+        }
+
+        const { cancelled, failed, queued, succeeded, running } = row.original
+          .workflowRunSummary || {
+          cancelled: 0,
+          failed: 0,
+          succeeded: 0,
+          running: 0,
+          queued: 0,
+        };
+
+        return (
+          <div className="flex flex-row gap-2 items-center justify-start">
+            {!!queued && <Badge variant="outline">{queued} Queued</Badge>}
+            {!!running && (
+              <Badge className="bg-amber-400">{running} Running</Badge>
+            )}
+            {!!cancelled && (
+              <Badge className="bg-black border border-red-500 text-white">
+                {cancelled} Cancelled
+              </Badge>
+            )}
+            {!!succeeded && (
+              <Badge variant="successful">{succeeded} Succeeded</Badge>
+            )}
+            {!!failed && <Badge variant="destructive">{failed} Failed</Badge>}
+          </div>
+        );
+      },
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'Metadata',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Metadata" />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.additionalMetadata) {
+          return <div></div>;
+        }
+
+        return (
+          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+        );
+      },
+      enableSorting: false,
+    },
+  ];
+};
 
 export default function EventsPage() {
   return (
