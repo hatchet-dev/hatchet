@@ -1334,6 +1334,8 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	}
 
 	return tasksWithData, idsToDepth, nil
+}
+
 func (r *OLAPRepositoryImpl) CreateEvent(ctx context.Context, tenantId string, event sqlcv1.CreateEventParams) (*sqlcv1.V1EventsOlap, error) {
 	return r.queries.CreateEvent(ctx, r.pool, event)
 }
