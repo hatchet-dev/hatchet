@@ -450,6 +450,111 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 	return external_id, err
 }
 
+const listEvents = `-- name: ListEvents :many
+    SELECT
+        e.tenant_id,
+        e.id AS event_id,
+        e.inserted_at AS event_inserted_at,
+        e.generated_at AS event_generated_at,
+        e.key AS event_key,
+        e.payload AS event_payload,
+        e.additional_metadata AS event_additional_metadata,
+        r.id AS run_id,
+        r.inserted_at AS run_inserted_at,
+        r.external_id AS run_external_id,
+        r.readable_status AS run_readable_status,
+        r.kind AS run_kind,
+        r.workflow_id AS run_workflow_id,
+        r.workflow_version_id AS run_workflow_version_id,
+        r.additional_metadata AS run_additional_metadata,
+        r.parent_task_external_id AS run_parent_task_external_id
+    FROM
+        v1_events_olap e
+    LEFT JOIN
+        v1_event_to_run_olap etr ON (e.id, e.inserted_at) = (etr.event_id, etr.event_inserted_at)
+    LEFT JOIN
+        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    WHERE
+        e.tenant_id = $1 AND
+        events."deletedAt" IS NULL AND
+        (
+            $2::text[] IS NULL OR
+            events."key" = ANY($2::text[])
+        )
+    OFFSET
+        COALESCE($3::BIGINT, 0)
+    LIMIT
+        COALESCE($4::BIGINT, 50)
+`
+
+type ListEventsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Keys     []string    `json:"keys"`
+	Offset   pgtype.Int8 `json:"offset"`
+	Limit    pgtype.Int8 `json:"limit"`
+}
+
+type ListEventsRow struct {
+	TenantID                pgtype.UUID              `json:"tenant_id"`
+	EventID                 int64                    `json:"event_id"`
+	EventInsertedAt         pgtype.Timestamptz       `json:"event_inserted_at"`
+	EventGeneratedAt        pgtype.Timestamptz       `json:"event_generated_at"`
+	EventKey                string                   `json:"event_key"`
+	EventPayload            []byte                   `json:"event_payload"`
+	EventAdditionalMetadata []byte                   `json:"event_additional_metadata"`
+	RunID                   pgtype.Int8              `json:"run_id"`
+	RunInsertedAt           pgtype.Timestamptz       `json:"run_inserted_at"`
+	RunExternalID           pgtype.UUID              `json:"run_external_id"`
+	RunReadableStatus       NullV1ReadableStatusOlap `json:"run_readable_status"`
+	RunKind                 NullV1RunKind            `json:"run_kind"`
+	RunWorkflowID           pgtype.UUID              `json:"run_workflow_id"`
+	RunWorkflowVersionID    pgtype.UUID              `json:"run_workflow_version_id"`
+	RunAdditionalMetadata   []byte                   `json:"run_additional_metadata"`
+	RunParentTaskExternalID pgtype.UUID              `json:"run_parent_task_external_id"`
+}
+
+func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
+	rows, err := db.Query(ctx, listEvents,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListEventsRow
+	for rows.Next() {
+		var i ListEventsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.EventID,
+			&i.EventInsertedAt,
+			&i.EventGeneratedAt,
+			&i.EventKey,
+			&i.EventPayload,
+			&i.EventAdditionalMetadata,
+			&i.RunID,
+			&i.RunInsertedAt,
+			&i.RunExternalID,
+			&i.RunReadableStatus,
+			&i.RunKind,
+			&i.RunWorkflowID,
+			&i.RunWorkflowVersionID,
+			&i.RunAdditionalMetadata,
+			&i.RunParentTaskExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $1::date) AS p

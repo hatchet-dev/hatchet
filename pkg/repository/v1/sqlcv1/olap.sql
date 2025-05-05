@@ -1312,3 +1312,41 @@ VALUES (
     $4
 )
 ;
+
+-- name: ListEvents :many
+    SELECT
+        e.tenant_id,
+        e.id AS event_id,
+        e.inserted_at AS event_inserted_at,
+        e.generated_at AS event_generated_at,
+        e.key AS event_key,
+        e.payload AS event_payload,
+        e.additional_metadata AS event_additional_metadata,
+        r.id AS run_id,
+        r.inserted_at AS run_inserted_at,
+        r.external_id AS run_external_id,
+        r.readable_status AS run_readable_status,
+        r.kind AS run_kind,
+        r.workflow_id AS run_workflow_id,
+        r.workflow_version_id AS run_workflow_version_id,
+        r.additional_metadata AS run_additional_metadata,
+        r.parent_task_external_id AS run_parent_task_external_id
+    FROM
+        v1_events_olap e
+    LEFT JOIN
+        v1_event_to_run_olap etr ON (e.id, e.inserted_at) = (etr.event_id, etr.event_inserted_at)
+    LEFT JOIN
+        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    WHERE
+        e.tenant_id = @tenantId AND
+        events."deletedAt" IS NULL AND
+        (
+            sqlc.narg('keys')::text[] IS NULL OR
+            events."key" = ANY(sqlc.narg('keys')::text[])
+        )
+    OFFSET
+        COALESCE(sqlc.narg('offset')::BIGINT, 0)
+    LIMIT
+        COALESCE(sqlc.narg('limit')::BIGINT, 50)
+;
+

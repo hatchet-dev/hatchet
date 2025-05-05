@@ -26,6 +26,7 @@ import (
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
+	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
 	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
@@ -59,6 +60,7 @@ type apiService struct {
 	*info.InfoService
 	*tasks.TasksService
 	*workflowrunsv1.V1WorkflowRunsService
+	*eventsv1.V1EventsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -81,6 +83,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		InfoService:           info.NewInfoService(config),
 		TasksService:          tasks.NewTasksService(config),
 		V1WorkflowRunsService: workflowrunsv1.NewV1WorkflowRunsService(config),
+		V1EventsService:       eventsv1.NewV1EventsService(config),
 	}
 }
 

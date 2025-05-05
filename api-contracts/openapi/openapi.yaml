@@ -48,6 +48,8 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/getTaskStatusMetrics"
   /api/v1/stable/tenants/{tenant}/task-point-metrics:
     $ref: "./paths/v1/tasks/tasks.yaml#/getTaskPointMetrics"
+  /api/v1/stable/tenants/{tenant}/events:
+    $ref: "./paths/event/event.yaml#/v1EventList"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:
