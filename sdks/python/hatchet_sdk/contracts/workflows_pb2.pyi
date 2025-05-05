@@ -75,7 +75,7 @@ class PutWorkflowRequest(_message.Message):
     def __init__(self, opts: _Optional[_Union[CreateWorkflowVersionOpts, _Mapping]] = ...) -> None: ...
 
 class CreateWorkflowVersionOpts(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "scheduled_triggers", "jobs", "concurrency", "schedule_timeout", "cron_input", "on_failure_job", "sticky", "kind", "default_priority")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "scheduled_triggers", "jobs", "concurrency", "schedule_timeout", "cron_input", "on_failure_job", "sticky", "kind", "default_priority", "event_filter_expression")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -90,6 +90,7 @@ class CreateWorkflowVersionOpts(_message.Message):
     STICKY_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    EVENT_FILTER_EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -104,7 +105,8 @@ class CreateWorkflowVersionOpts(_message.Message):
     sticky: StickyStrategy
     kind: WorkflowKind
     default_priority: int
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[WorkflowConcurrencyOpts, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., cron_input: _Optional[str] = ..., on_failure_job: _Optional[_Union[CreateWorkflowJobOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., kind: _Optional[_Union[WorkflowKind, str]] = ..., default_priority: _Optional[int] = ...) -> None: ...
+    event_filter_expression: str
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., scheduled_triggers: _Optional[_Iterable[_Union[_timestamp_pb2.Timestamp, _Mapping]]] = ..., jobs: _Optional[_Iterable[_Union[CreateWorkflowJobOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[WorkflowConcurrencyOpts, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., cron_input: _Optional[str] = ..., on_failure_job: _Optional[_Union[CreateWorkflowJobOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., kind: _Optional[_Union[WorkflowKind, str]] = ..., default_priority: _Optional[int] = ..., event_filter_expression: _Optional[str] = ...) -> None: ...
 
 class WorkflowConcurrencyOpts(_message.Message):
     __slots__ = ("action", "max_runs", "limit_strategy", "expression")

@@ -218,6 +218,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
             default_priority=self.config.default_priority,
+            event_filter_expression=self.config.event_filter_expression,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:

@@ -205,6 +205,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        event_filter_expression: str | None = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -221,6 +222,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        event_filter_expression: str | None = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -236,6 +238,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
+        event_filter_expression: str | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -276,6 +279,7 @@ class Hatchet:
                 or cast(Type[TWorkflowInput], EmptyModel),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
+                event_filter_expression=event_filter_expression,
             ),
             self,
         )
