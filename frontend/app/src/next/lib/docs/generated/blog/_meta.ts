@@ -1,4 +1,4 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/blog/_meta.js
+// Generated from frontend/docs/pages/blog/_meta.js
 const meta = {
   task_queue_modern_python: {
     title: 'A task queue for modern Python applications',

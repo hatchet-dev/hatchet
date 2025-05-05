@@ -260,7 +260,7 @@ export const queries = createQueryKeyStore({
     list: (tenant: string, query: V1EventListQuery) => ({
       queryKey: ['v1:events:list', tenant, query],
       queryFn: async () => (await api.v1EventList(tenant, query)).data,
-    })
+    }),
   },
   v1WorkflowRuns: {
     list: (tenant: string, query: V2ListWorkflowRunsQuery) => ({

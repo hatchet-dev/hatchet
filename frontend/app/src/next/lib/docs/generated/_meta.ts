@@ -1,4 +1,4 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/_meta.js
+// Generated from frontend/docs/pages/_meta.js
 const meta = {
   home: {
     title: 'User Guide',
