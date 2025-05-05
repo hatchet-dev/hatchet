@@ -5,12 +5,15 @@ CREATE TABLE v1_events_olap (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     generated_at TIMESTAMPTZ NOT NULL,
+    external_id UUID NOT NULL,
     key TEXT NOT NULL,
     payload JSONB NOT NULL,
     additional_metadata JSONB,
 
     PRIMARY KEY (tenant_id, id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX v1_events_olap_external_id_idx ON v1_events_olap (tenant_id, external_id);
 
 CREATE TABLE v1_event_to_run_olap (
     run_id BIGINT NOT NULL,
