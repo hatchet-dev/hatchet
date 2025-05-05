@@ -89,6 +89,7 @@ type CreateDAGsOLAPParams struct {
 const createEvent = `-- name: CreateEvent :one
 INSERT INTO v1_events_olap (
     tenant_id,
+    external_id,
     generated_at,
     key,
     payload,
@@ -96,16 +97,18 @@ INSERT INTO v1_events_olap (
 )
 VALUES (
     $1::UUID,
-    $2::TIMESTAMPTZ,
-    $3::TEXT,
-    $4::JSONB,
-    $5::JSONB
+    $2::UUID,
+    $3::TIMESTAMPTZ,
+    $4::TEXT,
+    $5::JSONB,
+    $6::JSONB
 )
 RETURNING tenant_id, id, inserted_at, generated_at, key, payload, additional_metadata
 `
 
 type CreateEventParams struct {
 	Tenantid           pgtype.UUID        `json:"tenantid"`
+	Externalid         pgtype.UUID        `json:"externalid"`
 	Generatedat        pgtype.Timestamptz `json:"generatedat"`
 	Key                string             `json:"key"`
 	Payload            []byte             `json:"payload"`
@@ -115,6 +118,7 @@ type CreateEventParams struct {
 func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParams) (*V1EventsOlap, error) {
 	row := db.QueryRow(ctx, createEvent,
 		arg.Tenantid,
+		arg.Externalid,
 		arg.Generatedat,
 		arg.Key,
 		arg.Payload,

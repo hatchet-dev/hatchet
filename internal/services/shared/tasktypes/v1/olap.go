@@ -49,6 +49,7 @@ type CreatedEventTriggerPayloadSingleton struct {
 	TaskInsertedAt          time.Time `json:"task_inserted_at"`
 	EventGeneratedAt        time.Time `json:"event_generated_at"`
 	EventKey                string    `json:"event_key"`
+	EventExternalId         string    `json:"event_external_id"`
 	EventPayload            []byte    `json:"event_payload"`
 	EventAdditionalMetadata []byte    `json:"event_additional_metadata,omitempty"`
 }
