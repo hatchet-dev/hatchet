@@ -1,9 +1,17 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Event } from '@/lib/api';
+import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
 import { Badge } from '@/next/components/ui/badge';
 import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
+import { DocsButton } from '@/next/components/ui/docs-button';
+import {
+  Headline,
+  HeadlineActionItem,
+  HeadlineActions,
+  PageTitle,
+} from '@/next/components/ui/page-header';
 import {
   PageSelector,
   PageSizeSelector,
@@ -12,6 +20,7 @@ import {
 import RelativeDate from '@/next/components/ui/relative-date';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import useTenant from '@/next/hooks/use-tenant';
+import docs from '@/next/lib/docs';
 import { cn } from '@/next/lib/utils';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
@@ -38,7 +47,17 @@ function EventsContent() {
   }
 
   return (
-    <div className="p-8">
+    <BasicLayout>
+      <Headline>
+        <PageTitle description="View events pushed to Hatchet">
+          Events
+        </PageTitle>
+        <HeadlineActions>
+          <HeadlineActionItem>
+            <DocsButton doc={docs.home.run_on_event} size="icon" />
+          </HeadlineActionItem>
+        </HeadlineActions>
+      </Headline>
       <DataTable
         columns={columns({
           onRowClick: () => {},
@@ -55,7 +74,7 @@ function EventsContent() {
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>
-    </div>
+    </BasicLayout>
   );
 }
 
