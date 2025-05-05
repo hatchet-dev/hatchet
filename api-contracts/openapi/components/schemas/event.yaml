@@ -149,6 +149,9 @@ EventList:
       items:
         $ref: "#/Event"
       type: array
+  required:
+    - pagination
+    - rows
 
 EventOrderByField:
   type: string
