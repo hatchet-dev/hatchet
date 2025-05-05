@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/browser';
+import * as Sentry from '@sentry/react';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useUser from '@/next/hooks/use-user';
 import useTenant from '@/next/hooks/use-tenant';
@@ -29,7 +29,6 @@ const AnalyticsProvider: React.FC<PropsWithChildren> = ({ children }) => {
     }
 
     if (meta.oss?.decipherDsn) {
-      console.log('Initializing Sentry');
       Sentry.init({
         dsn: meta.oss?.decipherDsn,
         integrations: [
@@ -66,7 +65,7 @@ posthog.init('${meta.oss?.posthog.apiKey}',{
   }, [loaded, tenant, meta.oss?.decipherDsn, meta.oss?.posthog]);
 
   useEffect(() => {
-    if (!meta.oss?.posthog || !meta.oss?.decipherDsn || !user) {
+    if (!user) {
       return;
     }
 
