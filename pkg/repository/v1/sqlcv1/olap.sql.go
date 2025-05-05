@@ -499,7 +499,7 @@ SELECT
     sc.failed_count
 FROM
     included_events e
-JOIN
+LEFT JOIN
     status_counts sc ON (e.tenant_id, e.id, e.inserted_at) = (sc.tenant_id, sc.id, sc.inserted_at)
 `
 
@@ -518,11 +518,11 @@ type ListEventsRow struct {
 	EventKey                string             `json:"event_key"`
 	EventPayload            []byte             `json:"event_payload"`
 	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
-	QueuedCount             int64              `json:"queued_count"`
-	RunningCount            int64              `json:"running_count"`
-	CompletedCount          int64              `json:"completed_count"`
-	CancelledCount          int64              `json:"cancelled_count"`
-	FailedCount             int64              `json:"failed_count"`
+	QueuedCount             pgtype.Int8        `json:"queued_count"`
+	RunningCount            pgtype.Int8        `json:"running_count"`
+	CompletedCount          pgtype.Int8        `json:"completed_count"`
+	CancelledCount          pgtype.Int8        `json:"cancelled_count"`
+	FailedCount             pgtype.Int8        `json:"failed_count"`
 }
 
 func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {

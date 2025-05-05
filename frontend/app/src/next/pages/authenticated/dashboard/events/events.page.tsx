@@ -3,7 +3,6 @@ import { Event } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
 import { Badge } from '@/next/components/ui/badge';
-import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
@@ -22,7 +21,6 @@ import { Separator } from '@/next/components/ui/separator';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import useTenant from '@/next/hooks/use-tenant';
 import docs from '@/next/lib/docs';
-import { cn } from '@/next/lib/utils';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
 
@@ -61,9 +59,7 @@ function EventsContent() {
       </Headline>
       <Separator className="my-4" />
       <DataTable
-        columns={columns({
-          onRowClick: () => {},
-        })}
+        columns={columns()}
         data={data || []}
         emptyState={
           <div className="flex flex-col items-center justify-center gap-4 py-8">
@@ -80,11 +76,7 @@ function EventsContent() {
   );
 }
 
-export const columns = ({
-  onRowClick,
-}: {
-  onRowClick?: (row: Event) => void;
-}): ColumnDef<Event>[] => {
+export const columns = (): ColumnDef<Event>[] => {
   return [
     {
       id: 'select',
@@ -113,7 +105,7 @@ export const columns = ({
     {
       accessorKey: 'EventId',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event Id" />
+        <DataTableColumnHeader column={column} title="ID" />
       ),
       cell: ({ row }) => (
         <div className="w-full">{row.original.metadata.id}</div>
@@ -124,21 +116,9 @@ export const columns = ({
     {
       accessorKey: 'key',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Event" />
+        <DataTableColumnHeader column={column} title="Key" />
       ),
-      cell: ({ row }) => (
-        <div className="w-full">
-          <Button
-            className="w-fit cursor-pointer pl-0"
-            variant="link"
-            onClick={() => {
-              onRowClick?.(row.original);
-            }}
-          >
-            {row.getValue('key')}
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => <div className="w-full">{row.getValue('key')}</div>,
       enableSorting: false,
       enableHiding: false,
     },

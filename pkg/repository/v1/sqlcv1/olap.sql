@@ -1362,7 +1362,7 @@ SELECT
     sc.failed_count
 FROM
     included_events e
-JOIN
+LEFT JOIN
     status_counts sc ON (e.tenant_id, e.id, e.inserted_at) = (sc.tenant_id, sc.id, sc.inserted_at)
 ;
 

@@ -38,8 +38,8 @@ function EventsProviderContent({ children }: EventsProviderProps) {
       try {
         return (
           await api.v1EventList(tenant?.metadata.id || '', {
-            offset: 0,
-            limit: 10,
+            offset: pagination.pageSize * (pagination.currentPage - 1),
+            limit: pagination.pageSize,
           })
         ).data;
       } catch (error) {
