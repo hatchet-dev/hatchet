@@ -11,73 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bulkCreateEventsAndTriggers = `-- name: BulkCreateEventsAndTriggers :exec
-WITH inputs AS (
-    SELECT
-        UNNEST($1::UUID[]) AS tenant_id,
-        UNNEST($2::UUID[]) AS event_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS event_seen_at,
-        UNNEST($4::TEXT[]) AS event_key,
-        UNNEST($5::JSONB[]) AS event_payload,
-        UNNEST($6::JSONB[]) AS event_additional_metadata,
-        UNNEST($7::BIGINT[]) AS run_id,
-        UNNEST($8::TIMESTAMPTZ[]) AS run_inserted_at
-), events AS (
-    INSERT INTO v1_events_olap (
-        tenant_id,
-        id,
-        seen_at,
-        key,
-        payload,
-        additional_metadata
-    )
-    SELECT DISTINCT
-        tenant_id,
-        event_id,
-        event_seen_at,
-        event_key,
-        event_payload,
-        event_additional_metadata
-    FROM inputs
-)
-
-INSERT INTO v1_event_to_run_olap(
-    run_id,
-    run_inserted_at,
-    event_id,
-    event_seen_at
-)
-SELECT
-    run_id,
-    run_inserted_at,
-    event_id,
-    event_seen_at
-FROM inputs
-`
-
-type BulkCreateEventsAndTriggersParams struct {
-	Tenantids                []pgtype.UUID        `json:"tenantids"`
-	Eventids                 []pgtype.UUID        `json:"eventids"`
-	Eventseenats             []pgtype.Timestamptz `json:"eventseenats"`
-	Eventkeys                []string             `json:"eventkeys"`
-	Eventpayloads            [][]byte             `json:"eventpayloads"`
-	Eventadditionalmetadatas [][]byte             `json:"eventadditionalmetadatas"`
-	Runids                   []int64              `json:"runids"`
-	Runinsertedats           []pgtype.Timestamptz `json:"runinsertedats"`
+type BulkCreateEventTriggersParams struct {
+	RunID         int64              `json:"run_id"`
+	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
+	EventID       pgtype.UUID        `json:"event_id"`
+	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
 }
 
-func (q *Queries) BulkCreateEventsAndTriggers(ctx context.Context, db DBTX, arg BulkCreateEventsAndTriggersParams) error {
-	_, err := db.Exec(ctx, bulkCreateEventsAndTriggers,
-		arg.Tenantids,
-		arg.Eventids,
-		arg.Eventseenats,
-		arg.Eventkeys,
-		arg.Eventpayloads,
-		arg.Eventadditionalmetadatas,
-		arg.Runids,
-		arg.Runinsertedats,
-	)
-	return err
+type BulkCreateEventsParams struct {
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	ID                 pgtype.UUID        `json:"id"`
+	SeenAt             pgtype.Timestamptz `json:"seen_at"`
+	Key                string             `json:"key"`
+	Payload            []byte             `json:"payload"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
 }
 
 type CreateDAGsOLAPParams struct {

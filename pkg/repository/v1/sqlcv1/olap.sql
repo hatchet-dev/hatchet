@@ -1259,46 +1259,36 @@ WHERE
   tenant_id = @tenantId::uuid;
 
 
--- name: BulkCreateEventsAndTriggers :exec
-WITH inputs AS (
-    SELECT
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(@eventIds::UUID[]) AS event_id,
-        UNNEST(@eventSeenAts::TIMESTAMPTZ[]) AS event_seen_at,
-        UNNEST(@eventKeys::TEXT[]) AS event_key,
-        UNNEST(@eventPayloads::JSONB[]) AS event_payload,
-        UNNEST(@eventAdditionalMetadatas::JSONB[]) AS event_additional_metadata,
-        UNNEST(@runIds::BIGINT[]) AS run_id,
-        UNNEST(@runInsertedAts::TIMESTAMPTZ[]) AS run_inserted_at
-), events AS (
-    INSERT INTO v1_events_olap (
-        tenant_id,
-        id,
-        seen_at,
-        key,
-        payload,
-        additional_metadata
-    )
-    SELECT DISTINCT
-        tenant_id,
-        event_id,
-        event_seen_at,
-        event_key,
-        event_payload,
-        event_additional_metadata
-    FROM inputs
+-- name: BulkCreateEvents :copyfrom
+INSERT INTO v1_events_olap (
+    tenant_id,
+    id,
+    seen_at,
+    key,
+    payload,
+    additional_metadata
 )
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+)
+;
 
+-- name: BulkCreateEventTriggers :copyfrom
 INSERT INTO v1_event_to_run_olap(
     run_id,
     run_inserted_at,
     event_id,
     event_seen_at
 )
-SELECT
-    run_id,
-    run_inserted_at,
-    event_id,
-    event_seen_at
-FROM inputs
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4
+)
 ;
