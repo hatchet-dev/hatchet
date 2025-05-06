@@ -40,6 +40,7 @@ from hatchet_sdk.clients.rest.exceptions import (
     ServiceException,
     UnauthorizedException,
 )
+from hatchet_sdk.logger import logger
 
 RequestSerialized = Tuple[str, str, Dict[str, str], Optional[str], List[str]]
 
@@ -356,7 +357,20 @@ class ApiClient:
             return [self.sanitize_for_serialization(sub_obj) for sub_obj in obj]
         elif isinstance(obj, tuple):
             return tuple(self.sanitize_for_serialization(sub_obj) for sub_obj in obj)
-        elif isinstance(obj, (datetime.datetime, datetime.date)):
+        ## IMPORTANT: Checking `datetime` must come before `date` since `datetime` is a subclass of `date`
+        elif isinstance(obj, datetime.datetime):
+            if not obj.tzinfo:
+                current_tz = (
+                    datetime.datetime.now(datetime.timezone(datetime.timedelta(0)))
+                    .astimezone()
+                    .tzinfo
+                    or datetime.timezone.utc
+                )
+                logger.warning(f"timezone-naive datetime found. assuming {current_tz}.")
+                obj = obj.replace(tzinfo=current_tz)
+
+            return obj.isoformat()
+        elif isinstance(obj, datetime.date):
             return obj.isoformat()
         elif isinstance(obj, decimal.Decimal):
             return str(obj)

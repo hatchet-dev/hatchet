@@ -245,6 +245,8 @@ from hatchet_sdk.clients.rest.models.v1_task_run_status import V1TaskRunStatus
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk.clients.rest.models.v1_task_timing import V1TaskTiming
+from hatchet_sdk.clients.rest.models.v1_task_timing_list import V1TaskTimingList
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
 )
