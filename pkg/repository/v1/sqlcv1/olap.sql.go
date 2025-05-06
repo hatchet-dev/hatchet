@@ -452,7 +452,7 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT tenant_id, id, inserted_at, generated_at, external_id, key, payload, additional_metadata
+    SELECT tenant_id, id, seen_at, key, payload, additional_metadata
     FROM v1_events_olap e
     WHERE
         e.tenant_id = $1
@@ -460,6 +460,7 @@ WITH included_events AS (
             $2::TEXT[] IS NULL OR
             "key" = ANY($2::TEXT[])
         )
+    ORDER BY e.seen_at DESC
     OFFSET
         COALESCE($3::BIGINT, 0)
     LIMIT
@@ -468,7 +469,7 @@ WITH included_events AS (
     SELECT
         e.tenant_id,
         e.id,
-        e.inserted_at,
+        e.seen_at,
         COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
         COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
         COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
@@ -477,19 +478,17 @@ WITH included_events AS (
     FROM
         included_events e
     LEFT JOIN
-        v1_event_to_run_olap etr ON (e.id, e.inserted_at) = (etr.event_id, etr.event_inserted_at)
+        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
     LEFT JOIN
         v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     GROUP BY
-        e.tenant_id, e.id, e.inserted_at
+        e.tenant_id, e.id, e.seen_at
 )
 
 SELECT
     e.tenant_id,
     e.id AS event_id,
-    e.external_id AS event_external_id,
-    e.inserted_at AS event_inserted_at,
-    e.generated_at AS event_generated_at,
+    e.seen_at AS event_seen_at,
     e.key AS event_key,
     e.payload AS event_payload,
     e.additional_metadata AS event_additional_metadata,
@@ -501,7 +500,8 @@ SELECT
 FROM
     included_events e
 LEFT JOIN
-    status_counts sc ON (e.tenant_id, e.id, e.inserted_at) = (sc.tenant_id, sc.id, sc.inserted_at)
+    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
+ORDER BY e.seen_at DESC
 `
 
 type ListEventsParams struct {
@@ -513,10 +513,8 @@ type ListEventsParams struct {
 
 type ListEventsRow struct {
 	TenantID                pgtype.UUID        `json:"tenant_id"`
-	EventID                 int64              `json:"event_id"`
-	EventExternalID         pgtype.UUID        `json:"event_external_id"`
-	EventInsertedAt         pgtype.Timestamptz `json:"event_inserted_at"`
-	EventGeneratedAt        pgtype.Timestamptz `json:"event_generated_at"`
+	EventID                 pgtype.UUID        `json:"event_id"`
+	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
 	EventKey                string             `json:"event_key"`
 	EventPayload            []byte             `json:"event_payload"`
 	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
@@ -544,9 +542,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.EventID,
-			&i.EventExternalID,
-			&i.EventInsertedAt,
-			&i.EventGeneratedAt,
+			&i.EventSeenAt,
 			&i.EventKey,
 			&i.EventPayload,
 			&i.EventAdditionalMetadata,

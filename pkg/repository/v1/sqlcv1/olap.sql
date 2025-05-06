@@ -1323,6 +1323,7 @@ WITH included_events AS (
             sqlc.narg('keys')::TEXT[] IS NULL OR
             "key" = ANY(sqlc.narg('keys')::TEXT[])
         )
+    ORDER BY e.seen_at DESC
     OFFSET
         COALESCE(sqlc.narg('offset')::BIGINT, 0)
     LIMIT
@@ -1331,7 +1332,7 @@ WITH included_events AS (
     SELECT
         e.tenant_id,
         e.id,
-        e.inserted_at,
+        e.seen_at,
         COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
         COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
         COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
@@ -1340,19 +1341,17 @@ WITH included_events AS (
     FROM
         included_events e
     LEFT JOIN
-        v1_event_to_run_olap etr ON (e.id, e.inserted_at) = (etr.event_id, etr.event_inserted_at)
+        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
     LEFT JOIN
         v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
     GROUP BY
-        e.tenant_id, e.id, e.inserted_at
+        e.tenant_id, e.id, e.seen_at
 )
 
 SELECT
     e.tenant_id,
     e.id AS event_id,
-    e.external_id AS event_external_id,
-    e.inserted_at AS event_inserted_at,
-    e.generated_at AS event_generated_at,
+    e.seen_at AS event_seen_at,
     e.key AS event_key,
     e.payload AS event_payload,
     e.additional_metadata AS event_additional_metadata,
@@ -1364,6 +1363,7 @@ SELECT
 FROM
     included_events e
 LEFT JOIN
-    status_counts sc ON (e.tenant_id, e.id, e.inserted_at) = (sc.tenant_id, sc.id, sc.inserted_at)
+    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
+ORDER BY e.seen_at DESC
 ;
 
