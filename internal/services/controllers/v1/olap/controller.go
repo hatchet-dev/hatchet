@@ -368,7 +368,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				TenantID:           sqlchelpers.UUIDFromStr(tenantId),
 				ID:                 sqlchelpers.UUIDFromStr(payload.EventId),
 				SeenAt:             sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
-				Key:                eventKey,
+				Key:                payload.EventKey,
 				Payload:            payload.EventPayload,
 				AdditionalMetadata: payload.EventAdditionalMetadata,
 			})
