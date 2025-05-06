@@ -143,7 +143,7 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workfl
 			Str("expression", workflow.EventExpression.String).
 			Msg("Failed to evaluate workflow expression")
 
-		return false, nil
+		return false, err
 	}
 
 	return match, nil
