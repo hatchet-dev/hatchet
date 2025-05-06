@@ -344,7 +344,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	eventKeys := make([]string, 0)
 	eventAdditionalMetadatas := make([][]byte, 0)
 
-	runExternalIds := make([]pgtype.UUID, 0)
+	runIds := make([]int64, 0)
 	runInsertedAts := make([]pgtype.Timestamptz, 0)
 
 	for _, msg := range msgs {
@@ -356,8 +356,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			eventPayloads = append(eventPayloads, payload.EventPayload)
 			eventAdditionalMetadatas = append(eventAdditionalMetadatas, payload.EventAdditionalMetadata)
 
-			runExternalIds = append(runExternalIds, sqlchelpers.UUIDFromStr(payload.TaskExternalId))
-			runInsertedAts = append(runInsertedAts, sqlchelpers.TimestamptzFromTime(payload.TaskInsertedAt))
+			runIds = append(runIds, payload.RunId)
+			runInsertedAts = append(runInsertedAts, sqlchelpers.TimestamptzFromTime(payload.RunInsertedAt))
 		}
 	}
 
@@ -368,7 +368,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Eventkeys:                eventKeys,
 		Eventpayloads:            eventPayloads,
 		Eventadditionalmetadatas: eventAdditionalMetadatas,
-		Runexternalids:           runExternalIds,
+		Runids:                   runIds,
 		Runinsertedats:           runInsertedAts,
 	}
 

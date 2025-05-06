@@ -1268,7 +1268,7 @@ WITH inputs AS (
         UNNEST(@eventKeys::TEXT[]) AS event_key,
         UNNEST(@eventPayloads::JSONB[]) AS event_payload,
         UNNEST(@eventAdditionalMetadatas::JSONB[]) AS event_additional_metadata,
-        UNNEST(@runExternalIds::UUID[]) AS run_external_id,
+        UNNEST(@runIds::BIGINT[]) AS run_id,
         UNNEST(@runInsertedAts::TIMESTAMPTZ[]) AS run_inserted_at
 ), events AS (
     INSERT INTO v1_events_olap (
@@ -1280,13 +1280,13 @@ WITH inputs AS (
         additional_metadata
     )
     SELECT DISTINCT
-        i.tenant_id,
-        i.event_id,
-        i.event_seen_at,
-        i.event_key,
-        i.event_payload,
-        i.event_additional_metadata
-    FROM inputs i
+        tenant_id,
+        event_id,
+        event_seen_at,
+        event_key,
+        event_payload,
+        event_additional_metadata
+    FROM inputs
 )
 
 INSERT INTO v1_event_to_run_olap(
@@ -1296,10 +1296,9 @@ INSERT INTO v1_event_to_run_olap(
     event_seen_at
 )
 SELECT
-    COALESCE(lt.task_id, lt.dag_id) AS run_id,
-    i.run_inserted_at,
-    i.event_id,
-    i.event_seen_at
-FROM inputs i
-JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at
+FROM inputs
 ;

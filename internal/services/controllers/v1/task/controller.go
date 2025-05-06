@@ -831,9 +831,26 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	for _, event := range result.Events {
 		for _, task := range result.Tasks {
 			if task.ExternalID.String() == event.TaskExternalId {
+				fmt.Println(task.ID)
 				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-					TaskExternalId: event.TaskExternalId,
-					TaskInsertedAt: task.InsertedAt.Time,
+					RunId:         task.ID,
+					RunInsertedAt: task.InsertedAt.Time,
+					// FIXME: Should `SeenAt` be set on the SDK when the event is created?
+					EventSeenAt:             eventSeenAt,
+					EventKey:                event.EventKey,
+					EventId:                 event.EventId,
+					EventPayload:            event.EventPayload,
+					EventAdditionalMetadata: event.EventAdditionalMetadata,
+				})
+			}
+		}
+
+		for _, dag := range result.Dags {
+			if dag.ExternalID.String() == event.TaskExternalId {
+				fmt.Println(dag.ID)
+				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+					RunId:         dag.ID,
+					RunInsertedAt: dag.InsertedAt.Time,
 					// FIXME: Should `SeenAt` be set on the SDK when the event is created?
 					EventSeenAt:             eventSeenAt,
 					EventKey:                event.EventKey,
