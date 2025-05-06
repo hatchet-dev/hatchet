@@ -1257,19 +1257,20 @@ FROM
   all_runs
 WHERE
   tenant_id = @tenantId::uuid;
+
 -- name: CreateEvent :one
 INSERT INTO v1_events_olap (
     tenant_id,
-    external_id,
-    generated_at,
+    id,
+    seen_at,
     key,
     payload,
     additional_metadata
 )
 VALUES (
     @tenantId::UUID,
-    @externalId::UUID,
-    @generatedAt::TIMESTAMPTZ,
+    @eventId::UUID,
+    @seenAt::TIMESTAMPTZ,
     @key::TEXT,
     @payload::JSONB,
     sqlc.narg('additionalMetadata')::JSONB
@@ -1279,8 +1280,8 @@ RETURNING *;
 -- name: BulkCreateEventTriggers :many
 WITH inputs AS (
     SELECT
-        UNNEST(@eventIds::BIGINT[]) AS event_id,
-        UNNEST(@eventInsertedAts::TIMESTAMPTZ[]) AS event_inserted_at,
+        UNNEST(@eventIds::UUID[]) AS event_id,
+        UNNEST(@eventSeenAts::TIMESTAMPTZ[]) AS event_seen_at,
         UNNEST(@runExternalIds::UUID[]) AS run_external_id,
         UNNEST(@runInsertedAts::TIMESTAMPTZ[]) AS run_inserted_at
 )
@@ -1288,13 +1289,13 @@ INSERT INTO v1_event_to_run_olap(
     run_id,
     run_inserted_at,
     event_id,
-    event_inserted_at
+    event_seen_at
 )
 SELECT
     COALESCE(lt.task_id, lt.dag_id) AS run_id,
     i.run_inserted_at,
     i.event_id,
-    i.event_inserted_at
+    i.event_seen_at
 FROM inputs i
 JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
 RETURNING *;
