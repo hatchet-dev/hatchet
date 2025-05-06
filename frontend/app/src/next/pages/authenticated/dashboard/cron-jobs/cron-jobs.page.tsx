@@ -63,7 +63,7 @@ export default function CronJobsPage() {
       )}
 
       {canManage && (
-        <>
+        <div className="space-y-4">
           <Separator className="my-4" />
           <CronsProvider>
             <CronJobsTable
@@ -76,7 +76,7 @@ export default function CronJobsPage() {
             onClose={() => setIsCreateDialogOpen(false)}
             defaultTimingOption="cron"
           />
-        </>
+        </div>
       )}
     </BasicLayout>
   );

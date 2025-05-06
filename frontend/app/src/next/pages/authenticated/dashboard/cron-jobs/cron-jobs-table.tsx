@@ -239,7 +239,7 @@ export default function CronJobsTable({
           }
         />
       </div>
-      <Pagination className="py-4 justify-between flex flex-row">
+      <Pagination className="justify-between flex flex-row">
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>
