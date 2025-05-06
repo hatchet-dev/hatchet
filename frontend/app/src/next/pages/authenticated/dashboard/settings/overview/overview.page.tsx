@@ -25,10 +25,11 @@ import { Lock } from 'lucide-react';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Headline, PageTitle } from '@/next/components/ui/page-header';
 import { ROUTES } from '@/next/lib/routes';
+import useApiMeta from '@/next/hooks/use-api-meta';
 
 export default function SettingsOverviewPage() {
   const { tenant } = useTenant();
-
+  const { isCloud } = useApiMeta();
   if (!tenant) {
     return (
       <div className="flex-grow h-full w-full flex items-center justify-center">
@@ -46,8 +47,12 @@ export default function SettingsOverviewPage() {
       </Headline>
       <Separator className="my-4" />
       <UpdateTenant />
-      <Separator className="my-4" />
-      <AnalyticsOptOut />
+      {isCloud && (
+        <>
+          <Separator className="my-4" />
+          <AnalyticsOptOut />
+        </>
+      )}
       <Separator className="my-4" />
       <TenantVersionSwitcher />
     </BasicLayout>
