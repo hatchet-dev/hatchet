@@ -212,7 +212,6 @@ type OLAPRepository interface {
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events []sqlcv1.BulkCreateEventsParams, triggers []sqlcv1.BulkCreateEventTriggersParams) error
-	BulkCreateEventTriggers(ctx context.Context, tenantId string, events sqlcv1.BulkCreateEventTriggersParams) ([]*sqlcv1.V1EventToRunOlap, error)
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, error)
 }
 
