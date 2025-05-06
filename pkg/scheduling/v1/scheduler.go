@@ -616,16 +616,13 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
+	ringOffset = ringOffset % len(candidateSlots)
+
 	if (qi.Sticky != sqlcv1.V1StickyStrategyNONE) || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
+		ringOffset = 0
 	}
 
-	if len(candidateSlots) == 0 {
-		res.noSlots = true
-		return res, nil
-	}
-
-	ringOffset = ringOffset % len(candidateSlots)
 	assignedSlot := findSlot(candidateSlots[ringOffset:], rateLimitAck, rateLimitNack)
 
 	if assignedSlot == nil {
