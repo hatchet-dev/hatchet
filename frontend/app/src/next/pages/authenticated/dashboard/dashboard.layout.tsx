@@ -48,7 +48,7 @@ function DashboardLayoutContent() {
         <div className="flex flex-col h-screen">
           <div className={cn("sticky top-0 z-50 w-full bg-background", isMobile ? "mt-0" : "mt-0")}>
             <header className={cn(
-              isMobile ? "h-16 px-4" : isCollapsed ? "h-12 px-4" : "h-16 px-8",
+              isMobile ? "h-16 px-4" : isCollapsed ? "h-12 px-8" : "h-16 px-8",
               "flex items-center gap-2 border-b transition-h duration-300")}>
               <div className="flex w-full items-center justify-between">
                 <div className="flex items-center gap-2">
