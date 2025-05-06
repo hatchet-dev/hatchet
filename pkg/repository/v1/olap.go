@@ -1339,7 +1339,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
-
+		return fmt.Errorf("error beginning transaction: %v", err)
 	}
 
 	defer tx.Rollback(ctx)
