@@ -3,9 +3,10 @@ export default function BasicLayout({
 }: {
   children: React.ReactNode;
 }) {
+
   return (
     <div className="flex-grow h-full w-full">
-      <div className="p-4 md:p-8 lg:p-12">{children}</div>
+      <div className="px-8 py-12 overflow-y-scroll">{children}</div>
     </div>
   );
 }

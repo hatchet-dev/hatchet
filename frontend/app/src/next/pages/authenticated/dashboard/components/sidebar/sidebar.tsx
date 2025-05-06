@@ -72,7 +72,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const navigate = useNavigate();
   const location = useLocation();
   const navLinks = getMainNavLinks(location.pathname);
-  const { toggleSidebar, isCollapsed } = useSidebar();
+  const { toggleSidebar, isCollapsed, isMobile } = useSidebar();
   const docs = useDocs();
   const [collapsibleState, setCollapsibleState] = useState<
     Record<string, boolean>
@@ -117,7 +117,7 @@ name: ${user?.name}`;
         <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>
-            <header className="my-3">
+            <header className="mb-3">
               <SidebarMenuItem>
                 <SidebarMenuButton size="lg" onClick={() => toggleSidebar()}>
                   <Logo variant="md" />
@@ -151,7 +151,7 @@ name: ${user?.name}`;
                     }
                   >
                     <SidebarMenuItem>
-                      {isCollapsed && item.items?.length ? (
+                      {!isMobile && isCollapsed && item.items?.length ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <SidebarMenuButton
