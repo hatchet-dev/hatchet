@@ -117,7 +117,7 @@ type TriggerFromEventsResult struct {
 }
 
 func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workflow *sqlcv1.ListWorkflowsForEventsRow, opt EventTriggerOpts) (bool, error) {
-	if !workflow.Exp.Valid || workflow.EventExpression.String == "" {
+	if !workflow.EventExpression.Valid || workflow.EventExpression.String == "" {
 		return true, nil
 	}
 
