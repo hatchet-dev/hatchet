@@ -431,6 +431,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
+			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
 
 		if err != nil {
@@ -879,6 +880,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
+			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
 
 		if err != nil {

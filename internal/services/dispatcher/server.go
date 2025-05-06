@@ -865,23 +865,21 @@ func (s *sendTimeFilter) canSend() bool {
 	return true
 }
 
-const payloadSizeThreshold = 3 * 1024 * 1024
-
-func cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult {
+func (d *DispatcherImpl) cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult {
 	totalSize, sizeOfOutputs, _ := calculateResultsSize(results)
 
-	if totalSize < payloadSizeThreshold {
+	if totalSize < d.payloadSizeThreshold {
 		return results
 	}
 
-	if sizeOfOutputs >= payloadSizeThreshold {
+	if sizeOfOutputs >= d.payloadSizeThreshold {
 		return nil
 	}
 
 	// otherwise, attempt to clean the results by removing large error fields
 	cleanedResults := make([]*contracts.StepRunResult, 0, len(results))
 
-	fieldThreshold := (payloadSizeThreshold - sizeOfOutputs) / len(results) // how much overhead we'd have per result or error field, in the worst case
+	fieldThreshold := (d.payloadSizeThreshold - sizeOfOutputs) / len(results) // how much overhead we'd have per result or error field, in the worst case
 
 	for _, result := range results {
 		if result == nil {
@@ -897,7 +895,7 @@ func cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult
 	}
 
 	// if we are still over the limit, we just return nil
-	if totalSize, _, _ := calculateResultsSize(cleanedResults); totalSize > payloadSizeThreshold {
+	if totalSize, _, _ := calculateResultsSize(cleanedResults); totalSize > d.payloadSizeThreshold {
 		return nil
 	}
 
@@ -951,7 +949,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV0(server contracts.Dispatcher_S
 	sendMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
-		results := cleanResults(e.Results)
+		results := s.cleanResults(e.Results)
 
 		if results == nil {
 			s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
