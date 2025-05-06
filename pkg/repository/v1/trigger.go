@@ -84,7 +84,7 @@ type createDAGOpts struct {
 }
 
 type TriggerRepository interface {
-	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, []*EventDataForOlap, error)
+	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error)
 
 	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
 
@@ -111,11 +111,17 @@ type EventDataForOlap struct {
 	EventPayload            []byte
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, []*EventDataForOlap, error) {
+type TriggerFromEventsResult struct {
+	Tasks  []*sqlcv1.V1Task
+	Dags   []*DAGWithData
+	Events []*EventDataForOlap
+}
+
+func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	eventKeys := make([]string, 0, len(opts))
@@ -140,7 +146,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	})
 
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to list workflows for events: %w", err)
+		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
@@ -186,16 +192,16 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
 
 	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 
 	post()
 
-	return tasks, dags, eventKeysTaskExternalIds, nil
+	return &TriggerFromEventsResult{
+		Tasks:  tasks,
+		Dags:   dags,
+		Events: eventKeysTaskExternalIds,
+	}, nil
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {

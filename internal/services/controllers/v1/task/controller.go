@@ -819,7 +819,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		})
 	}
 
-	tasks, dags, eventData, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
@@ -828,8 +828,8 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
 	eventSeenAt := time.Now()
 
-	for _, event := range eventData {
-		for _, task := range tasks {
+	for _, event := range result.Events {
+		for _, task := range result.Tasks {
 			if task.ExternalID.String() == event.TaskExternalId {
 				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
 					TaskExternalId: event.TaskExternalId,
@@ -866,11 +866,11 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	eg := &errgroup.Group{}
 
 	eg.Go(func() error {
-		return tc.signalTasksCreated(ctx, tenantId, tasks)
+		return tc.signalTasksCreated(ctx, tenantId, result.Tasks)
 	})
 
 	eg.Go(func() error {
-		return tc.signalDAGsCreated(ctx, tenantId, dags)
+		return tc.signalDAGsCreated(ctx, tenantId, result.Dags)
 	})
 
 	return eg.Wait()
