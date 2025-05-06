@@ -204,6 +204,10 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 						Str("workflow_id", workflow.WorkflowId.String()).
 						Str("expression", workflow.EventExpression.String).
 						Msg("Failed to evaluate workflow expression")
+
+					// If we fail to parse the expression, we should not run the workflow.
+					// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
+					continue
 				}
 
 				if shouldFilter {
