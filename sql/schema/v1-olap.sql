@@ -385,6 +385,8 @@ CREATE TABLE v1_events_olap (
     PRIMARY KEY (tenant_id, id, seen_at)
 ) PARTITION BY RANGE(seen_at);
 
+CREATE INDEX v1_events_olap_key_idx ON v1_events_olap (tenant_id, key);
+
 CREATE TABLE v1_event_to_run_olap (
     run_id BIGINT NOT NULL,
     run_inserted_at TIMESTAMPTZ NOT NULL,
