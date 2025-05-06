@@ -45,8 +45,8 @@ func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message,
 }
 
 type CreatedEventTriggerPayloadSingleton struct {
-	TaskExternalId          string    `json:"task_external_id"`
-	TaskInsertedAt          time.Time `json:"task_inserted_at"`
+	RunId                   int64     `json:"run_id"`
+	RunInsertedAt           time.Time `json:"run_inserted_at"`
 	EventSeenAt             time.Time `json:"event_seen_at"`
 	EventKey                string    `json:"event_key"`
 	EventId                 string    `json:"event_id"`
