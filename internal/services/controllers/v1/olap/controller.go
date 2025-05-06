@@ -334,6 +334,10 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 }
 
+func makeEventKey(eventId string, eventSeenAt time.Time) string {
+	return fmt.Sprintf("%s-%s", eventId, eventSeenAt.Format(time.RFC3339))
+}
+
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
@@ -347,6 +351,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	keys := make([]string, 0)
 	payloadstoInsert := make([][]byte, 0)
 	additionalMetadatas := make([][]byte, 0)
+
+	processedEvents := make(map[string]*sqlcv1.V1EventsOlap)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
