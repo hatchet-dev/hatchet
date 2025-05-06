@@ -64,6 +64,7 @@ interface RunsState {
     isLoading: boolean;
   };
   isLoading: boolean;
+  isRefetching: boolean;
   create: UseMutationResult<
     V1WorkflowRunDetails,
     Error,
@@ -488,6 +489,7 @@ function RunsProviderContent({
         isLoading: metricsRunsQuery.isLoading,
       },
       isLoading: listRunsQuery.isLoading,
+      isRefetching: listRunsQuery.isFetching,
       create: createRunMutation,
       cancel: cancelRunMutation,
       replay: replayRunMutation,

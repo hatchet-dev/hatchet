@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, RefreshCw  } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -19,6 +19,9 @@ import {
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
 import { TbSnowflake, TbSnowflakeOff } from 'react-icons/tb';
+import { SplitButton } from '../split-button';
+import { useRuns } from '@/next/hooks/use-runs';
+import { useState } from 'react';
 interface TimeFilterProps {
   startField?: string;
   endField?: string;
@@ -48,13 +51,15 @@ export function TimeFilterGroup({
 }
 
 export function TogglePause() {
+  const { refetch, isRefetching } = useRuns();  
   const { pause, resume, isPaused } = useTimeFilters();
 
+  const [refetchDisabled, setRefetchDisabled] = useState(false);
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
+          <SplitButton
             variant={isPaused ? 'default' : 'outline'}
             size="sm"
             className="h-8 px-2 text-xs"
@@ -64,8 +69,35 @@ export function TogglePause() {
               } else {
                 pause();
               }
-            }}
-          >
+            } } dropdownItems={[
+              {
+                label: isPaused ? 'Unfreeze New Runs' : 'Freeze New Runs',
+                onClick: () => {
+                  if (isPaused) {
+                    resume();
+                  } else {
+                    pause();
+                  }
+                },
+              },
+              {
+                label: <div className="flex items-center gap-2">
+                  <RefreshCw className={cn("h-4 w-4", isRefetching || refetchDisabled && "animate-spin")} />
+                  <span className="text-xs">Refresh</span>
+                </div>,
+                disabled:  isRefetching || refetchDisabled,
+                onClick: (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setRefetchDisabled(true);
+                  refetch();
+                  setTimeout(() => {
+                    // Slow down the spamming of the refresh button
+                    setRefetchDisabled(false);
+                  }, 300);
+                },
+              },
+            ]}          >
             {isPaused ? (
               <>
                 <TbSnowflakeOff className="h-4 w-4" />
@@ -74,7 +106,7 @@ export function TogglePause() {
             ) : (
               <TbSnowflake className="h-4 w-4" />
             )}
-          </Button>
+          </SplitButton>
         </TooltipTrigger>
         <TooltipContent>
           {isPaused ? undefined : 'Freeze new runs'}
