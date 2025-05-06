@@ -1,6 +1,5 @@
 import GetWorkflowChart from '@/next/components/runs/runs-metrics/runs-histogram';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
-import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -27,8 +26,6 @@ interface RunsPageSheetProps {
 }
 
 export default function EventsDetailPage() {
-  const [showTriggerModal, setShowTriggerModal] = useState(false);
-
   const { eventId } = useParams<{
     eventId: string;
   }>();
@@ -86,7 +83,6 @@ export default function EventsDetailPage() {
           <RunsTable
             onRowClick={handleRowClick}
             selectedTaskId={taskId?.taskId}
-            onTriggerRunClick={() => setShowTriggerModal(true)}
             excludedFilters={[
               'additional_metadata',
               'is_root_task',
