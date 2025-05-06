@@ -612,7 +612,6 @@ func (s *Scheduler) tryAssignSingleton(
 	rateLimitNack func(),
 ) (
 	res assignSingleResult, err error,
-
 ) {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
@@ -621,6 +620,12 @@ func (s *Scheduler) tryAssignSingleton(
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
 	}
 
+	if len(candidateSlots) == 0 {
+		res.noSlots = true
+		return res, nil
+	}
+
+	ringOffset = ringOffset % len(candidateSlots)
 	assignedSlot := findSlot(candidateSlots[ringOffset:], rateLimitAck, rateLimitNack)
 
 	if assignedSlot == nil {
