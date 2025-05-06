@@ -244,7 +244,7 @@ name: ${user?.name}`;
                 <SidebarMenuItem>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <SidebarMenuButton size="sm">
+                      <SidebarMenuButton size="sm" tooltip="Support">
                         <QuestionMarkCircledIcon />
                         <span>Support</span>
                       </SidebarMenuButton>
@@ -285,6 +285,7 @@ name: ${user?.name}`;
                 <SidebarMenuItem key="docs">
                   <SidebarMenuButton
                     size="sm"
+                    tooltip="Documentation"
                     onClick={() => docs.toggle(pages.home.index)}
                   >
                     <BookOpen />
@@ -293,7 +294,7 @@ name: ${user?.name}`;
                 </SidebarMenuItem>
                 {navLinks.navSecondary.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild size="sm">
+                    <SidebarMenuButton asChild size="sm" tooltip={item.title}>
                       <Link to={item.url} target="_blank" rel="noreferrer">
                         <item.icon />
                         <span>{item.title}</span>
