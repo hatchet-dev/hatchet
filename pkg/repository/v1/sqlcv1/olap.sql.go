@@ -14,8 +14,8 @@ import (
 const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS event_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS event_inserted_at,
+        UNNEST($1::UUID[]) AS event_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS event_seen_at,
         UNNEST($3::UUID[]) AS run_external_id,
         UNNEST($4::TIMESTAMPTZ[]) AS run_inserted_at
 )
@@ -23,29 +23,29 @@ INSERT INTO v1_event_to_run_olap(
     run_id,
     run_inserted_at,
     event_id,
-    event_inserted_at
+    event_seen_at
 )
 SELECT
     COALESCE(lt.task_id, lt.dag_id) AS run_id,
     i.run_inserted_at,
     i.event_id,
-    i.event_inserted_at
+    i.event_seen_at
 FROM inputs i
 JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
-RETURNING run_id, run_inserted_at, event_id, event_inserted_at
+RETURNING run_id, run_inserted_at, event_id, event_seen_at
 `
 
 type BulkCreateEventTriggersParams struct {
-	Eventids         []int64              `json:"eventids"`
-	Eventinsertedats []pgtype.Timestamptz `json:"eventinsertedats"`
-	Runexternalids   []pgtype.UUID        `json:"runexternalids"`
-	Runinsertedats   []pgtype.Timestamptz `json:"runinsertedats"`
+	Eventids       []pgtype.UUID        `json:"eventids"`
+	Eventseenats   []pgtype.Timestamptz `json:"eventseenats"`
+	Runexternalids []pgtype.UUID        `json:"runexternalids"`
+	Runinsertedats []pgtype.Timestamptz `json:"runinsertedats"`
 }
 
 func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) ([]*V1EventToRunOlap, error) {
 	rows, err := db.Query(ctx, bulkCreateEventTriggers,
 		arg.Eventids,
-		arg.Eventinsertedats,
+		arg.Eventseenats,
 		arg.Runexternalids,
 		arg.Runinsertedats,
 	)
@@ -60,7 +60,7 @@ func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg Bulk
 			&i.RunID,
 			&i.RunInsertedAt,
 			&i.EventID,
-			&i.EventInsertedAt,
+			&i.EventSeenAt,
 		); err != nil {
 			return nil, err
 		}
@@ -89,8 +89,8 @@ type CreateDAGsOLAPParams struct {
 const createEvent = `-- name: CreateEvent :one
 INSERT INTO v1_events_olap (
     tenant_id,
-    external_id,
-    generated_at,
+    id,
+    seen_at,
     key,
     payload,
     additional_metadata
@@ -103,13 +103,13 @@ VALUES (
     $5::JSONB,
     $6::JSONB
 )
-RETURNING tenant_id, id, inserted_at, generated_at, external_id, key, payload, additional_metadata
+RETURNING tenant_id, id, seen_at, key, payload, additional_metadata
 `
 
 type CreateEventParams struct {
 	Tenantid           pgtype.UUID        `json:"tenantid"`
-	Externalid         pgtype.UUID        `json:"externalid"`
-	Generatedat        pgtype.Timestamptz `json:"generatedat"`
+	Eventid            pgtype.UUID        `json:"eventid"`
+	Seenat             pgtype.Timestamptz `json:"seenat"`
 	Key                string             `json:"key"`
 	Payload            []byte             `json:"payload"`
 	AdditionalMetadata []byte             `json:"additionalMetadata"`
@@ -118,8 +118,8 @@ type CreateEventParams struct {
 func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParams) (*V1EventsOlap, error) {
 	row := db.QueryRow(ctx, createEvent,
 		arg.Tenantid,
-		arg.Externalid,
-		arg.Generatedat,
+		arg.Eventid,
+		arg.Seenat,
 		arg.Key,
 		arg.Payload,
 		arg.AdditionalMetadata,
@@ -128,9 +128,7 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	err := row.Scan(
 		&i.TenantID,
 		&i.ID,
-		&i.InsertedAt,
-		&i.GeneratedAt,
-		&i.ExternalID,
+		&i.SeenAt,
 		&i.Key,
 		&i.Payload,
 		&i.AdditionalMetadata,
