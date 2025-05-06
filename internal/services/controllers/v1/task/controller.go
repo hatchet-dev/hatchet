@@ -826,6 +826,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	}
 
 	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
+	eventSeenAt := time.Now()
 
 	for _, event := range eventData {
 		for _, task := range tasks {
@@ -834,7 +835,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					TaskExternalId: event.TaskExternalId,
 					TaskInsertedAt: task.InsertedAt.Time,
 					// FIXME: Should `SeenAt` be set on the SDK when the event is created?
-					EventSeenAt:             time.Now(),
+					EventSeenAt:             eventSeenAt,
 					EventKey:                event.EventKey,
 					EventId:                 event.EventId,
 					EventPayload:            event.EventPayload,
