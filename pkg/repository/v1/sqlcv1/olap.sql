@@ -1262,7 +1262,7 @@ WHERE
 -- name: BulkCreateEventsAndTriggers :exec
 WITH inputs AS (
     SELECT
-        @tenantId::UUID AS tenant_id,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(@eventIds::UUID[]) AS event_id,
         UNNEST(@eventSeenAts::TIMESTAMPTZ[]) AS event_seen_at,
         UNNEST(@eventKeys::TEXT[]) AS event_key,

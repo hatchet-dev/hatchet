@@ -14,7 +14,7 @@ import (
 const bulkCreateEventsAndTriggers = `-- name: BulkCreateEventsAndTriggers :exec
 WITH inputs AS (
     SELECT
-        $1::UUID AS tenant_id,
+        UNNEST($1::UUID[]) AS tenant_id,
         UNNEST($2::UUID[]) AS event_id,
         UNNEST($3::TIMESTAMPTZ[]) AS event_seen_at,
         UNNEST($4::TEXT[]) AS event_key,
@@ -57,7 +57,7 @@ JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
 `
 
 type BulkCreateEventsAndTriggersParams struct {
-	Tenantid                 pgtype.UUID          `json:"tenantid"`
+	Tenantids                []pgtype.UUID        `json:"tenantids"`
 	Eventids                 []pgtype.UUID        `json:"eventids"`
 	Eventseenats             []pgtype.Timestamptz `json:"eventseenats"`
 	Eventkeys                []string             `json:"eventkeys"`
@@ -69,7 +69,7 @@ type BulkCreateEventsAndTriggersParams struct {
 
 func (q *Queries) BulkCreateEventsAndTriggers(ctx context.Context, db DBTX, arg BulkCreateEventsAndTriggersParams) error {
 	_, err := db.Exec(ctx, bulkCreateEventsAndTriggers,
-		arg.Tenantid,
+		arg.Tenantids,
 		arg.Eventids,
 		arg.Eventseenats,
 		arg.Eventkeys,
