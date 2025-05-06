@@ -43,6 +43,7 @@ import {
   PageSizeSelector,
   PageSelector,
 } from '@/next/components/ui/pagination';
+import { Time } from '@/next/components/ui/time';
 
 // Create a DataTableColumnHeader component
 interface DataTableColumnHeaderProps<TData>
@@ -155,10 +156,8 @@ export function TokensTable({ emptyState }: TokensTableProps) {
 
   const { filters, setFilters } = useApiTokensContext();
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+
+  
   const { can } = useCan();
 
   // Define columns
@@ -181,7 +180,7 @@ export function TokensTable({ emptyState }: TokensTableProps) {
       ),
       cell: ({ row }) => {
         const createdAt = new Date(row.original.metadata.createdAt);
-        return <div>{createdAt.toLocaleDateString()}</div>;
+        return <div><Time date={createdAt} tooltipVariant="timestamp"/></div>;
       },
       enableSorting: true,
       enableHiding: true,
@@ -193,7 +192,7 @@ export function TokensTable({ emptyState }: TokensTableProps) {
       ),
       cell: ({ row }) => {
         const expiresAt = new Date(row.original.expiresAt);
-        return <div>{expiresAt.toLocaleDateString()}</div>;
+        return <div><Time date={expiresAt} tooltipVariant="timestamp"/></div>;
       },
       enableSorting: true,
       enableHiding: true,
@@ -225,7 +224,6 @@ export function TokensTable({ emptyState }: TokensTableProps) {
     getCoreRowModel: getCoreRowModel(),
     state: {
       sorting,
-      pagination,
     },
     enableSorting: true,
     enableMultiSort: false,
@@ -253,17 +251,14 @@ export function TokensTable({ emptyState }: TokensTableProps) {
         });
       }
     },
-    onPaginationChange: setPagination,
     manualSorting: true, // Keep as true since we're handling sorting through API
     manualPagination: true,
-    pageCount: Math.ceil((data?.length ?? 0) / pagination.pageSize),
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {data?.length} token(s) found
         </div>
         <DataTableViewOptions table={table} />
       </div>
@@ -331,10 +326,6 @@ export function TokensTable({ emptyState }: TokensTableProps) {
         </UITable>
       </div>
 
-      <Pagination className="p-2 justify-between flex flex-row">
-        <PageSizeSelector />
-        <PageSelector variant="dropdown" />
-      </Pagination>
 
       {revokeToken && (
         <RevokeTokenForm
@@ -342,6 +333,10 @@ export function TokensTable({ emptyState }: TokensTableProps) {
           close={() => setRevokeToken(null)}
         />
       )}
+        <Pagination className="justify-between flex flex-row">
+          <PageSizeSelector />
+          <PageSelector variant="dropdown" />
+        </Pagination>
     </div>
   );
 }

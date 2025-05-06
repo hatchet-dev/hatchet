@@ -158,22 +158,11 @@ export const columns = (
       />
     ),
     cell: ({ row }) => (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Time date={row.getValue('createdAt')} variant="timeSince" />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="bg-muted">
-            <Time
-              date={row.getValue('createdAt')}
-              variant="timestamp"
-              className="font-mono text-foreground"
-            />
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Time 
+        date={row.getValue('createdAt')} 
+        variant="timeSince" 
+        tooltipVariant="timestamp"
+      />
     ),
     enableSorting: false,
     enableHiding: true,

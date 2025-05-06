@@ -3,6 +3,12 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/next/lib/utils';
 import { format } from 'date-fns';
 import TimeAgo from 'timeago-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/next/components/ui/tooltip';
 
 // Helper to check if a timestamp is valid (not empty or the special "0001-01-01" value)
 export const isValidTimestamp = (timestamp?: string | Date | null): boolean => {
@@ -50,6 +56,11 @@ export interface TimeProps
    */
   updateInterval?: number;
   asChild?: boolean;
+  /**
+   * Optional tooltip variant to show when hovering over the time
+   * If specified, the time will be wrapped in a tooltip showing the specified variant
+   */
+  tooltipVariant?: 'timestamp' | 'short' | 'compact';
 }
 
 export function Time({
@@ -58,77 +69,99 @@ export function Time({
   date,
   updateInterval = 0,
   asChild,
+  tooltipVariant,
   ...props
 }: TimeProps) {
-  // For timestamp and short variants, we'll format the date directly
-  if (variant === 'timestamp' && isValidTimestamp(date)) {
-    const dateObj = typeof date === 'string' ? new Date(date) : date!;
-    const formattedTime = format(dateObj, 'yyyy-MM-dd HH:mm:ss.SSS');
+  const renderTime = (variant: TimeProps['variant']) => {
+    // For timestamp and short variants, we'll format the date directly
+    if (variant === 'timestamp' && isValidTimestamp(date)) {
+      const dateObj = typeof date === 'string' ? new Date(date) : date!;
+      const formattedTime = format(dateObj, 'yyyy-MM-dd HH:mm:ss.SSS');
+
+      return (
+        <span
+          className={cn(!asChild && timeVariants({ variant }), className)}
+          {...props}
+        >
+          {formattedTime}
+        </span>
+      );
+    }
+
+    if (variant === 'short' && isValidTimestamp(date)) {
+      const dateObj = typeof date === 'string' ? new Date(date) : date!;
+      const formattedTime = format(dateObj, 'MMM d, HH:mm');
+
+      return (
+        <span
+          className={cn(!asChild && timeVariants({ variant }), className)}
+          {...props}
+        >
+          {formattedTime}
+        </span>
+      );
+    }
+
+    // Add compact variant
+    if (variant === 'compact' && isValidTimestamp(date)) {
+      const dateObj = typeof date === 'string' ? new Date(date) : date!;
+      const formattedTime = format(dateObj, 'MM-dd HH:mm:ss.SSS');
+
+      return (
+        <span
+          className={cn(!asChild && timeVariants({ variant }), className)}
+          {...props}
+        >
+          {formattedTime}
+        </span>
+      );
+    }
+
+    // For timeSince variant or if no date is provided
+    if (!isValidTimestamp(date)) {
+      return (
+        <span
+          className={cn(!asChild && timeVariants({ variant }), className)}
+          {...props}
+        >
+          -
+        </span>
+      );
+    }
+
+    // For timeSince variant, use TimeAgo component
+    // Convert milliseconds to seconds for minInterval if specified
+    const opts =
+      updateInterval > 0
+        ? { minInterval: Math.floor(updateInterval / 1000) }
+        : undefined;
 
     return (
       <span
         className={cn(!asChild && timeVariants({ variant }), className)}
         {...props}
       >
-        {formattedTime}
+        <TimeAgo datetime={date!} live={true} opts={opts} />
       </span>
     );
-  }
+  };
 
-  if (variant === 'short' && isValidTimestamp(date)) {
-    const dateObj = typeof date === 'string' ? new Date(date) : date!;
-    const formattedTime = format(dateObj, 'MMM d, HH:mm');
-
+  if (tooltipVariant && isValidTimestamp(date)) {
     return (
-      <span
-        className={cn(!asChild && timeVariants({ variant }), className)}
-        {...props}
-      >
-        {formattedTime}
-      </span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {renderTime(variant)}
+          </TooltipTrigger>
+          <TooltipContent className="bg-muted">
+            <span className="text-foreground">
+              {renderTime(tooltipVariant)}
+            </span>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
-  // Add compact variant
-  if (variant === 'compact' && isValidTimestamp(date)) {
-    const dateObj = typeof date === 'string' ? new Date(date) : date!;
-    const formattedTime = format(dateObj, 'MM-dd HH:mm:ss.SSS');
-
-    return (
-      <span
-        className={cn(!asChild && timeVariants({ variant }), className)}
-        {...props}
-      >
-        {formattedTime}
-      </span>
-    );
-  }
-
-  // For timeSince variant or if no date is provided
-  if (!isValidTimestamp(date)) {
-    return (
-      <span
-        className={cn(!asChild && timeVariants({ variant }), className)}
-        {...props}
-      >
-        -
-      </span>
-    );
-  }
-
-  // For timeSince variant, use TimeAgo component
-  // Convert milliseconds to seconds for minInterval if specified
-  const opts =
-    updateInterval > 0
-      ? { minInterval: Math.floor(updateInterval / 1000) }
-      : undefined;
-
-  return (
-    <span
-      className={cn(!asChild && timeVariants({ variant }), className)}
-      {...props}
-    >
-      <TimeAgo datetime={date!} live={true} opts={opts} />
-    </span>
-  );
+  return renderTime(variant);
 }
