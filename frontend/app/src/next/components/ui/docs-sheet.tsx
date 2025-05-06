@@ -23,7 +23,7 @@ export function DocsSheetComponent({
         className={`
           h-full min-h-screen bg-background border-l border-border
           transition-all duration-300 ease-in-out
-          ${sheet.isOpen ? 'lg:w-[600px] md:w-[400px] w-[300px]' : 'w-0 overflow-hidden'}
+          ${sheet.isOpen ? 'lg:w-[500px] md:w-[350px] w-[250px]' : 'w-0 overflow-hidden'}
         `}
       >
         {sheet.isOpen && (
@@ -75,7 +75,7 @@ export function DocsSheetComponent({
     <Sheet open={sheet.isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
-        className="p-4 md:p-6 w-full max-w-[300px] sm:max-w-[400px] lg:max-w-[600px]"
+        className="p-4 md:p-6 w-[min(500px,90vw)] h-screen"
       >
         <SheetHeader className="mb-4 pr-8">
           <div className="flex justify-between items-center">
@@ -94,7 +94,7 @@ export function DocsSheetComponent({
             )}
           </div>
         </SheetHeader>
-        <div className="h-[calc(100vh-120px)] w-full relative overflow-hidden">
+        <div className="flex-1 relative overflow-hidden">
           {sheet.url && (
             <iframe
               src={sheet.url}
