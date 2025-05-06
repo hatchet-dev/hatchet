@@ -1258,33 +1258,37 @@ FROM
 WHERE
   tenant_id = @tenantId::uuid;
 
--- name: CreateEvent :one
-INSERT INTO v1_events_olap (
-    tenant_id,
-    id,
-    seen_at,
-    key,
-    payload,
-    additional_metadata
-)
-VALUES (
-    @tenantId::UUID,
-    @eventId::UUID,
-    @seenAt::TIMESTAMPTZ,
-    @key::TEXT,
-    @payload::JSONB,
-    sqlc.narg('additionalMetadata')::JSONB
-)
-RETURNING *;
 
--- name: BulkCreateEventTriggers :many
+-- name: BulkCreateEventsAndTriggers :exec
 WITH inputs AS (
     SELECT
+        @tenantId::UUID AS tenant_id,
         UNNEST(@eventIds::UUID[]) AS event_id,
         UNNEST(@eventSeenAts::TIMESTAMPTZ[]) AS event_seen_at,
+        UNNEST(@eventKeys::TEXT[]) AS event_key,
+        UNNEST(@eventPayloads::JSONB[]) AS event_payload,
+        UNNEST(@eventAdditionalMetadatas::JSONB[]) AS event_additional_metadata,
         UNNEST(@runExternalIds::UUID[]) AS run_external_id,
         UNNEST(@runInsertedAts::TIMESTAMPTZ[]) AS run_inserted_at
+), events AS (
+    INSERT INTO v1_events_olap (
+        tenant_id,
+        id,
+        seen_at,
+        key,
+        payload,
+        additional_metadata
+    )
+    SELECT DISTINCT
+        i.tenant_id,
+        i.event_id,
+        i.event_seen_at,
+        i.event_key,
+        i.event_payload,
+        i.event_additional_metadata
+    FROM inputs i
 )
+
 INSERT INTO v1_event_to_run_olap(
     run_id,
     run_inserted_at,
@@ -1298,4 +1302,4 @@ SELECT
     i.event_seen_at
 FROM inputs i
 JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
-RETURNING *;
+;
