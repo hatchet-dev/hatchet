@@ -11,14 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bulkCreateEventTriggers = `-- name: BulkCreateEventTriggers :many
+const bulkCreateEventsAndTriggers = `-- name: BulkCreateEventsAndTriggers :exec
 WITH inputs AS (
     SELECT
-        UNNEST($1::UUID[]) AS event_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS event_seen_at,
-        UNNEST($3::UUID[]) AS run_external_id,
-        UNNEST($4::TIMESTAMPTZ[]) AS run_inserted_at
+        $1::UUID AS tenant_id,
+        UNNEST($2::UUID[]) AS event_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS event_seen_at,
+        UNNEST($4::TEXT[]) AS event_key,
+        UNNEST($5::JSONB[]) AS event_payload,
+        UNNEST($6::JSONB[]) AS event_additional_metadata,
+        UNNEST($7::UUID[]) AS run_external_id,
+        UNNEST($8::TIMESTAMPTZ[]) AS run_inserted_at
+), events AS (
+    INSERT INTO v1_events_olap (
+        tenant_id,
+        id,
+        seen_at,
+        key,
+        payload,
+        additional_metadata
+    )
+    SELECT DISTINCT
+        i.tenant_id,
+        i.event_id,
+        i.event_seen_at,
+        i.event_key,
+        i.event_payload,
+        i.event_additional_metadata
+    FROM inputs i
 )
+
 INSERT INTO v1_event_to_run_olap(
     run_id,
     run_inserted_at,
@@ -32,44 +54,31 @@ SELECT
     i.event_seen_at
 FROM inputs i
 JOIN v1_lookup_table_olap lt ON lt.external_id = i.run_external_id
-RETURNING run_id, run_inserted_at, event_id, event_seen_at
 `
 
-type BulkCreateEventTriggersParams struct {
-	Eventids       []pgtype.UUID        `json:"eventids"`
-	Eventseenats   []pgtype.Timestamptz `json:"eventseenats"`
-	Runexternalids []pgtype.UUID        `json:"runexternalids"`
-	Runinsertedats []pgtype.Timestamptz `json:"runinsertedats"`
+type BulkCreateEventsAndTriggersParams struct {
+	Tenantid                 pgtype.UUID          `json:"tenantid"`
+	Eventids                 []pgtype.UUID        `json:"eventids"`
+	Eventseenats             []pgtype.Timestamptz `json:"eventseenats"`
+	Eventkeys                []string             `json:"eventkeys"`
+	Eventpayloads            [][]byte             `json:"eventpayloads"`
+	Eventadditionalmetadatas [][]byte             `json:"eventadditionalmetadatas"`
+	Runexternalids           []pgtype.UUID        `json:"runexternalids"`
+	Runinsertedats           []pgtype.Timestamptz `json:"runinsertedats"`
 }
 
-func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg BulkCreateEventTriggersParams) ([]*V1EventToRunOlap, error) {
-	rows, err := db.Query(ctx, bulkCreateEventTriggers,
+func (q *Queries) BulkCreateEventsAndTriggers(ctx context.Context, db DBTX, arg BulkCreateEventsAndTriggersParams) error {
+	_, err := db.Exec(ctx, bulkCreateEventsAndTriggers,
+		arg.Tenantid,
 		arg.Eventids,
 		arg.Eventseenats,
+		arg.Eventkeys,
+		arg.Eventpayloads,
+		arg.Eventadditionalmetadatas,
 		arg.Runexternalids,
 		arg.Runinsertedats,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1EventToRunOlap
-	for rows.Next() {
-		var i V1EventToRunOlap
-		if err := rows.Scan(
-			&i.RunID,
-			&i.RunInsertedAt,
-			&i.EventID,
-			&i.EventSeenAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return err
 }
 
 type CreateDAGsOLAPParams struct {
@@ -84,56 +93,6 @@ type CreateDAGsOLAPParams struct {
 	AdditionalMetadata   []byte             `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
 	TotalTasks           int32              `json:"total_tasks"`
-}
-
-const createEvent = `-- name: CreateEvent :one
-INSERT INTO v1_events_olap (
-    tenant_id,
-    id,
-    seen_at,
-    key,
-    payload,
-    additional_metadata
-)
-VALUES (
-    $1::UUID,
-    $2::UUID,
-    $3::TIMESTAMPTZ,
-    $4::TEXT,
-    $5::JSONB,
-    $6::JSONB
-)
-RETURNING tenant_id, id, seen_at, key, payload, additional_metadata
-`
-
-type CreateEventParams struct {
-	Tenantid           pgtype.UUID        `json:"tenantid"`
-	Eventid            pgtype.UUID        `json:"eventid"`
-	Seenat             pgtype.Timestamptz `json:"seenat"`
-	Key                string             `json:"key"`
-	Payload            []byte             `json:"payload"`
-	AdditionalMetadata []byte             `json:"additionalMetadata"`
-}
-
-func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParams) (*V1EventsOlap, error) {
-	row := db.QueryRow(ctx, createEvent,
-		arg.Tenantid,
-		arg.Eventid,
-		arg.Seenat,
-		arg.Key,
-		arg.Payload,
-		arg.AdditionalMetadata,
-	)
-	var i V1EventsOlap
-	err := row.Scan(
-		&i.TenantID,
-		&i.ID,
-		&i.SeenAt,
-		&i.Key,
-		&i.Payload,
-		&i.AdditionalMetadata,
-	)
-	return &i, err
 }
 
 const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
