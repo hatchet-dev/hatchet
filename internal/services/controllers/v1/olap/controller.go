@@ -337,8 +337,8 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
-	eventIds := make([]int64, 0)
-	eventInsertedAts := make([]pgtype.Timestamptz, 0)
+	eventIds := make([]pgtype.UUID, 0)
+	eventSeenAts := make([]pgtype.Timestamptz, 0)
 	runExternalIds := make([]pgtype.UUID, 0)
 	runInsertedAts := make([]pgtype.Timestamptz, 0)
 
@@ -346,8 +346,8 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		for _, payload := range msg.Payloads {
 			opts := sqlcv1.CreateEventParams{
 				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-				Externalid:         sqlchelpers.UUIDFromStr(payload.EventExternalId),
-				Generatedat:        sqlchelpers.TimestamptzFromTime(payload.EventGeneratedAt),
+				Eventid:            sqlchelpers.UUIDFromStr(payload.EventId),
+				Seenat:             sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 				Key:                payload.EventKey,
 				Payload:            payload.EventPayload,
 				AdditionalMetadata: payload.EventAdditionalMetadata,
@@ -361,17 +361,17 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 			}
 
 			eventIds = append(eventIds, event.ID)
-			eventInsertedAts = append(eventInsertedAts, event.InsertedAt)
+			eventSeenAts = append(eventSeenAts, event.SeenAt)
 			runExternalIds = append(runExternalIds, sqlchelpers.UUIDFromStr(payload.TaskExternalId))
 			runInsertedAts = append(runInsertedAts, sqlchelpers.TimestamptzFromTime(payload.TaskInsertedAt))
 		}
 	}
 
 	bulkOpts := sqlcv1.BulkCreateEventTriggersParams{
-		Eventids:         eventIds,
-		Eventinsertedats: eventInsertedAts,
-		Runexternalids:   runExternalIds,
-		Runinsertedats:   runInsertedAts,
+		Eventids:       eventIds,
+		Eventseenats:   eventSeenAts,
+		Runexternalids: runExternalIds,
+		Runinsertedats: runInsertedAts,
 	}
 
 	_, err := tc.repo.OLAP().BulkCreateEventTriggers(
