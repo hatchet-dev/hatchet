@@ -488,10 +488,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	for _, eventTrigger := range opts.EventTriggers {
-		expression := pgtype.Text{
-			String: "",
-			Valid:  false,
-		}
+		var expression pgtype.Text
 
 		if opts.EventFilterExpression != nil {
 			expression = sqlchelpers.TextFromStr(*opts.EventFilterExpression)
