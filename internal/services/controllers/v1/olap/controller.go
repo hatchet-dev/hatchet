@@ -337,6 +337,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
+	tenantIds := make([]pgtype.UUID, len(msgs))
 	eventIds := make([]pgtype.UUID, 0)
 	eventSeenAts := make([]pgtype.Timestamptz, 0)
 	eventPayloads := make([][]byte, 0)
@@ -348,6 +349,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
+			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			eventIds = append(eventIds, sqlchelpers.UUIDFromStr(payload.EventId))
 			eventSeenAts = append(eventSeenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
 			eventKeys = append(eventKeys, payload.EventKey)
@@ -360,7 +362,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	}
 
 	bulkOpts := sqlcv1.BulkCreateEventsAndTriggersParams{
-		Tenantid:                 sqlchelpers.UUIDFromStr(tenantId),
+		Tenantids:                tenantIds,
 		Eventids:                 eventIds,
 		Eventseenats:             eventSeenAts,
 		Eventkeys:                eventKeys,
