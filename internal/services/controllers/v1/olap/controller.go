@@ -334,6 +334,10 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 }
 
+func makeEventKey(eventId string, eventSeenAt time.Time) string {
+	return fmt.Sprintf("%s-%s", eventId, eventSeenAt.Format(time.RFC3339))
+}
+
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
@@ -342,26 +346,39 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	runExternalIds := make([]pgtype.UUID, 0)
 	runInsertedAts := make([]pgtype.Timestamptz, 0)
 
+	processedEvents := make(map[string]*sqlcv1.V1EventsOlap)
+
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
-			opts := sqlcv1.CreateEventParams{
-				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-				Eventid:            sqlchelpers.UUIDFromStr(payload.EventId),
-				Seenat:             sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
-				Key:                payload.EventKey,
-				Payload:            payload.EventPayload,
-				AdditionalMetadata: payload.EventAdditionalMetadata,
+			key := makeEventKey(payload.EventId, payload.EventSeenAt)
+
+			var currentEvent *sqlcv1.V1EventsOlap
+			var err error
+
+			currentEvent, eventExists := processedEvents[key]
+
+			if !eventExists {
+				opts := sqlcv1.CreateEventParams{
+					Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+					Eventid:            sqlchelpers.UUIDFromStr(payload.EventId),
+					Seenat:             sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
+					Key:                payload.EventKey,
+					Payload:            payload.EventPayload,
+					AdditionalMetadata: payload.EventAdditionalMetadata,
+				}
+
+				currentEvent, err = tc.repo.OLAP().CreateEvent(ctx, tenantId, opts)
+
+				if err != nil {
+					tc.l.Error().Msgf("could not create event: %s", err.Error())
+					return err
+				}
+
+				processedEvents[key] = currentEvent
 			}
 
-			event, err := tc.repo.OLAP().CreateEvent(ctx, tenantId, opts)
-
-			if err != nil {
-				tc.l.Error().Msgf("could not create event trigger: %s", err.Error())
-				return err
-			}
-
-			eventIds = append(eventIds, event.ID)
-			eventSeenAts = append(eventSeenAts, event.SeenAt)
+			eventIds = append(eventIds, currentEvent.ID)
+			eventSeenAts = append(eventSeenAts, currentEvent.SeenAt)
 			runExternalIds = append(runExternalIds, sqlchelpers.UUIDFromStr(payload.TaskExternalId))
 			runInsertedAts = append(runInsertedAts, sqlchelpers.TimestamptzFromTime(payload.TaskInsertedAt))
 		}
