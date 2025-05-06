@@ -2482,7 +2482,7 @@ type V1DurableSleep struct {
 type V1EventToRunOlap struct {
 	RunID         int64              `json:"run_id"`
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
-	EventID       int64              `json:"event_id"`
+	EventID       pgtype.UUID        `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
 }
 
