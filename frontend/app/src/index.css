@@ -291,6 +291,15 @@ pre.shiki > code > span::before {
   user-select: none;
 }
 
+/* Hide line numbers when hide-line-numbers class is applied */
+.hide-line-numbers pre.shiki > code > span::before {
+  display: none;
+}
+
+.hide-line-numbers pre.shiki > code > span {
+  padding-left: 0 !important;
+}
+
 /* High contrast mode */
 .contrast-more .shiki {
   filter: contrast(1.5);
