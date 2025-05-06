@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "npm run sync-docs && npm run sync-examples && vite",
+    "dev": "npm run sync-examples && vite",
     "build": "tsc && vite build",
     "lint:check": "npm run eslint:check && npm run prettier:check",
     "lint:fix": "npm run eslint:fix && npm run prettier:fix",
