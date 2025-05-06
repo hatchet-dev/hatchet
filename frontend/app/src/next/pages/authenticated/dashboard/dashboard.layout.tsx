@@ -64,10 +64,9 @@ export default function DashboardLayout() {
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
-                            className="flex items-center gap-2 p-0"
+                            className="flex items-center gap-2 p-0 bg-transparent hover:bg-transparent"
                           >
                             <UserBlock variant="compact" />
-                            <ChevronsUpDown className="ml-auto size-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
