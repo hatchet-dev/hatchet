@@ -1,3 +1,9 @@
+import useApiMeta from "./use-api-meta";
+
 export default function useSupportChat() {
-  return { show: () => (window as any).Pylon('show') };
+  const { oss } = useApiMeta();
+  return { 
+    show: () => (window as any).Pylon('show'),
+    isEnabled: () => !!oss?.pylonAppId,
+  };
 }

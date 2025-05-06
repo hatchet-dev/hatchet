@@ -255,10 +255,12 @@ name: ${user?.name}`;
                       sideOffset={4}
                     >
                       <DropdownMenuGroup>
-                        <DropdownMenuItem onClick={() => chat.show()}>
-                          <MessageCircle />
-                          Chat with Support
-                        </DropdownMenuItem>
+                        {chat.isEnabled() && (
+                          <DropdownMenuItem onClick={() => chat.show()}>
+                            <MessageCircle />
+                            Chat with Support
+                          </DropdownMenuItem>
+                        )}
                         {navLinks.support.map((item) => (
                           <DropdownMenuItem
                             key={item.title}
