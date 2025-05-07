@@ -105,9 +105,9 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 }
 
 type RunWithEventTriggerOpts struct {
-	RunId         int64
-	RunInsertedAt time.Time
-	Opts          EventTriggerOpts
+	MaybeRunId         *int64
+	MaybeRunInsertedAt *time.Time
+	Opts               EventTriggerOpts
 }
 
 type TriggerFromEventsResult struct {
@@ -215,12 +215,24 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 						Str("expression", workflow.EventExpression.String).
 						Msg("Failed to evaluate workflow expression")
 
+					// If we are going to skip triggering runs from the event,
+					// we still need to write the event to the event table.
+					runs = append(runs, &RunWithEventTriggerOpts{
+						Opts: opt,
+					})
+
 					// If we fail to parse the expression, we should not run the workflow.
 					// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
 					continue
 				}
 
 				if shouldFilter {
+					// If we are going to skip triggering runs from the event,
+					// we still need to write the event to the event table.
+					runs = append(runs, &RunWithEventTriggerOpts{
+						Opts: opt,
+					})
+
 					continue
 				}
 			}
@@ -258,9 +270,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		runs = append(runs, &RunWithEventTriggerOpts{
-			RunId:         task.ID,
-			RunInsertedAt: task.InsertedAt.Time,
-			Opts:          opts,
+			MaybeRunId:         &task.ID,
+			MaybeRunInsertedAt: &task.InsertedAt.Time,
+			Opts:               opts,
 		})
 	}
 
@@ -273,9 +285,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		runs = append(runs, &RunWithEventTriggerOpts{
-			RunId:         dag.ID,
-			RunInsertedAt: dag.InsertedAt.Time,
-			Opts:          opts,
+			MaybeRunId:         &dag.ID,
+			MaybeRunInsertedAt: &dag.InsertedAt.Time,
+			Opts:               opts,
 		})
 	}
 
