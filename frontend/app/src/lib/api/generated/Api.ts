@@ -324,6 +324,13 @@ export class Api<
        * @maxLength 36
        */
       parent_task_external_id?: string;
+      /**
+       * The external id of the event that triggered the workflow run
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_id?: string;
     },
     params: RequestParams = {},
   ) =>

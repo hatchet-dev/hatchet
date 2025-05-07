@@ -1985,6 +1985,9 @@ type V1WorkflowRunListParams struct {
 
 	// ParentTaskExternalId The parent task external id to filter by
 	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
+
+	// TriggeringEventId The external id of the event that triggered the workflow run
+	TriggeringEventId *openapi_types.UUID `form:"triggering_event_id,omitempty" json:"triggering_event_id,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -5769,6 +5772,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		if params.ParentTaskExternalId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TriggeringEventId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_id", runtime.ParamLocationQuery, *params.TriggeringEventId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

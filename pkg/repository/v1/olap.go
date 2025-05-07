@@ -42,6 +42,8 @@ type ListTaskRunOpts struct {
 
 	AdditionalMetadata map[string]interface{}
 
+	TriggeringEventId *uuid.UUID
+
 	Limit int64
 
 	Offset int64
@@ -65,6 +67,8 @@ type ListWorkflowRunOpts struct {
 	Offset int64
 
 	ParentTaskExternalId *pgtype.UUID
+
+	TriggeringEventId *pgtype.UUID
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -522,6 +526,13 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		countParams.Values = append(countParams.Values, value.(string))
 	}
 
+	triggeringEventId := opts.TriggeringEventId
+
+	if opts.TriggeringEventId != nil {
+		params.TriggeringEventId = sqlchelpers.UUIDFromStr(triggeringEventId.String())
+		countParams.TriggeringEventId = sqlchelpers.UUIDFromStr(triggeringEventId.String())
+	}
+
 	rows, err := r.queries.ListTasksOlap(ctx, tx, params)
 
 	if err != nil {
@@ -715,6 +726,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 
 	if opts.ParentTaskExternalId != nil {
 		params.ParentTaskExternalId = *opts.ParentTaskExternalId
+	}
+
+	if opts.TriggeringEventId != nil {
+		params.TriggeringEventId = *opts.TriggeringEventId
+		countParams.TriggeringEventId = *opts.TriggeringEventId
 	}
 
 	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)

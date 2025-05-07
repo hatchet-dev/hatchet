@@ -234,6 +234,10 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		opts.FinishedBefore = request.Params.Until
 	}
 
+	if request.Params.TriggeringEventId != nil {
+		opts.TriggeringEventId = request.Params.TriggeringEventId
+	}
+
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
 		ctx,
 		tenantId,
