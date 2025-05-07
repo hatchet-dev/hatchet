@@ -15,7 +15,12 @@ WITH task_partitions AS (
     SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', @date::date) AS p
 ), runs_partitions AS (
     SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', @date::date) AS p
+), events_partitions AS (
+    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', @date::date) AS p
+), event_trigger_partitions AS (
+    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', @date::date) AS p
 )
+
 SELECT
     *
 FROM
@@ -33,7 +38,22 @@ UNION ALL
 SELECT
     *
 FROM
-    runs_partitions;
+    runs_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    events_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    event_trigger_partitions
+;
 
 -- name: CreateTasksOLAP :copyfrom
 INSERT INTO v1_tasks_olap (
