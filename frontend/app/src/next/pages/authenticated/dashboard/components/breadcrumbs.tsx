@@ -21,10 +21,7 @@ import {
 } from '@/next/components/ui/dropdown-menu';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
-import {
-  BreadcrumbData,
-  useBreadcrumbs,
-} from '@/next/hooks/use-breadcrumbs';
+import { BreadcrumbData, useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { BASE_PATH } from '@/next/lib/routes';
 
 // Use the existing NavItem type from main-nav

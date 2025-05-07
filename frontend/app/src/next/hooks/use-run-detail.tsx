@@ -198,7 +198,15 @@ function RunDetailProviderContent({
       lastRefetchTime,
       refetchInterval,
     }),
-    [runDetails, activity.data, cancelRun, replayRun, parentDetails, lastRefetchTime, refetchInterval],
+    [
+      runDetails,
+      activity.data,
+      cancelRun,
+      replayRun,
+      parentDetails,
+      lastRefetchTime,
+      refetchInterval,
+    ],
   );
 
   return (

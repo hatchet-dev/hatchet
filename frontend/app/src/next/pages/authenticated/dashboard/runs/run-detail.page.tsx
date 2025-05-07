@@ -49,7 +49,10 @@ export default function RunDetailPage() {
     taskId: string;
   }>();
   return (
-    <RunDetailProvider runId={workflowRunId || ''} defaultRefetchInterval={1000}>
+    <RunDetailProvider
+      runId={workflowRunId || ''}
+      defaultRefetchInterval={1000}
+    >
       <RunDetailPageContent workflowRunId={workflowRunId} taskId={taskId} />
     </RunDetailProvider>
   );
@@ -63,7 +66,16 @@ type RunDetailPageProps = {
 function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
-  const { data, isLoading, error, cancel, replay, parentData, lastRefetchTime, refetchInterval } = useRunDetail();
+  const {
+    data,
+    isLoading,
+    error,
+    cancel,
+    replay,
+    parentData,
+    lastRefetchTime,
+    refetchInterval,
+  } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
@@ -89,7 +101,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   }, [navigate, workflowRunId]);
 
   const breadcrumbs = useMemo(() => {
-  
     if (!workflow) {
       return [];
     }
