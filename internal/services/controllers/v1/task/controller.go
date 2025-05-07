@@ -857,7 +857,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		return fmt.Errorf("could not create event trigger message: %w", err)
 	}
 
-	tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
