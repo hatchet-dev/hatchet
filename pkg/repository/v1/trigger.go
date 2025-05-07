@@ -109,7 +109,6 @@ type RunWithEventTriggerOpts struct {
 	Opts          EventTriggerOpts
 }
 
-
 type TriggerFromEventsResult struct {
 	Tasks []*sqlcv1.V1Task
 	Dags  []*DAGWithData
@@ -131,9 +130,21 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workfl
 		inputData = make(map[string]interface{})
 	}
 
+	var additionalMetadata map[string]interface{}
+	if opt.AdditionalMetadata != nil {
+		err := json.Unmarshal(opt.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal additional metadata: %w", err)
+		}
+	} else {
+		additionalMetadata = make(map[string]interface{})
+	}
+
 	match, err := r.celParser.EvaluateBooleanExpression(
 		workflow.EventExpression.String,
+		opt.EventId,
 		inputData,
+		additionalMetadata,
 	)
 
 	if err != nil {
