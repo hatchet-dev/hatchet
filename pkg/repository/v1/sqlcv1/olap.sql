@@ -1376,4 +1376,3 @@ LEFT JOIN
     status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
 ORDER BY e.seen_at DESC
 ;
-
