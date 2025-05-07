@@ -7,18 +7,19 @@ import { WorkerType } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Separator } from '@/next/components/ui/separator';
 import { baseDocsUrl } from '@/next/hooks/use-docs-sheet';
-
+import { useEffect } from 'react';
 function ServiceDetailPageContent() {
-  useBreadcrumbs(
-    () => [
+  const breadcrumbSetter = useBreadcrumbs();
+
+  useEffect(() => {
+    breadcrumbSetter([
       {
         title: 'Worker Services',
         label: 'New Selfhosted Service',
         url: ROUTES.services.new(WorkerType.SELFHOSTED),
       },
-    ],
-    [],
-  );
+    ]);
+  }, [breadcrumbSetter]);
 
   return (
     <BasicLayout>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
@@ -34,8 +34,10 @@ function ServiceDetailPageContent() {
     return services.find((s) => s.name === decodedServiceName);
   }, [services, decodedServiceName]);
 
-  useBreadcrumbs(
-    () => [
+  const breadcrumb = useBreadcrumbs();
+
+  useEffect(() => {
+    breadcrumb.set([
       {
         title: 'Worker Services',
         label: serviceName,
@@ -44,9 +46,8 @@ function ServiceDetailPageContent() {
           service?.type || WorkerType.SELFHOSTED,
         ),
       },
-    ],
-    [decodedServiceName, service?.type],
-  );
+    ]);
+  }, [decodedServiceName, service?.type, breadcrumb]);
 
   const handleCloseSheet = useCallback(() => {
     if (!service) {

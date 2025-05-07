@@ -7,7 +7,7 @@ import {
   AlertTitle,
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
@@ -88,40 +88,47 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     navigate(ROUTES.runs.detail(workflowRunId!));
   }, [navigate, workflowRunId]);
 
-  // useBreadcrumbs(() => {
-  //   if (!workflow) {
-  //     return [];
-  //   }
+  const breadcrumbs = useMemo(() => {
+  
+    if (!workflow) {
+      return [];
+    }
 
-  //   const breadcrumbs = [];
+    const breadcrumbs = [];
 
-  //   if (parentData) {
-  //     const parentUrl = ROUTES.runs.detail(parentData.run.metadata.id);
-  //     breadcrumbs.push({
-  //       title: getFriendlyWorkflowRunId(parentData.run) || '',
-  //       label: <RunId wfRun={parentData.run} />,
-  //       url: parentUrl,
-  //       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-  //       alwaysShowIcon: true,
-  //     });
-  //   }
+    if (parentData) {
+      const parentUrl = ROUTES.runs.detail(parentData.run.metadata.id);
+      breadcrumbs.push({
+        title: getFriendlyWorkflowRunId(parentData.run) || '',
+        label: <RunId wfRun={parentData.run} />,
+        url: parentUrl,
+        icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
+        alwaysShowIcon: true,
+      });
+    }
 
-  //   breadcrumbs.push({
-  //     title: getFriendlyWorkflowRunId(workflow) || '',
-  //     label: <RunId wfRun={workflow} />,
-  //     url:
-  //       selectedTask?.metadata.id === workflow?.metadata.id
-  //         ? ROUTES.runs.detail(workflow.metadata.id)
-  //         : ROUTES.runs.taskDetail(
-  //             workflow.metadata.id,
-  //             selectedTask?.taskExternalId || '',
-  //           ),
-  //     icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-  //     alwaysShowIcon: true,
-  //   });
+    breadcrumbs.push({
+      title: getFriendlyWorkflowRunId(workflow) || '',
+      label: <RunId wfRun={workflow} />,
+      url:
+        selectedTask?.metadata.id === workflow?.metadata.id
+          ? ROUTES.runs.detail(workflow.metadata.id)
+          : ROUTES.runs.taskDetail(
+              workflow.metadata.id,
+              selectedTask?.taskExternalId || '',
+            ),
+      icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
+      alwaysShowIcon: true,
+    });
 
-  //   return breadcrumbs;
-  // }, [workflow, parentData, selectedTask]);
+    return breadcrumbs;
+  }, [workflow, parentData, selectedTask]);
+
+  const breadcrumb = useBreadcrumbs();
+
+  useEffect(() => {
+    breadcrumb.set(breadcrumbs);
+  }, [breadcrumbs, breadcrumb]);
 
   const canCancel = useMemo(() => {
     return (

@@ -23,7 +23,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import {
   BreadcrumbData,
-  useBreadcrumbsGetter,
+  useBreadcrumbs,
 } from '@/next/hooks/use-breadcrumbs';
 import { BASE_PATH } from '@/next/lib/routes';
 
@@ -54,7 +54,7 @@ export function BreadcrumbNav() {
   // Flattened navigation map for easy lookup
   const navMap = useMemo(() => new Map<string, NavItem>(), []);
 
-  const { breadcrumbs } = useBreadcrumbsGetter();
+  const { get } = useBreadcrumbs();
 
   // Map to track siblings at each level of the hierarchy
   const siblingsByPath = useMemo(() => new Map<string, NavItem[]>(), []);
@@ -154,7 +154,7 @@ export function BreadcrumbNav() {
   const breadcrumbItems = useMemo<
     (BreadcrumbData & { isLast: boolean; isFirst: boolean })[]
   >(() => {
-    const mergedBreadcrumbs = [...breadcrumbItemsFromNav, ...breadcrumbs];
+    const mergedBreadcrumbs = [...breadcrumbItemsFromNav, ...get];
 
     const breadcrumbItems = mergedBreadcrumbs.map((item, index) => ({
       ...item,
@@ -165,7 +165,7 @@ export function BreadcrumbNav() {
     }));
 
     return breadcrumbItems;
-  }, [breadcrumbItemsFromNav, breadcrumbs]);
+  }, [breadcrumbItemsFromNav, get]);
 
   useEffect(() => {
     if (breadcrumbItems.length === 0) {
