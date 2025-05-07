@@ -395,6 +395,7 @@ func ToTaskTimings(
 	for i, timing := range timings {
 		depth := idsToDepth[sqlchelpers.UUIDToStr(timing.ExternalID)]
 
+		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(timing.WorkflowRunID))
 		toReturn[i] = gen.V1TaskTiming{
 			Metadata: gen.APIResourceMeta{
 				Id:        sqlchelpers.UUIDToStr(timing.ExternalID),
@@ -408,7 +409,7 @@ func ToTaskTimings(
 			TaskExternalId:  uuid.MustParse(sqlchelpers.UUIDToStr(timing.ExternalID)),
 			TenantId:        uuid.MustParse(sqlchelpers.UUIDToStr(timing.TenantID)),
 			Depth:           int(depth),
-			WorkflowRunId:   uuid.MustParse(sqlchelpers.UUIDToStr(timing.WorkflowRunID)),
+			WorkflowRunId:   &workflowRunId,
 		}
 
 		if timing.QueuedAt.Valid {
