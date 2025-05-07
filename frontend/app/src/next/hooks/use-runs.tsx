@@ -127,7 +127,7 @@ export function RunsProvider({
 }: RunsProviderProps) {
   return (
     // IMPORTANT: Is it safe to use `type=state` here? not setting it was resulting in this just not working
-    <FilterProvider initialFilters={initialFilters} type="state">
+    <FilterProvider initialFilters={initialFilters}>
       <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
           <RunsProviderContent refetchInterval={refetchInterval}>
