@@ -1,4 +1,3 @@
-import GetWorkflowChart from '@/next/components/runs/runs-metrics/runs-histogram';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
