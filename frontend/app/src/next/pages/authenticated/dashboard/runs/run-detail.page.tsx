@@ -74,7 +74,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     replay,
     parentData,
     lastRefetchTime,
-    refetchInterval,
   } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);

@@ -49,17 +49,17 @@ function ServiceDetailPageContent() {
 
   const { data: services, create } = useManagedCompute();
 
-  const breadcrumbSetter = useBreadcrumbs();
+  const breadcrumb = useBreadcrumbs();
 
   useEffect(() => {
-    breadcrumbSetter([
+    breadcrumb.set([
       {
         title: 'Worker Services',
         label: 'New Managed Worker Service',
         url: ROUTES.services.new(WorkerType.MANAGED),
       },
     ]);
-  }, [breadcrumbSetter]);
+  }, [breadcrumb]);
 
   const { canWithReason } = useCan();
 

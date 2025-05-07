@@ -76,7 +76,7 @@ function RunDetailProviderContent({
   defaultRefetchInterval,
 }: RunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
-  const [refetchInterval, setRefetchInterval] = useState(
+  const [refetchInterval] = useState(
     defaultRefetchInterval,
   );
   const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
