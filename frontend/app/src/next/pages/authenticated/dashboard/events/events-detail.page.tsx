@@ -81,7 +81,6 @@ export default function EventsDetailPage() {
       >
         <dl className="flex flex-col gap-4 mt-4">
           <TimeFilters />
-          <GetWorkflowChart />
           <RunsMetricsView />
           <RunsTable
             onRowClick={handleRowClick}
