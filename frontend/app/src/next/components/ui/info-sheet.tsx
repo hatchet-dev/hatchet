@@ -1,6 +1,10 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './sheet';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { Cross2Icon } from '@radix-ui/react-icons';
+import { cn } from '@/next/lib/utils';
+import { useCallback, useState, useEffect } from 'react';
+
+const SHEET_EXPANDED_KEY = 'sheet-expanded';
 
 interface InfoSheetProps {
   isOpen: boolean;
@@ -18,6 +22,23 @@ export function InfoSheet({
   variant = 'push',
 }: InfoSheetProps) {
   const isMobile = useIsMobile();
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedState = localStorage.getItem(SHEET_EXPANDED_KEY);
+      return savedState !== null ? savedState === 'true' : true;
+    }
+    return true;
+  });
+
+  const toggleWidth = useCallback(() => {
+    setIsExpanded((prev) => {
+      const newState = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SHEET_EXPANDED_KEY, String(newState));
+      }
+      return newState;
+    });
+  }, []);
 
   if (!isOpen) {
     return null;
@@ -26,7 +47,18 @@ export function InfoSheet({
   // If using push variant, render as a side panel instead of using Sheet
   if (variant === 'push' && !isMobile) {
     return (
-      <div className={`border-l border-border w-[400px]`}>
+      <div className={cn(
+        "border-l border-border relative",
+        isExpanded ? "w-1/2" : "w-[400px]"
+      )}>
+        <button
+          onClick={toggleWidth}
+          className={cn(
+            "absolute inset-y-0 -left-2 z-20 w-4 transition-w ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-border",
+            isExpanded ? "cursor-e-resize" : "cursor-w-resize"
+          )}
+          title="Toggle width"
+        />
         <div className="h-full flex flex-col">
           <div className="flex justify-between items-center p-4 border-b">
             <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
