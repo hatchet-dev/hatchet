@@ -44,6 +44,7 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 	c, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: namespace,
+			Logger:    &l,
 		},
 	)
 

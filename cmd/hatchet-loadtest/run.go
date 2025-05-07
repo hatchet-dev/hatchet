@@ -26,6 +26,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 	hatchet, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: config.Namespace,
+			Logger:    &l,
 		},
 	)
 
@@ -163,6 +164,7 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Dura
 			Name:      "load-test-worker",
 			Workflows: workflows,
 			Slots:     config.Slots,
+			Logger:    &l,
 		},
 	)
 
