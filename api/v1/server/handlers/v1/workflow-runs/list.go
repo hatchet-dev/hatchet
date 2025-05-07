@@ -88,6 +88,11 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		opts.ParentTaskExternalId = &id
 	}
 
+	if request.Params.TriggeringEventId != nil {
+		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventId.String())
+		opts.TriggeringEventId = &id
+	}
+
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
 		tenantId,

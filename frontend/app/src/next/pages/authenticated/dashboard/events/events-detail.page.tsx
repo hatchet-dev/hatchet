@@ -74,7 +74,10 @@ export default function EventsDetailPage() {
       </Headline>
       <Separator className="my-4" />
       <RunsProvider
-        initialFilters={{ triggered_by_event_external_id: eventId }}
+        initialFilters={{ triggering_event_id: eventId }}
+        initialTimeRange={{
+          activePreset: '7d',
+        }}
       >
         <dl className="flex flex-col gap-4 mt-4">
           <TimeFilters />

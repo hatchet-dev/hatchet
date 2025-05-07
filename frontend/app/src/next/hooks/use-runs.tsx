@@ -39,7 +39,7 @@ export interface RunsFilters {
   only_tasks?: boolean;
   parent_task_external_id?: string;
   is_root_task?: boolean;
-  triggered_by_event_external_id?: string;
+  triggering_event_id?: string;
 }
 
 // Create run params
@@ -154,6 +154,8 @@ function RunsProviderContent({
   const pagination = usePagination();
   const timeRange = useTimeFilters();
 
+  console.log('DEBUG time range', timeRange);
+
   const listRunsQuery = useQuery({
     queryKey: [
       'v1:workflow-run:list',
@@ -206,7 +208,7 @@ function RunsProviderContent({
       }
     },
     placeholderData: (prev: any) => prev,
-    refetchInterval,
+    refetchInterval: undefined,
   });
 
   const metricsRunsQuery = useQuery({

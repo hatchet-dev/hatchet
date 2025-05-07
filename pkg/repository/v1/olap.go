@@ -465,10 +465,11 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	defer tx.Rollback(ctx)
 
 	params := sqlcv1.ListTasksOlapParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Since:      sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Tasklimit:  int32(opts.Limit),
-		Taskoffset: int32(opts.Offset),
+		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+		Since:             sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Tasklimit:         int32(opts.Limit),
+		Taskoffset:        int32(opts.Offset),
+		TriggeringEventId: pgtype.UUID{},
 	}
 
 	countParams := sqlcv1.CountTasksParams{
@@ -673,6 +674,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		Listworkflowrunslimit:  int32(opts.Limit),
 		Listworkflowrunsoffset: int32(opts.Offset),
 		ParentTaskExternalId:   pgtype.UUID{},
+		TriggeringEventId:      pgtype.UUID{},
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{

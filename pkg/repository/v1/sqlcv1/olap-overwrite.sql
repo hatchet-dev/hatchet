@@ -35,7 +35,7 @@ WHERE
     AND (
         sqlc.narg('triggeringEventId')::UUID IS NULL
         OR (id, inserted_at) IN (
-            SELECT (r.id, r.inserted_at)
+            SELECT r.id, r.inserted_at
             FROM v1_events_olap e
             JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
@@ -83,7 +83,7 @@ WITH filtered AS (
 		AND (
 			sqlc.narg('triggeringEventId')::UUID IS NULL
 			OR (id, inserted_at) IN (
-				SELECT (r.id, r.inserted_at)
+				SELECT r.id, r.inserted_at
 				FROM v1_events_olap e
 				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
 				JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
@@ -134,7 +134,7 @@ WHERE
     AND (
         sqlc.narg('triggeringEventId')::UUID IS NULL
         OR (id, inserted_at) IN (
-            SELECT (r.id, r.inserted_at)
+            SELECT r.id, r.inserted_at
             FROM v1_events_olap e
             JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
@@ -178,7 +178,7 @@ WITH filtered AS (
 		AND (
 			sqlc.narg('triggeringEventId')::UUID IS NULL
 			OR (id, inserted_at) IN (
-				SELECT (r.id, r.inserted_at)
+				SELECT r.id, r.inserted_at
 				FROM v1_events_olap e
 				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
 				JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)

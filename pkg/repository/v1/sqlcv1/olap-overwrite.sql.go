@@ -40,7 +40,7 @@ WITH filtered AS (
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
-				SELECT (r.id, r.inserted_at)
+				SELECT r.id, r.inserted_at
 				FROM v1_events_olap e
 				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
 				JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
@@ -80,6 +80,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.WorkerId,
 		arg.Keys,
 		arg.Values,
+		arg.TriggeringEventId,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -116,7 +117,7 @@ WITH filtered AS (
 		AND (
 			$8::UUID IS NULL
 			OR (id, inserted_at) IN (
-				SELECT (r.id, r.inserted_at)
+				SELECT r.id, r.inserted_at
 				FROM v1_events_olap e
 				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
 				JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
@@ -152,6 +153,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Until,
 		arg.Keys,
 		arg.Values,
+		arg.TriggeringEventId,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -191,7 +193,7 @@ WHERE
     AND (
         $11::UUID IS NULL
         OR (id, inserted_at) IN (
-            SELECT (r.id, r.inserted_at)
+            SELECT r.id, r.inserted_at
             FROM v1_events_olap e
             JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
@@ -238,6 +240,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Listworkflowrunsoffset,
 		arg.Listworkflowrunslimit,
 		arg.ParentTaskExternalId,
+		arg.TriggeringEventId,
 	)
 
 	if err != nil {
@@ -297,7 +300,7 @@ WHERE
     AND (
         $11::UUID IS NULL
         OR (id, inserted_at) IN (
-            SELECT (r.id, r.inserted_at)
+            SELECT r.id, r.inserted_at
             FROM v1_events_olap e
             JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
             JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
@@ -343,6 +346,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Values,
 		arg.Taskoffset,
 		arg.Tasklimit,
+		arg.TriggeringEventId,
 	)
 	if err != nil {
 		return nil, err
