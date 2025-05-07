@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -142,7 +143,7 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workfl
 
 	match, err := r.celParser.EvaluateEventExpression(
 		workflow.EventExpression.String,
-		inputData,
+		cel.NewInput(cel.WithInput(inputData)),
 	)
 
 	if err != nil {
