@@ -18,6 +18,7 @@ import (
 type CELParser struct {
 	workflowStrEnv *cel.Env
 	stepRunEnv     *cel.Env
+	eventEnv       *cel.Env
 }
 
 var checksumDecl = decls.NewFunction("checksum",
@@ -67,9 +68,19 @@ func NewCELParser() *CELParser {
 		checksum,
 	)
 
+	eventEnv, _ := cel.NewEnv(
+		cel.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("event_id", decls.NewMapType(decls.String, decls.Dyn)),
+			checksumDecl,
+		),
+	)
+
 	return &CELParser{
 		workflowStrEnv: workflowStrEnv,
 		stepRunEnv:     stepRunEnv,
+		eventEnv:       eventEnv,
 	}
 }
 
@@ -295,20 +306,22 @@ func (p *CELParser) CheckStepRunOutAgainstKnownV1(out *StepRunOut, knownType sql
 	return nil
 }
 
-func (p *CELParser) EvaluateBooleanExpression(expr string, inputData map[string]interface{}) (bool, error) {
-	ast, issues := p.stepRunEnv.Compile(expr)
+func (p *CELParser) EvaluateBooleanExpression(expr, eventId string, input, additionalMetadata map[string]interface{}) (bool, error) {
+	ast, issues := p.eventEnv.Compile(expr)
 
 	if issues != nil && issues.Err() != nil {
 		return false, fmt.Errorf("failed to compile expression: %w", issues.Err())
 	}
 
-	program, err := p.stepRunEnv.Program(ast)
+	program, err := p.eventEnv.Program(ast)
 	if err != nil {
 		return false, fmt.Errorf("failed to create program: %w", err)
 	}
 
 	evalContext := map[string]interface{}{
-		"input": inputData,
+		"input":               input,
+		"additional_metadata": additionalMetadata,
+		"event_id":            eventId,
 	}
 
 	out, _, err := program.Eval(evalContext)
