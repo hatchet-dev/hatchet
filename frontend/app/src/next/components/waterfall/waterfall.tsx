@@ -492,7 +492,12 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                   </Button>
                 )
               ) : (
-                <Link to={ROUTES.runs.taskDetail(task.workflowRunId || task.id, task.id)}>
+                <Link
+                  to={ROUTES.runs.taskDetail(
+                    task.workflowRunId || task.id,
+                    task.id,
+                  )}
+                >
                   <Button
                     tooltip="Scope into child task"
                     variant="link"
