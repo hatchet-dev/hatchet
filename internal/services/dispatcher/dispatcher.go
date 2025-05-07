@@ -54,6 +54,7 @@ type DispatcherImpl struct {
 	repo                      repository.EngineRepository
 	repov1                    v1.Repository
 	cache                     cache.Cacheable
+	payloadSizeThreshold      int
 
 	entitlements repository.EntitlementsRepository
 
@@ -126,16 +127,17 @@ func (w *workers) Delete(workerId string) {
 type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
-	mq           msgqueue.MessageQueue
-	mqv1         msgqueuev1.MessageQueue
-	l            *zerolog.Logger
-	dv           datautils.DataDecoderValidator
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	entitlements repository.EntitlementsRepository
-	dispatcherId string
-	alerter      hatcheterrors.Alerter
-	cache        cache.Cacheable
+	mq                   msgqueue.MessageQueue
+	mqv1                 msgqueuev1.MessageQueue
+	l                    *zerolog.Logger
+	dv                   datautils.DataDecoderValidator
+	repo                 repository.EngineRepository
+	repov1               v1.Repository
+	entitlements         repository.EntitlementsRepository
+	dispatcherId         string
+	alerter              hatcheterrors.Alerter
+	cache                cache.Cacheable
+	payloadSizeThreshold int
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -143,10 +145,11 @@ func defaultDispatcherOpts() *DispatcherOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &DispatcherOpts{
-		l:            &logger,
-		dv:           datautils.NewDataDecoderValidator(),
-		dispatcherId: uuid.New().String(),
-		alerter:      alerter,
+		l:                    &logger,
+		dv:                   datautils.NewDataDecoderValidator(),
+		dispatcherId:         uuid.New().String(),
+		alerter:              alerter,
+		payloadSizeThreshold: 3 * 1024 * 1024,
 	}
 }
 
@@ -210,6 +213,12 @@ func WithCache(cache cache.Cacheable) DispatcherOpt {
 	}
 }
 
+func WithPayloadSizeThreshold(threshold int) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.payloadSizeThreshold = threshold
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -257,20 +266,21 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	pubBuffer := msgqueuev1.NewMQPubBuffer(opts.mqv1)
 
 	return &DispatcherImpl{
-		mq:           opts.mq,
-		mqv1:         opts.mqv1,
-		pubBuffer:    pubBuffer,
-		l:            opts.l,
-		dv:           opts.dv,
-		v:            validator.NewDefaultValidator(),
-		repo:         opts.repo,
-		repov1:       opts.repov1,
-		entitlements: opts.entitlements,
-		dispatcherId: opts.dispatcherId,
-		workers:      &workers{},
-		s:            s,
-		a:            a,
-		cache:        opts.cache,
+		mq:                   opts.mq,
+		mqv1:                 opts.mqv1,
+		pubBuffer:            pubBuffer,
+		l:                    opts.l,
+		dv:                   opts.dv,
+		v:                    validator.NewDefaultValidator(),
+		repo:                 opts.repo,
+		repov1:               opts.repov1,
+		entitlements:         opts.entitlements,
+		dispatcherId:         opts.dispatcherId,
+		workers:              &workers{},
+		s:                    s,
+		a:                    a,
+		cache:                opts.cache,
+		payloadSizeThreshold: opts.payloadSizeThreshold,
 	}, nil
 }
 
