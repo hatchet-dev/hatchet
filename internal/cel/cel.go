@@ -72,7 +72,7 @@ func NewCELParser() *CELParser {
 		cel.Declarations(
 			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
 			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
-			decls.NewVar("event_id", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("event_id", decls.String),
 			checksumDecl,
 		),
 	)
@@ -306,7 +306,7 @@ func (p *CELParser) CheckStepRunOutAgainstKnownV1(out *StepRunOut, knownType sql
 	return nil
 }
 
-func (p *CELParser) EvaluateBooleanExpression(expr, eventId string, input, additionalMetadata map[string]interface{}) (bool, error) {
+func (p *CELParser) EvaluateEventExpression(expr, eventId string, input, additionalMetadata map[string]interface{}) (bool, error) {
 	ast, issues := p.eventEnv.Compile(expr)
 
 	if issues != nil && issues.Err() != nil {

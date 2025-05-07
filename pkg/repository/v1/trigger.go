@@ -140,7 +140,7 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workfl
 		additionalMetadata = make(map[string]interface{})
 	}
 
-	match, err := r.celParser.EvaluateBooleanExpression(
+	match, err := r.celParser.EvaluateEventExpression(
 		workflow.EventExpression.String,
 		opt.EventId,
 		inputData,
