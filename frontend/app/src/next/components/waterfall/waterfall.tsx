@@ -9,16 +9,20 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
-import { useQuery } from '@tanstack/react-query';
-import { queries } from '@/lib/api/queries';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
 import { RunStatusConfigs } from '../runs/runs-badge';
-
+import { Link } from 'react-router-dom';
+import { ROUTES } from '@/next/lib/routes';
+import { useRunDetail } from '@/next/hooks/use-run-detail';
+import { Button } from '../ui/button';
+import { RunId } from '../runs/run-id';
+import { FaLevelUpAlt, FaRegDotCircle } from 'react-icons/fa';
 interface ProcessedTaskData {
   id: string;
+  workflowRunId?: string;
   taskDisplayName: string;
   parentId?: string;
   hasChildren: boolean;
@@ -90,19 +94,12 @@ const CustomTooltip = (props: {
 };
 
 export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
-  const [depth, setDepth] = useState(2);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [autoExpandedInitially, setAutoExpandedInitially] = useState(false);
 
-  // Query with the current depth
   const {
-    data: taskData,
-    isLoading,
-    isError,
-  } = useQuery({
-    ...queries.v1WorkflowRuns.listTaskTimings(workflowRunId, depth),
-    refetchInterval: 5000,
-  });
+    timings: { data: taskData, isLoading, error: isError, depth, setDepth },
+  } = useRunDetail();
 
   // Process and memoize task relationships to allow collapsing all descendants
   const taskRelationships = useMemo(() => {
@@ -173,35 +170,46 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
     return { taskMap, taskParentMap, taskDescendantsMap };
   }, [taskData]);
 
-  // Handle task expansion
-  const toggleTaskExpansion = (
+  const closeTask = (taskId: string) => {
+    const newExpandedTasks = new Set(expandedTasks);
+    newExpandedTasks.delete(taskId);
+
+    // Get all descendants and remove them from expanded set
+    const descendants =
+      taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
+    descendants.forEach((descendantId) => {
+      newExpandedTasks.delete(descendantId);
+    });
+
+    setExpandedTasks(newExpandedTasks);
+  };
+
+  const openTask = (taskId: string, taskDepth: number) => {
+    const newExpandedTasks = new Set(expandedTasks);
+    newExpandedTasks.add(taskId);
+
+    // If expanding requires a deeper query, update the depth
+    if (taskDepth + 1 >= depth) {
+      setDepth(depth + 1);
+    }
+
+    setExpandedTasks(newExpandedTasks);
+  };
+
+  const toggleTask = (
     taskId: string,
     hasChildren: boolean,
     taskDepth: number,
   ) => {
-    const newExpandedTasks = new Set(expandedTasks);
-
-    if (expandedTasks.has(taskId)) {
-      // Collapse: remove this task and all its descendants from expanded set
-      newExpandedTasks.delete(taskId);
-
-      // Get all descendants and remove them from expanded set
-      const descendants =
-        taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
-      descendants.forEach((descendantId) => {
-        newExpandedTasks.delete(descendantId);
-      });
-    } else if (hasChildren) {
-      // Expand: add this task to expanded set
-      newExpandedTasks.add(taskId);
-
-      // If expanding requires a deeper query, update the depth
-      if (taskDepth + 1 >= depth) {
-        setDepth(depth + 1);
-      }
+    if (!hasChildren) {
+      return;
     }
 
-    setExpandedTasks(newExpandedTasks);
+    if (expandedTasks.has(taskId)) {
+      closeTask(taskId);
+    } else {
+      openTask(taskId, taskDepth);
+    }
   };
 
   // Transform and filter data based on expanded state
@@ -345,6 +353,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
           hasChildren: taskHasChildrenMap.get(task.metadata.id) || false,
           depth: taskDepthMap.get(task.metadata.id) || 0,
           isExpanded: expandedTasks.has(task.metadata.id),
+          workflowRunId: task.workflowRunId,
           // Chart data
           offset: (queuedAt - globalMinTime) / 1000, // in seconds
           // If queuedAt equals startedAt (due to our fallback logic), then queuedDuration will be 0
@@ -383,7 +392,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
       });
 
     return { data, taskPathMap };
-  }, [taskData, expandedTasks, depth, autoExpandedInitially]);
+  }, [taskData, expandedTasks, depth, autoExpandedInitially, workflowRunId]);
 
   // Custom tick renderer with expand/collapse buttons
   const renderTick = (props: {
@@ -400,9 +409,6 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
       return <g transform={`translate(${x},${y})`}></g>;
     }
 
-    const label = stripDashAndNumbers(payload.value);
-    const truncatedLabel =
-      label.length > 16 ? label.slice(0, 16) + '...' : label;
     const indentation = task.depth * 12; // 12px indentation per level
 
     return (
@@ -434,7 +440,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
               }}
               onClick={() =>
                 task.hasChildren &&
-                toggleTaskExpansion(task.id, task.hasChildren, task.depth)
+                toggleTask(task.id, task.hasChildren, task.depth)
               }
             >
               {task.hasChildren &&
@@ -454,9 +460,54 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                 fontSize: '12px',
                 textAlign: 'left',
                 flexGrow: 1,
+                cursor: 'pointer',
               }}
+              className="group flex items-center gap-2"
             >
-              {truncatedLabel}
+              <RunId
+                displayName={task.taskDisplayName}
+                id={task.id}
+                onClick={() => handleBarClick(task)}
+              />
+              {workflowRunId === task.workflowRunId ? (
+                task.parentId ? (
+                  <Link to={ROUTES.runs.taskDetail(task.parentId, task.id)}>
+                    <Button
+                      tooltip="Scope out to parent task"
+                      variant="link"
+                      size="icon"
+                      className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                    >
+                      <FaLevelUpAlt className="w-4 h-4 transform scale-x-[-1]" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button
+                    tooltip="No parent task, this is a root task"
+                    variant="link"
+                    size="icon"
+                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                  >
+                    <FaRegDotCircle className="w-4 h-4" />
+                  </Button>
+                )
+              ) : (
+                <Link
+                  to={ROUTES.runs.taskDetail(
+                    task.workflowRunId || task.id,
+                    task.id,
+                  )}
+                >
+                  <Button
+                    tooltip="Scope into child task"
+                    variant="link"
+                    size="icon"
+                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                  >
+                    <Search className="w-4 h-4" />
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </foreignObject>
@@ -492,8 +543,16 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
 
   // Handler for bar click events
   const handleBarClick = (data: any) => {
-    if (handleTaskSelect && data && data.id) {
-      handleTaskSelect(data.id);
+    if (data && data.id) {
+      // Handle task selection for sidebar
+      if (handleTaskSelect) {
+        handleTaskSelect(data.id);
+      }
+
+      // Handle expansion if the task has children
+      if (data.hasChildren) {
+        openTask(data.id, data.hasChildren);
+      }
     }
   };
 
@@ -576,18 +635,4 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
       </div>
     </ChartContainer>
   );
-}
-
-/**
- * Strips the last part of a name that consists of a dash followed by numbers
- * @param name The input string to process
- * @returns The name with the dash and trailing numbers removed
- */
-function stripDashAndNumbers(name: string): string {
-  // Match a name that may contain a dash followed by only digits
-  const regex = /^(.*?)(?:-\d+)?$/;
-  const match = name.match(regex);
-
-  // Return the part before the dash-numbers, or the original string if no match
-  return match ? match[1] : name;
 }

@@ -119,12 +119,13 @@ export function DestructiveDialog({
           <Button
             variant={submitVariant}
             onClick={onConfirm}
+            loading={isLoading}
             disabled={
               (requireTextConfirmation && !isConfirmationValid) || isLoading
             }
             className="ml-2"
           >
-            {isLoading ? 'Processing...' : confirmButtonText}
+            {confirmButtonText}
           </Button>
         </DialogFooter>
       </DialogContent>

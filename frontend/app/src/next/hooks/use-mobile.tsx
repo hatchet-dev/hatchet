@@ -1,6 +1,7 @@
 import * as React from 'react';
 
-const MOBILE_BREAKPOINT = 768;
+// NOTE: this is larger than it probably should be, but fixes the sheet not properly taking up space between 700-1000px
+const MOBILE_BREAKPOINT = 1000;
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
