@@ -1015,6 +1015,16 @@ WITH task_external_ids AS (
     FROM v1_runs_olap
     WHERE (
         sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+    ) AND (
+        sqlc.narg('triggeringEventId')::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_events_olap e
+            JOIN v1_event_to_run_olap etr ON (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+            WHERE
+                e.tenant_id = @tenantId::UUID
+                AND e.id = sqlc.narg('triggeringEventId')::UUID
+        )
     )
 )
 SELECT

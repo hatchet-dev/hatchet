@@ -485,6 +485,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       parent_task_external_id?: string;
+      /**
+       * The id of the event that triggered the task
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_id?: string;
     },
     params: RequestParams = {},
   ) =>

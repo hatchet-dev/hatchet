@@ -367,6 +367,16 @@ WITH task_external_ids AS (
     FROM v1_runs_olap
     WHERE (
         $5::UUID IS NULL OR parent_task_external_id = $5::UUID
+    ) AND (
+        $6::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_events_olap e
+            JOIN v1_event_to_run_olap etr ON (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+            WHERE
+                e.tenant_id = $1::UUID
+                AND e.id = $6::UUID
+        )
     )
 )
 SELECT
@@ -399,6 +409,7 @@ type GetTenantStatusMetricsParams struct {
 	CreatedBefore        pgtype.Timestamptz `json:"createdBefore"`
 	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
 	ParentTaskExternalId pgtype.UUID        `json:"parentTaskExternalId"`
+	TriggeringEventId    pgtype.UUID        `json:"triggeringEventId"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -417,6 +428,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.ParentTaskExternalId,
+		arg.TriggeringEventId,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(

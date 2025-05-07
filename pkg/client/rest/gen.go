@@ -1943,6 +1943,9 @@ type V1TaskListStatusMetricsParams struct {
 
 	// ParentTaskExternalId The parent task's external id
 	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
+
+	// TriggeringEventId The id of the event that triggered the task
+	TriggeringEventId *openapi_types.UUID `form:"triggering_event_id,omitempty" json:"triggering_event_id,omitempty"`
 }
 
 // V1TaskGetPointMetricsParams defines parameters for V1TaskGetPointMetrics.
@@ -5414,6 +5417,22 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 		if params.ParentTaskExternalId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TriggeringEventId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_id", runtime.ParamLocationQuery, *params.TriggeringEventId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
