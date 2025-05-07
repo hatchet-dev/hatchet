@@ -103,19 +103,19 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	}
 }
 
-type EventDataForOlap struct {
-	EventKey                string
-	EventId                 string
-	TaskExternalId          string
-	EventAdditionalMetadata []byte
-	EventPayload            []byte
+type RunWithEventTriggerOpts struct {
+	RunId         int64
+	RunInsertedAt time.Time
+	Opts          EventTriggerOpts
 }
 
+
 type TriggerFromEventsResult struct {
-	Tasks  []*sqlcv1.V1Task
-	Dags   []*DAGWithData
-	Events []*EventDataForOlap
+	Tasks []*sqlcv1.V1Task
+	Dags  []*DAGWithData
+	Runs  []*RunWithEventTriggerOpts
 }
+
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
@@ -151,7 +151,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
-	eventKeysTaskExternalIds := make([]*EventDataForOlap, 0)
+
+	externalIdToOpts := make(map[string]EventTriggerOpts)
+	runs := make([]*RunWithEventTriggerOpts, 0)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.EventKey]
@@ -179,17 +181,41 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				additionalMetadata: additionalMetadata,
 			})
 
-			eventKeysTaskExternalIds = append(eventKeysTaskExternalIds, &EventDataForOlap{
-				EventKey:                triggerConverter.eventKey,
-				EventId:                 triggerConverter.eventID,
-				TaskExternalId:          externalId,
-				EventAdditionalMetadata: additionalMetadata,
-				EventPayload:            opt.Data,
-			})
+			externalIdToOpts[externalId] = opt
 		}
 	}
 
 	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
+
+	for _, task := range tasks {
+		externalId := task.ExternalID
+		opts, ok := externalIdToOpts[externalId.String()]
+
+		if !ok {
+			continue
+		}
+
+		runs = append(runs, &RunWithEventTriggerOpts{
+			RunId:         task.ID,
+			RunInsertedAt: task.InsertedAt.Time,
+			Opts:          opts,
+		})
+	}
+
+	for _, dag := range dags {
+		externalId := dag.ExternalID
+		opts, ok := externalIdToOpts[externalId.String()]
+
+		if !ok {
+			continue
+		}
+
+		runs = append(runs, &RunWithEventTriggerOpts{
+			RunId:         dag.ID,
+			RunInsertedAt: dag.InsertedAt.Time,
+			Opts:          opts,
+		})
+	}
 
 	if err != nil {
 		return nil, err
@@ -198,9 +224,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	post()
 
 	return &TriggerFromEventsResult{
-		Tasks:  tasks,
-		Dags:   dags,
-		Events: eventKeysTaskExternalIds,
+		Tasks: tasks,
+		Dags:  dags,
+		Runs:  runs,
 	}, nil
 }
 

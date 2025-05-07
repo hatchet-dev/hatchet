@@ -334,10 +334,6 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId str
 	return tc.repo.OLAP().CreateDAGs(ctx, tenantId, createDAGOpts)
 }
 
-func makeEventKey(id string, seenAt time.Time) string {
-	return fmt.Sprintf("%s-%s", id, seenAt.Format(time.RFC3339))
-}
-
 func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedEventTriggerPayload](payloads)
 
@@ -355,15 +351,13 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				EventSeenAt:   sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 			})
 
-			eventKey := makeEventKey(payload.EventId, payload.EventSeenAt)
-
-			_, eventAlreadySeen := seenEventKeysSet[eventKey]
+			_, eventAlreadySeen := seenEventKeysSet[payload.EventId]
 
 			if eventAlreadySeen {
 				continue
 			}
 
-			seenEventKeysSet[eventKey] = true
+			seenEventKeysSet[payload.EventId] = true
 			bulkCreateEventParams = append(bulkCreateEventParams, sqlcv1.BulkCreateEventsParams{
 				TenantID:           sqlchelpers.UUIDFromStr(tenantId),
 				ID:                 sqlchelpers.UUIDFromStr(payload.EventId),
