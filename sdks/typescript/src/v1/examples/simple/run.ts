@@ -1,11 +1,10 @@
 /* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
-import { parent } from './workflow-with-child';
 
 async function main() {
   // > Running a Task
-  const res = await parent.run(
+  const res = await simple.run(
     {
       Message: 'HeLlO WoRlD',
     },
