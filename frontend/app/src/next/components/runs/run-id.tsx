@@ -14,7 +14,6 @@ interface RunIdProps {
   displayName?: string;
   id?: string;
   onClick?: () => void;
-  noLink?: boolean;
 }
 
 export function RunId({
@@ -23,7 +22,6 @@ export function RunId({
   displayName,
   id,
   onClick,
-  noLink,
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
@@ -54,7 +52,7 @@ export function RunId({
       <Tooltip>
         <TooltipTrigger asChild>
           <span>
-            {url && !onClick && !noLink ? (
+            {url && !onClick ? (
               <Link to={url} className="hover:underline text-foreground">
                 {name}
               </Link>
