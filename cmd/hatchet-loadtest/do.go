@@ -108,7 +108,7 @@ func do(config LoadTestConfig) error {
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
 
 	if int64(config.EventFanout)*emitted*int64(config.DagSteps) != executed {
-		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", int64(config.EventFanout)*emitted, executed)
+		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", int64(config.EventFanout)*emitted*int64(config.DagSteps), executed)
 	}
 
 	if int64(config.EventFanout)*emitted*int64(config.DagSteps) != uniques {
