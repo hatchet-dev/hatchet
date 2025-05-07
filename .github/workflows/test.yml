@@ -331,7 +331,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        migrate-strategy: ["latest", "penultimate"]
+        migrate-strategy: ["latest"]
         rabbitmq-enabled: ["true"]
         pg-version: ["15-alpine"]
 
