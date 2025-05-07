@@ -40,11 +40,10 @@ export function Alerter() {
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              className="flex items-center gap-2 p-0"
-              disabled
+              className="flex items-center gap-2 p-0 opacity-30"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarFallback className="rounded-lg">
+                <AvatarFallback className="rounded-lg bg-transparent hover:bg-transparent">
                   <Bell className="h-4 w-4 text-muted-foreground" />
                 </AvatarFallback>
               </Avatar>

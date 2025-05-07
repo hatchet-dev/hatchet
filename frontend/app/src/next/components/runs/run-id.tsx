@@ -11,19 +11,23 @@ import { ROUTES } from '@/next/lib/routes';
 interface RunIdProps {
   wfRun?: V1WorkflowRun;
   taskRun?: V1TaskSummary;
+  displayName?: string;
+  id?: string;
   onClick?: () => void;
 }
 
-export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
+export function RunId({
+  wfRun,
+  taskRun,
+  displayName,
+  id,
+  onClick,
+}: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
 
-  if (taskRun?.displayName.startsWith('leaf')) {
-    // Debugging code removed.
-  }
-
   const url = !isTaskRun
-    ? ROUTES.runs.detail(wfRun?.metadata.id || '')
+    ? ROUTES.runs.detail(wfRun?.metadata.id || id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
       : ROUTES.runs.taskDetail(
@@ -33,7 +37,9 @@ export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
 
   const name = isTaskRun
     ? getFriendlyTaskRunId(taskRun)
-    : getFriendlyWorkflowRunId(wfRun);
+    : displayName && id
+      ? splitTime(displayName) + '-' + id.split('-')[0]
+      : getFriendlyWorkflowRunId(wfRun);
 
   const handleDoubleClick = () => {
     if (url) {
@@ -63,7 +69,7 @@ export function RunId({ wfRun, taskRun, onClick }: RunIdProps) {
         </TooltipTrigger>
         <TooltipContent className="bg-muted">
           <div className="font-mono text-foreground">
-            {wfRun?.metadata.id || taskRun?.metadata.id || ''}
+            {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}
           </div>
         </TooltipContent>
       </Tooltip>

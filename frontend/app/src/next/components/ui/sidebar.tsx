@@ -222,7 +222,7 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[--sidebar-width] !bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+            className="w-[--sidebar-width] !bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/30"
             style={
               {
                 '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
@@ -346,10 +346,10 @@ SidebarRail.displayName = 'SidebarRail';
 
 const SidebarInset = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<'main'>
+  React.ComponentProps<'div'>
 >(({ className, ...props }, ref) => {
   return (
-    <main
+    <div
       ref={ref}
       className={cn(
         'relative flex w-full flex-1 flex-col bg-background',
@@ -434,7 +434,13 @@ const SidebarContent = React.forwardRef<
       ref={ref}
       data-sidebar="content"
       className={cn(
-        'flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden',
+        'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden',
+        'group-data-[collapsible=icon]:overflow-y-auto',
+        '[&::-webkit-scrollbar]:w-1.5',
+        '[&::-webkit-scrollbar-track]:bg-transparent',
+        '[&::-webkit-scrollbar-thumb]:rounded-full',
+        '[&::-webkit-scrollbar-thumb]:bg-muted-foreground/20',
+        '[&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/30',
         className,
       )}
       {...props}

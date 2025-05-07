@@ -60,7 +60,7 @@ export function FilterGroup({ className, children, ...props }: FiltersProps) {
     <div
       role="filters"
       aria-label="filters"
-      className={cn('flex w-full items-center gap-2 md:gap-6', className)}
+      className={cn('flex w-full items-center gap-2 flex-wrap', className)}
       {...props}
     >
       {children}

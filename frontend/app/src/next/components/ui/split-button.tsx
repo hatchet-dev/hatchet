@@ -11,8 +11,8 @@ import { ChevronDown } from 'lucide-react';
 
 export interface SplitButtonProps extends Omit<ButtonProps, 'className'> {
   dropdownItems: {
-    label: string;
-    onClick: () => void;
+    label: React.ReactNode;
+    onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
     disabled?: boolean;
   }[];
   className?: string;
@@ -39,7 +39,7 @@ const SplitButton = React.forwardRef<HTMLButtonElement, SplitButtonProps>(
             {dropdownItems.map((item, index) => (
               <DropdownMenuItem
                 key={index}
-                onClick={item.onClick}
+                onClick={(e) => item.onClick(e)}
                 disabled={item.disabled}
               >
                 {item.label}

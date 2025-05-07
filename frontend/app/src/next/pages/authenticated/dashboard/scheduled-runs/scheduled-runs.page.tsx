@@ -61,7 +61,7 @@ export default function ScheduledRunsPage() {
         </Alert>
       )}
       {canManage && (
-        <>
+        <div className="space-y-4">
           <Separator className="my-4" />
           <SchedulesProvider>
             <ScheduledRunsTable
@@ -74,7 +74,7 @@ export default function ScheduledRunsPage() {
             onClose={() => setIsCreateDialogOpen(false)}
             defaultTimingOption="schedule"
           />
-        </>
+        </div>
       )}
     </BasicLayout>
   );

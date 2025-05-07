@@ -120,7 +120,10 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
             title: 'More Settings',
             url: FEATURES_BASE_PATH.settings,
             icon: Settings,
-            isActive: isActive(FEATURES_BASE_PATH.settings),
+            isActive:
+              isActive(FEATURES_BASE_PATH.settings) &&
+              !isActive(ROUTES.settings.apiTokens) &&
+              !isActive(ROUTES.settings.team),
             items: [
               {
                 title: 'Tenant Settings',

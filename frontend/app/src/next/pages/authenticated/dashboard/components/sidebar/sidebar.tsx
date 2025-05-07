@@ -72,12 +72,12 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const navigate = useNavigate();
   const location = useLocation();
   const navLinks = getMainNavLinks(location.pathname);
-  const { toggleSidebar, isCollapsed } = useSidebar();
+  const { toggleSidebar, isCollapsed, isMobile, setOpenMobile } = useSidebar();
   const docs = useDocs();
   const [collapsibleState, setCollapsibleState] = useState<
     Record<string, boolean>
   >({});
-  const [open, setOpen] = useState(false);
+  const [openTenant, setOpenTenant] = useState(false);
 
   // Load collapsible state from localStorage on initial render
   useEffect(() => {
@@ -117,7 +117,7 @@ name: ${user?.name}`;
         <SidebarRail />
         <SidebarHeader>
           <SidebarMenu>
-            <header className="my-3">
+            <header className="mb-3">
               <SidebarMenuItem>
                 <SidebarMenuButton size="lg" onClick={() => toggleSidebar()}>
                   <Logo variant="md" />
@@ -128,7 +128,7 @@ name: ${user?.name}`;
               <SidebarMenuButton
                 size="lg"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                onClick={() => setOpen(true)}
+                onClick={() => setOpenTenant(true)}
               >
                 <TenantBlock />
                 <ChevronsUpDown className="ml-auto size-4" />
@@ -151,7 +151,7 @@ name: ${user?.name}`;
                     }
                   >
                     <SidebarMenuItem>
-                      {isCollapsed && item.items?.length ? (
+                      {!isMobile && isCollapsed && item.items?.length ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <SidebarMenuButton
@@ -173,7 +173,10 @@ name: ${user?.name}`;
                           >
                             {item.items?.map((subItem) => (
                               <DropdownMenuItem key={subItem.title} asChild>
-                                <Link to={subItem.url}>
+                                <Link
+                                  to={subItem.url}
+                                  onClick={() => setOpenMobile(false)}
+                                >
                                   <subItem.icon className="mr-2 h-4 w-4" />
                                   {subItem.title}
                                 </Link>
@@ -193,7 +196,10 @@ name: ${user?.name}`;
                                   : 'hover:bg-muted/30'
                               }
                             >
-                              <Link to={item.url}>
+                              <Link
+                                to={item.url}
+                                onClick={() => setOpenMobile(false)}
+                              >
                                 <item.icon />
                                 <span>{item.title}</span>
                               </Link>
@@ -219,7 +225,10 @@ name: ${user?.name}`;
                                             : 'hover:bg-muted/30'
                                         }
                                       >
-                                        <Link to={subItem.url}>
+                                        <Link
+                                          to={subItem.url}
+                                          onClick={() => setOpenMobile(false)}
+                                        >
                                           <subItem.icon />
                                           <span>{subItem.title}</span>
                                         </Link>
@@ -244,21 +253,23 @@ name: ${user?.name}`;
                 <SidebarMenuItem>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <SidebarMenuButton size="sm">
+                      <SidebarMenuButton size="sm" tooltip="Support">
                         <QuestionMarkCircledIcon />
                         <span>Support</span>
                       </SidebarMenuButton>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                      side="right"
+                      side={isMobile ? 'bottom' : 'right'}
                       sideOffset={4}
                     >
                       <DropdownMenuGroup>
-                        <DropdownMenuItem onClick={() => chat.show()}>
-                          <MessageCircle />
-                          Chat with Support
-                        </DropdownMenuItem>
+                        {chat.isEnabled() && (
+                          <DropdownMenuItem onClick={() => chat.show()}>
+                            <MessageCircle />
+                            Chat with Support
+                          </DropdownMenuItem>
+                        )}
                         {navLinks.support.map((item) => (
                           <DropdownMenuItem
                             key={item.title}
@@ -285,6 +296,7 @@ name: ${user?.name}`;
                 <SidebarMenuItem key="docs">
                   <SidebarMenuButton
                     size="sm"
+                    tooltip="Documentation"
                     onClick={() => docs.toggle(pages.home.index)}
                   >
                     <BookOpen />
@@ -293,8 +305,13 @@ name: ${user?.name}`;
                 </SidebarMenuItem>
                 {navLinks.navSecondary.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild size="sm">
-                      <Link to={item.url} target="_blank" rel="noreferrer">
+                    <SidebarMenuButton asChild size="sm" tooltip={item.title}>
+                      <Link
+                        to={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => setOpenMobile(false)}
+                      >
                         <item.icon />
                         <span>{item.title}</span>
                       </Link>
@@ -310,7 +327,7 @@ name: ${user?.name}`;
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandDialog open={openTenant} onOpenChange={setOpenTenant}>
         <CommandInput placeholder="Switch tenants..." />
         <CommandList>
           <CommandEmpty>No tenants found.</CommandEmpty>
@@ -323,7 +340,7 @@ name: ${user?.name}`;
                   key={membership.tenant?.metadata.id}
                   onSelect={() => {
                     setTenant(membership.tenant!.metadata.id);
-                    setOpen(false);
+                    setOpenTenant(false);
                   }}
                 >
                   {membership.tenant?.metadata.id === tenant?.metadata.id && (
@@ -337,7 +354,7 @@ name: ${user?.name}`;
             <CommandItem
               onSelect={() => {
                 navigate(ROUTES.onboarding.newTenant);
-                setOpen(false);
+                setOpenTenant(false);
               }}
             >
               <Plus className="h-4 w-4 mr-2" />

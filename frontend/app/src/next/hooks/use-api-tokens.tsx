@@ -10,17 +10,11 @@ import {
   useQuery,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
+import { useState, createContext, useContext, PropsWithChildren } from 'react';
 import {
-  useState,
-  createContext,
-  useContext,
-  PropsWithChildren,
-  createElement,
-} from 'react';
-import {
-  PaginationManager,
-  PaginationManagerNoOp,
-} from '@/next/components/ui/pagination';
+  PaginationProvider,
+  usePagination,
+} from '@/next/hooks/utils/use-pagination';
 import { useToast } from './utils/use-toast';
 
 // Types for filters
@@ -35,7 +29,6 @@ interface TokensFilters {
 interface UseApiTokensOptions {
   refetchInterval?: number;
   initialFilters?: TokensFilters;
-  paginationManager?: PaginationManager;
 }
 
 // Main hook return type
@@ -59,8 +52,8 @@ interface ApiTokensState {
 export default function useApiTokens({
   refetchInterval,
   initialFilters = {},
-  paginationManager = PaginationManagerNoOp,
 }: UseApiTokensOptions = {}): ApiTokensState {
+  const pagination = usePagination();
   const { tenant } = useTenant();
   const { toast } = useToast();
 
@@ -76,26 +69,23 @@ export default function useApiTokens({
       filters.sortDirection,
       filters.fromDate,
       filters.toDate,
-      paginationManager?.currentPage,
-      paginationManager?.pageSize,
+      pagination?.currentPage,
+      pagination?.pageSize,
     ],
     queryFn: async () => {
       if (!tenant) {
-        const pagination = {
+        pagination.setNumPages(0);
+        return {
           rows: [],
           pagination: { current_page: 0, num_pages: 0 },
         };
-        paginationManager?.setNumPages(pagination.pagination.num_pages);
-        return pagination;
       }
 
       try {
         // Build query params
         const queryParams: Record<string, any> = {
-          limit: paginationManager?.pageSize || 10,
-          offset:
-            (paginationManager?.currentPage - 1) *
-              paginationManager?.pageSize || 0,
+          limit: pagination?.pageSize || 10,
+          offset: (pagination?.currentPage - 1) * pagination?.pageSize || 0,
         };
 
         if (filters.sortBy) {
@@ -134,7 +124,7 @@ export default function useApiTokens({
           });
         }
 
-        paginationManager?.setNumPages(res.data.pagination?.num_pages || 1);
+        pagination?.setNumPages(res.data.pagination?.num_pages || 1);
 
         return {
           ...res.data,
@@ -233,12 +223,20 @@ interface ApiTokensProviderProps extends PropsWithChildren {
 }
 
 export function ApiTokensProvider(props: ApiTokensProviderProps) {
+  return (
+    <PaginationProvider>
+      <ApiTokensProviderContent {...props} />
+    </PaginationProvider>
+  );
+}
+
+function ApiTokensProviderContent(props: ApiTokensProviderProps) {
   const { children, options = {} } = props;
   const apiTokensState = useApiTokens(options);
 
-  return createElement(
-    ApiTokensContext.Provider,
-    { value: apiTokensState },
-    children,
+  return (
+    <ApiTokensContext.Provider value={apiTokensState}>
+      {children}
+    </ApiTokensContext.Provider>
   );
 }

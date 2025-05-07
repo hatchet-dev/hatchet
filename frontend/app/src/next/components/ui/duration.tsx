@@ -12,6 +12,7 @@ import {
 import { formatDuration } from '@/next/lib/utils/formatDuration';
 import { V1TaskStatus } from '@/lib/api';
 import { isValidTimestamp } from './time';
+
 const durationVariants = cva('text-sm', {
   variants: {
     variant: {
@@ -46,12 +47,12 @@ export function Duration({
 }: DurationProps) {
   if (!isValidTimestamp(start)) {
     return (
-      <div
+      <span
         className={cn(!asChild && durationVariants({ variant }), className)}
         {...props}
       >
         -
-      </div>
+      </span>
     );
   }
 
@@ -62,23 +63,23 @@ export function Duration({
   const isRunning = status === 'RUNNING';
 
   const content = (
-    <div className="flex items-center gap-1">
+    <span className="flex items-center gap-1">
       {showIcon && <Clock className="h-3.5 w-3.5" />}
       <span className={isRunning ? 'animate-pulse' : ''}>
         {formatDuration(duration, rawDuration)}
         {isRunning && '...'}
       </span>
-    </div>
+    </span>
   );
 
   if (variant === 'compact') {
     return (
-      <div
+      <span
         className={cn(!asChild && durationVariants({ variant }), className)}
         {...props}
       >
         {content}
-      </div>
+      </span>
     );
   }
 
@@ -86,12 +87,12 @@ export function Duration({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div
+          <span
             className={cn(!asChild && durationVariants({ variant }), className)}
             {...props}
           >
             {content}
-          </div>
+          </span>
         </TooltipTrigger>
         <TooltipContent>
           {isRunning ? 'Running for ' : ''}

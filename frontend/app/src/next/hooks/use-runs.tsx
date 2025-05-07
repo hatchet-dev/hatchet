@@ -14,6 +14,7 @@ import {
   useMutation,
   UseMutationResult,
   UseQueryResult,
+  useQueryClient,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import {
@@ -64,6 +65,7 @@ interface RunsState {
     isLoading: boolean;
   };
   isLoading: boolean;
+  isRefetching: boolean;
   create: UseMutationResult<
     V1WorkflowRunDetails,
     Error,
@@ -142,6 +144,7 @@ function RunsProviderContent({
   children: React.ReactNode;
   refetchInterval?: number;
 }) {
+  const queryClient = useQueryClient();
   const { tenant } = useTenant();
   const { toast } = useToast();
 
@@ -419,6 +422,9 @@ function RunsProviderContent({
     },
     onSuccess: () => {
       listRunsQuery.refetch();
+      queryClient.invalidateQueries({
+        queryKey: ['workflow-run-details:*'],
+      });
     },
   });
 
@@ -451,6 +457,9 @@ function RunsProviderContent({
     },
     onSuccess: () => {
       listRunsQuery.refetch();
+      queryClient.invalidateQueries({
+        queryKey: ['workflow-run-details:*'],
+      });
     },
   });
 
@@ -488,6 +497,7 @@ function RunsProviderContent({
         isLoading: metricsRunsQuery.isLoading,
       },
       isLoading: listRunsQuery.isLoading,
+      isRefetching: listRunsQuery.isFetching,
       create: createRunMutation,
       cancel: cancelRunMutation,
       replay: replayRunMutation,

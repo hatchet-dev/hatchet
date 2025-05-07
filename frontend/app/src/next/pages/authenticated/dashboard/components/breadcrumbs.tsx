@@ -21,10 +21,7 @@ import {
 } from '@/next/components/ui/dropdown-menu';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
-import {
-  BreadcrumbData,
-  useBreadcrumbsGetter,
-} from '@/next/hooks/use-breadcrumbs';
+import { BreadcrumbData, useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { BASE_PATH } from '@/next/lib/routes';
 
 // Use the existing NavItem type from main-nav
@@ -32,7 +29,8 @@ type NavItem = MainNavItem;
 
 // Utility functions for base path handling
 const stripBasePath = (path: string) => path.replace(BASE_PATH, '');
-const addBasePath = (path: string) => BASE_PATH + path;
+const addBasePath = (path: string) =>
+  path.startsWith(BASE_PATH) ? path : BASE_PATH + path;
 
 // Utility functions for working with NavItems
 const stripNavItemBasePath = (item: NavItem): NavItem => ({
@@ -54,7 +52,7 @@ export function BreadcrumbNav() {
   // Flattened navigation map for easy lookup
   const navMap = useMemo(() => new Map<string, NavItem>(), []);
 
-  const { breadcrumbs } = useBreadcrumbsGetter();
+  const { get } = useBreadcrumbs();
 
   // Map to track siblings at each level of the hierarchy
   const siblingsByPath = useMemo(() => new Map<string, NavItem[]>(), []);
@@ -154,18 +152,18 @@ export function BreadcrumbNav() {
   const breadcrumbItems = useMemo<
     (BreadcrumbData & { isLast: boolean; isFirst: boolean })[]
   >(() => {
-    const mergedBreadcrumbs = [...breadcrumbItemsFromNav, ...breadcrumbs];
+    const mergedBreadcrumbs = [...breadcrumbItemsFromNav, ...get];
 
     const breadcrumbItems = mergedBreadcrumbs.map((item, index) => ({
       ...item,
-      alwaysShowTitle: item.alwaysShowTitle ?? true,
+      alwaysShowTitle: item.alwaysShowTitle ?? false,
       alwaysShowIcon: item.alwaysShowIcon ?? true,
       isLast: index === mergedBreadcrumbs.length - 1,
       isFirst: index === 0,
     }));
 
     return breadcrumbItems;
-  }, [breadcrumbItemsFromNav, breadcrumbs]);
+  }, [breadcrumbItemsFromNav, get]);
 
   useEffect(() => {
     if (breadcrumbItems.length === 0) {
@@ -219,7 +217,9 @@ export function BreadcrumbNav() {
                   {(item.isFirst || item.alwaysShowIcon) && item.icon && (
                     <item.icon className="h-4 w-4 flex-shrink-0" />
                   )}
-                  {(item.alwaysShowTitle || !(item.isFirst || isMobile)) && (
+                  {(item.alwaysShowTitle ||
+                    (item.isFirst && !isMobile) ||
+                    item.isLast) && (
                     <span className="overflow-hidden text-ellipsis">
                       {item.label}
                     </span>
@@ -235,7 +235,9 @@ export function BreadcrumbNav() {
                   {(item.isFirst || item.alwaysShowIcon) && item.icon && (
                     <item.icon className="h-4 w-4 flex-shrink-0" />
                   )}
-                  {(item.alwaysShowTitle || !(item.isFirst || isMobile)) && (
+                  {(item.alwaysShowTitle ||
+                    (item.isFirst && !isMobile) ||
+                    item.isLast) && (
                     <span className="overflow-hidden text-ellipsis">
                       {item.label}
                     </span>
@@ -279,7 +281,9 @@ export function BreadcrumbNav() {
                 {(item.isFirst || item.alwaysShowIcon) && item.icon && (
                   <item.icon className="h-4 w-4 flex-shrink-0" />
                 )}
-                {(item.alwaysShowTitle || !(item.isFirst || isMobile)) && (
+                {(item.alwaysShowTitle ||
+                  (item.isFirst && !isMobile) ||
+                  item.isLast) && (
                   <span className="overflow-hidden text-ellipsis">
                     {item.label}
                   </span>

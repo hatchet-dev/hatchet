@@ -384,6 +384,10 @@ V1TaskTiming:
       type: string
       format: date-time
       description: The timestamp the task run finished.
+    workflowRunId:
+      type: string
+      format: uuid
+      description: The external ID of the workflow run.
   required:
     - metadata
     - depth
@@ -393,7 +397,6 @@ V1TaskTiming:
     - taskId
     - taskInsertedAt
     - tenantId
-
 V1TaskTimingList:
   type: object
   properties:

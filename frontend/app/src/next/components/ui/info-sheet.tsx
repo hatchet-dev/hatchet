@@ -19,30 +19,27 @@ export function InfoSheet({
 }: InfoSheetProps) {
   const isMobile = useIsMobile();
 
+  if (!isOpen) {
+    return null;
+  }
+
   // If using push variant, render as a side panel instead of using Sheet
   if (variant === 'push' && !isMobile) {
     return (
-      <div
-        className={`
-            border-l border-border
-          ${isOpen ? 'lg:w-[600px] md:w-[400px] w-[300px]' : 'w-0 overflow-hidden'}
-        `}
-      >
-        {isOpen && (
-          <div className="h-full flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
-              <button
-                onClick={onClose}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-              >
-                <Cross2Icon className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">{children}</div>
+      <div className={`border-l border-border w-[400px]`}>
+        <div className="h-full flex flex-col">
+          <div className="flex justify-between items-center p-4 border-b">
+            <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
+            <button
+              onClick={onClose}
+              className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+            >
+              <Cross2Icon className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </button>
           </div>
-        )}
+          <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        </div>
       </div>
     );
   }

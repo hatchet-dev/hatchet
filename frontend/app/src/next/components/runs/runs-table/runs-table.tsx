@@ -310,7 +310,7 @@ export function RunsTable({
         selectAll={selectAll}
         getSubRows={(row) => row.children || []}
       />
-      <Pagination className="mt-4 justify-between flex flex-row">
+      <Pagination className="justify-between flex flex-row">
         <PageSizeSelector />
         <PageSelector variant="dropdown" />
       </Pagination>

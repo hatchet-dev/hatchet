@@ -7,7 +7,7 @@ import {
   AlertTitle,
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import useTenant from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
@@ -49,7 +49,10 @@ export default function RunDetailPage() {
     taskId: string;
   }>();
   return (
-    <RunDetailProvider runId={workflowRunId || ''}>
+    <RunDetailProvider
+      runId={workflowRunId || ''}
+      defaultRefetchInterval={1000}
+    >
       <RunDetailPageContent workflowRunId={workflowRunId} taskId={taskId} />
     </RunDetailProvider>
   );
@@ -63,7 +66,15 @@ type RunDetailPageProps = {
 function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   const navigate = useNavigate();
   const { tenant } = useTenant();
-  const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
+  const {
+    data,
+    isLoading,
+    error,
+    cancel,
+    replay,
+    parentData,
+    lastRefetchTime,
+  } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
@@ -88,7 +99,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     navigate(ROUTES.runs.detail(workflowRunId!));
   }, [navigate, workflowRunId]);
 
-  useBreadcrumbs(() => {
+  const breadcrumbs = useMemo(() => {
     if (!workflow) {
       return [];
     }
@@ -103,6 +114,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
         url: parentUrl,
         icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
         alwaysShowIcon: true,
+        alwaysShowTitle: true,
       });
     }
 
@@ -122,6 +134,12 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
     return breadcrumbs;
   }, [workflow, parentData, selectedTask]);
+
+  const breadcrumb = useBreadcrumbs();
+
+  useEffect(() => {
+    breadcrumb.set(breadcrumbs);
+  }, [breadcrumbs, breadcrumb]);
 
   const canCancel = useMemo(() => {
     return (
@@ -252,15 +270,15 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
   const Timing = () => {
     const timings: JSX.Element[] = [
-      <div key="created" className="flex items-center gap-2">
+      <span key="created" className="flex items-center gap-2">
         <span>Created</span>
         <RelativeDate date={workflow.createdAt} />
-      </div>,
-      <div key="started" className="flex items-center gap-2">
+      </span>,
+      <span key="started" className="flex items-center gap-2">
         <span>Started</span>
         <RelativeDate date={workflow.startedAt} />
-      </div>,
-      <div key="duration" className="flex items-center gap-2">
+      </span>,
+      <span key="duration" className="flex items-center gap-2">
         <span>Duration</span>
         <span className="whitespace-nowrap">
           <Duration
@@ -269,7 +287,8 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             status={workflow.status}
           />
         </span>
-      </div>,
+        {lastRefetchTime}
+      </span>,
     ];
 
     const interleavedTimings: JSX.Element[] = [];
@@ -277,17 +296,17 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       interleavedTimings.push(timing);
       if (index < timings.length - 1) {
         interleavedTimings.push(
-          <div key={`sep-${index}`} className="text-sm text-muted-foreground">
+          <span key={`sep-${index}`} className="text-sm text-muted-foreground">
             |
-          </div>,
+          </span>,
         );
       }
     });
 
     return (
-      <div className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
+      <span className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
         {interleavedTimings}
-      </div>
+      </span>
     );
   };
 
@@ -306,10 +325,10 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     >
       <Headline>
         <PageTitle description={<Timing />}>
-          <h1 className="text-2xl font-bold truncate flex items-center gap-2">
+          <div className="text-2xl font-bold truncate flex items-center gap-2">
             <RunsBadge status={workflow.status} variant="xs" />
             <RunId wfRun={workflow} />
-          </h1>
+          </div>
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>

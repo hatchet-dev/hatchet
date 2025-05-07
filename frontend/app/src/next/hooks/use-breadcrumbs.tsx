@@ -40,37 +40,20 @@ export function BreadcrumbProvider({
   );
 }
 
-// HACK this is a hack to get the breadcrumbs to work
-// currently we cant call useBreadcrumbs more than once
-// so we need to create a new hook for each use case
-export function useBreadcrumbsGetter() {
-  const context = React.useContext(BreadcrumbContext);
-  if (context === undefined) {
-    throw new Error('useBreadcrumbs must be used within a BreadcrumbProvider');
-  }
-  return context;
-}
-
-export function useBreadcrumbs(
-  effect: () => BreadcrumbData[],
-  deps: React.DependencyList,
-): BreadcrumbContextType {
+export function useBreadcrumbs(): {
+  set: (breadcrumbs: BreadcrumbData[]) => void;
+  get: BreadcrumbData[];
+} {
   const context = React.useContext(BreadcrumbContext);
 
   if (context === undefined) {
     throw new Error('useBreadcrumbs must be used within a BreadcrumbProvider');
   }
 
-  React.useEffect(() => {
-    if (effect) {
-      const breadcrumbs = effect();
+  return {
+    set: (breadcrumbs: BreadcrumbData[]) => {
       context.setBreadcrumbs(breadcrumbs);
-    }
-
-    return () => {
-      context.setBreadcrumbs([]);
-    };
-  }, [effect, deps, context]);
-
-  return context;
+    },
+    get: context.breadcrumbs,
+  };
 }

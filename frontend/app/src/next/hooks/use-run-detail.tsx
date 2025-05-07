@@ -1,15 +1,19 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { V1TaskTimingList } from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
 import { V1TaskSummary, V1WorkflowRunDetails, V1TaskEvent } from '@/lib/api';
 import { useToast } from './utils/use-toast';
 
 interface RunDetailState {
-  data: V1WorkflowRunDetails | undefined;
-  parentData: V1WorkflowRunDetails | undefined;
+  data: V1WorkflowRunDetails | null | undefined;
+  parentData: V1WorkflowRunDetails | null | undefined;
   isLoading: boolean;
   error: Error | null;
+  timings: UseQueryResult<V1TaskTimingList | null | undefined, Error> & {
+    depth: number;
+    setDepth: (depth: number) => void;
+  };
   activity:
     | {
         events: V1TaskEvent[];
@@ -20,6 +24,7 @@ interface RunDetailState {
           metadata: object;
         }>;
       }
+    | null
     | undefined;
   cancel: {
     mutateAsync: (params: { tasks: V1TaskSummary[] }) => Promise<unknown>;
@@ -30,8 +35,10 @@ interface RunDetailState {
     isPending: boolean;
   };
   refetch: () => Promise<
-    UseQueryResult<V1WorkflowRunDetails | undefined, Error>
+    UseQueryResult<V1WorkflowRunDetails | null | undefined, Error>
   >;
+  lastRefetchTime: number;
+  refetchInterval: number | undefined;
 }
 
 const RunDetailContext = createContext<RunDetailState | null>(null);
@@ -73,35 +80,28 @@ function RunDetailProviderContent({
   defaultRefetchInterval,
 }: RunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
-  const [refetchInterval, setRefetchInterval] = useState(
-    defaultRefetchInterval,
-  );
+  const [refetchInterval] = useState(defaultRefetchInterval);
+  const [depth, setDepth] = useState(2);
+  const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
   const { toast } = useToast();
 
   const runDetails = useQuery({
     queryKey: ['workflow-run-details:get', runId],
     queryFn: async () => {
       if (runId === '00000000-0000-0000-0000-000000000000') {
-        return;
+        return null;
       }
       try {
         const run = (await api.v1WorkflowRunGet(runId)).data;
-
-        if (refetchInterval) {
-          setRefetchInterval(
-            run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
-          );
-        }
-
+        setLastRefetchTime(Date.now());
         return run;
       } catch (error) {
         toast({
           title: 'Error fetching run details',
-
           variant: 'destructive',
           error,
         });
-        return undefined;
+        return null;
       }
     },
     refetchInterval: refetchInterval,
@@ -115,26 +115,18 @@ function RunDetailProviderContent({
     queryFn: async () => {
       const runId = runDetails.data?.run.parentTaskExternalId;
       if (!runId || runId === '00000000-0000-0000-0000-000000000000') {
-        return;
+        return null;
       }
       try {
         const run = (await api.v1WorkflowRunGet(runId)).data;
-
-        if (refetchInterval) {
-          setRefetchInterval(
-            run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
-          );
-        }
-
         return run;
       } catch (error) {
         toast({
           title: 'Error fetching parent run details',
-
           variant: 'destructive',
           error,
         });
-        return undefined;
+        return null;
       }
     },
     refetchInterval: refetchInterval,
@@ -144,7 +136,7 @@ function RunDetailProviderContent({
     queryKey: ['task-events:get', runId, runDetails.data?.tasks],
     queryFn: async () => {
       if (runId === '00000000-0000-0000-0000-000000000000') {
-        return;
+        return null;
       }
 
       try {
@@ -181,7 +173,6 @@ function RunDetailProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching run activity',
-
           variant: 'destructive',
           error,
         });
@@ -191,12 +182,24 @@ function RunDetailProviderContent({
     refetchInterval: refetchInterval,
   });
 
+  const taskTimings = useQuery({
+    queryKey: ['task-events:timings', runId, depth],
+    queryFn: async () =>
+      (
+        await api.v1WorkflowRunGetTimings(runId, {
+          depth,
+        })
+      ).data,
+    refetchInterval,
+  });
+
   const value = useMemo(
     () => ({
       data: runDetails.data,
       parentData: parentDetails.data,
       isLoading: runDetails.isLoading,
       error: runDetails.error,
+      timings: { ...taskTimings, depth, setDepth },
       activity: activity.data,
       cancel: {
         mutateAsync: cancelRun.mutateAsync,
@@ -207,8 +210,21 @@ function RunDetailProviderContent({
         isPending: replayRun.isPending,
       },
       refetch: runDetails.refetch,
+      lastRefetchTime,
+      refetchInterval,
     }),
-    [runDetails, activity.data, cancelRun, replayRun, parentDetails],
+    [
+      runDetails,
+      activity.data,
+      cancelRun,
+      replayRun,
+      parentDetails,
+      lastRefetchTime,
+      refetchInterval,
+      taskTimings,
+      depth,
+      setDepth,
+    ],
   );
 
   return (

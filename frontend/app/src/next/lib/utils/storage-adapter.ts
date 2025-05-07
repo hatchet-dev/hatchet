@@ -54,6 +54,7 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
 
   private setSearchParams: (
     nextInit: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams),
+    options?: { replace?: boolean },
   ) => void;
 
   private prefix: string;
@@ -62,6 +63,7 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
     searchParams: URLSearchParams,
     setSearchParams: (
       nextInit: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams),
+      options?: { replace?: boolean },
     ) => void,
     prefix = '',
   ) {
@@ -97,29 +99,9 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
   setValue<K extends keyof T>(key: string, value: T[K]): void {
     const paramKey = this.prefix ? `${this.prefix}${key}` : key;
 
-    this.setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev);
-
-      if (value === undefined || value === null) {
-        newParams.delete(paramKey);
-      } else if (typeof value === 'object') {
-        // Convert objects to JSON strings
-        newParams.set(paramKey, JSON.stringify(value));
-      } else {
-        // For primitives, convert to string
-        newParams.set(paramKey, String(value));
-      }
-
-      return newParams;
-    });
-  }
-
-  setValues(values: Partial<T>): void {
-    this.setSearchParams((prev) => {
-      const newParams = new URLSearchParams(prev);
-
-      for (const [key, value] of Object.entries(values)) {
-        const paramKey = this.prefix ? `${this.prefix}${key}` : key;
+    this.setSearchParams(
+      (prev) => {
+        const newParams = new URLSearchParams(prev);
 
         if (value === undefined || value === null) {
           newParams.delete(paramKey);
@@ -130,10 +112,36 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
           // For primitives, convert to string
           newParams.set(paramKey, String(value));
         }
-      }
 
-      return newParams;
-    });
+        return newParams;
+      },
+      { replace: true },
+    );
+  }
+
+  setValues(values: Partial<T>): void {
+    this.setSearchParams(
+      (prev) => {
+        const newParams = new URLSearchParams(prev);
+
+        for (const [key, value] of Object.entries(values)) {
+          const paramKey = this.prefix ? `${this.prefix}${key}` : key;
+
+          if (value === undefined || value === null) {
+            newParams.delete(paramKey);
+          } else if (typeof value === 'object') {
+            // Convert objects to JSON strings
+            newParams.set(paramKey, JSON.stringify(value));
+          } else {
+            // For primitives, convert to string
+            newParams.set(paramKey, String(value));
+          }
+        }
+
+        return newParams;
+      },
+      { replace: true },
+    );
   }
 
   getValues(): T {

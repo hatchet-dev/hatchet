@@ -15,7 +15,6 @@ import {
   AlertDescription,
 } from '@/next/components/ui/alert';
 import { Lock } from 'lucide-react';
-import { PaginationProvider } from '@/next/components/ui/pagination';
 import {
   HeadlineActionItem,
   HeadlineActions,
@@ -72,9 +71,8 @@ function ApiTokensContent() {
         </Alert>
       )}
       {canManage && (
-        <PaginationProvider>
+        <>
           <Separator className="my-4" />
-
           <TokensTable
             emptyState={
               <div className="flex flex-col items-center justify-center gap-4 py-8">
@@ -87,7 +85,7 @@ function ApiTokensContent() {
               </div>
             }
           />
-        </PaginationProvider>
+        </>
       )}
 
       {showTokenDialog && (
