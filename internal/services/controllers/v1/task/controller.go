@@ -834,8 +834,8 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		}
 
 		eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-			RunId:         run.RunId,
-			RunInsertedAt: run.RunInsertedAt,
+			MaybeRunId:         run.MaybeRunId,
+			MaybeRunInsertedAt: run.MaybeRunInsertedAt,
 			// FIXME: Should `SeenAt` be set on the SDK when the event is created?
 			EventSeenAt:             eventSeenAt,
 			EventKey:                run.Opts.Key,
