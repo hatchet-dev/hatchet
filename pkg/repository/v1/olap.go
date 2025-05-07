@@ -1336,13 +1336,13 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 }
 
 func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events []sqlcv1.BulkCreateEventsParams, triggers []sqlcv1.BulkCreateEventTriggersParams) error {
-	tx, err := r.pool.Begin(ctx)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
 	}
 
-	defer tx.Rollback(ctx)
+	defer rollback()
 
 	_, err = r.queries.BulkCreateEvents(ctx, tx, events)
 
@@ -1356,10 +1356,9 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return fmt.Errorf("error creating event triggers: %v", err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
 
 	return nil
-
 }
