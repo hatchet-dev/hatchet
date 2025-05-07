@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type BulkCreateEventTriggersParams struct {
+	RunID         int64              `json:"run_id"`
+	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
+	EventID       pgtype.UUID        `json:"event_id"`
+	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
+}
+
+type BulkCreateEventsParams struct {
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	ID                 pgtype.UUID        `json:"id"`
+	SeenAt             pgtype.Timestamptz `json:"seen_at"`
+	Key                string             `json:"key"`
+	Payload            []byte             `json:"payload"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+}
+
 type CreateDAGsOLAPParams struct {
 	TenantID             pgtype.UUID        `json:"tenant_id"`
 	ID                   int64              `json:"id"`
@@ -31,7 +47,9 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date)
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
+    create_v1_range_partition('v1_events_olap'::text, $2::date),
+    create_v1_range_partition('v1_event_to_run_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {

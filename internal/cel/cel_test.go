@@ -93,3 +93,84 @@ func TestCELParser(t *testing.T) {
 		})
 	}
 }
+
+func TestCELParserEventExpression(t *testing.T) {
+	parser := cel.NewCELParser()
+
+	tests := []struct {
+		expression  string
+		input       cel.Input
+		expected    bool
+		expectError bool
+	}{
+		{
+			expression: `has(input.custom.value)`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{
+					"custom": map[string]interface{}{
+						"value": "actual value",
+					},
+				}),
+			),
+			expected:    true,
+			expectError: false,
+		},
+		{
+			expression: `has(input.custom)`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{}),
+			),
+			expected:    false,
+			expectError: false,
+		},
+		{
+			expression: `input.custom.value > 314`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{
+					"custom": map[string]interface{}{
+						"value": 400,
+					},
+				}),
+			),
+			expected:    true,
+			expectError: false,
+		},
+		{
+			expression: `input.custom.value < 314`,
+			input: cel.NewInput(
+				cel.WithInput(map[string]interface{}{
+					"custom": map[string]interface{}{
+						"value": 400,
+					},
+				}),
+			),
+			expected:    false,
+			expectError: false,
+		},
+		{
+			expression:  `checksum(input.missing_key)`, // Should throw an error due to missing key
+			input:       cel.NewInput(),
+			expected:    false,
+			expectError: true,
+		},
+		{
+			expression:  `input.custom.value = 1234`, // Invalid expression (mismatched types), expecting error
+			input:       cel.NewInput(),
+			expected:    false,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expression, func(t *testing.T) {
+			result, err := parser.EvaluateEventExpression(tt.expression, tt.input)
+
+			if tt.expectError {
+				assert.Error(t, err, "Expected error but got none")
+			} else {
+				assert.NoError(t, err, "Did not expect error but got one")
+				assert.Equal(t, tt.expected, result, "Unexpected result")
+			}
+		})
+	}
+}

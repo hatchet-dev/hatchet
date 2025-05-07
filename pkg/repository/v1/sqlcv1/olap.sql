@@ -4,7 +4,9 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date);
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
+    create_v1_range_partition('v1_events_olap'::text, @date::date),
+    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date);
 
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
@@ -1255,3 +1257,38 @@ FROM
   all_runs
 WHERE
   tenant_id = @tenantId::uuid;
+
+
+-- name: BulkCreateEvents :copyfrom
+INSERT INTO v1_events_olap (
+    tenant_id,
+    id,
+    seen_at,
+    key,
+    payload,
+    additional_metadata
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+)
+;
+
+-- name: BulkCreateEventTriggers :copyfrom
+INSERT INTO v1_event_to_run_olap(
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4
+)
+;
