@@ -114,6 +114,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
         url: parentUrl,
         icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
         alwaysShowIcon: true,
+        alwaysShowTitle: true,
       });
     }
 
