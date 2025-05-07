@@ -88,40 +88,40 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     navigate(ROUTES.runs.detail(workflowRunId!));
   }, [navigate, workflowRunId]);
 
-  useBreadcrumbs(() => {
-    if (!workflow) {
-      return [];
-    }
+  // useBreadcrumbs(() => {
+  //   if (!workflow) {
+  //     return [];
+  //   }
 
-    const breadcrumbs = [];
+  //   const breadcrumbs = [];
 
-    if (parentData) {
-      const parentUrl = ROUTES.runs.detail(parentData.run.metadata.id);
-      breadcrumbs.push({
-        title: getFriendlyWorkflowRunId(parentData.run) || '',
-        label: <RunId wfRun={parentData.run} />,
-        url: parentUrl,
-        icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-        alwaysShowIcon: true,
-      });
-    }
+  //   if (parentData) {
+  //     const parentUrl = ROUTES.runs.detail(parentData.run.metadata.id);
+  //     breadcrumbs.push({
+  //       title: getFriendlyWorkflowRunId(parentData.run) || '',
+  //       label: <RunId wfRun={parentData.run} />,
+  //       url: parentUrl,
+  //       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
+  //       alwaysShowIcon: true,
+  //     });
+  //   }
 
-    breadcrumbs.push({
-      title: getFriendlyWorkflowRunId(workflow) || '',
-      label: <RunId wfRun={workflow} />,
-      url:
-        selectedTask?.metadata.id === workflow?.metadata.id
-          ? ROUTES.runs.detail(workflow.metadata.id)
-          : ROUTES.runs.taskDetail(
-              workflow.metadata.id,
-              selectedTask?.taskExternalId || '',
-            ),
-      icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-      alwaysShowIcon: true,
-    });
+  //   breadcrumbs.push({
+  //     title: getFriendlyWorkflowRunId(workflow) || '',
+  //     label: <RunId wfRun={workflow} />,
+  //     url:
+  //       selectedTask?.metadata.id === workflow?.metadata.id
+  //         ? ROUTES.runs.detail(workflow.metadata.id)
+  //         : ROUTES.runs.taskDetail(
+  //             workflow.metadata.id,
+  //             selectedTask?.taskExternalId || '',
+  //           ),
+  //     icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
+  //     alwaysShowIcon: true,
+  //   });
 
-    return breadcrumbs;
-  }, [workflow, parentData, selectedTask]);
+  //   return breadcrumbs;
+  // }, [workflow, parentData, selectedTask]);
 
   const canCancel = useMemo(() => {
     return (
@@ -252,15 +252,15 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
   const Timing = () => {
     const timings: JSX.Element[] = [
-      <div key="created" className="flex items-center gap-2">
+      <span key="created" className="flex items-center gap-2">
         <span>Created</span>
         <RelativeDate date={workflow.createdAt} />
-      </div>,
-      <div key="started" className="flex items-center gap-2">
+      </span>,
+      <span key="started" className="flex items-center gap-2">
         <span>Started</span>
         <RelativeDate date={workflow.startedAt} />
-      </div>,
-      <div key="duration" className="flex items-center gap-2">
+      </span>,
+      <span key="duration" className="flex items-center gap-2">
         <span>Duration</span>
         <span className="whitespace-nowrap">
           <Duration
@@ -269,7 +269,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             status={workflow.status}
           />
         </span>
-      </div>,
+      </span>,
     ];
 
     const interleavedTimings: JSX.Element[] = [];
@@ -277,17 +277,17 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       interleavedTimings.push(timing);
       if (index < timings.length - 1) {
         interleavedTimings.push(
-          <div key={`sep-${index}`} className="text-sm text-muted-foreground">
+          <span key={`sep-${index}`} className="text-sm text-muted-foreground">
             |
-          </div>,
+          </span>,
         );
       }
     });
 
     return (
-      <div className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
+      <span className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
         {interleavedTimings}
-      </div>
+      </span>
     );
   };
 
@@ -306,10 +306,10 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     >
       <Headline>
         <PageTitle description={<Timing />}>
-          <h1 className="text-2xl font-bold truncate flex items-center gap-2">
+          <div className="text-2xl font-bold truncate flex items-center gap-2">
             <RunsBadge status={workflow.status} variant="xs" />
             <RunId wfRun={workflow} />
-          </h1>
+          </div>
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>

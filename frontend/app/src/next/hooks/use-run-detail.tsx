@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState, useEffect } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
@@ -86,18 +86,10 @@ function RunDetailProviderContent({
       }
       try {
         const run = (await api.v1WorkflowRunGet(runId)).data;
-
-        if (refetchInterval) {
-          setRefetchInterval(
-            run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
-          );
-        }
-
         return run;
       } catch (error) {
         toast({
           title: 'Error fetching run details',
-
           variant: 'destructive',
           error,
         });
@@ -119,18 +111,10 @@ function RunDetailProviderContent({
       }
       try {
         const run = (await api.v1WorkflowRunGet(runId)).data;
-
-        if (refetchInterval) {
-          setRefetchInterval(
-            run.run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
-          );
-        }
-
         return run;
       } catch (error) {
         toast({
           title: 'Error fetching parent run details',
-
           variant: 'destructive',
           error,
         });
@@ -139,6 +123,18 @@ function RunDetailProviderContent({
     },
     refetchInterval: refetchInterval,
   });
+
+  // Handle refetch interval updates based on run status
+  // useEffect(() => {
+  //   if (!refetchInterval) return;
+
+  //   const run = runDetails.data?.run;
+  //   if (run) {
+  //     setRefetchInterval(
+  //       run.status === 'RUNNING' ? 1000 : defaultRefetchInterval || 0,
+  //     );
+  //   }
+  // }, [runDetails.data?.run?.status, defaultRefetchInterval, refetchInterval]);
 
   const activity = useQuery({
     queryKey: ['task-events:get', runId, runDetails.data?.tasks],
@@ -181,7 +177,6 @@ function RunDetailProviderContent({
       } catch (error) {
         toast({
           title: 'Error fetching run activity',
-
           variant: 'destructive',
           error,
         });
