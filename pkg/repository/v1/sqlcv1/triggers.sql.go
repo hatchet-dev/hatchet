@@ -77,7 +77,8 @@ SELECT
     latest_versions."workflowVersionId",
     latest_versions."workflowId",
     latest_versions."workflowName",
-    eventRef."eventKey" as "eventKey"
+    eventRef."eventKey" as "eventKey",
+    eventRef."expression" as "eventExpression"
 FROM
     latest_versions
 JOIN
@@ -98,6 +99,7 @@ type ListWorkflowsForEventsRow struct {
 	WorkflowId        pgtype.UUID `json:"workflowId"`
 	WorkflowName      string      `json:"workflowName"`
 	EventKey          string      `json:"eventKey"`
+	EventExpression   pgtype.Text `json:"eventExpression"`
 }
 
 // Get all of the latest workflow versions
@@ -116,6 +118,7 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 			&i.WorkflowId,
 			&i.WorkflowName,
 			&i.EventKey,
+			&i.EventExpression,
 		); err != nil {
 			return nil, err
 		}

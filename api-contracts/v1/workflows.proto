@@ -83,6 +83,7 @@ message CreateWorkflowVersionRequest {
     optional StickyStrategy sticky = 10; // (optional) the sticky strategy for assigning steps to workers
     optional int32 default_priority = 11; // (optional) the default priority for the workflow
     repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
+    optional string event_filter_expression = 13; // (optional) the event expression for the workflow
 }
 
 enum ConcurrencyLimitStrategy {

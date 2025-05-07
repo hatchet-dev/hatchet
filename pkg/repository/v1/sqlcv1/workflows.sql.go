@@ -659,22 +659,25 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 const createWorkflowTriggerEventRef = `-- name: CreateWorkflowTriggerEventRef :one
 INSERT INTO "WorkflowTriggerEventRef" (
     "parentId",
-    "eventKey"
+    "eventKey",
+    "expression"
 ) VALUES (
     $1::uuid,
-    $2::text
-) RETURNING "parentId", "eventKey"
+    $2::text,
+    $3::text
+) RETURNING "parentId", "eventKey", expression
 `
 
 type CreateWorkflowTriggerEventRefParams struct {
 	Workflowtriggersid pgtype.UUID `json:"workflowtriggersid"`
 	Eventtrigger       string      `json:"eventtrigger"`
+	Expression         pgtype.Text `json:"expression"`
 }
 
 func (q *Queries) CreateWorkflowTriggerEventRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerEventRefParams) (*WorkflowTriggerEventRef, error) {
-	row := db.QueryRow(ctx, createWorkflowTriggerEventRef, arg.Workflowtriggersid, arg.Eventtrigger)
+	row := db.QueryRow(ctx, createWorkflowTriggerEventRef, arg.Workflowtriggersid, arg.Eventtrigger, arg.Expression)
 	var i WorkflowTriggerEventRef
-	err := row.Scan(&i.ParentId, &i.EventKey)
+	err := row.Scan(&i.ParentId, &i.EventKey, &i.Expression)
 	return &i, err
 }
 

@@ -779,7 +779,7 @@ INSERT INTO "WorkflowTriggerEventRef" (
 ) VALUES (
     $1::uuid,
     $2::text
-) RETURNING "parentId", "eventKey"
+) RETURNING "parentId", "eventKey", expression
 `
 
 type CreateWorkflowTriggerEventRefParams struct {
@@ -790,7 +790,7 @@ type CreateWorkflowTriggerEventRefParams struct {
 func (q *Queries) CreateWorkflowTriggerEventRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerEventRefParams) (*WorkflowTriggerEventRef, error) {
 	row := db.QueryRow(ctx, createWorkflowTriggerEventRef, arg.Workflowtriggersid, arg.Eventtrigger)
 	var i WorkflowTriggerEventRef
-	err := row.Scan(&i.ParentId, &i.EventKey)
+	err := row.Scan(&i.ParentId, &i.EventKey, &i.Expression)
 	return &i, err
 }
 
@@ -1294,7 +1294,7 @@ func (q *Queries) GetWorkflowVersionCronTriggerRefs(ctx context.Context, db DBTX
 
 const getWorkflowVersionEventTriggerRefs = `-- name: GetWorkflowVersionEventTriggerRefs :many
 SELECT
-    wtc."parentId", wtc."eventKey"
+    wtc."parentId", wtc."eventKey", wtc.expression
 FROM
     "WorkflowTriggerEventRef" as wtc
 JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
@@ -1311,7 +1311,7 @@ func (q *Queries) GetWorkflowVersionEventTriggerRefs(ctx context.Context, db DBT
 	var items []*WorkflowTriggerEventRef
 	for rows.Next() {
 		var i WorkflowTriggerEventRef
-		if err := rows.Scan(&i.ParentId, &i.EventKey); err != nil {
+		if err := rows.Scan(&i.ParentId, &i.EventKey, &i.Expression); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

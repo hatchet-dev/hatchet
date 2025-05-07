@@ -819,7 +819,45 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 		})
 	}
 
-	tasks, dags, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+
+	if err != nil {
+		return fmt.Errorf("could not trigger tasks from events: %w", err)
+	}
+
+	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
+	eventSeenAt := time.Now()
+
+	for _, run := range result.Runs {
+		if run == nil {
+			continue
+		}
+
+		eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+			MaybeRunId:         run.MaybeRunId,
+			MaybeRunInsertedAt: run.MaybeRunInsertedAt,
+			// FIXME: Should `SeenAt` be set on the SDK when the event is created?
+			EventSeenAt:             eventSeenAt,
+			EventKey:                run.Opts.Key,
+			EventId:                 run.Opts.EventId,
+			EventPayload:            run.Opts.Data,
+			EventAdditionalMetadata: run.Opts.AdditionalMetadata,
+		})
+
+	}
+
+	msg, err := tasktypes.CreatedEventTriggerMessage(
+		tenantId,
+		tasktypes.CreatedEventTriggerPayload{
+			Payloads: eventTriggerOpts,
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create event trigger message: %w", err)
+	}
+
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
@@ -828,11 +866,11 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	eg := &errgroup.Group{}
 
 	eg.Go(func() error {
-		return tc.signalTasksCreated(ctx, tenantId, tasks)
+		return tc.signalTasksCreated(ctx, tenantId, result.Tasks)
 	})
 
 	eg.Go(func() error {
-		return tc.signalDAGsCreated(ctx, tenantId, dags)
+		return tc.signalDAGsCreated(ctx, tenantId, result.Dags)
 	})
 
 	return eg.Wait()
