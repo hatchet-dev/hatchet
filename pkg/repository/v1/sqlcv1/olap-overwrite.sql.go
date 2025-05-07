@@ -37,6 +37,18 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+				SELECT (r.id, r.inserted_at)
+				FROM v1_events_olap e
+				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+				JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+				WHERE
+					e.tenant_id = $1::uuid
+					AND e.id = $9::UUID
+			)
+		)
     ORDER BY
         inserted_at DESC
     LIMIT 20000
@@ -47,14 +59,15 @@ FROM filtered
 `
 
 type CountTasksParams struct {
-	Tenantid    pgtype.UUID        `json:"tenantid"`
-	Since       pgtype.Timestamptz `json:"since"`
-	Statuses    []string           `json:"statuses"`
-	Until       pgtype.Timestamptz `json:"until"`
-	WorkflowIds []pgtype.UUID      `json:"workflowIds"`
-	WorkerId    pgtype.UUID        `json:"workerId"`
-	Keys        []string           `json:"keys"`
-	Values      []string           `json:"values"`
+	Tenantid          pgtype.UUID        `json:"tenantid"`
+	Since             pgtype.Timestamptz `json:"since"`
+	Statuses          []string           `json:"statuses"`
+	Until             pgtype.Timestamptz `json:"until"`
+	WorkflowIds       []pgtype.UUID      `json:"workflowIds"`
+	WorkerId          pgtype.UUID        `json:"workerId"`
+	Keys              []string           `json:"keys"`
+	Values            []string           `json:"values"`
+	TriggeringEventId pgtype.UUID        `json:"triggeringEventId"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -100,6 +113,18 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+		AND (
+			$8::UUID IS NULL
+			OR (id, inserted_at) IN (
+				SELECT (r.id, r.inserted_at)
+				FROM v1_events_olap e
+				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+				JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+				WHERE
+					e.tenant_id = $1::uuid
+					AND e.id = $8::UUID
+			)
+		)
     LIMIT 20000
 )
 
@@ -108,13 +133,14 @@ FROM filtered
 `
 
 type CountWorkflowRunsParams struct {
-	Tenantid    pgtype.UUID        `json:"tenantid"`
-	Statuses    []string           `json:"statuses"`
-	WorkflowIds []pgtype.UUID      `json:"workflowIds"`
-	Since       pgtype.Timestamptz `json:"since"`
-	Until       pgtype.Timestamptz `json:"until"`
-	Keys        []string           `json:"keys"`
-	Values      []string           `json:"values"`
+	Tenantid          pgtype.UUID        `json:"tenantid"`
+	Statuses          []string           `json:"statuses"`
+	WorkflowIds       []pgtype.UUID      `json:"workflowIds"`
+	Since             pgtype.Timestamptz `json:"since"`
+	Until             pgtype.Timestamptz `json:"until"`
+	Keys              []string           `json:"keys"`
+	Values            []string           `json:"values"`
+	TriggeringEventId pgtype.UUID        `json:"triggeringEventId"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -162,7 +188,18 @@ WHERE
         $10::UUID IS NULL
         OR parent_task_external_id = $10::UUID
     )
-
+    AND (
+        $11::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT (r.id, r.inserted_at)
+            FROM v1_events_olap e
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+            WHERE
+                e.tenant_id = $1::uuid
+                AND e.id = $11::UUID
+        )
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -179,6 +216,7 @@ type FetchWorkflowRunIdsParams struct {
 	Listworkflowrunsoffset int32              `json:"listworkflowrunsoffset"`
 	Listworkflowrunslimit  int32              `json:"listworkflowrunslimit"`
 	ParentTaskExternalId   pgtype.UUID        `json:"parentTaskExternalId"`
+	TriggeringEventId      pgtype.UUID        `json:"triggeringEventId"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -256,6 +294,18 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
+    AND (
+        $11::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT (r.id, r.inserted_at)
+            FROM v1_events_olap e
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            JOIN v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+            WHERE
+                e.tenant_id = $1::uuid
+                AND e.id = $11::UUID
+        )
+    )
 ORDER BY
     inserted_at DESC
 LIMIT $10::integer
@@ -263,16 +313,17 @@ OFFSET $9::integer
 `
 
 type ListTasksOlapParams struct {
-	Tenantid    pgtype.UUID        `json:"tenantid"`
-	Since       pgtype.Timestamptz `json:"since"`
-	Statuses    []string           `json:"statuses"`
-	Until       pgtype.Timestamptz `json:"until"`
-	WorkflowIds []pgtype.UUID      `json:"workflowIds"`
-	WorkerId    pgtype.UUID        `json:"workerId"`
-	Keys        []string           `json:"keys"`
-	Values      []string           `json:"values"`
-	Taskoffset  int32              `json:"taskoffset"`
-	Tasklimit   int32              `json:"tasklimit"`
+	Tenantid          pgtype.UUID        `json:"tenantid"`
+	Since             pgtype.Timestamptz `json:"since"`
+	Statuses          []string           `json:"statuses"`
+	Until             pgtype.Timestamptz `json:"until"`
+	WorkflowIds       []pgtype.UUID      `json:"workflowIds"`
+	WorkerId          pgtype.UUID        `json:"workerId"`
+	Keys              []string           `json:"keys"`
+	Values            []string           `json:"values"`
+	Taskoffset        int32              `json:"taskoffset"`
+	Tasklimit         int32              `json:"tasklimit"`
+	TriggeringEventId pgtype.UUID        `json:"triggeringEventId"`
 }
 
 type ListTasksOlapRow struct {
