@@ -73,7 +73,7 @@ class Context:
         from hatchet_sdk.runnables.types import R
 
         if self.was_skipped(task):
-            raise ValueError("{task.name} was skipped")
+            raise ValueError(f"{task.name} was skipped")
 
         try:
             parent_step_data = cast(R, self.data.parents[task.name])
