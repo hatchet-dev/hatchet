@@ -142,9 +142,7 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workfl
 
 	match, err := r.celParser.EvaluateEventExpression(
 		workflow.EventExpression.String,
-		opt.EventId,
 		inputData,
-		additionalMetadata,
 	)
 
 	if err != nil {
