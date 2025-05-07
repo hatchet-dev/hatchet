@@ -72,12 +72,12 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const navigate = useNavigate();
   const location = useLocation();
   const navLinks = getMainNavLinks(location.pathname);
-  const { toggleSidebar, isCollapsed, isMobile } = useSidebar();
+  const { toggleSidebar, isCollapsed, isMobile, setOpenMobile } = useSidebar();
   const docs = useDocs();
   const [collapsibleState, setCollapsibleState] = useState<
     Record<string, boolean>
   >({});
-  const [open, setOpen] = useState(false);
+  const [openTenant, setOpenTenant] = useState(false);
 
   // Load collapsible state from localStorage on initial render
   useEffect(() => {
@@ -128,7 +128,7 @@ name: ${user?.name}`;
               <SidebarMenuButton
                 size="lg"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                onClick={() => setOpen(true)}
+                onClick={() => setOpenTenant(true)}
               >
                 <TenantBlock />
                 <ChevronsUpDown className="ml-auto size-4" />
@@ -173,7 +173,7 @@ name: ${user?.name}`;
                           >
                             {item.items?.map((subItem) => (
                               <DropdownMenuItem key={subItem.title} asChild>
-                                <Link to={subItem.url}>
+                                <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
                                   <subItem.icon className="mr-2 h-4 w-4" />
                                   {subItem.title}
                                 </Link>
@@ -193,7 +193,7 @@ name: ${user?.name}`;
                                   : 'hover:bg-muted/30'
                               }
                             >
-                              <Link to={item.url}>
+                              <Link to={item.url} onClick={() => setOpenMobile(false)}>
                                 <item.icon />
                                 <span>{item.title}</span>
                               </Link>
@@ -219,7 +219,7 @@ name: ${user?.name}`;
                                             : 'hover:bg-muted/30'
                                         }
                                       >
-                                        <Link to={subItem.url}>
+                                        <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
                                           <subItem.icon />
                                           <span>{subItem.title}</span>
                                         </Link>
@@ -251,7 +251,7 @@ name: ${user?.name}`;
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                      side="right"
+                      side={isMobile ? 'bottom' : 'right'}
                       sideOffset={4}
                     >
                       <DropdownMenuGroup>
@@ -297,7 +297,7 @@ name: ${user?.name}`;
                 {navLinks.navSecondary.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild size="sm" tooltip={item.title}>
-                      <Link to={item.url} target="_blank" rel="noreferrer">
+                      <Link to={item.url} target="_blank" rel="noreferrer" onClick={() => setOpenMobile(false)}>
                         <item.icon />
                         <span>{item.title}</span>
                       </Link>
@@ -313,7 +313,7 @@ name: ${user?.name}`;
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>{children}</SidebarInset>
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandDialog open={openTenant} onOpenChange={setOpenTenant}>
         <CommandInput placeholder="Switch tenants..." />
         <CommandList>
           <CommandEmpty>No tenants found.</CommandEmpty>
@@ -326,7 +326,7 @@ name: ${user?.name}`;
                   key={membership.tenant?.metadata.id}
                   onSelect={() => {
                     setTenant(membership.tenant!.metadata.id);
-                    setOpen(false);
+                    setOpenTenant(false);
                   }}
                 >
                   {membership.tenant?.metadata.id === tenant?.metadata.id && (
@@ -340,7 +340,7 @@ name: ${user?.name}`;
             <CommandItem
               onSelect={() => {
                 navigate(ROUTES.onboarding.newTenant);
-                setOpen(false);
+                setOpenTenant(false);
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
