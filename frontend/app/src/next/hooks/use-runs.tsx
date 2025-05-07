@@ -144,7 +144,7 @@ function RunsProviderContent({
   children: React.ReactNode;
   refetchInterval?: number;
 }) {
-  const queryClient = useQueryClient(); 
+  const queryClient = useQueryClient();
   const { tenant } = useTenant();
   const { toast } = useToast();
 

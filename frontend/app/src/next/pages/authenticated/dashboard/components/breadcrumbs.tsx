@@ -29,7 +29,8 @@ type NavItem = MainNavItem;
 
 // Utility functions for base path handling
 const stripBasePath = (path: string) => path.replace(BASE_PATH, '');
-const addBasePath = (path: string) => path.startsWith(BASE_PATH) ? path : BASE_PATH + path;
+const addBasePath = (path: string) =>
+  path.startsWith(BASE_PATH) ? path : BASE_PATH + path;
 
 // Utility functions for working with NavItems
 const stripNavItemBasePath = (item: NavItem): NavItem => ({

@@ -97,7 +97,9 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [autoExpandedInitially, setAutoExpandedInitially] = useState(false);
 
-  const { timings: { data: taskData, isLoading, error: isError, depth, setDepth } } = useRunDetail();
+  const {
+    timings: { data: taskData, isLoading, error: isError, depth, setDepth },
+  } = useRunDetail();
 
   // Process and memoize task relationships to allow collapsing all descendants
   const taskRelationships = useMemo(() => {
@@ -199,7 +201,9 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
     hasChildren: boolean,
     taskDepth: number,
   ) => {
-    if (!hasChildren) return;
+    if (!hasChildren) {
+      return;
+    }
 
     if (expandedTasks.has(taskId)) {
       closeTask(taskId);
@@ -460,23 +464,42 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
               }}
               className="group flex items-center gap-2"
             >
-              <RunId displayName={task.taskDisplayName} id={task.id} onClick={() => handleBarClick(task)} />
+              <RunId
+                displayName={task.taskDisplayName}
+                id={task.id}
+                onClick={() => handleBarClick(task)}
+              />
               {workflowRunId === task.workflowRunId ? (
                 task.parentId ? (
                   <Link to={ROUTES.runs.taskDetail(task.parentId, task.id)}>
-                    <Button tooltip="Scope out to parent task" variant="link" size="icon" className="group-hover:opacity-100 opacity-0 transition-opacity duration-200">
+                    <Button
+                      tooltip="Scope out to parent task"
+                      variant="link"
+                      size="icon"
+                      className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                    >
                       <FaLevelUpAlt className="w-4 h-4 transform scale-x-[-1]" />
                     </Button>
                   </Link>
                 ) : (
-                  <Button tooltip="No parent task, this is a root task" variant="link" size="icon" className="group-hover:opacity-100 opacity-0 transition-opacity duration-200">
+                  <Button
+                    tooltip="No parent task, this is a root task"
+                    variant="link"
+                    size="icon"
+                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                  >
                     <FaRegDotCircle className="w-4 h-4" />
                   </Button>
                 )
               ) : (
                 <Link to={ROUTES.runs.taskDetail(task.workflowRunId, task.id)}>
-                  <Button tooltip="Scope into child task" variant="link" size="icon" className="group-hover:opacity-100 opacity-0 transition-opacity duration-200">
-                      <Search className="w-4 h-4" />
+                  <Button
+                    tooltip="Scope into child task"
+                    variant="link"
+                    size="icon"
+                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                  >
+                    <Search className="w-4 h-4" />
                   </Button>
                 </Link>
               )}
@@ -520,7 +543,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
       if (handleTaskSelect) {
         handleTaskSelect(data.id);
       }
-      
+
       // Handle expansion if the task has children
       if (data.hasChildren) {
         openTask(data.id, data.hasChildren);

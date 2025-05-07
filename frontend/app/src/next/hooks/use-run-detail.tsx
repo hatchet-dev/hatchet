@@ -80,9 +80,7 @@ function RunDetailProviderContent({
   defaultRefetchInterval,
 }: RunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
-  const [refetchInterval] = useState(
-    defaultRefetchInterval,
-  );
+  const [refetchInterval] = useState(defaultRefetchInterval);
   const [depth, setDepth] = useState(2);
   const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
   const { toast } = useToast();
@@ -192,7 +190,7 @@ function RunDetailProviderContent({
           depth,
         })
       ).data,
-      refetchInterval,
+    refetchInterval,
   });
 
   const value = useMemo(

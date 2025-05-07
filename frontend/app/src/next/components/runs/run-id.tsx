@@ -17,7 +17,14 @@ interface RunIdProps {
   noLink?: boolean;
 }
 
-export function RunId({ wfRun, taskRun, displayName, id, onClick, noLink }: RunIdProps) {
+export function RunId({
+  wfRun,
+  taskRun,
+  displayName,
+  id,
+  onClick,
+  noLink,
+}: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
 
