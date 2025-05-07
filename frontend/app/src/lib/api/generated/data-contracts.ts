@@ -634,7 +634,7 @@ export interface V1TaskTiming {
    * The external ID of the workflow run.
    * @format uuid
    */
-  workflowRunId: string;
+  workflowRunId?: string;
 }
 
 export interface V1TaskTimingList {

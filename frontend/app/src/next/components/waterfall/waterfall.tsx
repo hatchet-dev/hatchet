@@ -22,7 +22,7 @@ import { RunId } from '../runs/run-id';
 import { FaLevelUpAlt, FaRegDotCircle } from 'react-icons/fa';
 interface ProcessedTaskData {
   id: string;
-  workflowRunId: string;
+  workflowRunId?: string;
   taskDisplayName: string;
   parentId?: string;
   hasChildren: boolean;
@@ -492,7 +492,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                   </Button>
                 )
               ) : (
-                <Link to={ROUTES.runs.taskDetail(task.workflowRunId, task.id)}>
+                <Link to={ROUTES.runs.taskDetail(task.workflowRunId || task.id, task.id)}>
                   <Button
                     tooltip="Scope into child task"
                     variant="link"

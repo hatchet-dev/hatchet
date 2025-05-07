@@ -397,7 +397,6 @@ V1TaskTiming:
     - taskId
     - taskInsertedAt
     - tenantId
-    - workflowRunId
 V1TaskTimingList:
   type: object
   properties:
