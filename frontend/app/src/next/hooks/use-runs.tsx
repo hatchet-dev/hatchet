@@ -154,8 +154,6 @@ function RunsProviderContent({
   const pagination = usePagination();
   const timeRange = useTimeFilters();
 
-  console.log('DEBUG time range', timeRange);
-
   const listRunsQuery = useQuery({
     queryKey: [
       'v1:workflow-run:list',
