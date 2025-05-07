@@ -7,31 +7,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
+	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
+	"github.com/hatchet-dev/hatchet/pkg/v1/factory"
+	"github.com/hatchet-dev/hatchet/pkg/v1/features"
+	"github.com/hatchet-dev/hatchet/pkg/v1/task"
+	"github.com/hatchet-dev/hatchet/pkg/v1/worker"
+	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
+	v0worker "github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
 type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
-func run(ctx context.Context, namespace string, delay time.Duration, executions chan<- time.Duration, concurrency, slots int, failureRate float32, eventFanout int) (int64, int64) {
-	c, err := client.New(
-		client.WithLogLevel("warn"), // nolint: staticcheck
-		client.WithNamespace(namespace),
-	)
-
-	if err != nil {
-		panic(err)
-	}
-
-	w, err := worker.NewWorker(
-		worker.WithClient(
-			c,
-		),
-		worker.WithLogLevel("warn"),
-		worker.WithMaxRuns(slots),
+func run(ctx context.Context, config LoadTestConfig, executions chan<- time.Duration) (int64, int64) {
+	hatchet, err := v1.NewHatchetClient(
+		v1.Config{
+			Namespace: config.Namespace,
+		},
 	)
 
 	if err != nil {
@@ -43,18 +38,7 @@ func run(ctx context.Context, namespace string, delay time.Duration, executions 
 	var uniques int64
 	var executed []int64
 
-	var concurrencyOpts *worker.WorkflowConcurrency
-	if concurrency > 0 {
-		concurrencyOpts = worker.Expression("'global'").MaxRuns(int32(concurrency)).LimitStrategy(types.GroupRoundRobin) // nolint: gosec
-	}
-
-	step := func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-		var input Event
-		err = ctx.WorkflowInput(&input)
-		if err != nil {
-			return nil, err
-		}
-
+	step := func(ctx v0worker.HatchetContext, input Event) (any, error) {
 		took := time.Since(input.CreatedAt)
 		l.Info().Msgf("executing %d took %s", input.ID, took)
 
@@ -78,10 +62,10 @@ func run(ctx context.Context, namespace string, delay time.Duration, executions 
 		executed = append(executed, input.ID)
 		mx.Unlock()
 
-		time.Sleep(delay)
+		time.Sleep(config.Delay)
 
-		if failureRate > 0 {
-			if rand.Float32() < failureRate { // nolint:gosec
+		if config.FailureRate > 0 {
+			if rand.Float32() < config.FailureRate { // nolint:gosec
 				return nil, fmt.Errorf("random failure")
 			}
 		}
@@ -91,26 +75,102 @@ func run(ctx context.Context, namespace string, delay time.Duration, executions 
 		}, nil
 	}
 
-	for i := range eventFanout {
-		err = w.RegisterWorkflow(
-			&worker.WorkflowJob{
-				Name:        fmt.Sprintf("load-test-%d", i),
-				Description: "Load testing",
-				On:          worker.Event("load-test:event"),
-				Concurrency: concurrencyOpts,
-				// ScheduleTimeout: "30s",
-				Steps: []*worker.WorkflowStep{
-					worker.Fn(step).SetName("step-one").SetTimeout("5m"),
-				},
+	// put the rate limits
+	for i := range config.RlKeys {
+		err = hatchet.RateLimits().Upsert(
+			features.CreateRatelimitOpts{
+				// FIXME: namespace?
+				Key:      "rl-key-" + fmt.Sprintf("%d", i),
+				Limit:    config.RlLimit,
+				Duration: types.RateLimitDuration(config.RlDurationUnit),
 			},
 		)
 
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("error creating rate limit: %w", err))
 		}
 	}
 
-	cleanup, err := w.Start()
+	workflows := []workflow.WorkflowBase{}
+
+	for i := range config.EventFanout {
+		var concurrencyOpt []types.Concurrency
+
+		if config.Concurrency > 0 {
+			maxRuns := int32(config.Concurrency) // nolint: gosec
+			limitStrategy := types.GroupRoundRobin
+
+			concurrencyOpt = []types.Concurrency{
+				{
+					Expression:    "'global'",
+					MaxRuns:       &maxRuns,
+					LimitStrategy: &limitStrategy,
+				},
+			}
+		}
+
+		loadtest := factory.NewWorkflow[Event, stepOneOutput](
+			create.WorkflowCreateOpts[Event]{
+				Name: fmt.Sprintf("load-test-%d", i),
+				OnEvents: []string{
+					"load-test:event",
+				},
+				Concurrency: concurrencyOpt,
+			},
+			hatchet,
+		)
+
+		var prevTask *task.TaskDeclaration[Event]
+
+		for j := range config.DagSteps {
+			var parents []create.NamedTask
+
+			if prevTask != nil {
+				parentTask := prevTask
+				parents = []create.NamedTask{
+					parentTask,
+				}
+			}
+
+			var rateLimits []*types.RateLimit
+
+			if config.RlKeys > 0 {
+				units := 1
+
+				rateLimits = []*types.RateLimit{
+					{
+						Key:   fmt.Sprintf("rl-key-%d", i%config.RlKeys),
+						Units: &units,
+					},
+				}
+			}
+
+			prevTask = loadtest.Task(
+				create.WorkflowTask[Event, stepOneOutput]{
+					Name:       fmt.Sprintf("step-%d", j),
+					Parents:    parents,
+					RateLimits: rateLimits,
+				},
+				step,
+			)
+		}
+
+		workflows = append(workflows, loadtest)
+	}
+
+	worker, err := hatchet.Worker(
+		worker.WorkerOpts{
+			Name:      "load-test-worker",
+			Workflows: workflows,
+			Slots:     config.Slots,
+		},
+	)
+
+	if err != nil {
+		panic(fmt.Errorf("error creating worker: %w", err))
+	}
+
+	cleanup, err := worker.Start()
 	if err != nil {
 		panic(fmt.Errorf("error starting worker: %w", err))
 	}

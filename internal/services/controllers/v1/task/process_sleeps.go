@@ -38,7 +38,7 @@ func (tc *TasksControllerImpl) processSleeps(ctx context.Context, tenantId strin
 	matchResult, shouldContinue, err := tc.repov1.Tasks().ProcessDurableSleeps(ctx, tenantId)
 
 	if err != nil {
-		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
+		return false, fmt.Errorf("could not list process durable sleeps for tenant %s: %w", tenantId, err)
 	}
 
 	if len(matchResult.CreatedTasks) > 0 {

@@ -771,13 +771,19 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
 					createStepExprParams.Expressions = append(createStepExprParams.Expressions, windowExpr)
 				} else {
+					rlUnits := int32(1)
+
+					if rateLimit.Units != nil {
+						rlUnits = int32(*rateLimit.Units) // nolint: gosec
+					}
+
 					_, err := r.queries.CreateStepRateLimit(
 						ctx,
 						tx,
 						sqlcv1.CreateStepRateLimitParams{
 							Stepid:       sqlchelpers.UUIDFromStr(stepId),
 							Ratelimitkey: rateLimit.Key,
-							Units:        int32(*rateLimit.Units), // nolint: gosec
+							Units:        rlUnits, // nolint: gosec
 							Tenantid:     tenantId,
 							Kind:         sqlcv1.StepRateLimitKindSTATIC,
 						},
