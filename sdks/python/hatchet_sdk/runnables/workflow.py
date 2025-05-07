@@ -1,9 +1,9 @@
 import asyncio
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Callable, Generic, cast
+from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -25,12 +25,11 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
-    DEFAULT_EXECUTION_TIMEOUT,
-    DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
     EmptyModel,
     R,
     StepType,
+    TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
 )
@@ -43,6 +42,62 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
     from hatchet_sdk.runnables.standalone import Standalone
+
+
+T = TypeVar("T")
+
+
+def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
+    ## If the value is not the param default, it's set
+    if value != param_default:
+        return value
+
+    ## Otherwise, it's unset, so return the fallback value if it's set
+    if fallback_value is not None:
+        return fallback_value
+
+    ## Otherwise return the param value
+    return value
+
+
+class ComputedTaskParameters(BaseModel):
+    schedule_timeout: Duration
+    execution_timeout: Duration
+    retries: int
+    backoff_factor: float | None
+    backoff_max_seconds: int | None
+
+    task_defaults: TaskDefaults
+
+    @model_validator(mode="after")
+    def validate_params(self) -> "ComputedTaskParameters":
+        self.execution_timeout = fall_back_to_default(
+            value=self.execution_timeout,
+            param_default=timedelta(seconds=60),
+            fallback_value=self.task_defaults.execution_timeout,
+        )
+        self.schedule_timeout = fall_back_to_default(
+            value=self.schedule_timeout,
+            param_default=timedelta(minutes=5),
+            fallback_value=self.task_defaults.schedule_timeout,
+        )
+        self.backoff_factor = fall_back_to_default(
+            value=self.backoff_factor,
+            param_default=None,
+            fallback_value=self.task_defaults.backoff_factor,
+        )
+        self.backoff_max_seconds = fall_back_to_default(
+            value=self.backoff_max_seconds,
+            param_default=None,
+            fallback_value=self.task_defaults.backoff_max_seconds,
+        )
+        self.retries = fall_back_to_default(
+            value=self.retries,
+            param_default=0,
+            fallback_value=self.task_defaults.retries,
+        )
+
+        return self
 
 
 def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
@@ -530,8 +585,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -575,6 +630,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
+        computed_params = ComputedTaskParameters(
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            retries=retries,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            task_defaults=self.config.task_defaults,
+        )
+
         def inner(
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
@@ -584,17 +648,17 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 workflow=self,
                 type=StepType.DEFAULT,
                 name=self._parse_task_name(name, func),
-                execution_timeout=execution_timeout,
-                schedule_timeout=schedule_timeout,
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=retries,
+                retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
                     for key, d in desired_worker_labels.items()
                 },
-                backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
+                backoff_factor=computed_params.backoff_factor,
+                backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
                 wait_for=wait_for,
                 skip_if=skip_if,
@@ -610,8 +674,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def durable_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -661,6 +725,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
+        computed_params = ComputedTaskParameters(
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            retries=retries,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            task_defaults=self.config.task_defaults,
+        )
+
         def inner(
             func: Callable[[TWorkflowInput, DurableContext], R]
         ) -> Task[TWorkflowInput, R]:
@@ -670,17 +743,17 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 workflow=self,
                 type=StepType.DEFAULT,
                 name=self._parse_task_name(name, func),
-                execution_timeout=execution_timeout,
-                schedule_timeout=schedule_timeout,
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=retries,
+                retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
                     for key, d in desired_worker_labels.items()
                 },
-                backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
+                backoff_factor=computed_params.backoff_factor,
+                backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
                 wait_for=wait_for,
                 skip_if=skip_if,
@@ -696,8 +769,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
@@ -756,8 +829,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_success_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
