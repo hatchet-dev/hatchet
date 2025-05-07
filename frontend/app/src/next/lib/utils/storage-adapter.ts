@@ -54,6 +54,7 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
 
   private setSearchParams: (
     nextInit: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams),
+    options?: { replace?: boolean }
   ) => void;
 
   private prefix: string;
@@ -62,6 +63,7 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
     searchParams: URLSearchParams,
     setSearchParams: (
       nextInit: URLSearchParams | ((prev: URLSearchParams) => URLSearchParams),
+      options?: { replace?: boolean }
     ) => void,
     prefix = '',
   ) {
@@ -111,7 +113,7 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
       }
 
       return newParams;
-    });
+    }, { replace: true });
   }
 
   setValues(values: Partial<T>): void {
@@ -133,7 +135,7 @@ class QueryParamsStorageAdapter<T extends Record<string, any>>
       }
 
       return newParams;
-    });
+    }, { replace: true });
   }
 
   getValues(): T {
