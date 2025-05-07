@@ -1,4 +1,3 @@
-import { Checkbox } from '@/components/ui/checkbox';
 import { V1Event } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
