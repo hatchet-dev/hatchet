@@ -45,7 +45,7 @@ function DashboardLayoutContent() {
 
   return (
       <AppSidebar>
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-full">
           <div className={cn("sticky top-0 z-50 w-full bg-background", isMobile ? "mt-0" : "mt-0")}>
             <header className={cn(
               isMobile ? "h-16 px-4" : isCollapsed ? "h-12 px-8" : "h-16 px-8",

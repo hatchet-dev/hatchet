@@ -78,7 +78,7 @@ export const RunsMetricsView = () => {
   };
 
   return (
-    <div className="flex flex-row justify-between gap-6">
+    <div className="flex flex-row justify-between gap-6 overflow-x-auto">
       <dl className="flex flex-row justify-start gap-6">
         <MetricBadge
           metrics={metrics.data}
