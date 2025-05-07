@@ -306,7 +306,7 @@ func (p *CELParser) CheckStepRunOutAgainstKnownV1(out *StepRunOut, knownType sql
 	return nil
 }
 
-func (p *CELParser) EvaluateEventExpression(expr, eventId string, input, additionalMetadata map[string]interface{}) (bool, error) {
+func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, error) {
 	ast, issues := p.eventEnv.Compile(expr)
 
 	if issues != nil && issues.Err() != nil {
@@ -318,13 +318,9 @@ func (p *CELParser) EvaluateEventExpression(expr, eventId string, input, additio
 		return false, fmt.Errorf("failed to create program: %w", err)
 	}
 
-	evalContext := map[string]interface{}{
-		"input":               input,
-		"additional_metadata": additionalMetadata,
-		"event_id":            eventId,
-	}
+	var inMap map[string]interface{} = input
 
-	out, _, err := program.Eval(evalContext)
+	out, _, err := program.Eval(inMap)
 	if err != nil {
 		return false, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
