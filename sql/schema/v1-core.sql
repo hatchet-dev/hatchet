@@ -992,6 +992,7 @@ BEGIN
             v1_concurrency_slot cs
         SET
             task_retry_count = nt.retry_count,
+            schedule_timeout_at = nt.schedule_timeout_at,
             is_filled = FALSE,
             priority = 4
         FROM
