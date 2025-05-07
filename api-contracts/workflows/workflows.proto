@@ -44,7 +44,6 @@ message CreateWorkflowVersionOpts {
     optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
     optional WorkflowKind kind = 13; // (optional) the kind of workflow
     optional int32 default_priority = 14; // (optional) the priority of the workflow
-    optional string event_filter_expression = 15; // (optional) the event expression for the workflow
 }
 
 enum ConcurrencyLimitStrategy {
