@@ -79,7 +79,7 @@ export default function RunsPage() {
       </Headline>
       <Separator className="my-4" />
       <RunsProvider>
-        <dl className="flex flex-col gap-4 mt-4">
+        <div className="flex flex-col gap-4 mt-4">
           <TimeFilters />
           <GetWorkflowChart />
           <RunsMetricsView />
@@ -88,7 +88,7 @@ export default function RunsPage() {
             selectedTaskId={taskId?.taskId}
             onTriggerRunClick={() => setShowTriggerModal(true)}
           />
-        </dl>
+        </div>
         <TriggerRunModal
           show={showTriggerModal}
           onClose={() => setShowTriggerModal(false)}

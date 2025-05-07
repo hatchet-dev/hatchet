@@ -29,6 +29,7 @@ import { cn } from '@/next/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { V1WorkflowType } from '@/lib/api';
+import React from 'react';
 
 const styles = {
   status: 'p-0 w-[40px]',
@@ -179,11 +180,17 @@ export function DataTable<TData extends IDGetter, TValue>({
 
   if (isLoading) {
     return (
-      <TableRow>
-        <TableCell colSpan={columns.length} className="h-24 text-center">
-          Loading...
-        </TableCell>
-      </TableRow>
+      <div className="rounded-md border">
+        <Table>
+          <TableBody>
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                Loading...
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
     );
   }
 
@@ -210,7 +217,7 @@ export function DataTable<TData extends IDGetter, TValue>({
           ))}
         </TableHeader>
         <TableBody>
-          {!table.getRowModel().rows?.length && (
+          {!table.getRowModel().rows?.length ? (
             <TableRow>
               <TableCell
                 colSpan={table.getHeaderGroups()[0].headers.length}
@@ -219,34 +226,35 @@ export function DataTable<TData extends IDGetter, TValue>({
                 {emptyState || 'No results found.'}
               </TableCell>
             </TableRow>
-          )}
-          {table.getRowModel().rows.map((row) => {
-            const isSelected = row.getIsSelected();
-            const isTaskSelected =
-              selectedTaskId === (row.original as any).taskExternalId;
+          ) : (
+            table.getRowModel().rows.map((row) => {
+              const isSelected = row.getIsSelected();
+              const isTaskSelected =
+                selectedTaskId === (row.original as any).taskExternalId;
 
-            return (
-              <>
-                {getTableRow(
-                  row,
-                  isSelected,
-                  isTaskSelected,
-                  (e: React.MouseEvent) => handleClick(row, e, isSelected),
-                  () => handleDoubleClick(row),
-                )}
-                {row.getIsExpanded() &&
-                  row.subRows.map((r) =>
-                    getTableRow(
-                      r,
-                      isSelected,
-                      isTaskSelected,
-                      (e: React.MouseEvent) => handleClick(r, e, isSelected),
-                      () => handleDoubleClick(r),
-                    ),
+              return (
+                <React.Fragment key={row.id}>
+                  {getTableRow(
+                    row,
+                    isSelected,
+                    isTaskSelected,
+                    (e: React.MouseEvent) => handleClick(row, e, isSelected),
+                    () => handleDoubleClick(row),
                   )}
-              </>
-            );
-          })}
+                  {row.getIsExpanded() &&
+                    row.subRows.map((r) =>
+                      getTableRow(
+                        r,
+                        isSelected,
+                        isTaskSelected,
+                        (e: React.MouseEvent) => handleClick(r, e, isSelected),
+                        () => handleDoubleClick(r),
+                      ),
+                    )}
+                </React.Fragment>
+              );
+            })
+          )}
         </TableBody>
       </Table>
     </div>
