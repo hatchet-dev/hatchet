@@ -59,6 +59,10 @@ type TriggerRunModalProps = {
 };
 
 export function TriggerRunModal(props: TriggerRunModalProps) {
+  if (!props.show) {
+    return null;
+  }
+
   return (
     <CronsProvider>
       <SchedulesProvider>
