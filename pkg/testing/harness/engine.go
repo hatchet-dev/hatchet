@@ -92,7 +92,7 @@ func startEngine() func() {
 
 	postgresConnStr, cleanupPostgres := startPostgres(ctx, pgVersion)
 
-	grpcPort, err := findAvailablePort(7070)
+	grpcPort, err := findAvailablePort(7077)
 
 	if err != nil {
 		log.Fatalf("failed to find available port: %v", err)
@@ -101,6 +101,7 @@ func startEngine() func() {
 	os.Setenv("DATABASE_URL", postgresConnStr)
 	os.Setenv("SERVER_GRPC_INSECURE", "true")
 	os.Setenv("SERVER_GRPC_PORT", strconv.Itoa(grpcPort))
+	os.Setenv("SERVER_GRPC_BROADCAST_ADDRESS", fmt.Sprintf("localhost:%d", grpcPort))
 	os.Setenv("SERVER_HEALTHCHECK", "false")
 	os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
 	os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")

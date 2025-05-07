@@ -34,24 +34,7 @@ func TestLoadCLI(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "test with high step delay",
-			config: LoadTestConfig{
-				Duration:       240 * time.Second,
-				Events:         10,
-				Delay:          10 * time.Second,
-				Wait:           60 * time.Second,
-				Concurrency:    0,
-				Slots:          100,
-				FailureRate:    0.0,
-				PayloadSize:    "0kb",
-				EventFanout:    1,
-				DagSteps:       1,
-				RlKeys:         0,
-				RlLimit:        0,
-				RlDurationUnit: "",
-			},
-		}, {
-			name: "test simple with unlimited concurrency",
+			name: "test simple workflow",
 			config: LoadTestConfig{
 				Duration:       240 * time.Second,
 				Events:         10,

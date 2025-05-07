@@ -44,6 +44,9 @@ func do(config LoadTestConfig) error {
 		durationsResult <- avgResult{count: count, avg: avg}
 	}()
 
+	// Start worker and ensure it has time to register
+	workerStarted := make(chan struct{})
+
 	go func() {
 		if config.WorkerDelay > 0 {
 			// run a worker to register the workflow
@@ -54,12 +57,18 @@ func do(config LoadTestConfig) error {
 			time.Sleep(config.WorkerDelay)
 		}
 		l.Info().Msg("starting worker now")
+
+		// Signal that worker is starting
+		close(workerStarted)
+
 		count, uniques := run(ctx, config, durations)
 		close(durations)
 		ch <- count
 		ch <- uniques
 	}()
 
+	// Wait for worker to start, then give it time to register workflows
+	<-workerStarted
 	time.Sleep(after)
 
 	scheduled := make(chan time.Duration, config.Events)
