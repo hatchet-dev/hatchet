@@ -1372,6 +1372,9 @@ type V1TaskTiming struct {
 
 	// TenantId The ID of the tenant.
 	TenantId openapi_types.UUID `json:"tenantId"`
+
+	// WorkflowRunId The external ID of the workflow run.
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
 }
 
 // V1TaskTimingList defines model for V1TaskTimingList.

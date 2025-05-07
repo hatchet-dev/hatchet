@@ -408,6 +408,7 @@ func ToTaskTimings(
 			TaskExternalId:  uuid.MustParse(sqlchelpers.UUIDToStr(timing.ExternalID)),
 			TenantId:        uuid.MustParse(sqlchelpers.UUIDToStr(timing.TenantID)),
 			Depth:           int(depth),
+			WorkflowRunId:   uuid.MustParse(sqlchelpers.UUIDToStr(timing.WorkflowRunID)),
 		}
 
 		if timing.QueuedAt.Valid {
