@@ -157,7 +157,6 @@ export function TokensTable({ emptyState }: TokensTableProps) {
   const { filters, setFilters } = useApiTokensContext();
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  
   const { can } = useCan();
 
   // Define columns
@@ -180,7 +179,11 @@ export function TokensTable({ emptyState }: TokensTableProps) {
       ),
       cell: ({ row }) => {
         const createdAt = new Date(row.original.metadata.createdAt);
-        return <div><Time date={createdAt} tooltipVariant="timestamp"/></div>;
+        return (
+          <div>
+            <Time date={createdAt} tooltipVariant="timestamp" />
+          </div>
+        );
       },
       enableSorting: true,
       enableHiding: true,
@@ -192,7 +195,11 @@ export function TokensTable({ emptyState }: TokensTableProps) {
       ),
       cell: ({ row }) => {
         const expiresAt = new Date(row.original.expiresAt);
-        return <div><Time date={expiresAt} tooltipVariant="timestamp"/></div>;
+        return (
+          <div>
+            <Time date={expiresAt} tooltipVariant="timestamp" />
+          </div>
+        );
       },
       enableSorting: true,
       enableHiding: true,
@@ -256,10 +263,9 @@ export function TokensTable({ emptyState }: TokensTableProps) {
   });
 
   return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground"></div>
         <DataTableViewOptions table={table} />
       </div>
       <div className="rounded-md border">
@@ -326,17 +332,16 @@ export function TokensTable({ emptyState }: TokensTableProps) {
         </UITable>
       </div>
 
-
       {revokeToken && (
         <RevokeTokenForm
           apiToken={revokeToken}
           close={() => setRevokeToken(null)}
         />
       )}
-        <Pagination className="justify-between flex flex-row">
-          <PageSizeSelector />
-          <PageSelector variant="dropdown" />
-        </Pagination>
+      <Pagination className="justify-between flex flex-row">
+        <PageSizeSelector />
+        <PageSelector variant="dropdown" />
+      </Pagination>
     </div>
   );
 }

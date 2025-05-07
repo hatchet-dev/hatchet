@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
-import { ChevronDown, RefreshCw  } from 'lucide-react';
+import { ChevronDown, RefreshCw } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -51,7 +51,7 @@ export function TimeFilterGroup({
 }
 
 export function TogglePause() {
-  const { refetch, isRefetching } = useRuns();  
+  const { refetch, isRefetching } = useRuns();
   const { pause, resume, isPaused } = useTimeFilters();
 
   const [refetchDisabled, setRefetchDisabled] = useState(false);
@@ -69,7 +69,8 @@ export function TogglePause() {
               } else {
                 pause();
               }
-            } } dropdownItems={[
+            }}
+            dropdownItems={[
               {
                 label: isPaused ? 'Unfreeze New Runs' : 'Freeze New Runs',
                 onClick: () => {
@@ -81,11 +82,18 @@ export function TogglePause() {
                 },
               },
               {
-                label: <div className="flex items-center gap-2">
-                  <RefreshCw className={cn("h-4 w-4", isRefetching || refetchDisabled && "animate-spin")} />
-                  <span className="text-xs">Refresh</span>
-                </div>,
-                disabled:  isRefetching || refetchDisabled,
+                label: (
+                  <div className="flex items-center gap-2">
+                    <RefreshCw
+                      className={cn(
+                        'h-4 w-4',
+                        isRefetching || (refetchDisabled && 'animate-spin'),
+                      )}
+                    />
+                    <span className="text-xs">Refresh</span>
+                  </div>
+                ),
+                disabled: isRefetching || refetchDisabled,
                 onClick: (e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -97,7 +105,8 @@ export function TogglePause() {
                   }, 300);
                 },
               },
-            ]}          >
+            ]}
+          >
             {isPaused ? (
               <>
                 <TbSnowflakeOff className="h-4 w-4" />

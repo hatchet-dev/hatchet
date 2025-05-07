@@ -158,9 +158,9 @@ export const columns = (
       />
     ),
     cell: ({ row }) => (
-      <Time 
-        date={row.getValue('createdAt')} 
-        variant="timeSince" 
+      <Time
+        date={row.getValue('createdAt')}
+        variant="timeSince"
         tooltipVariant="timestamp"
       />
     ),

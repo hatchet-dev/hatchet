@@ -219,7 +219,9 @@ export function BreadcrumbNav() {
                   {(item.isFirst || item.alwaysShowIcon) && item.icon && (
                     <item.icon className="h-4 w-4 flex-shrink-0" />
                   )}
-                  {(item.alwaysShowTitle || (item.isFirst && !isMobile) || item.isLast) && (
+                  {(item.alwaysShowTitle ||
+                    (item.isFirst && !isMobile) ||
+                    item.isLast) && (
                     <span className="overflow-hidden text-ellipsis">
                       {item.label}
                     </span>
@@ -235,7 +237,9 @@ export function BreadcrumbNav() {
                   {(item.isFirst || item.alwaysShowIcon) && item.icon && (
                     <item.icon className="h-4 w-4 flex-shrink-0" />
                   )}
-                  {(item.alwaysShowTitle || (item.isFirst && !isMobile) || item.isLast) && (
+                  {(item.alwaysShowTitle ||
+                    (item.isFirst && !isMobile) ||
+                    item.isLast) && (
                     <span className="overflow-hidden text-ellipsis">
                       {item.label}
                     </span>
@@ -279,7 +283,9 @@ export function BreadcrumbNav() {
                 {(item.isFirst || item.alwaysShowIcon) && item.icon && (
                   <item.icon className="h-4 w-4 flex-shrink-0" />
                 )}
-                {(item.alwaysShowTitle || (item.isFirst && !isMobile) || item.isLast) && (
+                {(item.alwaysShowTitle ||
+                  (item.isFirst && !isMobile) ||
+                  item.isLast) && (
                   <span className="overflow-hidden text-ellipsis">
                     {item.label}
                   </span>

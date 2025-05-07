@@ -173,7 +173,10 @@ name: ${user?.name}`;
                           >
                             {item.items?.map((subItem) => (
                               <DropdownMenuItem key={subItem.title} asChild>
-                                <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
+                                <Link
+                                  to={subItem.url}
+                                  onClick={() => setOpenMobile(false)}
+                                >
                                   <subItem.icon className="mr-2 h-4 w-4" />
                                   {subItem.title}
                                 </Link>
@@ -193,7 +196,10 @@ name: ${user?.name}`;
                                   : 'hover:bg-muted/30'
                               }
                             >
-                              <Link to={item.url} onClick={() => setOpenMobile(false)}>
+                              <Link
+                                to={item.url}
+                                onClick={() => setOpenMobile(false)}
+                              >
                                 <item.icon />
                                 <span>{item.title}</span>
                               </Link>
@@ -219,7 +225,10 @@ name: ${user?.name}`;
                                             : 'hover:bg-muted/30'
                                         }
                                       >
-                                        <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
+                                        <Link
+                                          to={subItem.url}
+                                          onClick={() => setOpenMobile(false)}
+                                        >
                                           <subItem.icon />
                                           <span>{subItem.title}</span>
                                         </Link>
@@ -297,7 +306,12 @@ name: ${user?.name}`;
                 {navLinks.navSecondary.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild size="sm" tooltip={item.title}>
-                      <Link to={item.url} target="_blank" rel="noreferrer" onClick={() => setOpenMobile(false)}>
+                      <Link
+                        to={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => setOpenMobile(false)}
+                      >
                         <item.icon />
                         <span>{item.title}</span>
                       </Link>

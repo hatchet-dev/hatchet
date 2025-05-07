@@ -10,12 +10,7 @@ import {
   useQuery,
 } from '@tanstack/react-query';
 import useTenant from './use-tenant';
-import {
-  useState,
-  createContext,
-  useContext,
-  PropsWithChildren,
-} from 'react';
+import { useState, createContext, useContext, PropsWithChildren } from 'react';
 import {
   PaginationProvider,
   usePagination,
@@ -80,19 +75,17 @@ export default function useApiTokens({
     queryFn: async () => {
       if (!tenant) {
         pagination.setNumPages(0);
-        return  {
+        return {
           rows: [],
           pagination: { current_page: 0, num_pages: 0 },
-        };;
+        };
       }
 
       try {
         // Build query params
         const queryParams: Record<string, any> = {
           limit: pagination?.pageSize || 10,
-          offset:
-            (pagination?.currentPage - 1) *
-              pagination?.pageSize || 0,
+          offset: (pagination?.currentPage - 1) * pagination?.pageSize || 0,
         };
 
         if (filters.sortBy) {
@@ -237,13 +230,13 @@ export function ApiTokensProvider(props: ApiTokensProviderProps) {
   );
 }
 
- function ApiTokensProviderContent(props: ApiTokensProviderProps) {
+function ApiTokensProviderContent(props: ApiTokensProviderProps) {
   const { children, options = {} } = props;
   const apiTokensState = useApiTokens(options);
 
   return (
-      <ApiTokensContext.Provider value={apiTokensState}>
-        {children}
-      </ApiTokensContext.Provider>
+    <ApiTokensContext.Provider value={apiTokensState}>
+      {children}
+    </ApiTokensContext.Provider>
   );
 }

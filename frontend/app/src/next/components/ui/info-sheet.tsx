@@ -26,9 +26,7 @@ export function InfoSheet({
   // If using push variant, render as a side panel instead of using Sheet
   if (variant === 'push' && !isMobile) {
     return (
-      <div
-        className={`border-l border-border w-[400px]`}
-      >
+      <div className={`border-l border-border w-[400px]`}>
         <div className="h-full flex flex-col">
           <div className="flex justify-between items-center p-4 border-b">
             <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>

@@ -150,9 +150,7 @@ export function Time({
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>
-            {renderTime(variant)}
-          </TooltipTrigger>
+          <TooltipTrigger asChild>{renderTime(variant)}</TooltipTrigger>
           <TooltipContent className="bg-muted">
             <span className="text-foreground">
               {renderTime(tooltipVariant)}
