@@ -2,8 +2,7 @@ import { Snippet } from '@/next/lib/docs/generated/snips/types';
 
 const snippet: Snippet = {
   language: 'python',
-  content:
-    "from examples.simple.worker import hatchet\nfrom hatchet_sdk import PushEventOptions\n\nhatchet.event.push(\n    'test:event',\n    {'key': 'value', 'group': 'shouldSkip'},\n    options=PushEventOptions(\n        additional_metadata={'foo': 'bar'},\n    ),\n)\n\nhatchet.event.push(\n    'test:event',\n    {'key': 'value', 'group': 'shouldNotSkip'},\n    options=PushEventOptions(\n        additional_metadata={'foo': 'bar'},\n    ),\n)\n",
+  content: 'from examples.simple.worker import step1\n\nstep1.run()\n',
   source: 'out/python/simple/trigger.py',
   blocks: {},
   highlights: {},
