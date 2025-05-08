@@ -829,22 +829,35 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
 	eventSeenAt := time.Now()
 
-	for _, run := range result.Runs {
-		if run == nil {
+	for _, runsAndOpts := range *result.EventIdToRunsAndOpts {
+		opts := runsAndOpts.Opts
+		runs := runsAndOpts.Runs
+
+		if len(runs) == 0 {
+			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+				// FIXME: Should `SeenAt` be set on the SDK when the event is created?
+				EventSeenAt:             eventSeenAt,
+				EventKey:                opts.Key,
+				EventId:                 opts.EventId,
+				EventPayload:            opts.Data,
+				EventAdditionalMetadata: opts.AdditionalMetadata,
+			})
+
 			continue
 		}
 
-		eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-			MaybeRunId:         run.MaybeRunId,
-			MaybeRunInsertedAt: run.MaybeRunInsertedAt,
-			// FIXME: Should `SeenAt` be set on the SDK when the event is created?
-			EventSeenAt:             eventSeenAt,
-			EventKey:                run.Opts.Key,
-			EventId:                 run.Opts.EventId,
-			EventPayload:            run.Opts.Data,
-			EventAdditionalMetadata: run.Opts.AdditionalMetadata,
-		})
-
+		for _, run := range runs {
+			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+				MaybeRunId:         &run.Id,
+				MaybeRunInsertedAt: &run.InsertedAt,
+				// FIXME: Should `SeenAt` be set on the SDK when the event is created?
+				EventSeenAt:             eventSeenAt,
+				EventKey:                opts.Key,
+				EventId:                 opts.EventId,
+				EventPayload:            opts.Data,
+				EventAdditionalMetadata: opts.AdditionalMetadata,
+			})
+		}
 	}
 
 	msg, err := tasktypes.CreatedEventTriggerMessage(
