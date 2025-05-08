@@ -5,6 +5,11 @@ import { Badge } from '@/next/components/ui/badge';
 import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
+import { FilterGroup, FilterText } from '@/next/components/ui/filters';
+import {
+  ClearFiltersButton,
+  FilterSelect,
+} from '@/next/components/ui/filters/filters';
 import {
   Headline,
   HeadlineActionItem,
@@ -47,6 +52,13 @@ function EventsContent() {
     );
   }
 
+  // const eventKeys = Array.from(new Set(data.map((e) => e.key)))
+  //   .sort((a, b) => a.localeCompare(b))
+  //   .map((k) => ({
+  //     label: k,
+  //     value: k,
+  //   }));
+
   return (
     <BasicLayout>
       <Headline>
@@ -60,6 +72,15 @@ function EventsContent() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
+      {/* <FilterGroup>
+        <div className="flex flex-row gap-x-4">
+          <FilterSelect<EventsFilters, string>
+            name="keys"
+            placeholder="Event Key"
+          />
+          <ClearFiltersButton />
+        </div>
+      </FilterGroup> */}
       <DataTable
         columns={columns()}
         data={data || []}

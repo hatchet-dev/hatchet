@@ -42,7 +42,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 
 	if request.Params.Keys != nil {
 		keys := make([]string, len(*request.Params.Keys))
-		copy(keys, *request.Params.Keys)
+		opts.Keys = keys
 	}
 
 	events, err := t.config.V1.OLAP().ListEvents(ctx.Request().Context(), opts)

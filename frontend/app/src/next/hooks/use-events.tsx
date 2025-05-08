@@ -3,6 +3,7 @@ import api, { PaginationResponse, V1Event } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import useTenant from './use-tenant';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
+import { FilterProvider, useFilters } from './utils/use-filters';
 
 interface EventsState {
   data: V1Event[];
@@ -15,6 +16,10 @@ interface EventsState {
 interface EventsProviderProps {
   children: React.ReactNode;
   refetchInterval?: number;
+}
+
+export interface EventsFilters {
+  keys?: string[];
 }
 
 const EventsContext = createContext<EventsState | null>(null);
@@ -31,15 +36,17 @@ function EventsProviderContent({ children }: EventsProviderProps) {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const pagination = usePagination();
+  const filters = useFilters<EventsFilters>();
 
   const eventsQuery = useQuery({
-    queryKey: ['v1:events:list', tenant, pagination],
+    queryKey: ['v1:events:list', tenant, pagination, filters],
     queryFn: async () => {
       try {
         return (
           await api.v1EventList(tenant?.metadata.id || '', {
             offset: pagination.pageSize * (pagination.currentPage - 1),
             limit: pagination.pageSize,
+            keys: filters.filters.keys,
           })
         ).data;
       } catch (error) {
@@ -56,9 +63,9 @@ function EventsProviderContent({ children }: EventsProviderProps) {
 
   const invalidate = useCallback(async () => {
     await queryClient.invalidateQueries({
-      queryKey: ['v1:events:list', tenant, pagination],
+      queryKey: ['v1:events:list', tenant, pagination, filters],
     });
-  }, [queryClient, tenant?.metadata.id, pagination]);
+  }, [queryClient, tenant?.metadata.id, pagination, filters]);
 
   const value = useMemo(
     () => ({
@@ -97,10 +104,12 @@ export function EventsProvider({
   refetchInterval,
 }: EventsProviderProps) {
   return (
-    <PaginationProvider initialPage={1} initialPageSize={50}>
-      <EventsProviderContent refetchInterval={refetchInterval}>
-        {children}
-      </EventsProviderContent>
-    </PaginationProvider>
+    <FilterProvider initialFilters={{}} type="state">
+      <PaginationProvider initialPage={1} initialPageSize={50}>
+        <EventsProviderContent refetchInterval={refetchInterval}>
+          {children}
+        </EventsProviderContent>
+      </PaginationProvider>
+    </FilterProvider>
   );
 }

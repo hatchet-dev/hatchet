@@ -47,7 +47,7 @@ export function ClearFiltersButton() {
       variant="ghost"
       size="sm"
       onClick={clearAllFilters}
-      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+      className="h-8 px-6 text-xs text-muted-foreground hover:text-foreground"
     >
       <X className="h-4 w-4 mr-1" />
       Clear all
@@ -78,7 +78,7 @@ export function FilterText<T>({
   className,
 }: TextFilterProps<T>) {
   const { filters, setFilter } = useFilters<T>();
-  const value = filters[name];
+  const value = filters[name] || '';
 
   return (
     <Input
