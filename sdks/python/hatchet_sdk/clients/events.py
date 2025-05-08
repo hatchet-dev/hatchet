@@ -33,6 +33,7 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
 class PushEventOptions(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     namespace: str | None = None
+    priority: int | None = None
 
 
 class BulkPushEventOptions(BaseModel):
@@ -43,6 +44,7 @@ class BulkPushEventWithMetadata(BaseModel):
     key: str
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
+    priority: int | None = None
 
 
 class EventClient:
@@ -96,6 +98,7 @@ class EventClient:
             payload=payload_str,
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_bytes,
+            priority=options.priority,
         )
 
         return cast(Event, self.client.Push(request, metadata=get_metadata(self.token)))
@@ -125,6 +128,7 @@ class EventClient:
             payload=serialized_payload,
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_str,
+            priority=event.priority,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
