@@ -1,14 +1,14 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../sheet';
-import { SideSheet, useSideSheet } from '@/next/hooks/use-side-sheet';
+import {  useSideSheet } from '@/next/hooks/use-side-sheet';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { Cross2Icon, ExternalLinkIcon } from '@radix-ui/react-icons';
 import { RunDetailSheet } from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
-import { useMemo } from 'react';
+import { useMemo, useCallback  } from 'react';
 import { cn } from '@/lib/utils';
 import { WorkerDetails } from '@/next/pages/authenticated/dashboard/worker-services/components/worker-details';
+import { useSidebar } from '@/next/components/ui/sidebar';
+
 interface SideSheetProps {
-  sheet: SideSheet;
-  onClose: () => void;
   variant?: 'overlay' | 'push';
 }
 
@@ -19,14 +19,17 @@ interface SideSheetContent {
 }
 
 export function SideSheetComponent({
-  sheet,
-  onClose,
   variant = 'push',
 }: SideSheetProps) {
   const isMobile = useIsMobile();
-  const { toggleExpand } = useSideSheet();
+  const { toggleExpand, sheet, close } = useSideSheet();
+  const { isCollapsed } = useSidebar();
 
   const isOpen = useMemo(() => !!sheet.openProps, [sheet.openProps]);
+
+  const onClose = useCallback(() => {
+    close();
+  }, [close]);
 
   const content = useMemo<SideSheetContent | undefined>(() => {
     if (sheet.openProps?.type === 'task-detail') {
@@ -96,8 +99,11 @@ export function SideSheetComponent({
               )}
               title="Toggle width"
             />
-            <div className="h-full min-h-screen flex flex-col p-4 md:p-6 overflow-hidden">
-              <div className="flex justify-between items-center mb-4 shrink-0">
+            <div className="h-full min-h-screen flex flex-col overflow-hidden">
+              <div className={cn(
+                'flex justify-between items-center border-b shrink-0 transition-h duration-300',
+                isMobile ? 'h-16 px-4' : isCollapsed ? 'h-12 px-8' : 'h-16 px-8'
+              )}>
                 <h2 className="text-lg font-semibold truncate pr-2">
                   {content?.title}
                 </h2>

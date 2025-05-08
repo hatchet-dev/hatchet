@@ -29,12 +29,18 @@ import { Logo } from '@/next/components/ui/logo';
 import { Alerter } from './components/sidebar/alerter';
 import { GrRevert } from 'react-icons/gr';
 import { cn } from '@/next/lib/utils';
+import { SideSheetComponent } from '@/next/components/ui/sheet/side-sheet.layout';
+import { SideSheetContext, useSideSheet, useSideSheetState } from '@/next/hooks/use-side-sheet';
 
 export default function DashboardLayout() {
+  const sideSheetState = useSideSheetState();
+
   return (
     <BreadcrumbProvider>
       <SidebarProvider>
+      <SideSheetContext.Provider value={sideSheetState}>
         <DashboardLayoutContent />
+      </SideSheetContext.Provider>
       </SidebarProvider>
     </BreadcrumbProvider>
   );
@@ -46,8 +52,10 @@ function DashboardLayoutContent() {
   const { logout } = useUser();
   const isMobile = useIsMobile();
   const { isCollapsed } = useSidebar();
+  const { sheet: sideSheetState } = useSideSheet();
 
   return (
+    <>
     <AppSidebar>
       <div className="flex flex-col h-full">
         <div
@@ -135,5 +143,7 @@ function DashboardLayoutContent() {
         </main>
       </div>
     </AppSidebar>
+    <SideSheetComponent />
+    </>
   );
 }
