@@ -5,11 +5,6 @@ import { Badge } from '@/next/components/ui/badge';
 import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
-import { FilterGroup, FilterText } from '@/next/components/ui/filters';
-import {
-  ClearFiltersButton,
-  FilterSelect,
-} from '@/next/components/ui/filters/filters';
 import {
   Headline,
   HeadlineActionItem,

@@ -11,10 +11,12 @@ event_workflow = hatchet.workflow(name="EventWorkflow", on_events=["user:create"
 def task(input: EmptyModel, ctx: Context) -> None:
     print("event received")
 
+
 def main() -> None:
     worker = hatchet.worker(name="EventWorker", workflows=[event_workflow])
 
     worker.start()
+
 
 if __name__ == "__main__":
     main()
