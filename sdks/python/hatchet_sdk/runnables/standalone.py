@@ -309,6 +309,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         additional_metadata: dict[str, str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
+        triggering_event_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -343,6 +344,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
         )
 
         return response.rows
@@ -357,6 +359,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         additional_metadata: dict[str, str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
+        triggering_event_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -382,4 +385,5 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
         )
