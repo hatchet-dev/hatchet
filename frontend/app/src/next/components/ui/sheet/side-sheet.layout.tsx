@@ -112,7 +112,7 @@ export function SideSheetComponent({
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden relative">
+              <div className="flex-1 overflow-y-auto relative">
                 {content?.component}
               </div>
             </div>
