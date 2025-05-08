@@ -278,7 +278,7 @@ async def crons(
 
 def time_until_next_minute() -> float:
     now = datetime.now()
-    next_minute = now.replace(second=0, microsecond=0, minute=now.minute + 1)
+    next_minute = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
 
     return (next_minute - now).total_seconds()
 
