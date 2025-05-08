@@ -159,6 +159,10 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
   useEffect(() => {
     breadcrumb.set(breadcrumbs);
+
+    return () => {
+      breadcrumb.set([]);
+    };
   }, [breadcrumbs, breadcrumb]);
 
   const canCancel = useMemo(() => {

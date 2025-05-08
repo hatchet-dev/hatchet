@@ -28,13 +28,11 @@ export function RunDetailSheet(props: RunDetailSheetProps) {
 
 function RunDetailSheetContent({
   selectedTaskId,
-  selectedWorkflowRunId,
   detailsLink,
 }: RunDetailSheetProps) {
   return (
     <>
       <div className="flex flex-col gap-y-4 px-6 pt-12">
-        {selectedWorkflowRunId}
         <TaskRunOverview selectedTaskId={selectedTaskId} detailsLink={detailsLink} />
         <Tabs
           defaultValue="payload"
