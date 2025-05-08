@@ -32,7 +32,7 @@ func (t *EventService) EventCreate(ctx echo.Context, request gen.EventCreateRequ
 		}
 	}
 
-	newEvent, err := t.config.Ingestor.IngestEvent(ctx.Request().Context(), tenant, request.Body.Key, dataBytes, additionalMetadata)
+	newEvent, err := t.config.Ingestor.IngestEvent(ctx.Request().Context(), tenant, request.Body.Key, dataBytes, additionalMetadata, request.Body.Priority)
 
 	if err != nil {
 		if err == metered.ErrResourceExhausted {

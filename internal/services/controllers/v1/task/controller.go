@@ -816,6 +816,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Key:                msg.EventKey,
 			Data:               msg.EventData,
 			AdditionalMetadata: msg.EventAdditionalMetadata,
+			Priority:           msg.EventPriority,
 		})
 	}
 

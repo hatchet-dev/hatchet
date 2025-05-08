@@ -26,6 +26,8 @@ type EventTriggerOpts struct {
 	Data []byte
 
 	AdditionalMetadata []byte
+
+	Priority *int32
 }
 
 type TriggerTaskData struct {
@@ -253,6 +255,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				externalId:         externalId,
 				input:              opt.Data,
 				additionalMetadata: additionalMetadata,
+				priority:           opt.Priority,
 			})
 
 			externalIdToOpts[externalId] = opt
