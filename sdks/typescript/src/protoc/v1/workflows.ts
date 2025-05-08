@@ -283,6 +283,8 @@ export interface CreateWorkflowVersionRequest {
   defaultPriority?: number | undefined;
   /** (optional) the workflow concurrency options */
   concurrencyArr: Concurrency[];
+  /** (optional) the event expression for the workflow */
+  eventFilterExpression?: string | undefined;
 }
 
 export interface Concurrency {
@@ -988,6 +990,7 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     sticky: undefined,
     defaultPriority: undefined,
     concurrencyArr: [],
+    eventFilterExpression: undefined,
   };
 }
 
@@ -1031,6 +1034,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     }
     for (const v of message.concurrencyArr) {
       Concurrency.encode(v!, writer.uint32(98).fork()).join();
+    }
+    if (message.eventFilterExpression !== undefined) {
+      writer.uint32(106).string(message.eventFilterExpression);
     }
     return writer;
   },
@@ -1138,6 +1144,14 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           message.concurrencyArr.push(Concurrency.decode(reader, reader.uint32()));
           continue;
         }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.eventFilterExpression = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1173,6 +1187,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
       concurrencyArr: globalThis.Array.isArray(object?.concurrencyArr)
         ? object.concurrencyArr.map((e: any) => Concurrency.fromJSON(e))
         : [],
+      eventFilterExpression: isSet(object.eventFilterExpression)
+        ? globalThis.String(object.eventFilterExpression)
+        : undefined,
     };
   },
 
@@ -1214,6 +1231,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.concurrencyArr?.length) {
       obj.concurrencyArr = message.concurrencyArr.map((e) => Concurrency.toJSON(e));
     }
+    if (message.eventFilterExpression !== undefined) {
+      obj.eventFilterExpression = message.eventFilterExpression;
+    }
     return obj;
   },
 
@@ -1240,6 +1260,7 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     message.sticky = object.sticky ?? undefined;
     message.defaultPriority = object.defaultPriority ?? undefined;
     message.concurrencyArr = object.concurrencyArr?.map((e) => Concurrency.fromPartial(e)) || [];
+    message.eventFilterExpression = object.eventFilterExpression ?? undefined;
     return message;
   },
 };
