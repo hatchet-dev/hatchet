@@ -69,16 +69,18 @@ class BulkPushEventRequest(_message.Message):
     def __init__(self, events: _Optional[_Iterable[_Union[PushEventRequest, _Mapping]]] = ...) -> None: ...
 
 class PushEventRequest(_message.Message):
-    __slots__ = ("key", "payload", "eventTimestamp", "additionalMetadata")
+    __slots__ = ("key", "payload", "eventTimestamp", "additionalMetadata", "priority")
     KEY_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     ADDITIONALMETADATA_FIELD_NUMBER: _ClassVar[int]
+    PRIORITY_FIELD_NUMBER: _ClassVar[int]
     key: str
     payload: str
     eventTimestamp: _timestamp_pb2.Timestamp
     additionalMetadata: str
-    def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ...) -> None: ...
+    priority: int
+    def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
 
 class ReplayEventRequest(_message.Message):
     __slots__ = ("eventId",)
