@@ -94,6 +94,8 @@ message PushEventRequest {
 
     // metadata for the event
     optional string additionalMetadata = 4;
+
+    optional int32 priority = 5;
 }
 
 message ReplayEventRequest {
