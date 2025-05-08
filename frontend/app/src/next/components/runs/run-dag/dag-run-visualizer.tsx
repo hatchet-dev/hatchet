@@ -27,7 +27,7 @@ const edgeTypes = {
 
 interface WorkflowRunVisualizerProps {
   workflowRunId: string;
-  onTaskSelect?: (taskId: string) => void;
+  onTaskSelect?: (taskId: string, childWfrId?: string) => void;
 }
 
 function WorkflowRunVisualizer({
@@ -81,7 +81,13 @@ function WorkflowRunVisualizerContent({
       if (onTaskSelect) {
         onTaskSelect(taskRunId);
       } else {
-        navigate(ROUTES.runs.taskDetail(workflowRunId, taskRunId));
+        navigate(ROUTES.runs.detailWithSheet(workflowRunId, {
+          type: 'task-detail',
+          props: {
+            selectedWorkflowRunId: workflowRunId,
+            selectedTaskId: taskRunId,
+          },
+        }));
       }
     },
     [navigate, workflowRunId, onTaskSelect],

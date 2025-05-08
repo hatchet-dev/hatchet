@@ -48,7 +48,7 @@ interface RunEventLogProps {
   workflow: V1WorkflowRun;
   onTaskSelect?: (
     taskId: string,
-    options?: Parameters<typeof ROUTES.runs.taskDetail>[2],
+    options?: Parameters<typeof ROUTES.runs.detailWithSheet>[2],
   ) => void;
 }
 
@@ -217,7 +217,7 @@ interface EventMessageProps {
   event: V1TaskEvent;
   onTaskSelect?: (
     taskId: string,
-    options?: Parameters<typeof ROUTES.runs.taskDetail>[2],
+    options?: Parameters<typeof ROUTES.runs.detailWithSheet>[2],
   ) => void;
 }
 
@@ -289,7 +289,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
           className="h-5 p-1 text-xs text-muted-foreground hover:text-muted-foreground/80 border-muted-foreground/50"
           onClick={(e) => {
             e.stopPropagation();
-            onTaskSelect(event.taskId, { task_tab: 'worker' });
+            onTaskSelect(event.taskId, { taskTab: 'worker' });
           }}
         >
           <CpuIcon className="h-3 w-3" />

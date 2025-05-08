@@ -19,13 +19,4 @@ export const runsRoutes = [
         };
       }),
   },
-  {
-    path: ROUTES.runs.taskDetail(':workflowRunId', ':taskId'),
-    lazy: () =>
-      import('./run-detail.page').then((res) => {
-        return {
-          Component: res.default,
-        };
-      }),
-  },
 ];

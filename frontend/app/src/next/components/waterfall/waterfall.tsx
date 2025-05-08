@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
@@ -474,7 +474,13 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
             </div>
               {workflowRunId === task.workflowRunId ? (
                 task.parentId ? (
-                  <Link to={ROUTES.runs.taskDetail(task.parentId, task.id)} onClick={(e) => e.stopPropagation()}>
+                  <Link to={ROUTES.runs.detailWithSheet(task.parentId, {
+                    type: 'task-detail',
+                    props: {
+                      selectedWorkflowRunId: task.workflowRunId,
+                      selectedTaskId: task.id,
+                    },
+                  })} onClick={(e) => e.stopPropagation()}>
                     <Button
                       tooltip="Scope out to parent task"
                       variant="link"
@@ -496,9 +502,15 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                 )
               ) : (
                 <Link
-                  to={ROUTES.runs.taskDetail(
+                  to={ROUTES.runs.detailWithSheet(
                     task.workflowRunId || task.id,
-                    task.id,
+                    {
+                      type: 'task-detail',
+                      props: {
+                        selectedWorkflowRunId: task.workflowRunId || task.id,
+                        selectedTaskId: task.id,
+                      },
+                    },
                   )}
                 >
                   <Button

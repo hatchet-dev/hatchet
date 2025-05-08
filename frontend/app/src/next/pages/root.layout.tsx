@@ -9,14 +9,19 @@ import { DocsSheetComponent } from '@/next/components/ui/docs-sheet';
 import { TenantProvider } from '../hooks/use-tenant';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
+import { SideSheetContext } from '../hooks/use-side-sheet';
+import { useSideSheetState } from '../hooks/use-side-sheet';
+import { SideSheetComponent } from '../components/ui/sheet/side-sheet.layout';
 
 function RootContent({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const docsState = useDocsState();
+  const sideSheetState = useSideSheetState();
 
   return (
     <DocsContext.Provider value={docsState}>
-      {meta.isLoading ? (
+      <SideSheetContext.Provider value={sideSheetState}>
+        {meta.isLoading ? (
         <CenterStageLayout>Loading...</CenterStageLayout>
       ) : meta.hasFailed ? (
         <ApiConnectionError
@@ -28,12 +33,17 @@ function RootContent({ children }: PropsWithChildren) {
           <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
             {children ?? <Outlet />}
           </main>
+          <SideSheetComponent
+            sheet={sideSheetState.sheet}
+            onClose={sideSheetState.close}
+          />
           <DocsSheetComponent
             sheet={docsState.sheet}
             onClose={docsState.close}
           />
         </div>
       )}
+    </SideSheetContext.Provider>
     </DocsContext.Provider>
   );
 }

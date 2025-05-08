@@ -26,13 +26,20 @@ export function RunId({
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
 
+
   const url = !isTaskRun
     ? ROUTES.runs.detail(wfRun?.metadata.id || id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
-      : ROUTES.runs.taskDetail(
+      : ROUTES.runs.detailWithSheet(
           taskRun?.workflowRunExternalId || '',
-          taskRun?.taskExternalId || '',
+          {
+            type: 'task-detail',
+            props: {
+              selectedWorkflowRunId: taskRun?.workflowRunExternalId || '',
+              selectedTaskId: taskRun?.taskExternalId,
+            },
+          },
         );
 
   const name = isTaskRun

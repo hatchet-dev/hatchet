@@ -22,7 +22,8 @@ import { MdOutlineReplay, MdOutlineCancel } from 'react-icons/md';
 import { Button } from '@/next/components/ui/button';
 import { RunsBulkActionDialog } from './bulk-action-dialog';
 import { Plus } from 'lucide-react';
-
+import { ROUTES } from '@/next/lib/routes';
+import { useNavigate } from 'react-router-dom';
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
@@ -132,6 +133,19 @@ export function RunsTable({
   useEffect(() => {
     clearSelection();
   }, [filters, clearSelection]);
+
+  const navigate = useNavigate();
+
+  const handleRowDoubleClick = useCallback((row: V1TaskSummary) => {
+    console.log(row);
+    navigate(ROUTES.runs.detailWithSheet(row.workflowRunExternalId || '', {
+      type: 'task-detail',
+      props: {
+        selectedWorkflowRunId: row.workflowRunExternalId || '',
+        selectedTaskId: row.taskExternalId,
+      },
+    }));
+  }, [navigate]);
 
   return (
     <>
@@ -274,6 +288,7 @@ export function RunsTable({
       <DataTable
         columns={columns(onRowClick, selectAll)}
         data={runs || []}
+        onDoubleClick={handleRowDoubleClick}
         emptyState={
           <div className="flex flex-col items-center justify-center gap-4 py-8">
             <p className="text-md">No runs found.</p>
