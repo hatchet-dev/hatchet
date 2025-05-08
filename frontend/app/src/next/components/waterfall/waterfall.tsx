@@ -19,7 +19,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { Button } from '../ui/button';
 import { RunId } from '../runs/run-id';
-import { FaLevelUpAlt, FaRegDotCircle } from 'react-icons/fa';
+import { BsArrowDownRightCircle, BsCircle, BsArrowUpLeftCircle } from "react-icons/bs";
 interface ProcessedTaskData {
   id: string;
   workflowRunId?: string;
@@ -43,7 +43,7 @@ interface ProcessedData {
 // Waterfall component to render bars for queued, started, and finished durations
 interface WaterfallProps {
   workflowRunId: string;
-  handleTaskSelect?: (taskId: string) => void; // Added handleTaskSelect prop
+  handleTaskSelect?: (taskId: string, childWfrId?: string) => void; // Added handleTaskSelect prop
 }
 
 const CustomTooltip = (props: {
@@ -426,6 +426,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
               paddingLeft: `${indentation}px`,
               height: '100%',
             }}
+            className="group"
           >
             {/* Expand/collapse button */}
             <div
@@ -462,23 +463,25 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                 flexGrow: 1,
                 cursor: 'pointer',
               }}
-              className="group flex items-center gap-2"
+              className=" flex items-center gap-2"
+              onClick={() => handleBarClick(task)}
             >
               <RunId
                 displayName={task.taskDisplayName}
                 id={task.id}
                 onClick={() => handleBarClick(task)}
               />
+            </div>
               {workflowRunId === task.workflowRunId ? (
                 task.parentId ? (
-                  <Link to={ROUTES.runs.taskDetail(task.parentId, task.id)}>
+                  <Link to={ROUTES.runs.taskDetail(task.parentId, task.id)} onClick={(e) => e.stopPropagation()}>
                     <Button
                       tooltip="Scope out to parent task"
                       variant="link"
                       size="icon"
                       className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
                     >
-                      <FaLevelUpAlt className="w-4 h-4 transform scale-x-[-1]" />
+                      <BsArrowUpLeftCircle className="w-4 h-4 transform" />
                     </Button>
                   </Link>
                 ) : (
@@ -488,7 +491,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                     size="icon"
                     className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
                   >
-                    <FaRegDotCircle className="w-4 h-4" />
+                    <BsCircle className="w-4 h-4" />
                   </Button>
                 )
               ) : (
@@ -504,11 +507,10 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                     size="icon"
                     className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
                   >
-                    <Search className="w-4 h-4" />
+                    <BsArrowDownRightCircle className="w-4 h-4" />
                   </Button>
                 </Link>
               )}
-            </div>
           </div>
         </foreignObject>
       </g>
@@ -546,7 +548,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
     if (data && data.id) {
       // Handle task selection for sidebar
       if (handleTaskSelect) {
-        handleTaskSelect(data.id);
+        handleTaskSelect(data.id, data.workflowRunId);
       }
 
       // Handle expansion if the task has children
