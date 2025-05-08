@@ -132,34 +132,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
         return self.service_name + ":" + step.name
 
-    def _raise_for_invalid_concurrency(
-        self, concurrency: ConcurrencyExpression
-    ) -> bool:
-        expr = concurrency.expression
-
-        if not expr.startswith("input."):
-            return True
-
-        _, field = expr.split(".", maxsplit=2)
-
-        if field not in self.config.input_validator.model_fields.keys():
-            raise ValueError(
-                f"The concurrency expression provided relies on the `{field}` field, which was not present in `{self.config.input_validator.__name__}`."
-            )
-
-        return True
-
-    def _validate_priority(self, default_priority: int | None) -> int | None:
-        validated_priority = (
-            max(1, min(3, default_priority)) if default_priority else None
-        )
-        if validated_priority != default_priority:
-            logger.warning(
-                "Warning: Default Priority Must be between 1 and 3 -- inclusively. Adjusted to be within the range."
-            )
-
-        return validated_priority
-
     def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
         return not any(task in t.parents for t in self.tasks if task != t)
 
@@ -934,6 +906,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         only_tasks: bool = False,
+        triggering_event_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -969,6 +942,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
         )
 
         return response.rows
@@ -984,6 +958,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         only_tasks: bool = False,
+        triggering_event_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -1011,4 +986,5 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
         )
