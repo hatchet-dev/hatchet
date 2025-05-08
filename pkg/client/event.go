@@ -15,6 +15,7 @@ import (
 
 type pushOpt struct {
 	additionalMetadata map[string]string
+	priority           *int32
 }
 
 type PushOpFunc func(*pushOpt) error
@@ -35,6 +36,7 @@ type EventWithAdditionalMetadata struct {
 	Event              interface{}       `json:"event"`
 	AdditionalMetadata map[string]string `json:"metadata"`
 	Key                string            `json:"key"`
+	Priority           *int32            `json:"priority"`
 }
 
 type eventClientImpl struct {
@@ -106,6 +108,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	additionalMetaString := string(additionalMetaBytes)
 
 	request.AdditionalMetadata = &additionalMetaString
+	request.Priority = opts.priority
 
 	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
 
@@ -139,6 +142,7 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 			EventTimestamp:     timestamppb.Now(),
 			Payload:            string(ePayload),
 			AdditionalMetadata: &eMetadataString,
+			Priority:           p.Priority,
 		})
 	}
 

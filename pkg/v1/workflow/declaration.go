@@ -149,6 +149,8 @@ type workflowDeclarationImpl[I any, O any] struct {
 	outputSetters map[string]func(*O, interface{})
 
 	DefaultPriority *int32
+
+	EventFilterExpression *string
 }
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
@@ -193,15 +195,16 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		OnCron:      opts.OnCron,
 		Concurrency: opts.Concurrency,
 		// OnFailureTask:    opts.OnFailureTask, // TODO: add this back in
-		StickyStrategy:   opts.StickyStrategy,
-		TaskDefaults:     opts.TaskDefaults,
-		outputKey:        opts.OutputKey,
-		tasks:            []*task.TaskDeclaration[I]{},
-		taskFuncs:        make(map[string]interface{}),
-		durableTasks:     []*task.DurableTaskDeclaration[I]{},
-		durableTaskFuncs: make(map[string]interface{}),
-		outputSetters:    make(map[string]func(*O, interface{})),
-		DefaultPriority:  opts.DefaultPriority,
+		StickyStrategy:        opts.StickyStrategy,
+		TaskDefaults:          opts.TaskDefaults,
+		outputKey:             opts.OutputKey,
+		tasks:                 []*task.TaskDeclaration[I]{},
+		taskFuncs:             make(map[string]interface{}),
+		durableTasks:          []*task.DurableTaskDeclaration[I]{},
+		durableTaskFuncs:      make(map[string]interface{}),
+		outputSetters:         make(map[string]func(*O, interface{})),
+		DefaultPriority:       opts.DefaultPriority,
+		EventFilterExpression: opts.EventFilterExpression,
 	}
 
 	if opts.Version != "" {

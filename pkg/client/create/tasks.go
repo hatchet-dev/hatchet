@@ -55,4 +55,7 @@ type WorkflowCreateOpts[I any] struct {
 
 	// (optional) The default priority for tasks in this workflow
 	DefaultPriority *int32
+
+	// (optional) An expression to filter events for the workflow. If this expression evaluates to `True` when an event is pushed, this workflow will _not_ be triggered (it will be filtered out).
+	EventFilterExpression *string
 }
