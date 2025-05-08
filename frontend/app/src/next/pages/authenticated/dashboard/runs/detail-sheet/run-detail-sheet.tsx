@@ -48,8 +48,6 @@ function RunDetailSheetContent({
   return (
     <>
       <div className="flex flex-col gap-y-4">
-      <span>taskId: {taskId}</span><br />
-      <span>workflowRunId: {workflowRunId}</span>
         <TaskRunOverview selectedTaskId={taskId} detailsLink={detailsLink} />
         <Tabs
           value={activeTab}

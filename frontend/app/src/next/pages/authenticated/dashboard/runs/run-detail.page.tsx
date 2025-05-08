@@ -42,6 +42,9 @@ import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
 import WorkflowGeneralSettings from '../workflows/settings';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
+import { PulseIndicator } from '@/next/components/ui/pulse-indicator';
+import { cn } from '@/lib/utils';
+
 export default function RunDetailPage() {
   const { workflowRunId, taskId, } = useParams<{
     workflowRunId: string;
@@ -305,25 +308,14 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             status={workflow.status}
           />
         </span>
-        {lastRefetchTime}
       </span>,
+      <span key="lastRefetch">
+        <PulseIndicator value={lastRefetchTime} label="Live" />
+      </span>
     ];
-
-    const interleavedTimings: JSX.Element[] = [];
-    timings.forEach((timing, index) => {
-      interleavedTimings.push(timing);
-      if (index < timings.length - 1) {
-        interleavedTimings.push(
-          <span key={`sep-${index}`} className="text-sm text-muted-foreground">
-            |
-          </span>,
-        );
-      }
-    });
-
     return (
-      <span className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
-        {interleavedTimings}
+      <span className="flex flex-col items-start gap-y-2 text-sm text-muted-foreground">
+        {timings}
       </span>
     );
   };
