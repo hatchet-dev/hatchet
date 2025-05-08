@@ -87,7 +87,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     return tasks?.[0];
   }, [tasks, taskId]);
 
-  const { open: openSheet } = useSideSheet();
+  const { open: openSheet, sheet } = useSideSheet();
 
   const handleTaskSelect = useCallback(
     (taskId: string, childWfrId?: string) => {
@@ -102,6 +102,13 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     },
     [openSheet, workflowRunId],
   );
+
+  const selectedTaskId = useMemo(() => {
+    if (sheet?.openProps?.type === 'task-detail') {
+      return sheet?.openProps?.props.selectedTaskId;
+    }
+    return undefined;
+  }, [sheet]);
 
 
   const breadcrumbs = useMemo(() => {
@@ -441,6 +448,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
         <TabsContent value="waterfall" className="mt-4">
           <Waterfall
             workflowRunId={workflowRunId!}
+            selectedTaskId={selectedTaskId}
             handleTaskSelect={handleTaskSelect}
           />
         </TabsContent>

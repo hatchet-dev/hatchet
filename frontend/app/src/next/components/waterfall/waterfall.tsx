@@ -43,7 +43,8 @@ interface ProcessedData {
 // Waterfall component to render bars for queued, started, and finished durations
 interface WaterfallProps {
   workflowRunId: string;
-  handleTaskSelect?: (taskId: string, childWfrId?: string) => void; // Added handleTaskSelect prop
+  selectedTaskId?: string;
+  handleTaskSelect?: (taskId: string, childWfrId?: string) => void;
 }
 
 const CustomTooltip = (props: {
@@ -93,7 +94,7 @@ const CustomTooltip = (props: {
   return null;
 };
 
-export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
+export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: WaterfallProps) {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [autoExpandedInitially, setAutoExpandedInitially] = useState(false);
 
@@ -470,6 +471,7 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
                 displayName={task.taskDisplayName}
                 id={task.id}
                 onClick={() => handleBarClick(task)}
+                className={task.id === selectedTaskId ? "underline" : ""}
               />
             </div>
               {workflowRunId === task.workflowRunId ? (
@@ -613,6 +615,23 @@ export function Waterfall({ workflowRunId, handleTaskSelect }: WaterfallProps) {
               tick={renderTick}
             />
             <Tooltip content={<CustomTooltip />} />
+            {/* Background bar for selected state */}
+            <Bar
+              dataKey="offset"
+              name="Selected"
+              stackId="a"
+              fill="transparent"
+              maxBarSize={barSize + rowGap}
+              className="cursor-pointer"
+            >
+              {processedData.data.map((entry, index) => (
+                <Cell
+                  key={`selected-${index}`}
+                  fill={entry.id === selectedTaskId ? 'rgb(99 102 241 / 0.1)' : 'transparent'}
+                  width={10000} // Use a large fixed width to ensure full coverage
+                />
+              ))}
+            </Bar>
             {/* Transparent offset bar for spacing */}
             <Bar
               dataKey="offset"
