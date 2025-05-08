@@ -3,9 +3,7 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
-} from '@/components/v1/ui/tabs';
-import { useSearchParams } from 'react-router-dom';
-import { useCallback } from 'react';
+} from '@/next/components/ui/tabs';
 import { RunDetailProvider } from '@/next/hooks/use-run-detail';
 import { TaskRunOverview } from './run-detail-summary';
 import { RunDetailPayloadContent } from './run-detail-payloads';
@@ -29,29 +27,18 @@ export function RunDetailSheet(props: RunDetailSheetProps) {
 }
 
 function RunDetailSheetContent({
-  selectedTaskId: taskId,
-  selectedWorkflowRunId: workflowRunId,
+  selectedTaskId,
+  selectedWorkflowRunId,
   detailsLink,
 }: RunDetailSheetProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('task_tab') || 'payload';
-
-  const handleTabChange = useCallback(
-    (value: string) => {
-      const newParams = new URLSearchParams(searchParams);
-      newParams.set('task_tab', value);
-      setSearchParams(newParams);
-    },
-    [searchParams, setSearchParams],
-  );
-
   return (
     <>
-      <div className="flex flex-col gap-y-4">
-        <TaskRunOverview selectedTaskId={taskId} detailsLink={detailsLink} />
+      <div className="flex flex-col gap-y-4 px-6 pt-12">
+        {selectedWorkflowRunId}
+        <TaskRunOverview selectedTaskId={selectedTaskId} detailsLink={detailsLink} />
         <Tabs
-          value={activeTab}
-          onValueChange={handleTabChange}
+          defaultValue="payload"
+          state="query"
           className="w-full"
         >
           <TabsList layout="underlined" className="w-full">
@@ -64,7 +51,7 @@ function RunDetailSheetContent({
           </TabsList>
           <TabsContent value="payload" className="mt-4">
             <div className="flex flex-col gap-4">
-              <RunDetailPayloadContent selectedTaskId={taskId} />
+              <RunDetailPayloadContent selectedTaskId={selectedTaskId} />
             </div>
           </TabsContent>
           <TabsContent value="worker" className="mt-4">

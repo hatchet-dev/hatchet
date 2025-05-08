@@ -10,7 +10,7 @@ import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { useTheme } from '@/next/components/theme-provider';
 import stepRunNode, { NodeData } from './step-run-node';
-import { V1TaskStatus } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
@@ -45,11 +45,9 @@ function WorkflowRunVisualizer({
 }
 
 function WorkflowRunVisualizerContent({
-  workflowRunId,
   onTaskSelect,
 }: WorkflowRunVisualizerProps) {
   const { theme } = useTheme();
-  const navigate = useNavigate();
   const { data, isLoading, error } = useRunDetail();
 
   const shape = useMemo(() => data?.shape || [], [data]);
@@ -76,21 +74,13 @@ function WorkflowRunVisualizerContent({
     };
   }, []);
 
-  const setSelectedTaskRunId = useCallback(
-    (taskRunId: string) => {
+  const setSelectedTask = useCallback(
+    (task: V1TaskSummary) => {
       if (onTaskSelect) {
-        onTaskSelect(taskRunId);
-      } else {
-        navigate(ROUTES.runs.detailWithSheet(workflowRunId, {
-          type: 'task-detail',
-          props: {
-            selectedWorkflowRunId: workflowRunId,
-            selectedTaskId: taskRunId,
-          },
-        }));
+        onTaskSelect(task.taskExternalId, task.workflowRunExternalId);
       }
     },
-    [navigate, workflowRunId, onTaskSelect],
+    [onTaskSelect],
   );
 
   const edges: Edge[] = useMemo(
@@ -143,7 +133,7 @@ function WorkflowRunVisualizerContent({
               : hasChild
                 ? 'output_only'
                 : 'input_only',
-          onClick: () => task && setSelectedTaskRunId(task.metadata.id),
+          onClick: () => task && setSelectedTask(task),
           childWorkflowsCount: task?.numSpawnedChildren || 0,
           taskName: shapeItem.taskName,
         };
@@ -156,7 +146,7 @@ function WorkflowRunVisualizerContent({
           selectable: true,
         };
       }) || [],
-    [shape, taskRuns, setSelectedTaskRunId],
+    [shape, taskRuns, setSelectedTask],
   );
 
   const nodeWidth = 230;
@@ -207,8 +197,7 @@ function WorkflowRunVisualizerContent({
   if (
     isLoading ||
     error ||
-    layoutedNodes.length === 0 ||
-    layoutedEdges.length === 0
+    layoutedNodes.length === 0
   ) {
     return null;
   }
@@ -229,7 +218,8 @@ function WorkflowRunVisualizerContent({
           const task = taskRuns.find((t) => t.stepId === node.id);
 
           if (task) {
-            setSelectedTaskRunId(task.metadata.id);
+            console.log('task', task);
+            setSelectedTask(task);
           }
         }}
         maxZoom={1}

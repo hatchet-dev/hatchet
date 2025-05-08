@@ -42,7 +42,8 @@ export const TaskRunOverview = ({
         <TaskRunSummaryTable
           status={workflow.status}
           detailsLink={detailsLink}
-          runIdElement={<RunId wfRun={workflow} />}
+          workflowRunId={<RunId wfRun={workflow} />}
+          taskRunId={<RunId taskRun={selectedTask} />}
         />
       );
     }
@@ -51,7 +52,8 @@ export const TaskRunOverview = ({
       <TaskRunSummaryTable
         status={selectedTask.status}
         detailsLink={detailsLink}
-        runIdElement={<RunId taskRun={selectedTask} />}
+        workflowRunId={workflow.metadata.id !== selectedTask.taskExternalId ? <RunId wfRun={workflow} /> : undefined}
+        taskRunId={<RunId taskRun={selectedTask} />}
       />
     );
   };

@@ -31,7 +31,7 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
-} from '@/components/v1/ui/tabs';
+} from '@/next/components/ui/tabs';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
 import { FilterProvider } from '@/next/hooks/utils/use-filters';
 import { Separator } from '@/next/components/ui/separator';
@@ -43,7 +43,6 @@ import WorkflowGeneralSettings from '../workflows/settings';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { PulseIndicator } from '@/next/components/ui/pulse-indicator';
-import { cn } from '@/lib/utils';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId, } = useParams<{
@@ -415,12 +414,14 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
       <Tabs
         defaultValue={taskCount > 1 ? 'minimap' : 'waterfall'}
+        state="query"
+        stateKey="visualizer-tab"
         className="w-full"
       >
         <TabsList layout="underlined" className="w-full">
           {taskCount > 1 && (
             <TabsTrigger variant="underlined" value="minimap">
-              Minimap
+              DAG Minimap
             </TabsTrigger>
           )}
           <TabsTrigger variant="underlined" value="waterfall">
@@ -428,7 +429,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="minimap" className="mt-4">
-          {taskCount > 1 && workflowRunId && (
+          {workflowRunId && (
             <div className="w-full overflow-x-auto bg-slate-100 dark:bg-slate-900">
               <WorkflowRunVisualizer
                 workflowRunId={workflowRunId}

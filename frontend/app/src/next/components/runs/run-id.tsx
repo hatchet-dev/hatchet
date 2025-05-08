@@ -52,7 +52,7 @@ export function RunId({
       : getFriendlyWorkflowRunId(wfRun);
 
   const handleDoubleClick = () => {
-    if (url) {
+    if (url && !onClick) {
       navigate(url);
     }
   };

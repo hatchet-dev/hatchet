@@ -7,39 +7,52 @@ import { V1TaskStatus } from "@/lib/api/generated/data-contracts";
 export type TaskRunSummaryTableProps = {
     status: V1TaskStatus;
     detailsLink?: string;
-    runIdElement: JSX.Element;
+    workflowRunId?: JSX.Element;
+    taskRunId: JSX.Element;
   };
   
   
 export const TaskRunSummaryTable = ({
     status,
     detailsLink,
-    runIdElement,
+    workflowRunId,
+    taskRunId,
 }: TaskRunSummaryTableProps) => {
+
     return (
       <div className="flex flex-col gap-2">
         <div className="flex flex-col gap-2">
-          <Table className="text-sm">
+          <Table className="text-sm table-fixed w-full">
             <TableBody>
               <TableRow className="border-none">
-                <TableCell className="pr-4 text-muted-foreground">
+                <TableCell className="pr-4 text-muted-foreground w-[140px]">
                   Status
                 </TableCell>
-                <TableCell className="flex flex-row items-center justify-center">
+                <TableCell>
                   <RunsBadge status={status} variant="default" />
                 </TableCell>
               </TableRow>
+              {workflowRunId && (
+                <TableRow className="border-none">
+                  <TableCell className="pr-4 text-muted-foreground w-[140px]">
+                    Workflow Run ID
+                  </TableCell>
+                <TableCell>
+                  {workflowRunId}
+                  </TableCell>
+                </TableRow>
+              )}
               <TableRow className="border-none">
-                <TableCell className="pr-4 text-muted-foreground">
-                  Task ID
+                <TableCell className="pr-4 text-muted-foreground w-[140px]">
+                  Task Run ID
                 </TableCell>
-                <TableCell className="flex flex-row items-center justify-center">
-                  {runIdElement}
+                <TableCell>
+                  {taskRunId}
                 </TableCell>
               </TableRow>
               {detailsLink && (
                 <TableRow className="border-none hover:cursor-pointer">
-                  <TableCell className="pr-4 text-muted-foreground">
+                  <TableCell className="pr-4 text-muted-foreground w-[140px]">
                     <Link
                       to={detailsLink}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
