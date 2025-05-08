@@ -45,13 +45,13 @@ func CreatedDAGMessage(tenantId string, dag *v1.DAGWithData) (*msgqueue.Message,
 }
 
 type CreatedEventTriggerPayloadSingleton struct {
-	RunId                   int64     `json:"run_id"`
-	RunInsertedAt           time.Time `json:"run_inserted_at"`
-	EventSeenAt             time.Time `json:"event_seen_at"`
-	EventKey                string    `json:"event_key"`
-	EventId                 string    `json:"event_id"`
-	EventPayload            []byte    `json:"event_payload"`
-	EventAdditionalMetadata []byte    `json:"event_additional_metadata,omitempty"`
+	MaybeRunId              *int64     `json:"run_id"`
+	MaybeRunInsertedAt      *time.Time `json:"run_inserted_at"`
+	EventSeenAt             time.Time  `json:"event_seen_at"`
+	EventKey                string     `json:"event_key"`
+	EventId                 string     `json:"event_id"`
+	EventPayload            []byte     `json:"event_payload"`
+	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {
