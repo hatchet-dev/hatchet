@@ -114,6 +114,11 @@ export type CreateBaseWorkflowOpts = {
    * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
    */
   defaultPriority?: Priority;
+
+  /**
+   * (optional) An optional expression to filter events for the workflow. If this expression evaluates to `True` when an event is pushed, this workflow will _not_ be triggered (it will be filtered out).
+   */
+  eventFilterExpression?: string;
 };
 
 export type CreateTaskWorkflowOpts<
