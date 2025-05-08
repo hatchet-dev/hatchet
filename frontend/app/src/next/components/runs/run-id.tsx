@@ -7,6 +7,7 @@ import {
 } from '@/next/components/ui/tooltip';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import { cn } from '@/lib/utils';
 
 interface RunIdProps {
   wfRun?: V1WorkflowRun;
@@ -14,6 +15,7 @@ interface RunIdProps {
   displayName?: string;
   id?: string;
   onClick?: () => void;
+  className?: string;
 }
 
 export function RunId({
@@ -22,6 +24,7 @@ export function RunId({
   displayName,
   id,
   onClick,
+  className,
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
@@ -60,12 +63,12 @@ export function RunId({
         <TooltipTrigger asChild>
           <span>
             {url && !onClick ? (
-              <Link to={url} className="hover:underline text-foreground">
+              <Link to={url} className={cn("hover:underline text-foreground", className)}>
                 {name}
               </Link>
             ) : (
               <span
-                className={onClick ? 'cursor-pointer' : ''}
+                className={cn(onClick ? 'cursor-pointer' : '', className)}
                 onClick={onClick}
                 onDoubleClick={handleDoubleClick}
               >
