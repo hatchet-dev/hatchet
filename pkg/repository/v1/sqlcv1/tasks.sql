@@ -680,38 +680,56 @@ WITH input AS (
                 unnest(@taskIds::bigint[]) AS task_id,
                 unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
         ) AS subquery
+), task_outputs AS (
+    SELECT
+        DISTINCT ON (t.id, t.inserted_at, t.retry_count)
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id,
+        t.dag_id,
+        t.dag_inserted_at,
+        t.step_readable_id,
+        t.workflow_run_id,
+        t.step_id,
+        t.workflow_id,
+        e.data AS output
+    FROM
+        v1_task t1
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = t1.dag_id AND dt.dag_inserted_at = t1.dag_inserted_at
+    JOIN
+        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+    JOIN
+        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type = 'COMPLETED'
+    WHERE
+        (t1.id, t1.inserted_at) IN (
+            SELECT
+                task_id,
+                task_inserted_at
+            FROM
+                input
+        )
+        AND t1.tenant_id = @tenantId::uuid
+        AND t1.dag_id IS NOT NULL
+), max_retry_counts AS (
+    SELECT
+        id,
+        inserted_at,
+        MAX(retry_count) AS max_retry_count
+    FROM
+        task_outputs
+    GROUP BY
+        id, inserted_at
 )
 SELECT
-    DISTINCT ON (t.id, t.inserted_at, t.retry_count)
-    t.id,
-    t.inserted_at,
-    t.retry_count,
-    t.tenant_id,
-    t.dag_id,
-    t.dag_inserted_at,
-    t.step_readable_id,
-    t.workflow_run_id,
-    t.step_id,
-    t.workflow_id,
-    e.data AS output
+    task_outputs.*
 FROM
-    v1_task t1
+    task_outputs
 JOIN
-    v1_dag_to_task dt ON dt.dag_id = t1.dag_id AND dt.dag_inserted_at = t1.dag_inserted_at
-JOIN
-    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
-JOIN
-    v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type = 'COMPLETED'
-WHERE
-    (t1.id, t1.inserted_at) IN (
-        SELECT
-            task_id,
-            task_inserted_at
-        FROM
-            input
-    )
-    AND t1.tenant_id = @tenantId::uuid
-    AND t1.dag_id IS NOT NULL;
+    max_retry_counts mrc ON task_outputs.id = mrc.id
+        AND task_outputs.inserted_at = mrc.inserted_at
+        AND task_outputs.retry_count = mrc.max_retry_count;
 
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
