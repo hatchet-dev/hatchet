@@ -106,16 +106,20 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	}
 }
 
+type Run struct {
+	Id         int64
+	InsertedAt time.Time
+}
+
 type RunWithEventTriggerOpts struct {
-	MaybeRunId         *int64
-	MaybeRunInsertedAt *time.Time
-	Opts               EventTriggerOpts
+	Runs []*Run
+	Opts EventTriggerOpts
 }
 
 type TriggerFromEventsResult struct {
-	Tasks []*sqlcv1.V1Task
-	Dags  []*DAGWithData
-	Runs  []*RunWithEventTriggerOpts
+	Tasks                []*sqlcv1.V1Task
+	Dags                 []*DAGWithData
+	EventIdToRunsAndOpts *map[string]RunWithEventTriggerOpts
 }
 
 func (r *sharedRepository) processWorkflowExpression(ctx context.Context, workflow *sqlcv1.ListWorkflowsForEventsRow, opt EventTriggerOpts) (bool, error) {
@@ -168,11 +172,16 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	eventKeys := make([]string, 0, len(opts))
+	eventIdToOpt := make(map[string]EventTriggerOpts)
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
+
+	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
+		// Event ids are unique, so each one can only have one opt
+		eventIdToOpt[opt.EventId] = opt
+
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
 		if _, ok := uniqueEventKeys[opt.Key]; ok {
@@ -196,8 +205,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
 
-	externalIdToOpts := make(map[string]EventTriggerOpts)
-	runs := make([]*RunWithEventTriggerOpts, 0)
+	externalIdToEventId := make(map[string]string)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.EventKey]
@@ -217,24 +225,12 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 						Str("expression", workflow.EventExpression.String).
 						Msg("Failed to evaluate workflow expression")
 
-					// If we are going to skip triggering runs from the event,
-					// we still need to write the event to the event table.
-					runs = append(runs, &RunWithEventTriggerOpts{
-						Opts: opt,
-					})
-
 					// If we fail to parse the expression, we should not run the workflow.
 					// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
 					continue
 				}
 
 				if shouldFilter {
-					// If we are going to skip triggering runs from the event,
-					// we still need to write the event to the event table.
-					runs = append(runs, &RunWithEventTriggerOpts{
-						Opts: opt,
-					})
-
 					continue
 				}
 			}
@@ -258,52 +254,77 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				priority:           opt.Priority,
 			})
 
-			externalIdToOpts[externalId] = opt
+			externalIdToEventId[externalId] = opt.EventId
 		}
 	}
 
+	eventIdToRuns := make(map[string][]*Run)
+
 	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to trigger workflows: %w", err)
+	}
 
 	for _, task := range tasks {
 		externalId := task.ExternalID
-		opts, ok := externalIdToOpts[externalId.String()]
+
+		eventId, ok := externalIdToEventId[externalId.String()]
 
 		if !ok {
 			continue
 		}
 
-		runs = append(runs, &RunWithEventTriggerOpts{
-			MaybeRunId:         &task.ID,
-			MaybeRunInsertedAt: &task.InsertedAt.Time,
-			Opts:               opts,
+		opt, ok := eventIdToOpt[eventId]
+
+		if !ok {
+			continue
+		}
+
+		eventIdToRuns[opt.EventId] = append(eventIdToRuns[opt.EventId], &Run{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt.Time,
 		})
 	}
 
 	for _, dag := range dags {
 		externalId := dag.ExternalID
-		opts, ok := externalIdToOpts[externalId.String()]
+
+		eventId, ok := externalIdToEventId[externalId.String()]
 
 		if !ok {
 			continue
 		}
 
-		runs = append(runs, &RunWithEventTriggerOpts{
-			MaybeRunId:         &dag.ID,
-			MaybeRunInsertedAt: &dag.InsertedAt.Time,
-			Opts:               opts,
+		opt, ok := eventIdToOpt[eventId]
+
+		if !ok {
+			continue
+		}
+
+		eventIdToRuns[opt.EventId] = append(eventIdToRuns[opt.EventId], &Run{
+			Id:         dag.ID,
+			InsertedAt: dag.InsertedAt.Time,
 		})
 	}
 
-	if err != nil {
-		return nil, err
+	eventIdToRunsAndOpts := make(map[string]RunWithEventTriggerOpts, 0)
+
+	for eventId, opt := range eventIdToOpt {
+		runs := eventIdToRuns[opt.EventId]
+
+		eventIdToRunsAndOpts[eventId] = RunWithEventTriggerOpts{
+			Runs: runs,
+			Opts: opt,
+		}
 	}
 
 	post()
 
 	return &TriggerFromEventsResult{
-		Tasks: tasks,
-		Dags:  dags,
-		Runs:  runs,
+		Tasks:                tasks,
+		Dags:                 dags,
+		EventIdToRunsAndOpts: &eventIdToRunsAndOpts,
 	}, nil
 }
 
