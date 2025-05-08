@@ -24,6 +24,7 @@ WITH task_partitions AS (
 ), events_lookup_table_partitions AS (
     SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
 )
+
 SELECT
     *
 FROM
