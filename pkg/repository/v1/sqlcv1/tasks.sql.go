@@ -791,10 +791,9 @@ WITH input AS (
         ) AS subquery
 ), task_outputs AS (
     SELECT
-        DISTINCT ON (t.id, t.inserted_at, t.retry_count)
         t.id,
         t.inserted_at,
-        t.retry_count,
+        e.retry_count,
         t.tenant_id,
         t.dag_id,
         t.dag_inserted_at,
@@ -832,6 +831,7 @@ WITH input AS (
         id, inserted_at
 )
 SELECT
+    DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
     task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count, task_outputs.tenant_id, task_outputs.dag_id, task_outputs.dag_inserted_at, task_outputs.step_readable_id, task_outputs.workflow_run_id, task_outputs.step_id, task_outputs.workflow_id, task_outputs.output
 FROM
     task_outputs
