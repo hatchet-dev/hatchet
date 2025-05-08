@@ -73,6 +73,7 @@ export interface PushEventRequest {
   eventTimestamp: Date | undefined;
   /** metadata for the event */
   additionalMetadata?: string | undefined;
+  priority?: number | undefined;
 }
 
 export interface ReplayEventRequest {
@@ -699,7 +700,13 @@ export const BulkPushEventRequest: MessageFns<BulkPushEventRequest> = {
 };
 
 function createBasePushEventRequest(): PushEventRequest {
-  return { key: '', payload: '', eventTimestamp: undefined, additionalMetadata: undefined };
+  return {
+    key: '',
+    payload: '',
+    eventTimestamp: undefined,
+    additionalMetadata: undefined,
+    priority: undefined,
+  };
 }
 
 export const PushEventRequest: MessageFns<PushEventRequest> = {
@@ -715,6 +722,9 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
     }
     if (message.additionalMetadata !== undefined) {
       writer.uint32(34).string(message.additionalMetadata);
+    }
+    if (message.priority !== undefined) {
+      writer.uint32(40).int32(message.priority);
     }
     return writer;
   },
@@ -758,6 +768,14 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
           message.additionalMetadata = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.priority = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -777,6 +795,7 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
       additionalMetadata: isSet(object.additionalMetadata)
         ? globalThis.String(object.additionalMetadata)
         : undefined,
+      priority: isSet(object.priority) ? globalThis.Number(object.priority) : undefined,
     };
   },
 
@@ -794,6 +813,9 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
     if (message.additionalMetadata !== undefined) {
       obj.additionalMetadata = message.additionalMetadata;
     }
+    if (message.priority !== undefined) {
+      obj.priority = Math.round(message.priority);
+    }
     return obj;
   },
 
@@ -806,6 +828,7 @@ export const PushEventRequest: MessageFns<PushEventRequest> = {
     message.payload = object.payload ?? '';
     message.eventTimestamp = object.eventTimestamp ?? undefined;
     message.additionalMetadata = object.additionalMetadata ?? undefined;
+    message.priority = object.priority ?? undefined;
     return message;
   },
 };
