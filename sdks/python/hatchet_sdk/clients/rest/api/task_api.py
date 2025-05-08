@@ -1568,6 +1568,10 @@ class TaskApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task's external id"),
         ] = None,
+        triggering_event_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1594,6 +1598,8 @@ class TaskApi:
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
         :type parent_task_external_id: str
+        :param triggering_event_id: The id of the event that triggered the task
+        :type triggering_event_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1622,6 +1628,7 @@ class TaskApi:
             until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1668,6 +1675,10 @@ class TaskApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task's external id"),
         ] = None,
+        triggering_event_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1694,6 +1705,8 @@ class TaskApi:
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
         :type parent_task_external_id: str
+        :param triggering_event_id: The id of the event that triggered the task
+        :type triggering_event_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1722,6 +1735,7 @@ class TaskApi:
             until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1768,6 +1782,10 @@ class TaskApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task's external id"),
         ] = None,
+        triggering_event_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(description="The id of the event that triggered the task"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1794,6 +1812,8 @@ class TaskApi:
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
         :type parent_task_external_id: str
+        :param triggering_event_id: The id of the event that triggered the task
+        :type triggering_event_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1822,6 +1842,7 @@ class TaskApi:
             until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1846,6 +1867,7 @@ class TaskApi:
         until,
         workflow_ids,
         parent_task_external_id,
+        triggering_event_id,
         _request_auth,
         _content_type,
         _headers,
@@ -1900,6 +1922,10 @@ class TaskApi:
         if parent_task_external_id is not None:
 
             _query_params.append(("parent_task_external_id", parent_task_external_id))
+
+        if triggering_event_id is not None:
+
+            _query_params.append(("triggering_event_id", triggering_event_id))
 
         # process the header parameters
         # process the form parameters

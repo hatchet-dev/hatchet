@@ -1,8 +1,9 @@
 import asyncio
+import re
 from enum import Enum
 from typing import Any, Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
@@ -83,30 +84,20 @@ class WorkflowConfig(BaseModel):
 
     task_defaults: TaskDefaults = TaskDefaults()
 
-    def _raise_for_invalid_expression(self, expr: str) -> None:
-        if not expr.startswith("input."):
+    def _raise_for_invalid_expression(self, expr: str, parameter: str) -> None:
+        ## FIXME: Figure out how to implement CEL validation with arbitrarily nested Pydantic models
+        pattern = r"input\.([a-zA-Z]+)"
+        match = re.search(pattern, expr)
+
+        if not match:
             return None
 
-        _, field = expr.split(".", maxsplit=2)
+        field = match.group(1)
 
         if field not in self.input_validator.model_fields.keys():
             raise ValueError(
-                f"The concurrency expression provided relies on the `{field}` field, which was not present in `{self.input_validator.__name__}`."
+                f"The {parameter} expression provided relies on the `{field}` field, which was not present in `{self.input_validator.__name__}`."
             )
-
-    @model_validator(mode="after")
-    def validate_concurrency_expression(self) -> "WorkflowConfig":
-        if not self.concurrency:
-            return self
-
-        if isinstance(self.concurrency, list):
-            for item in self.concurrency:
-                self._raise_for_invalid_expression(item.expression)
-
-        if isinstance(self.concurrency, ConcurrencyExpression):
-            self._raise_for_invalid_expression(self.concurrency.expression)
-
-        return self
 
 
 class StepType(str, Enum):

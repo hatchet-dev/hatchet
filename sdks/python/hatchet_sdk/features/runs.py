@@ -141,6 +141,7 @@ class RunsClient(BaseRestClient):
         workflow_ids: list[str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
+        triggering_event_id: str | None = None,
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -170,6 +171,7 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_id=triggering_event_id,
         )
 
     def list(
@@ -184,6 +186,7 @@ class RunsClient(BaseRestClient):
         workflow_ids: list[str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
+        triggering_event_id: str | None = None,
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -216,6 +219,7 @@ class RunsClient(BaseRestClient):
                 workflow_ids=workflow_ids,
                 worker_id=worker_id,
                 parent_task_external_id=parent_task_external_id,
+                triggering_event_id=triggering_event_id,
             )
 
     def create(
