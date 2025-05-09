@@ -62,7 +62,7 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
     events = [
         BulkPushEventWithMetadata(
             key="user:create",
-            payload={"message": "This is event 1", "should_skip": False},
+            payload={"message": "This is event 1"},
             additional_metadata={
                 "should_have_runs": True,
                 "test_run_id": test_run_id,
@@ -70,25 +70,9 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
         ),
         BulkPushEventWithMetadata(
             key="thisisafakeeventfoobarbaz",
-            payload={"message": "This is a fake event", "should_skip": False},
+            payload={"message": "This is a fake event"},
             additional_metadata={
                 "should_have_runs": False,
-                "test_run_id": test_run_id,
-            },
-        ),
-        BulkPushEventWithMetadata(
-            key="user:create",
-            payload={"message": "This is event 3", "should_skip": True},
-            additional_metadata={
-                "should_have_runs": False,
-                "test_run_id": test_run_id,
-            },
-        ),
-        BulkPushEventWithMetadata(
-            key="user:create",
-            payload={"message": "This is event 3", "should_skip": False},
-            additional_metadata={
-                "should_have_runs": True,
                 "test_run_id": test_run_id,
             },
         ),
