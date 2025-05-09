@@ -180,6 +180,7 @@ class Hatchet:
             loop = None
 
         return Worker(
+            hatchet_client=self,
             name=name,
             slots=slots,
             durable_slots=durable_slots,
