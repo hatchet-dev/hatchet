@@ -144,16 +144,14 @@ func ToTaskRunEventMany(
 	toReturn := make([]gen.V1TaskEvent, len(events))
 
 	for i, event := range events {
-		// data := jsonToMap(event.Data)
-		// taskInput := jsonToMap(event.TaskInput)
-		// additionalMetadata := jsonToMap(event.AdditionalMetadata)
-
 		var workerId *types.UUID
 
 		if event.WorkerID.Valid {
 			workerUUid := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
 			workerId = &workerUUid
 		}
+
+		retryCount := int(event.RetryCount)
 
 		toReturn[i] = gen.V1TaskEvent{
 			Id:           int(event.ID),
@@ -163,7 +161,7 @@ func ToTaskRunEventMany(
 			Timestamp:    event.EventTimestamp.Time,
 			WorkerId:     workerId,
 			TaskId:       uuid.MustParse(taskExternalId),
-			// TaskInput:    &taskInput,
+			RetryCount:   &retryCount,
 		}
 	}
 
