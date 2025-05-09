@@ -373,6 +373,30 @@ BEGIN
 END;
 $$;
 
+-- Events tables
+CREATE TABLE v1_events_olap (
+    tenant_id UUID NOT NULL,
+    id UUID NOT NULL,
+    seen_at TIMESTAMPTZ NOT NULL,
+    key TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    additional_metadata JSONB,
+
+    PRIMARY KEY (tenant_id, id, seen_at)
+) PARTITION BY RANGE(seen_at);
+
+CREATE INDEX v1_events_olap_key_idx ON v1_events_olap (tenant_id, key);
+
+CREATE TABLE v1_event_to_run_olap (
+    run_id BIGINT NOT NULL,
+    run_inserted_at TIMESTAMPTZ NOT NULL,
+    event_id UUID NOT NULL,
+    event_seen_at TIMESTAMPTZ NOT NULL,
+
+    PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)
+) PARTITION BY RANGE(event_seen_at);
+
+
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
