@@ -19,6 +19,7 @@ interface RunDetailState {
         events: V1TaskEvent[];
         logs: Array<{
           taskId: string;
+          retryCount: number;
           createdAt: string;
           message: string;
           metadata: object;
@@ -147,6 +148,7 @@ function RunDetailProviderContent({
             (log) => ({
               ...log,
               taskId: task.metadata.id,
+              retryCount: log.retryCount || 0,
             }),
           ),
         );

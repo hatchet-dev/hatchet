@@ -422,6 +422,7 @@ export interface V1TaskEvent {
   /** @format uuid */
   workerId?: string;
   taskDisplayName?: string;
+  retryCount: number;
 }
 
 export interface V1TaskEventList {
@@ -439,6 +440,8 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /** The retry count of the log line. */
+  retryCount?: number;
 }
 
 export interface V1LogLineList {

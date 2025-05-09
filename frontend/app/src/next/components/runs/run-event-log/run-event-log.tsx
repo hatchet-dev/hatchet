@@ -334,6 +334,7 @@ export function RunEventLog({ onTaskSelect }: RunEventLogProps) {
       eventType: LogEventType,
       message: log.message,
       metadata: log.metadata,
+      retryCount: log.retryCount,
     }));
 
     const allEvents = [...events, ...logEvents];
@@ -460,7 +461,7 @@ export function RunEventLog({ onTaskSelect }: RunEventLogProps) {
                       {tasks?.[event.taskId] && (
                         <RunId taskRun={tasks[event.taskId] as any} />
                       )}
-                      /
+                      /{event.retryCount}
                     </p>
                     {event.eventType === LogEventType ? (
                       <EventMessage event={event} onTaskSelect={onTaskSelect} />
