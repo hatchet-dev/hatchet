@@ -809,15 +809,20 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId string, msgs []*tasktypes.UserEventTaskPayload) error {
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
+	eventIdToOpts := make(map[string]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
-		opts = append(opts, v1.EventTriggerOpts{
+		opt := v1.EventTriggerOpts{
 			EventId:            msg.EventId,
 			Key:                msg.EventKey,
 			Data:               msg.EventData,
 			AdditionalMetadata: msg.EventAdditionalMetadata,
 			Priority:           msg.EventPriority,
-		})
+		}
+
+		opts = append(opts, opt)
+
+		eventIdToOpts[msg.EventId] = opt
 	}
 
 	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
@@ -827,36 +832,33 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	}
 
 	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
+
+	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
 	eventSeenAt := time.Now()
 
-	for _, runsAndOpts := range *result.EventIdToRunsAndOpts {
-		opts := runsAndOpts.Opts
-		runs := runsAndOpts.Runs
+	for eventId, runs := range result.EventIdToRuns {
+		opts := eventIdToOpts[eventId]
 
 		if len(runs) == 0 {
 			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-				// FIXME: Should `SeenAt` be set on the SDK when the event is created?
 				EventSeenAt:             eventSeenAt,
 				EventKey:                opts.Key,
 				EventId:                 opts.EventId,
 				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
 			})
-
-			continue
-		}
-
-		for _, run := range runs {
-			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-				MaybeRunId:         &run.Id,
-				MaybeRunInsertedAt: &run.InsertedAt,
-				// FIXME: Should `SeenAt` be set on the SDK when the event is created?
-				EventSeenAt:             eventSeenAt,
-				EventKey:                opts.Key,
-				EventId:                 opts.EventId,
-				EventPayload:            opts.Data,
-				EventAdditionalMetadata: opts.AdditionalMetadata,
-			})
+		} else {
+			for _, run := range runs {
+				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+					MaybeRunId:              &run.Id,
+					MaybeRunInsertedAt:      &run.InsertedAt,
+					EventSeenAt:             eventSeenAt,
+					EventKey:                opts.Key,
+					EventId:                 opts.EventId,
+					EventPayload:            opts.Data,
+					EventAdditionalMetadata: opts.AdditionalMetadata,
+				})
+			}
 		}
 	}
 
