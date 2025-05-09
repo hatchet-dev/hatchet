@@ -98,6 +98,7 @@ type WorkflowRunData struct {
 	TenantID             pgtype.UUID                 `json:"tenant_id"`
 	WorkflowID           pgtype.UUID                 `json:"workflow_id"`
 	WorkflowVersionId    pgtype.UUID                 `json:"workflow_version_id"`
+	RetryCount           *int                        `json:"retry_count,omitempty"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -795,6 +796,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				continue
 			}
 
+			// TODO !IMPORTANT: verify this is correct
+			retryCount := int(dag.RetryCount)
+
 			res = append(res, &WorkflowRunData{
 				TenantID:             dag.TenantID,
 				InsertedAt:           dag.InsertedAt,
@@ -815,6 +819,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				Output:               &dag.Output,
 				Input:                dag.Input,
 				ParentTaskExternalId: &dag.ParentTaskExternalID,
+				RetryCount:           &retryCount,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -823,6 +828,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				r.l.Error().Msgf("could not find task with external id %s", externalId)
 				continue
 			}
+
+			retryCount := int(task.RetryCount)
 
 			res = append(res, &WorkflowRunData{
 				TenantID:           task.TenantID,
@@ -844,6 +851,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				Output:             &task.Output,
 				Input:              task.Input,
 				StepId:             &task.StepID,
+				RetryCount:         &retryCount,
 			})
 		}
 	}

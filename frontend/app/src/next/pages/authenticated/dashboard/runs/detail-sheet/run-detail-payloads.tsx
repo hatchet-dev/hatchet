@@ -57,6 +57,11 @@ export const RunDetailPayloadContent = ({ selectedTaskId }: RunDetailPayloadCont
       <>
         <RunDataCard
           title="Input"
+          output={selectedTask}
+          variant="input"
+        />
+        <RunDataCard
+          title="Input"
           output={(selectedTask.input as any).input ?? {}}
           variant="input"
         />

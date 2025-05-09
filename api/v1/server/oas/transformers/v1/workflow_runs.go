@@ -90,6 +90,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		StepId:                &stepId,
 		ActionId:              &actionId,
 		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
+		RetryCount:            task.RetryCount,
 	}
 }
 
@@ -165,6 +166,8 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 	output := jsonToMap(task.Output)
 	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 
+	retryCount := int(task.RetryCount)
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
@@ -192,6 +195,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 		WorkflowName:          workflowName,
 		StepId:                &stepId,
 		ActionId:              &task.ActionID,
+		RetryCount:            &retryCount,
 		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowRunID)),
 	}
 }

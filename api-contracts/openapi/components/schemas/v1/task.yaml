@@ -11,6 +11,9 @@ V1TaskSummary:
     actionId:
       type: string
       description: The action ID of the task.
+    retryCount:
+      type: integer
+      description: The number of retries of the task.
     additionalMetadata:
       type: object
       description: Additional metadata for the task run.

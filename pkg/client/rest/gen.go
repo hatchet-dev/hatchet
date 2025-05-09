@@ -1302,6 +1302,9 @@ type V1TaskSummary struct {
 	// Output The output of the task run (for the latest run)
 	Output openapi.NonNullableJSON `json:"output"`
 
+	// RetryCount The number of retries of the task.
+	RetryCount *int `json:"retryCount,omitempty"`
+
 	// StartedAt The timestamp the task run started.
 	StartedAt *time.Time   `json:"startedAt,omitempty"`
 	Status    V1TaskStatus `json:"status"`
