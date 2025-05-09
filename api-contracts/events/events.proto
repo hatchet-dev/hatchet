@@ -57,7 +57,7 @@ message PutLogRequest {
     // associated log line metadata
     string metadata = 5;
 
-    // the retry count of the task run  
+    // the retry count of the task run
     optional int32 taskRetryCount = 6;
 }
 
