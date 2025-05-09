@@ -85,7 +85,7 @@ func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns 
 	tenantAlerting, err := t.repo.TenantAlertingSettings().GetTenantAlertingSettings(ctx, tenantId)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get tenant alerting settings: %w", err)
 	}
 
 	failedItems := t.getFailedItemsV1(failedRuns)
@@ -101,7 +101,7 @@ func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns 
 	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not update tenant alerting settings: %w", err)
 	}
 
 	// iterate through possible alerters
@@ -118,7 +118,7 @@ func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId string, failedRuns 
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not send tenant alert: %w", err)
 	}
 
 	return nil
