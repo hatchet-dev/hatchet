@@ -160,6 +160,11 @@ export function DataTable<TData extends IDGetter, TValue>({
         return;
       }
 
+      // Toggle row expansion if the row can be expanded
+      if (row.getCanExpand()) {
+        row.toggleExpanded(true);
+      }
+
       onRowClick(row.original);
     },
     [onRowClick],

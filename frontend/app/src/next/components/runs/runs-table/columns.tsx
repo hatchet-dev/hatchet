@@ -56,10 +56,14 @@ export const columns = (
           onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
           aria-label="Select row"
           disabled={selectAll}
+          onClick={(e) => e.stopPropagation()}
         />
         {row.getCanExpand() && (
           <Button
-            onClick={() => row.toggleExpanded()}
+            onClick={(e) => {
+              e.stopPropagation();
+              row.toggleExpanded();
+            }}
             variant="link"
             size="icon"
             className="cursor-pointer px-2"
@@ -112,12 +116,15 @@ export const columns = (
         <div className="flex items-center gap-2">
           <RunId
             taskRun={row.original}
-            onClick={rowClicked ? () => rowClicked(row.original) : undefined}
+            onClick={() => {
+              rowClicked?.(row.original);
+            }}
           />
           {url && (
             <Link
               to={url}
               className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
             >
               <Button variant="link" tooltip="Scope into run" size="icon">
                 <BsArrowDownRightCircle className="w-4 h-4" />
