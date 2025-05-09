@@ -276,6 +276,8 @@ func (w *Worker) NewService(name string) *Service {
 		svcName = namespace + name
 	}
 
+	svcName = strings.ToLower(svcName)
+
 	svc := &Service{
 		Name:   svcName,
 		worker: w,

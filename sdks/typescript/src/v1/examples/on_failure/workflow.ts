@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 
-// ❓ On Failure Task
+// > On Failure Task
 export const failureWorkflow = hatchet.workflow({
   name: 'always-fail',
 });

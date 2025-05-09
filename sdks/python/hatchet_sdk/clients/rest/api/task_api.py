@@ -1555,6 +1555,9 @@ class TaskApi:
         since: Annotated[
             datetime, Field(description="The start time to get metrics for")
         ],
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get metrics for")
+        ] = None,
         workflow_ids: Annotated[
             Optional[
                 List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
@@ -1585,6 +1588,8 @@ class TaskApi:
         :type tenant: str
         :param since: The start time to get metrics for (required)
         :type since: datetime
+        :param until: The end time to get metrics for
+        :type until: datetime
         :param workflow_ids: The workflow id to find runs for
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
@@ -1614,6 +1619,7 @@ class TaskApi:
         _param = self._v1_task_list_status_metrics_serialize(
             tenant=tenant,
             since=since,
+            until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
             _request_auth=_request_auth,
@@ -1649,6 +1655,9 @@ class TaskApi:
         since: Annotated[
             datetime, Field(description="The start time to get metrics for")
         ],
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get metrics for")
+        ] = None,
         workflow_ids: Annotated[
             Optional[
                 List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
@@ -1679,6 +1688,8 @@ class TaskApi:
         :type tenant: str
         :param since: The start time to get metrics for (required)
         :type since: datetime
+        :param until: The end time to get metrics for
+        :type until: datetime
         :param workflow_ids: The workflow id to find runs for
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
@@ -1708,6 +1719,7 @@ class TaskApi:
         _param = self._v1_task_list_status_metrics_serialize(
             tenant=tenant,
             since=since,
+            until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
             _request_auth=_request_auth,
@@ -1743,6 +1755,9 @@ class TaskApi:
         since: Annotated[
             datetime, Field(description="The start time to get metrics for")
         ],
+        until: Annotated[
+            Optional[datetime], Field(description="The end time to get metrics for")
+        ] = None,
         workflow_ids: Annotated[
             Optional[
                 List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
@@ -1773,6 +1788,8 @@ class TaskApi:
         :type tenant: str
         :param since: The start time to get metrics for (required)
         :type since: datetime
+        :param until: The end time to get metrics for
+        :type until: datetime
         :param workflow_ids: The workflow id to find runs for
         :type workflow_ids: List[str]
         :param parent_task_external_id: The parent task's external id
@@ -1802,6 +1819,7 @@ class TaskApi:
         _param = self._v1_task_list_status_metrics_serialize(
             tenant=tenant,
             since=since,
+            until=until,
             workflow_ids=workflow_ids,
             parent_task_external_id=parent_task_external_id,
             _request_auth=_request_auth,
@@ -1825,6 +1843,7 @@ class TaskApi:
         self,
         tenant,
         since,
+        until,
         workflow_ids,
         parent_task_external_id,
         _request_auth,
@@ -1862,6 +1881,17 @@ class TaskApi:
                 )
             else:
                 _query_params.append(("since", since))
+
+        if until is not None:
+            if isinstance(until, datetime):
+                _query_params.append(
+                    (
+                        "until",
+                        until.strftime(self.api_client.configuration.datetime_format),
+                    )
+                )
+            else:
+                _query_params.append(("until", until))
 
         if workflow_ids is not None:
 

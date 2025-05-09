@@ -37,8 +37,8 @@ import {
   UpdateTenantSubscription,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
-} from './data-contracts';
-import { ContentType, HttpClient, RequestParams } from './http-client';
+} from "./data-contracts";
+import { ContentType, HttpClient, RequestParams } from "./http-client";
 
 export class Api<
   SecurityDataType = unknown,
@@ -54,8 +54,8 @@ export class Api<
   metadataGet = (params: RequestParams = {}) =>
     this.request<APICloudMetadata, APIErrors>({
       path: `/api/v1/cloud/metadata`,
-      method: 'GET',
-      format: 'json',
+      method: "GET",
+      format: "json",
       ...params,
     });
   /**
@@ -67,10 +67,19 @@ export class Api<
    * @request GET:/api/v1/cloud/users/github-app/start
    * @secure
    */
-  userUpdateGithubAppOauthStart = (params: RequestParams = {}) =>
+  userUpdateGithubAppOauthStart = (
+    query?: {
+      /** Redirect To */
+      redirect_to?: string;
+      /** With Repo Installation */
+      with_repo_installation?: boolean;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<any, void>({
       path: `/api/v1/cloud/users/github-app/start`,
-      method: 'GET',
+      method: "GET",
+      query: query,
       secure: true,
       ...params,
     });
@@ -86,7 +95,7 @@ export class Api<
   userUpdateGithubAppOauthCallback = (params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/cloud/users/github-app/callback`,
-      method: 'GET',
+      method: "GET",
       secure: true,
       ...params,
     });
@@ -101,7 +110,7 @@ export class Api<
   githubUpdateGlobalWebhook = (params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github/webhook`,
-      method: 'POST',
+      method: "POST",
       ...params,
     });
   /**
@@ -115,7 +124,7 @@ export class Api<
   githubUpdateTenantWebhook = (webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github/webhook/${webhook}`,
-      method: 'POST',
+      method: "POST",
       ...params,
     });
   /**
@@ -141,10 +150,10 @@ export class Api<
   ) =>
     this.request<ListGithubAppInstallationsResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -171,10 +180,10 @@ export class Api<
   ) =>
     this.request<ListGithubReposResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/repos`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -201,7 +210,7 @@ export class Api<
   ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/link`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
       ...params,
@@ -232,10 +241,10 @@ export class Api<
   ) =>
     this.request<ListGithubBranchesResponse, APIErrors>({
       path: `/api/v1/cloud/github-app/installations/${ghInstallation}/repos/${ghRepoOwner}/${ghRepoName}/branches`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -250,9 +259,9 @@ export class Api<
   managedWorkerList = (tenant: string, params: RequestParams = {}) =>
     this.request<ManagedWorkerList, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -271,11 +280,11 @@ export class Api<
   ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -294,11 +303,11 @@ export class Api<
   ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker/template`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -313,9 +322,9 @@ export class Api<
   computeCostGet = (tenant: string, params: RequestParams = {}) =>
     this.request<MonthlyComputeCost, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker/cost`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -330,9 +339,9 @@ export class Api<
   managedWorkerGet = (managedWorker: string, params: RequestParams = {}) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -351,11 +360,11 @@ export class Api<
   ) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -370,9 +379,9 @@ export class Api<
   managedWorkerDelete = (managedWorker: string, params: RequestParams = {}) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
-      method: 'DELETE',
+      method: "DELETE",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -391,7 +400,7 @@ export class Api<
   ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/infra-as-code/${infraAsCodeRequest}`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -412,9 +421,9 @@ export class Api<
   ) =>
     this.request<RuntimeConfigActionsResponse, APIErrors>({
       path: `/api/v1/cloud/runtime-config/${runtimeConfig}/actions`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -444,10 +453,10 @@ export class Api<
   ) =>
     this.request<Matrix, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/metrics/cpu`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -477,10 +486,10 @@ export class Api<
   ) =>
     this.request<Matrix, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/metrics/memory`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -510,10 +519,10 @@ export class Api<
   ) =>
     this.request<Matrix, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/metrics/disk`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -541,16 +550,16 @@ export class Api<
       /** The search query to filter for */
       search?: string;
       /** The direction to sort the logs */
-      direction?: 'forward' | 'backward';
+      direction?: "forward" | "backward";
     },
     params: RequestParams = {},
   ) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/logs`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -572,10 +581,10 @@ export class Api<
   ) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/iac-logs`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -593,9 +602,9 @@ export class Api<
   ) =>
     this.request<InstanceList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/instances`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -610,9 +619,9 @@ export class Api<
   buildGet = (build: string, params: RequestParams = {}) =>
     this.request<Build, APIErrors>({
       path: `/api/v1/cloud/build/${build}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -627,9 +636,9 @@ export class Api<
   buildLogsList = (build: string, params: RequestParams = {}) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/cloud/build/${build}/logs`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -647,9 +656,9 @@ export class Api<
   ) =>
     this.request<ManagedWorkerEventList, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}/events`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -663,7 +672,7 @@ export class Api<
   lagoMessageCreate = (params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/billing/lago/webhook`,
-      method: 'POST',
+      method: "POST",
       ...params,
     });
   /**
@@ -678,9 +687,9 @@ export class Api<
   tenantBillingStateGet = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantBillingState, APIErrors | APIError>({
       path: `/api/v1/billing/tenants/${tenant}`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -699,11 +708,11 @@ export class Api<
   ) =>
     this.request<TenantSubscription, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/subscription`,
-      method: 'PATCH',
+      method: "PATCH",
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -724,9 +733,9 @@ export class Api<
       APIErrors
     >({
       path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -745,7 +754,7 @@ export class Api<
   ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/logs`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,
@@ -763,9 +772,9 @@ export class Api<
   featureFlagsList = (tenant: string, params: RequestParams = {}) =>
     this.request<FeatureFlags, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/feature-flags`,
-      method: 'GET',
+      method: "GET",
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -797,10 +806,10 @@ export class Api<
   ) =>
     this.request<WorkflowRunEventsMetricsCounts, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/runs-metrics`,
-      method: 'GET',
+      method: "GET",
       query: query,
       secure: true,
-      format: 'json',
+      format: "json",
       ...params,
     });
   /**
@@ -819,7 +828,7 @@ export class Api<
   ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/autoscaling`,
-      method: 'POST',
+      method: "POST",
       body: data,
       secure: true,
       type: ContentType.Json,

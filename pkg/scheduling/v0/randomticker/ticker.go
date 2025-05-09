@@ -67,13 +67,15 @@ func (rt *RandomTicker) loop() {
 			close(c)
 			return
 		case <-t.C:
+			t.Stop()
+
+			// non-blocking write
 			select {
 			case rt.C <- time.Now():
-				t.Stop()
-				t = time.NewTimer(rt.nextInterval())
 			default:
-				// there could be noone receiving...
 			}
+
+			t = time.NewTimer(rt.nextInterval())
 		}
 	}
 }

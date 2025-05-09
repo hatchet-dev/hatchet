@@ -33,7 +33,7 @@ func (h *Health) SetReady(ready bool) {
 	h.ready = ready
 }
 
-func (h *Health) Start() (func() error, error) {
+func (h *Health) Start(port int) (func() error, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +65,7 @@ func (h *Health) Start() (func() error, error) {
 
 	})
 	server := &http.Server{
-		Addr:         ":8733",
+		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,

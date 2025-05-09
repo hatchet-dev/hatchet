@@ -9,6 +9,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -16,12 +17,11 @@ import (
 
 var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$") //nolint:gosimple
 
-var CronRegex = regexp.MustCompile(`(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)|((((\d+,)+\d+|(\d+(\/|-)\d+)|\d+|\*) ?){5,7})`) //nolint:gosimple
-
 func newValidator() *validator.Validate {
 	validate := validator.New()
 
 	celParser := cel.NewCELParser()
+	cronParser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
 	_ = validate.RegisterValidation("hatchetName", func(fl validator.FieldLevel) bool {
 		return NameRegex.MatchString(fl.Field().String())
@@ -36,7 +36,9 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = validate.RegisterValidation("cron", func(fl validator.FieldLevel) bool {
-		return CronRegex.MatchString(fl.Field().String())
+		_, err := cronParser.Parse(fl.Field().String())
+
+		return err == nil
 	})
 
 	_ = validate.RegisterValidation("actionId", func(fl validator.FieldLevel) bool {

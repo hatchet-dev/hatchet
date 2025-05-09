@@ -1,4 +1,4 @@
-# ❓ LoggingWorkflow
+# > LoggingWorkflow
 
 import logging
 import time
@@ -24,9 +24,9 @@ def root_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
-# ‼️
+# !!
 
-# ❓ ContextLogger
+# > ContextLogger
 
 
 @logging_workflow.task()
@@ -40,4 +40,4 @@ def context_logger(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
-# ‼️
+# !!

@@ -1372,6 +1372,9 @@ type V1TaskTiming struct {
 
 	// TenantId The ID of the tenant.
 	TenantId openapi_types.UUID `json:"tenantId"`
+
+	// WorkflowRunId The external ID of the workflow run.
+	WorkflowRunId *openapi_types.UUID `json:"workflowRunId,omitempty"`
 }
 
 // V1TaskTimingList defines model for V1TaskTimingList.
@@ -1618,7 +1621,10 @@ type Workflow struct {
 	Name string `json:"name"`
 
 	// Tags The tags of the workflow.
-	Tags     *[]WorkflowTag         `json:"tags,omitempty"`
+	Tags *[]WorkflowTag `json:"tags,omitempty"`
+
+	// TenantId The tenant id of the workflow.
+	TenantId string                 `json:"tenantId"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 
@@ -2054,6 +2060,12 @@ type CronWorkflowListParams struct {
 
 	// WorkflowId The workflow id to get runs for.
 	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
+
+	// WorkflowName The workflow name to get runs for.
+	WorkflowName *string `form:"workflowName,omitempty" json:"workflowName,omitempty"`
+
+	// CronName The cron name to get runs for.
+	CronName *string `form:"cronName,omitempty" json:"cronName,omitempty"`
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
@@ -8121,6 +8133,38 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 		if params.WorkflowId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowName", runtime.ParamLocationQuery, *params.WorkflowName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.CronName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cronName", runtime.ParamLocationQuery, *params.CronName); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

@@ -266,15 +266,55 @@ export class BaseWorkflowDeclaration<
     input: I,
     options?: RunOpts,
     _standaloneTaskName?: string
-  ): Promise<WorkflowRunRef<O>> {
+  ): Promise<WorkflowRunRef<O>>;
+  async runNoWait(
+    input: I[],
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O>[]>;
+  async runNoWait(
+    input: I | I[],
+    options?: RunOpts,
+    _standaloneTaskName?: string
+  ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
     if (!this.client) {
       throw UNBOUND_ERR;
     }
 
-    const res = await this.client.admin.runWorkflow<I, O>(this.name, input, options);
+    if (Array.isArray(input)) {
+      let resp: WorkflowRunRef<O>[] = [];
+      for (let i = 0; i < input.length; i += 500) {
+        const batch = input.slice(i, i + 500);
+        const batchResp = await this.client.admin.runWorkflows<I, O>(
+          batch.map((inp) => ({
+            workflowName: this.definition.name,
+            input: inp,
+            options,
+          }))
+        );
+        resp = resp.concat(batchResp);
+      }
+
+      const res: WorkflowRunRef<O>[] = [];
+      resp.forEach((ref, index) => {
+        const wf = input[index].workflow;
+        if (wf instanceof TaskWorkflowDeclaration) {
+          // eslint-disable-next-line no-param-reassign
+          ref._standaloneTaskName = wf._standalone_task_name;
+        }
+        if (_standaloneTaskName) {
+          // eslint-disable-next-line no-param-reassign
+          ref._standaloneTaskName = _standaloneTaskName;
+        }
+        res.push(ref);
+      });
+      return res;
+    }
+
+    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
 
     if (_standaloneTaskName) {
-      res._standalone_task_name = _standaloneTaskName;
+      res._standaloneTaskName = _standaloneTaskName;
     }
 
     return res;
@@ -300,11 +340,10 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
-    if (Array.isArray(input)) {
-      return Promise.all(input.map((i) => this.runAndWait(i, options, _standaloneTaskName)));
-    }
-
-    return this.run(input, options, _standaloneTaskName);
+    // note: typescript is not smart enough to infer that input is an array
+    return Array.isArray(input)
+      ? this.run(input, options, _standaloneTaskName)
+      : this.run(input, options, _standaloneTaskName);
   }
   /**
    * Executes the workflow with the given input and awaits the results.
@@ -321,38 +360,12 @@ export class BaseWorkflowDeclaration<
     }
 
     if (Array.isArray(input)) {
-      let resp: WorkflowRunRef<O>[] = [];
-      for (let i = 0; i < input.length; i += 500) {
-        const batch = input.slice(i, i + 500);
-        const batchResp = await this.client.admin.runWorkflows<I, O>(
-          batch.map((inp) => ({
-            workflowName: this.definition.name,
-            input: inp,
-            options,
-          }))
-        );
-        resp = resp.concat(batchResp);
-      }
-
-      const res: Promise<O>[] = [];
-      resp.forEach((ref, index) => {
-        const wf = input[index].workflow;
-        if (wf instanceof TaskWorkflowDeclaration) {
-          // eslint-disable-next-line no-param-reassign
-          ref._standalone_task_name = wf._standalone_task_name;
-        }
-        res.push(ref.result());
-      });
-      return Promise.all(res);
+      const refs = await this.runNoWait(input, options, _standaloneTaskName);
+      return Promise.all(refs.map((ref) => ref.result()));
     }
 
-    const res = await this.client.admin.runWorkflow<I, O>(this.definition.name, input, options);
-
-    if (_standaloneTaskName) {
-      res._standalone_task_name = _standaloneTaskName;
-    }
-
-    return res.result() as Promise<O>;
+    const res = await this.runNoWait(input, options, _standaloneTaskName);
+    return res.result();
   }
 
   /**
@@ -679,7 +692,10 @@ export class TaskWorkflowDeclaration<
   async run(input: I, options?: RunOpts): Promise<O>;
   async run(input: I[], options?: RunOpts): Promise<O[]>;
   async run(input: I | I[], options?: RunOpts): Promise<O | O[]> {
-    return (await super.run(input as I, options, this._standalone_task_name)) as O | O[];
+    // note: typescript is not smart enough to infer that input is an array
+    return Array.isArray(input)
+      ? super.run(input, options, this._standalone_task_name)
+      : super.run(input, options, this._standalone_task_name);
   }
 
   /**
@@ -689,12 +705,16 @@ export class TaskWorkflowDeclaration<
    * @returns A WorkflowRunRef containing the run ID and methods to get results and interact with the run.
    * @throws Error if the workflow is not bound to a Hatchet client.
    */
-  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>> {
-    if (!this.client) {
-      throw UNBOUND_ERR;
-    }
-
-    return super.runNoWait(input, options, this._standalone_task_name);
+  async runNoWait(input: I, options?: RunOpts): Promise<WorkflowRunRef<O>>;
+  async runNoWait(input: I[], options?: RunOpts): Promise<WorkflowRunRef<O>[]>;
+  async runNoWait(
+    input: I | I[],
+    options?: RunOpts
+  ): Promise<WorkflowRunRef<O> | WorkflowRunRef<O>[]> {
+    // note: typescript is not smart enough to infer that input is an array
+    return Array.isArray(input)
+      ? super.runNoWait(input, options, this._standalone_task_name)
+      : super.runNoWait(input, options, this._standalone_task_name);
   }
 
   get taskDef() {

@@ -1,4 +1,4 @@
-# ❓ Simple
+# > Simple
 
 from pydantic import BaseModel
 
@@ -24,7 +24,7 @@ def step1(input: SimpleInput, ctx: Context) -> SimpleOutput:
     return SimpleOutput(transformed_message=input.message.upper())
 
 
-# ‼️
+# !!
 
 
 def main() -> None:

@@ -47,6 +47,8 @@ type ServerConfigFile struct {
 	// Used to bind the environment variable, since the array is not well supported
 	ServicesString string `mapstructure:"servicesString" json:"servicesString,omitempty"`
 
+	PausedControllers string `mapstructure:"pausedControllers" json:"pausedControllers,omitempty"`
+
 	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
 
 	EnableWorkerRetention bool `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
@@ -100,6 +102,9 @@ type ConfigFileRuntime struct {
 
 	// Healthcheck controls whether the server has a healthcheck endpoint
 	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
+
+	// HealthcheckPort is the port that the healthcheck server listens on
+	HealthcheckPort int `mapstructure:"healthcheckPort" json:"healthcheckPort,omitempty" default:"8733"`
 
 	// GRPCPort is the port that the grpc service listens on
 	GRPCPort int `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
@@ -478,6 +483,8 @@ type ServerConfig struct {
 
 	Services []string
 
+	PausedControllers map[string]bool
+
 	EnableDataRetention bool
 
 	EnableWorkerRetention bool
@@ -536,6 +543,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.port", "SERVER_PORT")
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
 	_ = v.BindEnv("runtime.healthcheck", "SERVER_HEALTHCHECK")
+	_ = v.BindEnv("runtime.healthcheckPort", "SERVER_HEALTHCHECK_PORT")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
@@ -544,6 +552,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
+	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
 	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")

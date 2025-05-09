@@ -15,7 +15,7 @@ async def process_image(image_url: str, filters: List[str]) -> Dict[str, Any]:
     return {"url": image_url, "size": 100, "format": "png"}
 
 
-# ❓ Before (Mergent)
+# > Before (Mergent)
 async def process_image_task(request: Any) -> Dict[str, Any]:
     image_url = request.json["image_url"]
     filters = request.json["filters"]
@@ -30,7 +30,7 @@ async def process_image_task(request: Any) -> Dict[str, Any]:
 # !!
 
 
-# ❓ After (Hatchet)
+# > After (Hatchet)
 class ImageProcessInput(BaseModel):
     image_url: str
     filters: List[str]
@@ -68,7 +68,7 @@ async def image_processor(input: ImageProcessInput, ctx: Context) -> ImageProces
 
 
 async def run() -> None:
-    # ❓ Running a task (Mergent)
+    # > Running a task (Mergent)
     headers: Mapping[str, str] = {
         "Authorization": "Bearer <token>",
         "Content-Type": "application/json",
@@ -98,7 +98,7 @@ async def run() -> None:
         print(f"Error: {e}")
     # !!
 
-    # ❓ Running a task (Hatchet)
+    # > Running a task (Hatchet)
     result = await image_processor.aio_run(
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"])
     )
@@ -109,7 +109,7 @@ async def run() -> None:
 
 
 async def schedule() -> None:
-    # ❓ Scheduling tasks (Mergent)
+    # > Scheduling tasks (Mergent)
     options = {
         # same options as before
         "json": {
@@ -121,7 +121,7 @@ async def schedule() -> None:
 
     print(options)
 
-    # ❓ Scheduling tasks (Hatchet)
+    # > Scheduling tasks (Hatchet)
     # Schedule the task to run at a specific time
     run_at = datetime.now() + timedelta(days=1)
     await image_processor.aio_schedule(

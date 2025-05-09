@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useTenant } from '@/lib/atoms';
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeftIcon } from '@radix-ui/react-icons';
 import {
   PlayIcon,
@@ -121,7 +121,7 @@ export default function DemoTemplate() {
   };
 
   // Trigger a workflow run
-  const triggerWorkflow = async () => {
+  const triggerWorkflow = useCallback(async () => {
     if (!tenant || !workflowId) {
       return;
     }
@@ -156,7 +156,7 @@ export default function DemoTemplate() {
       console.error('Failed to trigger run:', error);
       setTriggering(false);
     }
-  };
+  }, [tenant, workflowId, isSimulation, runsTriggered]);
 
   // Automatically trigger task runs when success step is opened
   useEffect(() => {
@@ -314,7 +314,7 @@ print(result)
 import (
 	"fmt"
 
-	v1_workflows "github.com/hatchet-dev/hatchet/examples/v1/tasks"
+	v1_workflows "github.com/hatchet-dev/hatchet/examples/go/tasks"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1"
 	"github.com/hatchet-dev/hatchet/pkg/v1/workflow"
 	"github.com/joho/godotenv"

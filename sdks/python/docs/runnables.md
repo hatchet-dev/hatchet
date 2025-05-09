@@ -30,6 +30,8 @@
         - name
         - tasks
         - is_durable
+        - list_runs
+        - aio_list_runs
 
 ## Standalone
 
@@ -50,3 +52,5 @@
         - aio_create_cron
         - create_bulk_run_item
         - is_durable
+        - list_runs
+        - aio_list_runs

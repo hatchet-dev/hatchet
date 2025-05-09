@@ -1,9 +1,9 @@
 import asyncio
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, Callable, Generic, cast
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
@@ -11,6 +11,8 @@ from hatchet_sdk.clients.admin import (
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
@@ -23,12 +25,11 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
-    DEFAULT_EXECUTION_TIMEOUT,
-    DEFAULT_SCHEDULE_TIMEOUT,
     ConcurrencyExpression,
     EmptyModel,
     R,
     StepType,
+    TaskDefaults,
     TWorkflowInput,
     WorkflowConfig,
 )
@@ -41,6 +42,62 @@ from hatchet_sdk.workflow_run import WorkflowRunRef
 if TYPE_CHECKING:
     from hatchet_sdk import Hatchet
     from hatchet_sdk.runnables.standalone import Standalone
+
+
+T = TypeVar("T")
+
+
+def fall_back_to_default(value: T, param_default: T, fallback_value: T | None) -> T:
+    ## If the value is not the param default, it's set
+    if value != param_default:
+        return value
+
+    ## Otherwise, it's unset, so return the fallback value if it's set
+    if fallback_value is not None:
+        return fallback_value
+
+    ## Otherwise return the param value
+    return value
+
+
+class ComputedTaskParameters(BaseModel):
+    schedule_timeout: Duration
+    execution_timeout: Duration
+    retries: int
+    backoff_factor: float | None
+    backoff_max_seconds: int | None
+
+    task_defaults: TaskDefaults
+
+    @model_validator(mode="after")
+    def validate_params(self) -> "ComputedTaskParameters":
+        self.execution_timeout = fall_back_to_default(
+            value=self.execution_timeout,
+            param_default=timedelta(seconds=60),
+            fallback_value=self.task_defaults.execution_timeout,
+        )
+        self.schedule_timeout = fall_back_to_default(
+            value=self.schedule_timeout,
+            param_default=timedelta(minutes=5),
+            fallback_value=self.task_defaults.schedule_timeout,
+        )
+        self.backoff_factor = fall_back_to_default(
+            value=self.backoff_factor,
+            param_default=None,
+            fallback_value=self.task_defaults.backoff_factor,
+        )
+        self.backoff_max_seconds = fall_back_to_default(
+            value=self.backoff_max_seconds,
+            param_default=None,
+            fallback_value=self.task_defaults.backoff_max_seconds,
+        )
+        self.retries = fall_back_to_default(
+            value=self.retries,
+            param_default=0,
+            fallback_value=self.task_defaults.retries,
+        )
+
+        return self
 
 
 def transform_desired_worker_label(d: DesiredWorkerLabel) -> DesiredWorkerLabels:
@@ -528,8 +585,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -573,6 +630,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
+        computed_params = ComputedTaskParameters(
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            retries=retries,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            task_defaults=self.config.task_defaults,
+        )
+
         def inner(
             func: Callable[[TWorkflowInput, Context], R]
         ) -> Task[TWorkflowInput, R]:
@@ -582,17 +648,17 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 workflow=self,
                 type=StepType.DEFAULT,
                 name=self._parse_task_name(name, func),
-                execution_timeout=execution_timeout,
-                schedule_timeout=schedule_timeout,
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=retries,
+                retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
                     for key, d in desired_worker_labels.items()
                 },
-                backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
+                backoff_factor=computed_params.backoff_factor,
+                backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
                 wait_for=wait_for,
                 skip_if=skip_if,
@@ -608,8 +674,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def durable_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] = [],
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
@@ -624,7 +690,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         [Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]
     ]:
         """
-        A decorator to transform a function into a durable Hatchet task that run as part of a workflow.
+        A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.
 
         **IMPORTANT:** This decorator creates a _durable_ task, which works using Hatchet's durable execution capabilities. This is an advanced feature of Hatchet.
 
@@ -659,6 +725,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: A decorator which creates a `Task` object.
         """
 
+        computed_params = ComputedTaskParameters(
+            schedule_timeout=schedule_timeout,
+            execution_timeout=execution_timeout,
+            retries=retries,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+            task_defaults=self.config.task_defaults,
+        )
+
         def inner(
             func: Callable[[TWorkflowInput, DurableContext], R]
         ) -> Task[TWorkflowInput, R]:
@@ -668,17 +743,17 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 workflow=self,
                 type=StepType.DEFAULT,
                 name=self._parse_task_name(name, func),
-                execution_timeout=execution_timeout,
-                schedule_timeout=schedule_timeout,
+                execution_timeout=computed_params.execution_timeout,
+                schedule_timeout=computed_params.schedule_timeout,
                 parents=parents,
-                retries=retries,
+                retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits],
                 desired_worker_labels={
                     key: transform_desired_worker_label(d)
                     for key, d in desired_worker_labels.items()
                 },
-                backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
+                backoff_factor=computed_params.backoff_factor,
+                backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
                 wait_for=wait_for,
                 skip_if=skip_if,
@@ -694,8 +769,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_failure_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
@@ -754,8 +829,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def on_success_task(
         self,
         name: str | None = None,
-        schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT,
-        execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
         rate_limits: list[RateLimit] = [],
         backoff_factor: float | None = None,
@@ -846,3 +921,93 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 self._on_success_task = _task
             case _:
                 raise ValueError("Invalid task type")
+
+    def list_runs(
+        self,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 100,
+        offset: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        only_tasks: bool = False,
+    ) -> list[V1TaskSummary]:
+        """
+        List runs of the workflow.
+
+        :param since: The start time for the runs to be listed.
+        :param until: The end time for the runs to be listed.
+        :param limit: The maximum number of runs to be listed.
+        :param offset: The offset for pagination.
+        :param statuses: The statuses of the runs to be listed.
+        :param additional_metadata: Additional metadata for filtering the runs.
+        :param worker_id: The ID of the worker that ran the tasks.
+        :param parent_task_external_id: The external ID of the parent task.
+        :param only_tasks: Whether to list only task runs.
+
+        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
+        """
+        workflows = self.client.workflows.list(workflow_name=self.name)
+
+        if not workflows.rows:
+            logger.warning(f"No runs found for {self.name}")
+            return []
+
+        workflow = workflows.rows[0]
+
+        response = self.client.runs.list(
+            workflow_ids=[workflow.metadata.id],
+            since=since or datetime.now() - timedelta(days=1),
+            only_tasks=only_tasks,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
+            until=until,
+            additional_metadata=additional_metadata,
+            worker_id=worker_id,
+            parent_task_external_id=parent_task_external_id,
+        )
+
+        return response.rows
+
+    async def aio_list_runs(
+        self,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 100,
+        offset: int | None = None,
+        statuses: list[V1TaskStatus] | None = None,
+        additional_metadata: dict[str, str] | None = None,
+        worker_id: str | None = None,
+        parent_task_external_id: str | None = None,
+        only_tasks: bool = False,
+    ) -> list[V1TaskSummary]:
+        """
+        List runs of the workflow.
+
+        :param since: The start time for the runs to be listed.
+        :param until: The end time for the runs to be listed.
+        :param limit: The maximum number of runs to be listed.
+        :param offset: The offset for pagination.
+        :param statuses: The statuses of the runs to be listed.
+        :param additional_metadata: Additional metadata for filtering the runs.
+        :param worker_id: The ID of the worker that ran the tasks.
+        :param parent_task_external_id: The external ID of the parent task.
+        :param only_tasks: Whether to list only task runs.
+
+        :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
+        """
+        return await asyncio.to_thread(
+            self.list_runs,
+            since=since or datetime.now() - timedelta(days=1),
+            only_tasks=only_tasks,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
+            until=until,
+            additional_metadata=additional_metadata,
+            worker_id=worker_id,
+            parent_task_external_id=parent_task_external_id,
+        )

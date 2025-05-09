@@ -1,0 +1,289 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 212 95% 68%;
+    --chart-3: 216 92% 60%;
+    --chart-4: 210 98% 78%;
+    --chart-5: 212 97% 87%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 212 95% 68%;
+    --chart-3: 216 92% 60%;
+    --chart-4: 210 98% 78%;
+    --chart-5: 212 97% 87%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+body {
+  height: 100vh;
+}
+
+.step-run-card {
+  --transition: 0.25s;
+  --spark: 3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.step-run-card.active .step-run-backdrop {
+  background: 222.2 84% 4.9%;
+}
+
+.step-run-card.active {
+  transform: scale(1.05);
+}
+
+.spark {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  rotate: 0deg;
+  overflow: hidden;
+  mask: linear-gradient(white, transparent 50%);
+  animation: flip calc(var(--spark) * 2) infinite steps(2, end);
+}
+
+@keyframes flip {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.spark:before {
+  content: '';
+  position: absolute;
+  width: 200%;
+  aspect-ratio: 1;
+  inset: 0 auto auto 50%;
+  z-index: -1;
+  translate: -50% -15%;
+  rotate: 0;
+  transform: rotate(-90deg);
+  opacity: 1;
+  background: conic-gradient(from 0deg, transparent 0 340deg, white 360deg);
+  transition: opacity var(--transition);
+  animation: rotate var(--spark) linear infinite both;
+}
+
+.step-run-backdrop {
+  position: absolute;
+  inset: 1px;
+  background: 222.2 84% 4.9%;
+  border-radius: 2px;
+  transition: background var(--transition) opacity var(--transition);
+}
+
+@keyframes rotate {
+  to {
+    transform: rotate(90deg);
+  }
+}
+
+.text {
+  z-index: 1;
+  color: rgb(203 213 225);
+}
+
+/* rjsf JSON Schema Form style hack */
+.rjsf {
+  /* Left side is not needed due to fieldset left margin */
+  @apply mr-2;
+}
+/* Aka sections */
+.rjsf fieldset > legend {
+  /* Display block doesn't work for some reason. Does not fill parent width which is still a div, not sure why */
+  @apply mb-3 pb-1 w-full border-b pt-4 text-xl font-semibold;
+}
+.rjsf fieldset > div {
+  /* Offset to indicate hierarchy */
+  @apply ml-3;
+}
+/* Label + component = group */
+.rjsf .form-group {
+  @apply mb-2;
+}
+.rjsf label.control-label {
+  @apply block mb-1 font-bold;
+}
+.rjsf p.field-description {
+  @apply mb-1;
+}
+/* Select component, and maybe other .form-control too */
+.rjsf .form-control {
+  @apply block w-full rounded-md border border-input p-2;
+}
+/* Input component */
+.rjsf input {
+  @apply flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* Array elements */
+.rjsf .array-item {
+  /* @apply grid grid-cols-12; */
+  @apply flex flex-row items-end gap-4;
+}
+.rjsf .array-item .col-xs-9 {
+  /* @apply col-span-9; */
+  @apply grow;
+}
+.rjsf .array-item .col-xs-3 {
+  /* @apply col-span-3; */
+  @apply shrink-0;
+}
+.rjsf .array-item .array-item-toolbox {
+  /* mb-4 to match .form-group */
+  @apply mb-4 flex items-center justify-end;
+}
+/* Icons */
+.rjsf .glyphicon {
+  @apply font-normal not-italic;
+}
+.rjsf .glyphicon-remove::before {
+  content: 'Remove';
+}
+.rjsf .glyphicon-arrow-up::before {
+  content: 'Up';
+}
+.rjsf .glyphicon-arrow-down::before {
+  content: 'Down';
+}
+.rjsf .glyphicon-plus::before {
+  content: 'Add';
+}
+/* Buttons (tends to be icon buttons */
+.rjsf .btn {
+  @apply rounded-md p-2 border mx-1;
+}
+.rjsf .btn-danger {
+  @apply border-red-200;
+}
+.rjsf .btn-add {
+  @apply border-blue-200;
+}
+.rjsf button[type='submit'] {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90;
+}
+
+.rjsf textarea {
+  @apply flex h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+/* END rjsf JSON Schema Form style hack */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.shiki {
+  padding: 15px !important;
+  border-radius: 10px !important;
+  background-color: #ccc;
+  font-size: 0.8rem;
+}
+
+html.dark .nextra-code-block pre,
+.dark .shiki {
+  background-color: transparent !important;
+}
+
+pre.shiki {
+  overflow-x: auto;
+}
+
+/* High contrast mode */
+.contrast-more .shiki {
+  filter: contrast(1.5);
+}

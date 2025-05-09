@@ -4,7 +4,7 @@ import pino from 'pino';
 import Hatchet from '../sdk';
 import { Workflow } from '../workflow';
 
-// ❓ Create Pino logger
+// > Create Pino logger
 const logger = pino();
 
 class PinoLogger implements Logger {
@@ -44,7 +44,7 @@ const hatchet = Hatchet.init({
 
 // !!
 
-// ❓ Use the logger
+// > Use the logger
 
 const sleep = (ms: number) =>
   new Promise((resolve) => {

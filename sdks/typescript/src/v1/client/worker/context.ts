@@ -331,6 +331,8 @@ export class Context<T, K = {}> {
       parentStepRunId: stepRunId,
       childIndex: this.spawnIndex,
       desiredWorkerId: sticky ? this.worker.id() : undefined,
+      _standaloneTaskName:
+        workflow instanceof TaskWorkflowDeclaration ? workflow._standalone_task_name : undefined,
     };
 
     this.spawnIndex += 1;
@@ -425,7 +427,8 @@ export class Context<T, K = {}> {
     input: Q,
     options?: ChildRunOpts
   ): Promise<WorkflowRunRef<P>> {
-    return this.spawn(workflow, input, options);
+    const ref = await this.spawn(workflow, input, options);
+    return ref;
   }
 
   /**
@@ -581,7 +584,7 @@ export class Context<T, K = {}> {
         const wf = workflows[index].workflow;
         if (wf instanceof TaskWorkflowDeclaration) {
           // eslint-disable-next-line no-param-reassign
-          ref._standalone_task_name = wf._standalone_task_name;
+          ref._standaloneTaskName = wf._standalone_task_name;
         }
         res.push(ref);
       });
@@ -639,7 +642,7 @@ export class Context<T, K = {}> {
       this.spawnIndex += 1;
 
       if (workflow instanceof TaskWorkflowDeclaration) {
-        resp._standalone_task_name = workflow._standalone_task_name;
+        resp._standaloneTaskName = workflow._standalone_task_name;
       }
 
       return resp;

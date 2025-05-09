@@ -162,7 +162,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
-		cleanup, err := h.Start()
+		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
 		}
@@ -431,6 +431,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
+			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
 
 		if err != nil {
@@ -643,7 +644,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if healthProbes {
 		h = health.New(sc.EngineRepository, sc.MessageQueue, sc.Version)
 
-		cleanup, err := h.Start()
+		cleanup, err := h.Start(sc.Runtime.HealthcheckPort)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not start health: %w", err)
@@ -786,56 +787,60 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupRetention,
 		})
 
-		tasks, err := task.New(
-			task.WithAlerter(sc.Alerter),
-			task.WithMessageQueue(sc.MessageQueueV1),
-			task.WithRepository(sc.EngineRepository),
-			task.WithV1Repository(sc.V1),
-			task.WithLogger(sc.Logger),
-			task.WithPartition(p),
-			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
-		)
+		if isControllerActive(sc.PausedControllers, TaskController) {
+			tasks, err := task.New(
+				task.WithAlerter(sc.Alerter),
+				task.WithMessageQueue(sc.MessageQueueV1),
+				task.WithRepository(sc.EngineRepository),
+				task.WithV1Repository(sc.V1),
+				task.WithLogger(sc.Logger),
+				task.WithPartition(p),
+				task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not create tasks controller: %w", err)
+			if err != nil {
+				return nil, fmt.Errorf("could not create tasks controller: %w", err)
+			}
+
+			cleanupTasks, err := tasks.Start()
+
+			if err != nil {
+				return nil, fmt.Errorf("could not start tasks controller: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "tasks controller",
+				Fn:   cleanupTasks,
+			})
 		}
 
-		cleanupTasks, err := tasks.Start()
+		if isControllerActive(sc.PausedControllers, OLAPController) {
+			olap, err := olap.New(
+				olap.WithAlerter(sc.Alerter),
+				olap.WithMessageQueue(sc.MessageQueueV1),
+				olap.WithRepository(sc.V1),
+				olap.WithLogger(sc.Logger),
+				olap.WithPartition(p),
+				olap.WithTenantAlertManager(sc.TenantAlerter),
+				olap.WithSamplingConfig(sc.Sampling),
+			)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not start tasks controller: %w", err)
+			if err != nil {
+				return nil, fmt.Errorf("could not create olap controller: %w", err)
+			}
+
+			cleanupOlap, err := olap.Start()
+
+			if err != nil {
+				return nil, fmt.Errorf("could not start olap controller: %w", err)
+			}
+
+			teardown = append(teardown, Teardown{
+				Name: "olap controller",
+				Fn:   cleanupOlap,
+			})
 		}
-
-		teardown = append(teardown, Teardown{
-			Name: "tasks controller",
-			Fn:   cleanupTasks,
-		})
-
-		olap, err := olap.New(
-			olap.WithAlerter(sc.Alerter),
-			olap.WithMessageQueue(sc.MessageQueueV1),
-			olap.WithRepository(sc.V1),
-			olap.WithLogger(sc.Logger),
-			olap.WithPartition(p),
-			olap.WithTenantAlertManager(sc.TenantAlerter),
-			olap.WithSamplingConfig(sc.Sampling),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create olap controller: %w", err)
-		}
-
-		cleanupOlap, err := olap.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not start olap controller: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "olap controller",
-			Fn:   cleanupOlap,
-		})
 
 		cleanup1, err := p.StartTenantWorkerPartition(ctx)
 
@@ -875,6 +880,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),
+			dispatcher.WithPayloadSizeThreshold(sc.Runtime.GRPCMaxMsgSize),
 		)
 
 		if err != nil {
@@ -1124,4 +1130,19 @@ func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) Teardown 
 			return nil
 		},
 	}
+}
+
+type ControllerName string
+
+const (
+	OLAPController ControllerName = "olap"
+	TaskController ControllerName = "task"
+)
+
+func isControllerActive(pausedControllers map[string]bool, controllerName ControllerName) bool {
+	if isPaused, ok := pausedControllers[string(controllerName)]; !ok || !isPaused {
+		return true
+	}
+
+	return false
 }

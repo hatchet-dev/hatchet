@@ -3,13 +3,19 @@ repos:
     rev: v4.5.0
     hooks:
       - id: check-merge-conflict
+        exclude: ^examples/
       - id: mixed-line-ending
         args: ["--fix=lf"]
+        exclude: ^examples/
       - id: end-of-file-fixer
+        exclude: ^examples/
       - id: trailing-whitespace
+        exclude: ^examples/
       - id: check-yaml
+        exclude: ^examples/
   - repo: https://github.com/golangci/golangci-lint
     rev: v2.1.3
     hooks:
       - id: golangci-lint
         args: ["--config=.golangci.yml"]
+        exclude: ^examples/

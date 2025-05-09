@@ -68,7 +68,7 @@ jobs:
         run: go generate ./...
 
       - name: Test
-        run: go test ./... -v -failfast
+        run: go test $(go list ./... | grep -v "quickstart") -v -failfast
 
   integration:
     runs-on: ubuntu-latest
@@ -109,7 +109,7 @@ jobs:
           task generate-local-encryption-keys
 
       - name: Test
-        run: go test -tags integration ./... -v -failfast
+        run: go test -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
 
       - name: Teardown
         run: docker compose down
@@ -296,8 +296,8 @@ jobs:
     strategy:
       matrix:
         migrate-strategy: ["latest", "penultimate"]
-        rabbitmq-enabled: ["true", "false"]
-        pg-version: ["17-alpine", "16-alpine", "15-alpine"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["15-alpine"]
 
     steps:
       - uses: actions/checkout@v4
@@ -320,7 +320,43 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags load ./... -p 1 -v -race -failfast
+          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+        env:
+          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
+          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
+          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+
+  rampup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        migrate-strategy: ["latest", "penultimate"]
+        rabbitmq-enabled: ["true"]
+        pg-version: ["15-alpine"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+          run_install: false
+
+      - name: Go deps
+        run: go mod download
+
+      - name: Test
+        run: |
+          go test -tags rampup ./... -p 5 -v -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}

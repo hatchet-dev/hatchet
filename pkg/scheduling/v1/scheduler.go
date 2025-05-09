@@ -612,13 +612,15 @@ func (s *Scheduler) tryAssignSingleton(
 	rateLimitNack func(),
 ) (
 	res assignSingleResult, err error,
-
 ) {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
+	ringOffset = ringOffset % len(candidateSlots)
+
 	if (qi.Sticky != sqlcv1.V1StickyStrategyNONE) || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
+		ringOffset = 0
 	}
 
 	assignedSlot := findSlot(candidateSlots[ringOffset:], rateLimitAck, rateLimitNack)
@@ -877,7 +879,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 			uniqueSlots[slot] = true
 
-			if slot.used {
+			if slot.isUsed() {
 				workerSlotUtilization[workerId].UtilizedSlots++
 			} else {
 				workerSlotUtilization[workerId].NonUtilizedSlots++

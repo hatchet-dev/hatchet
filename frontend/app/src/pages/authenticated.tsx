@@ -80,6 +80,7 @@ export default function Authenticated() {
   if (userQuery.error) {
     const currentUrl = window.location.pathname;
     if (
+      !currentUrl.startsWith('/next') &&
       !currentUrl.includes('/auth/login') &&
       !currentUrl.includes('/auth/register')
     ) {

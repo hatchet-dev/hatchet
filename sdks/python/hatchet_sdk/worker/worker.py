@@ -147,7 +147,7 @@ class Worker:
 
     def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
-            self.client.admin.put_workflow(opts.name, opts)
+            self.client.admin.put_workflow(opts)
         except Exception as e:
             logger.error(f"failed to register workflow: {opts.name}")
             logger.error(e)
@@ -159,11 +159,8 @@ class Worker:
                 "workflow must have at least one task registered before registering"
             )
 
-        opts = workflow.to_proto()
-        name = workflow.name
-
         try:
-            self.client.admin.put_workflow(name, opts)
+            self.client.admin.put_workflow(workflow.to_proto())
         except Exception as e:
             logger.error(f"failed to register workflow: {workflow.name}")
             logger.error(e)

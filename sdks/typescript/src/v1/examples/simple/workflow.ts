@@ -1,4 +1,4 @@
-// ❓ Declaring a Task
+// > Declaring a Task
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow
@@ -8,7 +8,8 @@ export type SimpleInput = {
 
 export const simple = hatchet.task({
   name: 'simple',
-  fn: (input: SimpleInput) => {
+  retries: 3,
+  fn: async (input: SimpleInput) => {
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };

@@ -62,6 +62,7 @@ export class AdminClient {
       additionalMetadata?: Record<string, string> | undefined;
       desiredWorkerId?: string | undefined;
       priority?: Priority;
+      _standaloneTaskName?: string | undefined;
     }
   ) {
     let computedName = workflowName;
@@ -85,7 +86,14 @@ export class AdminClient {
 
       const id = resp.workflowRunId;
 
-      const ref = new WorkflowRunRef<P>(id, this.listenerClient, this.runs, options?.parentId);
+      const ref = new WorkflowRunRef<P>(
+        id,
+        this.listenerClient,
+        this.runs,
+        options?.parentId,
+        // eslint-disable-next-line no-underscore-dangle
+        options?._standaloneTaskName
+      );
       await ref.getWorkflowRunId();
       return ref;
     } catch (e: any) {
@@ -111,6 +119,7 @@ export class AdminClient {
         additionalMetadata?: Record<string, string> | undefined;
         desiredWorkerId?: string | undefined;
         priority?: Priority;
+        _standaloneTaskName?: string | undefined;
       };
     }>,
     batchSize: number = 500
@@ -159,7 +168,14 @@ export class AdminClient {
         const batchResults = bulkTriggerWorkflowResponse.workflowRunIds.map((resp, index) => {
           const originalIndex = originalIndices[index];
           const { options } = workflowRuns[originalIndex];
-          return new WorkflowRunRef<P>(resp, this.listenerClient, this.runs, options?.parentId);
+          return new WorkflowRunRef<P>(
+            resp,
+            this.listenerClient,
+            this.runs,
+            options?.parentId,
+            // eslint-disable-next-line no-underscore-dangle
+            options?._standaloneTaskName
+          );
         });
 
         results.push(...batchResults);

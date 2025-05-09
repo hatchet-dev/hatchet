@@ -1,4 +1,4 @@
-// ❓ Declaring an External Workflow Reference
+// > Declaring an External Workflow Reference
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow

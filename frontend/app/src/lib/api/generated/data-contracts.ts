@@ -10,6 +10,249 @@
  * ---------------------------------------------------------------
  */
 
+export enum V1LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
+export enum V1TaskRunStatus {
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  COMPLETED = "COMPLETED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum PullRequestState {
+  Open = "open",
+  Closed = "closed",
+}
+
+export enum WebhookWorkerRequestMethod {
+  GET = "GET",
+  POST = "POST",
+  PUT = "PUT",
+}
+
+export enum WorkerRuntimeSDKs {
+  GOLANG = "GOLANG",
+  PYTHON = "PYTHON",
+  TYPESCRIPT = "TYPESCRIPT",
+}
+
+export enum WorkerType {
+  SELFHOSTED = "SELFHOSTED",
+  MANAGED = "MANAGED",
+  WEBHOOK = "WEBHOOK",
+}
+
+export enum WorkflowRunOrderByField {
+  CreatedAt = "createdAt",
+  StartedAt = "startedAt",
+  FinishedAt = "finishedAt",
+  Duration = "duration",
+}
+
+export enum WorkflowKind {
+  FUNCTION = "FUNCTION",
+  DURABLE = "DURABLE",
+  DAG = "DAG",
+}
+
+export enum StepRunEventSeverity {
+  INFO = "INFO",
+  WARNING = "WARNING",
+  CRITICAL = "CRITICAL",
+}
+
+export enum StepRunEventReason {
+  REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
+  REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
+  SCHEDULING_TIMED_OUT = "SCHEDULING_TIMED_OUT",
+  ASSIGNED = "ASSIGNED",
+  STARTED = "STARTED",
+  ACKNOWLEDGED = "ACKNOWLEDGED",
+  FINISHED = "FINISHED",
+  FAILED = "FAILED",
+  RETRYING = "RETRYING",
+  CANCELLED = "CANCELLED",
+  TIMEOUT_REFRESHED = "TIMEOUT_REFRESHED",
+  REASSIGNED = "REASSIGNED",
+  TIMED_OUT = "TIMED_OUT",
+  SLOT_RELEASED = "SLOT_RELEASED",
+  RETRIED_BY_USER = "RETRIED_BY_USER",
+  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED",
+  WORKFLOW_RUN_GROUP_KEY_FAILED = "WORKFLOW_RUN_GROUP_KEY_FAILED",
+}
+
+export enum LogLineOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export enum LogLineOrderByField {
+  CreatedAt = "createdAt",
+}
+
+export enum LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
+export enum JobRunStatus {
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  BACKOFF = "BACKOFF",
+}
+
+export enum StepRunStatus {
+  PENDING = "PENDING",
+  PENDING_ASSIGNMENT = "PENDING_ASSIGNMENT",
+  ASSIGNED = "ASSIGNED",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  CANCELLING = "CANCELLING",
+  BACKOFF = "BACKOFF",
+}
+
+export enum ConcurrencyLimitStrategy {
+  CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS",
+  DROP_NEWEST = "DROP_NEWEST",
+  QUEUE_NEWEST = "QUEUE_NEWEST",
+  GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN",
+}
+
+export enum CronWorkflowsOrderByField {
+  Name = "name",
+  CreatedAt = "createdAt",
+}
+
+export enum CronWorkflowsMethod {
+  DEFAULT = "DEFAULT",
+  API = "API",
+}
+
+export enum ScheduledRunStatus {
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  QUEUED = "QUEUED",
+  SCHEDULED = "SCHEDULED",
+}
+
+export enum WorkflowRunOrderByDirection {
+  ASC = "ASC",
+  DESC = "DESC",
+}
+
+export enum ScheduledWorkflowsOrderByField {
+  TriggerAt = "triggerAt",
+  CreatedAt = "createdAt",
+}
+
+export enum ScheduledWorkflowsMethod {
+  DEFAULT = "DEFAULT",
+  API = "API",
+}
+
+export enum RateLimitOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export enum RateLimitOrderByField {
+  Key = "key",
+  Value = "value",
+  LimitValue = "limitValue",
+}
+
+export enum EventOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export enum EventOrderByField {
+  CreatedAt = "createdAt",
+}
+
+export enum WorkflowRunStatus {
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  QUEUED = "QUEUED",
+  BACKOFF = "BACKOFF",
+}
+
+export enum TenantVersion {
+  V0 = "V0",
+  V1 = "V1",
+}
+
+export enum TenantMemberRole {
+  OWNER = "OWNER",
+  ADMIN = "ADMIN",
+  MEMBER = "MEMBER",
+}
+
+export enum TenantResource {
+  WORKER = "WORKER",
+  WORKER_SLOT = "WORKER_SLOT",
+  EVENT = "EVENT",
+  WORKFLOW_RUN = "WORKFLOW_RUN",
+  TASK_RUN = "TASK_RUN",
+  CRON = "CRON",
+  SCHEDULE = "SCHEDULE",
+}
+
+export enum V1TaskEventType {
+  REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
+  REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
+  SCHEDULING_TIMED_OUT = "SCHEDULING_TIMED_OUT",
+  ASSIGNED = "ASSIGNED",
+  STARTED = "STARTED",
+  FINISHED = "FINISHED",
+  FAILED = "FAILED",
+  RETRYING = "RETRYING",
+  CANCELLED = "CANCELLED",
+  TIMED_OUT = "TIMED_OUT",
+  REASSIGNED = "REASSIGNED",
+  SLOT_RELEASED = "SLOT_RELEASED",
+  TIMEOUT_REFRESHED = "TIMEOUT_REFRESHED",
+  RETRIED_BY_USER = "RETRIED_BY_USER",
+  SENT_TO_WORKER = "SENT_TO_WORKER",
+  RATE_LIMIT_ERROR = "RATE_LIMIT_ERROR",
+  ACKNOWLEDGED = "ACKNOWLEDGED",
+  CREATED = "CREATED",
+  QUEUED = "QUEUED",
+  SKIPPED = "SKIPPED",
+}
+
+export enum V1WorkflowType {
+  DAG = "DAG",
+  TASK = "TASK",
+}
+
+export enum V1TaskStatus {
+  QUEUED = "QUEUED",
+  RUNNING = "RUNNING",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  FAILED = "FAILED",
+}
+
 export interface APIResourceMeta {
   /**
    * the id of this resource, in UUID format
@@ -114,19 +357,6 @@ export interface V1TaskSummary {
   workflowVersionId?: string;
 }
 
-export enum V1TaskStatus {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED',
-}
-
-export enum V1WorkflowType {
-  DAG = 'DAG',
-  TASK = 'TASK',
-}
-
 export interface APIError {
   /**
    * a custom Hatchet error code
@@ -175,29 +405,6 @@ export interface PaginationResponse {
    * @example 10
    */
   num_pages?: number;
-}
-
-export enum V1TaskEventType {
-  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
-  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
-  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
-  ASSIGNED = 'ASSIGNED',
-  STARTED = 'STARTED',
-  FINISHED = 'FINISHED',
-  FAILED = 'FAILED',
-  RETRYING = 'RETRYING',
-  CANCELLED = 'CANCELLED',
-  TIMED_OUT = 'TIMED_OUT',
-  REASSIGNED = 'REASSIGNED',
-  SLOT_RELEASED = 'SLOT_RELEASED',
-  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
-  RETRIED_BY_USER = 'RETRIED_BY_USER',
-  SENT_TO_WORKER = 'SENT_TO_WORKER',
-  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
-  ACKNOWLEDGED = 'ACKNOWLEDGED',
-  CREATED = 'CREATED',
-  QUEUED = 'QUEUED',
-  SKIPPED = 'SKIPPED',
 }
 
 export interface V1TaskEvent {
@@ -361,7 +568,8 @@ export interface WorkflowRunShapeItemForWorkflowRunDetails {
   taskName: string;
 }
 
-export type WorkflowRunShapeForWorkflowRunDetails = WorkflowRunShapeItemForWorkflowRunDetails[];
+export type WorkflowRunShapeForWorkflowRunDetails =
+  WorkflowRunShapeItemForWorkflowRunDetails[];
 
 export interface V1WorkflowRunDetails {
   run: V1WorkflowRun;
@@ -422,6 +630,11 @@ export interface V1TaskTiming {
    * @format date-time
    */
   finishedAt?: string;
+  /**
+   * The external ID of the workflow run.
+   * @format uuid
+   */
+  workflowRunId?: string;
 }
 
 export interface V1TaskTimingList {
@@ -577,16 +790,6 @@ export interface CreateTenantAlertEmailGroupRequest {
   emails: string[];
 }
 
-export enum TenantResource {
-  WORKER = 'WORKER',
-  WORKER_SLOT = 'WORKER_SLOT',
-  EVENT = 'EVENT',
-  WORKFLOW_RUN = 'WORKFLOW_RUN',
-  TASK_RUN = 'TASK_RUN',
-  CRON = 'CRON',
-  SCHEDULE = 'SCHEDULE',
-}
-
 export interface TenantResourceLimit {
   metadata: APIResourceMeta;
   /** The resource associated with this limit. */
@@ -665,17 +868,6 @@ export interface UserTenantPublic {
   email: string;
   /** The display name of the user. */
   name?: string;
-}
-
-export enum TenantMemberRole {
-  OWNER = 'OWNER',
-  ADMIN = 'ADMIN',
-  MEMBER = 'MEMBER',
-}
-
-export enum TenantVersion {
-  V0 = 'V0',
-  V1 = 'V1',
 }
 
 export interface Tenant {
@@ -864,28 +1056,9 @@ export interface TenantStepRunQueueMetrics {
 /** The key for the event. */
 export type EventKey = string;
 
-export enum WorkflowRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
-  BACKOFF = 'BACKOFF',
-}
-
 export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 export type EventSearch = string;
-
-export enum EventOrderByField {
-  CreatedAt = 'createdAt',
-}
-
-export enum EventOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
-}
 
 export interface EventWorkflowRunSummary {
   /**
@@ -966,17 +1139,6 @@ export interface CancelEventRequest {
   eventIds: string[];
 }
 
-export enum RateLimitOrderByField {
-  Key = 'key',
-  Value = 'value',
-  LimitValue = 'limitValue',
-}
-
-export enum RateLimitOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
-}
-
 export interface RateLimit {
   /** The key for the rate limit. */
   key: string;
@@ -1029,6 +1191,8 @@ export interface Workflow {
   tags?: WorkflowTag[];
   /** The jobs of the workflow. */
   jobs?: Job[];
+  /** The tenant id of the workflow. */
+  tenantId: string;
 }
 
 export interface WorkflowVersionMeta {
@@ -1092,11 +1256,6 @@ export interface ScheduleWorkflowRunRequest {
   priority?: number;
 }
 
-export enum ScheduledWorkflowsMethod {
-  DEFAULT = 'DEFAULT',
-  API = 'API',
-}
-
 export interface ScheduledWorkflows {
   metadata: APIResourceMeta;
   tenantId: string;
@@ -1127,26 +1286,6 @@ export interface ScheduledWorkflows {
   priority?: number;
 }
 
-export enum ScheduledWorkflowsOrderByField {
-  TriggerAt = 'triggerAt',
-  CreatedAt = 'createdAt',
-}
-
-export enum WorkflowRunOrderByDirection {
-  ASC = 'ASC',
-  DESC = 'DESC',
-}
-
-export enum ScheduledRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
-  SCHEDULED = 'SCHEDULED',
-}
-
 export interface ScheduledWorkflowsList {
   rows?: ScheduledWorkflows[];
   pagination?: PaginationResponse;
@@ -1163,11 +1302,6 @@ export interface CreateCronWorkflowTriggerRequest {
    * @max 3
    */
   priority?: number;
-}
-
-export enum CronWorkflowsMethod {
-  DEFAULT = 'DEFAULT',
-  API = 'API',
 }
 
 export interface CronWorkflows {
@@ -1190,11 +1324,6 @@ export interface CronWorkflows {
   priority?: number;
 }
 
-export enum CronWorkflowsOrderByField {
-  Name = 'name',
-  CreatedAt = 'createdAt',
-}
-
 export interface CronWorkflowsList {
   rows?: CronWorkflows[];
   pagination?: PaginationResponse;
@@ -1207,13 +1336,6 @@ export interface WorkflowRunsCancelRequest {
 export interface WorkflowUpdateRequest {
   /** Whether the workflow is paused. */
   isPaused?: boolean;
-}
-
-export enum ConcurrencyLimitStrategy {
-  CANCEL_IN_PROGRESS = 'CANCEL_IN_PROGRESS',
-  DROP_NEWEST = 'DROP_NEWEST',
-  QUEUE_NEWEST = 'QUEUE_NEWEST',
-  GROUP_ROUND_ROBIN = 'GROUP_ROUND_ROBIN',
 }
 
 export interface WorkflowConcurrency {
@@ -1329,18 +1451,6 @@ export interface JobRun {
   cancelledError?: string;
 }
 
-export enum StepRunStatus {
-  PENDING = 'PENDING',
-  PENDING_ASSIGNMENT = 'PENDING_ASSIGNMENT',
-  ASSIGNED = 'ASSIGNED',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  CANCELLING = 'CANCELLING',
-  BACKOFF = 'BACKOFF',
-}
-
 export interface StepRun {
   metadata: APIResourceMeta;
   tenantId: string;
@@ -1375,15 +1485,6 @@ export interface StepRun {
   cancelledError?: string;
 }
 
-export enum JobRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  BACKOFF = 'BACKOFF',
-}
-
 export interface WorkflowRunTriggeredBy {
   metadata: APIResourceMeta;
   parentWorkflowRunId?: string;
@@ -1399,25 +1500,9 @@ export interface WorkflowMetrics {
   groupKeyCount?: number;
 }
 
-export enum LogLineLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-}
-
 export type LogLineLevelField = LogLineLevel[];
 
 export type LogLineSearch = string;
-
-export enum LogLineOrderByField {
-  CreatedAt = 'createdAt',
-}
-
-export enum LogLineOrderByDirection {
-  Asc = 'asc',
-  Desc = 'desc',
-}
 
 export interface LogLine {
   /**
@@ -1434,32 +1519,6 @@ export interface LogLine {
 export interface LogLineList {
   pagination?: PaginationResponse;
   rows?: LogLine[];
-}
-
-export enum StepRunEventReason {
-  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
-  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
-  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
-  ASSIGNED = 'ASSIGNED',
-  STARTED = 'STARTED',
-  ACKNOWLEDGED = 'ACKNOWLEDGED',
-  FINISHED = 'FINISHED',
-  FAILED = 'FAILED',
-  RETRYING = 'RETRYING',
-  CANCELLED = 'CANCELLED',
-  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
-  REASSIGNED = 'REASSIGNED',
-  TIMED_OUT = 'TIMED_OUT',
-  SLOT_RELEASED = 'SLOT_RELEASED',
-  RETRIED_BY_USER = 'RETRIED_BY_USER',
-  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED',
-  WORKFLOW_RUN_GROUP_KEY_FAILED = 'WORKFLOW_RUN_GROUP_KEY_FAILED',
-}
-
-export enum StepRunEventSeverity {
-  INFO = 'INFO',
-  WARNING = 'WARNING',
-  CRITICAL = 'CRITICAL',
 }
 
 export interface StepRunEvent {
@@ -1518,20 +1577,7 @@ export interface WorkflowWorkersCount {
   workflowRunId?: string;
 }
 
-export enum WorkflowKind {
-  FUNCTION = 'FUNCTION',
-  DURABLE = 'DURABLE',
-  DAG = 'DAG',
-}
-
 export type WorkflowKindList = WorkflowKind[];
-
-export enum WorkflowRunOrderByField {
-  CreatedAt = 'createdAt',
-  StartedAt = 'startedAt',
-  FinishedAt = 'finishedAt',
-  Duration = 'duration',
-}
 
 export interface WorkflowRunList {
   rows?: WorkflowRun[];
@@ -1599,12 +1645,6 @@ export interface RerunStepRunRequest {
   input: object;
 }
 
-export enum WorkerType {
-  SELFHOSTED = 'SELFHOSTED',
-  MANAGED = 'MANAGED',
-  WEBHOOK = 'WEBHOOK',
-}
-
 export interface SemaphoreSlots {
   /**
    * The step run id.
@@ -1654,12 +1694,6 @@ export interface WorkerLabel {
   value?: string;
 }
 
-export enum WorkerRuntimeSDKs {
-  GOLANG = 'GOLANG',
-  PYTHON = 'PYTHON',
-  TYPESCRIPT = 'TYPESCRIPT',
-}
-
 export interface WorkerRuntimeInfo {
   sdkVersion?: string;
   language?: WorkerRuntimeSDKs;
@@ -1692,7 +1726,7 @@ export interface Worker {
   /** The recent step runs for the worker. */
   recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
-  status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
+  status?: "ACTIVE" | "INACTIVE" | "PAUSED";
   /** The maximum number of runs this worker can execute concurrently. */
   maxRuns?: number;
   /** The number of runs this worker can execute concurrently. */
@@ -1762,12 +1796,6 @@ export interface WebhookWorkerCreated {
   secret: string;
 }
 
-export enum WebhookWorkerRequestMethod {
-  GET = 'GET',
-  POST = 'POST',
-  PUT = 'PUT',
-}
-
 export interface WebhookWorkerRequest {
   /**
    * The date and time the request was created.
@@ -1809,11 +1837,6 @@ export interface GetStepRunDiffResponse {
   diffs: StepRunDiff[];
 }
 
-export enum PullRequestState {
-  Open = 'open',
-  Closed = 'closed',
-}
-
 export interface PullRequest {
   repositoryOwner: string;
   repositoryName: string;
@@ -1831,21 +1854,6 @@ export interface ListPullRequestsResponse {
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
-}
-
-export enum V1TaskRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-}
-
-export enum V1LogLineLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
 }
 
 export type BulkCreateEventResponse = Events;

@@ -5,7 +5,7 @@ export const durableSleep = hatchet.workflow({
   name: 'durable-sleep',
 });
 
-// ❓ Durable Sleep
+// > Durable Sleep
 durableSleep.durableTask({
   name: 'durable-sleep',
   executionTimeout: '10m',

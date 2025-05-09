@@ -1,0 +1,12 @@
+import { Snippet } from '@/next/lib/docs/generated/snips/types';
+
+const snippet: Snippet = {
+  language: 'go',
+  content:
+    "package v1_workflows\n\nimport (\n\t'fmt'\n\n\t'github.com/hatchet-dev/hatchet/pkg/client/create'\n\tv1 'github.com/hatchet-dev/hatchet/pkg/v1'\n\t'github.com/hatchet-dev/hatchet/pkg/v1/factory'\n\t'github.com/hatchet-dev/hatchet/pkg/v1/workflow'\n\t'github.com/hatchet-dev/hatchet/pkg/worker'\n)\n\ntype StickyInput struct{}\n\ntype StickyResult struct {\n\tResult string `json:'result'`\n}\n\ntype StickyDagResult struct {\n\tStickyTask1 StickyResult `json:'sticky-task-1'`\n\tStickyTask2 StickyResult `json:'sticky-task-2'`\n}\n\nfunc StickyDag(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[StickyInput, StickyDagResult] {\n\tstickyDag := factory.NewWorkflow[StickyInput, StickyDagResult](\n\t\tcreate.WorkflowCreateOpts[StickyInput]{\n\t\t\tName: 'sticky-dag',\n\t\t},\n\t\thatchet,\n\t)\n\n\tstickyDag.Task(\n\t\tcreate.WorkflowTask[StickyInput, StickyDagResult]{\n\t\t\tName: 'sticky-task',\n\t\t},\n\t\tfunc(ctx worker.HatchetContext, input StickyInput) (interface{}, error) {\n\t\t\tworkerId := ctx.Worker().ID()\n\n\t\t\treturn &StickyResult{\n\t\t\t\tResult: workerId,\n\t\t\t}, nil\n\t\t},\n\t)\n\n\tstickyDag.Task(\n\t\tcreate.WorkflowTask[StickyInput, StickyDagResult]{\n\t\t\tName: 'sticky-task-2',\n\t\t},\n\t\tfunc(ctx worker.HatchetContext, input StickyInput) (interface{}, error) {\n\t\t\tworkerId := ctx.Worker().ID()\n\n\t\t\treturn &StickyResult{\n\t\t\t\tResult: workerId,\n\t\t\t}, nil\n\t\t},\n\t)\n\n\treturn stickyDag\n}\n\nfunc Sticky(hatchet v1.HatchetClient) workflow.WorkflowDeclaration[StickyInput, StickyResult] {\n\tsticky := factory.NewTask(\n\t\tcreate.StandaloneTask{\n\t\t\tName:    'sticky-task',\n\t\t\tRetries: 3,\n\t\t}, func(ctx worker.HatchetContext, input StickyInput) (*StickyResult, error) {\n\t\t\t// Run a child workflow on the same worker\n\t\t\tchildWorkflow := Child(hatchet)\n\t\t\tsticky := true\n\t\t\tchildResult, err := childWorkflow.RunAsChild(ctx, ChildInput{N: 1}, workflow.RunAsChildOpts{\n\t\t\t\tSticky: &sticky,\n\t\t\t})\n\n\t\t\tif err != nil {\n\t\t\t\treturn nil, err\n\t\t\t}\n\n\t\t\treturn &StickyResult{\n\t\t\t\tResult: fmt.Sprintf('child-result-%d', childResult.Value),\n\t\t\t}, nil\n\t\t},\n\t\thatchet,\n\t)\n\n\treturn sticky\n}\n",
+  source: 'out/go/workflows/sticky.go',
+  blocks: {},
+  highlights: {},
+}; // Then replace double quotes with single quotes
+
+export default snippet;

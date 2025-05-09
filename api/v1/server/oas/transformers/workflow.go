@@ -12,13 +12,15 @@ func ToWorkflow(
 	workflow *dbsqlc.Workflow,
 	version *dbsqlc.WorkflowVersion,
 ) *gen.Workflow {
+
 	res := &gen.Workflow{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(workflow.ID),
 			workflow.CreatedAt.Time,
 			workflow.UpdatedAt.Time,
 		),
-		Name: workflow.Name,
+		Name:     workflow.Name,
+		TenantId: sqlchelpers.UUIDToStr(workflow.TenantId),
 	}
 
 	res.IsPaused = &workflow.IsPaused.Bool

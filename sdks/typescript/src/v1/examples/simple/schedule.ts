@@ -3,7 +3,7 @@ import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 
 async function main() {
-  // ❓ Create a Scheduled Run
+  // > Create a Scheduled Run
 
   const runAt = new Date(new Date().setHours(12, 0, 0, 0) + 24 * 60 * 60 * 1000);
 
@@ -18,7 +18,16 @@ async function main() {
   console.log(scheduledRunId);
   // !!
 
+  // > Delete a Scheduled Run
   await hatchet.schedules.delete(scheduled);
+  // !!
+
+  // > List Scheduled Runs
+  const scheduledRuns = await hatchet.schedules.list({
+    workflowId: simple.id,
+  });
+  console.log(scheduledRuns);
+  // !!
 }
 
 if (require.main === module) {
