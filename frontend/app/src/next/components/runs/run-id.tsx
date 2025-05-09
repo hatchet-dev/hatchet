@@ -23,6 +23,7 @@ export function RunId({
   taskRun,
   displayName,
   id,
+  className,
   onClick,
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;

@@ -31,7 +31,7 @@ const parentWorkflow: Workflow = {
               Output
             >('child-workflow', { input: `child-input-${i}` }, { additionalMetadata: { childKey: 'childValue' } })
             .then((result) => {
-              ctx.log('spawned workflow result:');
+              ctx.logger.info('spawned workflow result:');
               return result.output;
             })
         );

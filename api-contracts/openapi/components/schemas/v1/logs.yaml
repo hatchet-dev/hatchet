@@ -10,6 +10,12 @@ V1LogLine:
     metadata:
       type: object
       description: The log metadata.
+    retryCount:
+      type: integer
+      description: The retry count of the log line.
+    level:
+      $ref: "#/V1LogLineLevel"
+      description: The log level.
   required:
     - createdAt
     - message

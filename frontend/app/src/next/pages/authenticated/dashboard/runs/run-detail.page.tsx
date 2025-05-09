@@ -131,7 +131,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
     breadcrumbs.push({
       title: getFriendlyWorkflowRunId(workflow) || '',
-      label: <RunId wfRun={workflow} isInsideLink={true} />,
+      label: <RunId wfRun={workflow} />,
       url:
         selectedTask?.metadata.id === workflow?.metadata.id
           ? ROUTES.runs.detail(workflow.metadata.id)
