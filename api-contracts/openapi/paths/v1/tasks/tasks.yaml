@@ -217,6 +217,15 @@ getTaskStatusMetrics:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The id of the event that triggered the task
+        in: query
+        name: triggering_event_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
     responses:
       "200":
         content:

@@ -47,9 +47,10 @@ function processDirectory(dirPath: string, relativePath: string = '') {
 
       // Convert to well-formatted string
       const formattedStr = formatObject(processedObj);
+      const formattedPath = metaFilePath.replace(/^.*?(frontend)/i, '$1');
 
       // Create a TypeScript version with the proper format
-      const tsContent = `// Generated from ${metaFilePath}
+      const tsContent = `// Generated from ${formattedPath}
 const meta = ${formattedStr};
 export default meta;
 `;
@@ -80,8 +81,10 @@ export default meta;
       });
     } catch (err) {
       console.error(`Error processing ${metaFilePath}:`, err);
-      // If we can't process it, just use the original content with minimal transforms
-      const tsContent = `// Generated from ${metaFilePath}
+      const formattedPath = metaFilePath.replace(/^.*?(frontend)/i, '$1');
+
+      // Create a TypeScript version with the proper format
+      const tsContent = `// Generated from ${formattedPath}
 const meta = ${metaContent.replace('export default', '')};
 export default meta;
 `;

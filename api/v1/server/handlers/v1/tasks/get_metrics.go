@@ -32,11 +32,18 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 		parentTaskExternalId = &uuidVal
 	}
 
+	var triggeringEventId *pgtype.UUID
+	if request.Params.TriggeringEventId != nil {
+		uuidVal := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventId.String())
+		triggeringEventId = &uuidVal
+	}
+
 	metrics, err := t.config.V1.OLAP().ReadTaskRunMetrics(ctx.Request().Context(), tenantId, v1.ReadTaskRunMetricsOpts{
 		CreatedAfter:         request.Params.Since,
 		CreatedBefore:        request.Params.Until,
 		WorkflowIds:          workflowIds,
 		ParentTaskExternalID: parentTaskExternalId,
+		TriggeringEventId:    triggeringEventId,
 	})
 
 	if err != nil {

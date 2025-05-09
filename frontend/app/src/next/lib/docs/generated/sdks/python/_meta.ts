@@ -1,4 +1,4 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/sdks/python/_meta.js
+// Generated from frontend/docs/pages/sdks/python/_meta.js
 const meta = {
   client: {
     title: 'Client',

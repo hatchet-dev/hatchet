@@ -13,6 +13,7 @@ import {
   Settings,
   Users,
   UsersIcon,
+  SquareActivity,
 } from 'lucide-react';
 import { FaDiscord, FaPlay } from 'react-icons/fa';
 import { FEATURES_BASE_PATH, ROUTES } from '@/next/lib/routes';
@@ -58,6 +59,12 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
             url: ROUTES.runs.list,
             icon: Play,
             isActive: isActive(ROUTES.runs.list),
+          },
+          {
+            title: 'Events',
+            url: ROUTES.events.list,
+            icon: SquareActivity,
+            isActive: isActive(ROUTES.events.list),
           },
         ],
       },

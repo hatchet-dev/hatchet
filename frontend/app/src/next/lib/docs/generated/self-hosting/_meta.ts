@@ -1,4 +1,4 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/self-hosting/_meta.js
+// Generated from frontend/docs/pages/self-hosting/_meta.js
 const meta = {
   index: {
     title: 'Introduction',
