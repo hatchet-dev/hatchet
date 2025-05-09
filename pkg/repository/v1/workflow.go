@@ -47,9 +47,6 @@ type CreateWorkflowVersionOpts struct {
 	Sticky *string `validate:"omitempty,oneof=SOFT HARD"`
 
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
-
-	// (optional) the event filter expression
-	EventFilterExpression *string `json:"event_filter_expression,omitempty" validate:"omitempty"`
 }
 
 type CreateCronWorkflowTriggerOpts struct {
@@ -488,19 +485,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	for _, eventTrigger := range opts.EventTriggers {
-		var expression pgtype.Text
-
-		if opts.EventFilterExpression != nil {
-			expression = sqlchelpers.TextFromStr(*opts.EventFilterExpression)
-		}
-
 		_, err := r.queries.CreateWorkflowTriggerEventRef(
 			ctx,
 			tx,
 			sqlcv1.CreateWorkflowTriggerEventRefParams{
 				Workflowtriggersid: sqlcWorkflowTriggers.ID,
 				Eventtrigger:       eventTrigger,
-				Expression:         expression,
 			},
 		)
 
