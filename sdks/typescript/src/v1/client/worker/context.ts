@@ -206,6 +206,7 @@ export class Context<T, K = {}> {
    * Logs a message from the current task.
    * @param message - The message to log.
    * @param level - The log level (optional).
+   * @deprecated use ctx.logger.infoger.info, ctx.logger.infoger.debug, ctx.logger.infoger.warn, ctx.logger.infoger.error, ctx.logger.infoger.trace instead
    */
   log(message: string, level?: LogLevel, extra?: LogExtra) {
     const { stepRunId } = this.action;
@@ -213,7 +214,7 @@ export class Context<T, K = {}> {
     if (!stepRunId) {
       // log a warning
       this._logger.warn('cannot log from context without stepRunId');
-      return;
+      return Promise.resolve();
     }
 
     const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
@@ -225,37 +226,46 @@ export class Context<T, K = {}> {
       ...extra?.extra,
     };
 
+    const promises = [];
+
     if (!level || level === 'INFO') {
-      logger.info(message, contextExtra);
+      promises.push(logger.info(message, contextExtra));
     } else if (level === 'DEBUG') {
-      logger.debug(message, contextExtra);
+      promises.push(logger.debug(message, contextExtra));
     } else if (level === 'WARN') {
-      logger.warn(message, extra?.error, contextExtra);
+      promises.push(logger.warn(message, extra?.error, contextExtra));
     } else if (level === 'ERROR') {
-      logger.error(message, extra?.error, contextExtra);
+      promises.push(logger.error(message, extra?.error, contextExtra));
     }
 
     // FIXME: this is a hack to get around the fact that the log level is not typed
-    this.v1.event.putLog(stepRunId, message, level as any);
+    promises.push(
+      this.v1.event.putLog(stepRunId, message, level as any, this.retryCount(), extra?.extra)
+    );
+
+    return Promise.all(promises);
   }
 
   get logger() {
     return {
       info: (message: string, extra?: any) => {
-        this.log(message, 'INFO', { extra });
+        return this.log(message, 'INFO', { extra });
       },
       debug: (message: string, extra?: any) => {
-        this.log(message, 'DEBUG', { extra });
+        return this.log(message, 'DEBUG', { extra });
       },
       warn: (message: string, extra?: LogExtra) => {
-        this.log(message, 'WARN', extra);
+        return this.log(message, 'WARN', extra);
       },
       error: (message: string, extra?: LogExtra) => {
-        this.log(message, 'ERROR', extra);
+        return this.log(message, 'ERROR', extra);
       },
-      trace: (message: string, extra?: LogExtra) => {
+      util: (key: string, message: string, extra?: LogExtra) => {
         const logger = this.v1.config.logger('ctx', this.v1.config.log_level);
-        logger.trace(message, extra);
+        if (!logger.util) {
+          return Promise.resolve();
+        }
+        return logger.util(key, message, extra?.extra);
       },
     };
   }

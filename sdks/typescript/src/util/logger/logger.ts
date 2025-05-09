@@ -1,9 +1,13 @@
+import { JsonObject } from '@hatchet/v1';
+
+export type LogExtra = JsonObject;
 export abstract class Logger {
-  abstract debug(message: string, extra?: any): void;
-  abstract info(message: string, extra?: any): void;
-  abstract green(message: string, extra?: any): void;
-  abstract warn(message: string, error?: Error, extra?: any): void;
-  abstract error(message: string, error?: Error, extra?: any): void;
+  abstract debug(message: string, extra?: LogExtra): void | Promise<void>;
+  abstract info(message: string, extra?: LogExtra): void | Promise<void>;
+  abstract green(message: string, extra?: LogExtra): void | Promise<void>;
+  abstract warn(message: string, error?: Error, extra?: LogExtra): void | Promise<void>;
+  abstract error(message: string, error?: Error, extra?: LogExtra): void | Promise<void>;
+  abstract util?(key: string, message: string, extra?: LogExtra): void | Promise<void>;
 }
 
 export type LogLevel = 'OFF' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
