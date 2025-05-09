@@ -110,15 +110,10 @@ type Run struct {
 	InsertedAt time.Time
 }
 
-type RunWithEventTriggerOpts struct {
-	Runs []*Run
-	Opts EventTriggerOpts
-}
-
 type TriggerFromEventsResult struct {
-	Tasks                []*sqlcv1.V1Task
-	Dags                 []*DAGWithData
-	EventIdToRunsAndOpts *map[string]RunWithEventTriggerOpts
+	Tasks         []*sqlcv1.V1Task
+	Dags          []*DAGWithData
+	EventIdToRuns map[string][]*Run
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
@@ -128,15 +123,14 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	eventIdToOpt := make(map[string]EventTriggerOpts)
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
+	eventIdToRuns := make(map[string][]*Run)
 
 	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
-		// Event ids are unique, so each one can only have one opt
-		eventIdToOpt[opt.EventId] = opt
+		eventIdToRuns[opt.EventId] = []*Run{}
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
@@ -194,8 +188,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	eventIdToRuns := make(map[string][]*Run)
-
 	tasks, dags, err := r.triggerWorkflows(ctx, tenantId, triggerOpts)
 
 	if err != nil {
@@ -211,13 +203,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			continue
 		}
 
-		opt, ok := eventIdToOpt[eventId]
-
-		if !ok {
-			continue
-		}
-
-		eventIdToRuns[opt.EventId] = append(eventIdToRuns[opt.EventId], &Run{
+		eventIdToRuns[eventId] = append(eventIdToRuns[eventId], &Run{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt.Time,
 		})
@@ -232,35 +218,18 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			continue
 		}
 
-		opt, ok := eventIdToOpt[eventId]
-
-		if !ok {
-			continue
-		}
-
-		eventIdToRuns[opt.EventId] = append(eventIdToRuns[opt.EventId], &Run{
+		eventIdToRuns[eventId] = append(eventIdToRuns[eventId], &Run{
 			Id:         dag.ID,
 			InsertedAt: dag.InsertedAt.Time,
 		})
 	}
 
-	eventIdToRunsAndOpts := make(map[string]RunWithEventTriggerOpts, 0)
-
-	for eventId, opt := range eventIdToOpt {
-		runs := eventIdToRuns[opt.EventId]
-
-		eventIdToRunsAndOpts[eventId] = RunWithEventTriggerOpts{
-			Runs: runs,
-			Opts: opt,
-		}
-	}
-
 	post()
 
 	return &TriggerFromEventsResult{
-		Tasks:                tasks,
-		Dags:                 dags,
-		EventIdToRunsAndOpts: &eventIdToRunsAndOpts,
+		Tasks:         tasks,
+		Dags:          dags,
+		EventIdToRuns: eventIdToRuns,
 	}, nil
 }
 
