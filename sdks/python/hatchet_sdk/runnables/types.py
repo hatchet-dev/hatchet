@@ -1,9 +1,8 @@
 import asyncio
-from datetime import timedelta
 from enum import Enum
 from typing import Any, Awaitable, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
@@ -14,11 +13,6 @@ ValidTaskReturnType = Union[BaseModel, JSONSerializableMapping, None]
 
 R = TypeVar("R", bound=Union[ValidTaskReturnType, Awaitable[ValidTaskReturnType]])
 P = ParamSpec("P")
-
-
-DEFAULT_EXECUTION_TIMEOUT = timedelta(seconds=60)
-DEFAULT_SCHEDULE_TIMEOUT = timedelta(minutes=5)
-DEFAULT_PRIORITY = 1
 
 
 class EmptyModel(BaseModel):
@@ -65,9 +59,12 @@ TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)
 
 
 class TaskDefaults(BaseModel):
-    schedule_timeout: Duration = DEFAULT_SCHEDULE_TIMEOUT
-    execution_timeout: Duration = DEFAULT_EXECUTION_TIMEOUT
-    priority: StrictInt = Field(gt=0, lt=4, default=DEFAULT_PRIORITY)
+    schedule_timeout: Duration | None = None
+    execution_timeout: Duration | None = None
+    priority: int | None = Field(gt=0, lt=4, default=None)
+    retries: int | None = None
+    backoff_factor: float | None = None
+    backoff_max_seconds: int | None = None
 
 
 class WorkflowConfig(BaseModel):

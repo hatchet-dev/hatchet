@@ -36,6 +36,7 @@ type Client interface {
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
 	CloudAPI() *cloudrest.ClientWithResponses
+	Logger() *zerolog.Logger
 	TenantId() string
 	Namespace() string
 	CloudRegisterID() *string
@@ -392,6 +393,10 @@ func (c *clientImpl) Event() EventClient {
 
 func (c *clientImpl) Subscribe() SubscribeClient {
 	return c.subscribe
+}
+
+func (c *clientImpl) Logger() *zerolog.Logger {
+	return c.l
 }
 
 func (c *clientImpl) API() *rest.ClientWithResponses {

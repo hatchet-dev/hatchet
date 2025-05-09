@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
@@ -21,6 +21,7 @@ import { Button } from '../ui/button';
 import { RunId } from '../runs/run-id';
 import { BsArrowDownRightCircle, BsCircle, BsArrowUpLeftCircle } from "react-icons/bs";
 import { Skeleton } from '../ui/skeleton';
+import { FaLevelUpAlt, FaRegDotCircle } from 'react-icons/fa';
 interface ProcessedTaskData {
   id: string;
   workflowRunId?: string;

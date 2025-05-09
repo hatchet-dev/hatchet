@@ -110,7 +110,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     return undefined;
   }, [sheet]);
 
-
   const breadcrumbs = useMemo(() => {
     if (!workflow) {
       return [];

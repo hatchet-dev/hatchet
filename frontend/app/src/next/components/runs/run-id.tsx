@@ -5,7 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { cn } from '@/lib/utils';
 
@@ -16,7 +16,6 @@ interface RunIdProps {
   id?: string;
   onClick?: () => void;
   className?: string;
-  isInsideLink?: boolean;
 }
 
 export function RunId({
@@ -25,8 +24,6 @@ export function RunId({
   displayName,
   id,
   onClick,
-  className,
-  isInsideLink = false,
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
