@@ -497,7 +497,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     const data = Array.from(visibleTasks)
       .map((id) => {
         const task = taskMap.get(id);
-        if (!task || !task.startedAt || !task.finishedAt) {
+        if (!task || !task.startedAt) {
           return null;
         }
 
@@ -506,7 +506,14 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
           ? new Date(task.queuedAt).getTime()
           : new Date(task.startedAt).getTime();
         const startedAt = new Date(task.startedAt).getTime();
-        const finishedAt = new Date(task.finishedAt).getTime();
+        
+        // For running tasks, always use current time as finishedAt
+        const now = new Date().getTime();
+        const finishedAt = task.status === V1TaskStatus.RUNNING 
+          ? now 
+          : task.finishedAt 
+            ? new Date(task.finishedAt).getTime()
+            : startedAt;
 
         return {
           id: task.metadata.id,
@@ -690,13 +697,15 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     !processedData.data ||
     processedData.data.length === 0
   ) {
-    return <>{processedData.data.length} {taskData?.rows.length}<Skeleton className="h-[300px] w-full" /></>;
+    return <><Skeleton className="h-[100px] w-full" /></>;
   }
 
   // Compute dynamic chart height
-  const barSize = 14;
-  const rowGap = 20;
-  const chartHeight = processedData.data.length * (barSize + rowGap) + rowGap;
+  const BAR_SIZE = 14;
+  const ROW_GAP = 20;
+  const ROW_HEIGHT = BAR_SIZE + ROW_GAP;
+  const PADDING = ROW_GAP;
+  const chartHeight = processedData.data.length * ROW_HEIGHT + PADDING;
 
   const chartConfig = {
     queued: {
@@ -727,9 +736,10 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
   return (
     <ChartContainer
       config={chartConfig}
-      className="w-full overflow-visible max-h-[300px] overflow-y-auto"
+      className="w-full overflow-visible"
+      style={{ height: chartHeight }}
     >
-      <div style={{ width: '100%', height: chartHeight }}>
+      <div style={{ width: '100%', height: '100%' }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={processedData.data}
@@ -738,8 +748,8 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
               top: 0,
               left: 0,
             }}
-            barSize={barSize}
-            barGap={rowGap}
+            barSize={BAR_SIZE}
+            barGap={ROW_GAP}
             onClick={(data) =>
               data && handleBarClick(data.activePayload?.[0]?.payload)
             }
@@ -773,7 +783,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
               name="Selected"
               stackId="a"
               fill="transparent"
-              maxBarSize={barSize + rowGap}
+              maxBarSize={BAR_SIZE + ROW_GAP}
               className="cursor-pointer"
             >
               {processedData.data.map((entry, index) => (
@@ -790,7 +800,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
               name="Offset"
               stackId="a"
               fill="transparent"
-              maxBarSize={barSize}
+              maxBarSize={BAR_SIZE}
               className="cursor-pointer"
             />
             <Bar
@@ -798,7 +808,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
               name="Queue time"
               stackId="a"
               fill={chartConfig.queued.color}
-              maxBarSize={barSize}
+              maxBarSize={BAR_SIZE}
               className="cursor-pointer"
             />
             <Bar
@@ -806,7 +816,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
               name="Running time"
               stackId="a"
               fill={chartConfig.runFor.color}
-              maxBarSize={barSize}
+              maxBarSize={BAR_SIZE}
               className="cursor-pointer"
             >
               {processedData.data.map((entry, index) => {

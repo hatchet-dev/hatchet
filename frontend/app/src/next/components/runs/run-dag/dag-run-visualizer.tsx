@@ -172,19 +172,34 @@ function WorkflowRunVisualizerContent({
     dagreGraph.setDefaultEdgeLabel(() => ({}));
 
     const isHorizontal = direction === 'LR';
-    dagreGraph.setGraph({ rankdir: direction });
+    dagreGraph.setGraph({ 
+      rankdir: direction,
+      nodesep: 50,
+      ranksep: 50,
+      edgesep: 10,
+      acyclicer: 'greedy',
+      ranker: 'network-simplex'
+    });
 
-    nodes.forEach((node) => {
+    // Sort nodes by ID to ensure consistent ordering
+    const sortedNodes = [...nodes].sort((a, b) => a.id.localeCompare(b.id));
+    sortedNodes.forEach((node) => {
       dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
     });
 
-    edges.forEach((edge) => {
+    // Sort edges to ensure consistent ordering
+    const sortedEdges = [...edges].sort((a, b) => {
+      const sourceCompare = a.source.localeCompare(b.source);
+      if (sourceCompare !== 0) return sourceCompare;
+      return a.target.localeCompare(b.target);
+    });
+    sortedEdges.forEach((edge) => {
       dagreGraph.setEdge(edge.source, edge.target);
     });
 
     dagre.layout(dagreGraph);
 
-    const layoutedNodes = nodes.map((node) => {
+    const layoutedNodes = sortedNodes.map((node) => {
       const nodeWithPosition = dagreGraph.node(node.id);
       node.targetPosition = isHorizontal ? Position.Left : Position.Top;
       node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
@@ -197,7 +212,7 @@ function WorkflowRunVisualizerContent({
       return { ...node };
     });
 
-    return { nodes: layoutedNodes, edges };
+    return { nodes: layoutedNodes, edges: sortedEdges };
   };
 
   const { nodes: layoutedNodes, edges: layoutedEdges } = useMemo(
@@ -209,10 +224,12 @@ function WorkflowRunVisualizerContent({
   const lastCenteredTaskId = useRef<string | undefined>(undefined);
 
   const recenter = useCallback(() => {
-    if (!reactFlowInstance.current) {
-      return;
-    }
-
+    
+    setTimeout(() => {
+      
+      if (!reactFlowInstance.current) {
+        return;
+      }
     const node = layoutedNodes?.find((n: Node) => n.data.taskRun?.taskExternalId === selectedTaskId);
     
     if (node) {
@@ -223,6 +240,7 @@ function WorkflowRunVisualizerContent({
         });
         lastCenteredTaskId.current = selectedTaskId;
     }
+  }, 1);
   }, [selectedTaskId, layoutedNodes]);
 
   useEffect(() => {
