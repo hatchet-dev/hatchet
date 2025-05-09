@@ -663,7 +663,7 @@ INSERT INTO "WorkflowTriggerEventRef" (
 ) VALUES (
     $1::uuid,
     $2::text
-) RETURNING "parentId", "eventKey", expression
+) RETURNING "parentId", "eventKey"
 `
 
 type CreateWorkflowTriggerEventRefParams struct {
@@ -674,7 +674,7 @@ type CreateWorkflowTriggerEventRefParams struct {
 func (q *Queries) CreateWorkflowTriggerEventRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerEventRefParams) (*WorkflowTriggerEventRef, error) {
 	row := db.QueryRow(ctx, createWorkflowTriggerEventRef, arg.Workflowtriggersid, arg.Eventtrigger)
 	var i WorkflowTriggerEventRef
-	err := row.Scan(&i.ParentId, &i.EventKey, &i.Expression)
+	err := row.Scan(&i.ParentId, &i.EventKey)
 	return &i, err
 }
 
