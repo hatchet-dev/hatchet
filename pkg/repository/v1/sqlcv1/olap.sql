@@ -167,18 +167,51 @@ WITH lookup_task AS (
         v1_lookup_table_olap
     WHERE
         external_id = @externalId::uuid
+), task AS (
+    SELECT
+        t.*
+    FROM
+        v1_tasks_olap t
+    JOIN
+        lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
+), relevant_events AS (
+    SELECT
+        e.*
+    FROM
+        v1_tasks_olap t
+    JOIN
+        lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
+    JOIN
+        v1_task_events_olap e ON (e.task_id, e.task_inserted_at, e.tenant_id, e.readable_status, e.retry_count) = (t.id, t.inserted_at, t.tenant_id, t.readable_status, t.latest_retry_count)
+), error_message AS (
+    SELECT
+        error_message
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'FAILED'
+    ORDER BY
+        event_timestamp DESC
+    LIMIT 1
+), task_output AS (
+    SELECT
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
+    LIMIT 1
 )
 SELECT
     t.*,
-    e.output,
-    e.error_message
+    e.error_message AS error_message,
+    o.output AS output
 FROM
-    v1_tasks_olap t
-JOIN
-    lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
-JOIN
-    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
-;
+    task t
+LEFT JOIN
+    error_message e ON true
+LEFT JOIN
+    task_output o ON true;
 
 -- name: ListTasksByExternalIds :many
 SELECT
