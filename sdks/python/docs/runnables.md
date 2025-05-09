@@ -32,10 +32,6 @@
         - is_durable
         - list_runs
         - aio_list_runs
-        - pause
-        - aio_pause
-        - unpause
-        - aio_unpause
 
 ## Standalone
 
@@ -58,7 +54,3 @@
         - is_durable
         - list_runs
         - aio_list_runs
-        - pause
-        - aio_pause
-        - unpause
-        - aio_unpause

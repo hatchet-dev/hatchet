@@ -5,9 +5,6 @@ from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
-from hatchet_sdk.clients.rest.models.workflow_update_request import (
-    WorkflowUpdateRequest,
-)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
@@ -108,55 +105,3 @@ class WorkflowsClient(BaseRestClient):
         :return: The workflow version.
         """
         return await asyncio.to_thread(self.get_version, workflow_id, version)
-
-    def pause(self, workflow_id: str) -> Workflow:
-        """
-        Pause a workflow by its ID.
-
-        :param workflow_id: The ID of the workflow to pause.
-
-        :return: The workflow version.
-        """
-        with self.client() as client:
-            return self._wa(client).workflow_update(
-                workflow_id,
-                WorkflowUpdateRequest(
-                    isPaused=True,
-                ),
-            )
-
-    async def aio_pause(self, workflow_id: str) -> Workflow:
-        """
-        Pause a workflow by its ID.
-
-        :param workflow_id: The ID of the workflow to pause.
-
-        :return: The workflow version.
-        """
-        return await asyncio.to_thread(self.pause, workflow_id)
-
-    def unpause(self, workflow_id: str) -> Workflow:
-        """
-        Unpause a workflow by its ID.
-
-        :param workflow_id: The ID of the workflow to unpause.
-
-        :return: The workflow version.
-        """
-        with self.client() as client:
-            return self._wa(client).workflow_update(
-                workflow_id,
-                WorkflowUpdateRequest(
-                    isPaused=False,
-                ),
-            )
-
-    async def aio_unpause(self, workflow_id: str) -> Workflow:
-        """
-        Unpause a workflow by its ID.
-
-        :param workflow_id: The ID of the workflow to unpause.
-
-        :return: The workflow version.
-        """
-        return await asyncio.to_thread(self.unpause, workflow_id)
