@@ -322,6 +322,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param additional_metadata: Additional metadata for filtering the runs.
         :param worker_id: The ID of the worker that ran the tasks.
         :param parent_task_external_id: The external ID of the parent task.
+        :param triggering_event_id: The event id that triggered the task run.
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
@@ -372,6 +373,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param additional_metadata: Additional metadata for filtering the runs.
         :param worker_id: The ID of the worker that ran the tasks.
         :param parent_task_external_id: The external ID of the parent task.
+        :param triggering_event_id: The event id that triggered the task run.
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
