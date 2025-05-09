@@ -333,7 +333,6 @@ export class V1Worker {
               : [],
         })),
         concurrency: concurrencySolo,
-        eventFilterExpression: workflow.eventFilterExpression,
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;

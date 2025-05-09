@@ -100,11 +100,11 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(5)
 
-    persisted = await hatchet.event.aio_list(limit=100)
+    persisted = (await hatchet.event.aio_list(limit=100)).rows or []
 
-    assert {e.eventId for e in result}.issubset({e.metadata.id for e in persisted.rows})
+    assert {e.eventId for e in result}.issubset({e.metadata.id for e in persisted})
 
-    for event in persisted.rows or []:
+    for event in persisted or []:
         meta = event.additional_metadata or {}
         if meta.get("test_run_id") != test_run_id:
             continue
