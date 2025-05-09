@@ -1010,8 +1010,7 @@ CREATE TABLE "WorkflowTriggerCronRef" (
 -- CreateTable
 CREATE TABLE "WorkflowTriggerEventRef" (
     "parentId" UUID NOT NULL,
-    "eventKey" TEXT NOT NULL,
-    "expression" TEXT
+    "eventKey" TEXT NOT NULL
 );
 
 -- CreateEnum

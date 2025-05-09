@@ -2984,9 +2984,8 @@ type WorkflowTriggerCronRef struct {
 }
 
 type WorkflowTriggerEventRef struct {
-	ParentId   pgtype.UUID `json:"parentId"`
-	EventKey   string      `json:"eventKey"`
-	Expression pgtype.Text `json:"expression"`
+	ParentId pgtype.UUID `json:"parentId"`
+	EventKey string      `json:"eventKey"`
 }
 
 type WorkflowTriggerScheduledRef struct {
