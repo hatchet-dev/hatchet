@@ -6,7 +6,12 @@ from typing import List, cast
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
 
+from hatchet_sdk.clients.rest.api.event_api import EventApi
+from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
@@ -33,6 +38,7 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
 class PushEventOptions(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     namespace: str | None = None
+    priority: int | None = None
 
 
 class BulkPushEventOptions(BaseModel):
@@ -43,15 +49,24 @@ class BulkPushEventWithMetadata(BaseModel):
     key: str
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
+    priority: int | None = None
 
 
-class EventClient:
+class EventClient(BaseRestClient):
     def __init__(self, config: ClientConfig):
+        super().__init__(config)
+
         conn = new_conn(config, False)
-        self.client = EventsServiceStub(conn)
+        self.events_service_client = EventsServiceStub(conn)
 
         self.token = config.token
         self.namespace = config.namespace
+
+    def _wra(self, client: ApiClient) -> WorkflowRunsApi:
+        return WorkflowRunsApi(client)
+
+    def _ea(self, client: ApiClient) -> EventApi:
+        return EventApi(client)
 
     async def aio_push(
         self,
@@ -96,9 +111,13 @@ class EventClient:
             payload=payload_str,
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_bytes,
+            priority=options.priority,
         )
 
-        return cast(Event, self.client.Push(request, metadata=get_metadata(self.token)))
+        return cast(
+            Event,
+            self.events_service_client.Push(request, metadata=get_metadata(self.token)),
+        )
 
     def _create_push_event_request(
         self,
@@ -125,6 +144,7 @@ class EventClient:
             payload=serialized_payload,
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_str,
+            priority=event.priority,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
@@ -145,7 +165,9 @@ class EventClient:
         return list(
             cast(
                 Events,
-                self.client.BulkPush(bulk_request, metadata=get_metadata(self.token)),
+                self.events_service_client.BulkPush(
+                    bulk_request, metadata=get_metadata(self.token)
+                ),
             ).events
         )
 
@@ -157,7 +179,7 @@ class EventClient:
             message=message,
         )
 
-        self.client.PutLog(request, metadata=get_metadata(self.token))
+        self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
 
     @tenacity_retry
     def stream(self, data: str | bytes, step_run_id: str) -> None:
@@ -174,4 +196,28 @@ class EventClient:
             message=data_bytes,
         )
 
-        self.client.PutStreamEvent(request, metadata=get_metadata(self.token))
+        self.events_service_client.PutStreamEvent(
+            request, metadata=get_metadata(self.token)
+        )
+
+    async def aio_list(
+        self,
+        offset: int | None = None,
+        limit: int | None = None,
+        keys: list[str] | None = None,
+    ) -> V1EventList:
+        return await asyncio.to_thread(self.list, offset=offset, limit=limit, keys=keys)
+
+    def list(
+        self,
+        offset: int | None = None,
+        limit: int | None = None,
+        keys: list[str] | None = None,
+    ) -> V1EventList:
+        with self.client() as client:
+            return self._ea(client).v1_event_list(
+                tenant=self.client_config.tenant_id,
+                offset=offset,
+                limit=limit,
+                keys=keys,
+            )

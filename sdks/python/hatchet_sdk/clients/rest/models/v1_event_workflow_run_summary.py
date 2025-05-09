@@ -19,30 +19,26 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from typing_extensions import Self
 
 
-class CreateEventRequest(BaseModel):
+class V1EventWorkflowRunSummary(BaseModel):
     """
-    CreateEventRequest
+    V1EventWorkflowRunSummary
     """  # noqa: E501
 
-    key: StrictStr = Field(description="The key for the event.")
-    data: Dict[str, Any] = Field(description="The data for the event.")
-    additional_metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Additional metadata for the event.",
-        alias="additionalMetadata",
-    )
-    priority: Optional[StrictInt] = Field(
-        default=None, description="The priority of the event."
-    )
+    running: StrictInt = Field(description="The number of running runs.")
+    queued: StrictInt = Field(description="The number of queued runs.")
+    succeeded: StrictInt = Field(description="The number of succeeded runs.")
+    failed: StrictInt = Field(description="The number of failed runs.")
+    cancelled: StrictInt = Field(description="The number of cancelled runs.")
     __properties: ClassVar[List[str]] = [
-        "key",
-        "data",
-        "additionalMetadata",
-        "priority",
+        "running",
+        "queued",
+        "succeeded",
+        "failed",
+        "cancelled",
     ]
 
     model_config = ConfigDict(
@@ -62,7 +58,7 @@ class CreateEventRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of CreateEventRequest from a JSON string"""
+        """Create an instance of V1EventWorkflowRunSummary from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -86,7 +82,7 @@ class CreateEventRequest(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of CreateEventRequest from a dict"""
+        """Create an instance of V1EventWorkflowRunSummary from a dict"""
         if obj is None:
             return None
 
@@ -95,10 +91,11 @@ class CreateEventRequest(BaseModel):
 
         _obj = cls.model_validate(
             {
-                "key": obj.get("key"),
-                "data": obj.get("data"),
-                "additionalMetadata": obj.get("additionalMetadata"),
-                "priority": obj.get("priority"),
+                "running": obj.get("running"),
+                "queued": obj.get("queued"),
+                "succeeded": obj.get("succeeded"),
+                "failed": obj.get("failed"),
+                "cancelled": obj.get("cancelled"),
             }
         )
         return _obj

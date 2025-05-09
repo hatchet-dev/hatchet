@@ -9,7 +9,7 @@
 
 Bases: `BaseWorkflow[TWorkflowInput]`
 
-A Hatchet workflow allows you to define tasks to be run and perform actions on the workflow.
+A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow.
 
 Workflows in Hatchet represent coordinated units of work that can be triggered, scheduled, or run on a cron schedule. Each workflow can contain multiple tasks that can be arranged in dependencies (DAGs), have customized retry behavior, timeouts, concurrency controls, and more.
 
@@ -40,7 +40,7 @@ Workflows support various execution patterns including:
 - Cron-based recurring execution with `create_cron()`
 - Bulk operations with `run_many()`
 
-Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators and arranged into complex dependency patterns.
+Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators and can be arranged into complex dependency patterns.
 
 ### Methods
 
@@ -406,6 +406,7 @@ Parameters:
 | `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
 | `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
 | `only_tasks`              | `bool`                       | Whether to list only task runs.             | `False` |
+| `triggering_event_id`     | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -430,6 +431,7 @@ Parameters:
 | `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
 | `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
 | `only_tasks`              | `bool`                       | Whether to list only task runs.             | `False` |
+| `triggering_event_id`     | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -694,6 +696,7 @@ Parameters:
 | `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
 | `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
 | `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
+| `triggering_event_id`     | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -717,6 +720,7 @@ Parameters:
 | `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
 | `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
 | `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
+| `triggering_event_id`     | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 

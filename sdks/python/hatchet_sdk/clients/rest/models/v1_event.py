@@ -19,30 +19,45 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
+from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.clients.rest.models.tenant import Tenant
+from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
+    V1EventWorkflowRunSummary,
+)
 
-class CreateEventRequest(BaseModel):
+
+class V1Event(BaseModel):
     """
-    CreateEventRequest
+    V1Event
     """  # noqa: E501
 
+    metadata: APIResourceMeta
     key: StrictStr = Field(description="The key for the event.")
-    data: Dict[str, Any] = Field(description="The data for the event.")
+    tenant: Optional[Tenant] = Field(
+        default=None, description="The tenant associated with this event."
+    )
+    tenant_id: StrictStr = Field(
+        description="The ID of the tenant associated with this event.", alias="tenantId"
+    )
+    workflow_run_summary: V1EventWorkflowRunSummary = Field(
+        description="The workflow run summary for this event.",
+        alias="workflowRunSummary",
+    )
     additional_metadata: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Additional metadata for the event.",
         alias="additionalMetadata",
     )
-    priority: Optional[StrictInt] = Field(
-        default=None, description="The priority of the event."
-    )
     __properties: ClassVar[List[str]] = [
+        "metadata",
         "key",
-        "data",
+        "tenant",
+        "tenantId",
+        "workflowRunSummary",
         "additionalMetadata",
-        "priority",
     ]
 
     model_config = ConfigDict(
@@ -62,7 +77,7 @@ class CreateEventRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of CreateEventRequest from a JSON string"""
+        """Create an instance of V1Event from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -82,11 +97,20 @@ class CreateEventRequest(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of metadata
+        if self.metadata:
+            _dict["metadata"] = self.metadata.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of tenant
+        if self.tenant:
+            _dict["tenant"] = self.tenant.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of workflow_run_summary
+        if self.workflow_run_summary:
+            _dict["workflowRunSummary"] = self.workflow_run_summary.to_dict()
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of CreateEventRequest from a dict"""
+        """Create an instance of V1Event from a dict"""
         if obj is None:
             return None
 
@@ -95,10 +119,24 @@ class CreateEventRequest(BaseModel):
 
         _obj = cls.model_validate(
             {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
                 "key": obj.get("key"),
-                "data": obj.get("data"),
+                "tenant": (
+                    Tenant.from_dict(obj["tenant"])
+                    if obj.get("tenant") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "workflowRunSummary": (
+                    V1EventWorkflowRunSummary.from_dict(obj["workflowRunSummary"])
+                    if obj.get("workflowRunSummary") is not None
+                    else None
+                ),
                 "additionalMetadata": obj.get("additionalMetadata"),
-                "priority": obj.get("priority"),
             }
         )
         return _obj
