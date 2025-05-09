@@ -34,6 +34,17 @@ export const child2 = child.task({
   },
 });
 
+export const child3 = child.task({
+  name: 'child3',
+  parents: [child1, child2],
+  fn: (input: ChildInput, ctx) => {
+    ctx.log('hello from the child3');
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+
 export const parent = hatchet.task({
   name: 'parent',
   fn: async (input: ParentInput, ctx) => {

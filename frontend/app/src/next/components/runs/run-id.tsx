@@ -16,6 +16,7 @@ interface RunIdProps {
   id?: string;
   onClick?: () => void;
   className?: string;
+  isInsideLink?: boolean;
 }
 
 export function RunId({
@@ -25,10 +26,10 @@ export function RunId({
   id,
   onClick,
   className,
+  isInsideLink = false,
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
-
 
   const url = !isTaskRun
     ? ROUTES.runs.detail(wfRun?.metadata.id || id || '')
@@ -63,9 +64,12 @@ export function RunId({
         <TooltipTrigger asChild>
           <span>
             {url && !onClick ? (
-              <Link to={url} className={cn("hover:underline text-foreground", className)}>
+              <span 
+                className={cn("hover:underline text-foreground cursor-pointer", className)}
+                onClick={() => navigate(url)}
+              >
                 {name}
-              </Link>
+              </span>
             ) : (
               <span
                 className={cn(onClick ? 'cursor-pointer' : '', className)}

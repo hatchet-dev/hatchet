@@ -32,7 +32,7 @@ function RunDetailSheetContent({
 }: RunDetailSheetProps) {
   return (
     <>
-      <div className="flex flex-col gap-y-4 px-6 pt-12">
+      <div className="flex flex-col gap-y-4">
         <TaskRunOverview selectedTaskId={selectedTaskId} detailsLink={detailsLink} />
         <Tabs
           defaultValue="payload"

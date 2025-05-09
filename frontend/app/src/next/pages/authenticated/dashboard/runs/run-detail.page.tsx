@@ -14,7 +14,6 @@ import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { MdOutlineReplay } from 'react-icons/md';
 import { MdOutlineCancel } from 'react-icons/md';
-import WorkflowRunVisualizer from '@/next/components/runs/run-dag/dag-run-visualizer';
 import { SplitButton } from '@/next/components/ui/split-button';
 import {
   HeadlineActionItem,
@@ -42,7 +41,6 @@ import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
 import WorkflowGeneralSettings from '../workflows/settings';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
-import { PulseIndicator } from '@/next/components/ui/pulse-indicator';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId, } = useParams<{
@@ -134,7 +132,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
     breadcrumbs.push({
       title: getFriendlyWorkflowRunId(workflow) || '',
-      label: <RunId wfRun={workflow} />,
+      label: <RunId wfRun={workflow} isInsideLink={true} />,
       url:
         selectedTask?.metadata.id === workflow?.metadata.id
           ? ROUTES.runs.detail(workflow.metadata.id)
@@ -312,9 +310,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
           />
         </span>
       </span>,
-      <span key="lastRefetch">
-        <PulseIndicator value={lastRefetchTime} label="Live" />
-      </span>
     ];
     return (
       <span className="flex flex-col items-start gap-y-2 text-sm text-muted-foreground">
@@ -322,8 +317,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       </span>
     );
   };
-
-  const taskCount = tasks?.length || 0;
 
   return (
     <BasicLayout>
@@ -415,42 +408,11 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       </Headline>
 
       <Separator className="my-4" />
-
-      <Tabs
-        defaultValue={taskCount > 1 ? 'minimap' : 'waterfall'}
-        state="query"
-        stateKey="visualizer-tab"
-        className="w-full"
-      >
-        <TabsList layout="underlined" className="w-full">
-          {taskCount > 1 && (
-            <TabsTrigger variant="underlined" value="minimap">
-              DAG Minimap
-            </TabsTrigger>
-          )}
-          <TabsTrigger variant="underlined" value="waterfall">
-            Waterfall
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="minimap" className="mt-4">
-          {workflowRunId && (
-            <div className="w-full overflow-x-auto bg-slate-100 dark:bg-slate-900">
-              <WorkflowRunVisualizer
-                workflowRunId={workflowRunId}
-                onTaskSelect={handleTaskSelect}
-              />
-            </div>
-          )}
-        </TabsContent>
-        <TabsContent value="waterfall" className="mt-4">
-          <Waterfall
-            workflowRunId={workflowRunId!}
-            selectedTaskId={selectedTaskId}
-            handleTaskSelect={handleTaskSelect}
-          />
-        </TabsContent>
-      </Tabs>
-
+      <Waterfall
+        workflowRunId={workflowRunId!}
+        selectedTaskId={selectedTaskId}
+        handleTaskSelect={handleTaskSelect}
+      />
       <div className="grid grid-cols-1 gap-4 mt-8">
         <Tabs defaultValue="activity" className="w-full">
           <TabsList layout="underlined" className="w-full">
