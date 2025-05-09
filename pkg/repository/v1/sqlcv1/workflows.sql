@@ -199,12 +199,10 @@ INSERT INTO "WorkflowTriggers" (
 -- name: CreateWorkflowTriggerEventRef :one
 INSERT INTO "WorkflowTriggerEventRef" (
     "parentId",
-    "eventKey",
-    "expression"
+    "eventKey"
 ) VALUES (
     @workflowTriggersId::uuid,
-    @eventTrigger::text,
-    sqlc.narg('expression')::text
+    @eventTrigger::text
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerCronRef :one
