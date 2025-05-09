@@ -102,7 +102,7 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 
     persisted = await hatchet.event.aio_list(limit=100)
 
-    # assert {e.eventId for e in result}.issubset({e.metadata.id for e in persisted.rows})
+    assert {e.eventId for e in result}.issubset({e.metadata.id for e in persisted.rows})
 
     for event in persisted.rows or []:
         meta = event.additional_metadata or {}
@@ -113,11 +113,7 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 
         runs = (await hatchet.runs.aio_list(triggering_event_id=event.metadata.id)).rows
 
-        print(event, runs, "\n")
-
         if should_have_runs:
             assert len(runs) > 0
         else:
             assert len(runs) == 0
-
-    assert False
