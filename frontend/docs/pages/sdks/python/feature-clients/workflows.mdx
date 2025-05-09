@@ -13,9 +13,13 @@ Methods:
 | `aio_get`         | Get a workflow by its ID.                                                                     |
 | `aio_get_version` | Get a workflow version by the workflow ID and an optional version.                            |
 | `aio_list`        | List all workflows in the tenant determined by the client config that match optional filters. |
+| `aio_pause`       | Pause a workflow by its ID.                                                                   |
+| `aio_unpause`     | Unpause a workflow by its ID.                                                                 |
 | `get`             | Get a workflow by its ID.                                                                     |
 | `get_version`     | Get a workflow version by the workflow ID and an optional version.                            |
 | `list`            | List all workflows in the tenant determined by the client config that match optional filters. |
+| `pause`           | Pause a workflow by its ID.                                                                   |
+| `unpause`         | Unpause a workflow by its ID.                                                                 |
 
 ### Functions
 
@@ -70,6 +74,38 @@ Returns:
 | -------------- | -------------------- |
 | `WorkflowList` | A list of workflows. |
 
+#### `aio_pause`
+
+Pause a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                      | Default    |
+| ------------- | ----- | -------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to pause. | _required_ |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The workflow version. |
+
+#### `aio_unpause`
+
+Unpause a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                        | Default    |
+| ------------- | ----- | ---------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to unpause. | _required_ |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The workflow version. |
+
 #### `get`
 
 Get a workflow by its ID.
@@ -120,3 +156,35 @@ Returns:
 | Type           | Description          |
 | -------------- | -------------------- |
 | `WorkflowList` | A list of workflows. |
+
+#### `pause`
+
+Pause a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                      | Default    |
+| ------------- | ----- | -------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to pause. | _required_ |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The workflow version. |
+
+#### `unpause`
+
+Unpause a workflow by its ID.
+
+Parameters:
+
+| Name          | Type  | Description                        | Default    |
+| ------------- | ----- | ---------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to unpause. | _required_ |
+
+Returns:
+
+| Type       | Description           |
+| ---------- | --------------------- |
+| `Workflow` | The workflow version. |
