@@ -86,6 +86,7 @@ import {
   UserTenantMembershipsList,
   V1CancelTaskRequest,
   V1DagChildren,
+  V1EventList,
   V1LogLineList,
   V1ReplayTaskRequest,
   V1TaskEventList,
@@ -313,6 +314,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       parent_task_external_id?: string;
+      /**
+       * The external id of the event that triggered the workflow run
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_id?: string;
     },
     params: RequestParams = {}
   ) =>
@@ -481,6 +489,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       parent_task_external_id?: string;
+      /**
+       * The id of the event that triggered the task
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_id?: string;
     },
     params: RequestParams = {}
   ) =>
@@ -521,6 +536,58 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1TaskPointMetrics, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/task-point-metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all events for a tenant.
+   *
+   * @tags Event
+   * @name V1EventList
+   * @summary List events
+   * @request GET:/api/v1/stable/tenants/{tenant}/events
+   * @secure
+   */
+  v1EventList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of keys to filter by */
+      keys?: EventKey[];
+      /** A list of workflow IDs to filter by */
+      workflows?: WorkflowID[];
+      /** A list of workflow run statuses to filter by */
+      statuses?: WorkflowRunStatusList;
+      /** The search query to filter for */
+      search?: EventSearch;
+      /** What to order by */
+      orderByField?: EventOrderByField;
+      /** The order direction */
+      orderByDirection?: EventOrderByDirection;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
+      /** A list of event ids to filter by */
+      eventIds?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1EventList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events`,
       method: 'GET',
       query: query,
       secure: true,

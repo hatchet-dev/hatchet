@@ -13,7 +13,6 @@ hatchet = Hatchet()
 event_workflow = hatchet.workflow(
     name="EventWorkflow",
     on_events=["user:create"],
-    event_filter_expression="input.should_skip == true",
     input_validator=EventWorkflowInput,
 )
 # !!

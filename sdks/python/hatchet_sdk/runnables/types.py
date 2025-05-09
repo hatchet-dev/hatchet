@@ -80,7 +80,6 @@ class WorkflowConfig(BaseModel):
     concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: Type[BaseModel] = EmptyModel
     default_priority: int | None = None
-    event_filter_expression: str | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
 

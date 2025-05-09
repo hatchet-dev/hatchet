@@ -683,6 +683,49 @@ export interface EventList {
   rows?: Event[];
 }
 
+export interface V1EventList {
+  pagination?: PaginationResponse;
+  rows?: {
+    metadata: APIResourceMeta;
+    /** The key for the event. */
+    key: string;
+    /** The tenant associated with this event. */
+    tenant?: Tenant;
+    /** The ID of the tenant associated with this event. */
+    tenantId: string;
+    /** The workflow run summary for this event. */
+    workflowRunSummary: {
+      /**
+       * The number of running runs.
+       * @format int64
+       */
+      running: number;
+      /**
+       * The number of queued runs.
+       * @format int64
+       */
+      queued: number;
+      /**
+       * The number of succeeded runs.
+       * @format int64
+       */
+      succeeded: number;
+      /**
+       * The number of failed runs.
+       * @format int64
+       */
+      failed: number;
+      /**
+       * The number of cancelled runs.
+       * @format int64
+       */
+      cancelled: number;
+    };
+    /** Additional metadata for the event. */
+    additionalMetadata?: object;
+  }[];
+}
+
 export interface RateLimit {
   /** The key for the rate limit. */
   key: string;

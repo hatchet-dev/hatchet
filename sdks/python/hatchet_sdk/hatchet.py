@@ -205,7 +205,6 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-        event_filter_expression: str | None = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -222,7 +221,6 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-        event_filter_expression: str | None = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -238,7 +236,6 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
-        event_filter_expression: str | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -263,8 +260,6 @@ class Hatchet:
 
         :param task_defaults: A `TaskDefaults` object controlling the default task settings for this workflow.
 
-        :param event_filter_expression: An optional expression to filter events for the workflow. If this expression evaluates to `True` when an event is pushed, this workflow will _not_ be triggered (it will be filtered out).
-
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
@@ -281,7 +276,6 @@ class Hatchet:
                 or cast(Type[TWorkflowInput], EmptyModel),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
-                event_filter_expression=event_filter_expression,
             ),
             self,
         )
@@ -306,7 +300,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        event_filter_expression: str | None = None,
     ) -> Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]: ...
 
     @overload
@@ -329,7 +322,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        event_filter_expression: str | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
     ]: ...
@@ -353,7 +345,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        event_filter_expression: str | None = None,
     ) -> (
         Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]
         | Callable[
@@ -395,8 +386,6 @@ class Hatchet:
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
-        :param event_filter_expression: An optional expression to filter events for the workflow. If this expression evaluates to `True` when an event is pushed, this workflow will _not_ be triggered (it will be filtered out).
-
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -412,7 +401,6 @@ class Hatchet:
                 default_priority=default_priority,
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
-                event_filter_expression=event_filter_expression,
             ),
             self,
         )
@@ -469,7 +457,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        event_filter_expression: str | None = None,
     ) -> Callable[
         [Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]
     ]: ...
@@ -494,7 +481,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        event_filter_expression: str | None = None,
     ) -> Callable[
         [Callable[[TWorkflowInput, DurableContext], R]], Standalone[TWorkflowInput, R]
     ]: ...
@@ -518,7 +504,6 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        event_filter_expression: str | None = None,
     ) -> (
         Callable[[Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]]
         | Callable[
@@ -561,8 +546,6 @@ class Hatchet:
 
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
-        :param event_filter_expression: An optional expression to filter events for the workflow. If this expression evaluates to `True` when an event is pushed, this workflow will _not_ be triggered (it will be filtered out).
-
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -578,7 +561,6 @@ class Hatchet:
                 input_validator=input_validator
                 or cast(Type[TWorkflowInput], EmptyModel),
                 default_priority=default_priority,
-                event_filter_expression=event_filter_expression,
             ),
             self,
         )
