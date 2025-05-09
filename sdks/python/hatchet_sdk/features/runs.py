@@ -156,6 +156,7 @@ class RunsClient(BaseRestClient):
         :param workflow_ids: The workflow IDs to filter task runs by.
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_id: The event id that triggered the task run.
 
         :return: A list of task runs matching the specified filters.
         """
@@ -201,6 +202,7 @@ class RunsClient(BaseRestClient):
         :param workflow_ids: The workflow IDs to filter task runs by.
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_id: The event id that triggered the task run.
 
         :return: A list of task runs matching the specified filters.
         """
