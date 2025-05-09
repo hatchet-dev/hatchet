@@ -95,7 +95,13 @@ export class EventClient {
     }
   }
 
-  putLog(stepRunId: string, log: string, level?: LogLevel) {
+  async putLog(
+    stepRunId: string,
+    log: string,
+    level?: LogLevel,
+    taskRetryCount?: number,
+    metadata?: Record<string, any>
+  ) {
     const createdAt = new Date();
 
     if (log.length > 1_000) {
@@ -104,12 +110,14 @@ export class EventClient {
     }
 
     //  fire and forget the log
-    this.client
+    await this.client
       .putLog({
         stepRunId,
         createdAt,
         message: log,
         level: level || LogLevel.INFO,
+        taskRetryCount,
+        metadata: metadata ? JSON.stringify(metadata) : undefined,
       })
       .catch((e: any) => {
         // log a warning, but this is not a fatal error
@@ -117,7 +125,7 @@ export class EventClient {
       });
   }
 
-  putStream(stepRunId: string, data: string | Uint8Array) {
+  async putStream(stepRunId: string, data: string | Uint8Array) {
     const createdAt = new Date();
 
     let dataBytes: Uint8Array;

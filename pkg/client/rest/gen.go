@@ -185,6 +185,14 @@ const (
 	V1 TenantVersion = "V1"
 )
 
+// Defines values for V1LogLineLevel.
+const (
+	DEBUG V1LogLineLevel = "DEBUG"
+	ERROR V1LogLineLevel = "ERROR"
+	INFO  V1LogLineLevel = "INFO"
+	WARN  V1LogLineLevel = "WARN"
+)
+
 // Defines values for V1TaskEventType.
 const (
 	V1TaskEventTypeACKNOWLEDGED       V1TaskEventType = "ACKNOWLEDGED"
@@ -1189,14 +1197,21 @@ type V1DagChildren struct {
 // V1LogLine defines model for V1LogLine.
 type V1LogLine struct {
 	// CreatedAt The creation date of the log line.
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt time.Time       `json:"createdAt"`
+	Level     *V1LogLineLevel `json:"level,omitempty"`
 
 	// Message The log message.
 	Message string `json:"message"`
 
 	// Metadata The log metadata.
 	Metadata map[string]interface{} `json:"metadata"`
+
+	// RetryCount The retry count of the log line.
+	RetryCount *int `json:"retryCount,omitempty"`
 }
+
+// V1LogLineLevel defines model for V1LogLineLevel.
+type V1LogLineLevel string
 
 // V1LogLineList defines model for V1LogLineList.
 type V1LogLineList struct {
@@ -1218,6 +1233,7 @@ type V1TaskEvent struct {
 	Id              int                 `json:"id"`
 	Message         string              `json:"message"`
 	Output          *string             `json:"output,omitempty"`
+	RetryCount      *int                `json:"retryCount,omitempty"`
 	TaskDisplayName *string             `json:"taskDisplayName,omitempty"`
 	TaskId          openapi_types.UUID  `json:"taskId"`
 	Timestamp       time.Time           `json:"timestamp"`

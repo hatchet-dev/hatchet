@@ -8,9 +8,25 @@ import (
 )
 
 func ToV1LogLine(log *sqlcv1.V1LogLine) *gen.V1LogLine {
+
+	retryCount := int(log.RetryCount)
+
+	metadata := map[string]interface{}{}
+	if log.Metadata != nil {
+		err := json.Unmarshal(log.Metadata, &metadata)
+		if err != nil {
+			metadata = map[string]interface{}{}
+		}
+	}
+
+	level := gen.V1LogLineLevel(log.Level)
+
 	res := &gen.V1LogLine{
-		CreatedAt: log.CreatedAt.Time,
-		Message:   log.Message,
+		CreatedAt:  log.CreatedAt.Time,
+		Message:    log.Message,
+		RetryCount: &retryCount,
+		Metadata:   metadata,
+		Level:      &level,
 	}
 
 	if log.Metadata != nil {

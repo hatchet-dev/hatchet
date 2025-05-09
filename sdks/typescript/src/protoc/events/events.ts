@@ -41,6 +41,8 @@ export interface PutLogRequest {
   level?: string | undefined;
   /** associated log line metadata */
   metadata: string;
+  /** the retry count of the task run */
+  taskRetryCount?: number | undefined;
 }
 
 export interface PutLogResponse {}
@@ -292,7 +294,14 @@ export const Events: MessageFns<Events> = {
 };
 
 function createBasePutLogRequest(): PutLogRequest {
-  return { stepRunId: '', createdAt: undefined, message: '', level: undefined, metadata: '' };
+  return {
+    stepRunId: '',
+    createdAt: undefined,
+    message: '',
+    level: undefined,
+    metadata: '',
+    taskRetryCount: undefined,
+  };
 }
 
 export const PutLogRequest: MessageFns<PutLogRequest> = {
@@ -311,6 +320,9 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
     }
     if (message.metadata !== '') {
       writer.uint32(42).string(message.metadata);
+    }
+    if (message.taskRetryCount !== undefined) {
+      writer.uint32(48).int32(message.taskRetryCount);
     }
     return writer;
   },
@@ -362,6 +374,14 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
           message.metadata = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.taskRetryCount = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -378,6 +398,9 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
       message: isSet(object.message) ? globalThis.String(object.message) : '',
       level: isSet(object.level) ? globalThis.String(object.level) : undefined,
       metadata: isSet(object.metadata) ? globalThis.String(object.metadata) : '',
+      taskRetryCount: isSet(object.taskRetryCount)
+        ? globalThis.Number(object.taskRetryCount)
+        : undefined,
     };
   },
 
@@ -398,6 +421,9 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
     if (message.metadata !== '') {
       obj.metadata = message.metadata;
     }
+    if (message.taskRetryCount !== undefined) {
+      obj.taskRetryCount = Math.round(message.taskRetryCount);
+    }
     return obj;
   },
 
@@ -411,6 +437,7 @@ export const PutLogRequest: MessageFns<PutLogRequest> = {
     message.message = object.message ?? '';
     message.level = object.level ?? undefined;
     message.metadata = object.metadata ?? '';
+    message.taskRetryCount = object.taskRetryCount ?? undefined;
     return message;
   },
 };

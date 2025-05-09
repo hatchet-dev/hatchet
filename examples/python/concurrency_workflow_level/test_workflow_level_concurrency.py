@@ -51,7 +51,7 @@ class RunMetadata(BaseModel):
         return self.key
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio(loop_scope="session")
 async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
 

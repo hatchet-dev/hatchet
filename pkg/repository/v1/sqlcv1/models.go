@@ -2488,6 +2488,7 @@ type V1LogLine struct {
 	Message        string             `json:"message"`
 	Level          V1LogLineLevel     `json:"level"`
 	Metadata       []byte             `json:"metadata"`
+	RetryCount     int32              `json:"retry_count"`
 }
 
 type V1LookupTable struct {

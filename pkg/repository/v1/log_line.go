@@ -40,6 +40,9 @@ type CreateLogLineOpts struct {
 
 	// (optional) The metadata of the log line.
 	Metadata []byte
+
+	// The retry count of the log line.
+	RetryCount int
 }
 
 type LogLineRepository interface {
@@ -83,6 +86,14 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opt
 		return err
 	}
 
+	var level sqlcv1.V1LogLineLevel
+
+	if opts.Level == nil {
+		level = sqlcv1.V1LogLineLevel("INFO")
+	} else {
+		level = sqlcv1.V1LogLineLevel(*opts.Level)
+	}
+
 	_, err := r.queries.InsertLogLine(
 		ctx,
 		r.pool,
@@ -92,6 +103,9 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId string, opt
 				TaskID:         opts.TaskId,
 				TaskInsertedAt: opts.TaskInsertedAt,
 				Message:        opts.Message,
+				RetryCount:     int32(opts.RetryCount),
+				Level:          level,
+				Metadata:       opts.Metadata,
 			},
 		},
 	)

@@ -1,7 +1,8 @@
 import asyncio
 from datetime import datetime, timedelta
 from random import choice
-from typing import AsyncGenerator, Literal
+from subprocess import Popen
+from typing import Any, AsyncGenerator, Literal
 from uuid import uuid4
 
 import pytest
@@ -60,8 +61,20 @@ async def dummy_runs() -> None:
     return None
 
 
-@pytest.mark.asyncio()
-async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
+@pytest.mark.parametrize(
+    "on_demand_worker",
+    [
+        (
+            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
+            8003,
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.asyncio(loop_scope="session")
+async def test_priority(
+    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any]
+) -> None:
     test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high", "default"]
     N = 30
@@ -134,8 +147,20 @@ async def test_priority(hatchet: Hatchet, dummy_runs: None) -> None:
         assert curr.finished_at >= curr.started_at
 
 
-@pytest.mark.asyncio()
-async def test_priority_via_scheduling(hatchet: Hatchet, dummy_runs: None) -> None:
+@pytest.mark.parametrize(
+    "on_demand_worker",
+    [
+        (
+            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
+            8003,
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.asyncio(loop_scope="session")
+async def test_priority_via_scheduling(
+    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any]
+) -> None:
     test_run_id = str(uuid4())
     sleep_time = 3
     n = 30
@@ -258,8 +283,20 @@ def time_until_next_minute() -> float:
     return (next_minute - now).total_seconds()
 
 
-@pytest.mark.asyncio()
-async def test_priority_via_cron(hatchet: Hatchet, crons: tuple[str, str, int]) -> None:
+@pytest.mark.parametrize(
+    "on_demand_worker",
+    [
+        (
+            ["poetry", "run", "python", "examples/priority/worker.py", "--slots", "1"],
+            8003,
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.asyncio(loop_scope="session")
+async def test_priority_via_cron(
+    hatchet: Hatchet, crons: tuple[str, str, int], on_demand_worker: Popen[Any]
+) -> None:
     workflow_id, test_run_id, n = crons
 
     await asyncio.sleep(time_until_next_minute() + 10)

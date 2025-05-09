@@ -202,6 +202,8 @@ V1TaskEvent:
       format: uuid
     taskDisplayName:
       type: string
+    retryCount:
+      type: integer
   required:
     - id
     - taskId

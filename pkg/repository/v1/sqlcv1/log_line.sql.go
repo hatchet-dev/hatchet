@@ -17,11 +17,13 @@ type InsertLogLineParams struct {
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	Message        string             `json:"message"`
 	Metadata       []byte             `json:"metadata"`
+	RetryCount     int32              `json:"retry_count"`
+	Level          V1LogLineLevel     `json:"level"`
 }
 
 const listLogLines = `-- name: ListLogLines :many
 SELECT
-    id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata
+    id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata, retry_count
 FROM
     v1_log_line l
 WHERE
@@ -69,6 +71,7 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 			&i.Message,
 			&i.Level,
 			&i.Metadata,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}
