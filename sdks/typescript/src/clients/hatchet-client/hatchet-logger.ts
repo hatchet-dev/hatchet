@@ -1,8 +1,10 @@
 /* eslint-disable no-console */
-import { Logger, LogLevel, LogLevelEnum } from '@util/logger';
+import { LogExtra, Logger, LogLevel, LogLevelEnum } from '@util/logger';
 
 export const DEFAULT_LOGGER = (context: string, logLevel?: LogLevel) =>
   new HatchetLogger(context, logLevel);
+
+type UtilKeys = 'trace';
 
 export class HatchetLogger implements Logger {
   private logLevel: LogLevel;
@@ -50,23 +52,29 @@ export class HatchetLogger implements Logger {
     }
   }
 
-  debug(message: string): void {
-    this.log('DEBUG', message, '35');
+  async debug(message: string): Promise<void> {
+    await this.log('DEBUG', message, '35');
   }
 
-  info(message: string): void {
-    this.log('INFO', message);
+  async info(message: string): Promise<void> {
+    await this.log('INFO', message);
   }
 
-  green(message: string): void {
-    this.log('INFO', message, '32');
+  async green(message: string): Promise<void> {
+    await this.log('INFO', message, '32');
   }
 
-  warn(message: string, error?: Error): void {
-    this.log('WARN', `${message} ${error}`, '93');
+  async warn(message: string, error?: Error): Promise<void> {
+    await this.log('WARN', `${message} ${error}`, '93');
   }
 
-  error(message: string, error?: Error): void {
-    this.log('ERROR', `${message} ${error}`, '91');
+  async error(message: string, error?: Error): Promise<void> {
+    await this.log('ERROR', `${message} ${error}`, '91');
+  }
+
+  util(key: UtilKeys, message: string, extra?: LogExtra): void | Promise<void> {
+    if (key === 'trace') {
+      this.log('INFO', `trace: ${message}`, '35');
+    }
   }
 }

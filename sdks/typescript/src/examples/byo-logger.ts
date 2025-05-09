@@ -1,8 +1,8 @@
 import { Logger, LogLevel } from '@hatchet/util/logger';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import pino from 'pino';
-import Hatchet from '../sdk';
-import { Workflow } from '../workflow';
+import Hatchet from '@hatchet/sdk';
+import { JsonObject } from '@hatchet/v1';
 
 // > Create Pino logger
 const logger = pino();
@@ -16,24 +16,32 @@ class PinoLogger implements Logger {
     this.context = context;
   }
 
-  debug(message: string, extra?: any): void {
-    logger.debug(message);
+  debug(message: string, extra?: JsonObject): void {
+    logger.debug(message, extra);
   }
 
-  info(message: string, extra?: any): void {
-    logger.info(message);
+  info(message: string, extra?: JsonObject): void {
+    logger.info(message, extra);
   }
 
-  green(message: string, extra?: any): void {
-    logger.info(`%c${message}`);
+  green(message: string, extra?: JsonObject): void {
+    logger.info(`%c${message}`, extra);
   }
 
-  warn(message: string, error?: Error, extra?: any): void {
-    logger.warn(`${message} ${error}`);
+  warn(message: string, error?: Error, extra?: JsonObject): void {
+    logger.warn(`${message} ${error}`, extra);
   }
 
-  error(message: string, error?: Error, extra?: any): void {
-    logger.error(`${message} ${error}`);
+  error(message: string, error?: Error, extra?: JsonObject): void {
+    logger.error(`${message} ${error}`, extra);
+  }
+
+  // optional util method
+  util(key: string, message: string, extra?: JsonObject): void {
+    // for example you may want to expose a trace method
+    if (key === 'trace') {
+      logger.info('trace', extra);
+    }
   }
 }
 
@@ -46,38 +54,24 @@ const hatchet = Hatchet.init({
 
 // > Use the logger
 
-const sleep = (ms: number) =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+const workflow = hatchet.task({
+  name: 'byo-logger-example',
+  fn: async (ctx) => {
+    // eslint-disable-next-line no-plusplus
+    for (let i = 0; i < 5; i++) {
+      logger.info(`log message ${i}`);
+    }
 
-const workflow: Workflow = {
-  id: 'byo-logger-example',
-  description: 'An example showing how to pass a custom logger to Hatchet',
-  on: {
-    event: 'byo-logger:spawn',
+    return { step1: 'completed step run' };
   },
-  steps: [
-    {
-      name: 'logger-step1',
-      run: async (ctx) => {
-        // eslint-disable-next-line no-plusplus
-        for (let i = 0; i < 5; i++) {
-          logger.info(`log message ${i}`);
-          await sleep(500);
-        }
-
-        return { step1: 'completed step run' };
-      },
-    },
-  ],
-};
+});
 
 // !!
 
 async function main() {
-  const worker = await hatchet.worker('byo-logger-worker', 1);
-  await worker.registerWorkflow(workflow);
+  const worker = await hatchet.worker('byo-logger-worker', {
+    workflows: [workflow],
+  });
   worker.start();
 }
 
