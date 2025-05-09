@@ -729,7 +729,11 @@ FROM
 JOIN
     max_retry_counts mrc ON task_outputs.id = mrc.id
         AND task_outputs.inserted_at = mrc.inserted_at
-        AND task_outputs.retry_count = mrc.max_retry_count;
+        AND task_outputs.retry_count = mrc.max_retry_count
+ORDER BY
+    task_outputs.id,
+    task_outputs.inserted_at,
+    task_outputs.retry_count DESC;
 
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
