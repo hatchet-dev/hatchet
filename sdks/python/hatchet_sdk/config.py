@@ -65,6 +65,7 @@ class ClientConfig(BaseSettings):
 
     worker_preset_labels: dict[str, str] = Field(default_factory=dict)
     enable_force_kill_sync_threads: bool = False
+    enable_thread_pool_monitoring: bool = False
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":

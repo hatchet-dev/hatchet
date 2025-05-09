@@ -105,6 +105,9 @@ class Runner:
 
         self.lifespan_context = lifespan_context
 
+        if self.config.enable_thread_pool_monitoring:
+            self.start_background_monitoring()
+
     def create_workflow_run_url(self, action: Action) -> str:
         return f"{self.config.server_url}/workflow-runs/{action.workflow_run_id}?tenant={action.tenant_id}"
 
@@ -270,6 +273,49 @@ class Runner:
         finally:
             self.cleanup_run_id(action.key)
 
+    async def log_thread_pool_status(self) -> None:
+        thread_pool_details = {
+            "max_workers": self.slots,
+            "total_threads": len(self.thread_pool._threads),
+            "idle_threads": self.thread_pool._idle_semaphore._value,
+            "active_threads": len(self.threads),
+            "pending_tasks": len(self.tasks),
+            "queue_size": self.thread_pool._work_queue.qsize(),
+            "threads_alive": sum(1 for t in self.thread_pool._threads if t.is_alive()),
+            "threads_daemon": sum(1 for t in self.thread_pool._threads if t.daemon),
+        }
+
+        logger.warning("Thread pool detailed status %s", thread_pool_details)
+
+    async def _start_monitoring(self) -> None:
+        logger.debug("Thread pool monitoring started")
+        try:
+            while True:
+                await self.log_thread_pool_status()
+
+                zombie_keys = []
+                for key in self.threads.keys():
+                    if key not in self.tasks:
+                        logger.debug(f"Potential zombie thread found for key {key}")
+                        zombie_keys.append(key)
+
+                for key, task in self.tasks.items():
+                    if task.done() and key in self.threads:
+                        logger.debug(
+                            f"Task is done but thread still exists for key {key}"
+                        )
+
+                await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            logger.warning("Thread pool monitoring task cancelled")
+        except Exception as e:
+            logger.exception(f"Error in thread pool monitoring: {e}")
+
+    def start_background_monitoring(self) -> None:
+        loop = asyncio.get_event_loop()
+        self.monitoring_task = loop.create_task(self._start_monitoring())
+        logger.debug("Started thread pool monitoring background task")
+
     def cleanup_run_id(self, key: ActionKey) -> None:
         if key in self.tasks:
             del self.tasks[key]
@@ -419,23 +465,18 @@ class Runner:
         try:
             # call cancel to signal the context to stop
             if key in self.contexts:
-                context = self.contexts.get(key)
-
-                if context:
-                    context._set_cancellation_flag()
+                self.contexts[key]._set_cancellation_flag()
 
             await asyncio.sleep(1)
 
             if key in self.tasks:
-                future = self.tasks.get(key)
-
-                if future:
-                    future.cancel()
+                self.tasks[key].cancel()
 
             # check if thread is still running, if so, print a warning
             if key in self.threads:
-                thread = self.threads.get(key)
-                if thread and self.config.enable_force_kill_sync_threads:
+                thread = self.threads[key]
+
+                if self.config.enable_force_kill_sync_threads:
                     self.force_kill_thread(thread)
                     await asyncio.sleep(1)
 
