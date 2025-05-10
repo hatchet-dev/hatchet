@@ -12,4 +12,4 @@ export function decodeSheetProps(encoded: string): unknown {
     console.error('Failed to decode sheet parameter:', e);
     return undefined;
   }
-} 
+}

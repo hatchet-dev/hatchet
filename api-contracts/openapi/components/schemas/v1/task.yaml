@@ -14,6 +14,9 @@ V1TaskSummary:
     retryCount:
       type: integer
       description: The number of retries of the task.
+    attempt:
+      type: integer
+      description: The attempt number of the task.
     additionalMetadata:
       type: object
       description: Additional metadata for the task run.
@@ -207,6 +210,10 @@ V1TaskEvent:
       type: string
     retryCount:
       type: integer
+      description: The number of retries of the task.
+    attempt:
+      type: integer
+      description: The attempt number of the task.
   required:
     - id
     - taskId
@@ -393,6 +400,12 @@ V1TaskTiming:
       type: string
       format: uuid
       description: The external ID of the workflow run.
+    retryCount:
+      type: integer
+      description: The number of retries of the task.
+    attempt:
+      type: integer
+      description: The attempt number of the task.
   required:
     - metadata
     - depth

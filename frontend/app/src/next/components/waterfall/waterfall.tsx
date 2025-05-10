@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
@@ -21,7 +21,6 @@ import { Button } from '../ui/button';
 import { RunId } from '../runs/run-id';
 import { BsArrowDownRightCircle, BsCircle, BsArrowUpLeftCircle } from "react-icons/bs";
 import { Skeleton } from '../ui/skeleton';
-import { FaLevelUpAlt, FaRegDotCircle } from 'react-icons/fa';
 interface ProcessedTaskData {
   id: string;
   workflowRunId?: string;
@@ -35,6 +34,7 @@ interface ProcessedTaskData {
   ranDuration: number;
   status: V1TaskStatus;
   taskId: number; // Added for tie-breaking
+  attempt: number;
 }
 
 interface ProcessedData {
@@ -126,7 +126,7 @@ const inferTaskState = (tasks: V1TaskTiming[]): {
   // Infer status based on child tasks
   let status: V1TaskStatus = V1TaskStatus.QUEUED;
   const statusCounts = new Map<V1TaskStatus, number>();
-  
+
   tasks.forEach(task => {
     const count = statusCounts.get(task.status) || 0;
     statusCounts.set(task.status, count + 1);
@@ -212,7 +212,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
         if (task.parentTaskExternalId) {
           // Check if parent exists in our dataset
           const parentExists = taskData.rows.some(t => t.metadata?.id === task.parentTaskExternalId);
-          
+
           if (parentExists) {
             if (!taskParentMap.has(task.parentTaskExternalId)) {
               taskParentMap.set(task.parentTaskExternalId, []);
@@ -275,7 +275,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     // Group tasks by workflowRunId at each level
     const groupTasksByWorkflowRun = (parentId: string | undefined, depth: number) => {
       const children = parentId ? taskParentMap.get(parentId) || [] : rootTasks;
-      
+
       // Group children by workflowRunId
       const groups = new Map<string, string[]>();
       children.forEach((childId: string) => {
@@ -292,7 +292,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
       groups.forEach((taskIds, workflowRunId) => {
         if (taskIds.length > 1) {
           const tasks = taskIds.map(id => taskMap.get(id)!);
-          
+
           // Infer state from child tasks
           const inferredState = inferTaskState(tasks);
 
@@ -359,9 +359,9 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     // Start grouping from root level
     groupTasksByWorkflowRun(undefined, 0);
 
-    return { 
-      taskMap, 
-      taskParentMap, 
+    return {
+      taskMap,
+      taskParentMap,
       taskDescendantsMap,
       taskHasChildrenMap,
       taskDepthMap,
@@ -427,12 +427,12 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
       return { data: [], taskPathMap: new Map() };
     }
 
-    const { 
-      taskMap, 
-      taskParentMap, 
-      taskHasChildrenMap = new Map<string, boolean>(), 
-      taskDepthMap = new Map<string, number>(), 
-      rootTasks = [] 
+    const {
+      taskMap,
+      taskParentMap,
+      taskHasChildrenMap = new Map<string, boolean>(),
+      taskDepthMap = new Map<string, number>(),
+      rootTasks = []
     } = taskRelationships;
 
     // Auto-expand first set of root tasks with children
@@ -441,7 +441,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
       const rootTasksWithChildren = rootTasks.filter((id) =>
         taskHasChildrenMap.get(id),
       );
-      
+
       if (rootTasksWithChildren.length > 0) {
         // Only expand the first time when data is available
         setTimeout(() => {
@@ -507,12 +507,12 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
           ? new Date(task.queuedAt).getTime()
           : new Date(task.startedAt).getTime();
         const startedAt = new Date(task.startedAt).getTime();
-        
+
         // For running tasks, always use current time as finishedAt
         const now = new Date().getTime();
-        const finishedAt = task.status === V1TaskStatus.RUNNING 
-          ? now 
-          : task.finishedAt 
+        const finishedAt = task.status === V1TaskStatus.RUNNING
+          ? now
+          : task.finishedAt
             ? new Date(task.finishedAt).getTime()
             : startedAt;
 
@@ -531,6 +531,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
           ranDuration: (finishedAt - startedAt) / 1000, // in seconds
           status: task.status,
           taskId: task.taskId, // Add taskId for tie-breaking in sorting
+          attempt: task.attempt || 1,
         };
       })
       .filter((task): task is NonNullable<typeof task> => task !== null)
@@ -632,6 +633,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
                 id={task.id}
                 onClick={() => handleBarClick(task)}
                 className={task.id === selectedTaskId ? "underline" : ""}
+                attempt={task.attempt}
               />
             </div>
               {workflowRunId === task.workflowRunId ? (

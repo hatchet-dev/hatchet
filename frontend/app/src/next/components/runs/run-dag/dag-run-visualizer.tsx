@@ -54,7 +54,7 @@ function WorkflowRunVisualizerContent({
   selectedTaskId,
 }: WorkflowRunVisualizerProps) {
   const { theme } = useTheme();
-  const { data, isLoading, error } = useRunDetail();
+  const { data } = useRunDetail();
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -172,7 +172,7 @@ function WorkflowRunVisualizerContent({
     dagreGraph.setDefaultEdgeLabel(() => ({}));
 
     const isHorizontal = direction === 'LR';
-    dagreGraph.setGraph({ 
+    dagreGraph.setGraph({
       rankdir: direction,
       nodesep: 50,
       ranksep: 50,
@@ -224,14 +224,14 @@ function WorkflowRunVisualizerContent({
   const lastCenteredTaskId = useRef<string | undefined>(undefined);
 
   const recenter = useCallback(() => {
-    
+
     setTimeout(() => {
-      
+
       if (!reactFlowInstance.current) {
         return;
       }
     const node = layoutedNodes?.find((n: Node) => n.data.taskRun?.taskExternalId === selectedTaskId);
-    
+
     if (node) {
         const centerX = node.position.x + (nodeWidth / 2) - 20;
         const centerY = node.position.y + (nodeHeight / 2) - 20;
@@ -276,8 +276,8 @@ function WorkflowRunVisualizerContent({
   }, [isExpanded, recenter]);
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className={cn(
         "w-full relative transition-all duration-300 ease-in-out",
         isExpanded ? "h-[500px]" : "h-[160px]"

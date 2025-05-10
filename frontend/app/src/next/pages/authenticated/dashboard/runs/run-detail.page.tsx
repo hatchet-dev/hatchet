@@ -32,7 +32,6 @@ import {
   TabsContent,
 } from '@/next/components/ui/tabs';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
-import { FilterProvider } from '@/next/hooks/utils/use-filters';
 import { Separator } from '@/next/components/ui/separator';
 import { Waterfall } from '@/next/components/waterfall/waterfall';
 import RelativeDate from '@/next/components/ui/relative-date';
@@ -72,7 +71,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     cancel,
     replay,
     parentData,
-    lastRefetchTime,
   } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
@@ -423,20 +421,20 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="activity" className="mt-4">
-            <FilterProvider>
               <RunEventLog
                 workflow={workflow}
-                onTaskSelect={(taskId) => {
+                onTaskSelect={(event) => {
+                  console.log(event);
                   openSheet({
                     type: 'task-detail',
                     props: {
                       selectedWorkflowRunId: workflowRunId!,
-                      selectedTaskId: taskId,
+                      selectedTaskId: event.taskId,
+                      attempt: event.attempt,
                     },
                   });
                 }}
               />
-            </FilterProvider>
           </TabsContent>
           <TabsContent value="config" className="mt-4">
             <WorkflowDetailsProvider workflowId={workflow.workflowId}>

@@ -13,6 +13,9 @@ V1LogLine:
     retryCount:
       type: integer
       description: The retry count of the log line.
+    attempt:
+      type: integer
+      description: The attempt number of the log line.
     level:
       $ref: "#/V1LogLineLevel"
       description: The log level.

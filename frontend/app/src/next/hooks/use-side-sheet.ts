@@ -63,13 +63,13 @@ export function useSideSheetState(): SideSheetContextValue {
 
   const updateUrlParams = (props?: OpenSheetProps) => {
     const params = new URLSearchParams(searchParams.toString());
-    
+
     if (props) {
       params.set(SHEET_PARAM_KEY, encodeSheetProps(props));
     } else {
       params.delete(SHEET_PARAM_KEY);
     }
-    
+
     setSearchParams(params);
   };
 

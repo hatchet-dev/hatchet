@@ -49,7 +49,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 
 	retryCount := int(task.RetryCount)
-
+	attempt := retryCount + 1
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
@@ -76,6 +76,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 		WorkflowRunExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowRunID)),
 		WorkflowVersionId:     &workflowVersionID,
 		RetryCount:            &retryCount,
+		Attempt:               &attempt,
 	}
 }
 
@@ -152,6 +153,7 @@ func ToTaskRunEventMany(
 		}
 
 		retryCount := int(event.RetryCount)
+		attempt := retryCount + 1
 
 		toReturn[i] = gen.V1TaskEvent{
 			Id:           int(event.ID),
@@ -162,6 +164,7 @@ func ToTaskRunEventMany(
 			WorkerId:     workerId,
 			TaskId:       uuid.MustParse(taskExternalId),
 			RetryCount:   &retryCount,
+			Attempt:      &attempt,
 		}
 	}
 
@@ -181,6 +184,9 @@ func ToWorkflowRunTaskRunEventsMany(
 		output := string(event.Output)
 		taskExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(event.TaskExternalID))
 
+		retryCount := int(event.RetryCount)
+		attempt := retryCount + 1
+
 		toReturn[i] = gen.V1TaskEvent{
 			ErrorMessage:    &event.ErrorMessage.String,
 			EventType:       gen.V1TaskEventType(event.EventType),
@@ -191,6 +197,8 @@ func ToWorkflowRunTaskRunEventsMany(
 			TaskId:          taskExternalId,
 			Timestamp:       event.EventTimestamp.Time,
 			WorkerId:        &workerId,
+			RetryCount:      &retryCount,
+			Attempt:         &attempt,
 		}
 	}
 
@@ -364,6 +372,9 @@ func ToWorkflowRunDetails(
 		workerId := uuid.MustParse(sqlchelpers.UUIDToStr(event.WorkerID))
 		output := string(event.Output)
 
+		retryCount := int(event.RetryCount)
+		attempt := retryCount + 1
+
 		parsedTaskEvents[i] = gen.V1TaskEvent{
 			ErrorMessage:    &event.ErrorMessage.String,
 			EventType:       gen.V1TaskEventType(event.EventType),
@@ -374,6 +385,8 @@ func ToWorkflowRunDetails(
 			Timestamp:       event.EventTimestamp.Time,
 			WorkerId:        &workerId,
 			TaskId:          uuid.MustParse(sqlchelpers.UUIDToStr(event.TaskExternalID)),
+			RetryCount:      &retryCount,
+			Attempt:         &attempt,
 		}
 	}
 
@@ -397,6 +410,9 @@ func ToTaskTimings(
 		depth := idsToDepth[sqlchelpers.UUIDToStr(timing.ExternalID)]
 
 		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(timing.WorkflowRunID))
+		retryCount := int(timing.RetryCount)
+		attempt := retryCount + 1
+
 		toReturn[i] = gen.V1TaskTiming{
 			Metadata: gen.APIResourceMeta{
 				Id:        sqlchelpers.UUIDToStr(timing.ExternalID),
@@ -411,6 +427,8 @@ func ToTaskTimings(
 			TenantId:        uuid.MustParse(sqlchelpers.UUIDToStr(timing.TenantID)),
 			Depth:           int(depth),
 			WorkflowRunId:   &workflowRunId,
+			RetryCount:      &retryCount,
+			Attempt:         &attempt,
 		}
 
 		if timing.QueuedAt.Valid {

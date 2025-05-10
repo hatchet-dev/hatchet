@@ -10,8 +10,8 @@ export type TaskRunSummaryTableProps = {
     workflowRunId?: JSX.Element;
     taskRunId: JSX.Element;
   };
-  
-  
+
+
 export const TaskRunSummaryTable = ({
     status,
     detailsLink,

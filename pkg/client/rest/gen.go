@@ -1196,6 +1196,9 @@ type V1DagChildren struct {
 
 // V1LogLine defines model for V1LogLine.
 type V1LogLine struct {
+	// Attempt The attempt number of the log line.
+	Attempt *int `json:"attempt,omitempty"`
+
 	// CreatedAt The creation date of the log line.
 	CreatedAt time.Time       `json:"createdAt"`
 	Level     *V1LogLineLevel `json:"level,omitempty"`
@@ -1228,11 +1231,15 @@ type V1ReplayTaskRequest struct {
 
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
-	ErrorMessage    *string             `json:"errorMessage,omitempty"`
-	EventType       V1TaskEventType     `json:"eventType"`
-	Id              int                 `json:"id"`
-	Message         string              `json:"message"`
-	Output          *string             `json:"output,omitempty"`
+	// Attempt The attempt number of the task.
+	Attempt      *int            `json:"attempt,omitempty"`
+	ErrorMessage *string         `json:"errorMessage,omitempty"`
+	EventType    V1TaskEventType `json:"eventType"`
+	Id           int             `json:"id"`
+	Message      string          `json:"message"`
+	Output       *string         `json:"output,omitempty"`
+
+	// RetryCount The number of retries of the task.
 	RetryCount      *int                `json:"retryCount,omitempty"`
 	TaskDisplayName *string             `json:"taskDisplayName,omitempty"`
 	TaskId          openapi_types.UUID  `json:"taskId"`
@@ -1289,6 +1296,9 @@ type V1TaskSummary struct {
 
 	// AdditionalMetadata Additional metadata for the task run.
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Attempt The attempt number of the task.
+	Attempt *int `json:"attempt,omitempty"`
 
 	// Children The list of children tasks
 	Children *[]V1TaskSummary `json:"children,omitempty"`
@@ -1360,6 +1370,9 @@ type V1TaskSummaryList struct {
 
 // V1TaskTiming defines model for V1TaskTiming.
 type V1TaskTiming struct {
+	// Attempt The attempt number of the task.
+	Attempt *int `json:"attempt,omitempty"`
+
 	// Depth The depth of the task in the waterfall.
 	Depth int `json:"depth"`
 
@@ -1372,6 +1385,9 @@ type V1TaskTiming struct {
 
 	// QueuedAt The timestamp the task run was queued.
 	QueuedAt *time.Time `json:"queuedAt,omitempty"`
+
+	// RetryCount The number of retries of the task.
+	RetryCount *int `json:"retryCount,omitempty"`
 
 	// StartedAt The timestamp the task run started.
 	StartedAt *time.Time   `json:"startedAt,omitempty"`

@@ -1,26 +1,19 @@
 import { useMemo } from "react";
 import { RunDataCard } from "@/next/components/runs/run-output-card";
 import { useRunDetail } from "@/next/hooks/use-run-detail";
-import { V1WorkflowType } from "@/lib/api/generated/data-contracts";
+import { V1TaskSummary, V1WorkflowType } from "@/lib/api/generated/data-contracts";
 import { DocsButton } from "@/next/components/ui/docs-button";
 import docs from "@/next/lib/docs";
 
 export type RunDetailPayloadContentProps = {
-  selectedTaskId?: string;
+  selectedTask?: V1TaskSummary;
+  attempt?: number;
 }
 
-export const RunDetailPayloadContent = ({ selectedTaskId }: RunDetailPayloadContentProps) => {
+export const RunDetailPayloadContent = ({ selectedTask, attempt }: RunDetailPayloadContentProps) => {
     const { data, isLoading } = useRunDetail();
     const workflow = useMemo(() => data?.run, [data]);
-    const tasks = useMemo(() => data?.tasks, [data]);
-  
-    const selectedTask = useMemo(() => {
-      if (selectedTaskId) {
-        return tasks?.find((t) => t.taskExternalId === selectedTaskId);
-      }
-      return tasks?.[0];
-    }, [tasks, selectedTaskId]);
-  
+
     if (isLoading || !workflow) {
       return (
         <>
@@ -48,11 +41,11 @@ export const RunDetailPayloadContent = ({ selectedTaskId }: RunDetailPayloadCont
         </>
       );
     }
-  
+
     if (!selectedTask) {
       return null;
     }
-  
+
     return (
       <>
         <RunDataCard

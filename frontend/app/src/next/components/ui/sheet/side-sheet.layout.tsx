@@ -57,14 +57,14 @@ export function SideSheetComponent({
 
     if (sheet.openProps?.type === 'worker-detail') {
       return {
-        component: <WorkerDetails 
-          {...sheet.openProps.props}  
+        component: <WorkerDetails
+          {...sheet.openProps.props}
         />,
         title: "Worker Detail",
         actions: <>
           <a
             // href={ROUTES.workerServices.detail(sheet.openProps?.props.serviceName, sheet.openProps?.props.workerId)}
-            target="_blank" 
+            target="_blank"
             rel="noopener noreferrer"
             className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
             title="Open in new tab"

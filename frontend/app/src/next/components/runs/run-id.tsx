@@ -16,6 +16,7 @@ interface RunIdProps {
   id?: string;
   onClick?: () => void;
   className?: string;
+  attempt?: number;
 }
 
 export function RunId({
@@ -25,6 +26,7 @@ export function RunId({
   id,
   className,
   onClick,
+  attempt,
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
@@ -56,13 +58,15 @@ export function RunId({
     }
   };
 
+  const displayAttempt = attempt || taskRun?.attempt;
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <span>
             {url && !onClick ? (
-              <span 
+              <span
                 className={cn("hover:underline text-foreground cursor-pointer", className)}
                 onClick={() => navigate(url)}
               >
@@ -74,14 +78,15 @@ export function RunId({
                 onClick={onClick}
                 onDoubleClick={handleDoubleClick}
               >
-                {name}
+                {name}{displayAttempt && `/${displayAttempt}`}
               </span>
             )}
           </span>
         </TooltipTrigger>
         <TooltipContent className="bg-muted">
           <div className="font-mono text-foreground">
-            {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}
+            Run Id: {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}<br />
+            {displayAttempt && `Attempt: ${displayAttempt}`}
           </div>
         </TooltipContent>
       </Tooltip>
