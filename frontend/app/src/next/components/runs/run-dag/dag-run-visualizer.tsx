@@ -29,21 +29,16 @@ const edgeTypes = {
 
 interface WorkflowRunVisualizerProps {
   workflowRunId: string;
+  patchTask?: V1TaskSummary | null;
   onTaskSelect?: (taskId: string, childWfrId?: string) => void;
   selectedTaskId?: string;
 }
 
-function WorkflowRunVisualizer({
-  workflowRunId,
-  onTaskSelect,
-  selectedTaskId,
-}: WorkflowRunVisualizerProps) {
+function WorkflowRunVisualizer(props: WorkflowRunVisualizerProps) {
   return (
-    <RunDetailProvider runId={workflowRunId}>
+    <RunDetailProvider runId={props.workflowRunId}>
       <WorkflowRunVisualizerContent
-        onTaskSelect={onTaskSelect}
-        workflowRunId={workflowRunId}
-        selectedTaskId={selectedTaskId}
+      {...props}
       />
     </RunDetailProvider>
   );
@@ -52,6 +47,7 @@ function WorkflowRunVisualizer({
 function WorkflowRunVisualizerContent({
   onTaskSelect,
   selectedTaskId,
+  patchTask
 }: WorkflowRunVisualizerProps) {
   const { theme } = useTheme();
   const { data } = useRunDetail();
@@ -59,7 +55,7 @@ function WorkflowRunVisualizerContent({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const shape = useMemo(() => data?.shape || [], [data]);
-  const taskRuns = useMemo(() => data?.tasks || [], [data]);
+  const taskRuns = useMemo(() => data?.tasks.map((t) => patchTask ? patchTask : t) || [], [data, patchTask]);
 
   const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);

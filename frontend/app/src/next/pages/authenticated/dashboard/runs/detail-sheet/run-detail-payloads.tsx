@@ -6,30 +6,29 @@ import { DocsButton } from "@/next/components/ui/docs-button";
 import docs from "@/next/lib/docs";
 
 export type RunDetailPayloadContentProps = {
-  selectedTask?: V1TaskSummary;
+  selectedTask?: V1TaskSummary | null;
   attempt?: number;
 }
 
-export const RunDetailPayloadContent = ({ selectedTask, attempt }: RunDetailPayloadContentProps) => {
-    const { data, isLoading } = useRunDetail();
-    const workflow = useMemo(() => data?.run, [data]);
+export const RunDetailPayloadContent = ({ selectedTask }: RunDetailPayloadContentProps) => {
+    const { isLoading } = useRunDetail();
 
-    if (isLoading || !workflow) {
+    if (isLoading) {
       return (
         <>
           <RunDataCard
             title="Input"
-            output={(workflow?.input as { input: object })?.input ?? {}}
-            status={workflow?.status}
+            output={(selectedTask?.input as { input: object })?.input ?? {}}
+            status={selectedTask?.status}
             variant="input"
           />
           <RunDataCard
             title="Metadata"
             output={{
-              workflowRunId: workflow?.metadata.id,
-              additional: workflow?.additionalMetadata,
+              workflowRunId: selectedTask?.metadata.id,
+              additional: selectedTask?.additionalMetadata,
             }}
-            status={workflow?.status}
+            status={selectedTask?.status}
             variant="metadata"
             collapsed
             actions={
@@ -48,11 +47,6 @@ export const RunDetailPayloadContent = ({ selectedTask, attempt }: RunDetailPayl
 
     return (
       <>
-        <RunDataCard
-          title="Input"
-          output={selectedTask}
-          variant="input"
-        />
         <RunDataCard
           title="Input"
           output={(selectedTask.input as any).input ?? {}}
@@ -77,7 +71,7 @@ export const RunDetailPayloadContent = ({ selectedTask, attempt }: RunDetailPayl
           title="Metadata"
           output={{
             taskRunId: selectedTask.metadata.id,
-            workflowRunId: workflow?.metadata.id,
+            workflowRunId: selectedTask.metadata.id,
             additional: selectedTask.additionalMetadata,
           }}
           status={selectedTask.status}

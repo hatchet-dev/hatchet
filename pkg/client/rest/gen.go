@@ -1881,6 +1881,12 @@ type V1DagListTasksParams struct {
 	Tenant openapi_types.UUID `form:"tenant" json:"tenant"`
 }
 
+// V1TaskGetParams defines parameters for V1TaskGet.
+type V1TaskGetParams struct {
+	// Attempt The attempt number
+	Attempt *int `form:"attempt,omitempty" json:"attempt,omitempty"`
+}
+
 // V1TaskEventListParams defines parameters for V1TaskEventList.
 type V1TaskEventListParams struct {
 	// Offset The number to skip
@@ -2443,7 +2449,7 @@ type ClientInterface interface {
 	V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskGet request
-	V1TaskGet(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1LogLineList request
 	V1LogLineList(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2970,8 +2976,8 @@ func (c *Client) V1DagListTasks(ctx context.Context, params *V1DagListTasksParam
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1TaskGetRequest(c.Server, task)
+func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskGetRequest(c.Server, task, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4941,7 +4947,7 @@ func NewV1DagListTasksRequest(server string, params *V1DagListTasksParams) (*htt
 }
 
 // NewV1TaskGetRequest generates requests for V1TaskGet
-func NewV1TaskGetRequest(server string, task openapi_types.UUID) (*http.Request, error) {
+func NewV1TaskGetRequest(server string, task openapi_types.UUID, params *V1TaskGetParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -4964,6 +4970,28 @@ func NewV1TaskGetRequest(server string, task openapi_types.UUID) (*http.Request,
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Attempt != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "attempt", runtime.ParamLocationQuery, *params.Attempt); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -10223,7 +10251,7 @@ type ClientWithResponsesInterface interface {
 	V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error)
 
 	// V1TaskGetWithResponse request
-	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
+	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
 
 	// V1LogLineListWithResponse request
 	V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error)
@@ -13311,8 +13339,8 @@ func (c *ClientWithResponses) V1DagListTasksWithResponse(ctx context.Context, pa
 }
 
 // V1TaskGetWithResponse request returning *V1TaskGetResponse
-func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error) {
-	rsp, err := c.V1TaskGet(ctx, task, reqEditors...)
+func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error) {
+	rsp, err := c.V1TaskGet(ctx, task, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

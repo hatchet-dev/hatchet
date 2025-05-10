@@ -1009,9 +1009,12 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 }
 
 const populateSingleTaskRunData = `-- name: PopulateSingleTaskRunData :one
-WITH latest_retry_count AS (
+WITH selected_retry_count AS (
     SELECT
-        MAX(retry_count) AS retry_count
+        CASE 
+            WHEN $4::int IS NOT NULL THEN $4::int
+            ELSE MAX(retry_count)::int
+        END AS retry_count
     FROM
         v1_task_events_olap
     WHERE
@@ -1027,7 +1030,7 @@ WITH latest_retry_count AS (
         tenant_id = $1::uuid
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
-        AND retry_count = (SELECT retry_count FROM latest_retry_count)
+        AND retry_count = (SELECT retry_count FROM selected_retry_count)
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
@@ -1088,7 +1091,8 @@ SELECT
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
     e.error_message as error_message,
-    sc.spawned_children
+    sc.spawned_children,
+    (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -1111,6 +1115,7 @@ type PopulateSingleTaskRunDataParams struct {
 	Tenantid       pgtype.UUID        `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+	RetryCount     pgtype.Int4        `json:"retry_count"`
 }
 
 type PopulateSingleTaskRunDataRow struct {
@@ -1144,10 +1149,16 @@ type PopulateSingleTaskRunDataRow struct {
 	Output               []byte               `json:"output"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	SpawnedChildren      pgtype.Int8          `json:"spawned_children"`
+	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
-	row := db.QueryRow(ctx, populateSingleTaskRunData, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
+	row := db.QueryRow(ctx, populateSingleTaskRunData,
+		arg.Tenantid,
+		arg.Taskid,
+		arg.Taskinsertedat,
+		arg.RetryCount,
+	)
 	var i PopulateSingleTaskRunDataRow
 	err := row.Scan(
 		&i.TenantID,
@@ -1180,6 +1191,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.Output,
 		&i.ErrorMessage,
 		&i.SpawnedChildren,
+		&i.RetryCount,
 	)
 	return &i, err
 }

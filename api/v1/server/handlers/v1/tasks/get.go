@@ -1,6 +1,8 @@
 package tasks
 
 import (
+	"fmt"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -12,7 +14,29 @@ import (
 func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestObject) (gen.V1TaskGetResponseObject, error) {
 	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
 
-	taskWithData, workflowRunExternalId, err := t.config.V1.OLAP().ReadTaskRunData(ctx.Request().Context(), task.TenantID, task.ID, task.InsertedAt)
+	attempt := request.Params.Attempt
+
+	var retryCount int
+
+	if attempt != nil {
+		retryCount = *attempt - 1
+	}
+
+	if retryCount < 0 {
+		return nil, echo.NewHTTPError(400, "Attempt must be greater than 0")
+	}
+
+	fmt.Println("retryCount", retryCount)
+
+	taskWithData, workflowRunExternalId, err := t.config.V1.OLAP().ReadTaskRunData(
+		ctx.Request().Context(),
+		task.TenantID,
+		task.ID,
+		task.InsertedAt,
+		&retryCount,
+	)
+
+	fmt.Println("retryCountDb", retryCount)
 
 	if err != nil {
 		return nil, err

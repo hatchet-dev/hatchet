@@ -325,9 +325,12 @@ JOIN v1_tasks_olap tsk
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: PopulateSingleTaskRunData :one
-WITH latest_retry_count AS (
+WITH selected_retry_count AS (
     SELECT
-        MAX(retry_count) AS retry_count
+        CASE 
+            WHEN sqlc.narg('retry_count')::int IS NOT NULL THEN sqlc.narg('retry_count')::int
+            ELSE MAX(retry_count)::int
+        END AS retry_count
     FROM
         v1_task_events_olap
     WHERE
@@ -343,7 +346,7 @@ WITH latest_retry_count AS (
         tenant_id = @tenantId::uuid
         AND task_id = @taskId::bigint
         AND task_inserted_at = @taskInsertedAt::timestamptz
-        AND retry_count = (SELECT retry_count FROM latest_retry_count)
+        AND retry_count = (SELECT retry_count FROM selected_retry_count)
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
@@ -404,7 +407,8 @@ SELECT
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
     e.error_message as error_message,
-    sc.spawned_children
+    sc.spawned_children,
+    (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
 LEFT JOIN

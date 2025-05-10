@@ -70,6 +70,12 @@ getTask:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The attempt number
+        in: query
+        name: attempt
+        required: false
+        schema:
+          type: integer
     responses:
       "200":
         content:
