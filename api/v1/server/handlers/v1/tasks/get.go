@@ -14,13 +14,14 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 
 	attempt := request.Params.Attempt
 
-	var retryCount int
+	var retryCount *int
 
 	if attempt != nil {
-		retryCount = *attempt - 1
+		count := *attempt - 1
+		retryCount = &count
 	}
 
-	if retryCount < 0 {
+	if retryCount != nil && *retryCount < 0 {
 		return nil, echo.NewHTTPError(400, "Attempt must be greater than 0")
 	}
 
@@ -29,7 +30,7 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		task.TenantID,
 		task.ID,
 		task.InsertedAt,
-		&retryCount,
+		retryCount,
 	)
 
 	if err != nil {
