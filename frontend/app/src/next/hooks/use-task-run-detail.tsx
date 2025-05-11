@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
@@ -69,65 +69,96 @@ function TaskRunDetailProviderContent({
 }: TaskRunDetailProviderProps) {
   const { cancel: cancelRun, replay: replayRun } = useRuns();
   const [refetchInterval] = useState(defaultRefetchInterval);
-  const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
+  const lastRefetchTimeRef = useRef(Date.now());
   const { toast } = useToast();
 
-  const runDetails = useQuery({
-    queryKey: ['task-run-details:get', taskRunId, attempt],
+  // Memoize query key to prevent unnecessary refetches
+  const queryKey = useMemo(() => 
+    ['task-run-details:get', taskRunId, attempt],
+    [taskRunId, attempt]
+  );
+
+  // Memoize error handler to prevent unnecessary re-renders
+  const handleError = useCallback((error: unknown) => {
+    if (error instanceof AxiosError) {
+      // Handle 404s gracefully for DAG runs
+      if (error.response?.status === 404) {
+        return null;
+      }
+      
+      // Handle other API errors
+      toast({
+        title: 'Error fetching task run details',
+        variant: 'destructive',
+        error,
+      });
+    } else {
+      // Handle unexpected errors
+      toast({
+        title: 'Unexpected error',
+        variant: 'destructive',
+        error,
+      });
+    }
+    return null;
+  }, [toast]);
+
+  const runDetails = useQuery<V1TaskSummary | null>({
+    queryKey,
     queryFn: async () => {
-
-      if(!taskRunId) {
+      // Early return for invalid task IDs
+      if (!taskRunId || taskRunId === '00000000-0000-0000-0000-000000000000') {
         return null;
       }
 
-      if (taskRunId === '00000000-0000-0000-0000-000000000000') {
-        return null;
-      }
       try {
         const run = (await api.v1TaskGet(taskRunId, { attempt })).data;
-        setLastRefetchTime(Date.now());
+        lastRefetchTimeRef.current = Date.now();
         return run;
       } catch (error) {
-        // FIXME: This is a hack to handle the fact that the task run details 
-        // endpoint returns a 404 for selected dag runs
-        if (error instanceof AxiosError && error.response?.status === 404) {
-          return null;
-        }
-
-        toast({
-          title: 'Error fetching task run details',
-          variant: 'destructive',
-          error,
-        });
-        return null;
+        return handleError(error);
       }
     },
-    refetchInterval: refetchInterval,
+    refetchInterval,
+    retry: (failureCount, error) => {
+      // Don't retry on 404s
+      if (error instanceof AxiosError && error.response?.status === 404) {
+        return false;
+      }
+      // Retry up to 2 times for other errors
+      return failureCount < 2;
+    },
   });
 
+  // Memoize cancel and replay functions to prevent unnecessary re-renders
+  const cancel = useMemo(() => ({
+    mutateAsync: cancelRun.mutateAsync,
+    isPending: cancelRun.isPending,
+  }), [cancelRun.mutateAsync, cancelRun.isPending]);
 
-  const value = useMemo(
+  const replay = useMemo(() => ({
+    mutateAsync: replayRun.mutateAsync,
+    isPending: replayRun.isPending,
+  }), [replayRun.mutateAsync, replayRun.isPending]);
+
+  const value = useMemo<TaskRunDetailState>(
     () => ({
       data: runDetails.data,
       isLoading: runDetails.isLoading,
       error: runDetails.error,
-      cancel: {
-        mutateAsync: cancelRun.mutateAsync,
-        isPending: cancelRun.isPending,
-      },
-      replay: {
-        mutateAsync: replayRun.mutateAsync,
-        isPending: replayRun.isPending,
-      },
+      cancel,
+      replay,
       refetch: runDetails.refetch,
-      lastRefetchTime,
+      lastRefetchTime: lastRefetchTimeRef.current,
       refetchInterval,
     }),
     [
-      runDetails,
-      cancelRun,
-      replayRun,
-      lastRefetchTime,
+      runDetails.data,
+      runDetails.isLoading,
+      runDetails.error,
+      runDetails.refetch,
+      cancel,
+      replay,
       refetchInterval,
     ],
   );

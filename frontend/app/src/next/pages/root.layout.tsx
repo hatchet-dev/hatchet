@@ -21,23 +21,27 @@ function RootContent({ children }: PropsWithChildren) {
   return (
     <SideSheetContext.Provider value={sideSheetState}>
       <DocsContext.Provider value={docsState}>
+        <div className="flex h-screen w-full">
           {meta.isLoading ? (
-          <CenterStageLayout>Loading...</CenterStageLayout>
-        ) : meta.hasFailed ? (
-          <ApiConnectionError
-            retryInterval={meta.refetchInterval}
-            errorMessage={meta.hasFailed.message}
-          />
-        ) : (
-          <div className="flex h-screen w-full">
-            {children ?? <Outlet />}
-            <SideSheetComponent />
-            <DocsSheetComponent
-              sheet={docsState.sheet}
-              onClose={docsState.close}
+            <CenterStageLayout>
+              <div className="flex h-screen w-full items-center justify-center"></div>
+            </CenterStageLayout>
+          ) : meta.hasFailed ? (
+            <ApiConnectionError
+              retryInterval={meta.refetchInterval}
+              errorMessage={meta.hasFailed.message}
             />
-          </div>
-        )}
+          ) : (
+            <>
+              {children ?? <Outlet />}
+              <SideSheetComponent />
+              <DocsSheetComponent
+                sheet={docsState.sheet}
+                onClose={docsState.close}
+              />
+            </>
+          )}
+        </div>
       </DocsContext.Provider>
     </SideSheetContext.Provider>
   );

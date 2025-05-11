@@ -87,8 +87,11 @@ function RunDetailProviderContent({
   const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
   const { toast } = useToast();
 
+  // Memoize query keys to prevent unnecessary refetches
+  const runDetailsQueryKey = useMemo(() => ['workflow-run-details:get', runId], [runId]);
+
   const runDetails = useQuery({
-    queryKey: ['workflow-run-details:get', runId],
+    queryKey: runDetailsQueryKey,
     queryFn: async () => {
       if (!runId || runId === '00000000-0000-0000-0000-000000000000') {
         return null;
@@ -106,21 +109,20 @@ function RunDetailProviderContent({
         return null;
       }
     },
-    refetchInterval: refetchInterval,
+    refetchInterval,
   });
 
+  // Memoize parent task ID to prevent unnecessary fetches
+  const parentTaskId = useMemo(() => runDetails.data?.run.parentTaskExternalId, [runDetails.data?.run.parentTaskExternalId]);
+
   const parentDetails = useQuery({
-    queryKey: [
-      'workflow-run-details:get',
-      runDetails.data?.run.parentTaskExternalId,
-    ],
+    queryKey: ['workflow-run-details:get', parentTaskId],
     queryFn: async () => {
-      const runId = runDetails.data?.run.parentTaskExternalId;
-      if (!runId || runId === '00000000-0000-0000-0000-000000000000') {
+      if (!parentTaskId || parentTaskId === '00000000-0000-0000-0000-000000000000') {
         return null;
       }
       try {
-        const run = (await api.v1WorkflowRunGet(runId)).data;
+        const run = (await api.v1WorkflowRunGet(parentTaskId)).data;
         return run;
       } catch (error) {
         toast({
@@ -131,49 +133,45 @@ function RunDetailProviderContent({
         return null;
       }
     },
-    refetchInterval: refetchInterval,
+    refetchInterval,
+    enabled: !!parentTaskId, // Only fetch if we have a parent task ID
   });
 
+  // Memoize tasks array to prevent unnecessary activity fetches
+  const tasks = useMemo(() => runDetails.data?.tasks || [], [runDetails.data?.tasks]);
+
   const activity = useQuery({
-    queryKey: ['task-events:get', runId, runDetails.data?.tasks],
+    queryKey: ['task-events:get', runId, tasks],
     queryFn: async () => {
       if (runId === '00000000-0000-0000-0000-000000000000') {
         return null;
       }
 
       try {
-        const tasks = runDetails.data?.tasks || [];
-
-        const logPromises = tasks.map(async (task) =>
-          ((await api.v1LogLineList(task.metadata.id)).data?.rows || []).map(
-            (log) => ({
-              ...log,
-              taskId: task.metadata.id,
-              retryCount: log.retryCount || 0,
-              attempt: log.attempt || 0,
-            }),
-          ),
-        );
-
-        const eventPromises = tasks.map(
-          async (task) =>
-            (
-              await api.v1TaskEventList(task.metadata.id, {
-                limit: 50,
-                offset: 0,
-              })
-            ).data?.rows || [],
-        );
-
+        // Batch API calls for better performance
         const [logs, events] = await Promise.all([
-          Promise.all(logPromises),
-          Promise.all(eventPromises),
+          Promise.all(tasks.map(task => 
+            api.v1LogLineList(task.metadata.id).then(response => 
+              (response.data?.rows || []).map(log => ({
+                ...log,
+                taskId: task.metadata.id,
+                retryCount: log.retryCount || 0,
+                attempt: log.attempt || 1,
+              }))
+            )
+          )),
+          Promise.all(tasks.map(task =>
+            api.v1TaskEventList(task.metadata.id, {
+              limit: 50,
+              offset: 0,
+            }).then(response => response.data?.rows || [])
+          ))
         ]);
 
-        const mergedLogs = logs.flat();
-        const mergedEvents = events.flat();
-
-        return { events: mergedEvents, logs: mergedLogs };
+        return {
+          events: events.flat(),
+          logs: logs.flat(),
+        };
       } catch (error) {
         toast({
           title: 'Error fetching run activity',
@@ -183,7 +181,8 @@ function RunDetailProviderContent({
         return { events: [], logs: [] };
       }
     },
-    refetchInterval: refetchInterval,
+    refetchInterval,
+    enabled: tasks.length > 0, // Only fetch if we have tasks
   });
 
   const taskTimings = useQuery({
@@ -218,16 +217,20 @@ function RunDetailProviderContent({
       refetchInterval,
     }),
     [
-      runDetails,
+      runDetails.data,
+      runDetails.isLoading,
+      runDetails.error,
+      runDetails.refetch,
+      parentDetails.data,
       activity.data,
-      cancelRun,
-      replayRun,
-      parentDetails,
-      lastRefetchTime,
-      refetchInterval,
       taskTimings,
       depth,
-      setDepth,
+      cancelRun.mutateAsync,
+      cancelRun.isPending,
+      replayRun.mutateAsync,
+      replayRun.isPending,
+      lastRefetchTime,
+      refetchInterval,
     ],
   );
 

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useMemo } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import { RunDetailSheetSerializableProps } from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
 import { useSearchParams } from 'react-router-dom';
 import { SHEET_PARAM_KEY, encodeSheetProps, decodeSheetProps } from '@/next/utils/sheet-url';
@@ -49,19 +49,29 @@ export function useSideSheet() {
 export function useSideSheetState(): SideSheetContextValue {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isExpanded, setIsExpanded] = useState<boolean>(() => {
-    const savedExpandedState = localStorage.getItem(EXPANDED_STATE_KEY);
-    return savedExpandedState ? JSON.parse(savedExpandedState) : false;
+    try {
+      const savedExpandedState = localStorage.getItem(EXPANDED_STATE_KEY);
+      return savedExpandedState ? JSON.parse(savedExpandedState) : false;
+    } catch {
+      return false;
+    }
   });
 
+  // Memoize decoded sheet properties to prevent unnecessary re-renders
   const openProps = useMemo(() => {
     const sheetParam = searchParams.get(SHEET_PARAM_KEY);
     if (sheetParam) {
-      return decodeSheetProps(sheetParam) as OpenSheetProps | undefined;
+      try {
+        return decodeSheetProps(sheetParam) as OpenSheetProps | undefined;
+      } catch {
+        return undefined;
+      }
     }
     return undefined;
   }, [searchParams]);
 
-  const updateUrlParams = (props?: OpenSheetProps) => {
+  // Memoize URL parameter update function
+  const updateUrlParams = useCallback((props?: OpenSheetProps) => {
     const params = new URLSearchParams(searchParams.toString());
 
     if (props) {
@@ -71,40 +81,49 @@ export function useSideSheetState(): SideSheetContextValue {
     }
 
     setSearchParams(params);
-  };
+  }, [searchParams, setSearchParams]);
 
-  const openSheet = (props: OpenSheetProps) => {
+  // Memoize sheet operations
+  const openSheet = useCallback((props: OpenSheetProps) => {
     updateUrlParams(props);
-  };
+  }, [updateUrlParams]);
 
-  const closeSheet = () => {
+  const closeSheet = useCallback(() => {
     updateUrlParams();
-  };
+  }, [updateUrlParams]);
 
-  const toggleSheet = (props: OpenSheetProps) => {
+  const toggleSheet = useCallback((props: OpenSheetProps) => {
     if (openProps) {
       closeSheet();
     } else {
       openSheet(props);
     }
-  };
+  }, [openProps, closeSheet, openSheet]);
 
-  const toggleExpand = () => {
+  const toggleExpand = useCallback(() => {
     const newExpandedState = !isExpanded;
-    localStorage.setItem(EXPANDED_STATE_KEY, JSON.stringify(newExpandedState));
+    try {
+      localStorage.setItem(EXPANDED_STATE_KEY, JSON.stringify(newExpandedState));
+    } catch {
+      // Ignore storage errors
+    }
     setIsExpanded(newExpandedState);
-  };
+  }, [isExpanded]);
 
-  const sheet: SideSheet = {
+  // Memoize sheet state
+  const sheet = useMemo<SideSheet>(() => ({
     isExpanded,
     openProps,
-  };
+  }), [isExpanded, openProps]);
 
-  return {
+  // Memoize context value
+  const contextValue = useMemo<SideSheetContextValue>(() => ({
     sheet,
     open: openSheet,
     toggle: toggleSheet,
     close: closeSheet,
     toggleExpand,
-  };
+  }), [sheet, openSheet, toggleSheet, closeSheet, toggleExpand]);
+
+  return contextValue;
 }
