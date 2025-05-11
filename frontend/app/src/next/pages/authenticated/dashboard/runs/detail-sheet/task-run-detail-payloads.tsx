@@ -1,16 +1,15 @@
-import { useMemo } from "react";
 import { RunDataCard } from "@/next/components/runs/run-output-card";
 import { useRunDetail } from "@/next/hooks/use-run-detail";
 import { V1TaskSummary, V1WorkflowType } from "@/lib/api/generated/data-contracts";
 import { DocsButton } from "@/next/components/ui/docs-button";
 import docs from "@/next/lib/docs";
 
-export type RunDetailPayloadContentProps = {
+export type TaskRunDetailPayloadContentProps = {
   selectedTask?: V1TaskSummary | null;
   attempt?: number;
 }
 
-export const RunDetailPayloadContent = ({ selectedTask }: RunDetailPayloadContentProps) => {
+export const TaskRunDetailPayloadContent = ({ selectedTask }: TaskRunDetailPayloadContentProps) => {
     const { isLoading } = useRunDetail();
 
     if (isLoading) {

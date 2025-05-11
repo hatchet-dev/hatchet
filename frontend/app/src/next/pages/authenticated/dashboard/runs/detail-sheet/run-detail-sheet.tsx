@@ -5,7 +5,7 @@ import {
   TabsContent,
 } from '@/next/components/ui/tabs';
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
-import { RunDetailPayloadContent } from './run-detail-payloads';
+import { TaskRunDetailPayloadContent } from './task-run-detail-payloads';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { useMemo } from 'react';
@@ -19,6 +19,7 @@ import { cn } from '@/next/lib/utils';
 import WorkflowRunVisualizer from '@/next/components/runs/run-dag/dag-run-visualizer';
 import { TaskRunDetailProvider, useTaskRunDetail } from '@/next/hooks/use-task-run-detail';
 import { RunDetailRawContent } from './run-detail-raw';
+import { WorkflowRunDetailPayloadContent } from './workflow-run-detail-payloads';
 export interface RunDetailSheetSerializableProps {
   pageWorkflowRunId?: string;
   selectedWorkflowRunId: string;
@@ -53,7 +54,7 @@ function RunDetailSheetContent({
   }, [data, selectedTaskId]);
 
   const populatedAttempt = useMemo(() => {
-    return attempt || latestTask?.attempt || 0;
+    return attempt || latestTask?.attempt;
   }, [attempt, latestTask]);
 
   const isDAG = data?.shape.length && data?.shape.length > 1;
@@ -177,11 +178,11 @@ function RunDetailSheetContent({
                 Payloads
               </TabsTrigger>
               <TabsTrigger variant="underlined" value="activity">
-                Task Activity
+                Activity
               </TabsTrigger>
-              <TabsTrigger variant="underlined" value="worker">
+              {selectedTask && <TabsTrigger variant="underlined" value="worker">
                 Worker
-              </TabsTrigger>
+              </TabsTrigger>}
               <TabsTrigger variant="underlined" value="raw">
                 Raw
               </TabsTrigger>
@@ -190,7 +191,7 @@ function RunDetailSheetContent({
               {data?.run && <RunEventLog
                 workflow={data.run}
                 showNextButton={
-                  populatedAttempt < (latestTask?.attempt || 0) ? {
+                  selectedTask && populatedAttempt && populatedAttempt < (latestTask?.attempt || 0) ? {
                     label: `Next attempt (${populatedAttempt + 1} of ${latestTask?.attempt})`,
                     onClick: () => {
                       if (!data?.run?.metadata.id || !selectedTask?.taskExternalId) return;
@@ -206,7 +207,7 @@ function RunDetailSheetContent({
                   } : undefined
                 }
                 showPreviousButton={
-                  populatedAttempt > 1 ? {
+                  selectedTask && populatedAttempt && populatedAttempt > 1 ? {
                     label: `Previous attempt (${populatedAttempt - 1} of ${latestTask?.attempt})`,
                     onClick: () => {
                       if (!data?.run?.metadata.id || !selectedTask?.taskExternalId) return;
@@ -222,7 +223,7 @@ function RunDetailSheetContent({
                   } : undefined
                 }
                 filters={{
-                  taskId: [selectedTaskId || ''],
+                  taskId: selectedTaskId ? [selectedTaskId] : undefined,
                   attempt: populatedAttempt,
                 }}
                 showFilters={{
@@ -244,14 +245,17 @@ function RunDetailSheetContent({
             </TabsContent>
             <TabsContent value="payload" className="mt-4">
               <div className="flex flex-col gap-4">
-                <RunDetailPayloadContent selectedTask={selectedTask} attempt={populatedAttempt} />
+                {selectedTask ? 
+                <TaskRunDetailPayloadContent selectedTask={selectedTask} attempt={populatedAttempt} /> :
+                <WorkflowRunDetailPayloadContent workflowRun={data?.run} />
+                }
               </div>
             </TabsContent>
             <TabsContent value="worker" className="mt-4">
               {/* TODO: Add worker details */}
             </TabsContent>
             <TabsContent value="raw" className="mt-4">
-              <RunDetailRawContent selectedTask={selectedTask} />
+              <RunDetailRawContent selectedTask={selectedTask || data} />
             </TabsContent>
           </Tabs>
         </div>

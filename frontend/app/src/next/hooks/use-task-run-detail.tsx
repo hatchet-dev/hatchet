@@ -74,6 +74,11 @@ function TaskRunDetailProviderContent({
   const runDetails = useQuery({
     queryKey: ['task-run-details:get', taskRunId, attempt],
     queryFn: async () => {
+
+      if(!taskRunId) {
+        return null;
+      }
+
       if (taskRunId === '00000000-0000-0000-0000-000000000000') {
         return null;
       }
