@@ -35,7 +35,7 @@ interface RunDetailSheetProps extends RunDetailSheetSerializableProps {
 
 export function RunDetailSheet(props: RunDetailSheetProps) {
   return <RunDetailProvider runId={props.selectedWorkflowRunId} defaultRefetchInterval={1000}>
-    <TaskRunDetailProvider taskRunId={props.selectedTaskId || ''} attempt={props.attempt} defaultRefetchInterval={1000}>
+    <TaskRunDetailProvider taskRunId={props.selectedTaskId} attempt={props.attempt} defaultRefetchInterval={1000}>
       <RunDetailSheetContent {...props} />
     </TaskRunDetailProvider>
   </RunDetailProvider>;

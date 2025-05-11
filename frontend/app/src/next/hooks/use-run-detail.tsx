@@ -90,7 +90,7 @@ function RunDetailProviderContent({
   const runDetails = useQuery({
     queryKey: ['workflow-run-details:get', runId],
     queryFn: async () => {
-      if (runId === '00000000-0000-0000-0000-000000000000') {
+      if (!runId || runId === '00000000-0000-0000-0000-000000000000') {
         return null;
       }
       try {

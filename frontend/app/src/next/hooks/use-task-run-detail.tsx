@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
 import { V1TaskSummary } from '@/lib/api';
 import { useToast } from './utils/use-toast';
+import { AxiosError } from 'axios';
 
 interface TaskRunDetailState {
   data: V1TaskSummary | null | undefined;
@@ -36,7 +37,7 @@ export function useTaskRunDetail() {
 
 interface TaskRunDetailProviderProps {
   children: React.ReactNode;
-  taskRunId: string;
+  taskRunId?: string;
   attempt?: number;
   defaultRefetchInterval?: number;
 }
@@ -87,8 +88,14 @@ function TaskRunDetailProviderContent({
         setLastRefetchTime(Date.now());
         return run;
       } catch (error) {
+        // FIXME: This is a hack to handle the fact that the task run details 
+        // endpoint returns a 404 for selected dag runs
+        if (error instanceof AxiosError && error.response?.status === 404) {
+          return null;
+        }
+
         toast({
-          title: 'Error fetching run details',
+          title: 'Error fetching task run details',
           variant: 'destructive',
           error,
         });
