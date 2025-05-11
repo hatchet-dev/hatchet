@@ -189,9 +189,41 @@ function RunDetailSheetContent({
             <TabsContent value="activity" className="mt-4">
               {data?.run && <RunEventLog
                 workflow={data.run}
+                showNextButton={
+                  populatedAttempt < (latestTask?.attempt || 0) ? {
+                    label: `Next attempt (${populatedAttempt + 1} of ${latestTask?.attempt})`,
+                    onClick: () => {
+                      if (!data?.run?.metadata.id || !selectedTask?.taskExternalId) return;
+                      openSheet({
+                        type: 'task-detail',
+                        props: {
+                          selectedWorkflowRunId: data.run.metadata.id,
+                          selectedTaskId: selectedTask.taskExternalId,
+                          attempt: populatedAttempt + 1,
+                        },
+                      });
+                    }
+                  } : undefined
+                }
+                showPreviousButton={
+                  populatedAttempt > 1 ? {
+                    label: `Previous attempt (${populatedAttempt - 1} of ${latestTask?.attempt})`,
+                    onClick: () => {
+                      if (!data?.run?.metadata.id || !selectedTask?.taskExternalId) return;
+                      openSheet({
+                        type: 'task-detail',
+                        props: {
+                          selectedWorkflowRunId: data.run.metadata.id,
+                          selectedTaskId: selectedTask.taskExternalId,
+                          attempt: populatedAttempt - 1,
+                        },
+                      });
+                    }
+                  } : undefined
+                }
                 filters={{
                   taskId: [selectedTaskId || ''],
-                  attempt: [populatedAttempt],
+                  attempt: populatedAttempt,
                 }}
                 showFilters={{
                   taskId: false,

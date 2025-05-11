@@ -30,6 +30,8 @@ import {
   Cpu,
   Bug,
   CpuIcon,
+  ArrowUpCircle,
+  ArrowDownCircle,
 } from 'lucide-react';
 import { VscJson } from 'react-icons/vsc';
 import { Button } from '@/next/components/ui/button';
@@ -58,6 +60,14 @@ interface RunEventLogProps {
     taskId?: boolean;
     attempt?: boolean;
   };
+  showNextButton?: {
+    label: string;
+    onClick: () => void;
+  };
+  showPreviousButton?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 type EventConfig = {
@@ -74,7 +84,7 @@ interface ActivityFilters {
   search?: string;
   eventType?: V1TaskEventType[];
   taskId?: string[];
-  attempt?: number[];
+  attempt?: number;
 }
 
 const EVENT_CONFIG: Record<V1TaskEventType, EventConfig> = {
@@ -320,7 +330,13 @@ const DEFAULT_FILTERS = {
   attempt: true,
 };
 
-function RunEventLogContent({ onTaskSelect, filters: initialFilters, showFilters: initialShowFilters }: RunEventLogProps) {
+function RunEventLogContent({ 
+  onTaskSelect, 
+  filters: initialFilters, 
+  showFilters: initialShowFilters,
+  showNextButton,
+  showPreviousButton,
+}: RunEventLogProps) {
   const { data, activity } = useRunDetail();
   const { filters, setFilters } = useFilters<ActivityFilters>();
 
@@ -358,6 +374,12 @@ function RunEventLogContent({ onTaskSelect, filters: initialFilters, showFilters
     }));
   }, [tasks]);
 
+  const findMostRecentNonLogEventForAttempt = (events: V1TaskEvent[], targetAttempt: number): V1TaskEvent | undefined => {
+    return events
+      .filter(event => event.attempt === targetAttempt && event.eventType !== LogEventType)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+  };
+
   const mergedActivity = useMemo<V1TaskEvent[]>(() => {
     const events = activity?.events || [];
     const logs = activity?.logs || [];
@@ -374,7 +396,7 @@ function RunEventLogContent({ onTaskSelect, filters: initialFilters, showFilters
     }));
 
     const allEvents = [...events, ...logEvents];
-    return allEvents.sort((a, b) => {
+    const sortedEvents = allEvents.sort((a, b) => {
       const timeA = new Date(a.timestamp).getTime();
       const timeB = new Date(b.timestamp).getTime();
 
@@ -399,20 +421,28 @@ function RunEventLogContent({ onTaskSelect, filters: initialFilters, showFilters
 
       return 0;
     });
-  }, [activity?.events, activity?.logs]);
 
-  const eventTypeOptions = useMemo(() => {
-    return Object.entries(EVENT_CONFIG).map(([type, config]) => ({
-      label: config.title,
-      value: type as V1TaskEventType,
-    }));
-  }, []);
+    // If there's a previous attempt, find its most recent non-log event
+    if (filters.attempt) {
+      const previousAttemptEvent = findMostRecentNonLogEventForAttempt(allEvents, filters.attempt - 1);
+      if (previousAttemptEvent) {
+        // Create a copy of the event with a special ID to mark it as the previous attempt summary
+        const previousAttemptSummary: V1TaskEvent = {
+          ...previousAttemptEvent,
+          id: -1, // Use a negative ID to mark it as special
+        };
+        return [...sortedEvents, previousAttemptSummary];
+      }
+    }
+
+    return sortedEvents;
+  }, [activity?.events, activity?.logs]);
 
   const attemptOptions = useMemo(() => {
     const attempts = new Set<number>();
     mergedActivity.forEach((event) => {
-      if (event.retryCount !== undefined) {
-        attempts.add(event.retryCount);
+      if (event.attempt !== undefined) {
+        attempts.add(event.attempt);
       }
     });
     return Array.from(attempts)
@@ -422,6 +452,13 @@ function RunEventLogContent({ onTaskSelect, filters: initialFilters, showFilters
         value: attempt,
       }));
   }, [mergedActivity]);
+
+  const eventTypeOptions = useMemo(() => {
+    return Object.entries(EVENT_CONFIG).map(([type, config]) => ({
+      label: config.title,
+      value: type as V1TaskEventType,
+    }));
+  }, []);
 
   const filteredActivity = useMemo(() => {
     let filtered = mergedActivity;
@@ -456,9 +493,9 @@ function RunEventLogContent({ onTaskSelect, filters: initialFilters, showFilters
       );
     }
 
-    if (filters.attempt?.length) {
+    if (filters.attempt !== undefined) {
       filtered = filtered.filter(
-        (event) => event.attempt !== undefined && filters.attempt?.includes(event.attempt),
+        (event) => event.attempt !== undefined && event.attempt === filters.attempt,
       );
     }
 
@@ -495,83 +532,106 @@ function RunEventLogContent({ onTaskSelect, filters: initialFilters, showFilters
             name="attempt"
             placeholder="Attempt"
             options={attemptOptions}
-            multi
           />
         )}
       </FilterGroup>
-      <div className="space-y-0.5 bg-background p-1 rounded-md">
-        {filteredActivity?.map((event) => (
-          <div
-            key={event.id}
-            className={cn(
-              'flex flex-col gap-0.5 rounded-sm p-1 text-xs font-mono',
-              'hover:bg-muted/50 cursor-pointer transition-colors',
-              'group relative',
-            )}
-            onClick={() => onTaskSelect?.(event)}
+      <div className="space-y-2">
+        {showNextButton && (
+          <Button
+            variant="link"
+            className="p-2 text-muted-foreground"
+            size="sm"
+            onClick={showNextButton.onClick}
           >
-            <div className="flex flex-col gap-0.5 w-full">
-              <div className="flex items-center gap-1.5">
-                <div className="flex flex-col min-w-0 w-full">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <EventIcon
-                      eventType={event.eventType}
-                      className="shrink-0"
-                    />
-                    <Time
-                      date={event.timestamp}
-                      variant="timestamp"
-                      className="text-gray-500 shrink-0"
-                      asChild
-                    >
-                      <span />
-                    </Time>
-                    <p className="text-gray-500 shrink-0">
-                      {tasks?.[event.taskId] && (
-                        <RunId taskRun={tasks[event.taskId] as any} attempt={event.attempt} />
-                      )}
-                    </p>
-                    {event.eventType === LogEventType ? (
-                      <EventMessage event={event} onTaskSelect={onTaskSelect} />
-                    ) : (
-                      <>
-                        <p
-                          className={cn(
-                            'font-medium shrink-0',
+            <ArrowUpCircle className="h-4 w-4" />
+            {showNextButton.label}
+          </Button>
+        )}
+        <div className="space-y-0.5 bg-background p-1 rounded-md">
+          {filteredActivity?.map((event) => (
+            <div
+              key={event.id}
+              className={cn(
+                'flex flex-col gap-0.5 rounded-sm p-1 text-xs font-mono',
+                'hover:bg-muted/50 cursor-pointer transition-colors',
+                'group relative',
+              )}
+              onClick={() => onTaskSelect?.(event)}
+            >
+              <div className="flex flex-col gap-0.5 w-full">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex flex-col min-w-0 w-full">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <EventIcon
+                        eventType={event.eventType}
+                        className="shrink-0"
+                      />
+                      <Time
+                        date={event.timestamp}
+                        variant="timestamp"
+                        className="text-gray-500 shrink-0"
+                        asChild
+                      >
+                        <span />
+                      </Time>
+                      <p className="text-gray-500 shrink-0">
+                        {tasks?.[event.taskId] && (
+                          <RunId taskRun={tasks[event.taskId] as any} attempt={event.attempt} />
+                        )}
+                      </p>
+                      {event.eventType === LogEventType ? (
+                        <EventMessage event={event} onTaskSelect={onTaskSelect} />
+                      ) : (
+                        <>
+                          <p
+                            className={cn(
+                              'font-medium shrink-0',
 
-                            RunStatusConfigs[
-                              EVENT_CONFIG[event.eventType].status
-                            ]?.primary || 'text-gray-500',
-                            'bg-transparent',
-                          )}
-                        >
-                          {event.eventType}
-                        </p>
-                        <div className="text-gray-500 break-all">
-                          <EventMessage
-                            event={event}
-                            onTaskSelect={onTaskSelect}
-                          />
-                        </div>
-                      </>
-                    )}
+                              RunStatusConfigs[
+                                EVENT_CONFIG[event.eventType].status
+                              ]?.primary || 'text-gray-500',
+                              'bg-transparent',
+                            )}
+                          >
+                            {event.eventType}
+                          </p>
+                          <div className="text-gray-500 break-all">
+                            <EventMessage
+                              event={event}
+                              onTaskSelect={onTaskSelect}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-2 top-1 h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTaskSelect?.(event);
+                }}
+              >
+                <ArrowUpRight className="h-3 w-3" />
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-2 top-1 h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                onTaskSelect?.(event);
-              }}
-            >
-              <ArrowUpRight className="h-3 w-3" />
-            </Button>
-          </div>
-        ))}
+          ))}
+        </div>
+        {showPreviousButton && (
+          <Button
+            variant="link"
+            className="p-2 text-muted-foreground"
+            size="sm"
+            onClick={showPreviousButton.onClick}
+          >
+            <ArrowDownCircle className="h-4 w-4" />
+            {showPreviousButton.label}
+          </Button>
+        )}
       </div>
     </div>
   );
