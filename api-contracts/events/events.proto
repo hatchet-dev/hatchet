@@ -35,6 +35,9 @@ message Event {
     // the payload for the event
     optional string additionalMetadata = 6;
 
+    // the resource hint for the event, for filtering
+    optional string resourceHint = 7;
+
 }
 
 message Events {

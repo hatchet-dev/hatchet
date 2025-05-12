@@ -151,6 +151,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
+	
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
