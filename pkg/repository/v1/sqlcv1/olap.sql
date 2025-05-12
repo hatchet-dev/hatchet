@@ -4,7 +4,9 @@ SELECT
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
-    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date);
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
+    create_v1_range_partition('v1_events_olap'::text, @date::date),
+    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date);
 
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
@@ -13,7 +15,12 @@ WITH task_partitions AS (
     SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', @date::date) AS p
 ), runs_partitions AS (
     SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', @date::date) AS p
+), events_partitions AS (
+    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', @date::date) AS p
+), event_trigger_partitions AS (
+    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', @date::date) AS p
 )
+
 SELECT
     *
 FROM
@@ -31,7 +38,22 @@ UNION ALL
 SELECT
     *
 FROM
-    runs_partitions;
+    runs_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    events_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    event_trigger_partitions
+;
 
 -- name: CreateTasksOLAP :copyfrom
 INSERT INTO v1_tasks_olap (
@@ -1265,3 +1287,38 @@ FROM
   all_runs
 WHERE
   tenant_id = @tenantId::uuid;
+
+
+-- name: BulkCreateEvents :copyfrom
+INSERT INTO v1_events_olap (
+    tenant_id,
+    id,
+    seen_at,
+    key,
+    payload,
+    additional_metadata
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+)
+;
+
+-- name: BulkCreateEventTriggers :copyfrom
+INSERT INTO v1_event_to_run_olap(
+    run_id,
+    run_inserted_at,
+    event_id,
+    event_seen_at
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4
+)
+;
