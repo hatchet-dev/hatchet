@@ -73,6 +73,11 @@ class ClientConfig(BaseSettings):
         if not self.token:
             raise ValueError("Token must be set")
 
+        if not self.token.startswith("ey"):
+            raise ValueError(
+                f"Token must be a valid JWT. Hint: These are the first few characters of the token provided: {self.token[:5]}"
+            )
+
         if not self.tenant_id:
             self.tenant_id = get_tenant_id_from_jwt(self.token)
 
