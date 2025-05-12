@@ -1418,6 +1418,7 @@ CREATE TABLE v1_log_line (
     message TEXT NOT NULL,
     level v1_log_line_level NOT NULL DEFAULT 'INFO',
     metadata JSONB,
+    retry_count INTEGER NOT NULL DEFAULT 0,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);

@@ -10,13 +10,6 @@
  * ---------------------------------------------------------------
  */
 
-export enum V1LogLineLevel {
-  DEBUG = "DEBUG",
-  INFO = "INFO",
-  WARN = "WARN",
-  ERROR = "ERROR",
-}
-
 export enum V1TaskRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
@@ -215,6 +208,13 @@ export enum TenantResource {
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
+}
+
+export enum V1LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
 }
 
 export enum V1TaskEventType {
@@ -420,6 +420,7 @@ export interface V1TaskEvent {
   /** @format uuid */
   workerId?: string;
   taskDisplayName?: string;
+  retryCount?: number;
 }
 
 export interface V1TaskEventList {
@@ -437,6 +438,10 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /** The retry count of the log line. */
+  retryCount?: number;
+  /** The log level. */
+  level?: V1LogLineLevel;
 }
 
 export interface V1LogLineList {

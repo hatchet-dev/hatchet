@@ -327,7 +327,7 @@ export class V0Context<T, K = {}> {
       return;
     }
 
-    this.v0.event.putLog(stepRunId, message, level);
+    this.v0.event.putLog(stepRunId, message, level, this.retryCount());
   }
 
   /**
