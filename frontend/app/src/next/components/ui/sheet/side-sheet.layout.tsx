@@ -41,7 +41,7 @@ export function SideSheetComponent({
         />,
         title: "Run Detail",
         actions: <>
-          <a
+          {/* <a
             href={sheet.openProps?.props.detailsLink}
             target="_blank"
             rel="noopener noreferrer"
@@ -50,7 +50,7 @@ export function SideSheetComponent({
           >
             <ExternalLinkIcon className="h-4 w-4" />
             <span className="sr-only">Open in new tab</span>
-          </a>
+          </a> */}
         </>
       }
     }

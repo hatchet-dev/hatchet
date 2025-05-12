@@ -94,10 +94,30 @@ function RunDetailSheetContent({
               )}
             </div>
           </div>
+        </div>
+        <div className="flex-1 overflow-y-scroll">
+          <div className="bg-slate-100 dark:bg-slate-900">
+            <WorkflowRunVisualizer
+              workflowRunId={data?.run?.metadata.id || ''}
+              patchTask={selectedTask}
+              onTaskSelect={(taskId, childWfrId) => {
+                if (!data?.run?.metadata.id) return;
+                openSheet({
+                  type: 'task-detail',
+                  props: {
+                    selectedWorkflowRunId: childWfrId || data?.run?.metadata.id,
+                    selectedTaskId: taskId,
+                    attempt: undefined,
+                  },
+                });
+              }}
+              selectedTaskId={isDAG && selectedTask?.taskExternalId === data?.run?.metadata.id ? undefined : selectedTask?.taskExternalId}
+            />
+          </div>
           {latestTask?.attempt && populatedAttempt && (
-            <div className="flex items-center justify-between text-sm">
+            <div className="sticky top-[72px] z-10 bg-slate-100 dark:bg-slate-900 px-4 py-2 flex items-center justify-between text-sm">
               <div className={cn("flex items-center gap-1.5 text-yellow-700", populatedAttempt === latestTask.attempt && "text-green-700")}>
-               { populatedAttempt !== latestTask.attempt && <><AlertCircle className="h-3.5 w-3.5" /> <span>Viewing attempt {populatedAttempt} of {latestTask.attempt}</span></>}
+                { populatedAttempt !== latestTask.attempt && <><AlertCircle className="h-3.5 w-3.5" /> <span>Viewing attempt {populatedAttempt} of {latestTask.attempt}</span></>}
               </div>
               <div className="flex flex-row items-center gap-2">
                 {latestTask.attempt > populatedAttempt && 
@@ -118,56 +138,36 @@ function RunDetailSheetContent({
                   <ArrowUpCircle className="h-4 w-4" />
                 </Button>
                 }
-              {selectedTask && (
-                    <Select
-                      value={populatedAttempt?.toString() || '0'}
-                      onValueChange={(value) => {
-                        if (!data?.run?.metadata.id || !selectedTask?.taskExternalId) return;
-                        openSheet({
-                          type: 'task-detail',
-                          props: {
-                            selectedWorkflowRunId: data.run.metadata.id,
-                            selectedTaskId: selectedTask.taskExternalId,
-                            attempt: parseInt(value),
-                          },
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="h-6 text-xs">
-                        <SelectValue placeholder="Attempt" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: (latestTask?.attempt || 0) }, (_, i) => i).reverse().map((i) => (
-                          <SelectItem key={i} value={(i+1).toString()}>
-                            Attempt {i + 1} {i + 1 == latestTask.attempt ? " (Current)" : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-            </div>
+                {selectedTask && (
+                  <Select
+                    value={populatedAttempt?.toString() || '0'}
+                    onValueChange={(value) => {
+                      if (!data?.run?.metadata.id || !selectedTask?.taskExternalId) return;
+                      openSheet({
+                        type: 'task-detail',
+                        props: {
+                          selectedWorkflowRunId: data.run.metadata.id,
+                          selectedTaskId: selectedTask.taskExternalId,
+                          attempt: parseInt(value),
+                        },
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-6 text-xs">
+                      <SelectValue placeholder="Attempt" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: (latestTask?.attempt || 0) }, (_, i) => i).reverse().map((i) => (
+                        <SelectItem key={i} value={(i+1).toString()}>
+                          Attempt {i + 1} {i + 1 == latestTask.attempt ? " (Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
           )}
-        </div>
-        <div className="flex-1 overflow-y-scroll">
-          <div className="bg-slate-100 dark:bg-slate-900">
-            <WorkflowRunVisualizer
-              workflowRunId={data?.run?.metadata.id || ''}
-              patchTask={selectedTask}
-            onTaskSelect={(taskId, childWfrId) => {
-              if (!data?.run?.metadata.id) return;
-              openSheet({
-                type: 'task-detail',
-                props: {
-                  selectedWorkflowRunId: childWfrId || data?.run?.metadata.id,
-                  selectedTaskId: taskId,
-                  attempt: undefined,
-                },
-              });
-            }}
-            selectedTaskId={isDAG && selectedTask?.taskExternalId === data?.run?.metadata.id ? undefined : selectedTask?.taskExternalId}
-          />
-          </div>
           <Tabs
             defaultValue="payload"
             state="query"
