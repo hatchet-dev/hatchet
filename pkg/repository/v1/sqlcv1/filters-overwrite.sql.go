@@ -48,7 +48,7 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 			&i.ResourceHint,
 			&i.Expression,
 			&i.Payload,
-			&i.CreatedAt,
+			&i.InsertedAt,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
