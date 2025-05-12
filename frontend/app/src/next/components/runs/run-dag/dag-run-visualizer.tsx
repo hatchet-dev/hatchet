@@ -15,7 +15,7 @@ import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { cn } from '@/lib/utils';
 import { ChevronDownIcon, ChevronUpIcon } from '@radix-ui/react-icons';
-
+import { Button } from '@/next/components/ui/button';
 const connectionLineStyleDark = { stroke: '#fff' };
 const connectionLineStyleLight = { stroke: '#000' };
 
@@ -311,18 +311,12 @@ function WorkflowRunVisualizerContent({
         }
         snapToGrid={true}
       />
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={toggleExpand}
-        className={cn(
-          'absolute inset-x-0 -bottom-2 z-20 h-4 transition-all ease-linear after:absolute after:inset-x-0 after:top-1/2 after:h-[2px] hover:after:bg-border',
-          isExpanded ? 'cursor-n-resize' : 'cursor-s-resize',
-        )}
-        title="Toggle height"
-      />
-      <button
-        onClick={toggleExpand}
-        className="absolute bottom-2 right-2 z-20 p-1 rounded-sm opacity-30 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-        title={isExpanded ? 'Collapse' : 'Expand'}
+        className="absolute bottom-2 right-2 z-20"
+        tooltip={isExpanded ? 'Collapse' : 'Expand'}
       >
         {isExpanded ? (
           <ChevronUpIcon className="h-4 w-4" />
@@ -330,7 +324,7 @@ function WorkflowRunVisualizerContent({
           <ChevronDownIcon className="h-4 w-4" />
         )}
         <span className="sr-only">{isExpanded ? 'Collapse' : 'Expand'}</span>
-      </button>
+      </Button>
     </div>
   );
 }
