@@ -207,6 +207,7 @@ function RunDetailProviderContent({
         })
       ).data,
     refetchInterval,
+    enabled: !!runId,
   });
 
   const value = useMemo(

@@ -10,7 +10,17 @@ import (
 )
 
 func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestObject) (gen.V1TaskGetResponseObject, error) {
-	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
+	taskInterface := ctx.Get("task")
+
+	if taskInterface == nil {
+		return nil, echo.NewHTTPError(404, "Task not found")
+	}
+
+	task, ok := taskInterface.(*sqlcv1.V1TasksOlap)
+
+	if !ok {
+		return nil, echo.NewHTTPError(500, "Task type assertion failed")
+	}
 
 	attempt := request.Params.Attempt
 

@@ -140,6 +140,7 @@ function TaskRunDetailProviderContent({
       // Retry up to 2 times for other errors
       return failureCount < 2;
     },
+    enabled: !!taskRunId,
   });
 
   // Memoize cancel and replay functions to prevent unnecessary re-renders

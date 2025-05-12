@@ -371,6 +371,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
+		if task == nil {
+			return nil, "", fmt.Errorf("task not found")
+		}
+
 		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
 	})
 
