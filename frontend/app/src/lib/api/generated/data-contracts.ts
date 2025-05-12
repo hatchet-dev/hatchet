@@ -170,6 +170,25 @@ export enum RateLimitOrderByField {
   LimitValue = "limitValue",
 }
 
+export enum EventOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export enum EventOrderByField {
+  CreatedAt = "createdAt",
+}
+
+export enum WorkflowRunStatus {
+  PENDING = "PENDING",
+  RUNNING = "RUNNING",
+  SUCCEEDED = "SUCCEEDED",
+  FAILED = "FAILED",
+  CANCELLED = "CANCELLED",
+  QUEUED = "QUEUED",
+  BACKOFF = "BACKOFF",
+}
+
 export enum TenantMemberRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
@@ -189,25 +208,6 @@ export enum TenantResource {
 export enum TenantVersion {
   V0 = "V0",
   V1 = "V1",
-}
-
-export enum EventOrderByDirection {
-  Asc = "asc",
-  Desc = "desc",
-}
-
-export enum EventOrderByField {
-  CreatedAt = "createdAt",
-}
-
-export enum WorkflowRunStatus {
-  PENDING = "PENDING",
-  RUNNING = "RUNNING",
-  SUCCEEDED = "SUCCEEDED",
-  FAILED = "FAILED",
-  CANCELLED = "CANCELLED",
-  QUEUED = "QUEUED",
-  BACKOFF = "BACKOFF",
 }
 
 export enum V1LogLineLevel {
@@ -682,13 +682,6 @@ export interface V1TaskPointMetrics {
 /** The key for the event. */
 export type EventKey = string;
 
-/** A workflow ID. */
-export type WorkflowID = string;
-
-export type WorkflowRunStatusList = WorkflowRunStatus[];
-
-export type EventSearch = string;
-
 export interface Tenant {
   metadata: APIResourceMeta;
   /** The name of the tenant. */
@@ -1105,6 +1098,9 @@ export interface CreateAPITokenResponse {
   token: string;
 }
 
+/** A workflow ID. */
+export type WorkflowID = string;
+
 export interface QueueMetrics {
   /** The number of items in the queue. */
   numQueued: number;
@@ -1124,6 +1120,10 @@ export interface TenantQueueMetrics {
 export interface TenantStepRunQueueMetrics {
   queues?: object;
 }
+
+export type WorkflowRunStatusList = WorkflowRunStatus[];
+
+export type EventSearch = string;
 
 export interface EventWorkflowRunSummary {
   /**

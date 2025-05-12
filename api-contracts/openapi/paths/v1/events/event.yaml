@@ -35,58 +35,6 @@ V1EventList:
           type: array
           items:
             $ref: "../../../components/schemas/_index.yaml#/EventKey"
-      - description: A list of workflow IDs to filter by
-        in: query
-        name: workflows
-        required: false
-        schema:
-          type: array
-          items:
-            $ref: "../../../components/schemas/_index.yaml#/WorkflowID"
-      - description: A list of workflow run statuses to filter by
-        in: query
-        name: statuses
-        required: false
-        schema:
-          $ref: "../../../components/schemas/_index.yaml#/WorkflowRunStatusList"
-      - description: The search query to filter for
-        in: query
-        name: search
-        required: false
-        schema:
-          $ref: "../../../components/schemas/_index.yaml#/EventSearch"
-      - description: What to order by
-        in: query
-        name: orderByField
-        required: false
-        schema:
-          $ref: "../../../components/schemas/_index.yaml#/EventOrderByField"
-      - description: The order direction
-        in: query
-        name: orderByDirection
-        required: false
-        schema:
-          $ref: "../../../components/schemas/_index.yaml#/EventOrderByDirection"
-      - description: A list of metadata key value pairs to filter by
-        in: query
-        name: additionalMetadata
-        example: ["key1:value1", "key2:value2"]
-        required: false
-        schema:
-          type: array
-          items:
-            type: string
-      - description: A list of event ids to filter by
-        in: query
-        name: eventIds
-        required: false
-        schema:
-          type: array
-          items:
-            type: string
-            format: uuid
-            minLength: 36
-            maxLength: 36
     responses:
       "200":
         content:

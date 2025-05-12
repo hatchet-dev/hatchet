@@ -584,23 +584,6 @@ export class Api<
       limit?: number;
       /** A list of keys to filter by */
       keys?: EventKey[];
-      /** A list of workflow IDs to filter by */
-      workflows?: WorkflowID[];
-      /** A list of workflow run statuses to filter by */
-      statuses?: WorkflowRunStatusList;
-      /** The search query to filter for */
-      search?: EventSearch;
-      /** What to order by */
-      orderByField?: EventOrderByField;
-      /** The order direction */
-      orderByDirection?: EventOrderByDirection;
-      /**
-       * A list of metadata key value pairs to filter by
-       * @example ["key1:value1","key2:value2"]
-       */
-      additionalMetadata?: string[];
-      /** A list of event ids to filter by */
-      eventIds?: string[];
     },
     params: RequestParams = {},
   ) =>
