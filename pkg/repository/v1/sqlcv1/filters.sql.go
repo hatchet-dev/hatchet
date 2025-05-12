@@ -84,7 +84,7 @@ WITH inputs AS (
         UNNEST($4::TEXT[]) AS resource_hint
 )
 
-SELECT id, f.tenant_id, f.workflow_id, f.workflow_version_id, f.resource_hint, expression, payload, i.tenant_id, i.workflow_id, i.workflow_version_id, i.resource_hint
+SELECT f.id, f.tenant_id, f.workflow_id, f.workflow_version_id, f.resource_hint, f.expression, f.payload
 FROM v1_filter f
 JOIN inputs i ON (f.tenant_id, f.workflow_id, f.workflow_version_id, f.resource_hint) = (i.tenant_id, i.workflow_id, i.workflow_version_id, i.resource_hint)
 `
@@ -96,21 +96,7 @@ type ListFiltersParams struct {
 	Resourcehints      []string      `json:"resourcehints"`
 }
 
-type ListFiltersRow struct {
-	ID                  int64       `json:"id"`
-	TenantID            pgtype.UUID `json:"tenant_id"`
-	WorkflowID          pgtype.UUID `json:"workflow_id"`
-	WorkflowVersionID   pgtype.UUID `json:"workflow_version_id"`
-	ResourceHint        string      `json:"resource_hint"`
-	Expression          string      `json:"expression"`
-	Payload             []byte      `json:"payload"`
-	TenantID_2          interface{} `json:"tenant_id_2"`
-	WorkflowID_2        interface{} `json:"workflow_id_2"`
-	WorkflowVersionID_2 interface{} `json:"workflow_version_id_2"`
-	ResourceHint_2      interface{} `json:"resource_hint_2"`
-}
-
-func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*ListFiltersRow, error) {
+func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
 	rows, err := db.Query(ctx, listFilters,
 		arg.Tenantids,
 		arg.Workflowids,
@@ -121,9 +107,9 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListFiltersRow
+	var items []*V1Filter
 	for rows.Next() {
-		var i ListFiltersRow
+		var i V1Filter
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -132,10 +118,6 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 			&i.ResourceHint,
 			&i.Expression,
 			&i.Payload,
-			&i.TenantID_2,
-			&i.WorkflowID_2,
-			&i.WorkflowVersionID_2,
-			&i.ResourceHint_2,
 		); err != nil {
 			return nil, err
 		}

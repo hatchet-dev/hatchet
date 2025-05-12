@@ -22,7 +22,7 @@ import (
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventName string, data []byte, metadata []byte, priority *int32, resourceHint *string) (*dbsqlc.Event, error)
 	BulkIngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenant *dbsqlc.Tenant, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
@@ -163,12 +163,12 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32, resourceHint *string) (*dbsqlc.Event, error) {
 	switch tenant.Version {
 	case dbsqlc.TenantMajorEngineVersionV0:
 		return i.ingestEventV0(ctx, tenant, key, data, metadata)
 	case dbsqlc.TenantMajorEngineVersionV1:
-		return i.ingestEventV1(ctx, tenant, key, data, metadata, priority)
+		return i.ingestEventV1(ctx, tenant, key, data, metadata, priority, resourceHint)
 	default:
 		return nil, fmt.Errorf("unsupported tenant version: %s", tenant.Version)
 	}

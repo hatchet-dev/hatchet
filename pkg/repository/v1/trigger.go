@@ -27,6 +27,8 @@ type EventTriggerOpts struct {
 	AdditionalMetadata []byte
 
 	Priority *int32
+
+	ResourceHint *string
 }
 
 type TriggerTaskData struct {
@@ -152,8 +154,44 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
-	sqlcv1.ListFiltersParams{}
+	tenantIds := make([]pgtype.UUID, 0)
+	workflowIds := make([]pgtype.UUID, 0)
+	workflowVersionIds := make([]pgtype.UUID, 0)
+	resourceHints := make([]string, 0)
 
+	for _, workflow := range workflowVersionIdsAndEventKeys {
+		opts, ok := eventKeysToOpts[workflow.EventKey]
+
+		if !ok {
+			continue
+		}
+
+		for _, opt := range opts {
+			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
+			workflowIds = append(workflowIds, workflow.WorkflowId)
+			workflowVersionIds = append(workflowVersionIds, workflow.WorkflowVersionId)
+			resourceHints = append(resourceHints, *opt.ResourceHint)
+		}
+	}
+
+	listFiltersParams := sqlcv1.ListFiltersParams{
+		Tenantids:          tenantIds,
+		Workflowids:        workflowIds,
+		Workflowversionids: workflowVersionIds,
+		Resourcehints:      resourceHints,
+	}
+
+	filters, err := r.queries.ListFilters(ctx, r.pool, listFiltersParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list filters: %w", err)
+	}
+
+	workflowToFilters := make(map[string][]*sqlcv1.V1Filter)
+
+	for _, filter := range filters {
+		workflowToFilters[filter.WorkflowVersionID.String()] = append(workflowToFilters[filter.WorkflowVersionID.String()], filter)
+	}
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
@@ -165,6 +203,15 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 		if !ok {
 			continue
+		}
+
+		filters := workflowToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowVersionId)]
+
+		if len(filters) > 0 {
+			for _, filter := range filters {
+				// Evaluate the filter here
+				fmt.Println(filter)
+			}
 		}
 
 		for _, opt := range opts {
