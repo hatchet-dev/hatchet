@@ -46,7 +46,6 @@ function ServiceDetailPageContent() {
     ]);
   }, [decodedServiceName, service?.type, breadcrumb]);
 
-
   if (!service) {
     return <div>Service not found</div>;
   }

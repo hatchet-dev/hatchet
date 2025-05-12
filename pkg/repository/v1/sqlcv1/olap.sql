@@ -327,7 +327,7 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 -- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
     SELECT
-        CASE 
+        CASE
             WHEN sqlc.narg('retry_count')::int IS NOT NULL THEN sqlc.narg('retry_count')::int
             ELSE MAX(retry_count)::int
         END AS retry_count

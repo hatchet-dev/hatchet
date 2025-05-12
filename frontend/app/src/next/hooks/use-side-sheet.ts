@@ -1,7 +1,17 @@
-import { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  useCallback,
+} from 'react';
 import { RunDetailSheetSerializableProps } from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
 import { useSearchParams } from 'react-router-dom';
-import { SHEET_PARAM_KEY, encodeSheetProps, decodeSheetProps } from '@/next/utils/sheet-url';
+import {
+  SHEET_PARAM_KEY,
+  encodeSheetProps,
+  decodeSheetProps,
+} from '@/next/utils/sheet-url';
 import { WorkerDetailsProps } from '../pages/authenticated/dashboard/worker-services/components/worker-details';
 
 const EXPANDED_STATE_KEY = 'side-sheet-expanded-state';
@@ -11,13 +21,15 @@ export interface SideSheet {
   openProps?: OpenSheetProps;
 }
 
-export type OpenSheetProps = {
-  type: 'task-detail';
-  props: RunDetailSheetSerializableProps;
-} | {
-  type: 'worker-detail';
-  props: WorkerDetailsProps;
-}
+export type OpenSheetProps =
+  | {
+      type: 'task-detail';
+      props: RunDetailSheetSerializableProps;
+    }
+  | {
+      type: 'worker-detail';
+      props: WorkerDetailsProps;
+    };
 
 interface SideSheetContextValue {
   sheet: SideSheet;
@@ -28,7 +40,9 @@ interface SideSheetContextValue {
 }
 
 // Create a context for the side sheet state
-export const SideSheetContext = createContext<SideSheetContextValue | null>(null);
+export const SideSheetContext = createContext<SideSheetContextValue | null>(
+  null,
+);
 
 // Hook to be used by consumers to access side sheet context
 export function useSideSheet() {
@@ -71,39 +85,51 @@ export function useSideSheetState(): SideSheetContextValue {
   }, [searchParams]);
 
   // Memoize URL parameter update function
-  const updateUrlParams = useCallback((props?: OpenSheetProps) => {
-    const params = new URLSearchParams(searchParams.toString());
+  const updateUrlParams = useCallback(
+    (props?: OpenSheetProps) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-    if (props) {
-      params.set(SHEET_PARAM_KEY, encodeSheetProps(props));
-    } else {
-      params.delete(SHEET_PARAM_KEY);
-    }
+      if (props) {
+        params.set(SHEET_PARAM_KEY, encodeSheetProps(props));
+      } else {
+        params.delete(SHEET_PARAM_KEY);
+      }
 
-    setSearchParams(params);
-  }, [searchParams, setSearchParams]);
+      setSearchParams(params);
+    },
+    [searchParams, setSearchParams],
+  );
 
   // Memoize sheet operations
-  const openSheet = useCallback((props: OpenSheetProps) => {
-    updateUrlParams(props);
-  }, [updateUrlParams]);
+  const openSheet = useCallback(
+    (props: OpenSheetProps) => {
+      updateUrlParams(props);
+    },
+    [updateUrlParams],
+  );
 
   const closeSheet = useCallback(() => {
     updateUrlParams();
   }, [updateUrlParams]);
 
-  const toggleSheet = useCallback((props: OpenSheetProps) => {
-    if (openProps) {
-      closeSheet();
-    } else {
-      openSheet(props);
-    }
-  }, [openProps, closeSheet, openSheet]);
+  const toggleSheet = useCallback(
+    (props: OpenSheetProps) => {
+      if (openProps) {
+        closeSheet();
+      } else {
+        openSheet(props);
+      }
+    },
+    [openProps, closeSheet, openSheet],
+  );
 
   const toggleExpand = useCallback(() => {
     const newExpandedState = !isExpanded;
     try {
-      localStorage.setItem(EXPANDED_STATE_KEY, JSON.stringify(newExpandedState));
+      localStorage.setItem(
+        EXPANDED_STATE_KEY,
+        JSON.stringify(newExpandedState),
+      );
     } catch {
       // Ignore storage errors
     }
@@ -111,19 +137,25 @@ export function useSideSheetState(): SideSheetContextValue {
   }, [isExpanded]);
 
   // Memoize sheet state
-  const sheet = useMemo<SideSheet>(() => ({
-    isExpanded,
-    openProps,
-  }), [isExpanded, openProps]);
+  const sheet = useMemo<SideSheet>(
+    () => ({
+      isExpanded,
+      openProps,
+    }),
+    [isExpanded, openProps],
+  );
 
   // Memoize context value
-  const contextValue = useMemo<SideSheetContextValue>(() => ({
-    sheet,
-    open: openSheet,
-    toggle: toggleSheet,
-    close: closeSheet,
-    toggleExpand,
-  }), [sheet, openSheet, toggleSheet, closeSheet, toggleExpand]);
+  const contextValue = useMemo<SideSheetContextValue>(
+    () => ({
+      sheet,
+      open: openSheet,
+      toggle: toggleSheet,
+      close: closeSheet,
+      toggleExpand,
+    }),
+    [sheet, openSheet, toggleSheet, closeSheet, toggleExpand],
+  );
 
   return contextValue;
 }

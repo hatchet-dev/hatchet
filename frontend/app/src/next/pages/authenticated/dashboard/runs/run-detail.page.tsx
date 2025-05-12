@@ -42,7 +42,7 @@ import BasicLayout from '@/next/components/layouts/basic.layout';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
 
 export default function RunDetailPage() {
-  const { workflowRunId, taskId, } = useParams<{
+  const { workflowRunId, taskId } = useParams<{
     workflowRunId: string;
     taskId: string;
   }>();
@@ -64,14 +64,7 @@ type RunDetailPageProps = {
 
 function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   const { tenant } = useTenant();
-  const {
-    data,
-    isLoading,
-    error,
-    cancel,
-    replay,
-    parentData,
-  } = useRunDetail();
+  const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
@@ -133,16 +126,13 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       url:
         selectedTask?.metadata.id === workflow?.metadata.id
           ? ROUTES.runs.detail(workflow.metadata.id)
-          : ROUTES.runs.detailWithSheet(
-              workflow.metadata.id,
-              {
-                type: 'task-detail',
-                props: {
-                  selectedWorkflowRunId: workflow.metadata.id,
-                  selectedTaskId: selectedTask?.taskExternalId,
-                },
+          : ROUTES.runs.detailWithSheet(workflow.metadata.id, {
+              type: 'task-detail',
+              props: {
+                selectedWorkflowRunId: workflow.metadata.id,
+                selectedTaskId: selectedTask?.taskExternalId,
               },
-            ),
+            }),
       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
       alwaysShowIcon: true,
     });
@@ -421,20 +411,20 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="activity" className="mt-4">
-              <RunEventLog
-                workflow={workflow}
-                onTaskSelect={(event) => {
-                  console.log(event);
-                  openSheet({
-                    type: 'task-detail',
-                    props: {
-                      selectedWorkflowRunId: workflowRunId!,
-                      selectedTaskId: event.taskId,
-                      attempt: event.attempt,
-                    },
-                  });
-                }}
-              />
+            <RunEventLog
+              workflow={workflow}
+              onTaskSelect={(event) => {
+                console.log(event);
+                openSheet({
+                  type: 'task-detail',
+                  props: {
+                    selectedWorkflowRunId: workflowRunId!,
+                    selectedTaskId: event.taskId,
+                    attempt: event.attempt,
+                  },
+                });
+              }}
+            />
           </TabsContent>
           <TabsContent value="config" className="mt-4">
             <WorkflowDetailsProvider workflowId={workflow.workflowId}>

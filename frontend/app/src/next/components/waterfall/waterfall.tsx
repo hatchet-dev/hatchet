@@ -19,7 +19,11 @@ import { ROUTES } from '@/next/lib/routes';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { Button } from '../ui/button';
 import { RunId } from '../runs/run-id';
-import { BsArrowDownRightCircle, BsCircle, BsArrowUpLeftCircle } from "react-icons/bs";
+import {
+  BsArrowDownRightCircle,
+  BsCircle,
+  BsArrowUpLeftCircle,
+} from 'react-icons/bs';
 import { Skeleton } from '../ui/skeleton';
 interface ProcessedTaskData {
   id: string;
@@ -97,7 +101,9 @@ const CustomTooltip = (props: {
 };
 
 // Add this helper function before the Waterfall component
-const inferTaskState = (tasks: V1TaskTiming[]): {
+const inferTaskState = (
+  tasks: V1TaskTiming[],
+): {
   status: V1TaskStatus;
   startedAt: string | undefined;
   finishedAt: string | undefined;
@@ -114,20 +120,20 @@ const inferTaskState = (tasks: V1TaskTiming[]): {
 
   // Get all valid timestamps
   const startTimes = tasks
-    .filter(t => t.startedAt)
-    .map(t => new Date(t.startedAt!).getTime());
+    .filter((t) => t.startedAt)
+    .map((t) => new Date(t.startedAt!).getTime());
   const finishedTimes = tasks
-    .filter(t => t.finishedAt)
-    .map(t => new Date(t.finishedAt!).getTime());
+    .filter((t) => t.finishedAt)
+    .map((t) => new Date(t.finishedAt!).getTime());
   const queueTimes = tasks
-    .filter(t => t.queuedAt)
-    .map(t => new Date(t.queuedAt!).getTime());
+    .filter((t) => t.queuedAt)
+    .map((t) => new Date(t.queuedAt!).getTime());
 
   // Infer status based on child tasks
   let status: V1TaskStatus = V1TaskStatus.QUEUED;
   const statusCounts = new Map<V1TaskStatus, number>();
 
-  tasks.forEach(task => {
+  tasks.forEach((task) => {
     const count = statusCounts.get(task.status) || 0;
     statusCounts.set(task.status, count + 1);
   });
@@ -150,12 +156,18 @@ const inferTaskState = (tasks: V1TaskTiming[]): {
   }
 
   // Calculate timing information
-  const earliestStart = startTimes.length > 0 ? new Date(Math.min(...startTimes)) : undefined;
-  const earliestQueue = queueTimes.length > 0 ? new Date(Math.min(...queueTimes)) : undefined;
+  const earliestStart =
+    startTimes.length > 0 ? new Date(Math.min(...startTimes)) : undefined;
+  const earliestQueue =
+    queueTimes.length > 0 ? new Date(Math.min(...queueTimes)) : undefined;
 
   // Handle finishedAt time based on status
   let latestFinished: Date | undefined;
-  if (status === V1TaskStatus.COMPLETED || status === V1TaskStatus.FAILED || status === V1TaskStatus.CANCELLED) {
+  if (
+    status === V1TaskStatus.COMPLETED ||
+    status === V1TaskStatus.FAILED ||
+    status === V1TaskStatus.CANCELLED
+  ) {
     // Only use finished times if all tasks have finished
     if (finishedTimes.length === tasks.length) {
       latestFinished = new Date(Math.max(...finishedTimes));
@@ -178,7 +190,11 @@ const inferTaskState = (tasks: V1TaskTiming[]): {
   };
 };
 
-export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: WaterfallProps) {
+export function Waterfall({
+  workflowRunId,
+  selectedTaskId,
+  handleTaskSelect,
+}: WaterfallProps) {
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [autoExpandedInitially, setAutoExpandedInitially] = useState(false);
 
@@ -211,7 +227,9 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
         // Record parent-child relationship
         if (task.parentTaskExternalId) {
           // Check if parent exists in our dataset
-          const parentExists = taskData.rows.some(t => t.metadata?.id === task.parentTaskExternalId);
+          const parentExists = taskData.rows.some(
+            (t) => t.metadata?.id === task.parentTaskExternalId,
+          );
 
           if (parentExists) {
             if (!taskParentMap.has(task.parentTaskExternalId)) {
@@ -273,7 +291,10 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     });
 
     // Group tasks by workflowRunId at each level
-    const groupTasksByWorkflowRun = (parentId: string | undefined, depth: number) => {
+    const groupTasksByWorkflowRun = (
+      parentId: string | undefined,
+      depth: number,
+    ) => {
       const children = parentId ? taskParentMap.get(parentId) || [] : rootTasks;
 
       // Group children by workflowRunId
@@ -291,7 +312,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
       // Create phantom parents for groups with multiple tasks
       groups.forEach((taskIds, workflowRunId) => {
         if (taskIds.length > 1) {
-          const tasks = taskIds.map(id => taskMap.get(id)!);
+          const tasks = taskIds.map((id) => taskMap.get(id)!);
 
           // Infer state from child tasks
           const inferredState = inferTaskState(tasks);
@@ -305,7 +326,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
             metadata: {
               id: workflowRunId,
               createdAt: inferredState.startedAt || new Date().toISOString(),
-              updatedAt: inferredState.finishedAt || new Date().toISOString()
+              updatedAt: inferredState.finishedAt || new Date().toISOString(),
             },
             taskDisplayName: `dag`, // TODO: change to workflow run name
             taskExternalId: workflowRunId,
@@ -314,7 +335,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
             workflowRunId,
             taskInsertedAt: inferredState.startedAt || new Date().toISOString(),
             tenantId: tasks[0].tenantId,
-            parentTaskExternalId: tasks[0].parentTaskExternalId
+            parentTaskExternalId: tasks[0].parentTaskExternalId,
           };
 
           // Add phantom parent to task map and update parent-child relationships
@@ -323,7 +344,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
           taskDepthMap.set(phantomParent.metadata.id, depth);
 
           // Update children to point to phantom parent
-          taskIds.forEach(childId => {
+          taskIds.forEach((childId) => {
             const child = taskMap.get(childId)!;
             child.parentTaskExternalId = phantomParent.metadata.id;
             child.depth = depth + 1;
@@ -333,7 +354,9 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
           // Update parent's children list
           if (parentId) {
             const parentChildren = taskParentMap.get(parentId) || [];
-            const newParentChildren = parentChildren.filter(id => !taskIds.includes(id));
+            const newParentChildren = parentChildren.filter(
+              (id) => !taskIds.includes(id),
+            );
             newParentChildren.push(phantomParent.metadata.id);
             taskParentMap.set(parentId, newParentChildren);
           } else {
@@ -346,7 +369,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
           taskParentMap.set(phantomParent.metadata.id, taskIds);
 
           // Recursively process children
-          taskIds.forEach(childId => {
+          taskIds.forEach((childId) => {
             groupTasksByWorkflowRun(childId, depth + 2);
           });
         } else {
@@ -365,7 +388,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
       taskDescendantsMap,
       taskHasChildrenMap,
       taskDepthMap,
-      rootTasks
+      rootTasks,
     };
   }, [taskData, depth]); // Only recompute when taskData or depth changes
 
@@ -374,7 +397,8 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     newExpandedTasks.delete(taskId);
 
     // Get all descendants and remove them from expanded set
-    const descendants = taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
+    const descendants =
+      taskRelationships.taskDescendantsMap.get(taskId) || new Set<string>();
     descendants.forEach((descendantId) => {
       newExpandedTasks.delete(descendantId);
     });
@@ -383,7 +407,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     // This handles the case where some descendants might not be in the taskDescendantsMap
     const processDescendants = (parentId: string) => {
       const children = taskRelationships.taskParentMap.get(parentId) || [];
-      children.forEach(childId => {
+      children.forEach((childId) => {
         newExpandedTasks.delete(childId);
         processDescendants(childId);
       });
@@ -432,7 +456,7 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
       taskParentMap,
       taskHasChildrenMap = new Map<string, boolean>(),
       taskDepthMap = new Map<string, number>(),
-      rootTasks = []
+      rootTasks = [],
     } = taskRelationships;
 
     // Auto-expand first set of root tasks with children
@@ -510,11 +534,12 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
 
         // For running tasks, always use current time as finishedAt
         const now = new Date().getTime();
-        const finishedAt = task.status === V1TaskStatus.RUNNING
-          ? now
-          : task.finishedAt
-            ? new Date(task.finishedAt).getTime()
-            : startedAt;
+        const finishedAt =
+          task.status === V1TaskStatus.RUNNING
+            ? now
+            : task.finishedAt
+              ? new Date(task.finishedAt).getTime()
+              : startedAt;
 
         return {
           id: task.metadata.id,
@@ -554,7 +579,13 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
       });
 
     return { data, taskPathMap: new Map() };
-  }, [taskData, expandedTasks, depth, autoExpandedInitially, taskRelationships]); // Only recompute when dependencies change
+  }, [
+    taskData,
+    expandedTasks,
+    depth,
+    autoExpandedInitially,
+    taskRelationships,
+  ]); // Only recompute when dependencies change
 
   // Custom tick renderer with expand/collapse buttons
   const renderTick = (props: {
@@ -632,61 +663,61 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
                 displayName={task.taskDisplayName}
                 id={task.id}
                 onClick={() => handleBarClick(task)}
-                className={task.id === selectedTaskId ? "underline" : ""}
+                className={task.id === selectedTaskId ? 'underline' : ''}
                 attempt={task.attempt}
               />
             </div>
-              {workflowRunId === task.workflowRunId ? (
-                task.parentId ? (
-                  <Link to={ROUTES.runs.detailWithSheet(task.parentId, {
+            {workflowRunId === task.workflowRunId ? (
+              task.parentId ? (
+                <Link
+                  to={ROUTES.runs.detailWithSheet(task.parentId, {
                     type: 'task-detail',
                     props: {
                       selectedWorkflowRunId: task.workflowRunId,
                       selectedTaskId: task.id,
                     },
-                  })} onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      tooltip="Scope out to parent task"
-                      variant="link"
-                      size="icon"
-                      className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                    >
-                      <BsArrowUpLeftCircle className="w-4 h-4 transform" />
-                    </Button>
-                  </Link>
-                ) : (
-                  <Button
-                    tooltip="No parent task, this is a root task"
-                    variant="link"
-                    size="icon"
-                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                  >
-                    <BsCircle className="w-4 h-4" />
-                  </Button>
-                )
-              ) : (
-                <Link
-                  to={ROUTES.runs.detailWithSheet(
-                    task.workflowRunId || task.id,
-                    {
-                      type: 'task-detail',
-                      props: {
-                        selectedWorkflowRunId: task.workflowRunId || task.id,
-                        selectedTaskId: task.id,
-                      },
-                    },
-                  )}
+                  })}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <Button
-                    tooltip="Scope into child task"
+                    tooltip="Scope out to parent task"
                     variant="link"
                     size="icon"
                     className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
                   >
-                    <BsArrowDownRightCircle className="w-4 h-4" />
+                    <BsArrowUpLeftCircle className="w-4 h-4 transform" />
                   </Button>
                 </Link>
-              )}
+              ) : (
+                <Button
+                  tooltip="No parent task, this is a root task"
+                  variant="link"
+                  size="icon"
+                  className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                >
+                  <BsCircle className="w-4 h-4" />
+                </Button>
+              )
+            ) : (
+              <Link
+                to={ROUTES.runs.detailWithSheet(task.workflowRunId || task.id, {
+                  type: 'task-detail',
+                  props: {
+                    selectedWorkflowRunId: task.workflowRunId || task.id,
+                    selectedTaskId: task.id,
+                  },
+                })}
+              >
+                <Button
+                  tooltip="Scope into child task"
+                  variant="link"
+                  size="icon"
+                  className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                >
+                  <BsArrowDownRightCircle className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
           </div>
         </foreignObject>
       </g>
@@ -700,7 +731,11 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
     !processedData.data ||
     processedData.data.length === 0
   ) {
-    return <><Skeleton className="h-[100px] w-full" /></>;
+    return (
+      <>
+        <Skeleton className="h-[100px] w-full" />
+      </>
+    );
   }
 
   // Compute dynamic chart height
@@ -792,7 +827,11 @@ export function Waterfall({ workflowRunId, selectedTaskId, handleTaskSelect }: W
               {processedData.data.map((entry, index) => (
                 <Cell
                   key={`selected-${index}`}
-                  fill={entry.id === selectedTaskId ? 'rgb(99 102 241 / 0.1)' : 'transparent'}
+                  fill={
+                    entry.id === selectedTaskId
+                      ? 'rgb(99 102 241 / 0.1)'
+                      : 'transparent'
+                  }
                   width={10000} // Use a large fixed width to ensure full coverage
                 />
               ))}

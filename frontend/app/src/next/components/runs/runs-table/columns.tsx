@@ -104,13 +104,16 @@ export const columns = (
       <DataTableColumnHeader column={column} title="Run ID" />
     ),
     cell: ({ row }) => {
-      const url = ROUTES.runs.detailWithSheet(row.original.workflowRunExternalId || '', {
-        type: 'task-detail',
-        props: {
-          selectedWorkflowRunId: row.original.workflowRunExternalId || '',
-          selectedTaskId: row.original.taskExternalId,
+      const url = ROUTES.runs.detailWithSheet(
+        row.original.workflowRunExternalId || '',
+        {
+          type: 'task-detail',
+          props: {
+            selectedWorkflowRunId: row.original.workflowRunExternalId || '',
+            selectedTaskId: row.original.taskExternalId,
+          },
         },
-      });
+      );
 
       return (
         <div className="flex items-center gap-2">

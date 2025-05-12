@@ -1,9 +1,9 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../sheet';
-import {  useSideSheet } from '@/next/hooks/use-side-sheet';
+import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { Cross2Icon, ExternalLinkIcon } from '@radix-ui/react-icons';
 import { RunDetailSheet } from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
-import { useMemo, useCallback  } from 'react';
+import { useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { WorkerDetails } from '@/next/pages/authenticated/dashboard/worker-services/components/worker-details';
 import { useSidebar } from '@/next/components/ui/sidebar';
@@ -18,9 +18,7 @@ interface SideSheetContent {
   actions?: React.ReactNode;
 }
 
-export function SideSheetComponent({
-  variant = 'push',
-}: SideSheetProps) {
+export function SideSheetComponent({ variant = 'push' }: SideSheetProps) {
   const isMobile = useIsMobile();
   const { toggleExpand, sheet, close } = useSideSheet();
   const { isCollapsed } = useSidebar();
@@ -34,14 +32,17 @@ export function SideSheetComponent({
   const content = useMemo<SideSheetContent | undefined>(() => {
     if (sheet.openProps?.type === 'task-detail') {
       return {
-        component: <RunDetailSheet
-          isOpen={isOpen}
-          onClose={onClose}
-          {...sheet.openProps.props}
-        />,
-        title: "Run Detail",
-        actions: <>
-          {/* <a
+        component: (
+          <RunDetailSheet
+            isOpen={isOpen}
+            onClose={onClose}
+            {...sheet.openProps.props}
+          />
+        ),
+        title: 'Run Detail',
+        actions: (
+          <>
+            {/* <a
             href={sheet.openProps?.props.detailsLink}
             target="_blank"
             rel="noopener noreferrer"
@@ -51,29 +52,30 @@ export function SideSheetComponent({
             <ExternalLinkIcon className="h-4 w-4" />
             <span className="sr-only">Open in new tab</span>
           </a> */}
-        </>
-      }
+          </>
+        ),
+      };
     }
 
     if (sheet.openProps?.type === 'worker-detail') {
       return {
-        component: <WorkerDetails
-          {...sheet.openProps.props}
-        />,
-        title: "Worker Detail",
-        actions: <>
-          <a
-            // href={ROUTES.workerServices.detail(sheet.openProps?.props.serviceName, sheet.openProps?.props.workerId)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-            title="Open in new tab"
-          >
-            <ExternalLinkIcon className="h-4 w-4" />
-            <span className="sr-only">Open in new tab</span>
-          </a>
-        </>
-      }
+        component: <WorkerDetails {...sheet.openProps.props} />,
+        title: 'Worker Detail',
+        actions: (
+          <>
+            <a
+              // href={ROUTES.workerServices.detail(sheet.openProps?.props.serviceName, sheet.openProps?.props.workerId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+              title="Open in new tab"
+            >
+              <ExternalLinkIcon className="h-4 w-4" />
+              <span className="sr-only">Open in new tab</span>
+            </a>
+          </>
+        ),
+      };
     }
 
     return undefined;
@@ -94,16 +96,22 @@ export function SideSheetComponent({
             <button
               onClick={toggleExpand}
               className={cn(
-                "absolute inset-y-0 -left-2 z-20 w-4 transition-w ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-border",
-                sheet.isExpanded ? "cursor-e-resize" : "cursor-w-resize"
+                'absolute inset-y-0 -left-2 z-20 w-4 transition-w ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-border',
+                sheet.isExpanded ? 'cursor-e-resize' : 'cursor-w-resize',
               )}
               title="Toggle width"
             />
             <div className="h-full min-h-screen flex flex-col overflow-hidden">
-              <div className={cn(
-                'flex justify-between items-center border-b shrink-0 transition-h duration-300',
-                isMobile ? 'h-16 px-4' : isCollapsed ? 'h-12 px-8' : 'h-16 px-8'
-              )}>
+              <div
+                className={cn(
+                  'flex justify-between items-center border-b shrink-0 transition-h duration-300',
+                  isMobile
+                    ? 'h-16 px-4'
+                    : isCollapsed
+                      ? 'h-12 px-8'
+                      : 'h-16 px-8',
+                )}
+              >
                 <h2 className="text-lg font-semibold truncate pr-2">
                   {content?.title}
                 </h2>

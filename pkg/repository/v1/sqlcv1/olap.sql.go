@@ -1011,7 +1011,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 const populateSingleTaskRunData = `-- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
     SELECT
-        CASE 
+        CASE
             WHEN $4::int IS NOT NULL THEN $4::int
             ELSE MAX(retry_count)::int
         END AS retry_count

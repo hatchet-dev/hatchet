@@ -43,7 +43,9 @@ export function RunDataCard({
   const [isOpen, setIsOpen] = useState(!collapsed);
 
   const errorData = useMemo(() => {
-    if (!error) return null;
+    if (!error) {
+      return null;
+    }
     try {
       return JSON.parse(error);
     } catch {

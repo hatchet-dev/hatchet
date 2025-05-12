@@ -10,7 +10,10 @@ import { TenantProvider } from '../hooks/use-tenant';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
 import { SideSheetComponent } from '../components/ui/sheet/side-sheet.layout';
-import { SideSheetContext, useSideSheetState } from '@/next/hooks/use-side-sheet';
+import {
+  SideSheetContext,
+  useSideSheetState,
+} from '@/next/hooks/use-side-sheet';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
 
 function RootContent({ children }: PropsWithChildren) {
@@ -52,10 +55,10 @@ function Root({ children }: PropsWithChildren) {
     <ToastProvider>
       <TenantProvider>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <SidebarProvider>
-          <Toaster />
-          <RootContent>{children}</RootContent>
-        </SidebarProvider>
+          <SidebarProvider>
+            <Toaster />
+            <RootContent>{children}</RootContent>
+          </SidebarProvider>
         </ThemeProvider>
       </TenantProvider>
     </ToastProvider>

@@ -136,16 +136,21 @@ export function RunsTable({
 
   const navigate = useNavigate();
 
-  const handleRowDoubleClick = useCallback((row: V1TaskSummary) => {
-    console.log(row);
-    navigate(ROUTES.runs.detailWithSheet(row.workflowRunExternalId || '', {
-      type: 'task-detail',
-      props: {
-        selectedWorkflowRunId: row.workflowRunExternalId || '',
-        selectedTaskId: row.taskExternalId,
-      },
-    }));
-  }, [navigate]);
+  const handleRowDoubleClick = useCallback(
+    (row: V1TaskSummary) => {
+      console.log(row);
+      navigate(
+        ROUTES.runs.detailWithSheet(row.workflowRunExternalId || '', {
+          type: 'task-detail',
+          props: {
+            selectedWorkflowRunId: row.workflowRunExternalId || '',
+            selectedTaskId: row.taskExternalId,
+          },
+        }),
+      );
+    },
+    [navigate],
+  );
 
   return (
     <>

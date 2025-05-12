@@ -1,4 +1,11 @@
-import { createContext, useContext, useMemo, useState, useCallback, useRef } from 'react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
@@ -30,7 +37,9 @@ const TaskRunDetailContext = createContext<TaskRunDetailState | null>(null);
 export function useTaskRunDetail() {
   const context = useContext(TaskRunDetailContext);
   if (!context) {
-    throw new Error('useTaskRunDetail must be used within a TaskRunDetailProvider');
+    throw new Error(
+      'useTaskRunDetail must be used within a TaskRunDetailProvider',
+    );
   }
   return context;
 }
@@ -73,35 +82,38 @@ function TaskRunDetailProviderContent({
   const { toast } = useToast();
 
   // Memoize query key to prevent unnecessary refetches
-  const queryKey = useMemo(() => 
-    ['task-run-details:get', taskRunId, attempt],
-    [taskRunId, attempt]
+  const queryKey = useMemo(
+    () => ['task-run-details:get', taskRunId, attempt],
+    [taskRunId, attempt],
   );
 
   // Memoize error handler to prevent unnecessary re-renders
-  const handleError = useCallback((error: unknown) => {
-    if (error instanceof AxiosError) {
-      // Handle 404s gracefully for DAG runs
-      if (error.response?.status === 404) {
-        return null;
+  const handleError = useCallback(
+    (error: unknown) => {
+      if (error instanceof AxiosError) {
+        // Handle 404s gracefully for DAG runs
+        if (error.response?.status === 404) {
+          return null;
+        }
+
+        // Handle other API errors
+        toast({
+          title: 'Error fetching task run details',
+          variant: 'destructive',
+          error,
+        });
+      } else {
+        // Handle unexpected errors
+        toast({
+          title: 'Unexpected error',
+          variant: 'destructive',
+          error,
+        });
       }
-      
-      // Handle other API errors
-      toast({
-        title: 'Error fetching task run details',
-        variant: 'destructive',
-        error,
-      });
-    } else {
-      // Handle unexpected errors
-      toast({
-        title: 'Unexpected error',
-        variant: 'destructive',
-        error,
-      });
-    }
-    return null;
-  }, [toast]);
+      return null;
+    },
+    [toast],
+  );
 
   const runDetails = useQuery<V1TaskSummary | null>({
     queryKey,
@@ -131,15 +143,21 @@ function TaskRunDetailProviderContent({
   });
 
   // Memoize cancel and replay functions to prevent unnecessary re-renders
-  const cancel = useMemo(() => ({
-    mutateAsync: cancelRun.mutateAsync,
-    isPending: cancelRun.isPending,
-  }), [cancelRun.mutateAsync, cancelRun.isPending]);
+  const cancel = useMemo(
+    () => ({
+      mutateAsync: cancelRun.mutateAsync,
+      isPending: cancelRun.isPending,
+    }),
+    [cancelRun.mutateAsync, cancelRun.isPending],
+  );
 
-  const replay = useMemo(() => ({
-    mutateAsync: replayRun.mutateAsync,
-    isPending: replayRun.isPending,
-  }), [replayRun.mutateAsync, replayRun.isPending]);
+  const replay = useMemo(
+    () => ({
+      mutateAsync: replayRun.mutateAsync,
+      isPending: replayRun.isPending,
+    }),
+    [replayRun.mutateAsync, replayRun.isPending],
+  );
 
   const value = useMemo<TaskRunDetailState>(
     () => ({

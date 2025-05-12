@@ -234,7 +234,7 @@ const EventIcon = ({ eventType, className }: EventIconProps) => {
 
 interface EventMessageProps {
   event: V1TaskEvent;
-  onTaskSelect?: RunEventLogProps['onTaskSelect']
+  onTaskSelect?: RunEventLogProps['onTaskSelect'];
 }
 
 const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
@@ -330,9 +330,9 @@ const DEFAULT_FILTERS = {
   attempt: true,
 };
 
-function RunEventLogContent({ 
-  onTaskSelect, 
-  filters: initialFilters, 
+function RunEventLogContent({
+  onTaskSelect,
+  filters: initialFilters,
   showFilters: initialShowFilters,
   showNextButton,
   showPreviousButton,
@@ -349,7 +349,10 @@ function RunEventLogContent({
 
   // Update filters when initialFilters changes, but only if they're different
   useEffect(() => {
-    if (initialFilters && JSON.stringify(initialFilters) !== JSON.stringify(filters)) {
+    if (
+      initialFilters &&
+      JSON.stringify(initialFilters) !== JSON.stringify(filters)
+    ) {
       setFilters(initialFilters);
     }
   }, [initialFilters, setFilters, filters]);
@@ -374,10 +377,19 @@ function RunEventLogContent({
     }));
   }, [tasks]);
 
-  const findMostRecentNonLogEventForAttempt = (events: V1TaskEvent[], targetAttempt: number): V1TaskEvent | undefined => {
+  const findMostRecentNonLogEventForAttempt = (
+    events: V1TaskEvent[],
+    targetAttempt: number,
+  ): V1TaskEvent | undefined => {
     return events
-      .filter(event => event.attempt === targetAttempt && event.eventType !== LogEventType)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+      .filter(
+        (event) =>
+          event.attempt === targetAttempt && event.eventType !== LogEventType,
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      )[0];
   };
 
   const mergedActivity = useMemo<V1TaskEvent[]>(() => {
@@ -424,7 +436,10 @@ function RunEventLogContent({
 
     // If there's a previous attempt, find its most recent non-log event
     if (filters.attempt) {
-      const previousAttemptEvent = findMostRecentNonLogEventForAttempt(allEvents, filters.attempt - 1);
+      const previousAttemptEvent = findMostRecentNonLogEventForAttempt(
+        allEvents,
+        filters.attempt - 1,
+      );
       if (previousAttemptEvent) {
         // Create a copy of the event with a special ID to mark it as the previous attempt summary
         const previousAttemptSummary: V1TaskEvent = {
@@ -495,12 +510,19 @@ function RunEventLogContent({
 
     if (filters.attempt !== undefined) {
       filtered = filtered.filter(
-        (event) => event.attempt !== undefined && event.attempt === filters.attempt,
+        (event) =>
+          event.attempt !== undefined && event.attempt === filters.attempt,
       );
     }
 
     return filtered;
-  }, [mergedActivity, filters.search, filters.eventType, filters.taskId, filters.attempt]);
+  }, [
+    mergedActivity,
+    filters.search,
+    filters.eventType,
+    filters.taskId,
+    filters.attempt,
+  ]);
 
   return (
     <div className="space-y-2">
@@ -576,11 +598,17 @@ function RunEventLogContent({
                       </Time>
                       <p className="text-gray-500 shrink-0">
                         {tasks?.[event.taskId] && (
-                          <RunId taskRun={tasks[event.taskId] as any} attempt={event.attempt} />
+                          <RunId
+                            taskRun={tasks[event.taskId] as any}
+                            attempt={event.attempt}
+                          />
                         )}
                       </p>
                       {event.eventType === LogEventType ? (
-                        <EventMessage event={event} onTaskSelect={onTaskSelect} />
+                        <EventMessage
+                          event={event}
+                          onTaskSelect={onTaskSelect}
+                        />
                       ) : (
                         <>
                           <p

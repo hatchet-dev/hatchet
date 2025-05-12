@@ -23,8 +23,7 @@ import { useSideSheet } from '@/next/hooks/use-side-sheet';
 export default function RunsPage() {
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
-
-  const { open: openSideSheet, sheet} = useSideSheet();
+  const { open: openSideSheet, sheet } = useSideSheet();
 
   const handleRowClick = (task: V1TaskSummary) => {
     openSideSheet({
@@ -32,7 +31,7 @@ export default function RunsPage() {
       props: {
         selectedWorkflowRunId: task.workflowRunExternalId,
         selectedTaskId: task.taskExternalId,
-        pageWorkflowRunId: ''
+        pageWorkflowRunId: '',
       },
     });
   };

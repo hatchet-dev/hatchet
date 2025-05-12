@@ -35,16 +35,13 @@ export function RunId({
     ? ROUTES.runs.detail(wfRun?.metadata.id || id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
-      : ROUTES.runs.detailWithSheet(
-          taskRun?.workflowRunExternalId || '',
-          {
-            type: 'task-detail',
-            props: {
-              selectedWorkflowRunId: taskRun?.workflowRunExternalId || '',
-              selectedTaskId: taskRun?.taskExternalId,
-            },
+      : ROUTES.runs.detailWithSheet(taskRun?.workflowRunExternalId || '', {
+          type: 'task-detail',
+          props: {
+            selectedWorkflowRunId: taskRun?.workflowRunExternalId || '',
+            selectedTaskId: taskRun?.taskExternalId,
           },
-        );
+        });
 
   const name = isTaskRun
     ? getFriendlyTaskRunId(taskRun)
@@ -67,7 +64,10 @@ export function RunId({
           <span>
             {url && !onClick ? (
               <span
-                className={cn("hover:underline text-foreground cursor-pointer", className)}
+                className={cn(
+                  'hover:underline text-foreground cursor-pointer',
+                  className,
+                )}
                 onClick={() => navigate(url)}
               >
                 {name}
@@ -78,14 +78,16 @@ export function RunId({
                 onClick={onClick}
                 onDoubleClick={handleDoubleClick}
               >
-                {name}{displayAttempt && `/${displayAttempt}`}
+                {name}
+                {displayAttempt && `/${displayAttempt}`}
               </span>
             )}
           </span>
         </TooltipTrigger>
         <TooltipContent className="bg-muted">
           <div className="font-mono text-foreground">
-            Run Id: {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}<br />
+            Run Id: {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}
+            <br />
             {displayAttempt && `Attempt: ${displayAttempt}`}
           </div>
         </TooltipContent>

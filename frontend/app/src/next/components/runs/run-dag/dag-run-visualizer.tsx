@@ -37,9 +37,7 @@ interface WorkflowRunVisualizerProps {
 function WorkflowRunVisualizer(props: WorkflowRunVisualizerProps) {
   return (
     <RunDetailProvider runId={props.workflowRunId}>
-      <WorkflowRunVisualizerContent
-      {...props}
-      />
+      <WorkflowRunVisualizerContent {...props} />
     </RunDetailProvider>
   );
 }
@@ -47,7 +45,7 @@ function WorkflowRunVisualizer(props: WorkflowRunVisualizerProps) {
 function WorkflowRunVisualizerContent({
   onTaskSelect,
   selectedTaskId,
-  patchTask
+  patchTask,
 }: WorkflowRunVisualizerProps) {
   const { theme } = useTheme();
   const { data } = useRunDetail();
@@ -55,12 +53,16 @@ function WorkflowRunVisualizerContent({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const shape = useMemo(() => data?.shape || [], [data]);
-  const taskRuns = useMemo(() => data?.tasks.map((t) => patchTask?.taskExternalId === t.taskExternalId ? patchTask : t) || [], [data, patchTask]);
+  const taskRuns = useMemo(
+    () =>
+      data?.tasks.map((t) =>
+        patchTask?.taskExternalId === t.taskExternalId ? patchTask : t,
+      ) || [],
+    [data, patchTask],
+  );
 
   const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-
-
 
   useEffect(() => {
     const resizeObserver = new ResizeObserver((entries) => {
@@ -174,7 +176,7 @@ function WorkflowRunVisualizerContent({
       ranksep: 50,
       edgesep: 10,
       acyclicer: 'greedy',
-      ranker: 'network-simplex'
+      ranker: 'network-simplex',
     });
 
     // Sort nodes by ID to ensure consistent ordering
@@ -186,7 +188,9 @@ function WorkflowRunVisualizerContent({
     // Sort edges to ensure consistent ordering
     const sortedEdges = [...edges].sort((a, b) => {
       const sourceCompare = a.source.localeCompare(b.source);
-      if (sourceCompare !== 0) return sourceCompare;
+      if (sourceCompare !== 0) {
+        return sourceCompare;
+      }
       return a.target.localeCompare(b.target);
     });
     sortedEdges.forEach((edge) => {
@@ -220,27 +224,30 @@ function WorkflowRunVisualizerContent({
   const lastCenteredTaskId = useRef<string | undefined>(undefined);
 
   const recenter = useCallback(() => {
-
     setTimeout(() => {
-
       if (!reactFlowInstance.current) {
         return;
       }
-    const node = layoutedNodes?.find((n: Node) => n.data.taskRun?.taskExternalId === selectedTaskId);
+      const node = layoutedNodes?.find(
+        (n: Node) => n.data.taskRun?.taskExternalId === selectedTaskId,
+      );
 
-    if (node) {
-        const centerX = node.position.x + (nodeWidth / 2) - 20;
-        const centerY = node.position.y + (nodeHeight / 2) - 20;
+      if (node) {
+        const centerX = node.position.x + nodeWidth / 2 - 20;
+        const centerY = node.position.y + nodeHeight / 2 - 20;
         reactFlowInstance.current.setCenter(centerX, centerY, {
-          duration: 800
+          duration: 800,
         });
         lastCenteredTaskId.current = selectedTaskId;
-    }
-  }, 1);
+      }
+    }, 1);
   }, [selectedTaskId, layoutedNodes]);
 
   useEffect(() => {
-    if (selectedTaskId === lastCenteredTaskId.current || !reactFlowInstance.current) {
+    if (
+      selectedTaskId === lastCenteredTaskId.current ||
+      !reactFlowInstance.current
+    ) {
       return;
     }
 
@@ -255,7 +262,7 @@ function WorkflowRunVisualizerContent({
             duration: 800,
             padding: 0.2,
             minZoom: 0.5,
-            maxZoom: 1
+            maxZoom: 1,
           });
         }
       }, 1);
@@ -263,11 +270,10 @@ function WorkflowRunVisualizerContent({
     }
   }, [selectedTaskId, layoutedNodes]);
 
-
   const toggleExpand = useCallback(() => {
     setIsExpanded(!isExpanded);
     setTimeout(() => {
-      recenter()
+      recenter();
     }, 100);
   }, [isExpanded, recenter]);
 
@@ -275,8 +281,8 @@ function WorkflowRunVisualizerContent({
     <div
       ref={containerRef}
       className={cn(
-        "w-full relative transition-all duration-300 ease-in-out",
-        isExpanded ? "h-[500px]" : "h-[160px]"
+        'w-full relative transition-all duration-300 ease-in-out',
+        isExpanded ? 'h-[500px]' : 'h-[160px]',
       )}
     >
       <ReactFlow
@@ -308,22 +314,22 @@ function WorkflowRunVisualizerContent({
       <button
         onClick={toggleExpand}
         className={cn(
-          "absolute inset-x-0 -bottom-2 z-20 h-4 transition-all ease-linear after:absolute after:inset-x-0 after:top-1/2 after:h-[2px] hover:after:bg-border",
-          isExpanded ? "cursor-n-resize" : "cursor-s-resize"
+          'absolute inset-x-0 -bottom-2 z-20 h-4 transition-all ease-linear after:absolute after:inset-x-0 after:top-1/2 after:h-[2px] hover:after:bg-border',
+          isExpanded ? 'cursor-n-resize' : 'cursor-s-resize',
         )}
         title="Toggle height"
       />
       <button
         onClick={toggleExpand}
         className="absolute bottom-2 right-2 z-20 p-1 rounded-sm opacity-30 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-        title={isExpanded ? "Collapse" : "Expand"}
+        title={isExpanded ? 'Collapse' : 'Expand'}
       >
         {isExpanded ? (
           <ChevronUpIcon className="h-4 w-4" />
         ) : (
           <ChevronDownIcon className="h-4 w-4" />
         )}
-        <span className="sr-only">{isExpanded ? "Collapse" : "Expand"}</span>
+        <span className="sr-only">{isExpanded ? 'Collapse' : 'Expand'}</span>
       </button>
     </div>
   );

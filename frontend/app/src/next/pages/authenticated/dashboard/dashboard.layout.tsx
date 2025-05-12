@@ -1,9 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import {
-  SidebarProvider,
-  SidebarTrigger,
-  useSidebar,
-} from '@/next/components/ui/sidebar';
+import { SidebarTrigger, useSidebar } from '@/next/components/ui/sidebar';
 import { AppSidebar } from './components/sidebar/sidebar';
 import { Separator } from '@/next/components/ui/separator';
 import { BreadcrumbNav } from './components/breadcrumbs';
@@ -33,7 +29,7 @@ import { cn } from '@/next/lib/utils';
 export default function DashboardLayout() {
   return (
     <BreadcrumbProvider>
-        <DashboardLayoutContent />
+      <DashboardLayoutContent />
     </BreadcrumbProvider>
   );
 }

@@ -88,7 +88,10 @@ function RunDetailProviderContent({
   const { toast } = useToast();
 
   // Memoize query keys to prevent unnecessary refetches
-  const runDetailsQueryKey = useMemo(() => ['workflow-run-details:get', runId], [runId]);
+  const runDetailsQueryKey = useMemo(
+    () => ['workflow-run-details:get', runId],
+    [runId],
+  );
 
   const runDetails = useQuery({
     queryKey: runDetailsQueryKey,
@@ -113,12 +116,18 @@ function RunDetailProviderContent({
   });
 
   // Memoize parent task ID to prevent unnecessary fetches
-  const parentTaskId = useMemo(() => runDetails.data?.run.parentTaskExternalId, [runDetails.data?.run.parentTaskExternalId]);
+  const parentTaskId = useMemo(
+    () => runDetails.data?.run.parentTaskExternalId,
+    [runDetails.data?.run.parentTaskExternalId],
+  );
 
   const parentDetails = useQuery({
     queryKey: ['workflow-run-details:get', parentTaskId],
     queryFn: async () => {
-      if (!parentTaskId || parentTaskId === '00000000-0000-0000-0000-000000000000') {
+      if (
+        !parentTaskId ||
+        parentTaskId === '00000000-0000-0000-0000-000000000000'
+      ) {
         return null;
       }
       try {
@@ -138,7 +147,10 @@ function RunDetailProviderContent({
   });
 
   // Memoize tasks array to prevent unnecessary activity fetches
-  const tasks = useMemo(() => runDetails.data?.tasks || [], [runDetails.data?.tasks]);
+  const tasks = useMemo(
+    () => runDetails.data?.tasks || [],
+    [runDetails.data?.tasks],
+  );
 
   const activity = useQuery({
     queryKey: ['task-events:get', runId, tasks],
@@ -150,22 +162,28 @@ function RunDetailProviderContent({
       try {
         // Batch API calls for better performance
         const [logs, events] = await Promise.all([
-          Promise.all(tasks.map(task => 
-            api.v1LogLineList(task.metadata.id).then(response => 
-              (response.data?.rows || []).map(log => ({
-                ...log,
-                taskId: task.metadata.id,
-                retryCount: log.retryCount || 0,
-                attempt: log.attempt || 1,
-              }))
-            )
-          )),
-          Promise.all(tasks.map(task =>
-            api.v1TaskEventList(task.metadata.id, {
-              limit: 50,
-              offset: 0,
-            }).then(response => response.data?.rows || [])
-          ))
+          Promise.all(
+            tasks.map((task) =>
+              api.v1LogLineList(task.metadata.id).then((response) =>
+                (response.data?.rows || []).map((log) => ({
+                  ...log,
+                  taskId: task.metadata.id,
+                  retryCount: log.retryCount || 0,
+                  attempt: log.attempt || 1,
+                })),
+              ),
+            ),
+          ),
+          Promise.all(
+            tasks.map((task) =>
+              api
+                .v1TaskEventList(task.metadata.id, {
+                  limit: 50,
+                  offset: 0,
+                })
+                .then((response) => response.data?.rows || []),
+            ),
+          ),
         ]);
 
         return {

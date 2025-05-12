@@ -36,8 +36,7 @@ export enum ManagedServiceDetailTabs {
   CONFIGURATION = 'configuration',
 }
 
-function ServiceDetailPageContent({  }: { workerName: string }) {
-
+function ServiceDetailPageContent() {
   const { data: service } = useManagedComputeDetail();
 
   const breadcrumb = useBreadcrumbs();
@@ -54,7 +53,6 @@ function ServiceDetailPageContent({  }: { workerName: string }) {
       },
     ]);
   }, [service?.name, service?.metadata?.id, breadcrumb]);
-
 
   return (
     <BasicLayout>
