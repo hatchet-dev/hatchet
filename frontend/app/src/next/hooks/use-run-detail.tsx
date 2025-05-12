@@ -109,18 +109,23 @@ function RunDetailProviderContent({
     refetchInterval,
   });
 
-
   const parentDetails = useQuery({
-    queryKey: ['workflow-run-details:get', runDetails.data?.run.parentTaskExternalId],
+    queryKey: [
+      'workflow-run-details:get',
+      runDetails.data?.run.parentTaskExternalId,
+    ],
     queryFn: async () => {
       if (
         !runDetails.data?.run.parentTaskExternalId ||
-        runDetails.data?.run.parentTaskExternalId === '00000000-0000-0000-0000-000000000000'
+        runDetails.data?.run.parentTaskExternalId ===
+          '00000000-0000-0000-0000-000000000000'
       ) {
         return null;
       }
       try {
-        const run = (await api.v1WorkflowRunGet(runDetails.data?.run.parentTaskExternalId)).data;
+        const run = (
+          await api.v1WorkflowRunGet(runDetails.data?.run.parentTaskExternalId)
+        ).data;
         return run;
       } catch (error) {
         toast({

@@ -131,7 +131,8 @@ function RunDetailSheetContent() {
                 openSheet({
                   type: 'task-detail',
                   props: {
-                    selectedWorkflowRunId: childWorkflowRunId || data?.run?.metadata.id,
+                    selectedWorkflowRunId:
+                      childWorkflowRunId || data?.run?.metadata.id,
                     selectedTaskId: taskId,
                     attempt: undefined,
                   },
