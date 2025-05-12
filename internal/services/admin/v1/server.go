@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -793,13 +792,7 @@ func (a *AdminServiceImpl) CreateFilter(ctx context.Context, req *contracts.Crea
 
 	var payload []byte
 	if req.Payload != nil {
-		bytes, err := json.Marshal(req.Payload)
-
-		if err != nil {
-			return nil, status.Error(codes.InvalidArgument, "could not marshal payload")
-		}
-
-		payload = bytes
+		payload = []byte(*req.Payload)
 	}
 
 	params := sqlcv1.CreateFilterParams{
