@@ -38,7 +38,7 @@ export const child3 = child.task({
   name: 'child3',
   parents: [child1, child2],
   fn: (input: ChildInput, ctx) => {
-    ctx.log('hello from the child3');
+    ctx.logger.info('hello from the child3');
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };
