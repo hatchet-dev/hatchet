@@ -367,16 +367,6 @@ WITH task_external_ids AS (
     FROM v1_runs_olap
     WHERE (
         $5::UUID IS NULL OR parent_task_external_id = $5::UUID
-    ) AND (
-        $6::UUID IS NULL
-        OR (id, inserted_at) IN (
-            SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_events_olap e
-            JOIN v1_event_to_run_olap etr ON (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
-            WHERE
-                e.tenant_id = $1::UUID
-                AND e.id = $6::UUID
-        )
     )
 )
 SELECT
@@ -409,7 +399,6 @@ type GetTenantStatusMetricsParams struct {
 	CreatedBefore        pgtype.Timestamptz `json:"createdBefore"`
 	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
 	ParentTaskExternalId pgtype.UUID        `json:"parentTaskExternalId"`
-	TriggeringEventId    pgtype.UUID        `json:"triggeringEventId"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -428,7 +417,6 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.ParentTaskExternalId,
-		arg.TriggeringEventId,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
@@ -460,118 +448,6 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 	var external_id pgtype.UUID
 	err := row.Scan(&external_id)
 	return external_id, err
-}
-
-const listEvents = `-- name: ListEvents :many
-WITH included_events AS (
-    SELECT tenant_id, id, seen_at, key, payload, additional_metadata
-    FROM v1_events_olap e
-    WHERE
-        e.tenant_id = $1
-        AND (
-            $2::TEXT[] IS NULL OR
-            "key" = ANY($2::TEXT[])
-        )
-    ORDER BY e.seen_at DESC
-    OFFSET
-        COALESCE($3::BIGINT, 0)
-    LIMIT
-        COALESCE($4::BIGINT, 50)
-), status_counts AS (
-    SELECT
-        e.tenant_id,
-        e.id,
-        e.seen_at,
-        COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
-        COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count
-    FROM
-        included_events e
-    LEFT JOIN
-        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    LEFT JOIN
-        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
-    GROUP BY
-        e.tenant_id, e.id, e.seen_at
-)
-
-SELECT
-    e.tenant_id,
-    e.id AS event_id,
-    e.seen_at AS event_seen_at,
-    e.key AS event_key,
-    e.payload AS event_payload,
-    e.additional_metadata AS event_additional_metadata,
-    sc.queued_count,
-    sc.running_count,
-    sc.completed_count,
-    sc.cancelled_count,
-    sc.failed_count
-FROM
-    included_events e
-LEFT JOIN
-    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
-ORDER BY e.seen_at DESC
-`
-
-type ListEventsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Keys     []string    `json:"keys"`
-	Offset   pgtype.Int8 `json:"offset"`
-	Limit    pgtype.Int8 `json:"limit"`
-}
-
-type ListEventsRow struct {
-	TenantID                pgtype.UUID        `json:"tenant_id"`
-	EventID                 pgtype.UUID        `json:"event_id"`
-	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
-	EventKey                string             `json:"event_key"`
-	EventPayload            []byte             `json:"event_payload"`
-	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
-	QueuedCount             pgtype.Int8        `json:"queued_count"`
-	RunningCount            pgtype.Int8        `json:"running_count"`
-	CompletedCount          pgtype.Int8        `json:"completed_count"`
-	CancelledCount          pgtype.Int8        `json:"cancelled_count"`
-	FailedCount             pgtype.Int8        `json:"failed_count"`
-}
-
-func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
-	rows, err := db.Query(ctx, listEvents,
-		arg.Tenantid,
-		arg.Keys,
-		arg.Offset,
-		arg.Limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListEventsRow
-	for rows.Next() {
-		var i ListEventsRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.EventID,
-			&i.EventSeenAt,
-			&i.EventKey,
-			&i.EventPayload,
-			&i.EventAdditionalMetadata,
-			&i.QueuedCount,
-			&i.RunningCount,
-			&i.CompletedCount,
-			&i.CancelledCount,
-			&i.FailedCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
