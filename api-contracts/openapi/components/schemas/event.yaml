@@ -58,6 +58,9 @@ CreateEventRequest:
       type: integer
       description: The priority of the event.
       format: int32
+    resourceHint:
+      type: string
+      description: The resource hint for the event.
   required:
     - key
     - data

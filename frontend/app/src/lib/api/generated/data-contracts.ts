@@ -1124,6 +1124,8 @@ export interface CreateEventRequest {
    * @format int32
    */
   priority?: number;
+  /** The resource hint for the event. */
+  resourceHint?: string;
 }
 
 export interface BulkCreateEventRequest {

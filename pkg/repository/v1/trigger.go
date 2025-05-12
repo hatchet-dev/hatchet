@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -207,14 +208,37 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 		filters := workflowToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowVersionId)]
 
-		if len(filters) > 0 {
-			for _, filter := range filters {
-				// Evaluate the filter here
-				fmt.Println(filter)
-			}
-		}
-
 		for _, opt := range opts {
+			shouldFilter := false
+			if len(filters) > 0 {
+				for _, filter := range filters {
+					if filter.Expression != "" {
+						localFilter, err := r.processWorkflowExpression(ctx, filter.Expression, opt)
+
+						if err != nil {
+							r.l.Error().
+								Err(err).
+								Str("workflow_id", workflow.WorkflowId.String()).
+								Str("expression", filter.Expression).
+								Msg("Failed to evaluate workflow expression")
+
+							// If we fail to parse the expression, we should not run the workflow.
+							// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
+							continue
+						}
+
+						if localFilter {
+							shouldFilter = true
+							break
+						}
+					}
+				}
+			}
+
+			if shouldFilter {
+				continue
+			}
+
 			triggerConverter := &TriggeredByEvent{
 				l:        r.l,
 				eventID:  opt.EventId,
@@ -1520,4 +1544,42 @@ func orderSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.List
 	})
 
 	return steps
+}
+
+func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expression string, opt EventTriggerOpts) (bool, error) {
+	var inputData map[string]interface{}
+	if opt.Data != nil {
+		err := json.Unmarshal(opt.Data, &inputData)
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal input data: %w", err)
+		}
+	} else {
+		inputData = make(map[string]interface{})
+	}
+
+	var additionalMetadata map[string]interface{}
+	if opt.AdditionalMetadata != nil {
+		err := json.Unmarshal(opt.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal additional metadata: %w", err)
+		}
+	} else {
+		additionalMetadata = make(map[string]interface{})
+	}
+
+	match, err := r.celParser.EvaluateEventExpression(
+		expression,
+		cel.NewInput(cel.WithInput(inputData)),
+	)
+
+	if err != nil {
+		r.l.Warn().
+			Err(err).
+			Str("expression", expression).
+			Msg("Failed to evaluate event expression")
+
+		return false, err
+	}
+
+	return match, nil
 }

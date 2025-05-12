@@ -99,6 +99,8 @@ message PushEventRequest {
     optional string additionalMetadata = 4;
 
     optional int32 priority = 5;
+
+    optional string resourceHint = 6;
 }
 
 message ReplayEventRequest {
