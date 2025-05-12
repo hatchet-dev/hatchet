@@ -816,3 +816,25 @@ func (a *AdminServiceImpl) CreateFilter(ctx context.Context, req *contracts.Crea
 		Id: filter.ID,
 	}, nil
 }
+
+func (a *AdminServiceImpl) DeleteFilter(ctx context.Context, req *contracts.DeleteFilterRequest) (*contracts.DeleteFilterResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	params := sqlcv1.DeleteFilterParams{
+		Tenantid: tenant.ID,
+		ID:       req.Id,
+	}
+
+	filter, err := a.repo.Filters().DeleteFilter(
+		ctx,
+		params,
+	)
+
+	if err != nil {
+		return nil, status.Error(codes.Internal, "could not create filter")
+	}
+
+	return &contracts.DeleteFilterResponse{
+		Id: filter.ID,
+	}, nil
+}
