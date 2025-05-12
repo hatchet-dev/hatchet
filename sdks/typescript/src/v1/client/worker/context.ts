@@ -340,6 +340,7 @@ export class Context<T, K = {}> {
       parentId: workflowRunId,
       parentStepRunId: stepRunId,
       childIndex: this.spawnIndex,
+      childKey: options?.key,
       desiredWorkerId: sticky ? this.worker.id() : undefined,
       _standaloneTaskName:
         workflow instanceof TaskWorkflowDeclaration ? workflow._standalone_task_name : undefined,
