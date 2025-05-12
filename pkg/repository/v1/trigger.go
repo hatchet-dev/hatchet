@@ -188,10 +188,10 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list filters: %w", err)
 	}
 
-	workflowToFilters := make(map[string][]*sqlcv1.V1Filter)
+	workflowIdToFilters := make(map[string][]*sqlcv1.V1Filter)
 
 	for _, filter := range filters {
-		workflowToFilters[filter.WorkflowVersionID.String()] = append(workflowToFilters[filter.WorkflowVersionID.String()], filter)
+		workflowIdToFilters[filter.WorkflowID.String()] = append(workflowIdToFilters[filter.WorkflowID.String()], filter)
 	}
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
@@ -206,7 +206,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			continue
 		}
 
-		filters := workflowToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowVersionId)]
+		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		for _, opt := range opts {
 			shouldFilter := false

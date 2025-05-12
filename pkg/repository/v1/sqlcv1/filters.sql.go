@@ -12,38 +12,20 @@ import (
 )
 
 const createFilter = `-- name: CreateFilter :one
-WITH latest_version AS (
-    SELECT DISTINCT ON (workflowVersions."workflowId")
-        workflowVersions."id" AS workflowVersionId,
-        workflowVersions."workflowId",
-        workflowVersions."order"
-    FROM
-        "WorkflowVersion" as workflowVersions
-    WHERE
-        workflowVersions."workflowId" = $2::UUID AND
-        workflowVersions."deletedAt" IS NULL
-    ORDER BY
-        workflowVersions."workflowId", workflowVersions."order" DESC
-)
-
 INSERT INTO v1_filter (
     tenant_id,
     workflow_id,
-    workflow_version_id,
     resource_hint,
     expression,
     payload
+) VALUES (
+    $1::UUID,
+    $2::UUID,
+    $3::TEXT,
+    $4::TEXT,
+    $5::JSONB
 )
-
-SELECT
-    $1::UUID AS tenant_id,
-    $2::UUID AS workflow_id,
-    v.workflowVersionId AS workflow_version_id,
-    $3::TEXT AS resource_hint,
-    $4::TEXT AS expression,
-    COALESCE($5::JSONB, '{}'::JSONB) AS payload
-FROM latest_version v
-RETURNING id, tenant_id, workflow_id, workflow_version_id, resource_hint, expression, payload
+RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload
 `
 
 type CreateFilterParams struct {
@@ -67,7 +49,6 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 		&i.ID,
 		&i.TenantID,
 		&i.WorkflowID,
-		&i.WorkflowVersionID,
 		&i.ResourceHint,
 		&i.Expression,
 		&i.Payload,
@@ -84,7 +65,7 @@ WITH inputs AS (
         UNNEST($4::TEXT[]) AS resource_hint
 )
 
-SELECT f.id, f.tenant_id, f.workflow_id, f.workflow_version_id, f.resource_hint, f.expression, f.payload
+SELECT f.id, f.tenant_id, f.workflow_id, f.resource_hint, f.expression, f.payload
 FROM v1_filter f
 JOIN inputs i ON (f.tenant_id, f.workflow_id, f.workflow_version_id, f.resource_hint) = (i.tenant_id, i.workflow_id, i.workflow_version_id, i.resource_hint)
 `
@@ -114,7 +95,6 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 			&i.ID,
 			&i.TenantID,
 			&i.WorkflowID,
-			&i.WorkflowVersionID,
 			&i.ResourceHint,
 			&i.Expression,
 			&i.Payload,
