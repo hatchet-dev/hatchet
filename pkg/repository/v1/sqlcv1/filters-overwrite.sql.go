@@ -15,7 +15,7 @@ WITH inputs AS (
         UNNEST($4::TEXT[]) AS resource_hint
 )
 
-SELECT f.id, f.tenant_id, f.workflow_id, f.resource_hint, f.expression, f.payload, f.created_at, f.updated_at
+SELECT f.id, f.tenant_id, f.workflow_id, f.resource_hint, f.expression, f.payload, f.inserted_at, f.updated_at
 FROM v1_filter f
 JOIN inputs i ON (f.tenant_id, f.workflow_id, f.resource_hint) = (i.tenant_id, i.workflow_id, i.resource_hint)
 `
