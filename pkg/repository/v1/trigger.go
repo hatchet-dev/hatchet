@@ -160,6 +160,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	workflowVersionIds := make([]pgtype.UUID, 0)
 	resourceHints := make([]*string, 0)
 
+	externalIdToEventId := make(map[string]string)
+
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.EventKey]
 

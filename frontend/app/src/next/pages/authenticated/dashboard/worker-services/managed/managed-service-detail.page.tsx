@@ -1,5 +1,5 @@
-import { useCallback, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
@@ -12,9 +12,6 @@ import {
 } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
-import { WorkerDetailSheet } from '../components/worker-detail-sheet';
-import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
-import { WorkerDetailProvider } from '@/next/hooks/use-worker-detail';
 import { WorkerType } from '@/lib/api';
 import { ManagedComputeProvider } from '@/next/hooks/use-managed-compute';
 import {
@@ -29,6 +26,7 @@ import { UpdateServiceContent } from './components/update-service';
 import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
+import BasicLayout from '@/next/components/layouts/basic.layout';
 
 export enum ManagedServiceDetailTabs {
   INSTANCES = 'instances',
@@ -38,9 +36,7 @@ export enum ManagedServiceDetailTabs {
   CONFIGURATION = 'configuration',
 }
 
-function ServiceDetailPageContent({ workerName }: { workerName: string }) {
-  const navigate = useNavigate();
-
+function ServiceDetailPageContent() {
   const { data: service } = useManagedComputeDetail();
 
   const breadcrumb = useBreadcrumbs();
@@ -58,28 +54,8 @@ function ServiceDetailPageContent({ workerName }: { workerName: string }) {
     ]);
   }, [service?.name, service?.metadata?.id, breadcrumb]);
 
-  const handleCloseSheet = useCallback(() => {
-    navigate(
-      ROUTES.services.detail(
-        encodeURIComponent(service?.metadata?.id || ''),
-        WorkerType.MANAGED,
-      ),
-    );
-  }, [navigate, service?.metadata?.id]);
-
   return (
-    <SheetViewLayout
-      sheet={
-        <WorkerDetailProvider workerId={workerName || ''}>
-          <WorkerDetailSheet
-            isOpen={!!workerName}
-            onClose={handleCloseSheet}
-            serviceName={service?.name || ''}
-            workerId={workerName || ''}
-          />
-        </WorkerDetailProvider>
-      }
-    >
+    <BasicLayout>
       <Headline>
         <PageTitle description="Manage workers in a worker service">
           {service?.name || ''} <Badge variant="outline">Managed</Badge>
@@ -125,12 +101,12 @@ function ServiceDetailPageContent({ workerName }: { workerName: string }) {
           {service && <UpdateServiceContent />}
         </TabsContent>
       </Tabs>
-    </SheetViewLayout>
+    </BasicLayout>
   );
 }
 
 export default function ServiceDetailPage() {
-  const { serviceName, workerName } = useParams<{
+  const { serviceName } = useParams<{
     serviceName: string;
     workerName?: string;
   }>();
@@ -139,7 +115,7 @@ export default function ServiceDetailPage() {
     <ManagedComputeProvider>
       <WorkersProvider>
         <ManagedComputeDetailProvider managedWorkerId={serviceName || ''}>
-          <ServiceDetailPageContent workerName={workerName || ''} />
+          <ServiceDetailPageContent />
         </ManagedComputeDetailProvider>
       </WorkersProvider>
     </ManagedComputeProvider>

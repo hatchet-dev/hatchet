@@ -10,13 +10,6 @@
  * ---------------------------------------------------------------
  */
 
-export enum V1LogLineLevel {
-  DEBUG = "DEBUG",
-  INFO = "INFO",
-  WARN = "WARN",
-  ERROR = "ERROR",
-}
-
 export enum V1TaskRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
@@ -217,6 +210,13 @@ export enum TenantResource {
   SCHEDULE = "SCHEDULE",
 }
 
+export enum V1LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
 export enum V1TaskEventType {
   REQUEUED_NO_WORKER = "REQUEUED_NO_WORKER",
   REQUEUED_RATE_LIMIT = "REQUEUED_RATE_LIMIT",
@@ -279,6 +279,10 @@ export interface V1TaskSummary {
   metadata: APIResourceMeta;
   /** The action ID of the task. */
   actionId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
@@ -420,6 +424,10 @@ export interface V1TaskEvent {
   /** @format uuid */
   workerId?: string;
   taskDisplayName?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
 }
 
 export interface V1TaskEventList {
@@ -437,6 +445,12 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /** The retry count of the log line. */
+  retryCount?: number;
+  /** The attempt number of the log line. */
+  attempt?: number;
+  /** The log level. */
+  level?: V1LogLineLevel;
 }
 
 export interface V1LogLineList {
@@ -635,6 +649,10 @@ export interface V1TaskTiming {
    * @format uuid
    */
   workflowRunId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
 }
 
 export interface V1TaskTimingList {
@@ -1124,8 +1142,6 @@ export interface CreateEventRequest {
    * @format int32
    */
   priority?: number;
-  /** The resource hint for the event. */
-  resourceHint?: string;
 }
 
 export interface BulkCreateEventRequest {

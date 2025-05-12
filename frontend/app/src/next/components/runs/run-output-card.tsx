@@ -15,7 +15,7 @@ import {
   CollapsibleTrigger,
 } from '@/next/components/ui/collapsible';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 type RunOutputCardVariant = 'input' | 'output' | 'metadata';
 
@@ -42,7 +42,16 @@ export function RunDataCard({
 }: RunOutputCardProps) {
   const [isOpen, setIsOpen] = useState(!collapsed);
 
-  const errorData = error ? JSON.parse(error) : null;
+  const errorData = useMemo(() => {
+    if (!error) {
+      return null;
+    }
+    try {
+      return JSON.parse(error);
+    } catch {
+      return error;
+    }
+  }, [error]);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>

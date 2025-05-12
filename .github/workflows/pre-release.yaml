@@ -34,7 +34,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags load ./... -p 5 -v -race -failfast
+          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}

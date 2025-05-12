@@ -4,13 +4,17 @@ INSERT INTO v1_log_line (
     task_id,
     task_inserted_at,
     message,
-    metadata
+    metadata,
+    retry_count,
+    level
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-    $5
+    $5,
+    $6,
+    $7
 );
 
 -- name: ListLogLines :many

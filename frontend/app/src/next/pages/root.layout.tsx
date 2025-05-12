@@ -9,32 +9,44 @@ import { DocsSheetComponent } from '@/next/components/ui/docs-sheet';
 import { TenantProvider } from '../hooks/use-tenant';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
+import { SideSheetComponent } from '../components/ui/sheet/side-sheet.layout';
+import {
+  SideSheetContext,
+  useSideSheetState,
+} from '@/next/hooks/use-side-sheet';
+import { SidebarProvider } from '@/next/components/ui/sidebar';
 
 function RootContent({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const docsState = useDocsState();
+  const sideSheetState = useSideSheetState();
 
   return (
-    <DocsContext.Provider value={docsState}>
-      {meta.isLoading ? (
-        <CenterStageLayout>Loading...</CenterStageLayout>
-      ) : meta.hasFailed ? (
-        <ApiConnectionError
-          retryInterval={meta.refetchInterval}
-          errorMessage={meta.hasFailed.message}
-        />
-      ) : (
+    <SideSheetContext.Provider value={sideSheetState}>
+      <DocsContext.Provider value={docsState}>
         <div className="flex h-screen w-full">
-          <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
-            {children ?? <Outlet />}
-          </main>
-          <DocsSheetComponent
-            sheet={docsState.sheet}
-            onClose={docsState.close}
-          />
+          {meta.isLoading ? (
+            <CenterStageLayout>
+              <div className="flex h-screen w-full items-center justify-center"></div>
+            </CenterStageLayout>
+          ) : meta.hasFailed ? (
+            <ApiConnectionError
+              retryInterval={meta.refetchInterval}
+              errorMessage={meta.hasFailed.message}
+            />
+          ) : (
+            <>
+              {children ?? <Outlet />}
+              <SideSheetComponent />
+              <DocsSheetComponent
+                sheet={docsState.sheet}
+                onClose={docsState.close}
+              />
+            </>
+          )}
         </div>
-      )}
-    </DocsContext.Provider>
+      </DocsContext.Provider>
+    </SideSheetContext.Provider>
   );
 }
 
@@ -43,8 +55,10 @@ function Root({ children }: PropsWithChildren) {
     <ToastProvider>
       <TenantProvider>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <Toaster />
-          <RootContent>{children}</RootContent>
+          <SidebarProvider>
+            <Toaster />
+            <RootContent>{children}</RootContent>
+          </SidebarProvider>
         </ThemeProvider>
       </TenantProvider>
     </ToastProvider>

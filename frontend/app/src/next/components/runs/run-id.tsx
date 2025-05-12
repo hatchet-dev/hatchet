@@ -5,8 +5,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/next/components/ui/tooltip';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import { cn } from '@/lib/utils';
 
 interface RunIdProps {
   wfRun?: V1WorkflowRun;
@@ -14,6 +15,8 @@ interface RunIdProps {
   displayName?: string;
   id?: string;
   onClick?: () => void;
+  className?: string;
+  attempt?: number;
 }
 
 export function RunId({
@@ -21,7 +24,9 @@ export function RunId({
   taskRun,
   displayName,
   id,
+  className,
   onClick,
+  attempt,
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
@@ -30,10 +35,13 @@ export function RunId({
     ? ROUTES.runs.detail(wfRun?.metadata.id || id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
-      : ROUTES.runs.taskDetail(
-          taskRun?.workflowRunExternalId || '',
-          taskRun?.taskExternalId || '',
-        );
+      : ROUTES.runs.detailWithSheet(taskRun?.workflowRunExternalId || '', {
+          type: 'task-detail',
+          props: {
+            selectedWorkflowRunId: taskRun?.workflowRunExternalId || '',
+            selectedTaskId: taskRun?.taskExternalId,
+          },
+        });
 
   const name = isTaskRun
     ? getFriendlyTaskRunId(taskRun)
@@ -42,10 +50,12 @@ export function RunId({
       : getFriendlyWorkflowRunId(wfRun);
 
   const handleDoubleClick = () => {
-    if (url) {
+    if (url && !onClick) {
       navigate(url);
     }
   };
+
+  const displayAttempt = attempt || taskRun?.attempt;
 
   return (
     <TooltipProvider>
@@ -53,23 +63,32 @@ export function RunId({
         <TooltipTrigger asChild>
           <span>
             {url && !onClick ? (
-              <Link to={url} className="hover:underline text-foreground">
+              <span
+                className={cn(
+                  'hover:underline text-foreground cursor-pointer',
+                  className,
+                )}
+                onClick={() => navigate(url)}
+              >
                 {name}
-              </Link>
+              </span>
             ) : (
               <span
-                className={onClick ? 'cursor-pointer' : ''}
+                className={cn(onClick ? 'cursor-pointer' : '', className)}
                 onClick={onClick}
                 onDoubleClick={handleDoubleClick}
               >
                 {name}
+                {displayAttempt && `/${displayAttempt}`}
               </span>
             )}
           </span>
         </TooltipTrigger>
         <TooltipContent className="bg-muted">
           <div className="font-mono text-foreground">
-            {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}
+            Run Id: {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}
+            <br />
+            {displayAttempt && `Attempt: ${displayAttempt}`}
           </div>
         </TooltipContent>
       </Tooltip>

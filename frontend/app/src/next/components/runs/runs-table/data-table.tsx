@@ -26,9 +26,6 @@ import {
   TableRow,
 } from '@/next/components/ui/table';
 import { cn } from '@/next/lib/utils';
-import { useNavigate } from 'react-router-dom';
-import { ROUTES } from '@/next/lib/routes';
-import { V1WorkflowType } from '@/lib/api';
 import React from 'react';
 
 const styles = {
@@ -55,6 +52,7 @@ interface DataTableProps<TData extends IDGetter, TValue> {
   setRowSelection?: OnChangeFn<RowSelectionState>;
   selectAll?: boolean;
   getSubRows?: (originalRow: TData, index: number) => TData[];
+  onDoubleClick?: (row: TData) => void;
 }
 
 export function DataTable<TData extends IDGetter, TValue>({
@@ -69,8 +67,8 @@ export function DataTable<TData extends IDGetter, TValue>({
   setRowSelection,
   selectAll = false,
   getSubRows,
+  onDoubleClick = () => {},
 }: DataTableProps<TData, TValue>) {
-  const navigate = useNavigate();
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -162,20 +160,14 @@ export function DataTable<TData extends IDGetter, TValue>({
         return;
       }
 
+      // Toggle row expansion if the row can be expanded
+      if (row.getCanExpand()) {
+        row.toggleExpanded(true);
+      }
+
       onRowClick(row.original);
     },
     [onRowClick],
-  );
-
-  const handleDoubleClick = useCallback(
-    (row: Row<TData>) => {
-      // TODO: Fix type
-      const task = row.original as any;
-      if (task.type !== V1WorkflowType.TASK) {
-        navigate(ROUTES.runs.detail(task.taskExternalId || ''));
-      }
-    },
-    [navigate],
   );
 
   if (isLoading) {
@@ -239,7 +231,7 @@ export function DataTable<TData extends IDGetter, TValue>({
                     isSelected,
                     isTaskSelected,
                     (e: React.MouseEvent) => handleClick(row, e, isSelected),
-                    () => handleDoubleClick(row),
+                    () => onDoubleClick(row.original),
                   )}
                   {row.getIsExpanded() &&
                     row.subRows.map((r) =>
@@ -248,7 +240,7 @@ export function DataTable<TData extends IDGetter, TValue>({
                         isSelected,
                         isTaskSelected,
                         (e: React.MouseEvent) => handleClick(r, e, isSelected),
-                        () => handleDoubleClick(r),
+                        () => onDoubleClick(r.original),
                       ),
                     )}
                 </React.Fragment>

@@ -2,6 +2,7 @@ package ingestor
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -76,7 +77,25 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 	var metadata []byte
 
 	if req.Metadata != "" {
-		metadata = []byte(req.Metadata)
+		// Validate that metadata is valid JSON
+		var metadataMap map[string]interface{}
+		if err := json.Unmarshal([]byte(req.Metadata), &metadataMap); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid metadata JSON: %v", err)
+		}
+
+		// Re-marshal to ensure consistent formatting
+		metadata, err = json.Marshal(metadataMap)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to marshal metadata: %v", err)
+		}
+	}
+
+	var retryCount int
+
+	if req.TaskRetryCount != nil {
+		retryCount = int(*req.TaskRetryCount)
+	} else {
+		retryCount = int(task.RetryCount)
 	}
 
 	opts := &v1.CreateLogLineOpts{
@@ -86,6 +105,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req 
 		Message:        req.Message,
 		Level:          req.Level,
 		Metadata:       metadata,
+		RetryCount:     retryCount,
 	}
 
 	if apiErrors, err := i.v.ValidateAPI(opts); err != nil {

@@ -5,7 +5,6 @@ import {
   V1TaskSummary,
   V1TaskStatus,
   WorkflowRunOrderByField,
-  V1WorkflowType,
 } from '@/lib/api';
 import { Time } from '@/next/components/ui/time';
 import {
@@ -23,9 +22,10 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { useRuns } from '@/next/hooks/use-runs';
 import { Checkbox } from '@/next/components/ui/checkbox';
-import { Button } from '@/components/v1/ui/button';
+import { Button } from '@/next/components/ui/button';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import { cn } from '@/next/lib/utils';
+import { BsArrowDownRightCircle } from 'react-icons/bs';
 
 export const columns = (
   rowClicked?: (row: V1TaskSummary) => void,
@@ -56,14 +56,18 @@ export const columns = (
           onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
           aria-label="Select row"
           disabled={selectAll}
+          onClick={(e) => e.stopPropagation()}
         />
         {row.getCanExpand() && (
           <Button
-            onClick={() => row.toggleExpanded()}
-            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              row.toggleExpanded();
+            }}
+            variant="link"
             size="icon"
             className="cursor-pointer px-2"
-            hoverText="Show tasks"
+            tooltip="Show tasks"
           >
             {row.getIsExpanded() ? (
               <ChevronDownIcon className="size-4" />
@@ -100,37 +104,34 @@ export const columns = (
       <DataTableColumnHeader column={column} title="Run ID" />
     ),
     cell: ({ row }) => {
-      const url =
-        row.original.type === V1WorkflowType.TASK
-          ? undefined
-          : ROUTES.runs.detail(row.original.taskExternalId || '');
+      const url = ROUTES.runs.detailWithSheet(
+        row.original.workflowRunExternalId || '',
+        {
+          type: 'task-detail',
+          props: {
+            selectedWorkflowRunId: row.original.workflowRunExternalId || '',
+            selectedTaskId: row.original.taskExternalId,
+          },
+        },
+      );
 
       return (
         <div className="flex items-center gap-2">
           <RunId
             taskRun={row.original}
-            onClick={rowClicked ? () => rowClicked(row.original) : undefined}
+            onClick={() => {
+              rowClicked?.(row.original);
+            }}
           />
           {url && (
             <Link
               to={url}
               className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
+              <Button variant="link" tooltip="Scope into run" size="icon">
+                <BsArrowDownRightCircle className="w-4 h-4" />
+              </Button>
             </Link>
           )}
         </div>

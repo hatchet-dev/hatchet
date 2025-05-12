@@ -2,6 +2,7 @@ package olap
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -13,7 +14,7 @@ import (
 
 func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() {
 	return func() {
-		o.l.Debug().Msgf("partition: running status updates for dags")
+		o.l.Debug().Msgf("partition: processing tenant alerts")
 
 		// list all tenants
 		tenants, err := o.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
@@ -34,13 +35,13 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 }
 
 func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId string) (bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "update-dag-statuses")
+	ctx, span := telemetry.NewSpan(ctx, "process-tenant-alerts")
 	defer span.End()
 
 	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, tenantId)
 
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("could not check if tenant is active: %w", err)
 	}
 
 	if !isActive {
@@ -60,13 +61,13 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 	})
 
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("could not list workflow runs: %w", err)
 	}
 
 	err = o.ta.SendWorkflowRunAlertV1(tenantId, failedRuns)
 
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("could not send alert: %w", err)
 	}
 
 	return false, nil

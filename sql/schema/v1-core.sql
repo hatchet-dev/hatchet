@@ -1013,6 +1013,7 @@ BEGIN
             v1_concurrency_slot cs
         SET
             task_retry_count = nt.retry_count,
+            schedule_timeout_at = nt.schedule_timeout_at,
             is_filled = FALSE,
             priority = 4
         FROM
@@ -1438,6 +1439,7 @@ CREATE TABLE v1_log_line (
     message TEXT NOT NULL,
     level v1_log_line_level NOT NULL DEFAULT 'INFO',
     metadata JSONB,
+    retry_count INTEGER NOT NULL DEFAULT 0,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
