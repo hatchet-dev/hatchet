@@ -2502,7 +2502,7 @@ type V1Filter struct {
 	ResourceHint string             `json:"resource_hint"`
 	Expression   string             `json:"expression"`
 	Payload      []byte             `json:"payload"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	InsertedAt   pgtype.Timestamptz `json:"inserted_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 

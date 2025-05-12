@@ -35,7 +35,7 @@ WHERE v1_filter.tenant_id = $1::UUID
   AND v1_filter.workflow_id = $2::UUID
   AND v1_filter.resource_hint = $3::TEXT
   AND v1_filter.expression = $4::TEXT
-RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload, created_at, updated_at
+RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload, inserted_at, updated_at
 `
 
 type CreateFilterParams struct {
@@ -62,9 +62,8 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 		&i.ResourceHint,
 		&i.Expression,
 		&i.Payload,
-		&i.CreatedAt,
+		&i.InsertedAt,
 		&i.UpdatedAt,
 	)
 	return &i, err
 }
-
