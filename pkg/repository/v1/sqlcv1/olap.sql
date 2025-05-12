@@ -1025,6 +1025,16 @@ WITH task_external_ids AS (
     FROM v1_runs_olap
     WHERE (
         sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+    ) AND (
+        sqlc.narg('triggeringEventId')::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_events_olap e
+            JOIN v1_event_to_run_olap etr ON (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+            WHERE
+                e.tenant_id = @tenantId::UUID
+                AND e.id = sqlc.narg('triggeringEventId')::UUID
+        )
     )
 )
 SELECT
@@ -1321,4 +1331,58 @@ VALUES (
     $3,
     $4
 )
+;
+
+-- name: ListEvents :many
+WITH included_events AS (
+    SELECT *
+    FROM v1_events_olap e
+    WHERE
+        e.tenant_id = @tenantId
+        AND (
+            sqlc.narg('keys')::TEXT[] IS NULL OR
+            "key" = ANY(sqlc.narg('keys')::TEXT[])
+        )
+    ORDER BY e.seen_at DESC
+    OFFSET
+        COALESCE(sqlc.narg('offset')::BIGINT, 0)
+    LIMIT
+        COALESCE(sqlc.narg('limit')::BIGINT, 50)
+), status_counts AS (
+    SELECT
+        e.tenant_id,
+        e.id,
+        e.seen_at,
+        COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count
+    FROM
+        included_events e
+    LEFT JOIN
+        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN
+        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    GROUP BY
+        e.tenant_id, e.id, e.seen_at
+)
+
+SELECT
+    e.tenant_id,
+    e.id AS event_id,
+    e.seen_at AS event_seen_at,
+    e.key AS event_key,
+    e.payload AS event_payload,
+    e.additional_metadata AS event_additional_metadata,
+    sc.queued_count,
+    sc.running_count,
+    sc.completed_count,
+    sc.cancelled_count,
+    sc.failed_count
+FROM
+    included_events e
+LEFT JOIN
+    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
+ORDER BY e.seen_at DESC
 ;
