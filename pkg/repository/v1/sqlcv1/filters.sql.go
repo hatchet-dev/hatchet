@@ -12,6 +12,20 @@ import (
 )
 
 const createFilter = `-- name: CreateFilter :one
+WITH latest_version AS (
+    SELECT DISTINCT ON (workflowVersions."workflowId")
+        workflowVersions."id" AS workflowVersionId,
+        workflowVersions."workflowId",
+        workflowVersions."order"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    WHERE
+        workflowVersions."workflowId" = $2::UUID AND
+        workflowVersions."deletedAt" IS NULL
+    ORDER BY
+        workflowVersions."workflowId", workflowVersions."order" DESC
+)
+
 INSERT INTO v1_filter (
     tenant_id,
     workflow_id,
@@ -19,31 +33,31 @@ INSERT INTO v1_filter (
     resource_hint,
     expression,
     payload
-) VALUES (
-    $1::UUID,
-    $2::UUID,
-    $3::UUID,
-    $4::TEXT,
-    $5::TEXT,
-    COALESCE($6::JSONB, '{}'::JSONB)
 )
+
+SELECT
+    $1::UUID AS tenant_id,
+    $2::UUID AS workflow_id,
+    v.workflowVersionId AS workflow_version_id,
+    $3::TEXT AS resource_hint,
+    $4::TEXT AS expression,
+    COALESCE($5::JSONB, '{}'::JSONB) AS payload
+FROM latest_version v
 RETURNING id, tenant_id, workflow_id, workflow_version_id, resource_hint, expression, payload
 `
 
 type CreateFilterParams struct {
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Workflowid        pgtype.UUID `json:"workflowid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
-	Resourcehint      string      `json:"resourcehint"`
-	Expression        string      `json:"expression"`
-	Payload           []byte      `json:"payload"`
+	Tenantid     pgtype.UUID `json:"tenantid"`
+	Workflowid   pgtype.UUID `json:"workflowid"`
+	Resourcehint string      `json:"resourcehint"`
+	Expression   string      `json:"expression"`
+	Payload      []byte      `json:"payload"`
 }
 
 func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterParams) (*V1Filter, error) {
 	row := db.QueryRow(ctx, createFilter,
 		arg.Tenantid,
 		arg.Workflowid,
-		arg.Workflowversionid,
 		arg.Resourcehint,
 		arg.Expression,
 		arg.Payload,

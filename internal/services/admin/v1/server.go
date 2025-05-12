@@ -790,7 +790,6 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 func (a *AdminServiceImpl) CreateFilter(ctx context.Context, req *contracts.CreateFilterRequest) (*contracts.CreateFilterResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	workflowVersion := "fill this in"
 
 	var payload []byte
 	if req.Payload != nil {
@@ -804,12 +803,11 @@ func (a *AdminServiceImpl) CreateFilter(ctx context.Context, req *contracts.Crea
 	}
 
 	params := sqlcv1.CreateFilterParams{
-		Tenantid:          tenant.ID,
-		Workflowid:        sqlchelpers.UUIDFromStr(req.WorkflowId),
-		Workflowversionid: sqlchelpers.UUIDFromStr(workflowVersion),
-		Resourcehint:      req.ResourceHint,
-		Expression:        req.Expression,
-		Payload:           payload,
+		Tenantid:     tenant.ID,
+		Workflowid:   sqlchelpers.UUIDFromStr(req.WorkflowId),
+		Resourcehint: req.ResourceHint,
+		Expression:   req.Expression,
+		Payload:      payload,
 	}
 
 	filter, err := a.repo.Filters().CreateFilter(
