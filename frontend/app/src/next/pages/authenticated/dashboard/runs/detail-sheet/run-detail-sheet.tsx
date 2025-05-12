@@ -310,7 +310,6 @@ function RunDetailSheetContent() {
                     attempt: false,
                   }}
                   onTaskSelect={(event) => {
-                    console.log(event);
                     openSheet({
                       type: 'task-detail',
                       props: {

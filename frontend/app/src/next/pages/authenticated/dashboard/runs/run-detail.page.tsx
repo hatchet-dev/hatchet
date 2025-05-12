@@ -414,7 +414,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             <RunEventLog
               workflow={workflow}
               onTaskSelect={(event) => {
-                console.log(event);
                 openSheet({
                   type: 'task-detail',
                   props: {

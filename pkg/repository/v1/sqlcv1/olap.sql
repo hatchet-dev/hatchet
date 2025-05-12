@@ -337,6 +337,7 @@ WITH selected_retry_count AS (
         tenant_id = @tenantId::uuid
         AND task_id = @taskId::bigint
         AND task_inserted_at = @taskInsertedAt::timestamptz
+    LIMIT 1
 ), relevant_events AS (
     SELECT
         *

@@ -1021,6 +1021,7 @@ WITH selected_retry_count AS (
         tenant_id = $1::uuid
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
+    LIMIT 1
 ), relevant_events AS (
     SELECT
         tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
