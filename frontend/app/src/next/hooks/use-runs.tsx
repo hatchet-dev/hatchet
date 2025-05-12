@@ -39,6 +39,7 @@ export interface RunsFilters {
   only_tasks?: boolean;
   parent_task_external_id?: string;
   is_root_task?: boolean;
+  triggering_event_id?: string;
 }
 
 // Create run params
@@ -125,6 +126,7 @@ export function RunsProvider({
   },
 }: RunsProviderProps) {
   return (
+    // IMPORTANT: Is it safe to use `type=state` here? not setting it was resulting in this just not working
     <FilterProvider initialFilters={initialFilters}>
       <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
@@ -204,7 +206,7 @@ function RunsProviderContent({
       }
     },
     placeholderData: (prev: any) => prev,
-    refetchInterval,
+    refetchInterval: undefined,
   });
 
   const metricsRunsQuery = useQuery({
