@@ -215,11 +215,11 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		for _, opt := range opts {
-			shouldFilter := false
+			shouldSkip := false
 			if len(filters) > 0 {
 				for _, filter := range filters {
 					if filter.Expression != "" {
-						localFilter, err := r.processWorkflowExpression(ctx, filter.Expression, opt)
+						parsedAsShouldSkip, err := r.processWorkflowExpression(ctx, filter.Expression, opt)
 
 						if err != nil {
 							r.l.Error().
@@ -233,15 +233,15 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 							continue
 						}
 
-						if localFilter {
-							shouldFilter = true
+						if parsedAsShouldSkip {
+							shouldSkip = true
 							break
 						}
 					}
 				}
 			}
 
-			if shouldFilter {
+			if shouldSkip {
 				continue
 			}
 
