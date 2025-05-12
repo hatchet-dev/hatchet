@@ -87,14 +87,8 @@ function RunDetailProviderContent({
   const [lastRefetchTime, setLastRefetchTime] = useState(Date.now());
   const { toast } = useToast();
 
-  // Memoize query keys to prevent unnecessary refetches
-  const runDetailsQueryKey = useMemo(
-    () => ['workflow-run-details:get', runId],
-    [runId],
-  );
-
   const runDetails = useQuery({
-    queryKey: runDetailsQueryKey,
+    queryKey: ['workflow-run-details:get', runId],
     queryFn: async () => {
       if (!runId || runId === '00000000-0000-0000-0000-000000000000') {
         return null;
@@ -115,23 +109,18 @@ function RunDetailProviderContent({
     refetchInterval,
   });
 
-  // Memoize parent task ID to prevent unnecessary fetches
-  const parentTaskId = useMemo(
-    () => runDetails.data?.run.parentTaskExternalId,
-    [runDetails.data?.run.parentTaskExternalId],
-  );
 
   const parentDetails = useQuery({
-    queryKey: ['workflow-run-details:get', parentTaskId],
+    queryKey: ['workflow-run-details:get', runDetails.data?.run.parentTaskExternalId],
     queryFn: async () => {
       if (
-        !parentTaskId ||
-        parentTaskId === '00000000-0000-0000-0000-000000000000'
+        !runDetails.data?.run.parentTaskExternalId ||
+        runDetails.data?.run.parentTaskExternalId === '00000000-0000-0000-0000-000000000000'
       ) {
         return null;
       }
       try {
-        const run = (await api.v1WorkflowRunGet(parentTaskId)).data;
+        const run = (await api.v1WorkflowRunGet(runDetails.data?.run.parentTaskExternalId)).data;
         return run;
       } catch (error) {
         toast({
@@ -143,7 +132,7 @@ function RunDetailProviderContent({
       }
     },
     refetchInterval,
-    enabled: !!parentTaskId, // Only fetch if we have a parent task ID
+    enabled: !!runDetails.data?.run.parentTaskExternalId, // Only fetch if we have a parent task ID
   });
 
   // Memoize tasks array to prevent unnecessary activity fetches
@@ -160,6 +149,7 @@ function RunDetailProviderContent({
       }
 
       try {
+        // FIXME: this is potentially problematic and we should have a single unified endpoint for this.
         // Batch API calls for better performance
         const [logs, events] = await Promise.all([
           Promise.all(
