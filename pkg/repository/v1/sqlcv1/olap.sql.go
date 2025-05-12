@@ -20,7 +20,7 @@ type BulkCreateEventTriggersParams struct {
 
 type BulkCreateEventsParams struct {
 	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ID                 pgtype.UUID        `json:"id"`
+	ID                 int64              `json:"id"`
 	SeenAt             pgtype.Timestamptz `json:"seen_at"`
 	Key                string             `json:"key"`
 	Payload            []byte             `json:"payload"`
@@ -525,7 +525,7 @@ type ListEventsParams struct {
 
 type ListEventsRow struct {
 	TenantID                pgtype.UUID        `json:"tenant_id"`
-	EventID                 pgtype.UUID        `json:"event_id"`
+	EventID                 int64              `json:"event_id"`
 	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
 	EventKey                string             `json:"event_key"`
 	EventPayload            []byte             `json:"event_payload"`

@@ -53,6 +53,42 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION create_v1_weekly_range_partition(
+    targetTableName text,
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneWeekStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(date_trunc('week', current_date), 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(date_trunc('week', current_date) + INTERVAL '1 week', 'YYYYMMDD') INTO targetDatePlusOneWeekStr;
+    SELECT lower(format('%s_%s', targetTableName, targetDateStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneWeekStr);
+    RETURN 1;
+END;
+$$;
+
 -- https://stackoverflow.com/questions/8137112/unnest-array-by-one-level
 CREATE OR REPLACE FUNCTION unnest_nd_1d(a anyarray, OUT a_1d anyarray)
   RETURNS SETOF anyarray
