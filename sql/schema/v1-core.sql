@@ -435,6 +435,18 @@ CREATE TABLE v1_match_condition (
     CONSTRAINT v1_match_condition_pkey PRIMARY KEY (v1_match_id, id)
 );
 
+CREATE TABLE v1_filter (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
+    resource_hint TEXT NOT NULL,
+    expression TEXT NOT NULL,
+    payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+    PRIMARY KEY (id, tenant_id, workflow_id, workflow_version_id, resource_hint)
+);
+
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     tenant_id ASC,
     event_type ASC,
