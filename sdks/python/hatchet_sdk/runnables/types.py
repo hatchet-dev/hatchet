@@ -26,8 +26,6 @@ class StickyStrategy(str, Enum):
 
 class ConcurrencyLimitStrategy(str, Enum):
     CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS"
-    DROP_NEWEST = "DROP_NEWEST"
-    QUEUE_NEWEST = "QUEUE_NEWEST"
     GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN"
     CANCEL_NEWEST = "CANCEL_NEWEST"
 
