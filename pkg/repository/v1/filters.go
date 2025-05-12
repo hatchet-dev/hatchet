@@ -9,6 +9,7 @@ import (
 type FilterRepository interface {
 	CreateFilter(ctx context.Context, params sqlcv1.CreateFilterParams) (*sqlcv1.V1Filter, error)
 	ListFilters(ctx context.Context, params sqlcv1.ListFiltersParams) ([]*sqlcv1.V1Filter, error)
+	DeleteFilter(ctx context.Context, params sqlcv1.DeleteFilterParams) (*sqlcv1.V1Filter, error)
 }
 
 type filterRepository struct {
@@ -32,4 +33,8 @@ func (r *filterRepository) ListFilters(ctx context.Context, params sqlcv1.ListFi
 	}
 
 	return filters, nil
+}
+
+func (r *filterRepository) DeleteFilter(ctx context.Context, params sqlcv1.DeleteFilterParams) (*sqlcv1.V1Filter, error) {
+	return r.queries.DeleteFilter(ctx, r.pool, params)
 }

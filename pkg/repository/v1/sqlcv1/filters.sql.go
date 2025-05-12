@@ -67,3 +67,32 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 	)
 	return &i, err
 }
+
+const deleteFilter = `-- name: DeleteFilter :one
+DELETE FROM v1_filter
+WHERE
+    tenant_id = $1::UUID
+    AND id= $2::BIGINT
+RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload, inserted_at, updated_at
+`
+
+type DeleteFilterParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       int64       `json:"id"`
+}
+
+func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterParams) (*V1Filter, error) {
+	row := db.QueryRow(ctx, deleteFilter, arg.Tenantid, arg.ID)
+	var i V1Filter
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.WorkflowID,
+		&i.ResourceHint,
+		&i.Expression,
+		&i.Payload,
+		&i.InsertedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}

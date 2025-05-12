@@ -22,5 +22,11 @@ WHERE v1_filter.tenant_id = @tenantId::UUID
   AND v1_filter.workflow_id = @workflowId::UUID
   AND v1_filter.resource_hint = @resourceHint::TEXT
   AND v1_filter.expression = @expression::TEXT
-RETURNING *
-;
+RETURNING *;
+
+-- name: DeleteFilter :one
+DELETE FROM v1_filter
+WHERE
+    tenant_id = @tenantId::UUID
+    AND id= @id::BIGINT
+RETURNING *;
