@@ -1137,6 +1137,11 @@ export interface CreateEventRequest {
   data: object;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+  /**
+   * The priority of the event.
+   * @format int32
+   */
+  priority?: number;
 }
 
 export interface BulkCreateEventRequest {
