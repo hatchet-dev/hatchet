@@ -50,7 +50,7 @@ interface ProcessedData {
 interface WaterfallProps {
   workflowRunId: string;
   selectedTaskId?: string;
-  handleTaskSelect?: (taskId: string, childWfrId?: string) => void;
+  handleTaskSelect?: (taskId: string, childWorkflowRunId?: string) => void;
 }
 
 const CustomTooltip = (props: {

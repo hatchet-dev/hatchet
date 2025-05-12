@@ -81,12 +81,12 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
   const { open: openSheet, sheet } = useSideSheet();
 
   const handleTaskSelect = useCallback(
-    (taskId: string, childWfrId?: string) => {
+    (taskId: string, childWorkflowRunId?: string) => {
       openSheet({
         type: 'task-detail',
         props: {
           pageWorkflowRunId: workflowRunId!,
-          selectedWorkflowRunId: childWfrId || taskId,
+          selectedWorkflowRunId: childWorkflowRunId || taskId,
           selectedTaskId: taskId,
         },
       });

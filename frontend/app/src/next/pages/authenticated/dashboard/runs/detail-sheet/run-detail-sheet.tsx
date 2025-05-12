@@ -124,14 +124,14 @@ function RunDetailSheetContent() {
             <WorkflowRunVisualizer
               workflowRunId={data?.run?.metadata.id || ''}
               patchTask={selectedTask}
-              onTaskSelect={(taskId, childWfrId) => {
+              onTaskSelect={(taskId, childWorkflowRunId) => {
                 if (!data?.run?.metadata.id) {
                   return;
                 }
                 openSheet({
                   type: 'task-detail',
                   props: {
-                    selectedWorkflowRunId: childWfrId || data?.run?.metadata.id,
+                    selectedWorkflowRunId: childWorkflowRunId || data?.run?.metadata.id,
                     selectedTaskId: taskId,
                     attempt: undefined,
                   },

@@ -30,7 +30,7 @@ const edgeTypes = {
 interface WorkflowRunVisualizerProps {
   workflowRunId: string;
   patchTask?: V1TaskSummary | null;
-  onTaskSelect?: (taskId: string, childWfrId?: string) => void;
+  onTaskSelect?: (taskId: string, childWorkflowRunId?: string) => void;
   selectedTaskId?: string;
 }
 
