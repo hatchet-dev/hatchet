@@ -94,6 +94,9 @@ type WorkerImpl struct {
 	// logLevel is the log level for this worker
 	logLevel string
 
+	// logger is the logger used for this worker
+	logger *zerolog.Logger
+
 	// labels are the labels assigned to this worker
 	labels WorkerLabels
 }
@@ -107,6 +110,7 @@ func NewWorker(workersClient features.WorkersClient, v0 v0Client.Client, opts Wo
 		workers:   workersClient,
 		name:      opts.Name,
 		logLevel:  opts.LogLevel,
+		logger:    opts.Logger,
 		labels:    opts.Labels,
 		workflows: opts.Workflows,
 	}
@@ -156,12 +160,20 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 
 		// Create non-durable worker on demand if needed and not already created
 		if hasNonDurableTasks && w.nonDurableWorker == nil {
-			nonDurableWorker, err := worker.NewWorker(
+			opts := []worker.WorkerOpt{
 				worker.WithClient(w.v0),
 				worker.WithName(w.name),
 				worker.WithMaxRuns(w.slots),
 				worker.WithLogLevel(w.logLevel),
 				worker.WithLabels(w.labels),
+			}
+
+			if w.logger != nil {
+				opts = append(opts, worker.WithLogger(w.logger))
+			}
+
+			nonDurableWorker, err := worker.NewWorker(
+				opts...,
 			)
 			if err != nil {
 				return err
@@ -177,11 +189,15 @@ func (w *WorkerImpl) RegisterWorkflows(workflows ...workflow.WorkflowBase) error
 				logger = w.nonDurableWorker.Logger()
 			}
 
-			durableWorker, err := worker.NewWorker(
+			opts := []worker.WorkerOpt{
 				worker.WithClient(w.v0),
-				worker.WithName(w.name+"-durable"),
+				worker.WithName(w.name + "-durable"),
 				worker.WithMaxRuns(w.durableSlots),
 				worker.WithLogger(logger),
+			}
+
+			durableWorker, err := worker.NewWorker(
+				opts...,
 			)
 			if err != nil {
 				return err

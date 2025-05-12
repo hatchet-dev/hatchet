@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { AlertCircle } from 'lucide-react';
 import {
@@ -14,9 +14,7 @@ import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { MdOutlineReplay } from 'react-icons/md';
 import { MdOutlineCancel } from 'react-icons/md';
-import WorkflowRunVisualizer from '@/next/components/runs/run-dag/dag-run-visualizer';
 import { SplitButton } from '@/next/components/ui/split-button';
-import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
 import {
   HeadlineActionItem,
   HeadlineActions,
@@ -32,22 +30,23 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
-} from '@/components/v1/ui/tabs';
+} from '@/next/components/ui/tabs';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
-import { FilterProvider } from '@/next/hooks/utils/use-filters';
-import { RunDetailSheet } from './run-detail-sheet';
 import { Separator } from '@/next/components/ui/separator';
 import { Waterfall } from '@/next/components/waterfall/waterfall';
 import RelativeDate from '@/next/components/ui/relative-date';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
 import WorkflowGeneralSettings from '../workflows/settings';
+import BasicLayout from '@/next/components/layouts/basic.layout';
+import { useSideSheet } from '@/next/hooks/use-side-sheet';
 
 export default function RunDetailPage() {
   const { workflowRunId, taskId } = useParams<{
     workflowRunId: string;
     taskId: string;
   }>();
+
   return (
     <RunDetailProvider
       runId={workflowRunId || ''}
@@ -64,17 +63,8 @@ type RunDetailPageProps = {
 };
 
 function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
-  const navigate = useNavigate();
   const { tenant } = useTenant();
-  const {
-    data,
-    isLoading,
-    error,
-    cancel,
-    replay,
-    parentData,
-    lastRefetchTime,
-  } = useRunDetail();
+  const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
@@ -88,16 +78,28 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     return tasks?.[0];
   }, [tasks, taskId]);
 
+  const { open: openSheet, sheet } = useSideSheet();
+
   const handleTaskSelect = useCallback(
-    (taskId: string) => {
-      navigate(ROUTES.runs.taskDetail(workflowRunId!, taskId));
+    (taskId: string, childWorkflowRunId?: string) => {
+      openSheet({
+        type: 'task-detail',
+        props: {
+          pageWorkflowRunId: workflowRunId!,
+          selectedWorkflowRunId: childWorkflowRunId || taskId,
+          selectedTaskId: taskId,
+        },
+      });
     },
-    [navigate, workflowRunId],
+    [openSheet, workflowRunId],
   );
 
-  const handleCloseSheet = useCallback(() => {
-    navigate(ROUTES.runs.detail(workflowRunId!));
-  }, [navigate, workflowRunId]);
+  const selectedTaskId = useMemo(() => {
+    if (sheet?.openProps?.type === 'task-detail') {
+      return sheet?.openProps?.props.selectedTaskId;
+    }
+    return undefined;
+  }, [sheet]);
 
   const breadcrumbs = useMemo(() => {
     if (!workflow) {
@@ -124,10 +126,13 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       url:
         selectedTask?.metadata.id === workflow?.metadata.id
           ? ROUTES.runs.detail(workflow.metadata.id)
-          : ROUTES.runs.taskDetail(
-              workflow.metadata.id,
-              selectedTask?.taskExternalId || '',
-            ),
+          : ROUTES.runs.detailWithSheet(workflow.metadata.id, {
+              type: 'task-detail',
+              props: {
+                selectedWorkflowRunId: workflow.metadata.id,
+                selectedTaskId: selectedTask?.taskExternalId,
+              },
+            }),
       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
       alwaysShowIcon: true,
     });
@@ -139,6 +144,10 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
   useEffect(() => {
     breadcrumb.set(breadcrumbs);
+
+    return () => {
+      breadcrumb.set([]);
+    };
   }, [breadcrumbs, breadcrumb]);
 
   const canCancel = useMemo(() => {
@@ -287,42 +296,17 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             status={workflow.status}
           />
         </span>
-        {lastRefetchTime}
       </span>,
     ];
-
-    const interleavedTimings: JSX.Element[] = [];
-    timings.forEach((timing, index) => {
-      interleavedTimings.push(timing);
-      if (index < timings.length - 1) {
-        interleavedTimings.push(
-          <span key={`sep-${index}`} className="text-sm text-muted-foreground">
-            |
-          </span>,
-        );
-      }
-    });
-
     return (
-      <span className="flex flex-col items-end sm:flex-row sm:items-center sm:justify-start gap-x-4 gap-y-2 text-sm text-muted-foreground">
-        {interleavedTimings}
+      <span className="flex flex-col items-start gap-y-2 text-sm text-muted-foreground">
+        {timings}
       </span>
     );
   };
 
-  const taskCount = tasks?.length || 0;
-
   return (
-    <SheetViewLayout
-      sheet={
-        <RunDetailSheet
-          isOpen={!!taskId}
-          onClose={handleCloseSheet}
-          workflowRunId={workflowRunId || ''}
-          taskId={taskId || ''}
-        />
-      }
-    >
+    <BasicLayout>
       <Headline>
         <PageTitle description={<Timing />}>
           <div className="text-2xl font-bold truncate flex items-center gap-2">
@@ -411,39 +395,11 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       </Headline>
 
       <Separator className="my-4" />
-
-      <Tabs
-        defaultValue={taskCount > 1 ? 'minimap' : 'waterfall'}
-        className="w-full"
-      >
-        <TabsList layout="underlined" className="w-full">
-          {taskCount > 1 && (
-            <TabsTrigger variant="underlined" value="minimap">
-              Minimap
-            </TabsTrigger>
-          )}
-          <TabsTrigger variant="underlined" value="waterfall">
-            Waterfall
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="minimap" className="mt-4">
-          {taskCount > 1 && workflowRunId && (
-            <div className="w-full overflow-x-auto bg-slate-100 dark:bg-slate-900">
-              <WorkflowRunVisualizer
-                workflowRunId={workflowRunId}
-                onTaskSelect={handleTaskSelect}
-              />
-            </div>
-          )}
-        </TabsContent>
-        <TabsContent value="waterfall" className="mt-4">
-          <Waterfall
-            workflowRunId={workflowRunId!}
-            handleTaskSelect={handleTaskSelect}
-          />
-        </TabsContent>
-      </Tabs>
-
+      <Waterfall
+        workflowRunId={workflowRunId!}
+        selectedTaskId={selectedTaskId}
+        handleTaskSelect={handleTaskSelect}
+      />
       <div className="grid grid-cols-1 gap-4 mt-8">
         <Tabs defaultValue="activity" className="w-full">
           <TabsList layout="underlined" className="w-full">
@@ -455,16 +411,19 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="activity" className="mt-4">
-            <FilterProvider>
-              <RunEventLog
-                workflow={workflow}
-                onTaskSelect={(taskId, options) => {
-                  navigate(
-                    ROUTES.runs.taskDetail(workflowRunId!, taskId, options),
-                  );
-                }}
-              />
-            </FilterProvider>
+            <RunEventLog
+              workflow={workflow}
+              onTaskSelect={(event) => {
+                openSheet({
+                  type: 'task-detail',
+                  props: {
+                    selectedWorkflowRunId: workflowRunId!,
+                    selectedTaskId: event.taskId,
+                    attempt: event.attempt,
+                  },
+                });
+              }}
+            />
           </TabsContent>
           <TabsContent value="config" className="mt-4">
             <WorkflowDetailsProvider workflowId={workflow.workflowId}>
@@ -480,6 +439,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
         defaultWorkflowId={workflow.workflowId}
         defaultRunId={workflow.metadata.id}
       />
-    </SheetViewLayout>
+    </BasicLayout>
   );
 }

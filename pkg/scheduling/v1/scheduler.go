@@ -879,7 +879,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 			uniqueSlots[slot] = true
 
-			if slot.used {
+			if slot.isUsed() {
 				workerSlotUtilization[workerId].UtilizedSlots++
 			} else {
 				workerSlotUtilization[workerId].NonUtilizedSlots++

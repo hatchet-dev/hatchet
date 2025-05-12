@@ -137,10 +137,18 @@ export class Api<
    * @request GET:/api/v1/stable/tasks/{task}
    * @secure
    */
-  v1TaskGet = (task: string, params: RequestParams = {}) =>
+  v1TaskGet = (
+    task: string,
+    query?: {
+      /** The attempt number */
+      attempt?: number;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<V1TaskSummary, APIErrors>({
       path: `/api/v1/stable/tasks/${task}`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

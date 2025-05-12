@@ -1038,6 +1038,7 @@ WITH input AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
+
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
     JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
@@ -1090,11 +1091,13 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    o.output
+    o.output,
+    mrc.max_retry_count::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
 LEFT JOIN task_output o ON r.run_id = o.run_id
+LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC
 `
 
@@ -1123,6 +1126,7 @@ type PopulateDAGMetadataRow struct {
 	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	Output               []byte               `json:"output"`
+	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -1153,6 +1157,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.FinishedAt,
 			&i.ErrorMessage,
 			&i.Output,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1165,15 +1170,19 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 }
 
 const populateSingleTaskRunData = `-- name: PopulateSingleTaskRunData :one
-WITH latest_retry_count AS (
+WITH selected_retry_count AS (
     SELECT
-        MAX(retry_count) AS retry_count
+        CASE
+            WHEN $4::int IS NOT NULL THEN $4::int
+            ELSE MAX(retry_count)::int
+        END AS retry_count
     FROM
         v1_task_events_olap
     WHERE
         tenant_id = $1::uuid
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
+    LIMIT 1
 ), relevant_events AS (
     SELECT
         tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
@@ -1183,7 +1192,7 @@ WITH latest_retry_count AS (
         tenant_id = $1::uuid
         AND task_id = $2::bigint
         AND task_inserted_at = $3::timestamptz
-        AND retry_count = (SELECT retry_count FROM latest_retry_count)
+        AND retry_count = (SELECT retry_count FROM selected_retry_count)
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
@@ -1244,7 +1253,8 @@ SELECT
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
     e.error_message as error_message,
-    sc.spawned_children
+    sc.spawned_children,
+    (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -1267,6 +1277,7 @@ type PopulateSingleTaskRunDataParams struct {
 	Tenantid       pgtype.UUID        `json:"tenantid"`
 	Taskid         int64              `json:"taskid"`
 	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+	RetryCount     pgtype.Int4        `json:"retry_count"`
 }
 
 type PopulateSingleTaskRunDataRow struct {
@@ -1300,10 +1311,16 @@ type PopulateSingleTaskRunDataRow struct {
 	Output               []byte               `json:"output"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	SpawnedChildren      pgtype.Int8          `json:"spawned_children"`
+	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
-	row := db.QueryRow(ctx, populateSingleTaskRunData, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
+	row := db.QueryRow(ctx, populateSingleTaskRunData,
+		arg.Tenantid,
+		arg.Taskid,
+		arg.Taskinsertedat,
+		arg.RetryCount,
+	)
 	var i PopulateSingleTaskRunDataRow
 	err := row.Scan(
 		&i.TenantID,
@@ -1336,6 +1353,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.Output,
 		&i.ErrorMessage,
 		&i.SpawnedChildren,
+		&i.RetryCount,
 	)
 	return &i, err
 }
@@ -1367,7 +1385,8 @@ WITH input AS (
         t.additional_metadata,
         t.readable_status,
         t.parent_task_external_id,
-        t.workflow_run_id
+        t.workflow_run_id,
+        t.latest_retry_count
     FROM
         v1_tasks_olap t
     JOIN
@@ -1487,7 +1506,8 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
-    o.output::jsonb as output
+    o.output::jsonb as output,
+    t.latest_retry_count as retry_count
 FROM
     tasks t
 LEFT JOIN
@@ -1534,6 +1554,7 @@ type PopulateTaskRunDataRow struct {
 	QueuedAt             pgtype.Timestamptz   `json:"queued_at"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 	Output               []byte               `json:"output"`
+	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -1570,6 +1591,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.QueuedAt,
 			&i.ErrorMessage,
 			&i.Output,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}

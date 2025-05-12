@@ -3,6 +3,7 @@ import { Slot } from '@radix-ui/react-slot';
 import { cn } from '@/next/lib/utils';
 import { ChevronRightIcon, DotsHorizontalIcon } from '@radix-ui/react-icons';
 import { Link as RouterLink } from 'react-router-dom';
+import { RunId } from '@/next/components/runs/run-id';
 
 const Breadcrumb = React.forwardRef<
   HTMLElement,
@@ -45,14 +46,19 @@ const BreadcrumbLink = React.forwardRef<
     asChild?: boolean;
     to?: string;
   }
->(({ asChild, className, href, to, ...props }, ref) => {
-  if (asChild) {
+>(({ asChild, className, href, to, children, ...props }, ref) => {
+  // Check if the child is a RunId component
+  const isRunId = React.isValidElement(children) && children.type === RunId;
+
+  if (asChild || isRunId) {
     return (
       <Slot
         ref={ref}
         className={cn('transition-colors hover:text-foreground', className)}
         {...props}
-      />
+      >
+        {children}
+      </Slot>
     );
   }
   return (
@@ -61,7 +67,9 @@ const BreadcrumbLink = React.forwardRef<
       to={to || href || ''}
       className={cn('transition-colors hover:text-foreground', className)}
       {...props}
-    />
+    >
+      {children}
+    </RouterLink>
   );
 });
 BreadcrumbLink.displayName = 'BreadcrumbLink';
@@ -85,15 +93,15 @@ const BreadcrumbSeparator = ({
   children,
   className,
   ...props
-}: React.ComponentProps<'li'>) => (
-  <li
+}: React.ComponentProps<'span'>) => (
+  <span
     role="presentation"
     aria-hidden="true"
     className={cn('[&>svg]:w-3.5 [&>svg]:h-3.5', className)}
     {...props}
   >
     {children ?? <ChevronRightIcon />}
-  </li>
+  </span>
 );
 BreadcrumbSeparator.displayName = 'BreadcrumbSeparator';
 

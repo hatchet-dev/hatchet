@@ -18,14 +18,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestLoadCLI(t *testing.T) {
-	type args struct {
-		duration        time.Duration
-		eventsPerSecond int
-		delay           time.Duration
-		wait            time.Duration
-		workerDelay     time.Duration
-		concurrency     int
-	}
+	// We're using LoadTestConfig directly instead of an args struct
 
 	l = logger.NewStdErr(
 		&shared.LoggerConfigFile{
@@ -37,47 +30,116 @@ func TestLoadCLI(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		args    args
+		config  LoadTestConfig
 		wantErr bool
 	}{
 		{
-			name: "test with high step delay",
-			args: args{
-				duration:        240 * time.Second,
-				eventsPerSecond: 10,
-				delay:           10 * time.Second,
-				wait:            60 * time.Second,
-				concurrency:     0,
+			name: "test simple workflow",
+			config: LoadTestConfig{
+				Duration:       240 * time.Second,
+				Events:         10,
+				Delay:          0 * time.Second,
+				Wait:           60 * time.Second,
+				Concurrency:    0,
+				Slots:          100,
+				FailureRate:    0.0,
+				PayloadSize:    "0kb",
+				EventFanout:    1,
+				DagSteps:       1,
+				RlKeys:         0,
+				RlLimit:        0,
+				RlDurationUnit: "",
 			},
-		}, {
-			name: "test simple with unlimited concurrency",
-			args: args{
-				duration:        240 * time.Second,
-				eventsPerSecond: 10,
-				delay:           0 * time.Second,
-				wait:            60 * time.Second,
-				concurrency:     0,
+		},
+		{
+			name: "test with DAG",
+			config: LoadTestConfig{
+				Duration:       240 * time.Second,
+				Events:         10,
+				Delay:          0 * time.Second,
+				Wait:           60 * time.Second,
+				Concurrency:    0,
+				Slots:          100,
+				FailureRate:    0.0,
+				PayloadSize:    "0kb",
+				EventFanout:    1,
+				DagSteps:       2,
+				RlKeys:         0,
+				RlLimit:        0,
+				RlDurationUnit: "",
+			},
+		},
+		{
+			name: "test with event fanout",
+			config: LoadTestConfig{
+				Duration:       240 * time.Second,
+				Events:         10,
+				Delay:          0 * time.Second,
+				Wait:           60 * time.Second,
+				Concurrency:    0,
+				Slots:          100,
+				FailureRate:    0.0,
+				PayloadSize:    "0kb",
+				EventFanout:    2,
+				DagSteps:       1,
+				RlKeys:         0,
+				RlLimit:        0,
+				RlDurationUnit: "",
 			},
 		},
 		{
 			name: "test with global concurrency key",
-			args: args{
-				duration:        240 * time.Second,
-				eventsPerSecond: 10,
-				delay:           0 * time.Second,
-				wait:            60 * time.Second,
-				concurrency:     10,
+			config: LoadTestConfig{
+				Duration:       240 * time.Second,
+				Events:         10,
+				Delay:          0 * time.Second,
+				Wait:           60 * time.Second,
+				Concurrency:    10,
+				Slots:          100,
+				FailureRate:    0.0,
+				PayloadSize:    "0kb",
+				EventFanout:    1,
+				DagSteps:       1,
+				RlKeys:         0,
+				RlLimit:        0,
+				RlDurationUnit: "",
 			},
 		},
 		{
 			name: "test for many queued events and little worker throughput",
-			args: args{
-				duration:        240 * time.Second,
-				eventsPerSecond: 10,
-				delay:           0 * time.Second,
-				workerDelay:     120 * time.Second, // will write 1200 events before the worker is ready
-				wait:            120 * time.Second,
-				concurrency:     0,
+			config: LoadTestConfig{
+				Duration:       240 * time.Second,
+				Events:         10,
+				Delay:          0 * time.Second,
+				WorkerDelay:    120 * time.Second, // will write 1200 events before the worker is ready
+				Wait:           120 * time.Second,
+				Concurrency:    0,
+				Slots:          100,
+				FailureRate:    0.0,
+				PayloadSize:    "0kb",
+				EventFanout:    1,
+				DagSteps:       1,
+				RlKeys:         0,
+				RlLimit:        0,
+				RlDurationUnit: "",
+			},
+		},
+		{
+			name: "test with rate limits",
+			config: LoadTestConfig{
+				Duration:       240 * time.Second,
+				Events:         10,
+				Delay:          0 * time.Second,
+				Wait:           60 * time.Second,
+				Concurrency:    0,
+				Slots:          100,
+				FailureRate:    0.0,
+				PayloadSize:    "0kb",
+				EventFanout:    1,
+				DagSteps:       1,
+				RlKeys:         10,
+				RlLimit:        100,
+				RlDurationUnit: "second",
 			},
 		},
 	}
@@ -96,7 +158,9 @@ func TestLoadCLI(t *testing.T) {
 				t.Fatalf("could not generate random namespace: %s", err)
 			}
 
-			if err := do(namespace, tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency, tt.args.workerDelay, 100, 0.0, "0kb", 1); (err != nil) != tt.wantErr {
+			testConfig := tt.config
+			testConfig.Namespace = namespace
+			if err := do(testConfig); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

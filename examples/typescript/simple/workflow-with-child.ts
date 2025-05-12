@@ -17,7 +17,7 @@ export const child = hatchet.workflow<ChildInput>({
 export const child1 = child.task({
   name: 'child1',
   fn: (input: ChildInput, ctx) => {
-    ctx.log('hello from the child1');
+    ctx.logger.info('hello from the child1', { hello: 'moon' });
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };
@@ -27,7 +27,18 @@ export const child1 = child.task({
 export const child2 = child.task({
   name: 'child2',
   fn: (input: ChildInput, ctx) => {
-    ctx.log('hello from the child2');
+    ctx.logger.info('hello from the child2');
+    return {
+      TransformedMessage: input.Message.toLowerCase(),
+    };
+  },
+});
+
+export const child3 = child.task({
+  name: 'child3',
+  parents: [child1, child2],
+  fn: (input: ChildInput, ctx) => {
+    ctx.logger.info('hello from the child3');
     return {
       TransformedMessage: input.Message.toLowerCase(),
     };

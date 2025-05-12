@@ -28,6 +28,12 @@ const CodeStyleRender = ({
 
   useEffect(() => {
     const asyncHighlight = async () => {
+      // Handle undefined parsed value
+      if (!parsed) {
+        setHtml('<pre><code></code></pre>');
+        return;
+      }
+
       // Trim trailing empty lines but preserve empty lines within the code
       const trimmedCode = parsed.replace(/\n+$/, '');
 

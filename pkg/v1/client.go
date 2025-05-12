@@ -58,12 +58,18 @@ type v1HatchetClientImpl struct {
 func NewHatchetClient(config ...Config) (HatchetClient, error) {
 	cf := &v0Config.ClientConfigFile{}
 
+	v0Opts := []v0Client.ClientOpt{}
+
 	if len(config) > 0 {
 		opts := config[0]
 		cf = mapConfigToCF(opts)
+
+		if config[0].Logger != nil {
+			v0Opts = append(v0Opts, v0Client.WithLogger(config[0].Logger))
+		}
 	}
 
-	client, err := v0Client.NewFromConfigFile(cf)
+	client, err := v0Client.NewFromConfigFile(cf, v0Opts...)
 	if err != nil {
 		return nil, err
 	}

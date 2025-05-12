@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"github.com/rs/zerolog"
+
 	v0Config "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
@@ -16,6 +18,7 @@ type Config struct {
 	RawRunnableActions []string
 	AutoscalingTarget  string
 	TLS                *TLSConfig
+	Logger             *zerolog.Logger
 }
 
 type TLSConfig struct {
