@@ -8,7 +8,7 @@ import (
 
 type FilterRepository interface {
 	CreateFilter(ctx context.Context, params sqlcv1.CreateFilterParams) (*sqlcv1.V1Filter, error)
-	ListFilters(ctx context.Context, params sqlcv1.ListFiltersParams) ([]sqlcv1.V1Filter, error)
+	ListFilters(ctx context.Context, params sqlcv1.ListFiltersParams) ([]*sqlcv1.V1Filter, error)
 }
 
 type filterRepository struct {
@@ -23,4 +23,13 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 
 func (r *filterRepository) CreateFilter(ctx context.Context, params sqlcv1.CreateFilterParams) (*sqlcv1.V1Filter, error) {
 	return r.queries.CreateFilter(ctx, r.pool, params)
+}
+
+func (r *filterRepository) ListFilters(ctx context.Context, params sqlcv1.ListFiltersParams) ([]*sqlcv1.V1Filter, error) {
+	filters, err := r.queries.ListFilters(ctx, r.pool, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return filters, nil
 }
