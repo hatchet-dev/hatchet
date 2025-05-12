@@ -293,11 +293,9 @@ class Runner:
             while True:
                 await self.log_thread_pool_status()
 
-                zombie_keys = []
                 for key in self.threads.keys():
                     if key not in self.tasks:
                         logger.debug(f"Potential zombie thread found for key {key}")
-                        zombie_keys.append(key)
 
                 for key, task in self.tasks.items():
                     if task.done() and key in self.threads:
