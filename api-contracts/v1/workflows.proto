@@ -186,4 +186,3 @@ message DeleteFilterRequest {
 message DeleteFilterResponse {
     int64 id = 1; // the id of the deleted filter
 }
-
