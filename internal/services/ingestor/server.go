@@ -27,7 +27,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	if req.AdditionalMetadata != nil {
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
-	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority)
+	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -72,7 +72,6 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			Key:                e.Key,
 			Data:               []byte(e.Payload),
 			AdditionalMetadata: additionalMeta,
-			Priority:           e.Priority,
 		})
 	}
 

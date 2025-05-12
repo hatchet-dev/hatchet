@@ -423,9 +423,6 @@ type CreateEventRequest struct {
 
 	// Key The key for the event.
 	Key string `json:"key"`
-
-	// Priority The priority of the event.
-	Priority *int32 `json:"priority,omitempty"`
 }
 
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.

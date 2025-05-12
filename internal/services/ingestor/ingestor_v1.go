@@ -25,7 +25,7 @@ type EventResult struct {
 	AdditionalMetadata string
 }
 
-func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte, priority *int32) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
@@ -49,10 +49,10 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *dbsqlc.Tenant,
 		)
 	}
 
-	return i.ingestSingleton(tenantId, key, data, metadata, priority)
+	return i.ingestSingleton(tenantId, key, data, metadata)
 }
 
-func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metadata []byte, priority *int32) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
 	eventId := uuid.New().String()
 
 	msg, err := eventToTaskV1(
@@ -61,7 +61,6 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		key,
 		data,
 		metadata,
-		priority,
 	)
 
 	if err != nil {
@@ -116,7 +115,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *dbsqlc.Ten
 	results := make([]*dbsqlc.Event, 0, len(eventOpts))
 
 	for _, event := range eventOpts {
-		res, err := i.ingestSingleton(tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority)
+		res, err := i.ingestSingleton(tenantId, event.Key, event.Data, event.AdditionalMetadata)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not ingest event: %w", err)
@@ -134,16 +133,15 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *dbsqlc
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil)
+	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata)
 }
 
-func eventToTaskV1(tenantId, eventId, key string, data, additionalMeta []byte, priority *int32) (*msgqueue.Message, error) {
+func eventToTaskV1(tenantId, eventId, key string, data, additionalMeta []byte) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.UserEventTaskPayload{
 		EventId:                 eventId,
 		EventKey:                key,
 		EventData:               data,
 		EventAdditionalMetadata: additionalMeta,
-		EventPriority:           priority,
 	}
 
 	return msgqueue.NewTenantMessage(

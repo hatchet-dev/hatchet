@@ -2479,22 +2479,6 @@ type V1DurableSleep struct {
 	SleepDuration string             `json:"sleep_duration"`
 }
 
-type V1EventToRunOlap struct {
-	RunID         int64              `json:"run_id"`
-	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
-	EventID       pgtype.UUID        `json:"event_id"`
-	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
-}
-
-type V1EventsOlap struct {
-	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ID                 pgtype.UUID        `json:"id"`
-	SeenAt             pgtype.Timestamptz `json:"seen_at"`
-	Key                string             `json:"key"`
-	Payload            []byte             `json:"payload"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
-}
-
 type V1LogLine struct {
 	ID             int64              `json:"id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
