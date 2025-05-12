@@ -55,7 +55,7 @@ function WorkflowRunVisualizerContent({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const shape = useMemo(() => data?.shape || [], [data]);
-  const taskRuns = useMemo(() => data?.tasks.map((t) => patchTask ? patchTask : t) || [], [data, patchTask]);
+  const taskRuns = useMemo(() => data?.tasks.map((t) => patchTask?.taskExternalId === t.taskExternalId ? patchTask : t) || [], [data, patchTask]);
 
   const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -296,7 +296,6 @@ function WorkflowRunVisualizerContent({
           const task = taskRuns.find((t) => t.stepId === node.id);
 
           if (task) {
-            console.log('task', task);
             setSelectedTask(task);
           }
         }}
