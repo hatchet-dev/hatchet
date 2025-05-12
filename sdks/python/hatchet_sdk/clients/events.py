@@ -33,6 +33,7 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
 class PushEventOptions(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     namespace: str | None = None
+    resource_hint: str | None = None
 
 
 class BulkPushEventOptions(BaseModel):
@@ -96,6 +97,7 @@ class EventClient:
             payload=payload_str,
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_bytes,
+            resourceHint=options.resource_hint,
         )
 
         return cast(Event, self.client.Push(request, metadata=get_metadata(self.token)))

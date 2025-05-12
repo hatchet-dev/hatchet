@@ -25,7 +25,17 @@ INSERT INTO v1_filter (
     $4::TEXT,
     $5::JSONB
 )
-RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload
+ON CONFLICT (tenant_id, workflow_id, resource_hint, expression) DO UPDATE
+SET
+    payload = EXCLUDED.payload,
+    resource_hint = EXCLUDED.resource_hint,
+    expression = EXCLUDED.expression,
+    updated_at = NOW()
+WHERE v1_filter.tenant_id = $1::UUID
+  AND v1_filter.workflow_id = $2::UUID
+  AND v1_filter.resource_hint = $3::TEXT
+  AND v1_filter.expression = $4::TEXT
+RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload, created_at, updated_at
 `
 
 type CreateFilterParams struct {
@@ -52,6 +62,8 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 		&i.ResourceHint,
 		&i.Expression,
 		&i.Payload,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return &i, err
 }
@@ -65,7 +77,7 @@ WITH inputs AS (
         UNNEST($4::TEXT[]) AS resource_hint
 )
 
-SELECT f.id, f.tenant_id, f.workflow_id, f.resource_hint, f.expression, f.payload
+SELECT f.id, f.tenant_id, f.workflow_id, f.resource_hint, f.expression, f.payload, f.created_at, f.updated_at
 FROM v1_filter f
 JOIN inputs i ON (f.tenant_id, f.workflow_id, f.resource_hint) = (i.tenant_id, i.workflow_id, i.resource_hint)
 `
@@ -98,6 +110,8 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 			&i.ResourceHint,
 			&i.Expression,
 			&i.Payload,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
