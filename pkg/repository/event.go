@@ -32,7 +32,7 @@ type CreateEventOpts struct {
 	Priority *int32 `validate:"omitempty,min=1,max=3"`
 
 	// (optional) the event resource hint
-	ResourceHint *string `validate:"omitempty,uuid"`
+	ResourceHint *string `validate:"omitempty"`
 }
 
 type ListEventOpts struct {
