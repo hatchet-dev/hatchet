@@ -11,7 +11,7 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, TypeVar, Union
+from typing import Any, AsyncGenerator, Callable, TypeVar, Union
 from warnings import warn
 
 from aiohttp import web
@@ -20,13 +20,10 @@ from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
 from pydantic import BaseModel
 
-from hatchet_sdk.clients.admin import AdminClient
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import Action
-from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
-from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
-from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
@@ -38,10 +35,6 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
-
-if TYPE_CHECKING:
-    from hatchet_sdk import Hatchet
-
 
 T = TypeVar("T")
 
@@ -91,7 +84,6 @@ async def _create_async_context_manager(
 class Worker:
     def __init__(
         self,
-        hatchet_client: "Hatchet",
         name: str,
         config: ClientConfig,
         slots: int,
@@ -136,20 +128,7 @@ class Worker:
 
         self.loop: asyncio.AbstractEventLoop | None
 
-        run_event_listener = RunEventListenerClient(config)
-        workflow_run_listener = PooledWorkflowRunListener(config)
-        runs_client = RunsClient(
-            config=self.config,
-            workflow_run_event_listener=run_event_listener,
-            workflow_run_listener=workflow_run_listener,
-        )
-
-        self.admin_client = AdminClient(
-            config=self.config,
-            workflow_run_listener=workflow_run_listener,
-            workflow_run_event_listener=run_event_listener,
-            runs_client=runs_client,
-        )
+        self.client = Client(config=self.config, debug=self.debug)
 
         self._setup_signal_handlers()
 
@@ -164,24 +143,11 @@ class Worker:
         self.lifespan = lifespan
         self.lifespan_stack: AsyncExitStack | None = None
 
-        if self.config.enable_no_op_heartbeat_workflow:
-            wf = hatchet_client.workflow(name="__internal__no_op_heartbeat_workflow")
-
-            @wf.task()
-            def no_op_task(*a: Any, **kw: Any) -> None:
-                pass
-
-            @wf.task()
-            async def async_no_op_task(*a: Any, **kw: Any) -> None:
-                pass
-
-            self.register_workflow(wf)
-
         self.register_workflows(workflows)
 
     def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
-            self.admin_client.put_workflow(opts)
+            self.client.admin.put_workflow(opts)
         except Exception as e:
             logger.error(f"failed to register workflow: {opts.name}")
             logger.error(e)
@@ -194,7 +160,7 @@ class Worker:
             )
 
         try:
-            self.admin_client.put_workflow(workflow.to_proto())
+            self.client.admin.put_workflow(workflow.to_proto())
         except Exception as e:
             logger.error(f"failed to register workflow: {workflow.name}")
             logger.error(e)
@@ -233,18 +199,6 @@ class Worker:
         asyncio.set_event_loop(self.loop)
 
     async def _health_check_handler(self, request: Request) -> Response:
-        if self.config.enable_no_op_heartbeat_workflow:
-            ref = await self.admin_client.aio_run_workflow(
-                workflow_name="__internal__no_op_heartbeat_workflow",
-                input={},
-            )
-
-            try:
-                await ref.aio_result()
-            except Exception as e:
-                logger.error(f"failed to trigger heartbeat workflow: {e}")
-                raise e
-
         response = HealthCheckResponse(
             status=self.status.name,
             name=self.name,
@@ -368,7 +322,7 @@ class Worker:
                 self.durable_event_queue if is_durable else self.event_queue,
                 self.loop,
                 self.handle_kill,
-                self.debug,
+                self.client.debug,
                 self.labels,
                 lifespan_context,
             )
@@ -413,7 +367,7 @@ class Worker:
                     self.durable_action_queue if is_durable else self.action_queue,
                     self.durable_event_queue if is_durable else self.event_queue,
                     self.handle_kill,
-                    self.debug,
+                    self.client.debug,
                     self.labels,
                 ),
             )

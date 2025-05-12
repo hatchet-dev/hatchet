@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, Literal, cast, overload
 
 from pydantic import BaseModel
 
+from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionKey, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -99,7 +100,7 @@ class Runner:
         self.durable_event_listener = DurableEventListener(self.config)
 
         self.worker_context = WorkerContext(
-            labels=labels, client=self.dispatcher_client
+            labels=labels, client=Client(config=config).dispatcher
         )
 
         self.lifespan_context = lifespan_context
