@@ -168,10 +168,16 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
+			var resourceHint string
 			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			workflowIds = append(workflowIds, workflow.WorkflowId)
 			workflowVersionIds = append(workflowVersionIds, workflow.WorkflowVersionId)
-			resourceHints = append(resourceHints, *opt.ResourceHint)
+
+			if opt.ResourceHint != nil {
+				resourceHint = *opt.ResourceHint
+			}
+
+			resourceHints = append(resourceHints, resourceHint)
 		}
 	}
 
