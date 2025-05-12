@@ -49,7 +49,7 @@ type CreatedEventTriggerPayloadSingleton struct {
 	MaybeRunInsertedAt      *time.Time `json:"run_inserted_at"`
 	EventSeenAt             time.Time  `json:"event_seen_at"`
 	EventKey                string     `json:"event_key"`
-	EventId                 string     `json:"event_id"`
+	EventExternalId         string     `json:"event_id"`
 	EventPayload            []byte     `json:"event_payload"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 }

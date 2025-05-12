@@ -377,6 +377,7 @@ $$;
 CREATE TABLE v1_events_olap (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     seen_at TIMESTAMPTZ NOT NULL,
     key TEXT NOT NULL,
     payload JSONB NOT NULL,

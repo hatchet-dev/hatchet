@@ -19,7 +19,7 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow) gen.V1EventList {
 			Metadata: gen.APIResourceMeta{
 				CreatedAt: row.EventSeenAt.Time,
 				UpdatedAt: row.EventSeenAt.Time,
-				Id:        row.EventID.String(),
+				Id:        row.EventExternalID.String(),
 			},
 			WorkflowRunSummary: gen.V1EventWorkflowRunSummary{
 				Cancelled: row.CancelledCount.Int64,

@@ -348,21 +348,21 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, sqlcv1.BulkCreateEventTriggersParams{
 					RunID:         *payload.MaybeRunId,
 					RunInsertedAt: sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventID:       sqlchelpers.UUIDFromStr(payload.EventId),
+					EventID:       sqlchelpers.UUIDFromStr(payload.EventExternalId),
 					EventSeenAt:   sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 				})
 			}
 
-			_, eventAlreadySeen := seenEventKeysSet[payload.EventId]
+			_, eventAlreadySeen := seenEventKeysSet[payload.EventExternalId]
 
 			if eventAlreadySeen {
 				continue
 			}
 
-			seenEventKeysSet[payload.EventId] = true
+			seenEventKeysSet[payload.EventExternalId] = true
 			bulkCreateEventParams = append(bulkCreateEventParams, sqlcv1.BulkCreateEventsParams{
 				TenantID:           sqlchelpers.UUIDFromStr(tenantId),
-				ID:                 sqlchelpers.UUIDFromStr(payload.EventId),
+				ExternalID:         sqlchelpers.UUIDFromStr(payload.EventExternalId),
 				SeenAt:             sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 				Key:                payload.EventKey,
 				Payload:            payload.EventPayload,

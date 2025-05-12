@@ -1302,7 +1302,7 @@ WHERE
 -- name: BulkCreateEvents :copyfrom
 INSERT INTO v1_events_olap (
     tenant_id,
-    id,
+    external_id,
     seen_at,
     key,
     payload,
@@ -1371,6 +1371,7 @@ WITH included_events AS (
 SELECT
     e.tenant_id,
     e.id AS event_id,
+    e.external_id AS event_external_id,
     e.seen_at AS event_seen_at,
     e.key AS event_key,
     e.payload AS event_payload,

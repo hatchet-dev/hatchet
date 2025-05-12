@@ -3,6 +3,7 @@
 CREATE TABLE v1_events_olap (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     seen_at TIMESTAMPTZ NOT NULL,
     key TEXT NOT NULL,
     payload JSONB NOT NULL,
@@ -109,5 +110,4 @@ DROP TABLE v1_event_lookup_table_olap;
 
 DROP FUNCTION create_v1_weekly_range_partition(text, date);
 DROP FUNCTION v1_events_lookup_table_olap_insert_function();
-DROP TRIGGER v1_event_lookup_table_olap_insert_trigger ON v1_events_olap;
 -- +goose StatementEnd

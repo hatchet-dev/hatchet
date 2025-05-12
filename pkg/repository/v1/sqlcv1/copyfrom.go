@@ -65,7 +65,7 @@ func (r *iteratorForBulkCreateEvents) Next() bool {
 func (r iteratorForBulkCreateEvents) Values() ([]interface{}, error) {
 	return []interface{}{
 		r.rows[0].TenantID,
-		r.rows[0].ID,
+		r.rows[0].ExternalID,
 		r.rows[0].SeenAt,
 		r.rows[0].Key,
 		r.rows[0].Payload,
@@ -78,7 +78,7 @@ func (r iteratorForBulkCreateEvents) Err() error {
 }
 
 func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg []BulkCreateEventsParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_events_olap"}, []string{"tenant_id", "id", "seen_at", "key", "payload", "additional_metadata"}, &iteratorForBulkCreateEvents{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_events_olap"}, []string{"tenant_id", "external_id", "seen_at", "key", "payload", "additional_metadata"}, &iteratorForBulkCreateEvents{rows: arg})
 }
 
 // iteratorForCreateDAGData implements pgx.CopyFromSource.

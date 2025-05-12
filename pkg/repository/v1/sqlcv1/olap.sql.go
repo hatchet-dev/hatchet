@@ -20,7 +20,7 @@ type BulkCreateEventTriggersParams struct {
 
 type BulkCreateEventsParams struct {
 	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ID                 int64              `json:"id"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
 	SeenAt             pgtype.Timestamptz `json:"seen_at"`
 	Key                string             `json:"key"`
 	Payload            []byte             `json:"payload"`
@@ -464,7 +464,7 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT tenant_id, id, seen_at, key, payload, additional_metadata
+    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata
     FROM v1_events_olap e
     WHERE
         e.tenant_id = $1
@@ -500,6 +500,7 @@ WITH included_events AS (
 SELECT
     e.tenant_id,
     e.id AS event_id,
+    e.external_id AS event_external_id,
     e.seen_at AS event_seen_at,
     e.key AS event_key,
     e.payload AS event_payload,
@@ -526,6 +527,7 @@ type ListEventsParams struct {
 type ListEventsRow struct {
 	TenantID                pgtype.UUID        `json:"tenant_id"`
 	EventID                 int64              `json:"event_id"`
+	EventExternalID         pgtype.UUID        `json:"event_external_id"`
 	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
 	EventKey                string             `json:"event_key"`
 	EventPayload            []byte             `json:"event_payload"`
@@ -554,6 +556,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.EventID,
+			&i.EventExternalID,
 			&i.EventSeenAt,
 			&i.EventKey,
 			&i.EventPayload,

@@ -18,7 +18,7 @@ import (
 )
 
 type EventTriggerOpts struct {
-	EventId string
+	ExternalId string
 
 	Key string
 
@@ -111,9 +111,9 @@ type Run struct {
 }
 
 type TriggerFromEventsResult struct {
-	Tasks         []*sqlcv1.V1Task
-	Dags          []*DAGWithData
-	EventIdToRuns map[string][]*Run
+	Tasks                 []*sqlcv1.V1Task
+	Dags                  []*DAGWithData
+	EventExternalIdToRuns map[string][]*Run
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
@@ -124,13 +124,13 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	}
 
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
-	eventIdToRuns := make(map[string][]*Run)
+	eventExternalIdToRuns := make(map[string][]*Run)
 
 	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
-		eventIdToRuns[opt.EventId] = []*Run{}
+		eventExternalIdToRuns[opt.ExternalId] = []*Run{}
 
 		eventKeysToOpts[opt.Key] = append(eventKeysToOpts[opt.Key], opt)
 
@@ -167,7 +167,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		for _, opt := range opts {
 			triggerConverter := &TriggeredByEvent{
 				l:        r.l,
-				eventID:  opt.EventId,
+				eventID:  opt.ExternalId,
 				eventKey: workflow.EventKey,
 			}
 
@@ -184,7 +184,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				priority:           opt.Priority,
 			})
 
-			externalIdToEventId[externalId] = opt.EventId
+			externalIdToEventId[externalId] = opt.ExternalId
 		}
 	}
 
@@ -203,7 +203,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			continue
 		}
 
-		eventIdToRuns[eventId] = append(eventIdToRuns[eventId], &Run{
+		eventExternalIdToRuns[eventId] = append(eventExternalIdToRuns[eventId], &Run{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt.Time,
 		})
@@ -218,7 +218,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			continue
 		}
 
-		eventIdToRuns[eventId] = append(eventIdToRuns[eventId], &Run{
+		eventExternalIdToRuns[eventId] = append(eventExternalIdToRuns[eventId], &Run{
 			Id:         dag.ID,
 			InsertedAt: dag.InsertedAt.Time,
 		})
@@ -227,9 +227,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	post()
 
 	return &TriggerFromEventsResult{
-		Tasks:         tasks,
-		Dags:          dags,
-		EventIdToRuns: eventIdToRuns,
+		Tasks:                 tasks,
+		Dags:                  dags,
+		EventExternalIdToRuns: eventExternalIdToRuns,
 	}, nil
 }
 

@@ -2496,6 +2496,7 @@ type V1EventToRunOlap struct {
 type V1EventsOlap struct {
 	TenantID           pgtype.UUID        `json:"tenant_id"`
 	ID                 int64              `json:"id"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
 	SeenAt             pgtype.Timestamptz `json:"seen_at"`
 	Key                string             `json:"key"`
 	Payload            []byte             `json:"payload"`
