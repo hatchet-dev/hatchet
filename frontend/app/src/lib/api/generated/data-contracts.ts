@@ -279,6 +279,10 @@ export interface V1TaskSummary {
   metadata: APIResourceMeta;
   /** The action ID of the task. */
   actionId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
@@ -420,7 +424,10 @@ export interface V1TaskEvent {
   /** @format uuid */
   workerId?: string;
   taskDisplayName?: string;
+  /** The number of retries of the task. */
   retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
 }
 
 export interface V1TaskEventList {
@@ -440,6 +447,8 @@ export interface V1LogLine {
   metadata: object;
   /** The retry count of the log line. */
   retryCount?: number;
+  /** The attempt number of the log line. */
+  attempt?: number;
   /** The log level. */
   level?: V1LogLineLevel;
 }
@@ -640,6 +649,10 @@ export interface V1TaskTiming {
    * @format uuid
    */
   workflowRunId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
 }
 
 export interface V1TaskTimingList {

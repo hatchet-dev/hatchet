@@ -10,6 +10,7 @@ import (
 func ToV1LogLine(log *sqlcv1.V1LogLine) *gen.V1LogLine {
 
 	retryCount := int(log.RetryCount)
+	attempt := retryCount + 1
 
 	metadata := map[string]interface{}{}
 	if log.Metadata != nil {
@@ -25,6 +26,7 @@ func ToV1LogLine(log *sqlcv1.V1LogLine) *gen.V1LogLine {
 		CreatedAt:  log.CreatedAt.Time,
 		Message:    log.Message,
 		RetryCount: &retryCount,
+		Attempt:    &attempt,
 		Metadata:   metadata,
 		Level:      &level,
 	}

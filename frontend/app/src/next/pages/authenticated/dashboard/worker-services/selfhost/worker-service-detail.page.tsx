@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
 import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
@@ -14,19 +14,16 @@ import {
 import docs from '@/next/lib/docs';
 import { WorkerTable } from '../components/worker-table';
 import { ROUTES } from '@/next/lib/routes';
-import { WorkerDetailSheet } from '../components/worker-detail-sheet';
-import { SheetViewLayout } from '@/next/components/layouts/sheet-view.layout';
-import { WorkerDetailProvider } from '@/next/hooks/use-worker-detail';
 import { Badge } from '@/next/components/ui/badge';
 import { WorkerType } from '@/lib/api';
+import BasicLayout from '@/next/components/layouts/basic.layout';
 
 function ServiceDetailPageContent() {
-  const { serviceName = '', workerName } = useParams<{
+  const { serviceName = '' } = useParams<{
     serviceName: string;
     workerName?: string;
   }>();
   const decodedServiceName = decodeURIComponent(serviceName);
-  const navigate = useNavigate();
 
   const { services, isLoading } = useWorkers();
 
@@ -49,36 +46,12 @@ function ServiceDetailPageContent() {
     ]);
   }, [decodedServiceName, service?.type, breadcrumb]);
 
-  const handleCloseSheet = useCallback(() => {
-    if (!service) {
-      return;
-    }
-
-    navigate(
-      ROUTES.services.detail(
-        encodeURIComponent(decodedServiceName),
-        service?.type,
-      ),
-    );
-  }, [navigate, decodedServiceName, service]);
-
   if (!service) {
     return <div>Service not found</div>;
   }
 
   return (
-    <SheetViewLayout
-      sheet={
-        <WorkerDetailProvider workerId={workerName || ''}>
-          <WorkerDetailSheet
-            isOpen={!!workerName}
-            onClose={handleCloseSheet}
-            serviceName={decodedServiceName}
-            workerId={workerName || ''}
-          />
-        </WorkerDetailProvider>
-      }
-    >
+    <BasicLayout>
       <Headline>
         <PageTitle description="Manage workers in a worker service">
           {decodedServiceName} <Badge variant="outline">Self-hosted</Badge>
@@ -97,7 +70,7 @@ function ServiceDetailPageContent() {
 
       {/* Worker Table */}
       <WorkerTable serviceName={decodedServiceName} />
-    </SheetViewLayout>
+    </BasicLayout>
   );
 }
 

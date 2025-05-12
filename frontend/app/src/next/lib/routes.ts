@@ -1,4 +1,6 @@
 import { V1WorkflowRun, WorkerType } from '@/lib/api';
+import { SHEET_PARAM_KEY, encodeSheetProps } from '@/next/utils/sheet-url';
+import { OpenSheetProps } from '../hooks/use-side-sheet';
 
 // Base paths
 export const BASE_PATH = '/next';
@@ -35,14 +37,19 @@ export const ROUTES = {
   runs: {
     list: `${FB.runs}`,
     detail: (runId: string) => `${FB.runs}/${runId}`,
-    taskDetail: (
+    detailWithSheet: (
       runId: string,
-      taskId: string,
-      options?: { task_tab?: string },
-    ) =>
-      `${FB.runs}/${runId}/${taskId}${
-        options ? `?${new URLSearchParams(options).toString()}` : ''
-      }`,
+      sheet: OpenSheetProps,
+      options?: { taskTab?: string },
+    ) => {
+      const params = new URLSearchParams();
+      if (options?.taskTab) {
+        params.set('taskTab', options.taskTab);
+      }
+
+      params.set(SHEET_PARAM_KEY, encodeSheetProps(sheet));
+      return `${FB.runs}/${runId}?${params.toString()}`;
+    },
     parent: (run: V1WorkflowRun) =>
       run.parentTaskExternalId
         ? `${FB.runs}/${run.parentTaskExternalId}`

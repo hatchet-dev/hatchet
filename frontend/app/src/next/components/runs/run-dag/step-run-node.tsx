@@ -20,6 +20,7 @@ export type NodeData = {
   onClick: (defaultOpenTab?: TabOption) => void;
   childWorkflowsCount: number;
   taskName: string;
+  isSelected: boolean;
 };
 
 // eslint-disable-next-line react/display-name
@@ -43,7 +44,8 @@ export default memo(({ data }: { data: NodeData }) => {
           `cursor-pointer`,
           `flex flex-row items-center justify-between gap-4 border-2 dark:border-[1px]`,
           `bg-[#ffffff] dark:bg-[#050c1c]`,
-          'hover:opacity-100 opacity-80',
+          'hover:opacity-80',
+          data.isSelected ? 'opacity-100' : 'opacity-50',
           'h-[30px]',
         )}
         onClick={() => data.onClick()}

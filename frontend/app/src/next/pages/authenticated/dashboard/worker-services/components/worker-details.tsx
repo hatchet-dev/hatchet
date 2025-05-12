@@ -37,7 +37,7 @@ interface IWorkerDetails {
   runtimeExtra?: string;
 }
 
-interface WorkerDetailsProps {
+export interface WorkerDetailsProps {
   worker?: any;
   workerId?: string;
   showActions?: boolean;

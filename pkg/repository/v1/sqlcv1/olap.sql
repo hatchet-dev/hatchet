@@ -325,15 +325,19 @@ JOIN v1_tasks_olap tsk
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: PopulateSingleTaskRunData :one
-WITH latest_retry_count AS (
+WITH selected_retry_count AS (
     SELECT
-        MAX(retry_count) AS retry_count
+        CASE
+            WHEN sqlc.narg('retry_count')::int IS NOT NULL THEN sqlc.narg('retry_count')::int
+            ELSE MAX(retry_count)::int
+        END AS retry_count
     FROM
         v1_task_events_olap
     WHERE
         tenant_id = @tenantId::uuid
         AND task_id = @taskId::bigint
         AND task_inserted_at = @taskInsertedAt::timestamptz
+    LIMIT 1
 ), relevant_events AS (
     SELECT
         *
@@ -343,7 +347,7 @@ WITH latest_retry_count AS (
         tenant_id = @tenantId::uuid
         AND task_id = @taskId::bigint
         AND task_inserted_at = @taskInsertedAt::timestamptz
-        AND retry_count = (SELECT retry_count FROM latest_retry_count)
+        AND retry_count = (SELECT retry_count FROM selected_retry_count)
 ), finished_at AS (
     SELECT
         MAX(event_timestamp) AS finished_at
@@ -404,7 +408,8 @@ SELECT
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
     e.error_message as error_message,
-    sc.spawned_children
+    sc.spawned_children,
+    (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -449,7 +454,8 @@ WITH input AS (
         t.additional_metadata,
         t.readable_status,
         t.parent_task_external_id,
-        t.workflow_run_id
+        t.workflow_run_id,
+        t.latest_retry_count
     FROM
         v1_tasks_olap t
     JOIN
@@ -569,7 +575,8 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
-    o.output::jsonb as output
+    o.output::jsonb as output,
+    t.latest_retry_count as retry_count
 FROM
     tasks t
 LEFT JOIN
@@ -909,6 +916,7 @@ WITH input AS (
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
+
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
     JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
@@ -961,11 +969,13 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    o.output
+    o.output,
+    mrc.max_retry_count::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
 LEFT JOIN task_output o ON r.run_id = o.run_id
+LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC;
 
 

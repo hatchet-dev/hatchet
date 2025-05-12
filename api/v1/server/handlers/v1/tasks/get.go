@@ -10,9 +10,38 @@ import (
 )
 
 func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestObject) (gen.V1TaskGetResponseObject, error) {
-	task := ctx.Get("task").(*sqlcv1.V1TasksOlap)
+	taskInterface := ctx.Get("task")
 
-	taskWithData, workflowRunExternalId, err := t.config.V1.OLAP().ReadTaskRunData(ctx.Request().Context(), task.TenantID, task.ID, task.InsertedAt)
+	if taskInterface == nil {
+		return nil, echo.NewHTTPError(404, "Task not found")
+	}
+
+	task, ok := taskInterface.(*sqlcv1.V1TasksOlap)
+
+	if !ok {
+		return nil, echo.NewHTTPError(500, "Task type assertion failed")
+	}
+
+	attempt := request.Params.Attempt
+
+	var retryCount *int
+
+	if attempt != nil {
+		count := *attempt - 1
+		retryCount = &count
+	}
+
+	if retryCount != nil && *retryCount < 0 {
+		return nil, echo.NewHTTPError(400, "Attempt must be greater than 0")
+	}
+
+	taskWithData, workflowRunExternalId, err := t.config.V1.OLAP().ReadTaskRunData(
+		ctx.Request().Context(),
+		task.TenantID,
+		task.ID,
+		task.InsertedAt,
+		retryCount,
+	)
 
 	if err != nil {
 		return nil, err
