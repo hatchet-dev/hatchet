@@ -444,7 +444,7 @@ CREATE TABLE v1_filter (
     expression TEXT NOT NULL,
     payload JSONB NOT NULL DEFAULT '{}'::JSONB,
 
-    PRIMARY KEY (id, tenant_id, workflow_id, workflow_version_id, resource_hint)
+    PRIMARY KEY (tenant_id, workflow_id, workflow_version_id, resource_hint, id)
 );
 
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (

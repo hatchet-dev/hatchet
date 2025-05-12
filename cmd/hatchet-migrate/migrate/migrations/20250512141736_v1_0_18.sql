@@ -9,7 +9,7 @@ CREATE TABLE v1_filter (
     expression TEXT NOT NULL,
     payload JSONB NOT NULL DEFAULT '{}'::JSONB,
 
-    PRIMARY KEY (id, tenant_id, workflow_id, workflow_version_id, resource_hint)
+    PRIMARY KEY (tenant_id, workflow_id, workflow_version_id, resource_hint, id)
 );
 -- +goose StatementEnd
 
