@@ -13,7 +13,7 @@ service AdminService {
     rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
-    rpc PutFilter(CreateFilterRequest) returns (CreateFilterResponse);
+    rpc CreateFilter(CreateFilterRequest) returns (CreateFilterResponse);
     rpc DeleteFilter(DeleteFilterRequest) returns (DeleteFilterResponse);
 }
 
@@ -176,14 +176,14 @@ message CreateFilterRequest {
 }
 
 message CreateFilterResponse {
-    string id = 1; // the id of the created filter
+    int64 id = 1; // the id of the created filter
 }
 
 message DeleteFilterRequest {
-    string id = 1; // (required) the id of the filter to delete
+    int64 id = 1; // (required) the id of the filter to delete
 }
 
 message DeleteFilterResponse {
-    string id = 1; // the id of the deleted filter
+    int64 id = 1; // the id of the deleted filter
 }
 

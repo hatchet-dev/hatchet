@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -785,4 +786,42 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 	}
 
 	return steps, nil
+}
+
+func (a *AdminServiceImpl) CreateFilter(ctx context.Context, req *contracts.CreateFilterRequest) (*contracts.CreateFilterResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	workflowVersion := "fill this in"
+
+	var payload []byte
+	if req.Payload != nil {
+		bytes, err := json.Marshal(req.Payload)
+
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "could not marshal payload")
+		}
+
+		payload = bytes
+	}
+
+	params := sqlcv1.CreateFilterParams{
+		Tenantid:          tenant.ID,
+		Workflowid:        sqlchelpers.UUIDFromStr(req.WorkflowId),
+		Workflowversionid: sqlchelpers.UUIDFromStr(workflowVersion),
+		Resourcehint:      req.ResourceHint,
+		Expression:        req.Expression,
+		Payload:           payload,
+	}
+
+	filter, err := a.repo.Filters().CreateFilter(
+		ctx,
+		params,
+	)
+
+	if err != nil {
+		return nil, status.Error(codes.Internal, "could not create filter")
+	}
+
+	return &contracts.CreateFilterResponse{
+		Id: filter.ID,
+	}, nil
 }
