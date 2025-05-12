@@ -76,35 +76,54 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 }
 
 const listFilters = `-- name: ListFilters :many
-SELECT id, tenant_id, workflow_id, workflow_version_id, resource_hint, expression, payload
-FROM v1_filter
-WHERE tenant_id = $1::UUID
-  AND workflow_id = $2::UUID
-  AND workflow_version_id = $3::UUID
-  AND resource_hint = $4::TEXT
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS workflow_id,
+        UNNEST($3::UUID[]) AS workflow_version_id,
+        UNNEST($4::TEXT[]) AS resource_hint
+)
+
+SELECT id, f.tenant_id, f.workflow_id, f.workflow_version_id, f.resource_hint, expression, payload, i.tenant_id, i.workflow_id, i.workflow_version_id, i.resource_hint
+FROM v1_filter f
+JOIN inputs i ON (f.tenant_id, f.workflow_id, f.workflow_version_id, f.resource_hint) = (i.tenant_id, i.workflow_id, i.workflow_version_id, i.resource_hint)
 `
 
 type ListFiltersParams struct {
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Workflowid        pgtype.UUID `json:"workflowid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
-	Resourcehint      string      `json:"resourcehint"`
+	Tenantids          []pgtype.UUID `json:"tenantids"`
+	Workflowids        []pgtype.UUID `json:"workflowids"`
+	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
+	Resourcehints      []string      `json:"resourcehints"`
 }
 
-func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
+type ListFiltersRow struct {
+	ID                  int64       `json:"id"`
+	TenantID            pgtype.UUID `json:"tenant_id"`
+	WorkflowID          pgtype.UUID `json:"workflow_id"`
+	WorkflowVersionID   pgtype.UUID `json:"workflow_version_id"`
+	ResourceHint        string      `json:"resource_hint"`
+	Expression          string      `json:"expression"`
+	Payload             []byte      `json:"payload"`
+	TenantID_2          interface{} `json:"tenant_id_2"`
+	WorkflowID_2        interface{} `json:"workflow_id_2"`
+	WorkflowVersionID_2 interface{} `json:"workflow_version_id_2"`
+	ResourceHint_2      interface{} `json:"resource_hint_2"`
+}
+
+func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*ListFiltersRow, error) {
 	rows, err := db.Query(ctx, listFilters,
-		arg.Tenantid,
-		arg.Workflowid,
-		arg.Workflowversionid,
-		arg.Resourcehint,
+		arg.Tenantids,
+		arg.Workflowids,
+		arg.Workflowversionids,
+		arg.Resourcehints,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1Filter
+	var items []*ListFiltersRow
 	for rows.Next() {
-		var i V1Filter
+		var i ListFiltersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -113,6 +132,10 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 			&i.ResourceHint,
 			&i.Expression,
 			&i.Payload,
+			&i.TenantID_2,
+			&i.WorkflowID_2,
+			&i.WorkflowVersionID_2,
+			&i.ResourceHint_2,
 		); err != nil {
 			return nil, err
 		}
