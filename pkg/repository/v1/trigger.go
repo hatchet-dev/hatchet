@@ -158,7 +158,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	tenantIds := make([]pgtype.UUID, 0)
 	workflowIds := make([]pgtype.UUID, 0)
 	workflowVersionIds := make([]pgtype.UUID, 0)
-	resourceHints := make([]string, 0)
+	resourceHints := make([]*string, 0)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
 		opts, ok := eventKeysToOpts[workflow.EventKey]
@@ -168,16 +168,10 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
-			var resourceHint string
 			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			workflowIds = append(workflowIds, workflow.WorkflowId)
 			workflowVersionIds = append(workflowVersionIds, workflow.WorkflowVersionId)
-
-			if opt.ResourceHint != nil {
-				resourceHint = *opt.ResourceHint
-			}
-
-			resourceHints = append(resourceHints, resourceHint)
+			resourceHints = append(resourceHints, opt.ResourceHint)
 		}
 	}
 
