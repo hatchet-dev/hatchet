@@ -2495,6 +2495,16 @@ type V1EventsOlap struct {
 	AdditionalMetadata []byte             `json:"additional_metadata"`
 }
 
+type V1Filter struct {
+	ID                int64       `json:"id"`
+	TenantID          pgtype.UUID `json:"tenant_id"`
+	WorkflowID        pgtype.UUID `json:"workflow_id"`
+	WorkflowVersionID pgtype.UUID `json:"workflow_version_id"`
+	ResourceHint      string      `json:"resource_hint"`
+	Expression        string      `json:"expression"`
+	Payload           []byte      `json:"payload"`
+}
+
 type V1LogLine struct {
 	ID             int64              `json:"id"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
