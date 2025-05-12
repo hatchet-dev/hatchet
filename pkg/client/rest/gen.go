@@ -426,9 +426,6 @@ type CreateEventRequest struct {
 
 	// Priority The priority of the event.
 	Priority *int32 `json:"priority,omitempty"`
-
-	// ResourceHint The resource hint for the event.
-	ResourceHint *string `json:"resourceHint,omitempty"`
 }
 
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
