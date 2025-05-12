@@ -106,7 +106,7 @@ function ServiceDetailPageContent() {
 }
 
 export default function ServiceDetailPage() {
-  const { serviceName, workerName } = useParams<{
+  const { serviceName } = useParams<{
     serviceName: string;
     workerName?: string;
   }>();
@@ -115,7 +115,7 @@ export default function ServiceDetailPage() {
     <ManagedComputeProvider>
       <WorkersProvider>
         <ManagedComputeDetailProvider managedWorkerId={serviceName || ''}>
-          <ServiceDetailPageContent workerName={workerName || ''} />
+          <ServiceDetailPageContent />
         </ManagedComputeDetailProvider>
       </WorkersProvider>
     </ManagedComputeProvider>
