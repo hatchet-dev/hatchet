@@ -59,15 +59,15 @@ FROM filtered
 `
 
 type CountTasksParams struct {
-	Tenantid          pgtype.UUID        `json:"tenantid"`
-	Since             pgtype.Timestamptz `json:"since"`
-	Statuses          []string           `json:"statuses"`
-	Until             pgtype.Timestamptz `json:"until"`
-	WorkflowIds       []pgtype.UUID      `json:"workflowIds"`
-	WorkerId          pgtype.UUID        `json:"workerId"`
-	Keys              []string           `json:"keys"`
-	Values            []string           `json:"values"`
-	TriggeringEventId pgtype.UUID        `json:"triggeringEventId"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Statuses                  []string           `json:"statuses"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	WorkerId                  pgtype.UUID        `json:"workerId"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -80,7 +80,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.WorkerId,
 		arg.Keys,
 		arg.Values,
-		arg.TriggeringEventId,
+		arg.TriggeringEventExternalId,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -135,14 +135,14 @@ FROM filtered
 `
 
 type CountWorkflowRunsParams struct {
-	Tenantid          pgtype.UUID        `json:"tenantid"`
-	Statuses          []string           `json:"statuses"`
-	WorkflowIds       []pgtype.UUID      `json:"workflowIds"`
-	Since             pgtype.Timestamptz `json:"since"`
-	Until             pgtype.Timestamptz `json:"until"`
-	Keys              []string           `json:"keys"`
-	Values            []string           `json:"values"`
-	TriggeringEventId pgtype.UUID        `json:"triggeringEventId"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -154,7 +154,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Until,
 		arg.Keys,
 		arg.Values,
-		arg.TriggeringEventId,
+		arg.TriggeringEventExternalId,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -210,17 +210,17 @@ OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
-	Tenantid               pgtype.UUID        `json:"tenantid"`
-	Statuses               []string           `json:"statuses"`
-	WorkflowIds            []pgtype.UUID      `json:"workflowIds"`
-	Since                  pgtype.Timestamptz `json:"since"`
-	Until                  pgtype.Timestamptz `json:"until"`
-	Keys                   []string           `json:"keys"`
-	Values                 []string           `json:"values"`
-	Listworkflowrunsoffset int32              `json:"listworkflowrunsoffset"`
-	Listworkflowrunslimit  int32              `json:"listworkflowrunslimit"`
-	ParentTaskExternalId   pgtype.UUID        `json:"parentTaskExternalId"`
-	TriggeringEventId      pgtype.UUID        `json:"triggeringEventId"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	Listworkflowrunsoffset    int32              `json:"listworkflowrunsoffset"`
+	Listworkflowrunslimit     int32              `json:"listworkflowrunslimit"`
+	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -242,7 +242,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Listworkflowrunsoffset,
 		arg.Listworkflowrunslimit,
 		arg.ParentTaskExternalId,
-		arg.TriggeringEventId,
+		arg.TriggeringEventExternalId,
 	)
 
 	if err != nil {
@@ -319,17 +319,17 @@ OFFSET $9::integer
 `
 
 type ListTasksOlapParams struct {
-	Tenantid          pgtype.UUID        `json:"tenantid"`
-	Since             pgtype.Timestamptz `json:"since"`
-	Statuses          []string           `json:"statuses"`
-	Until             pgtype.Timestamptz `json:"until"`
-	WorkflowIds       []pgtype.UUID      `json:"workflowIds"`
-	WorkerId          pgtype.UUID        `json:"workerId"`
-	Keys              []string           `json:"keys"`
-	Values            []string           `json:"values"`
-	Taskoffset        int32              `json:"taskoffset"`
-	Tasklimit         int32              `json:"tasklimit"`
-	TriggeringEventId pgtype.UUID        `json:"triggeringEventId"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Statuses                  []string           `json:"statuses"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	WorkerId                  pgtype.UUID        `json:"workerId"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	Taskoffset                int32              `json:"taskoffset"`
+	Tasklimit                 int32              `json:"tasklimit"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 type ListTasksOlapRow struct {
@@ -349,7 +349,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Values,
 		arg.Taskoffset,
 		arg.Tasklimit,
-		arg.TriggeringEventId,
+		arg.TriggeringEventExternalId,
 	)
 	if err != nil {
 		return nil, err

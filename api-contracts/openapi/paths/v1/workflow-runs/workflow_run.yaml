@@ -94,7 +94,7 @@ listWorkflowRuns:
           maxLength: 36
       - description: The external id of the event that triggered the workflow run
         in: query
-        name: triggering_event_id
+        name: triggering_event_external_id
         required: false
         schema:
           type: string

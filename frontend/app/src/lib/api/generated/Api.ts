@@ -338,7 +338,7 @@ export class Api<
        * @minLength 36
        * @maxLength 36
        */
-      triggering_event_id?: string;
+      triggering_event_external_id?: string;
     },
     params: RequestParams = {},
   ) =>
@@ -513,7 +513,7 @@ export class Api<
        * @minLength 36
        * @maxLength 36
        */
-      triggering_event_id?: string;
+      triggering_event_external_id?: string;
     },
     params: RequestParams = {},
   ) =>

@@ -14,17 +14,75 @@ import (
 type BulkCreateEventTriggersParams struct {
 	RunID         int64              `json:"run_id"`
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
-	EventID       pgtype.UUID        `json:"event_id"`
+	EventID       int64              `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
 }
 
+const bulkCreateEvents = `-- name: BulkCreateEvents :many
+WITH to_insert AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS external_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
+        UNNEST($4::TEXT[]) AS key,
+        UNNEST($5::JSONB[]) AS payload,
+        UNNEST($6::JSONB[]) AS additional_metadata
+)
+INSERT INTO v1_events_olap (
+    tenant_id,
+    external_id,
+    seen_at,
+    key,
+    payload,
+    additional_metadata
+)
+SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata
+FROM to_insert
+RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+`
+
 type BulkCreateEventsParams struct {
-	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ExternalID         pgtype.UUID        `json:"external_id"`
-	SeenAt             pgtype.Timestamptz `json:"seen_at"`
-	Key                string             `json:"key"`
-	Payload            []byte             `json:"payload"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
+	Tenantids           []pgtype.UUID        `json:"tenantids"`
+	Externalids         []pgtype.UUID        `json:"externalids"`
+	Seenats             []pgtype.Timestamptz `json:"seenats"`
+	Keys                []string             `json:"keys"`
+	Payloads            [][]byte             `json:"payloads"`
+	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
+}
+
+func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1EventsOlap, error) {
+	rows, err := db.Query(ctx, bulkCreateEvents,
+		arg.Tenantids,
+		arg.Externalids,
+		arg.Seenats,
+		arg.Keys,
+		arg.Payloads,
+		arg.Additionalmetadatas,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1EventsOlap
+	for rows.Next() {
+		var i V1EventsOlap
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.ExternalID,
+			&i.SeenAt,
+			&i.Key,
+			&i.Payload,
+			&i.AdditionalMetadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type CreateDAGsOLAPParams struct {
@@ -406,12 +464,12 @@ GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid             pgtype.UUID        `json:"tenantid"`
-	Createdafter         pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore        pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
-	ParentTaskExternalId pgtype.UUID        `json:"parentTaskExternalId"`
-	TriggeringEventId    pgtype.UUID        `json:"triggeringEventId"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Createdafter              pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -430,7 +488,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.ParentTaskExternalId,
-		arg.TriggeringEventId,
+		arg.TriggeringEventExternalId,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(

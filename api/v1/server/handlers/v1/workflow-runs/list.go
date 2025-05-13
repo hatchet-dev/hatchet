@@ -88,9 +88,9 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		opts.ParentTaskExternalId = &id
 	}
 
-	if request.Params.TriggeringEventId != nil {
-		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventId.String())
-		opts.TriggeringEventId = &id
+	if request.Params.TriggeringEventExternalId != nil {
+		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
+		opts.TriggeringEventExternalId = &id
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
@@ -239,8 +239,8 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		opts.FinishedBefore = request.Params.Until
 	}
 
-	if request.Params.TriggeringEventId != nil {
-		opts.TriggeringEventId = request.Params.TriggeringEventId
+	if request.Params.TriggeringEventExternalId != nil {
+		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(

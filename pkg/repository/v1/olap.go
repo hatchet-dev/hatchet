@@ -42,7 +42,7 @@ type ListTaskRunOpts struct {
 
 	AdditionalMetadata map[string]interface{}
 
-	TriggeringEventId *uuid.UUID
+	TriggeringEventExternalId *uuid.UUID
 
 	Limit int64
 
@@ -68,7 +68,7 @@ type ListWorkflowRunOpts struct {
 
 	ParentTaskExternalId *pgtype.UUID
 
-	TriggeringEventId *pgtype.UUID
+	TriggeringEventExternalId *pgtype.UUID
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -80,7 +80,7 @@ type ReadTaskRunMetricsOpts struct {
 
 	ParentTaskExternalID *pgtype.UUID
 
-	TriggeringEventId *pgtype.UUID
+	TriggeringEventExternalId *pgtype.UUID
 }
 
 type WorkflowRunData struct {
@@ -218,7 +218,7 @@ type OLAPRepository interface {
 	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
-	BulkCreateEventsAndTriggers(ctx context.Context, events []sqlcv1.BulkCreateEventsParams, triggers []sqlcv1.BulkCreateEventTriggersParams) error
+	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, error)
 }
 
@@ -475,16 +475,17 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	defer tx.Rollback(ctx)
 
 	params := sqlcv1.ListTasksOlapParams{
-		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
-		Since:             sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Tasklimit:         int32(opts.Limit),
-		Taskoffset:        int32(opts.Offset),
-		TriggeringEventId: pgtype.UUID{},
+		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
+		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Tasklimit:                 int32(opts.Limit),
+		Taskoffset:                int32(opts.Offset),
+		TriggeringEventExternalId: pgtype.UUID{},
 	}
 
 	countParams := sqlcv1.CountTasksParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Since:    sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
+		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		TriggeringEventExternalId: pgtype.UUID{},
 	}
 
 	statuses := make([]string, 0)
@@ -537,11 +538,11 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 		countParams.Values = append(countParams.Values, value.(string))
 	}
 
-	triggeringEventId := opts.TriggeringEventId
+	triggeringEventExternalId := opts.TriggeringEventExternalId
 
-	if opts.TriggeringEventId != nil {
-		params.TriggeringEventId = sqlchelpers.UUIDFromStr(triggeringEventId.String())
-		countParams.TriggeringEventId = sqlchelpers.UUIDFromStr(triggeringEventId.String())
+	if triggeringEventExternalId != nil {
+		params.TriggeringEventExternalId = sqlchelpers.UUIDFromStr(triggeringEventExternalId.String())
+		countParams.TriggeringEventExternalId = sqlchelpers.UUIDFromStr(triggeringEventExternalId.String())
 	}
 
 	rows, err := r.queries.ListTasksOlap(ctx, tx, params)
@@ -679,12 +680,12 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	defer tx.Rollback(ctx)
 
 	params := sqlcv1.FetchWorkflowRunIdsParams{
-		Tenantid:               sqlchelpers.UUIDFromStr(tenantId),
-		Since:                  sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Listworkflowrunslimit:  int32(opts.Limit),
-		Listworkflowrunsoffset: int32(opts.Offset),
-		ParentTaskExternalId:   pgtype.UUID{},
-		TriggeringEventId:      pgtype.UUID{},
+		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
+		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Listworkflowrunslimit:     int32(opts.Limit),
+		Listworkflowrunsoffset:    int32(opts.Offset),
+		ParentTaskExternalId:      pgtype.UUID{},
+		TriggeringEventExternalId: pgtype.UUID{},
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
@@ -740,9 +741,9 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		params.ParentTaskExternalId = *opts.ParentTaskExternalId
 	}
 
-	if opts.TriggeringEventId != nil {
-		params.TriggeringEventId = *opts.TriggeringEventId
-		countParams.TriggeringEventId = *opts.TriggeringEventId
+	if opts.TriggeringEventExternalId != nil {
+		params.TriggeringEventExternalId = *opts.TriggeringEventExternalId
+		countParams.TriggeringEventExternalId = *opts.TriggeringEventExternalId
 	}
 
 	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)
@@ -931,17 +932,17 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId st
 		parentTaskExternalId = *opts.ParentTaskExternalID
 	}
 
-	var triggeringEventId pgtype.UUID
-	if opts.TriggeringEventId != nil {
-		triggeringEventId = *opts.TriggeringEventId
+	var triggeringEventExternalId pgtype.UUID
+	if opts.TriggeringEventExternalId != nil {
+		triggeringEventExternalId = *opts.TriggeringEventExternalId
 	}
 
 	params := sqlcv1.GetTenantStatusMetricsParams{
-		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
-		Createdafter:         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		WorkflowIds:          workflowIds,
-		ParentTaskExternalId: parentTaskExternalId,
-		TriggeringEventId:    triggeringEventId,
+		Tenantid:                  sqlchelpers.UUIDFromStr(tenantId),
+		Createdafter:              sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		WorkflowIds:               workflowIds,
+		ParentTaskExternalId:      parentTaskExternalId,
+		TriggeringEventExternalId: triggeringEventExternalId,
 	}
 
 	if opts.CreatedBefore != nil {
@@ -1377,7 +1378,14 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 	return tasksWithData, idsToDepth, nil
 }
 
-func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events []sqlcv1.BulkCreateEventsParams, triggers []sqlcv1.BulkCreateEventTriggersParams) error {
+type EventTriggersFromExternalId struct {
+	RunID           int64              `json:"run_id"`
+	RunInsertedAt   pgtype.Timestamptz `json:"run_inserted_at"`
+	EventExternalId pgtype.UUID        `json:"event_external_id"`
+	EventSeenAt     pgtype.Timestamptz `json:"event_seen_at"`
+}
+
+func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
@@ -1386,13 +1394,36 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	defer rollback()
 
-	_, err = r.queries.BulkCreateEvents(ctx, tx, events)
+	insertedEvents, err := r.queries.BulkCreateEvents(ctx, tx, events)
 
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)
 	}
 
-	_, err = r.queries.BulkCreateEventTriggers(ctx, tx, triggers)
+	eventExternalIdToId := make(map[pgtype.UUID]int64)
+
+	for _, event := range insertedEvents {
+		eventExternalIdToId[event.ExternalID] = event.ID
+	}
+
+	bulkCreateTriggersParams := make([]sqlcv1.BulkCreateEventTriggersParams, 0)
+
+	for _, trigger := range triggers {
+		eventId, ok := eventExternalIdToId[trigger.EventExternalId]
+
+		if !ok {
+			return fmt.Errorf("event external id %s not found in events", sqlchelpers.UUIDToStr(trigger.EventExternalId))
+		}
+
+		bulkCreateTriggersParams = append(bulkCreateTriggersParams, sqlcv1.BulkCreateEventTriggersParams{
+			RunID:         trigger.RunID,
+			RunInsertedAt: trigger.RunInsertedAt,
+			EventID:       eventId,
+			EventSeenAt:   trigger.EventSeenAt,
+		})
+	}
+
+	_, err = r.queries.BulkCreateEventTriggers(ctx, tx, bulkCreateTriggersParams)
 
 	if err != nil {
 		return fmt.Errorf("error creating event triggers: %v", err)

@@ -62,7 +62,7 @@ CREATE TABLE v1_event_lookup_table_olap (
 CREATE TABLE v1_event_to_run_olap (
     run_id BIGINT NOT NULL,
     run_inserted_at TIMESTAMPTZ NOT NULL,
-    event_id UUID NOT NULL,
+    event_id BIGINT NOT NULL,
     event_seen_at TIMESTAMPTZ NOT NULL,
 
     PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)

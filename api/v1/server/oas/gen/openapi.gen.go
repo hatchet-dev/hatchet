@@ -1967,8 +1967,8 @@ type V1TaskListStatusMetricsParams struct {
 	// ParentTaskExternalId The parent task's external id
 	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
 
-	// TriggeringEventId The id of the event that triggered the task
-	TriggeringEventId *openapi_types.UUID `form:"triggering_event_id,omitempty" json:"triggering_event_id,omitempty"`
+	// TriggeringEventExternalId The id of the event that triggered the task
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
 }
 
 // V1TaskGetPointMetricsParams defines parameters for V1TaskGetPointMetrics.
@@ -2012,8 +2012,8 @@ type V1WorkflowRunListParams struct {
 	// ParentTaskExternalId The parent task external id to filter by
 	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
 
-	// TriggeringEventId The external id of the event that triggered the workflow run
-	TriggeringEventId *openapi_types.UUID `form:"triggering_event_id,omitempty" json:"triggering_event_id,omitempty"`
+	// TriggeringEventExternalId The external id of the event that triggered the workflow run
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -3162,11 +3162,11 @@ func (w *ServerInterfaceWrapper) V1TaskListStatusMetrics(ctx echo.Context) error
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter parent_task_external_id: %s", err))
 	}
 
-	// ------------- Optional query parameter "triggering_event_id" -------------
+	// ------------- Optional query parameter "triggering_event_external_id" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "triggering_event_id", ctx.QueryParams(), &params.TriggeringEventId)
+	err = runtime.BindQueryParameter("form", true, false, "triggering_event_external_id", ctx.QueryParams(), &params.TriggeringEventExternalId)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter triggering_event_id: %s", err))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter triggering_event_external_id: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -3337,11 +3337,11 @@ func (w *ServerInterfaceWrapper) V1WorkflowRunList(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter parent_task_external_id: %s", err))
 	}
 
-	// ------------- Optional query parameter "triggering_event_id" -------------
+	// ------------- Optional query parameter "triggering_event_external_id" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "triggering_event_id", ctx.QueryParams(), &params.TriggeringEventId)
+	err = runtime.BindQueryParameter("form", true, false, "triggering_event_external_id", ctx.QueryParams(), &params.TriggeringEventExternalId)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter triggering_event_id: %s", err))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter triggering_event_external_id: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -13252,42 +13252,42 @@ var swaggerSpec = []string{
 	"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",
-	"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",
+	"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",
-	"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",
+	"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",
-	"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",
+	"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",
@@ -13339,8 +13339,8 @@ var swaggerSpec = []string{
 	"iVbp9ckmFfPoS8Z7lC8dxpOyRTr9beBnTUpLlpByBfWGFq82pAdsmsZZQvOE5iCIjTKCQjt9gc9uYw6H",
 	"NQuJJXN3i0elLn33FmoTC+ULbyW4RF4Zo2+ISInQNtPLQgletlJyXWvYZc8Z3lPrNsoIdUC/R7kqBBgi",
 	"LHkqQM49xN4M+qZs0rng33JFipPBglljXi1XjAJvqyQxXWqYLjXMGlLDtBLNXDYgi1etwkluJZa5b80O",
-	"mWB+Bbm8ZiknHKaWUwU7ebdVKmBOiouqgGXHvwkEKUyl419P6wpIPcmYPMjS0D123Zfbl/8XAAD//6Zu",
-	"gQwyhQIA",
+	"mWB+Bbm8ZiknHKaWUwU7ebdVKmBOiouqgGXHvwkEKUyl419P6wpIPcmYPMjS0D123Zfbl/8XAAD//674",
+	"AZlEhQIA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

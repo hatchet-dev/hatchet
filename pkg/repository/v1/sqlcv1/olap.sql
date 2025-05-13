@@ -1037,7 +1037,7 @@ WITH task_external_ids AS (
     WHERE (
         sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
     ) AND (
-        sqlc.narg('triggeringEventId')::UUID IS NULL
+        sqlc.narg('triggeringEventExternalId')::UUID IS NULL
         OR (id, inserted_at) IN (
             SELECT etr.run_id, etr.run_inserted_at
             FROM v1_event_lookup_table_olap lt
@@ -1045,7 +1045,7 @@ WITH task_external_ids AS (
             JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
             WHERE
                 lt.tenant_id = @tenantId::uuid
-                AND lt.external_id = sqlc.narg('triggeringEventId')::UUID
+                AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
         )
     )
 )
@@ -1311,7 +1311,16 @@ WHERE
   tenant_id = @tenantId::uuid;
 
 
--- name: BulkCreateEvents :copyfrom
+-- name: BulkCreateEvents :many
+WITH to_insert AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@seenAts::TIMESTAMPTZ[]) AS seen_at,
+        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata
+)
 INSERT INTO v1_events_olap (
     tenant_id,
     external_id,
@@ -1320,14 +1329,9 @@ INSERT INTO v1_events_olap (
     payload,
     additional_metadata
 )
-VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6
-)
+SELECT *
+FROM to_insert
+RETURNING *
 ;
 
 -- name: BulkCreateEventTriggers :copyfrom

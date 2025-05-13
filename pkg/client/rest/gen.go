@@ -1964,8 +1964,8 @@ type V1TaskListStatusMetricsParams struct {
 	// ParentTaskExternalId The parent task's external id
 	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
 
-	// TriggeringEventId The id of the event that triggered the task
-	TriggeringEventId *openapi_types.UUID `form:"triggering_event_id,omitempty" json:"triggering_event_id,omitempty"`
+	// TriggeringEventExternalId The id of the event that triggered the task
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
 }
 
 // V1TaskGetPointMetricsParams defines parameters for V1TaskGetPointMetrics.
@@ -2009,8 +2009,8 @@ type V1WorkflowRunListParams struct {
 	// ParentTaskExternalId The parent task external id to filter by
 	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
 
-	// TriggeringEventId The external id of the event that triggered the workflow run
-	TriggeringEventId *openapi_types.UUID `form:"triggering_event_id,omitempty" json:"triggering_event_id,omitempty"`
+	// TriggeringEventExternalId The external id of the event that triggered the workflow run
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -5360,9 +5360,9 @@ func NewV1TaskListStatusMetricsRequest(server string, tenant openapi_types.UUID,
 
 		}
 
-		if params.TriggeringEventId != nil {
+		if params.TriggeringEventExternalId != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_id", runtime.ParamLocationQuery, *params.TriggeringEventId); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -5734,9 +5734,9 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 
 		}
 
-		if params.TriggeringEventId != nil {
+		if params.TriggeringEventExternalId != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_id", runtime.ParamLocationQuery, *params.TriggeringEventId); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
