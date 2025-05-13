@@ -1,14 +1,9 @@
 -- name: ListMatchConditionsForEvent :many
 WITH input AS (
     SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@eventKeys::text[]) AS event_key,
-                -- NOTE: nullable field
-                unnest(@eventResourceHints::text[]) AS event_resource_hint
-        ) AS subquery
+        unnest(@eventKeys::text[]) AS event_key,
+        -- NOTE: nullable field
+        unnest(@eventResourceHints::text[]) AS event_resource_hint
 )
 SELECT
     v1_match_id,
@@ -21,15 +16,19 @@ SELECT
     expression
 FROM
     v1_match_condition m
-JOIN
-    input i ON m.tenant_id = @tenantId::uuid
-        AND m.event_type = @eventType::v1_event_type
-        AND m.event_key = i.event_key
-        AND m.is_satisfied = FALSE
+WHERE
+    m.tenant_id = @tenantId::uuid
+    AND m.event_type = @eventType::v1_event_type
+    AND m.is_satisfied = FALSE
+    AND EXISTS (
+        SELECT 1
+        FROM input i
+        WHERE m.event_key = i.event_key
         AND (
             (m.event_resource_hint IS NULL AND i.event_resource_hint IS NULL)
             OR m.event_resource_hint = i.event_resource_hint
-        );
+        )
+    );
 
 -- name: CreateMatchesForDAGTriggers :many
 WITH input AS (
