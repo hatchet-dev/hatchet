@@ -1,34 +1,5 @@
--- name: ListMatchConditionsForEvent :many
-WITH input AS (
-    SELECT
-        unnest(@eventKeys::text[]) AS event_key,
-        -- NOTE: nullable field
-        unnest(@eventResourceHints::text[]) AS event_resource_hint
-)
-SELECT
-    v1_match_id,
-    id,
-    registered_at,
-    event_type,
-    m.event_key,
-    m.event_resource_hint,
-    readable_data_key,
-    expression
-FROM
-    v1_match_condition m
-WHERE
-    m.tenant_id = @tenantId::uuid
-    AND m.event_type = @eventType::v1_event_type
-    AND m.is_satisfied = FALSE
-    AND EXISTS (
-        SELECT 1
-        FROM input i
-        WHERE m.event_key = i.event_key
-        AND (
-            (m.event_resource_hint IS NULL AND i.event_resource_hint IS NULL)
-            OR m.event_resource_hint = i.event_resource_hint
-        )
-    );
+-- NOTE: this file doesn't typically get generated, it's just used for generating boilerplate
+-- for queries
 
 -- name: CreateMatchesForDAGTriggers :many
 WITH input AS (
