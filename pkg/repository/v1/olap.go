@@ -231,18 +231,18 @@ type OLAPRepositoryImpl struct {
 
 	olapRetentionPeriod time.Duration
 
-	shouldPartitionEventsTables bool
+	shouldNotPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldNotPartitionEventsTables bool) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
-	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldNotPartitionEventsTables), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldNotPartitionEventsTables bool) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -250,16 +250,16 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 
 	return &OLAPRepositoryImpl{
-		sharedRepository:            shared,
-		readPool:                    shared.pool,
-		eventCache:                  eventCache,
-		olapRetentionPeriod:         olapRetentionPeriod,
-		shouldPartitionEventsTables: shouldPartitionEventsTables,
+		sharedRepository:               shared,
+		readPool:                       shared.pool,
+		eventCache:                     eventCache,
+		olapRetentionPeriod:            olapRetentionPeriod,
+		shouldNotPartitionEventsTables: shouldNotPartitionEventsTables,
 	}
 }
 
 func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
-	if !o.shouldPartitionEventsTables {
+	if o.shouldNotPartitionEventsTables {
 		o.l.Debug().Msg("skipping OLAP partition creation")
 		return nil
 	}
