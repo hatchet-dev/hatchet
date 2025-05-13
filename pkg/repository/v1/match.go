@@ -287,8 +287,9 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	res := &EventMatchResults{}
 
-	eventKeys := make([]string, 0, len(events))
-	resourceHints := make([]pgtype.Text, 0, len(events))
+	eventKeysWithHints := make([]string, 0, len(events))
+	eventKeysWithoutHints := make([]string, 0, len(events))
+	resourceHints := make([]string, 0, len(events))
 	uniqueEventKeys := make(map[string]struct{})
 	idsToEvents := make(map[string]CandidateEventMatch)
 
@@ -301,31 +302,47 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			}
 		}
 
-		eventKeys = append(eventKeys, event.Key)
 		uniqueEventKeys[event.Key] = struct{}{}
 
 		if event.ResourceHint != nil {
-			resourceHints = append(resourceHints, pgtype.Text{String: *event.ResourceHint, Valid: true})
+			eventKeysWithHints = append(eventKeysWithHints, event.Key)
+			resourceHints = append(resourceHints, *event.ResourceHint)
 		} else {
-			resourceHints = append(resourceHints, pgtype.Text{})
+			eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 		}
 	}
 
 	// list all match conditions
-	matchConditions, err := m.queries.ListMatchConditionsForEvent(
+	matchConditions, err := m.queries.ListMatchConditionsForEventWithHint(
 		ctx,
 		tx,
-		sqlcv1.ListMatchConditionsForEventParams{
+		sqlcv1.ListMatchConditionsForEventWithHintParams{
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 			Eventtype:          eventType,
-			Eventkeys:          eventKeys,
+			Eventkeys:          eventKeysWithHints,
 			Eventresourcehints: resourceHints,
 		},
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list match conditions for event: %w", err)
+		return nil, fmt.Errorf("failed to list match conditions with hints for event: %w", err)
 	}
+
+	matchConditionsWithoutHints, err := m.queries.ListMatchConditionsForEventWithoutHint(
+		ctx,
+		tx,
+		sqlcv1.ListMatchConditionsForEventWithoutHintParams{
+			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+			Eventtype: eventType,
+			Eventkeys: eventKeysWithoutHints,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list match conditions without hints for event: %w", err)
+	}
+
+	matchConditions = append(matchConditions, matchConditionsWithoutHints...)
 
 	// pass match conditions through CEL expressions parser
 	matches, err := m.processCELExpressions(ctx, events, matchConditions, eventType)
