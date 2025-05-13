@@ -257,6 +257,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         Get the ID of the workflow.
 
+        :raises ValueError: If no workflow ID is found for the workflow name.
         :returns: The ID of the workflow.
         """
         workflows = self.client.workflows.list(workflow_name=self.name)
