@@ -6,7 +6,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const listMatchConditionsForEvent = `-- name: ListMatchConditionsForEvent :many
+const listMatchConditionsForEventWithHint = `-- name: ListMatchConditionsForEventWithHint :many
 WITH input AS (
     SELECT
         event_key, event_resource_hint
@@ -14,7 +14,6 @@ WITH input AS (
         (
             SELECT
                 unnest($3::text[]) AS event_key,
-                -- NOTE: nullable field
                 unnest($4::text[]) AS event_resource_hint
         ) AS subquery
 )
@@ -28,17 +27,20 @@ SELECT
     readable_data_key,
     expression
 FROM
-    v1_match_condition m
-JOIN
-    input i ON (m.tenant_id, m.event_type, m.event_key, m.is_satisfied, COALESCE(m.event_resource_hint, '')::text) =
-        ($1::uuid, $2::v1_event_type, i.event_key, FALSE, COALESCE(i.event_resource_hint, '')::text)
+    v1_match_condition m, input i
+WHERE
+    m.tenant_id = $1::uuid
+    AND m.event_type = $2::v1_event_type
+    AND m.event_key = i.event_key
+    AND m.is_satisfied = FALSE
+    AND m.event_resource_hint = i.event_resource_hint
 `
 
-type ListMatchConditionsForEventParams struct {
-	Tenantid           pgtype.UUID   `json:"tenantid"`
-	Eventtype          V1EventType   `json:"eventtype"`
-	Eventkeys          []string      `json:"eventkeys"`
-	Eventresourcehints []pgtype.Text `json:"eventresourcehints"`
+type ListMatchConditionsForEventWithHintParams struct {
+	Tenantid           pgtype.UUID `json:"tenantid"`
+	Eventtype          V1EventType `json:"eventtype"`
+	Eventkeys          []string    `json:"eventkeys"`
+	Eventresourcehints []string    `json:"eventresourcehints"`
 }
 
 type ListMatchConditionsForEventRow struct {
@@ -52,12 +54,80 @@ type ListMatchConditionsForEventRow struct {
 	Expression        pgtype.Text        `json:"expression"`
 }
 
-func (q *Queries) ListMatchConditionsForEvent(ctx context.Context, db DBTX, arg ListMatchConditionsForEventParams) ([]*ListMatchConditionsForEventRow, error) {
-	rows, err := db.Query(ctx, listMatchConditionsForEvent,
+func (q *Queries) ListMatchConditionsForEventWithHint(ctx context.Context, db DBTX, arg ListMatchConditionsForEventWithHintParams) ([]*ListMatchConditionsForEventRow, error) {
+	rows, err := db.Query(ctx, listMatchConditionsForEventWithHint,
 		arg.Tenantid,
 		arg.Eventtype,
 		arg.Eventkeys,
 		arg.Eventresourcehints,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListMatchConditionsForEventRow
+	for rows.Next() {
+		var i ListMatchConditionsForEventRow
+		if err := rows.Scan(
+			&i.V1MatchID,
+			&i.ID,
+			&i.RegisteredAt,
+			&i.EventType,
+			&i.EventKey,
+			&i.EventResourceHint,
+			&i.ReadableDataKey,
+			&i.Expression,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMatchConditionsForEventWithoutHint = `-- name: ListMatchConditionsForEventWithoutHint :many
+WITH input AS (
+    SELECT
+        event_key
+    FROM
+        (
+            SELECT
+                unnest($3::text[]) AS event_key
+        ) AS subquery
+)
+SELECT
+    v1_match_id,
+    id,
+    registered_at,
+    event_type,
+    m.event_key,
+    m.event_resource_hint,
+    readable_data_key,
+    expression
+FROM
+    v1_match_condition m, input i
+WHERE
+    m.tenant_id = $1::uuid
+    AND m.event_type = $2::v1_event_type
+    AND m.event_key = i.event_key
+    AND m.is_satisfied = FALSE
+    AND m.event_resource_hint IS NULL
+`
+
+type ListMatchConditionsForEventWithoutHintParams struct {
+	Tenantid  pgtype.UUID `json:"tenantid"`
+	Eventtype V1EventType `json:"eventtype"`
+	Eventkeys []string    `json:"eventkeys"`
+}
+
+func (q *Queries) ListMatchConditionsForEventWithoutHint(ctx context.Context, db DBTX, arg ListMatchConditionsForEventWithoutHintParams) ([]*ListMatchConditionsForEventRow, error) {
+	rows, err := db.Query(ctx, listMatchConditionsForEventWithoutHint,
+		arg.Tenantid,
+		arg.Eventtype,
+		arg.Eventkeys,
 	)
 	if err != nil {
 		return nil, err
