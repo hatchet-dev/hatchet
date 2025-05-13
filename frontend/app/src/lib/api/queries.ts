@@ -19,6 +19,7 @@ type WorkflowRunEventsMetrics = Parameters<
 type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
 type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
+type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
 type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v1TaskGetPointMetrics
 >[1];
@@ -253,6 +254,12 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run:list:step-run-events', workflowRun],
       queryFn: async () =>
         (await api.workflowRunListStepRunEvents(tenantId, workflowRun)).data,
+    }),
+  },
+  v1Events: {
+    list: (tenant: string, query: V1EventListQuery) => ({
+      queryKey: ['v1:events:list', tenant, query],
+      queryFn: async () => (await api.v1EventList(tenant, query)).data,
     }),
   },
   v1WorkflowRuns: {

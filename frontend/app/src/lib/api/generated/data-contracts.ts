@@ -189,11 +189,6 @@ export enum WorkflowRunStatus {
   BACKOFF = "BACKOFF",
 }
 
-export enum TenantVersion {
-  V0 = "V0",
-  V1 = "V1",
-}
-
 export enum TenantMemberRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
@@ -208,6 +203,11 @@ export enum TenantResource {
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
+}
+
+export enum TenantVersion {
+  V0 = "V0",
+  V1 = "V1",
 }
 
 export enum V1LogLineLevel {
@@ -679,6 +679,70 @@ export interface V1TaskPointMetrics {
   results?: V1TaskPointMetric[];
 }
 
+/** The key for the event. */
+export type EventKey = string;
+
+export interface Tenant {
+  metadata: APIResourceMeta;
+  /** The name of the tenant. */
+  name: string;
+  /** The slug of the tenant. */
+  slug: string;
+  /** Whether the tenant has opted out of analytics. */
+  analyticsOptOut?: boolean;
+  /** Whether to alert tenant members. */
+  alertMemberEmails?: boolean;
+  /** The version of the tenant. */
+  version: TenantVersion;
+}
+
+export interface V1EventWorkflowRunSummary {
+  /**
+   * The number of running runs.
+   * @format int64
+   */
+  running: number;
+  /**
+   * The number of queued runs.
+   * @format int64
+   */
+  queued: number;
+  /**
+   * The number of succeeded runs.
+   * @format int64
+   */
+  succeeded: number;
+  /**
+   * The number of failed runs.
+   * @format int64
+   */
+  failed: number;
+  /**
+   * The number of cancelled runs.
+   * @format int64
+   */
+  cancelled: number;
+}
+
+export interface V1Event {
+  metadata: APIResourceMeta;
+  /** The key for the event. */
+  key: string;
+  /** The tenant associated with this event. */
+  tenant?: Tenant;
+  /** The ID of the tenant associated with this event. */
+  tenantId: string;
+  /** The workflow run summary for this event. */
+  workflowRunSummary: V1EventWorkflowRunSummary;
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
+}
+
+export interface V1EventList {
+  pagination?: PaginationResponse;
+  rows?: V1Event[];
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
@@ -888,20 +952,6 @@ export interface UserTenantPublic {
   name?: string;
 }
 
-export interface Tenant {
-  metadata: APIResourceMeta;
-  /** The name of the tenant. */
-  name: string;
-  /** The slug of the tenant. */
-  slug: string;
-  /** Whether the tenant has opted out of analytics. */
-  analyticsOptOut?: boolean;
-  /** Whether to alert tenant members. */
-  alertMemberEmails?: boolean;
-  /** The version of the tenant. */
-  version: TenantVersion;
-}
-
 export interface TenantMember {
   metadata: APIResourceMeta;
   /** The user associated with this tenant member. */
@@ -1071,9 +1121,6 @@ export interface TenantStepRunQueueMetrics {
   queues?: object;
 }
 
-/** The key for the event. */
-export type EventKey = string;
-
 export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 export type EventSearch = string;
@@ -1137,6 +1184,11 @@ export interface CreateEventRequest {
   data: object;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+  /**
+   * The priority of the event.
+   * @format int32
+   */
+  priority?: number;
 }
 
 export interface BulkCreateEventRequest {

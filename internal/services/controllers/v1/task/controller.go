@@ -809,17 +809,71 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId string, msgs []*tasktypes.UserEventTaskPayload) error {
 	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
+	eventIdToOpts := make(map[string]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
-		opts = append(opts, v1.EventTriggerOpts{
-			EventId:            msg.EventId,
+		opt := v1.EventTriggerOpts{
+			ExternalId:         msg.EventExternalId,
 			Key:                msg.EventKey,
 			Data:               msg.EventData,
 			AdditionalMetadata: msg.EventAdditionalMetadata,
-		})
+			Priority:           msg.EventPriority,
+		}
+
+		opts = append(opts, opt)
+
+		eventIdToOpts[msg.EventExternalId] = opt
 	}
 
-	tasks, dags, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
+
+	if err != nil {
+		return fmt.Errorf("could not trigger tasks from events: %w", err)
+	}
+
+	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
+
+	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
+	eventSeenAt := time.Now()
+
+	for eventExternalId, runs := range result.EventExternalIdToRuns {
+		opts := eventIdToOpts[eventExternalId]
+
+		if len(runs) == 0 {
+			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+				EventSeenAt:             eventSeenAt,
+				EventKey:                opts.Key,
+				EventExternalId:         opts.ExternalId,
+				EventPayload:            opts.Data,
+				EventAdditionalMetadata: opts.AdditionalMetadata,
+			})
+		} else {
+			for _, run := range runs {
+				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
+					MaybeRunId:              &run.Id,
+					MaybeRunInsertedAt:      &run.InsertedAt,
+					EventSeenAt:             eventSeenAt,
+					EventKey:                opts.Key,
+					EventExternalId:         opts.ExternalId,
+					EventPayload:            opts.Data,
+					EventAdditionalMetadata: opts.AdditionalMetadata,
+				})
+			}
+		}
+	}
+
+	msg, err := tasktypes.CreatedEventTriggerMessage(
+		tenantId,
+		tasktypes.CreatedEventTriggerPayload{
+			Payloads: eventTriggerOpts,
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not create event trigger message: %w", err)
+	}
+
+	err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger tasks from events: %w", err)
@@ -828,11 +882,11 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	eg := &errgroup.Group{}
 
 	eg.Go(func() error {
-		return tc.signalTasksCreated(ctx, tenantId, tasks)
+		return tc.signalTasksCreated(ctx, tenantId, result.Tasks)
 	})
 
 	eg.Go(func() error {
-		return tc.signalDAGsCreated(ctx, tenantId, dags)
+		return tc.signalDAGsCreated(ctx, tenantId, result.Dags)
 	})
 
 	return eg.Wait()
@@ -896,7 +950,7 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 
 	for _, event := range events {
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
-			ID:             event.EventId,
+			ID:             event.EventExternalId,
 			EventTimestamp: time.Now(),
 			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
 			Key:  event.EventKey,

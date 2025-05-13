@@ -86,6 +86,7 @@ import {
   UserTenantMembershipsList,
   V1CancelTaskRequest,
   V1DagChildren,
+  V1EventList,
   V1LogLineList,
   V1ReplayTaskRequest,
   V1TaskEventList,
@@ -331,6 +332,13 @@ export class Api<
        * @maxLength 36
        */
       parent_task_external_id?: string;
+      /**
+       * The external id of the event that triggered the workflow run
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_external_id?: string;
     },
     params: RequestParams = {},
   ) =>
@@ -499,6 +507,13 @@ export class Api<
        * @maxLength 36
        */
       parent_task_external_id?: string;
+      /**
+       * The id of the event that triggered the task
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_external_id?: string;
     },
     params: RequestParams = {},
   ) =>
@@ -539,6 +554,41 @@ export class Api<
   ) =>
     this.request<V1TaskPointMetrics, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/task-point-metrics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Lists all events for a tenant.
+   *
+   * @tags Event
+   * @name V1EventList
+   * @summary List events
+   * @request GET:/api/v1/stable/tenants/{tenant}/events
+   * @secure
+   */
+  v1EventList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of keys to filter by */
+      keys?: EventKey[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1EventList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events`,
       method: "GET",
       query: query,
       secure: true,

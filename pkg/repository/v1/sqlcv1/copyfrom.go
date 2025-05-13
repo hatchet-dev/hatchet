@@ -9,6 +9,41 @@ import (
 	"context"
 )
 
+// iteratorForBulkCreateEventTriggers implements pgx.CopyFromSource.
+type iteratorForBulkCreateEventTriggers struct {
+	rows                 []BulkCreateEventTriggersParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForBulkCreateEventTriggers) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForBulkCreateEventTriggers) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].RunID,
+		r.rows[0].RunInsertedAt,
+		r.rows[0].EventID,
+		r.rows[0].EventSeenAt,
+	}, nil
+}
+
+func (r iteratorForBulkCreateEventTriggers) Err() error {
+	return nil
+}
+
+func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg []BulkCreateEventTriggersParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"v1_event_to_run_olap"}, []string{"run_id", "run_inserted_at", "event_id", "event_seen_at"}, &iteratorForBulkCreateEventTriggers{rows: arg})
+}
+
 // iteratorForCreateDAGData implements pgx.CopyFromSource.
 type iteratorForCreateDAGData struct {
 	rows                 []CreateDAGDataParams

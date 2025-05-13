@@ -102,6 +102,8 @@ WorkflowID:
   $ref: "./event.yaml#/WorkflowID"
 EventList:
   $ref: "./event.yaml#/EventList"
+V1EventList:
+  $ref: "./v1/event.yaml#/V1EventList"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:

@@ -16,6 +16,7 @@ export const FEATURES_BASE_PATH = {
   services: BASE_PATH + '/services',
   rateLimits: BASE_PATH + '/rate-limits',
   settings: BASE_PATH + '/settings',
+  events: BASE_PATH + '/events',
 };
 
 const FB = FEATURES_BASE_PATH;
@@ -30,6 +31,10 @@ export const ROUTES = {
   onboarding: {
     newTenant: `${FB.onboarding}/create-tenant`,
     invites: `${FB.onboarding}/invites`,
+  },
+  events: {
+    list: `${FB.events}`,
+    detail: (externalId: string) => `${FB.events}/${externalId}`,
   },
   learn: {
     firstRun: `${FB.learn}/first-run`,

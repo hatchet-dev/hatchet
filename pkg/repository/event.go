@@ -27,6 +27,9 @@ type CreateEventOpts struct {
 
 	// (optional) the event metadata
 	AdditionalMetadata []byte
+
+	// (optional) the event priority
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type ListEventOpts struct {
