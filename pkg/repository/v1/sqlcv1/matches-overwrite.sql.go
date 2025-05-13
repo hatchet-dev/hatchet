@@ -9,8 +9,13 @@ import (
 const listMatchConditionsForEvent = `-- name: ListMatchConditionsForEvent :many
 WITH input AS (
     SELECT
-        unnest($3::text[]) AS event_key,
-        unnest($4::text[]) AS event_resource_hint
+        event_key, event_resource_hint
+    FROM
+        (
+            SELECT
+                unnest($3::text[]) AS event_key,
+                unnest($4::text[]) AS event_resource_hint
+        ) AS subquery
 )
 SELECT
     v1_match_id,
@@ -22,20 +27,13 @@ SELECT
     readable_data_key,
     expression
 FROM
-    v1_match_condition m
+    v1_match_condition m, input i
 WHERE
     m.tenant_id = $1::uuid
     AND m.event_type = $2::v1_event_type
+    AND m.event_key = i.event_key
     AND m.is_satisfied = FALSE
-    AND EXISTS (
-        SELECT 1
-        FROM input i
-        WHERE m.event_key = i.event_key
-        AND (
-            (m.event_resource_hint IS NULL AND i.event_resource_hint IS NULL)
-            OR m.event_resource_hint = i.event_resource_hint
-        )
-    )
+    AND m.event_resource_hint IS NOT DISTINCT FROM i.event_resource_hint
 `
 
 type ListMatchConditionsForEventParams struct {
