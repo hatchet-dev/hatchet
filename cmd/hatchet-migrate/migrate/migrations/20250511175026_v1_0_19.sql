@@ -11,8 +11,8 @@ DECLARE
     targetDatePlusOneWeekStr varchar;
     newTableName varchar;
 BEGIN
-    SELECT to_char(date_trunc('week', current_date), 'YYYYMMDD') INTO targetDateStr;
-    SELECT to_char(date_trunc('week', current_date) + INTERVAL '1 week', 'YYYYMMDD') INTO targetDatePlusOneWeekStr;
+    SELECT to_char(date_trunc('week', targetDate), 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(date_trunc('week', targetDate) + INTERVAL '1 week', 'YYYYMMDD') INTO targetDatePlusOneWeekStr;
     SELECT lower(format('%s_%s', targetTableName, targetDateStr)) INTO newTableName;
     -- exit if the table exists
     IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
