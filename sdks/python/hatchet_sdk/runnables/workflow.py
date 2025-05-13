@@ -546,8 +546,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         self,
         name: str | None,
         func: (
-            Callable[[TWorkflowInput, Context], R]
-            | Callable[[TWorkflowInput, DurableContext], R]
+            Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]
+            | Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
         ),
     ) -> str:
         non_null_name = name or func.__name__
