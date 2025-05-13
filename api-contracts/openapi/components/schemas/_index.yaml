@@ -104,6 +104,10 @@ EventList:
   $ref: "./event.yaml#/EventList"
 V1EventList:
   $ref: "./v1/event.yaml#/V1EventList"
+V1FilterList:
+  $ref: "./v1/filter.yaml#/V1FilterList"
+V1Filter:
+  $ref: "./v1/filter.yaml#/V1Filter"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:
@@ -336,3 +340,5 @@ V1TaskTiming:
   $ref: "./v1/task.yaml#/V1TaskTiming"
 V1TaskTimingList:
   $ref: "./v1/task.yaml#/V1TaskTimingList"
+V1CreateFilterRequest:
+  $ref: "./v1/filter.yaml#/V1CreateFilterRequest"

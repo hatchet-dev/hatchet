@@ -1,0 +1,62 @@
+V1Filter:
+  properties:
+    metadata:
+      $ref: "../metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+      description: The ID of the tenant associated with this filter.
+    workflowId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The workflow id associated with this filter.
+    resourceHint:
+      type: string
+      description: The resource hint associated with this filter.
+    expression:
+      type: string
+      description: The expression associated with this filter.
+    payload:
+      type: object
+      description: Additional payload data associated with the filter
+  required:
+    - metadata
+    - tenantId
+    - workflowId
+    - resourceHint
+    - expression
+    - payload
+
+V1FilterList:
+  type: object
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1Filter"
+
+V1CreateFilterRequest:
+  type: object
+  properties:
+    workflowId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The workflow id
+    expression:
+      type: string
+      description: The expression for the filter
+    resourceHint:
+      type: string
+      description: The resource hint for the filter
+    payload:
+      type: object
+      description: The payload for the filter
+  required:
+    - workflowId
+    - resourceHint
+    - expression
