@@ -2,7 +2,6 @@ from datetime import timedelta
 from typing import (
     TYPE_CHECKING,
     Any,
-    Awaitable,
     Callable,
     Generic,
     Union,
@@ -27,7 +26,12 @@ from hatchet_sdk.runnables.types import (
     is_sync_fn,
 )
 from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
-from hatchet_sdk.utils.typing import TaskIOValidator, is_basemodel_subclass
+from hatchet_sdk.utils.typing import (
+    AwaitableLike,
+    CoroutineLike,
+    TaskIOValidator,
+    is_basemodel_subclass,
+)
 from hatchet_sdk.waits import (
     Action,
     Condition,
@@ -45,10 +49,10 @@ class Task(Generic[TWorkflowInput, R]):
     def __init__(
         self,
         _fn: Union[
-            Callable[[TWorkflowInput, Context], R]
-            | Callable[[TWorkflowInput, Context], Awaitable[R]],
-            Callable[[TWorkflowInput, DurableContext], R]
-            | Callable[[TWorkflowInput, DurableContext], Awaitable[R]],
+            Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]
+            | Callable[[TWorkflowInput, Context], AwaitableLike[R]],
+            Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
+            | Callable[[TWorkflowInput, DurableContext], AwaitableLike[R]],
         ],
         is_durable: bool,
         type: StepType,

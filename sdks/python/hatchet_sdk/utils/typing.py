@@ -1,4 +1,15 @@
-from typing import Any, Mapping, Type, TypeGuard
+import sys
+from typing import (
+    Any,
+    Awaitable,
+    Coroutine,
+    Generator,
+    Mapping,
+    Type,
+    TypeAlias,
+    TypeGuard,
+    TypeVar,
+)
 
 from pydantic import BaseModel
 
@@ -16,3 +27,13 @@ class TaskIOValidator(BaseModel):
 
 
 JSONSerializableMapping = Mapping[str, Any]
+
+
+_T_co = TypeVar("_T_co", covariant=True)
+
+if sys.version_info >= (3, 12):
+    AwaitableLike: TypeAlias = Awaitable[_T_co]  # noqa: Y047
+    CoroutineLike: TypeAlias = Coroutine[Any, Any, _T_co]  # noqa: Y047
+else:
+    AwaitableLike: TypeAlias = Generator[Any, None, _T_co] | Awaitable[_T_co]
+    CoroutineLike: TypeAlias = Generator[Any, None, _T_co] | Coroutine[Any, Any, _T_co]
