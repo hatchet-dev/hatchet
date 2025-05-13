@@ -230,17 +230,19 @@ type OLAPRepositoryImpl struct {
 	eventCache *lru.Cache[string, bool]
 
 	olapRetentionPeriod time.Duration
+
+	shouldPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
-	return newOLAPRepository(shared, olapRetentionPeriod), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -248,14 +250,20 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 
 	return &OLAPRepositoryImpl{
-		sharedRepository:    shared,
-		readPool:            shared.pool,
-		eventCache:          eventCache,
-		olapRetentionPeriod: olapRetentionPeriod,
+		sharedRepository:            shared,
+		readPool:                    shared.pool,
+		eventCache:                  eventCache,
+		olapRetentionPeriod:         olapRetentionPeriod,
+		shouldPartitionEventsTables: shouldPartitionEventsTables,
 	}
 }
 
 func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	if !o.shouldPartitionEventsTables {
+		o.l.Debug().Msg("skipping OLAP partition creation")
+		return nil
+	}
+
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * o.olapRetentionPeriod)
