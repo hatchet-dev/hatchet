@@ -116,7 +116,6 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 @pytest_asyncio.fixture(scope="function", loop_scope="session")
 async def filter_fixture(hatchet: Hatchet) -> AsyncGenerator[str, None]:
     test_run_id = str(uuid4())
-    print("\n\nWorkflow id", event_workflow.id, "\n\n")
     id = await hatchet._client.admin.aio_put_filter(
         event_filter=CreateFilterRequest(
             workflow_id=event_workflow.id,

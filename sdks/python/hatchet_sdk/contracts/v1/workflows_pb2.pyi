@@ -248,17 +248,17 @@ class CreateFilterRequest(_message.Message):
 class CreateFilterResponse(_message.Message):
     __slots__ = ("id",)
     ID_FIELD_NUMBER: _ClassVar[int]
-    id: int
-    def __init__(self, id: _Optional[int] = ...) -> None: ...
+    id: str
+    def __init__(self, id: _Optional[str] = ...) -> None: ...
 
 class DeleteFilterRequest(_message.Message):
     __slots__ = ("id",)
     ID_FIELD_NUMBER: _ClassVar[int]
-    id: int
-    def __init__(self, id: _Optional[int] = ...) -> None: ...
+    id: str
+    def __init__(self, id: _Optional[str] = ...) -> None: ...
 
 class DeleteFilterResponse(_message.Message):
     __slots__ = ("id",)
     ID_FIELD_NUMBER: _ClassVar[int]
-    id: int
-    def __init__(self, id: _Optional[int] = ...) -> None: ...
+    id: str
+    def __init__(self, id: _Optional[str] = ...) -> None: ...

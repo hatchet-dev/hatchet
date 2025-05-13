@@ -201,14 +201,14 @@ class AdminClient:
     async def aio_put_filter(
         self,
         event_filter: CreateFilterRequest,
-    ) -> int:
+    ) -> str:
         return await asyncio.to_thread(self.put_filter, event_filter)
 
     @tenacity_retry
     async def aio_delete_filter(
         self,
-        id: int,
-    ) -> int:
+        id: str,
+    ) -> str:
         return await asyncio.to_thread(self.delete_filter, id)
 
     @tenacity_retry
@@ -250,12 +250,10 @@ class AdminClient:
         )
 
     @tenacity_retry
-    def put_filter(self, event_filter: CreateFilterRequest) -> int:
+    def put_filter(self, event_filter: CreateFilterRequest) -> str:
         if self.client is None:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
-
-        print("\n\nEvent filter proto", event_filter.to_proto(), "\n\n")
 
         response = cast(
             workflow_protos.CreateFilterResponse,
@@ -268,7 +266,7 @@ class AdminClient:
         return response.id
 
     @tenacity_retry
-    def delete_filter(self, id: int) -> int:
+    def delete_filter(self, id: str) -> str:
         if self.client is None:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
