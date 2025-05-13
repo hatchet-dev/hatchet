@@ -15,7 +15,7 @@ const createFilter = `-- name: CreateFilter :one
 INSERT INTO v1_filter (
     tenant_id,
     workflow_id,
-    resource_hint,
+    scope,
     expression,
     payload
 ) VALUES (
@@ -25,32 +25,32 @@ INSERT INTO v1_filter (
     $4::TEXT,
     $5::JSONB
 )
-ON CONFLICT (tenant_id, workflow_id, resource_hint, expression) DO UPDATE
+ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
 SET
     payload = EXCLUDED.payload,
-    resource_hint = EXCLUDED.resource_hint,
+    scope = EXCLUDED.scope,
     expression = EXCLUDED.expression,
     updated_at = NOW()
 WHERE v1_filter.tenant_id = $1::UUID
   AND v1_filter.workflow_id = $2::UUID
-  AND v1_filter.resource_hint = $3::TEXT
+  AND v1_filter.scope = $3::TEXT
   AND v1_filter.expression = $4::TEXT
-RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
 `
 
 type CreateFilterParams struct {
-	Tenantid     pgtype.UUID `json:"tenantid"`
-	Workflowid   pgtype.UUID `json:"workflowid"`
-	Resourcehint string      `json:"resourcehint"`
-	Expression   string      `json:"expression"`
-	Payload      []byte      `json:"payload"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Workflowid pgtype.UUID `json:"workflowid"`
+	Scope      string      `json:"scope"`
+	Expression string      `json:"expression"`
+	Payload    []byte      `json:"payload"`
 }
 
 func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterParams) (*V1Filter, error) {
 	row := db.QueryRow(ctx, createFilter,
 		arg.Tenantid,
 		arg.Workflowid,
-		arg.Resourcehint,
+		arg.Scope,
 		arg.Expression,
 		arg.Payload,
 	)
@@ -59,7 +59,7 @@ func (q *Queries) CreateFilter(ctx context.Context, db DBTX, arg CreateFilterPar
 		&i.ID,
 		&i.TenantID,
 		&i.WorkflowID,
-		&i.ResourceHint,
+		&i.Scope,
 		&i.Expression,
 		&i.Payload,
 		&i.InsertedAt,
@@ -73,7 +73,7 @@ DELETE FROM v1_filter
 WHERE
     tenant_id = $1::UUID
     AND id = $2::UUID
-RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload, inserted_at, updated_at
+RETURNING id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
 `
 
 type DeleteFilterParams struct {
@@ -88,7 +88,7 @@ func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterPar
 		&i.ID,
 		&i.TenantID,
 		&i.WorkflowID,
-		&i.ResourceHint,
+		&i.Scope,
 		&i.Expression,
 		&i.Payload,
 		&i.InsertedAt,
@@ -98,7 +98,7 @@ func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterPar
 }
 
 const getFilter = `-- name: GetFilter :one
-SELECT id, tenant_id, workflow_id, resource_hint, expression, payload, inserted_at, updated_at
+SELECT id, tenant_id, workflow_id, scope, expression, payload, inserted_at, updated_at
 FROM v1_filter
 WHERE
     tenant_id = $1::UUID
@@ -117,7 +117,7 @@ func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (
 		&i.ID,
 		&i.TenantID,
 		&i.WorkflowID,
-		&i.ResourceHint,
+		&i.Scope,
 		&i.Expression,
 		&i.Payload,
 		&i.InsertedAt,

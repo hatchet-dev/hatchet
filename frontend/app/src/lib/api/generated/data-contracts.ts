@@ -754,8 +754,8 @@ export interface V1Filter {
    * @maxLength 36
    */
   workflowId: string;
-  /** The resource hint associated with this filter. */
-  resourceHint: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
   /** The expression associated with this filter. */
   expression: string;
   /** Additional payload data associated with the filter */
@@ -777,8 +777,8 @@ export interface V1CreateFilterRequest {
   workflowId: string;
   /** The expression for the filter */
   expression: string;
-  /** The resource hint for the filter */
-  resourceHint: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
   /** The payload for the filter */
   payload?: object;
 }
@@ -1229,8 +1229,8 @@ export interface CreateEventRequest {
    * @format int32
    */
   priority?: number;
-  /** The resource hint for the event. */
-  resourceHint?: string;
+  /** The scope for event filtering. */
+  scope?: string;
 }
 
 export interface BulkCreateEventRequest {

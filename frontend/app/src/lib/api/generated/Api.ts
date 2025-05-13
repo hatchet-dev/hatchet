@@ -622,8 +622,8 @@ export class Api<
       limit?: number;
       /** The workflow ids to filter by */
       workflowIds?: string[];
-      /** The resource hints to filter by */
-      resourceHints?: string[];
+      /** The scopes to subset candidate filters by */
+      scopes?: string[];
     },
     params: RequestParams = {},
   ) =>

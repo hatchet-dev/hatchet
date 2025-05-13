@@ -135,15 +135,15 @@ V1FilterListCreate:
             format: uuid
             minLength: 36
             maxLength: 36
-      - description: The resource hints to filter by
+      - description: The scopes to subset candidate filters by
         in: query
-        name: resourceHints
+        name: scopes
         required: false
         schema:
           type: array
           items:
             type: string
-            description: The resource hint associated with this filter.
+            description: The scope associated with this filter. Used for subsetting candidate filters at evaluation time
     responses:
       "200":
         content:

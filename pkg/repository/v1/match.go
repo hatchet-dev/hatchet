@@ -287,8 +287,9 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	res := &EventMatchResults{}
 
-	eventKeys := make([]string, 0, len(events))
-	resourceHints := make([]pgtype.Text, 0, len(events))
+	eventKeysWithHints := make([]string, 0, len(events))
+	eventKeysWithoutHints := make([]string, 0, len(events))
+	resourceHints := make([]string, 0, len(events))
 	uniqueEventKeys := make(map[string]struct{})
 	idsToEvents := make(map[string]CandidateEventMatch)
 
@@ -301,30 +302,53 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			}
 		}
 
-		eventKeys = append(eventKeys, event.Key)
 		uniqueEventKeys[event.Key] = struct{}{}
 
 		if event.ResourceHint != nil {
-			resourceHints = append(resourceHints, pgtype.Text{String: *event.ResourceHint, Valid: true})
+			eventKeysWithHints = append(eventKeysWithHints, event.Key)
+			resourceHints = append(resourceHints, *event.ResourceHint)
 		} else {
-			resourceHints = append(resourceHints, pgtype.Text{})
+			eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 		}
 	}
 
-	// list all match conditions
-	matchConditions, err := m.queries.ListMatchConditionsForEvent(
-		ctx,
-		tx,
-		sqlcv1.ListMatchConditionsForEventParams{
-			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-			Eventtype:          eventType,
-			Eventkeys:          eventKeys,
-			Eventresourcehints: resourceHints,
-		},
-	)
+	var matchConditions []*sqlcv1.ListMatchConditionsForEventRow
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list match conditions for event: %w", err)
+	if len(eventKeysWithHints) > 0 {
+		matchConditionsWithHints, err := m.queries.ListMatchConditionsForEventWithHint(
+			ctx,
+			tx,
+			sqlcv1.ListMatchConditionsForEventWithHintParams{
+				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+				Eventtype:          eventType,
+				Eventkeys:          eventKeysWithHints,
+				Eventresourcehints: resourceHints,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list match conditions with hints for event: %w", err)
+		}
+
+		matchConditions = append(matchConditions, matchConditionsWithHints...)
+	}
+
+	if len(eventKeysWithoutHints) > 0 {
+		matchConditionsWithoutHints, err := m.queries.ListMatchConditionsForEventWithoutHint(
+			ctx,
+			tx,
+			sqlcv1.ListMatchConditionsForEventWithoutHintParams{
+				Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+				Eventtype: eventType,
+				Eventkeys: eventKeysWithoutHints,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list match conditions without hints for event: %w", err)
+		}
+
+		matchConditions = append(matchConditions, matchConditionsWithoutHints...)
 	}
 
 	// pass match conditions through CEL expressions parser
@@ -461,7 +485,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData)
+						opt.Input = m.newTaskInput(input, matchData, nil)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
@@ -481,7 +505,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData)
+						opt.Input = m.newTaskInput(input, matchData, nil)
 						opt.DesiredWorkerId = m.DesiredWorkerId(opt.Input)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:

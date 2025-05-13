@@ -818,7 +818,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Data:               msg.EventData,
 			AdditionalMetadata: msg.EventAdditionalMetadata,
 			Priority:           msg.EventPriority,
-			ResourceHint:       msg.EventResourceHint,
+			Scope:              msg.EventScope,
 		}
 
 		opts = append(opts, opt)

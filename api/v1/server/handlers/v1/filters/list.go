@@ -14,28 +14,28 @@ import (
 func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterListRequestObject) (gen.V1FilterListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	resourceHints := request.Params.ResourceHints
+	scopes := request.Params.Scopes
 	workflowIds := request.Params.WorkflowIds
 
-	if resourceHints != nil && workflowIds != nil && len(*resourceHints) != len(*workflowIds) {
+	if scopes != nil && workflowIds != nil && len(*scopes) != len(*workflowIds) {
 		return gen.V1FilterList400JSONResponse(apierrors.NewAPIErrors("resource hints and workflow ids must be the same length")), nil
 	}
 
-	numHintsOrIds := 1
+	numScopesOrIds := 1
 
-	if resourceHints != nil {
-		numHintsOrIds = len(*resourceHints)
+	if scopes != nil {
+		numScopesOrIds = len(*scopes)
 	} else if workflowIds != nil {
-		numHintsOrIds = len(*workflowIds)
+		numScopesOrIds = len(*workflowIds)
 	}
 
-	tenantIds := make([]pgtype.UUID, numHintsOrIds)
+	tenantIds := make([]pgtype.UUID, numScopesOrIds)
 
-	for ix := 0; ix < numHintsOrIds; ix++ {
+	for ix := 0; ix < numScopesOrIds; ix++ {
 		tenantIds[ix] = sqlchelpers.UUIDFromStr(tenant.ID.String())
 	}
 
-	workflowIdParams := make([]pgtype.UUID, numHintsOrIds)
+	workflowIdParams := make([]pgtype.UUID, numScopesOrIds)
 
 	if workflowIds != nil {
 		for _, id := range *workflowIds {
@@ -43,20 +43,20 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 		}
 	}
 
-	resourceHintParams := make([]*string, numHintsOrIds)
+	scopeParams := make([]*string, numScopesOrIds)
 
-	if resourceHints != nil {
-		for _, hint := range *resourceHints {
-			resourceHintParams = append(resourceHintParams, &hint)
+	if scopes != nil {
+		for _, hint := range *scopes {
+			scopeParams = append(scopeParams, &hint)
 		}
 	}
 
 	params := sqlcv1.ListFiltersParams{
-		Tenantids:     tenantIds,
-		Workflowids:   workflowIdParams,
-		Resourcehints: resourceHintParams,
-		FilterLimit:   request.Params.Limit,
-		FilterOffset:  request.Params.Offset,
+		Tenantids:    tenantIds,
+		Workflowids:  workflowIdParams,
+		Scopes:       scopeParams,
+		FilterLimit:  request.Params.Limit,
+		FilterOffset: request.Params.Offset,
 	}
 
 	filters, err := t.config.V1.Filters().ListFilters(

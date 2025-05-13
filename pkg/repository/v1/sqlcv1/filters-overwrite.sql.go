@@ -11,28 +11,28 @@ WITH inputs AS (
     SELECT
         UNNEST($1::UUID[]) AS tenant_id,
         UNNEST($2::UUID[]) AS workflow_id,
-        UNNEST($3::TEXT[]) AS resource_hint
+        UNNEST($3::TEXT[]) AS scope
 )
 
-SELECT f.id, f.tenant_id, f.workflow_id, f.resource_hint, f.expression, f.payload, f.inserted_at, f.updated_at
+SELECT f.id, f.tenant_id, f.workflow_id, f.scope, f.expression, f.payload, f.inserted_at, f.updated_at
 FROM v1_filter f
-JOIN inputs i ON (f.tenant_id, f.workflow_id, f.resource_hint) = (i.tenant_id, i.workflow_id, i.resource_hint)
+JOIN inputs i ON (f.tenant_id, f.workflow_id, f.scope) = (i.tenant_id, i.workflow_id, i.scope)
 LIMIT COALESCE($4::BIGINT, 20000)
 OFFSET COALESCE($5::BIGINT, 0)`
 
 type ListFiltersParams struct {
-	Tenantids     []pgtype.UUID `json:"tenantids"`
-	Workflowids   []pgtype.UUID `json:"workflowids"`
-	Resourcehints []*string     `json:"resourcehints"`
-	FilterLimit   *int64        `json:"limit"`
-	FilterOffset  *int64        `json:"offset"`
+	Tenantids    []pgtype.UUID `json:"tenantids"`
+	Workflowids  []pgtype.UUID `json:"workflowids"`
+	Scopes       []*string     `json:"scopes"`
+	FilterLimit  *int64        `json:"limit"`
+	FilterOffset *int64        `json:"offset"`
 }
 
 func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParams) ([]*V1Filter, error) {
 	rows, err := db.Query(ctx, listFilters,
 		arg.Tenantids,
 		arg.Workflowids,
-		arg.Resourcehints,
+		arg.Scopes,
 		arg.FilterLimit,
 		arg.FilterOffset,
 	)
@@ -47,7 +47,7 @@ func (q *Queries) ListFilters(ctx context.Context, db DBTX, arg ListFiltersParam
 			&i.ID,
 			&i.TenantID,
 			&i.WorkflowID,
-			&i.ResourceHint,
+			&i.Scope,
 			&i.Expression,
 			&i.Payload,
 			&i.InsertedAt,

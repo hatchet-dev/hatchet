@@ -27,8 +27,6 @@ class StickyStrategy(str, Enum):
 
 class ConcurrencyLimitStrategy(str, Enum):
     CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS"
-    DROP_NEWEST = "DROP_NEWEST"
-    QUEUE_NEWEST = "QUEUE_NEWEST"
     GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN"
     CANCEL_NEWEST = "CANCEL_NEWEST"
 
@@ -82,21 +80,6 @@ class WorkflowConfig(BaseModel):
     default_priority: int | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
-
-    def _raise_for_invalid_expression(self, expr: str, parameter: str) -> None:
-        ## FIXME: Figure out how to implement CEL validation with arbitrarily nested Pydantic models
-        pattern = r"input\.([a-zA-Z]+)"
-        match = re.search(pattern, expr)
-
-        if not match:
-            return None
-
-        field = match.group(1)
-
-        if field not in self.input_validator.model_fields.keys():
-            raise ValueError(
-                f"The {parameter} expression provided relies on the `{field}` field, which was not present in `{self.input_validator.__name__}`."
-            )
 
 
 class StepType(str, Enum):

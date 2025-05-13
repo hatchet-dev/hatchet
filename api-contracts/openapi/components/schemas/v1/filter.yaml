@@ -11,9 +11,9 @@ V1Filter:
       minLength: 36
       maxLength: 36
       description: The workflow id associated with this filter.
-    resourceHint:
+    scope:
       type: string
-      description: The resource hint associated with this filter.
+      description: The scope associated with this filter. Used for subsetting candidate filters at evaluation time
     expression:
       type: string
       description: The expression associated with this filter.
@@ -24,7 +24,7 @@ V1Filter:
     - metadata
     - tenantId
     - workflowId
-    - resourceHint
+    - scope
     - expression
     - payload
 
@@ -50,13 +50,13 @@ V1CreateFilterRequest:
     expression:
       type: string
       description: The expression for the filter
-    resourceHint:
+    scope:
       type: string
-      description: The resource hint for the filter
+      description: The scope associated with this filter. Used for subsetting candidate filters at evaluation time
     payload:
       type: object
       description: The payload for the filter
   required:
     - workflowId
-    - resourceHint
+    - scope
     - expression
