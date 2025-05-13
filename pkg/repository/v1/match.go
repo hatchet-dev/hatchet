@@ -312,37 +312,44 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
-	// list all match conditions
-	matchConditions, err := m.queries.ListMatchConditionsForEventWithHint(
-		ctx,
-		tx,
-		sqlcv1.ListMatchConditionsForEventWithHintParams{
-			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-			Eventtype:          eventType,
-			Eventkeys:          eventKeysWithHints,
-			Eventresourcehints: resourceHints,
-		},
-	)
+	var matchConditions []*sqlcv1.ListMatchConditionsForEventRow
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list match conditions with hints for event: %w", err)
+	if len(eventKeysWithHints) > 0 {
+		matchConditionsWithHints, err := m.queries.ListMatchConditionsForEventWithHint(
+			ctx,
+			tx,
+			sqlcv1.ListMatchConditionsForEventWithHintParams{
+				Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+				Eventtype:          eventType,
+				Eventkeys:          eventKeysWithHints,
+				Eventresourcehints: resourceHints,
+			},
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list match conditions with hints for event: %w", err)
+		}
+
+		matchConditions = append(matchConditions, matchConditionsWithHints...)
 	}
 
-	matchConditionsWithoutHints, err := m.queries.ListMatchConditionsForEventWithoutHint(
-		ctx,
-		tx,
-		sqlcv1.ListMatchConditionsForEventWithoutHintParams{
-			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-			Eventtype: eventType,
-			Eventkeys: eventKeysWithoutHints,
-		},
-	)
+	if len(eventKeysWithoutHints) > 0 {
+		matchConditionsWithoutHints, err := m.queries.ListMatchConditionsForEventWithoutHint(
+			ctx,
+			tx,
+			sqlcv1.ListMatchConditionsForEventWithoutHintParams{
+				Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+				Eventtype: eventType,
+				Eventkeys: eventKeysWithoutHints,
+			},
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to list match conditions without hints for event: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list match conditions without hints for event: %w", err)
+		}
+
+		matchConditions = append(matchConditions, matchConditionsWithoutHints...)
 	}
-
-	matchConditions = append(matchConditions, matchConditionsWithoutHints...)
 
 	// pass match conditions through CEL expressions parser
 	matches, err := m.processCELExpressions(ctx, events, matchConditions, eventType)
