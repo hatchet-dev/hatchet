@@ -291,6 +291,9 @@ class WorkerActionListenerProcess:
         self.event_queue.put(STOP_LOOP)
 
     async def exit_gracefully(self) -> None:
+        if self.listener:
+            self.listener.stop_signal = True
+
         await self.pause_task_assignment()
 
         if self.killing:
