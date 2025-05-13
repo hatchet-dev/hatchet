@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, cast
 
 from google.protobuf import timestamp_pb2
@@ -251,7 +252,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             f"Input must be a BaseModel or `None`, got {type(input)} instead."
         )
 
-    @property
+    @cached_property
     def id(self) -> str:
         """
         Get the ID of the workflow.
