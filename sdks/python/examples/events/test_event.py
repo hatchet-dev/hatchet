@@ -201,13 +201,10 @@ async def test_event_skipping_filtering(hatchet: Hatchet) -> None:
             continue
 
         should_have_runs = meta.get("should_have_runs")
-        print("\n\nMeta:", meta, "\n\n")
 
         runs = (
             await hatchet.runs.aio_list(triggering_event_external_id=event.metadata.id)
         ).rows
-
-        print("\n\nRuns:", runs, "\n\n")
 
         if should_have_runs:
             assert len(runs) > 0
