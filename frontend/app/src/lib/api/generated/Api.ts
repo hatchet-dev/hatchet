@@ -682,6 +682,7 @@ export class Api<
   /**
    * @description Delete a filter
    *
+   * @tags Filter
    * @name V1FilterDelete
    * @request DELETE:/api/v1/stable/tenants/{tenant}/filters/{filter_id}
    * @secure

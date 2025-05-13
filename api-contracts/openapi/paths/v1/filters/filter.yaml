@@ -92,6 +92,8 @@ V1FilterGetDelete:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+    tags:
+      - Filter
 V1FilterListCreate:
   get:
     x-resources: ["tenant"]
