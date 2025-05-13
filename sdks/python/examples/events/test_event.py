@@ -117,10 +117,10 @@ async def filter_fixture(hatchet: Hatchet) -> AsyncGenerator[str, None]:
     test_run_id = str(uuid4())
     filter = await hatchet.filters.aio_create(
         workflow_id=event_workflow.id,
-        expression="input.should_skip == true && payload.thisKey == 'isStatic'",
+        expression=f"input.should_skip == true && payload.testRunId == '{test_run_id}'",
         resource_hint=test_run_id,
         payload={
-            "thisKey": "isStatic"
+            "testRunId": test_run_id,
         }
     )
 
