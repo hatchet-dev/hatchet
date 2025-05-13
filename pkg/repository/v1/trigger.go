@@ -490,6 +490,8 @@ type triggerTuple struct {
 
 	input []byte
 
+	eventFilterPayload []byte
+
 	additionalMetadata []byte
 
 	desiredWorkerId *string
@@ -872,7 +874,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						ExternalId:           taskExternalId,
 						WorkflowRunId:        tuple.externalId,
 						StepId:               sqlchelpers.UUIDToStr(step.ID),
-						Input:                r.newTaskInput(tuple.input, nil),
+						Input:                r.newTaskInput(tuple.input, nil, tuple.eventFilterPayload),
 						AdditionalMetadata:   tuple.additionalMetadata,
 						InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
 						DesiredWorkerId:      tuple.desiredWorkerId,

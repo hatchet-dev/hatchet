@@ -8,6 +8,8 @@ type TaskInput struct {
 	Input map[string]interface{} `json:"input"`
 
 	TriggerData *MatchData `json:"trigger_datas"`
+
+	EventFilterPayload map[string]interface{} `json:"event_filter_payload"`
 }
 
 func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *string {
@@ -34,7 +36,7 @@ func (s *sharedRepository) newTaskInputFromExistingBytes(inputBytes []byte) *Tas
 	return i
 }
 
-func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData) *TaskInput {
+func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, eventFilterPayload []byte) *TaskInput {
 	var input map[string]interface{}
 
 	if len(inputBytes) > 0 {
@@ -45,9 +47,18 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 		}
 	}
 
+	var eventFilterPayloadMap map[string]interface{}
+	if len(eventFilterPayload) > 0 {
+		err := json.Unmarshal(eventFilterPayload, &eventFilterPayloadMap)
+		if err != nil {
+			s.l.Error().Err(err).Msg("failed to unmarshal event filter payload bytes")
+		}
+	}
+
 	return &TaskInput{
-		Input:       input,
-		TriggerData: triggerData,
+		Input:              input,
+		TriggerData:        triggerData,
+		EventFilterPayload: eventFilterPayloadMap,
 	}
 }
 
