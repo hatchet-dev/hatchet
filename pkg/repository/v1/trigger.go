@@ -210,7 +210,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 			if len(filters) > 0 {
 				for _, filter := range filters {
 					if filter.Expression != "" {
-						parsedAsShouldSkip, err := r.processWorkflowExpression(ctx, filter.Expression, opt)
+						parsedAsShouldSkip, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
 
 						if err != nil {
 							r.l.Error().
@@ -1543,7 +1543,7 @@ func orderSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.List
 	return steps
 }
 
-func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expression string, opt EventTriggerOpts) (bool, error) {
+func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expression string, opt EventTriggerOpts, filterPayload []byte) (bool, error) {
 	var inputData map[string]interface{}
 	if opt.Data != nil {
 		err := json.Unmarshal(opt.Data, &inputData)
@@ -1564,9 +1564,23 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expres
 		additionalMetadata = make(map[string]interface{})
 	}
 
+	payload := make(map[string]interface{})
+	if filterPayload != nil {
+		err := json.Unmarshal(filterPayload, &payload)
+
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal filter payload: %w", err)
+		}
+	}
+
 	match, err := r.celParser.EvaluateEventExpression(
 		expression,
-		cel.NewInput(cel.WithInput(inputData)),
+		cel.NewInput(
+			cel.WithInput(inputData),
+			cel.WithAdditionalMetadata(additionalMetadata),
+			cel.WithPayload(payload),
+			cel.WithEventID(opt.ExternalId),
+		),
 	)
 
 	if err != nil {

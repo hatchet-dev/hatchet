@@ -72,6 +72,7 @@ func NewCELParser() *CELParser {
 		cel.Declarations(
 			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
 			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("payload", decls.NewMapType(decls.String, decls.Dyn)),
 			decls.NewVar("event_id", decls.String),
 			checksumDecl,
 		),
@@ -109,6 +110,18 @@ func WithAdditionalMetadata(metadata map[string]interface{}) InputOpts {
 func WithWorkflowRunID(workflowRunID string) InputOpts {
 	return func(w Input) {
 		w["workflow_run_id"] = workflowRunID
+	}
+}
+
+func WithPayload(payload map[string]interface{}) InputOpts {
+	return func(w Input) {
+		w["payload"] = payload
+	}
+}
+
+func WithEventID(eventID string) InputOpts {
+	return func(w Input) {
+		w["event_id"] = eventID
 	}
 }
 
