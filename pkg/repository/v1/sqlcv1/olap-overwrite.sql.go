@@ -125,7 +125,6 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $8::UUID
             )
-
 		)
     LIMIT 20000
 )
@@ -193,16 +192,15 @@ WHERE
     )
     AND (
         $11::UUID IS NULL
-			OR (id, inserted_at) IN (
-                SELECT etr.run_id, etr.run_inserted_at
-                FROM v1_event_lookup_table_olap lt
-                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    			WHERE
-					lt.tenant_id = $1::uuid
-					AND lt.external_id = $11::UUID
-            )
-
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -301,16 +299,15 @@ WHERE
     )
     AND (
         $11::UUID IS NULL
-			OR (id, inserted_at) IN (
-                SELECT etr.run_id, etr.run_inserted_at
-                FROM v1_event_lookup_table_olap lt
-                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    			WHERE
-					lt.tenant_id = $1::uuid
-					AND lt.external_id = $11::UUID
-            )
-
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
     )
 ORDER BY
     inserted_at DESC
