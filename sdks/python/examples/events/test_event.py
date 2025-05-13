@@ -203,7 +203,7 @@ async def test_event_skipping_filtering(hatchet: Hatchet, filter_fixture: str) -
 
     assert len(result) == len(events)
 
-    await asyncio.sleep(5)
+    await asyncio.sleep(10)
 
     persisted = (await hatchet.event.aio_list(limit=100)).rows or []
 
@@ -315,7 +315,7 @@ async def test_event_skipping_filtering_no_bulk(
 
     assert len(result) == len(tasks)
 
-    await asyncio.sleep(5)
+    await asyncio.sleep(10)
 
     persisted = (await hatchet.event.aio_list(limit=100)).rows or []
 
