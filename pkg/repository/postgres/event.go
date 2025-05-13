@@ -272,6 +272,8 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 			Data:               opts.Data,
 			AdditionalMetadata: opts.AdditionalMetadata,
 			ReplayedEvent:      opts.ReplayedEvent,
+			Priority:           opts.Priority,
+			ResourceHint:       opts.ResourceHint,
 		}
 
 		event, err := r.bulkUserEventBuffer.FireAndWait(ctx, opts.TenantId, &createOpts)

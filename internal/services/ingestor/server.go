@@ -73,6 +73,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			Data:               []byte(e.Payload),
 			AdditionalMetadata: additionalMeta,
 			Priority:           e.Priority,
+			ResourceHint:       e.ResourceHint,
 		})
 	}
 
