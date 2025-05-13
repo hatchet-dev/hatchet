@@ -64,12 +64,19 @@ class ClientConfig(BaseSettings):
     )
 
     worker_preset_labels: dict[str, str] = Field(default_factory=dict)
+
     enable_force_kill_sync_threads: bool = False
+    enable_thread_pool_monitoring: bool = False
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
         if not self.token:
             raise ValueError("Token must be set")
+
+        if not self.token.startswith("ey"):
+            raise ValueError(
+                f"Token must be a valid JWT. Hint: These are the first few characters of the token provided: {self.token[:5]}"
+            )
 
         if not self.tenant_id:
             self.tenant_id = get_tenant_id_from_jwt(self.token)

@@ -85,11 +85,8 @@ import {
   UserRegisterRequest,
   UserTenantMembershipsList,
   V1CancelTaskRequest,
-  V1CreateFilterRequest,
   V1DagChildren,
   V1EventList,
-  V1Filter,
-  V1FilterList,
   V1LogLineList,
   V1ReplayTaskRequest,
   V1TaskEventList,
@@ -594,107 +591,6 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/events`,
       method: "GET",
       query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Lists all filters for a tenant.
-   *
-   * @tags Filter
-   * @name V1FilterList
-   * @summary List filters
-   * @request GET:/api/v1/stable/tenants/{tenant}/filters
-   * @secure
-   */
-  v1FilterList = (
-    tenant: string,
-    query?: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-      /** The workflow ids to filter by */
-      workflowIds?: string[];
-      /** The scopes to subset candidate filters by */
-      scopes?: string[];
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<V1FilterList, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/filters`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Create a new filter
-   *
-   * @tags Filter
-   * @name V1FilterCreate
-   * @summary Create a filter
-   * @request POST:/api/v1/stable/tenants/{tenant}/filters
-   * @secure
-   */
-  v1FilterCreate = (
-    tenant: string,
-    data: V1CreateFilterRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<V1Filter, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/filters`,
-      method: "POST",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Get a filter by its id
-   *
-   * @tags Filter
-   * @name V1FilterGet
-   * @summary Get a filter
-   * @request GET:/api/v1/stable/tenants/{tenant}/filters/{filter_id}
-   * @secure
-   */
-  v1FilterGet = (
-    tenant: string,
-    filterId: string,
-    params: RequestParams = {},
-  ) =>
-    this.request<V1Filter, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/filters/${filterId}`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Delete a filter
-   *
-   * @tags Filter
-   * @name V1FilterDelete
-   * @request DELETE:/api/v1/stable/tenants/{tenant}/filters/{filter_id}
-   * @secure
-   */
-  v1FilterDelete = (
-    tenant: string,
-    filterId: string,
-    params: RequestParams = {},
-  ) =>
-    this.request<V1Filter, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/filters/${filterId}`,
-      method: "DELETE",
       secure: true,
       format: "json",
       ...params,
