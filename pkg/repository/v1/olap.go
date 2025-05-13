@@ -230,17 +230,19 @@ type OLAPRepositoryImpl struct {
 	eventCache *lru.Cache[string, bool]
 
 	olapRetentionPeriod time.Duration
+
+	shouldPartitionEventsTables bool
 }
 
-func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository) (OLAPRepository, func() error) {
+func NewOLAPRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger, olapRetentionPeriod time.Duration, entitlements repository.EntitlementsRepository, shouldPartitionEventsTables bool) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, v, l, entitlements)
 
-	return newOLAPRepository(shared, olapRetentionPeriod), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -248,10 +250,11 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 
 	return &OLAPRepositoryImpl{
-		sharedRepository:    shared,
-		readPool:            shared.pool,
-		eventCache:          eventCache,
-		olapRetentionPeriod: olapRetentionPeriod,
+		sharedRepository:            shared,
+		readPool:                    shared.pool,
+		eventCache:                  eventCache,
+		olapRetentionPeriod:         olapRetentionPeriod,
+		shouldPartitionEventsTables: shouldPartitionEventsTables,
 	}
 }
 
@@ -265,7 +268,8 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  today,
 			Valid: true,
 		},
-		Partitions: NUM_PARTITIONS,
+		Partitions:                  NUM_PARTITIONS,
+		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
 	})
 
 	if err != nil {
@@ -277,17 +281,23 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  tomorrow,
 			Valid: true,
 		},
-		Partitions: NUM_PARTITIONS,
+		Partitions:                  NUM_PARTITIONS,
+		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	partitions, err := o.queries.ListOLAPPartitionsBeforeDate(ctx, o.pool, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
-	})
+	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
+		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
+		Date: pgtype.Date{
+			Time:  removeBefore,
+			Valid: true,
+		},
+	}
+
+	partitions, err := o.queries.ListOLAPPartitionsBeforeDate(ctx, o.pool, params)
 
 	if err != nil {
 		return err
