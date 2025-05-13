@@ -138,9 +138,9 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *dbsqlc
 	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil)
 }
 
-func eventToTaskV1(tenantId, eventId, key string, data, additionalMeta []byte, priority *int32, resourceHint *string) (*msgqueue.Message, error) {
+func eventToTaskV1(tenantId, eventExternalId, key string, data, additionalMeta []byte, priority *int32, resourceHint *string) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.UserEventTaskPayload{
-		EventId:                 eventId,
+		EventExternalId:         eventExternalId,
 		EventKey:                key,
 		EventData:               data,
 		EventAdditionalMetadata: additionalMeta,

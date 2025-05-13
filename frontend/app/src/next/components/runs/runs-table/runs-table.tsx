@@ -29,6 +29,7 @@ interface RunsTableProps {
   selectedTaskId?: string;
   onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
   onTriggerRunClick?: () => void;
+  excludedFilters?: (keyof RunsFilters)[];
 }
 
 export function RunsTable({
@@ -36,6 +37,7 @@ export function RunsTable({
   selectedTaskId,
   onSelectionChange,
   onTriggerRunClick,
+  excludedFilters = [],
 }: RunsTableProps) {
   const {
     data: runs,
@@ -155,44 +157,55 @@ export function RunsTable({
   return (
     <>
       <FilterGroup>
-        <FilterSelect<RunsFilters, V1TaskStatus[]>
-          name="statuses"
-          value={filters.statuses}
-          placeholder="Status"
-          multi
-          options={[
-            { label: 'Running', value: V1TaskStatus.RUNNING },
-            { label: 'Completed', value: V1TaskStatus.COMPLETED },
-            { label: 'Failed', value: V1TaskStatus.FAILED },
-            { label: 'Cancelled', value: V1TaskStatus.CANCELLED },
-            { label: 'Queued', value: V1TaskStatus.QUEUED },
-          ]}
-        />
-        <FilterTaskSelect<RunsFilters>
-          name="workflow_ids"
-          placeholder="Name"
-          multi
-        />
-        <FilterSelect<RunsFilters, boolean>
-          name="is_root_task"
-          value={filters.is_root_task}
-          placeholder="Only Root Tasks"
-          options={[
-            { label: 'Yes', value: true },
-            { label: 'No', value: false },
-          ]}
-        />
-        <FilterTaskSelect<RunsFilters>
-          name="workflow_ids"
-          placeholder="Task Name"
-          multi
-        />
-        <FilterKeyValue<RunsFilters>
-          name="additional_metadata"
-          placeholder="Metadata"
-          options={additionalMetaOpts}
-        />
-        <ClearFiltersButton />
+        {!excludedFilters.includes('statuses') && (
+          <FilterSelect<RunsFilters, V1TaskStatus[]>
+            name="statuses"
+            value={filters.statuses}
+            placeholder="Status"
+            multi
+            options={[
+              { label: 'Running', value: V1TaskStatus.RUNNING },
+              { label: 'Completed', value: V1TaskStatus.COMPLETED },
+              { label: 'Failed', value: V1TaskStatus.FAILED },
+              { label: 'Cancelled', value: V1TaskStatus.CANCELLED },
+              { label: 'Queued', value: V1TaskStatus.QUEUED },
+            ]}
+          />
+        )}
+        {!excludedFilters.includes('workflow_ids') && (
+          <FilterTaskSelect<RunsFilters>
+            name="workflow_ids"
+            placeholder="Name"
+            multi
+          />
+        )}
+        {!excludedFilters.includes('is_root_task') && (
+          <FilterSelect<RunsFilters, boolean>
+            name="is_root_task"
+            value={filters.is_root_task}
+            placeholder="Only Root Tasks"
+            options={[
+              { label: 'Yes', value: true },
+              { label: 'No', value: false },
+            ]}
+          />
+        )}
+        {!excludedFilters.includes('workflow_ids') && (
+          <FilterTaskSelect<RunsFilters>
+            name="workflow_ids"
+            placeholder="Task Name"
+            multi
+          />
+        )}
+        {!excludedFilters.includes('additional_metadata') && (
+          <FilterKeyValue<RunsFilters>
+            name="additional_metadata"
+            placeholder="Metadata"
+            options={additionalMetaOpts}
+          />
+        )}
+        {/* IMPORTANT: Keep this count in sync with the number of filters above */}
+        {excludedFilters.length < 4 && <ClearFiltersButton />}
       </FilterGroup>
       <div className="flex items-center justify-between">
         <div className="flex-1 text-sm text-muted-foreground">

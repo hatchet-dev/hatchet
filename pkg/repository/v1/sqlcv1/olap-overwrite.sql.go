@@ -37,6 +37,18 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
     ORDER BY
         inserted_at DESC
     LIMIT 20000
@@ -47,14 +59,15 @@ FROM filtered
 `
 
 type CountTasksParams struct {
-	Tenantid    pgtype.UUID        `json:"tenantid"`
-	Since       pgtype.Timestamptz `json:"since"`
-	Statuses    []string           `json:"statuses"`
-	Until       pgtype.Timestamptz `json:"until"`
-	WorkflowIds []pgtype.UUID      `json:"workflowIds"`
-	WorkerId    pgtype.UUID        `json:"workerId"`
-	Keys        []string           `json:"keys"`
-	Values      []string           `json:"values"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Statuses                  []string           `json:"statuses"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	WorkerId                  pgtype.UUID        `json:"workerId"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -67,6 +80,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.WorkerId,
 		arg.Keys,
 		arg.Values,
+		arg.TriggeringEventExternalId,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -100,6 +114,19 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+		AND (
+			$8::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $8::UUID
+            )
+
+		)
     LIMIT 20000
 )
 
@@ -108,13 +135,14 @@ FROM filtered
 `
 
 type CountWorkflowRunsParams struct {
-	Tenantid    pgtype.UUID        `json:"tenantid"`
-	Statuses    []string           `json:"statuses"`
-	WorkflowIds []pgtype.UUID      `json:"workflowIds"`
-	Since       pgtype.Timestamptz `json:"since"`
-	Until       pgtype.Timestamptz `json:"until"`
-	Keys        []string           `json:"keys"`
-	Values      []string           `json:"values"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -126,6 +154,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Until,
 		arg.Keys,
 		arg.Values,
+		arg.TriggeringEventExternalId,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -162,23 +191,36 @@ WHERE
         $10::UUID IS NULL
         OR parent_task_external_id = $10::UUID
     )
+    AND (
+        $11::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $11::UUID
+            )
 
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
-	Tenantid               pgtype.UUID        `json:"tenantid"`
-	Statuses               []string           `json:"statuses"`
-	WorkflowIds            []pgtype.UUID      `json:"workflowIds"`
-	Since                  pgtype.Timestamptz `json:"since"`
-	Until                  pgtype.Timestamptz `json:"until"`
-	Keys                   []string           `json:"keys"`
-	Values                 []string           `json:"values"`
-	Listworkflowrunsoffset int32              `json:"listworkflowrunsoffset"`
-	Listworkflowrunslimit  int32              `json:"listworkflowrunslimit"`
-	ParentTaskExternalId   pgtype.UUID        `json:"parentTaskExternalId"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Statuses                  []string           `json:"statuses"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	Listworkflowrunsoffset    int32              `json:"listworkflowrunsoffset"`
+	Listworkflowrunslimit     int32              `json:"listworkflowrunslimit"`
+	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -200,6 +242,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Listworkflowrunsoffset,
 		arg.Listworkflowrunslimit,
 		arg.ParentTaskExternalId,
+		arg.TriggeringEventExternalId,
 	)
 
 	if err != nil {
@@ -256,6 +299,19 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
+    AND (
+        $11::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $11::UUID
+            )
+
+    )
 ORDER BY
     inserted_at DESC
 LIMIT $10::integer
@@ -263,16 +319,17 @@ OFFSET $9::integer
 `
 
 type ListTasksOlapParams struct {
-	Tenantid    pgtype.UUID        `json:"tenantid"`
-	Since       pgtype.Timestamptz `json:"since"`
-	Statuses    []string           `json:"statuses"`
-	Until       pgtype.Timestamptz `json:"until"`
-	WorkflowIds []pgtype.UUID      `json:"workflowIds"`
-	WorkerId    pgtype.UUID        `json:"workerId"`
-	Keys        []string           `json:"keys"`
-	Values      []string           `json:"values"`
-	Taskoffset  int32              `json:"taskoffset"`
-	Tasklimit   int32              `json:"tasklimit"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Since                     pgtype.Timestamptz `json:"since"`
+	Statuses                  []string           `json:"statuses"`
+	Until                     pgtype.Timestamptz `json:"until"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	WorkerId                  pgtype.UUID        `json:"workerId"`
+	Keys                      []string           `json:"keys"`
+	Values                    []string           `json:"values"`
+	Taskoffset                int32              `json:"taskoffset"`
+	Tasklimit                 int32              `json:"tasklimit"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 type ListTasksOlapRow struct {
@@ -292,6 +349,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Values,
 		arg.Taskoffset,
 		arg.Tasklimit,
+		arg.TriggeringEventExternalId,
 	)
 	if err != nil {
 		return nil, err

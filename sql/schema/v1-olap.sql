@@ -376,7 +376,8 @@ $$;
 -- Events tables
 CREATE TABLE v1_events_olap (
     tenant_id UUID NOT NULL,
-    id UUID NOT NULL,
+    id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     seen_at TIMESTAMPTZ NOT NULL,
     key TEXT NOT NULL,
     payload JSONB NOT NULL,
@@ -387,10 +388,19 @@ CREATE TABLE v1_events_olap (
 
 CREATE INDEX v1_events_olap_key_idx ON v1_events_olap (tenant_id, key);
 
+CREATE TABLE v1_event_lookup_table_olap (
+    tenant_id UUID NOT NULL,
+    external_id UUID NOT NULL,
+    event_id BIGINT NOT NULL,
+    event_seen_at TIMESTAMPTZ NOT NULL,
+
+    PRIMARY KEY (tenant_id, external_id, event_seen_at)
+) PARTITION BY RANGE(event_seen_at);
+
 CREATE TABLE v1_event_to_run_olap (
     run_id BIGINT NOT NULL,
     run_inserted_at TIMESTAMPTZ NOT NULL,
-    event_id UUID NOT NULL,
+    event_id BIGINT NOT NULL,
     event_seen_at TIMESTAMPTZ NOT NULL,
 
     PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)
@@ -640,3 +650,32 @@ AFTER UPDATE ON v1_runs_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_runs_olap_status_update_function();
+
+CREATE OR REPLACE FUNCTION v1_events_lookup_table_olap_insert_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    INSERT INTO v1_event_lookup_table_olap (
+        tenant_id,
+        external_id,
+        event_id,
+        event_seen_at
+    )
+    SELECT
+        tenant_id,
+        external_id,
+        id,
+        seen_at
+    FROM new_rows
+    ON CONFLICT (tenant_id, external_id, event_seen_at) DO NOTHING;
+
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER v1_event_lookup_table_olap_insert_trigger
+AFTER INSERT ON v1_events_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_events_lookup_table_olap_insert_function();

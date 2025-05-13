@@ -813,7 +813,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 	for _, msg := range msgs {
 		opt := v1.EventTriggerOpts{
-			EventId:            msg.EventId,
+			ExternalId:         msg.EventExternalId,
 			Key:                msg.EventKey,
 			Data:               msg.EventData,
 			AdditionalMetadata: msg.EventAdditionalMetadata,
@@ -823,7 +823,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 		opts = append(opts, opt)
 
-		eventIdToOpts[msg.EventId] = opt
+		eventIdToOpts[msg.EventExternalId] = opt
 	}
 
 	result, err := tc.repov1.Triggers().TriggerFromEvents(ctx, tenantId, opts)
@@ -837,14 +837,14 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
 	eventSeenAt := time.Now()
 
-	for eventId, runs := range result.EventIdToRuns {
-		opts := eventIdToOpts[eventId]
+	for eventExternalId, runs := range result.EventExternalIdToRuns {
+		opts := eventIdToOpts[eventExternalId]
 
 		if len(runs) == 0 {
 			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
 				EventSeenAt:             eventSeenAt,
 				EventKey:                opts.Key,
-				EventId:                 opts.EventId,
+				EventExternalId:         opts.ExternalId,
 				EventPayload:            opts.Data,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
 			})
@@ -855,7 +855,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 					MaybeRunInsertedAt:      &run.InsertedAt,
 					EventSeenAt:             eventSeenAt,
 					EventKey:                opts.Key,
-					EventId:                 opts.EventId,
+					EventExternalId:         opts.ExternalId,
 					EventPayload:            opts.Data,
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 				})
@@ -951,7 +951,7 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 
 	for _, event := range events {
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
-			ID:             event.EventId,
+			ID:             event.EventExternalId,
 			EventTimestamp: time.Now(),
 			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
 			Key:  event.EventKey,

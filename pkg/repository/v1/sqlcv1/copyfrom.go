@@ -44,43 +44,6 @@ func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg []Bu
 	return db.CopyFrom(ctx, []string{"v1_event_to_run_olap"}, []string{"run_id", "run_inserted_at", "event_id", "event_seen_at"}, &iteratorForBulkCreateEventTriggers{rows: arg})
 }
 
-// iteratorForBulkCreateEvents implements pgx.CopyFromSource.
-type iteratorForBulkCreateEvents struct {
-	rows                 []BulkCreateEventsParams
-	skippedFirstNextCall bool
-}
-
-func (r *iteratorForBulkCreateEvents) Next() bool {
-	if len(r.rows) == 0 {
-		return false
-	}
-	if !r.skippedFirstNextCall {
-		r.skippedFirstNextCall = true
-		return true
-	}
-	r.rows = r.rows[1:]
-	return len(r.rows) > 0
-}
-
-func (r iteratorForBulkCreateEvents) Values() ([]interface{}, error) {
-	return []interface{}{
-		r.rows[0].TenantID,
-		r.rows[0].ID,
-		r.rows[0].SeenAt,
-		r.rows[0].Key,
-		r.rows[0].Payload,
-		r.rows[0].AdditionalMetadata,
-	}, nil
-}
-
-func (r iteratorForBulkCreateEvents) Err() error {
-	return nil
-}
-
-func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg []BulkCreateEventsParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_events_olap"}, []string{"tenant_id", "id", "seen_at", "key", "payload", "additional_metadata"}, &iteratorForBulkCreateEvents{rows: arg})
-}
-
 // iteratorForCreateDAGData implements pgx.CopyFromSource.
 type iteratorForCreateDAGData struct {
 	rows                 []CreateDAGDataParams

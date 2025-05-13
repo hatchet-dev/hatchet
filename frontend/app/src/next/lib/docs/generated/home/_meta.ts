@@ -1,4 +1,4 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/home/_meta.js
+// Generated from frontend/docs/pages/home/_meta.js
 const meta = {
   '--intro': {
     title: 'Introduction',

@@ -14,17 +14,75 @@ import (
 type BulkCreateEventTriggersParams struct {
 	RunID         int64              `json:"run_id"`
 	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
-	EventID       pgtype.UUID        `json:"event_id"`
+	EventID       int64              `json:"event_id"`
 	EventSeenAt   pgtype.Timestamptz `json:"event_seen_at"`
 }
 
+const bulkCreateEvents = `-- name: BulkCreateEvents :many
+WITH to_insert AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::UUID[]) AS external_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
+        UNNEST($4::TEXT[]) AS key,
+        UNNEST($5::JSONB[]) AS payload,
+        UNNEST($6::JSONB[]) AS additional_metadata
+)
+INSERT INTO v1_events_olap (
+    tenant_id,
+    external_id,
+    seen_at,
+    key,
+    payload,
+    additional_metadata
+)
+SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata
+FROM to_insert
+RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+`
+
 type BulkCreateEventsParams struct {
-	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ID                 pgtype.UUID        `json:"id"`
-	SeenAt             pgtype.Timestamptz `json:"seen_at"`
-	Key                string             `json:"key"`
-	Payload            []byte             `json:"payload"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
+	Tenantids           []pgtype.UUID        `json:"tenantids"`
+	Externalids         []pgtype.UUID        `json:"externalids"`
+	Seenats             []pgtype.Timestamptz `json:"seenats"`
+	Keys                []string             `json:"keys"`
+	Payloads            [][]byte             `json:"payloads"`
+	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
+}
+
+func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1EventsOlap, error) {
+	rows, err := db.Query(ctx, bulkCreateEvents,
+		arg.Tenantids,
+		arg.Externalids,
+		arg.Seenats,
+		arg.Keys,
+		arg.Payloads,
+		arg.Additionalmetadatas,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1EventsOlap
+	for rows.Next() {
+		var i V1EventsOlap
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.ExternalID,
+			&i.SeenAt,
+			&i.Key,
+			&i.Payload,
+			&i.AdditionalMetadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type CreateDAGsOLAPParams struct {
@@ -49,7 +107,8 @@ SELECT
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
     create_v1_range_partition('v1_events_olap'::text, $2::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $2::date)
+    create_v1_range_partition('v1_event_to_run_olap'::text, $2::date),
+    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -367,6 +426,17 @@ WITH task_external_ids AS (
     FROM v1_runs_olap
     WHERE (
         $5::UUID IS NULL OR parent_task_external_id = $5::UUID
+    ) AND (
+        $6::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_event_lookup_table_olap lt
+            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            WHERE
+                lt.tenant_id = $1::uuid
+                AND lt.external_id = $6::UUID
+        )
     )
 )
 SELECT
@@ -394,11 +464,12 @@ GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid             pgtype.UUID        `json:"tenantid"`
-	Createdafter         pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore        pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
-	ParentTaskExternalId pgtype.UUID        `json:"parentTaskExternalId"`
+	Tenantid                  pgtype.UUID        `json:"tenantid"`
+	Createdafter              pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds               []pgtype.UUID      `json:"workflowIds"`
+	ParentTaskExternalId      pgtype.UUID        `json:"parentTaskExternalId"`
+	TriggeringEventExternalId pgtype.UUID        `json:"triggeringEventExternalId"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -417,6 +488,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.ParentTaskExternalId,
+		arg.TriggeringEventExternalId,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
@@ -450,6 +522,121 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 	return external_id, err
 }
 
+const listEvents = `-- name: ListEvents :many
+WITH included_events AS (
+    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+    FROM v1_events_olap e
+    WHERE
+        e.tenant_id = $1
+        AND (
+            $2::TEXT[] IS NULL OR
+            "key" = ANY($2::TEXT[])
+        )
+    ORDER BY e.id DESC, e.seen_at DESC
+    OFFSET
+        COALESCE($3::BIGINT, 0)
+    LIMIT
+        COALESCE($4::BIGINT, 50)
+), status_counts AS (
+    SELECT
+        e.tenant_id,
+        e.id,
+        e.seen_at,
+        COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count
+    FROM
+        included_events e
+    LEFT JOIN
+        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN
+        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    GROUP BY
+        e.tenant_id, e.id, e.seen_at
+)
+
+SELECT
+    e.tenant_id,
+    e.id AS event_id,
+    e.external_id AS event_external_id,
+    e.seen_at AS event_seen_at,
+    e.key AS event_key,
+    e.payload AS event_payload,
+    e.additional_metadata AS event_additional_metadata,
+    sc.queued_count,
+    sc.running_count,
+    sc.completed_count,
+    sc.cancelled_count,
+    sc.failed_count
+FROM
+    included_events e
+LEFT JOIN
+    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
+ORDER BY e.seen_at DESC
+`
+
+type ListEventsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Keys     []string    `json:"keys"`
+	Offset   pgtype.Int8 `json:"offset"`
+	Limit    pgtype.Int8 `json:"limit"`
+}
+
+type ListEventsRow struct {
+	TenantID                pgtype.UUID        `json:"tenant_id"`
+	EventID                 int64              `json:"event_id"`
+	EventExternalID         pgtype.UUID        `json:"event_external_id"`
+	EventSeenAt             pgtype.Timestamptz `json:"event_seen_at"`
+	EventKey                string             `json:"event_key"`
+	EventPayload            []byte             `json:"event_payload"`
+	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
+	QueuedCount             pgtype.Int8        `json:"queued_count"`
+	RunningCount            pgtype.Int8        `json:"running_count"`
+	CompletedCount          pgtype.Int8        `json:"completed_count"`
+	CancelledCount          pgtype.Int8        `json:"cancelled_count"`
+	FailedCount             pgtype.Int8        `json:"failed_count"`
+}
+
+func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
+	rows, err := db.Query(ctx, listEvents,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListEventsRow
+	for rows.Next() {
+		var i ListEventsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.EventID,
+			&i.EventExternalID,
+			&i.EventSeenAt,
+			&i.EventKey,
+			&i.EventPayload,
+			&i.EventAdditionalMetadata,
+			&i.QueuedCount,
+			&i.RunningCount,
+			&i.CompletedCount,
+			&i.CancelledCount,
+			&i.FailedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $1::date) AS p
@@ -461,6 +648,8 @@ WITH task_partitions AS (
     SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $1::date) AS p
 ), event_trigger_partitions AS (
     SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $1::date) AS p
+), events_lookup_table_partitions AS (
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $1::date) AS p
 )
 
 SELECT
@@ -495,6 +684,13 @@ SELECT
     parent_table, partition_name
 FROM
     event_trigger_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    events_lookup_table_partitions
 `
 
 type ListOLAPPartitionsBeforeDateRow struct {

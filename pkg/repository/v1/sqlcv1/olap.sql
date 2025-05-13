@@ -6,7 +6,9 @@ SELECT
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
     create_v1_range_partition('v1_events_olap'::text, @date::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date);
+    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
+    create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, @date::date)
+;
 
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
@@ -19,6 +21,8 @@ WITH task_partitions AS (
     SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', @date::date) AS p
 ), event_trigger_partitions AS (
     SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', @date::date) AS p
+), events_lookup_table_partitions AS (
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
 )
 
 SELECT
@@ -53,6 +57,13 @@ SELECT
     *
 FROM
     event_trigger_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    events_lookup_table_partitions
 ;
 
 -- name: CreateTasksOLAP :copyfrom
@@ -1025,6 +1036,17 @@ WITH task_external_ids AS (
     FROM v1_runs_olap
     WHERE (
         sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+    ) AND (
+        sqlc.narg('triggeringEventExternalId')::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_event_lookup_table_olap lt
+            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            WHERE
+                lt.tenant_id = @tenantId::uuid
+                AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
+        )
     )
 )
 SELECT
@@ -1289,23 +1311,27 @@ WHERE
   tenant_id = @tenantId::uuid;
 
 
--- name: BulkCreateEvents :copyfrom
+-- name: BulkCreateEvents :many
+WITH to_insert AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@seenAts::TIMESTAMPTZ[]) AS seen_at,
+        UNNEST(@keys::TEXT[]) AS key,
+        UNNEST(@payloads::JSONB[]) AS payload,
+        UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata
+)
 INSERT INTO v1_events_olap (
     tenant_id,
-    id,
+    external_id,
     seen_at,
     key,
     payload,
     additional_metadata
 )
-VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6
-)
+SELECT *
+FROM to_insert
+RETURNING *
 ;
 
 -- name: BulkCreateEventTriggers :copyfrom
@@ -1321,4 +1347,59 @@ VALUES (
     $3,
     $4
 )
+;
+
+-- name: ListEvents :many
+WITH included_events AS (
+    SELECT *
+    FROM v1_events_olap e
+    WHERE
+        e.tenant_id = @tenantId
+        AND (
+            sqlc.narg('keys')::TEXT[] IS NULL OR
+            "key" = ANY(sqlc.narg('keys')::TEXT[])
+        )
+    ORDER BY e.id DESC, e.seen_at DESC
+    OFFSET
+        COALESCE(sqlc.narg('offset')::BIGINT, 0)
+    LIMIT
+        COALESCE(sqlc.narg('limit')::BIGINT, 50)
+), status_counts AS (
+    SELECT
+        e.tenant_id,
+        e.id,
+        e.seen_at,
+        COUNT(*) FILTER (WHERE r.readable_status = 'QUEUED') AS queued_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'RUNNING') AS running_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(*) FILTER (WHERE r.readable_status = 'FAILED') AS failed_count
+    FROM
+        included_events e
+    LEFT JOIN
+        v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    LEFT JOIN
+        v1_runs_olap r ON (etr.run_id, etr.run_inserted_at) = (r.id, r.inserted_at)
+    GROUP BY
+        e.tenant_id, e.id, e.seen_at
+)
+
+SELECT
+    e.tenant_id,
+    e.id AS event_id,
+    e.external_id AS event_external_id,
+    e.seen_at AS event_seen_at,
+    e.key AS event_key,
+    e.payload AS event_payload,
+    e.additional_metadata AS event_additional_metadata,
+    sc.queued_count,
+    sc.running_count,
+    sc.completed_count,
+    sc.cancelled_count,
+    sc.failed_count
+FROM
+    included_events e
+LEFT JOIN
+    status_counts sc ON (e.tenant_id, e.id, e.seen_at) = (sc.tenant_id, sc.id, sc.seen_at)
+ORDER BY e.seen_at DESC
 ;

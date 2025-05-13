@@ -7,6 +7,7 @@ import { cronJobsRoutes } from './cron-jobs/cron-jobs.router';
 import { workflowRoutes } from './workflows/workflows.router';
 import { workerServicesRoutes } from './worker-services/worker-services.router';
 import { rateLimitsRoutes } from './rate-limits/rate-limits.router';
+import { eventsRoutes } from './events/events.router';
 
 export const dashboardRoutes: RouteObject[] = [
   {
@@ -18,6 +19,7 @@ export const dashboardRoutes: RouteObject[] = [
         Component: () => <Navigate to="runs" />,
       },
       ...runsRoutes,
+      ...eventsRoutes,
       ...scheduledRunsRoutes,
       ...cronJobsRoutes,
       ...workflowRoutes,

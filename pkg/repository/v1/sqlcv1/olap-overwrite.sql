@@ -32,6 +32,18 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
+    AND (
+        sqlc.narg('triggeringEventId')::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_event_lookup_table_olap lt
+            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            WHERE
+                lt.tenant_id = @tenantId::uuid
+                AND lt.external_id = sqlc.narg('triggeringEventId')::UUID
+        )
+    )
 ORDER BY
     inserted_at DESC
 LIMIT @taskLimit::integer
@@ -68,6 +80,18 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+		AND (
+			sqlc.narg('triggeringEventId')::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = @tenantId::uuid
+					AND lt.external_id = sqlc.narg('triggeringEventId')::UUID
+			)
+		)
     ORDER BY
         inserted_at DESC
     LIMIT 20000
@@ -107,6 +131,18 @@ WHERE
         sqlc.narg('parentTaskExternalId')::UUID IS NULL
         OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
     )
+    AND (
+        sqlc.narg('triggeringEventId')::UUID IS NULL
+        OR (id, inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_event_lookup_table_olap lt
+            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            WHERE
+                lt.tenant_id = @tenantId::uuid
+                AND lt.external_id = sqlc.narg('triggeringEventId')::UUID
+        )
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT @listWorkflowRunsLimit::integer
 OFFSET @listWorkflowRunsOffset::integer
@@ -139,6 +175,18 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+		AND (
+			sqlc.narg('triggeringEventId')::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = @tenantId::uuid
+					AND lt.external_id = sqlc.narg('triggeringEventId')::UUID
+            )
+		)
     LIMIT 20000
 )
 

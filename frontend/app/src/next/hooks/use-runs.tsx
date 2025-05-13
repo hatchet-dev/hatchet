@@ -39,6 +39,7 @@ export interface RunsFilters {
   only_tasks?: boolean;
   parent_task_external_id?: string;
   is_root_task?: boolean;
+  triggering_event_external_id?: string;
 }
 
 // Create run params
@@ -125,7 +126,7 @@ export function RunsProvider({
   },
 }: RunsProviderProps) {
   return (
-    <FilterProvider initialFilters={initialFilters}>
+    <FilterProvider initialFilters={initialFilters} type="state">
       <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
           <RunsProviderContent refetchInterval={refetchInterval}>
@@ -204,7 +205,7 @@ function RunsProviderContent({
       }
     },
     placeholderData: (prev: any) => prev,
-    refetchInterval,
+    refetchInterval: undefined,
   });
 
   const metricsRunsQuery = useQuery({

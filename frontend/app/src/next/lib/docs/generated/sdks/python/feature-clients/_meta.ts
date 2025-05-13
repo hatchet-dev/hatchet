@@ -1,4 +1,4 @@
-// Generated from /Users/gabrielruttner/dev/hatchet/frontend/docs/pages/sdks/python/feature-clients/_meta.js
+// Generated from frontend/docs/pages/sdks/python/feature-clients/_meta.js
 const meta = {
   cron: {
     title: 'Cron',

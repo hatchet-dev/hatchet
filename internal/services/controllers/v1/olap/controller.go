@@ -339,36 +339,49 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	seenEventKeysSet := make(map[string]bool)
 
-	bulkCreateEventParams := make([]sqlcv1.BulkCreateEventsParams, 0)
-	bulkCreateTriggersParams := make([]sqlcv1.BulkCreateEventTriggersParams, 0)
+	bulkCreateTriggersParams := make([]v1.EventTriggersFromExternalId, 0)
+
+	tenantIds := make([]pgtype.UUID, 0)
+	externalIds := make([]pgtype.UUID, 0)
+	seenAts := make([]pgtype.Timestamptz, 0)
+	keys := make([]string, 0)
+	payloadstoInsert := make([][]byte, 0)
+	additionalMetadatas := make([][]byte, 0)
 
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				bulkCreateTriggersParams = append(bulkCreateTriggersParams, sqlcv1.BulkCreateEventTriggersParams{
-					RunID:         *payload.MaybeRunId,
-					RunInsertedAt: sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
-					EventID:       sqlchelpers.UUIDFromStr(payload.EventId),
-					EventSeenAt:   sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
+				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
+					RunID:           *payload.MaybeRunId,
+					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
+					EventExternalId: sqlchelpers.UUIDFromStr(payload.EventExternalId),
+					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
 				})
 			}
 
-			_, eventAlreadySeen := seenEventKeysSet[payload.EventId]
+			_, eventAlreadySeen := seenEventKeysSet[payload.EventExternalId]
 
 			if eventAlreadySeen {
 				continue
 			}
 
-			seenEventKeysSet[payload.EventId] = true
-			bulkCreateEventParams = append(bulkCreateEventParams, sqlcv1.BulkCreateEventsParams{
-				TenantID:           sqlchelpers.UUIDFromStr(tenantId),
-				ID:                 sqlchelpers.UUIDFromStr(payload.EventId),
-				SeenAt:             sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
-				Key:                payload.EventKey,
-				Payload:            payload.EventPayload,
-				AdditionalMetadata: payload.EventAdditionalMetadata,
-			})
+			seenEventKeysSet[payload.EventExternalId] = true
+			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
+			externalIds = append(externalIds, sqlchelpers.UUIDFromStr(payload.EventExternalId))
+			seenAts = append(seenAts, sqlchelpers.TimestamptzFromTime(payload.EventSeenAt))
+			keys = append(keys, payload.EventKey)
+			payloadstoInsert = append(payloadstoInsert, payload.EventPayload)
+			additionalMetadatas = append(additionalMetadatas, payload.EventAdditionalMetadata)
 		}
+	}
+
+	bulkCreateEventParams := sqlcv1.BulkCreateEventsParams{
+		Tenantids:           tenantIds,
+		Externalids:         externalIds,
+		Seenats:             seenAts,
+		Keys:                keys,
+		Payloads:            payloadstoInsert,
+		Additionalmetadatas: additionalMetadatas,
 	}
 
 	return tc.repo.OLAP().BulkCreateEventsAndTriggers(
