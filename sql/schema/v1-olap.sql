@@ -665,9 +665,9 @@ BEGIN
         tenant_id,
         external_id,
         id,
-        inserted_at
+        seen_at
     FROM new_rows
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (tenant_id, external_id, event_seen_at) DO NOTHING;
 
     RETURN NULL;
 END;
