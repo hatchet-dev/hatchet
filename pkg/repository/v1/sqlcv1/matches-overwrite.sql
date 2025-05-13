@@ -22,8 +22,14 @@ SELECT
 FROM
     v1_match_condition m
 JOIN
-    input i ON (m.tenant_id, m.event_type, m.event_key, m.is_satisfied, COALESCE(m.event_resource_hint, '')::text) =
-        (@tenantId::uuid, @eventType::v1_event_type, i.event_key, FALSE, COALESCE(i.event_resource_hint, '')::text);
+    input i ON m.tenant_id = @tenantId::uuid
+        AND m.event_type = @eventType::v1_event_type
+        AND m.event_key = i.event_key
+        AND m.is_satisfied = FALSE
+        AND (
+            (m.event_resource_hint IS NULL AND i.event_resource_hint IS NULL)
+            OR m.event_resource_hint = i.event_resource_hint
+        );
 
 -- name: CreateMatchesForDAGTriggers :many
 WITH input AS (
