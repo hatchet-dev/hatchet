@@ -51,6 +51,7 @@ class BulkPushEventWithMetadata(BaseModel):
     payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     priority: int | None = None
+    resource_hint: str | None = None
 
 
 class EventClient(BaseRestClient):
@@ -147,6 +148,7 @@ class EventClient(BaseRestClient):
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_str,
             priority=event.priority,
+            resourceHint=event.resource_hint,
         )
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor

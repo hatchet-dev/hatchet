@@ -251,6 +251,22 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             f"Input must be a BaseModel or `None`, got {type(input)} instead."
         )
 
+    @property
+    def id(self) -> str:
+        """
+        Get the ID of the workflow.
+
+        :returns: The ID of the workflow.
+        """
+        workflows = self.client.workflows.list(workflow_name=self.name)
+
+        if not workflows.rows:
+            raise ValueError(f"No id found for {self.name}")
+
+        workflow = workflows.rows[0]
+
+        return workflow.metadata.id
+
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
     """
