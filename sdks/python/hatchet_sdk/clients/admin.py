@@ -66,6 +66,20 @@ class DedupeViolationErr(Exception):
     pass
 
 
+class CreateFilterRequest(BaseModel):
+    workflow_id: str
+    expression: str
+    resource_hint: str
+    payload: JSONSerializableMapping = Field(default_factory=dict)
+
+    def to_proto(self) -> workflow_protos.CreateFilterRequest:
+        return workflow_protos.CreateFilterRequest(
+            workflowId=self.workflow_id,
+            expression=self.expression,
+            resourceHint=self.resource_hint,
+            payload=json.dumps(self.payload),
+        )
+
 class AdminClient:
     def __init__(
         self,
@@ -183,6 +197,13 @@ class AdminClient:
         return await asyncio.to_thread(self.put_workflow, workflow)
 
     @tenacity_retry
+    async def aio_put_filter(
+        self,
+        event_filter: workflow_protos.CreateFilterRequest,
+    ) -> workflow_protos.CreateFilterResponse:
+        return await asyncio.to_thread(self.put_filter, event_filter)
+
+    @tenacity_retry
     async def aio_put_rate_limit(
         self,
         key: str,
@@ -216,6 +237,20 @@ class AdminClient:
             workflow_protos.CreateWorkflowVersionResponse,
             self.client.PutWorkflow(
                 workflow,
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+    @tenacity_retry
+    def put_filter(self, event_filter: CreateFilterRequest) -> workflow_protos.CreateFilterResponse:
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = AdminServiceStub(conn)
+
+        return cast(
+            workflow_protos.CreateFilterResponse,
+            self.client.CreateFilter(
+                event_filter.to_proto(),
                 metadata=get_metadata(self.token),
             ),
         )

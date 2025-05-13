@@ -39,6 +39,7 @@ class PushEventOptions(BaseModel):
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     namespace: str | None = None
     priority: int | None = None
+    resource_hint: str | None = None
 
 
 class BulkPushEventOptions(BaseModel):
@@ -112,6 +113,7 @@ class EventClient(BaseRestClient):
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_bytes,
             priority=options.priority,
+            resourceHint=options.resource_hint,
         )
 
         return cast(
