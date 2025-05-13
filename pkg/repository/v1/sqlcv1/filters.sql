@@ -30,3 +30,10 @@ WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID
 RETURNING *;
+
+-- name: GetFilter :one
+SELECT *
+FROM v1_filter
+WHERE
+    tenant_id = @tenantId::UUID
+    AND id = @id::UUID;

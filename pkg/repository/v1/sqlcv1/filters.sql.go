@@ -96,3 +96,32 @@ func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterPar
 	)
 	return &i, err
 }
+
+const getFilter = `-- name: GetFilter :one
+SELECT id, tenant_id, workflow_id, resource_hint, expression, payload, inserted_at, updated_at
+FROM v1_filter
+WHERE
+    tenant_id = $1::UUID
+    AND id = $2::UUID
+`
+
+type GetFilterParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (*V1Filter, error) {
+	row := db.QueryRow(ctx, getFilter, arg.Tenantid, arg.ID)
+	var i V1Filter
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.WorkflowID,
+		&i.ResourceHint,
+		&i.Expression,
+		&i.Payload,
+		&i.InsertedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}

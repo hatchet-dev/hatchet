@@ -13,8 +13,6 @@ service AdminService {
     rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
-    rpc CreateFilter(CreateFilterRequest) returns (CreateFilterResponse);
-    rpc DeleteFilter(DeleteFilterRequest) returns (DeleteFilterResponse);
 }
 
 message CancelTasksRequest {
@@ -166,23 +164,4 @@ message CreateTaskRateLimit {
 message CreateWorkflowVersionResponse {
     string id = 1;
     string workflow_id = 2;
-}
-
-message CreateFilterRequest {
-    string workflowId = 1; // (required) the workflow id
-    string expression = 2; // (required) the filter (CEL) expression
-    string resourceHint = 3; // the resource hint for the filter
-    optional string payload = 4; // (optional) an additional payload to send as part of the matched expression
-}
-
-message CreateFilterResponse {
-    string id = 1; // the id of the created filter
-}
-
-message DeleteFilterRequest {
-    string id = 1; // (required) the id of the filter to delete
-}
-
-message DeleteFilterResponse {
-    string id = 1; // the id of the deleted filter
 }
