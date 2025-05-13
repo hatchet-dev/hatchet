@@ -176,13 +176,13 @@ message CreateFilterRequest {
 }
 
 message CreateFilterResponse {
-    int64 id = 1; // the id of the created filter
+    string id = 1; // the id of the created filter
 }
 
 message DeleteFilterRequest {
-    int64 id = 1; // (required) the id of the filter to delete
+    string id = 1; // (required) the id of the filter to delete
 }
 
 message DeleteFilterResponse {
-    int64 id = 1; // the id of the deleted filter
+    string id = 1; // the id of the deleted filter
 }

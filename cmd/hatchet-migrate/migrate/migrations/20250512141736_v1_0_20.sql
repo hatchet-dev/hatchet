@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE v1_filter (
-    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     workflow_id UUID NOT NULL,
     resource_hint TEXT NOT NULL,

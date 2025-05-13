@@ -813,7 +813,7 @@ func (a *AdminServiceImpl) CreateFilter(ctx context.Context, req *contracts.Crea
 	}
 
 	return &contracts.CreateFilterResponse{
-		Id: filter.ID,
+		Id: sqlchelpers.UUIDToStr(filter.ID),
 	}, nil
 }
 
@@ -822,7 +822,7 @@ func (a *AdminServiceImpl) DeleteFilter(ctx context.Context, req *contracts.Dele
 
 	params := sqlcv1.DeleteFilterParams{
 		Tenantid: tenant.ID,
-		ID:       req.Id,
+		ID:       sqlchelpers.UUIDFromStr(req.Id),
 	}
 
 	filter, err := a.repo.Filters().DeleteFilter(
@@ -835,6 +835,6 @@ func (a *AdminServiceImpl) DeleteFilter(ctx context.Context, req *contracts.Dele
 	}
 
 	return &contracts.DeleteFilterResponse{
-		Id: filter.ID,
+		Id: sqlchelpers.UUIDToStr(filter.ID),
 	}, nil
 }

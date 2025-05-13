@@ -28,5 +28,5 @@ RETURNING *;
 DELETE FROM v1_filter
 WHERE
     tenant_id = @tenantId::UUID
-    AND id= @id::BIGINT
+    AND id = @id::UUID
 RETURNING *;

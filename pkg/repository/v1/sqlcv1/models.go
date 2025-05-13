@@ -2504,7 +2504,7 @@ type V1EventsOlap struct {
 }
 
 type V1Filter struct {
-	ID           int64              `json:"id"`
+	ID           pgtype.UUID        `json:"id"`
 	TenantID     pgtype.UUID        `json:"tenant_id"`
 	WorkflowID   pgtype.UUID        `json:"workflow_id"`
 	ResourceHint string             `json:"resource_hint"`

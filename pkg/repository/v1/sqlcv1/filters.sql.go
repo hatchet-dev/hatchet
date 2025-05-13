@@ -72,13 +72,13 @@ const deleteFilter = `-- name: DeleteFilter :one
 DELETE FROM v1_filter
 WHERE
     tenant_id = $1::UUID
-    AND id= $2::BIGINT
+    AND id = $2::UUID
 RETURNING id, tenant_id, workflow_id, resource_hint, expression, payload, inserted_at, updated_at
 `
 
 type DeleteFilterParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       int64       `json:"id"`
+	ID       pgtype.UUID `json:"id"`
 }
 
 func (q *Queries) DeleteFilter(ctx context.Context, db DBTX, arg DeleteFilterParams) (*V1Filter, error) {
