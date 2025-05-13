@@ -7,20 +7,22 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Event(_message.Message):
-    __slots__ = ("tenantId", "eventId", "key", "payload", "eventTimestamp", "additionalMetadata")
+    __slots__ = ("tenantId", "eventId", "key", "payload", "eventTimestamp", "additionalMetadata", "resourceHint")
     TENANTID_FIELD_NUMBER: _ClassVar[int]
     EVENTID_FIELD_NUMBER: _ClassVar[int]
     KEY_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     ADDITIONALMETADATA_FIELD_NUMBER: _ClassVar[int]
+    RESOURCEHINT_FIELD_NUMBER: _ClassVar[int]
     tenantId: str
     eventId: str
     key: str
     payload: str
     eventTimestamp: _timestamp_pb2.Timestamp
     additionalMetadata: str
-    def __init__(self, tenantId: _Optional[str] = ..., eventId: _Optional[str] = ..., key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ...) -> None: ...
+    resourceHint: str
+    def __init__(self, tenantId: _Optional[str] = ..., eventId: _Optional[str] = ..., key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., resourceHint: _Optional[str] = ...) -> None: ...
 
 class Events(_message.Message):
     __slots__ = ("events",)
@@ -29,18 +31,20 @@ class Events(_message.Message):
     def __init__(self, events: _Optional[_Iterable[_Union[Event, _Mapping]]] = ...) -> None: ...
 
 class PutLogRequest(_message.Message):
-    __slots__ = ("stepRunId", "createdAt", "message", "level", "metadata")
+    __slots__ = ("stepRunId", "createdAt", "message", "level", "metadata", "taskRetryCount")
     STEPRUNID_FIELD_NUMBER: _ClassVar[int]
     CREATEDAT_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     LEVEL_FIELD_NUMBER: _ClassVar[int]
     METADATA_FIELD_NUMBER: _ClassVar[int]
+    TASKRETRYCOUNT_FIELD_NUMBER: _ClassVar[int]
     stepRunId: str
     createdAt: _timestamp_pb2.Timestamp
     message: str
     level: str
     metadata: str
-    def __init__(self, stepRunId: _Optional[str] = ..., createdAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ..., level: _Optional[str] = ..., metadata: _Optional[str] = ...) -> None: ...
+    taskRetryCount: int
+    def __init__(self, stepRunId: _Optional[str] = ..., createdAt: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ..., level: _Optional[str] = ..., metadata: _Optional[str] = ..., taskRetryCount: _Optional[int] = ...) -> None: ...
 
 class PutLogResponse(_message.Message):
     __slots__ = ()
@@ -69,18 +73,20 @@ class BulkPushEventRequest(_message.Message):
     def __init__(self, events: _Optional[_Iterable[_Union[PushEventRequest, _Mapping]]] = ...) -> None: ...
 
 class PushEventRequest(_message.Message):
-    __slots__ = ("key", "payload", "eventTimestamp", "additionalMetadata", "priority")
+    __slots__ = ("key", "payload", "eventTimestamp", "additionalMetadata", "priority", "resourceHint")
     KEY_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     ADDITIONALMETADATA_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    RESOURCEHINT_FIELD_NUMBER: _ClassVar[int]
     key: str
     payload: str
     eventTimestamp: _timestamp_pb2.Timestamp
     additionalMetadata: str
     priority: int
-    def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
+    resourceHint: str
+    def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., priority: _Optional[int] = ..., resourceHint: _Optional[str] = ...) -> None: ...
 
 class ReplayEventRequest(_message.Message):
     __slots__ = ("eventId",)

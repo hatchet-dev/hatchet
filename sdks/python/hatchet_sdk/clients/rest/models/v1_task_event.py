@@ -42,6 +42,14 @@ class V1TaskEvent(BaseModel):
     task_display_name: Optional[StrictStr] = Field(
         default=None, alias="taskDisplayName"
     )
+    retry_count: Optional[StrictInt] = Field(
+        default=None,
+        description="The number of retries of the task.",
+        alias="retryCount",
+    )
+    attempt: Optional[StrictInt] = Field(
+        default=None, description="The attempt number of the task."
+    )
     __properties: ClassVar[List[str]] = [
         "id",
         "taskId",
@@ -52,6 +60,8 @@ class V1TaskEvent(BaseModel):
         "output",
         "workerId",
         "taskDisplayName",
+        "retryCount",
+        "attempt",
     ]
 
     model_config = ConfigDict(
@@ -113,6 +123,8 @@ class V1TaskEvent(BaseModel):
                 "output": obj.get("output"),
                 "workerId": obj.get("workerId"),
                 "taskDisplayName": obj.get("taskDisplayName"),
+                "retryCount": obj.get("retryCount"),
+                "attempt": obj.get("attempt"),
             }
         )
         return _obj

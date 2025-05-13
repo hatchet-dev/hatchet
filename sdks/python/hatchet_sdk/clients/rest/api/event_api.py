@@ -2566,33 +2566,6 @@ class EventApi:
         keys: Annotated[
             Optional[List[StrictStr]], Field(description="A list of keys to filter by")
         ] = None,
-        workflows: Annotated[
-            Optional[List[StrictStr]],
-            Field(description="A list of workflow IDs to filter by"),
-        ] = None,
-        statuses: Annotated[
-            Optional[List[WorkflowRunStatus]],
-            Field(description="A list of workflow run statuses to filter by"),
-        ] = None,
-        search: Annotated[
-            Optional[StrictStr], Field(description="The search query to filter for")
-        ] = None,
-        order_by_field: Annotated[
-            Optional[EventOrderByField], Field(description="What to order by")
-        ] = None,
-        order_by_direction: Annotated[
-            Optional[EventOrderByDirection], Field(description="The order direction")
-        ] = None,
-        additional_metadata: Annotated[
-            Optional[List[StrictStr]],
-            Field(description="A list of metadata key value pairs to filter by"),
-        ] = None,
-        event_ids: Annotated[
-            Optional[
-                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
-            ],
-            Field(description="A list of event ids to filter by"),
-        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2617,20 +2590,6 @@ class EventApi:
         :type limit: int
         :param keys: A list of keys to filter by
         :type keys: List[str]
-        :param workflows: A list of workflow IDs to filter by
-        :type workflows: List[str]
-        :param statuses: A list of workflow run statuses to filter by
-        :type statuses: List[WorkflowRunStatus]
-        :param search: The search query to filter for
-        :type search: str
-        :param order_by_field: What to order by
-        :type order_by_field: EventOrderByField
-        :param order_by_direction: The order direction
-        :type order_by_direction: EventOrderByDirection
-        :param additional_metadata: A list of metadata key value pairs to filter by
-        :type additional_metadata: List[str]
-        :param event_ids: A list of event ids to filter by
-        :type event_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2658,13 +2617,6 @@ class EventApi:
             offset=offset,
             limit=limit,
             keys=keys,
-            workflows=workflows,
-            statuses=statuses,
-            search=search,
-            order_by_field=order_by_field,
-            order_by_direction=order_by_direction,
-            additional_metadata=additional_metadata,
-            event_ids=event_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2703,33 +2655,6 @@ class EventApi:
         keys: Annotated[
             Optional[List[StrictStr]], Field(description="A list of keys to filter by")
         ] = None,
-        workflows: Annotated[
-            Optional[List[StrictStr]],
-            Field(description="A list of workflow IDs to filter by"),
-        ] = None,
-        statuses: Annotated[
-            Optional[List[WorkflowRunStatus]],
-            Field(description="A list of workflow run statuses to filter by"),
-        ] = None,
-        search: Annotated[
-            Optional[StrictStr], Field(description="The search query to filter for")
-        ] = None,
-        order_by_field: Annotated[
-            Optional[EventOrderByField], Field(description="What to order by")
-        ] = None,
-        order_by_direction: Annotated[
-            Optional[EventOrderByDirection], Field(description="The order direction")
-        ] = None,
-        additional_metadata: Annotated[
-            Optional[List[StrictStr]],
-            Field(description="A list of metadata key value pairs to filter by"),
-        ] = None,
-        event_ids: Annotated[
-            Optional[
-                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
-            ],
-            Field(description="A list of event ids to filter by"),
-        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2754,20 +2679,6 @@ class EventApi:
         :type limit: int
         :param keys: A list of keys to filter by
         :type keys: List[str]
-        :param workflows: A list of workflow IDs to filter by
-        :type workflows: List[str]
-        :param statuses: A list of workflow run statuses to filter by
-        :type statuses: List[WorkflowRunStatus]
-        :param search: The search query to filter for
-        :type search: str
-        :param order_by_field: What to order by
-        :type order_by_field: EventOrderByField
-        :param order_by_direction: The order direction
-        :type order_by_direction: EventOrderByDirection
-        :param additional_metadata: A list of metadata key value pairs to filter by
-        :type additional_metadata: List[str]
-        :param event_ids: A list of event ids to filter by
-        :type event_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2795,13 +2706,6 @@ class EventApi:
             offset=offset,
             limit=limit,
             keys=keys,
-            workflows=workflows,
-            statuses=statuses,
-            search=search,
-            order_by_field=order_by_field,
-            order_by_direction=order_by_direction,
-            additional_metadata=additional_metadata,
-            event_ids=event_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2840,33 +2744,6 @@ class EventApi:
         keys: Annotated[
             Optional[List[StrictStr]], Field(description="A list of keys to filter by")
         ] = None,
-        workflows: Annotated[
-            Optional[List[StrictStr]],
-            Field(description="A list of workflow IDs to filter by"),
-        ] = None,
-        statuses: Annotated[
-            Optional[List[WorkflowRunStatus]],
-            Field(description="A list of workflow run statuses to filter by"),
-        ] = None,
-        search: Annotated[
-            Optional[StrictStr], Field(description="The search query to filter for")
-        ] = None,
-        order_by_field: Annotated[
-            Optional[EventOrderByField], Field(description="What to order by")
-        ] = None,
-        order_by_direction: Annotated[
-            Optional[EventOrderByDirection], Field(description="The order direction")
-        ] = None,
-        additional_metadata: Annotated[
-            Optional[List[StrictStr]],
-            Field(description="A list of metadata key value pairs to filter by"),
-        ] = None,
-        event_ids: Annotated[
-            Optional[
-                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
-            ],
-            Field(description="A list of event ids to filter by"),
-        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2891,20 +2768,6 @@ class EventApi:
         :type limit: int
         :param keys: A list of keys to filter by
         :type keys: List[str]
-        :param workflows: A list of workflow IDs to filter by
-        :type workflows: List[str]
-        :param statuses: A list of workflow run statuses to filter by
-        :type statuses: List[WorkflowRunStatus]
-        :param search: The search query to filter for
-        :type search: str
-        :param order_by_field: What to order by
-        :type order_by_field: EventOrderByField
-        :param order_by_direction: The order direction
-        :type order_by_direction: EventOrderByDirection
-        :param additional_metadata: A list of metadata key value pairs to filter by
-        :type additional_metadata: List[str]
-        :param event_ids: A list of event ids to filter by
-        :type event_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2932,13 +2795,6 @@ class EventApi:
             offset=offset,
             limit=limit,
             keys=keys,
-            workflows=workflows,
-            statuses=statuses,
-            search=search,
-            order_by_field=order_by_field,
-            order_by_direction=order_by_direction,
-            additional_metadata=additional_metadata,
-            event_ids=event_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2961,13 +2817,6 @@ class EventApi:
         offset,
         limit,
         keys,
-        workflows,
-        statuses,
-        search,
-        order_by_field,
-        order_by_direction,
-        additional_metadata,
-        event_ids,
         _request_auth,
         _content_type,
         _headers,
@@ -2978,10 +2827,6 @@ class EventApi:
 
         _collection_formats: Dict[str, str] = {
             "keys": "multi",
-            "workflows": "multi",
-            "statuses": "multi",
-            "additionalMetadata": "multi",
-            "eventIds": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -3008,34 +2853,6 @@ class EventApi:
         if keys is not None:
 
             _query_params.append(("keys", keys))
-
-        if workflows is not None:
-
-            _query_params.append(("workflows", workflows))
-
-        if statuses is not None:
-
-            _query_params.append(("statuses", statuses))
-
-        if search is not None:
-
-            _query_params.append(("search", search))
-
-        if order_by_field is not None:
-
-            _query_params.append(("orderByField", order_by_field.value))
-
-        if order_by_direction is not None:
-
-            _query_params.append(("orderByDirection", order_by_direction.value))
-
-        if additional_metadata is not None:
-
-            _query_params.append(("additionalMetadata", additional_metadata))
-
-        if event_ids is not None:
-
-            _query_params.append(("eventIds", event_ids))
 
         # process the header parameters
         # process the form parameters

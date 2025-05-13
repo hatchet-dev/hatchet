@@ -905,7 +905,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         only_tasks: bool = False,
-        triggering_event_id: str | None = None,
+        triggering_event_external_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -919,7 +919,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param worker_id: The ID of the worker that ran the tasks.
         :param parent_task_external_id: The external ID of the parent task.
         :param only_tasks: Whether to list only task runs.
-        :param triggering_event_id: The event id that triggered the task run.
+        :param triggering_event_external_id: The event id that triggered the task run.
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
@@ -942,7 +942,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
-            triggering_event_id=triggering_event_id,
+            triggering_event_external_id=triggering_event_external_id,
         )
 
         return response.rows
@@ -958,7 +958,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         only_tasks: bool = False,
-        triggering_event_id: str | None = None,
+        triggering_event_external_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -972,7 +972,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param worker_id: The ID of the worker that ran the tasks.
         :param parent_task_external_id: The external ID of the parent task.
         :param only_tasks: Whether to list only task runs.
-        :param triggering_event_id: The event id that triggered the task run.
+        :param triggering_event_external_id: The event id that triggered the task run.
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
@@ -987,5 +987,5 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
-            triggering_event_id=triggering_event_id,
+            triggering_event_external_id=triggering_event_external_id,
         )

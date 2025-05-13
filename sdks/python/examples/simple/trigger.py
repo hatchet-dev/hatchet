@@ -1,6 +1,6 @@
-from examples.simple.worker import step1, hatchet
-from hatchet_sdk.clients.events import PushEventOptions
+from examples.simple.worker import hatchet
 from hatchet_sdk.clients.admin import CreateFilterRequest
+from hatchet_sdk.clients.events import PushEventOptions
 
 hatchet._client.admin.put_filter(
     CreateFilterRequest(
@@ -18,8 +18,8 @@ hatchet.event.push(
         resource_hint="foobar",
         additional_metadata={
             "shouldSkipThis": True,
-        }
-    )
+        },
+    ),
 )
 
 hatchet.event.push(
@@ -29,6 +29,6 @@ hatchet.event.push(
         resource_hint="foobar",
         additional_metadata={
             "shouldSkipThis": False,
-        }
-    )
+        },
+    ),
 )

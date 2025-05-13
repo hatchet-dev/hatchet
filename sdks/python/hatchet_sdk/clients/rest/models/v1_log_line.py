@@ -20,8 +20,10 @@ import re  # noqa: F401
 from datetime import datetime
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 
 
 class V1LogLine(BaseModel):
@@ -34,7 +36,21 @@ class V1LogLine(BaseModel):
     )
     message: StrictStr = Field(description="The log message.")
     metadata: Dict[str, Any] = Field(description="The log metadata.")
-    __properties: ClassVar[List[str]] = ["createdAt", "message", "metadata"]
+    retry_count: Optional[StrictInt] = Field(
+        default=None, description="The retry count of the log line.", alias="retryCount"
+    )
+    attempt: Optional[StrictInt] = Field(
+        default=None, description="The attempt number of the log line."
+    )
+    level: Optional[V1LogLineLevel] = Field(default=None, description="The log level.")
+    __properties: ClassVar[List[str]] = [
+        "createdAt",
+        "message",
+        "metadata",
+        "retryCount",
+        "attempt",
+        "level",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -89,6 +105,9 @@ class V1LogLine(BaseModel):
                 "createdAt": obj.get("createdAt"),
                 "message": obj.get("message"),
                 "metadata": obj.get("metadata"),
+                "retryCount": obj.get("retryCount"),
+                "attempt": obj.get("attempt"),
+                "level": obj.get("level"),
             }
         )
         return _obj

@@ -80,6 +80,7 @@ class CreateFilterRequest(BaseModel):
             payload=json.dumps(self.payload),
         )
 
+
 class AdminClient:
     def __init__(
         self,
@@ -199,7 +200,7 @@ class AdminClient:
     @tenacity_retry
     async def aio_put_filter(
         self,
-        event_filter: workflow_protos.CreateFilterRequest,
+        event_filter: CreateFilterRequest,
     ) -> workflow_protos.CreateFilterResponse:
         return await asyncio.to_thread(self.put_filter, event_filter)
 
@@ -242,7 +243,9 @@ class AdminClient:
         )
 
     @tenacity_retry
-    def put_filter(self, event_filter: CreateFilterRequest) -> workflow_protos.CreateFilterResponse:
+    def put_filter(
+        self, event_filter: CreateFilterRequest
+    ) -> workflow_protos.CreateFilterResponse:
         if self.client is None:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)

@@ -95,7 +95,9 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 
         should_have_runs = meta.get("should_have_runs")
 
-        runs = (await hatchet.runs.aio_list(triggering_event_id=event.metadata.id)).rows
+        runs = (
+            await hatchet.runs.aio_list(triggering_event_external_id=event.metadata.id)
+        ).rows
 
         if should_have_runs:
             assert len(runs) > 0

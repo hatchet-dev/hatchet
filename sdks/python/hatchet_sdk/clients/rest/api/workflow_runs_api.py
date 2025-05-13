@@ -1258,7 +1258,7 @@ class WorkflowRunsApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task external id to filter by"),
         ] = None,
-        triggering_event_id: Annotated[
+        triggering_event_external_id: Annotated[
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
                 description="The external id of the event that triggered the workflow run"
@@ -1302,8 +1302,8 @@ class WorkflowRunsApi:
         :type worker_id: str
         :param parent_task_external_id: The parent task external id to filter by
         :type parent_task_external_id: str
-        :param triggering_event_id: The external id of the event that triggered the workflow run
-        :type triggering_event_id: str
+        :param triggering_event_external_id: The external id of the event that triggered the workflow run
+        :type triggering_event_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1338,7 +1338,7 @@ class WorkflowRunsApi:
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
-            triggering_event_id=triggering_event_id,
+            triggering_event_external_id=triggering_event_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1405,7 +1405,7 @@ class WorkflowRunsApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task external id to filter by"),
         ] = None,
-        triggering_event_id: Annotated[
+        triggering_event_external_id: Annotated[
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
                 description="The external id of the event that triggered the workflow run"
@@ -1449,8 +1449,8 @@ class WorkflowRunsApi:
         :type worker_id: str
         :param parent_task_external_id: The parent task external id to filter by
         :type parent_task_external_id: str
-        :param triggering_event_id: The external id of the event that triggered the workflow run
-        :type triggering_event_id: str
+        :param triggering_event_external_id: The external id of the event that triggered the workflow run
+        :type triggering_event_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1485,7 +1485,7 @@ class WorkflowRunsApi:
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
-            triggering_event_id=triggering_event_id,
+            triggering_event_external_id=triggering_event_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1552,7 +1552,7 @@ class WorkflowRunsApi:
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(description="The parent task external id to filter by"),
         ] = None,
-        triggering_event_id: Annotated[
+        triggering_event_external_id: Annotated[
             Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
                 description="The external id of the event that triggered the workflow run"
@@ -1596,8 +1596,8 @@ class WorkflowRunsApi:
         :type worker_id: str
         :param parent_task_external_id: The parent task external id to filter by
         :type parent_task_external_id: str
-        :param triggering_event_id: The external id of the event that triggered the workflow run
-        :type triggering_event_id: str
+        :param triggering_event_external_id: The external id of the event that triggered the workflow run
+        :type triggering_event_external_id: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1632,7 +1632,7 @@ class WorkflowRunsApi:
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
-            triggering_event_id=triggering_event_id,
+            triggering_event_external_id=triggering_event_external_id,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1663,7 +1663,7 @@ class WorkflowRunsApi:
         workflow_ids,
         worker_id,
         parent_task_external_id,
-        triggering_event_id,
+        triggering_event_external_id,
         _request_auth,
         _content_type,
         _headers,
@@ -1745,9 +1745,11 @@ class WorkflowRunsApi:
 
             _query_params.append(("parent_task_external_id", parent_task_external_id))
 
-        if triggering_event_id is not None:
+        if triggering_event_external_id is not None:
 
-            _query_params.append(("triggering_event_id", triggering_event_id))
+            _query_params.append(
+                ("triggering_event_external_id", triggering_event_external_id)
+            )
 
         # process the header parameters
         # process the form parameters
