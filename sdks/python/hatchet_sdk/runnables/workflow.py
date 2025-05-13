@@ -545,10 +545,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def _parse_task_name(
         self,
         name: str | None,
-        func: (
-            Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]
-            | Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]
-        ),
+        func: Callable[..., Any],
     ) -> str:
         non_null_name = name or func.__name__
 
