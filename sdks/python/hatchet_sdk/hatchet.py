@@ -10,6 +10,7 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
 from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
@@ -62,6 +63,13 @@ class Hatchet:
         The cron client is a client for managing cron workflows within Hatchet.
         """
         return self._client.cron
+
+    @property
+    def filters(self) -> FiltersClient:
+        """
+        The filters client is a client for interacting with Hatchet's filters API.
+        """
+        return self._client.filters
 
     @property
     def logs(self) -> LogsClient:

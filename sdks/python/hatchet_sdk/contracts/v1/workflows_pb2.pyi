@@ -232,33 +232,3 @@ class CreateWorkflowVersionResponse(_message.Message):
     id: str
     workflow_id: str
     def __init__(self, id: _Optional[str] = ..., workflow_id: _Optional[str] = ...) -> None: ...
-
-class CreateFilterRequest(_message.Message):
-    __slots__ = ("workflowId", "expression", "resourceHint", "payload")
-    WORKFLOWID_FIELD_NUMBER: _ClassVar[int]
-    EXPRESSION_FIELD_NUMBER: _ClassVar[int]
-    RESOURCEHINT_FIELD_NUMBER: _ClassVar[int]
-    PAYLOAD_FIELD_NUMBER: _ClassVar[int]
-    workflowId: str
-    expression: str
-    resourceHint: str
-    payload: str
-    def __init__(self, workflowId: _Optional[str] = ..., expression: _Optional[str] = ..., resourceHint: _Optional[str] = ..., payload: _Optional[str] = ...) -> None: ...
-
-class CreateFilterResponse(_message.Message):
-    __slots__ = ("id",)
-    ID_FIELD_NUMBER: _ClassVar[int]
-    id: str
-    def __init__(self, id: _Optional[str] = ...) -> None: ...
-
-class DeleteFilterRequest(_message.Message):
-    __slots__ = ("id",)
-    ID_FIELD_NUMBER: _ClassVar[int]
-    id: str
-    def __init__(self, id: _Optional[str] = ...) -> None: ...
-
-class DeleteFilterResponse(_message.Message):
-    __slots__ = ("id",)
-    ID_FIELD_NUMBER: _ClassVar[int]
-    id: str
-    def __init__(self, id: _Optional[str] = ...) -> None: ...

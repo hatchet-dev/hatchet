@@ -66,21 +66,6 @@ class DedupeViolationErr(Exception):
     pass
 
 
-class CreateFilterRequest(BaseModel):
-    workflow_id: str
-    expression: str
-    resource_hint: str
-    payload: JSONSerializableMapping = Field(default_factory=dict)
-
-    def to_proto(self) -> workflow_protos.CreateFilterRequest:
-        return workflow_protos.CreateFilterRequest(
-            workflowId=self.workflow_id,
-            expression=self.expression,
-            resourceHint=self.resource_hint,
-            payload=json.dumps(self.payload),
-        )
-
-
 class AdminClient:
     def __init__(
         self,
@@ -198,20 +183,6 @@ class AdminClient:
         return await asyncio.to_thread(self.put_workflow, workflow)
 
     @tenacity_retry
-    async def aio_put_filter(
-        self,
-        event_filter: CreateFilterRequest,
-    ) -> str:
-        return await asyncio.to_thread(self.put_filter, event_filter)
-
-    @tenacity_retry
-    async def aio_delete_filter(
-        self,
-        id: str,
-    ) -> str:
-        return await asyncio.to_thread(self.delete_filter, id)
-
-    @tenacity_retry
     async def aio_put_rate_limit(
         self,
         key: str,
@@ -248,38 +219,6 @@ class AdminClient:
                 metadata=get_metadata(self.token),
             ),
         )
-
-    @tenacity_retry
-    def put_filter(self, event_filter: CreateFilterRequest) -> str:
-        if self.client is None:
-            conn = new_conn(self.config, False)
-            self.client = AdminServiceStub(conn)
-
-        response = cast(
-            workflow_protos.CreateFilterResponse,
-            self.client.CreateFilter(
-                event_filter.to_proto(),
-                metadata=get_metadata(self.token),
-            ),
-        )
-
-        return response.id
-
-    @tenacity_retry
-    def delete_filter(self, id: str) -> str:
-        if self.client is None:
-            conn = new_conn(self.config, False)
-            self.client = AdminServiceStub(conn)
-
-        response = cast(
-            workflow_protos.DeleteFilterResponse,
-            self.client.DeleteFilter(
-                workflow_protos.DeleteFilterRequest(id=id),
-                metadata=get_metadata(self.token),
-            ),
-        )
-
-        return response.id
 
     @tenacity_retry
     def put_rate_limit(

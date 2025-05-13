@@ -60,16 +60,6 @@ class AdminServiceStub(object):
                 request_serializer=v1_dot_workflows__pb2.TriggerWorkflowRunRequest.SerializeToString,
                 response_deserializer=v1_dot_workflows__pb2.TriggerWorkflowRunResponse.FromString,
                 _registered_method=True)
-        self.CreateFilter = channel.unary_unary(
-                '/v1.AdminService/CreateFilter',
-                request_serializer=v1_dot_workflows__pb2.CreateFilterRequest.SerializeToString,
-                response_deserializer=v1_dot_workflows__pb2.CreateFilterResponse.FromString,
-                _registered_method=True)
-        self.DeleteFilter = channel.unary_unary(
-                '/v1.AdminService/DeleteFilter',
-                request_serializer=v1_dot_workflows__pb2.DeleteFilterRequest.SerializeToString,
-                response_deserializer=v1_dot_workflows__pb2.DeleteFilterResponse.FromString,
-                _registered_method=True)
 
 
 class AdminServiceServicer(object):
@@ -100,18 +90,6 @@ class AdminServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def CreateFilter(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def DeleteFilter(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
 
 def add_AdminServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -134,16 +112,6 @@ def add_AdminServiceServicer_to_server(servicer, server):
                     servicer.TriggerWorkflowRun,
                     request_deserializer=v1_dot_workflows__pb2.TriggerWorkflowRunRequest.FromString,
                     response_serializer=v1_dot_workflows__pb2.TriggerWorkflowRunResponse.SerializeToString,
-            ),
-            'CreateFilter': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateFilter,
-                    request_deserializer=v1_dot_workflows__pb2.CreateFilterRequest.FromString,
-                    response_serializer=v1_dot_workflows__pb2.CreateFilterResponse.SerializeToString,
-            ),
-            'DeleteFilter': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteFilter,
-                    request_deserializer=v1_dot_workflows__pb2.DeleteFilterRequest.FromString,
-                    response_serializer=v1_dot_workflows__pb2.DeleteFilterResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -255,60 +223,6 @@ class AdminService(object):
             '/v1.AdminService/TriggerWorkflowRun',
             v1_dot_workflows__pb2.TriggerWorkflowRunRequest.SerializeToString,
             v1_dot_workflows__pb2.TriggerWorkflowRunResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def CreateFilter(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/v1.AdminService/CreateFilter',
-            v1_dot_workflows__pb2.CreateFilterRequest.SerializeToString,
-            v1_dot_workflows__pb2.CreateFilterResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def DeleteFilter(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/v1.AdminService/DeleteFilter',
-            v1_dot_workflows__pb2.DeleteFilterRequest.SerializeToString,
-            v1_dot_workflows__pb2.DeleteFilterResponse.FromString,
             options,
             channel_credentials,
             insecure,

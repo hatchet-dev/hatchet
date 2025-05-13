@@ -6,7 +6,6 @@ import pytest
 import pytest_asyncio
 
 from examples.events.worker import event_workflow
-from hatchet_sdk.clients.admin import CreateFilterRequest
 from hatchet_sdk.clients.events import (
     BulkPushEventOptions,
     BulkPushEventWithMetadata,
@@ -116,17 +115,15 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 @pytest_asyncio.fixture(scope="function", loop_scope="session")
 async def filter_fixture(hatchet: Hatchet) -> AsyncGenerator[str, None]:
     test_run_id = str(uuid4())
-    id = await hatchet._client.admin.aio_put_filter(
-        event_filter=CreateFilterRequest(
-            workflow_id=event_workflow.id,
-            expression="input.should_skip == true",
-            resource_hint=test_run_id,
-        )
+    filter = await hatchet.filters.aio_create(
+        workflow_id=event_workflow.id,
+        expression="input.should_skip == true",
+        resource_hint=test_run_id,
     )
 
     yield test_run_id
 
-    await hatchet._client.admin.aio_delete_filter(id)
+    await hatchet.filters.aio_delete(filter.metadata.id)
 
 
 @pytest.mark.asyncio(loop_scope="session")

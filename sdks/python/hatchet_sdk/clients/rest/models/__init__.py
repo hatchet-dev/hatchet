@@ -194,12 +194,17 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
+from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
+    V1CreateFilterRequest,
+)
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
     V1EventWorkflowRunSummary,
 )
+from hatchet_sdk.clients.rest.models.v1_filter import V1Filter
+from hatchet_sdk.clients.rest.models.v1_filter_list import V1FilterList
 from hatchet_sdk.clients.rest.models.v1_log_line import V1LogLine
 from hatchet_sdk.clients.rest.models.v1_log_line_level import V1LogLineLevel
 from hatchet_sdk.clients.rest.models.v1_log_line_list import V1LogLineList
