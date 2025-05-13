@@ -201,8 +201,15 @@ class AdminClient:
     async def aio_put_filter(
         self,
         event_filter: CreateFilterRequest,
-    ) -> workflow_protos.CreateFilterResponse:
+    ) -> int:
         return await asyncio.to_thread(self.put_filter, event_filter)
+
+    @tenacity_retry
+    async def aio_delete_filter(
+        self,
+        id: int,
+    ) -> int:
+        return await asyncio.to_thread(self.delete_filter, id)
 
     @tenacity_retry
     async def aio_put_rate_limit(
@@ -243,20 +250,38 @@ class AdminClient:
         )
 
     @tenacity_retry
-    def put_filter(
-        self, event_filter: CreateFilterRequest
-    ) -> workflow_protos.CreateFilterResponse:
+    def put_filter(self, event_filter: CreateFilterRequest) -> int:
         if self.client is None:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
 
-        return cast(
+        print("\n\nEvent filter proto", event_filter.to_proto(), "\n\n")
+
+        response = cast(
             workflow_protos.CreateFilterResponse,
             self.client.CreateFilter(
                 event_filter.to_proto(),
                 metadata=get_metadata(self.token),
             ),
         )
+
+        return response.id
+
+    @tenacity_retry
+    def delete_filter(self, id: int) -> int:
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = AdminServiceStub(conn)
+
+        response = cast(
+            workflow_protos.DeleteFilterResponse,
+            self.client.DeleteFilter(
+                workflow_protos.DeleteFilterRequest(id=id),
+                metadata=get_metadata(self.token),
+            ),
+        )
+
+        return response.id
 
     @tenacity_retry
     def put_rate_limit(
