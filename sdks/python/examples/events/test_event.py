@@ -11,6 +11,7 @@ from hatchet_sdk.clients.events import (
     BulkPushEventWithMetadata,
     PushEventOptions,
 )
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.hatchet import Hatchet
 
 
@@ -121,7 +122,7 @@ async def filter_fixture(hatchet: Hatchet) -> AsyncGenerator[str, None]:
         resource_hint=test_run_id,
         payload={
             "testRunId": test_run_id,
-        }
+        },
     )
 
     yield test_run_id
@@ -336,3 +337,104 @@ async def test_event_skipping_filtering_no_bulk(
             assert len(runs) > 0
         else:
             assert len(runs) == 0
+
+
+@pytest_asyncio.fixture(scope="function", loop_scope="session")
+async def filter_with_no_payload_match(hatchet: Hatchet) -> AsyncGenerator[str, None]:
+    test_run_id = str(uuid4())
+    filter = await hatchet.filters.aio_create(
+        workflow_id=event_workflow.id,
+        expression="input.should_skip == true && payload.foobar == 'baz'",
+        resource_hint=test_run_id,
+        payload={
+            "testRunId": test_run_id,
+            "foobar": "qux",
+        },
+    )
+
+    yield test_run_id
+
+    await hatchet.filters.aio_delete(filter.metadata.id)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_event_payload_filtering(
+    hatchet: Hatchet, filter_with_no_payload_match: str
+) -> None:
+    test_run_id = filter_with_no_payload_match
+    event = await hatchet.event.aio_push(
+        event_key="user:create",
+        payload={"message": "This is event 1", "should_skip": True},
+        options=PushEventOptions(
+            resource_hint=test_run_id,
+            additional_metadata={
+                "should_have_runs": False,
+                "test_run_id": test_run_id,
+                "key": 1,
+            },
+        ),
+    )
+
+    while True:
+        runs = await hatchet.runs.aio_list(triggering_event_external_id=event.eventId)
+
+        if not runs.rows:
+            await asyncio.sleep(1)
+            continue
+
+        rows = runs.rows
+
+        assert len(rows) == 1
+
+        run = rows[0]
+
+        if run.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING]:
+            await asyncio.sleep(1)
+            continue
+
+        break
+
+    assert run.status == V1TaskStatus.COMPLETED
+
+
+@pytest_asyncio.fixture(scope="function", loop_scope="session")
+async def filter_with_payload_match(hatchet: Hatchet) -> AsyncGenerator[str, None]:
+    test_run_id = str(uuid4())
+    filter = await hatchet.filters.aio_create(
+        workflow_id=event_workflow.id,
+        expression="input.should_skip == true && payload.foobar == 'baz'",
+        resource_hint=test_run_id,
+        payload={
+            "testRunId": test_run_id,
+            "foobar": "baz",
+        },
+    )
+
+    yield test_run_id
+
+    await hatchet.filters.aio_delete(filter.metadata.id)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_event_payload_filtering_with_payload_match(
+    hatchet: Hatchet, filter_with_payload_match: str
+) -> None:
+    test_run_id = filter_with_payload_match
+    event = await hatchet.event.aio_push(
+        event_key="user:create",
+        payload={"message": "This is event 1", "should_skip": True},
+        options=PushEventOptions(
+            resource_hint=test_run_id,
+            additional_metadata={
+                "should_have_runs": False,
+                "test_run_id": test_run_id,
+                "key": 1,
+            },
+        ),
+    )
+
+    await asyncio.sleep(5)
+
+    runs = await hatchet.runs.aio_list(triggering_event_external_id=event.eventId)
+
+    assert not runs.rows
