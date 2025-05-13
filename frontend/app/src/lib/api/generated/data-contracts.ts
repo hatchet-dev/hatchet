@@ -743,6 +743,46 @@ export interface V1EventList {
   rows?: V1Event[];
 }
 
+export interface V1Filter {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this filter. */
+  tenantId: string;
+  /**
+   * The workflow id associated with this filter.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The expression associated with this filter. */
+  expression: string;
+  /** Additional payload data associated with the filter */
+  payload: object;
+}
+
+export interface V1FilterList {
+  pagination?: PaginationResponse;
+  rows?: V1Filter[];
+}
+
+export interface V1CreateFilterRequest {
+  /**
+   * The workflow id
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The expression for the filter */
+  expression: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The payload for the filter */
+  payload?: object;
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
@@ -1189,6 +1229,8 @@ export interface CreateEventRequest {
    * @format int32
    */
   priority?: number;
+  /** The scope for event filtering. */
+  scope?: string;
 }
 
 export interface BulkCreateEventRequest {
