@@ -27,11 +27,11 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 	}
 
 	params := sqlcv1.CreateFilterParams{
-		Tenantid:     tenant.ID,
-		Workflowid:   sqlchelpers.UUIDFromStr(request.Body.WorkflowId.String()),
-		Resourcehint: request.Body.ResourceHint,
-		Expression:   request.Body.Expression,
-		Payload:      payload,
+		Tenantid:   tenant.ID,
+		Workflowid: sqlchelpers.UUIDFromStr(request.Body.WorkflowId.String()),
+		Scope:      request.Body.Scope,
+		Expression: request.Body.Expression,
+		Payload:    payload,
 	}
 
 	filter, err := t.config.V1.Filters().CreateFilter(

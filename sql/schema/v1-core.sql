@@ -475,7 +475,7 @@ CREATE TABLE v1_filter (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     workflow_id UUID NOT NULL,
-    resource_hint TEXT NOT NULL,
+    scope TEXT NOT NULL,
     expression TEXT NOT NULL,
     payload JSONB NOT NULL DEFAULT '{}'::JSONB,
 
@@ -488,7 +488,7 @@ CREATE TABLE v1_filter (
 CREATE UNIQUE INDEX v1_filter_unique_idx ON v1_filter (
     tenant_id ASC,
     workflow_id ASC,
-    resource_hint ASC,
+    scope ASC,
     expression ASC
 );
 

@@ -29,7 +29,7 @@ type EventTriggerOpts struct {
 
 	Priority *int32
 
-	ResourceHint *string
+	Scope *string
 }
 
 type TriggerTaskData struct {
@@ -157,7 +157,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	tenantIds := make([]pgtype.UUID, 0)
 	workflowIds := make([]pgtype.UUID, 0)
-	resourceHints := make([]*string, 0)
+	scopes := make([]*string, 0)
 
 	externalIdToEventId := make(map[string]string)
 
@@ -171,14 +171,14 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		for _, opt := range opts {
 			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			workflowIds = append(workflowIds, workflow.WorkflowId)
-			resourceHints = append(resourceHints, opt.ResourceHint)
+			scopes = append(scopes, opt.Scope)
 		}
 	}
 
 	listFiltersParams := sqlcv1.ListFiltersParams{
-		Tenantids:     tenantIds,
-		Workflowids:   workflowIds,
-		Resourcehints: resourceHints,
+		Tenantids:   tenantIds,
+		Workflowids: workflowIds,
+		Scopes:      scopes,
 	}
 
 	filters, err := r.queries.ListFilters(ctx, r.pool, listFiltersParams)

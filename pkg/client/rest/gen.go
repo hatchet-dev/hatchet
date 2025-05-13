@@ -427,8 +427,8 @@ type CreateEventRequest struct {
 	// Priority The priority of the event.
 	Priority *int32 `json:"priority,omitempty"`
 
-	// ResourceHint The resource hint for the event.
-	ResourceHint *string `json:"resourceHint,omitempty"`
+	// Scope The scope for event filtering.
+	Scope *string `json:"scope,omitempty"`
 }
 
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
@@ -1202,8 +1202,8 @@ type V1CreateFilterRequest struct {
 	// Payload The payload for the filter
 	Payload *map[string]interface{} `json:"payload,omitempty"`
 
-	// ResourceHint The resource hint for the filter
-	ResourceHint string `json:"resourceHint"`
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope string `json:"scope"`
 
 	// WorkflowId The workflow id
 	WorkflowId openapi_types.UUID `json:"workflowId"`
@@ -1263,8 +1263,8 @@ type V1Filter struct {
 	// Payload Additional payload data associated with the filter
 	Payload map[string]interface{} `json:"payload"`
 
-	// ResourceHint The resource hint associated with this filter.
-	ResourceHint string `json:"resourceHint"`
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope string `json:"scope"`
 
 	// TenantId The ID of the tenant associated with this filter.
 	TenantId string `json:"tenantId"`
@@ -2004,8 +2004,8 @@ type V1FilterListParams struct {
 	// WorkflowIds The workflow ids to filter by
 	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
 
-	// ResourceHints The resource hints to filter by
-	ResourceHints *[]string `form:"resourceHints,omitempty" json:"resourceHints,omitempty"`
+	// Scopes The scopes to subset candidate filters by
+	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
 }
 
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
@@ -5483,9 +5483,9 @@ func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1
 
 		}
 
-		if params.ResourceHints != nil {
+		if params.Scopes != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "resourceHints", runtime.ParamLocationQuery, *params.ResourceHints); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
