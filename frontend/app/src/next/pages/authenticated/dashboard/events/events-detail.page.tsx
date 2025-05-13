@@ -56,7 +56,7 @@ export default function EventsDetailPage() {
       </Headline>
       <Separator className="my-4" />
       <RunsProvider
-        initialFilters={{ triggering_event_id: eventId }}
+        initialFilters={{ triggering_event_external_id: eventId }}
         initialTimeRange={{
           activePreset: '7d',
         }}

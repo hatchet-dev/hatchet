@@ -39,7 +39,7 @@ export interface RunsFilters {
   only_tasks?: boolean;
   parent_task_external_id?: string;
   is_root_task?: boolean;
-  triggering_event_id?: string;
+  triggering_event_external_id?: string;
 }
 
 // Create run params
@@ -126,8 +126,7 @@ export function RunsProvider({
   },
 }: RunsProviderProps) {
   return (
-    // IMPORTANT: Is it safe to use `type=state` here? not setting it was resulting in this just not working
-    <FilterProvider initialFilters={initialFilters}>
+    <FilterProvider initialFilters={initialFilters} type="state">
       <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
           <RunsProviderContent refetchInterval={refetchInterval}>
