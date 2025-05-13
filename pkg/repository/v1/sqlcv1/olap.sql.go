@@ -372,11 +372,12 @@ WITH task_external_ids AS (
         $6::UUID IS NULL
         OR (id, inserted_at) IN (
             SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_events_olap e
-            JOIN v1_event_to_run_olap etr ON (etr.event_id, etr.event_seen_at) = (e.id, e.seen_at)
+            FROM v1_event_lookup_table_olap lt
+            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
             WHERE
-                e.tenant_id = $1::UUID
-                AND e.id = $6::UUID
+                lt.tenant_id = $1::uuid
+                AND lt.external_id = $6::UUID
         )
     )
 )
@@ -473,7 +474,7 @@ WITH included_events AS (
             $2::TEXT[] IS NULL OR
             "key" = ANY($2::TEXT[])
         )
-    ORDER BY e.seen_at DESC
+    ORDER BY e.id DESC, e.seen_at DESC
     OFFSET
         COALESCE($3::BIGINT, 0)
     LIMIT
@@ -589,6 +590,8 @@ WITH task_partitions AS (
     SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $1::date) AS p
 ), event_trigger_partitions AS (
     SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $1::date) AS p
+), events_lookup_table_partitions AS (
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $1::date) AS p
 )
 
 SELECT
@@ -623,6 +626,13 @@ SELECT
     parent_table, partition_name
 FROM
     event_trigger_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    events_lookup_table_partitions
 `
 
 type ListOLAPPartitionsBeforeDateRow struct {
