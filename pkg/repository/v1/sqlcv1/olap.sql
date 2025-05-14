@@ -5,9 +5,13 @@ SELECT
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
     create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date),
-    create_v1_range_partition('v1_events_olap'::text, @date::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date),
     create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, @date::date)
+;
+
+-- name: CreateOLAPEventPartitions :exec
+SELECT
+    create_v1_range_partition('v1_events_olap'::text, @date::date),
+    create_v1_range_partition('v1_event_to_run_olap'::text, @date::date)
 ;
 
 -- name: ListOLAPPartitionsBeforeDate :many
@@ -23,47 +27,55 @@ WITH task_partitions AS (
     SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', @date::date) AS p
 ), events_lookup_table_partitions AS (
     SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', @date::date) AS p
+), candidates AS (
+    SELECT
+        *
+    FROM
+        task_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        dag_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        runs_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        events_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        event_trigger_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        events_lookup_table_partitions
 )
 
-SELECT
-    *
-FROM
-    task_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    dag_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    runs_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    events_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    event_trigger_partitions
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    events_lookup_table_partitions
+SELECT *
+FROM candidates
+WHERE
+    CASE
+        WHEN @shouldPartitionEventsTables::BOOLEAN THEN TRUE
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap')
+    END
 ;
 
 -- name: CreateTasksOLAP :copyfrom
@@ -609,7 +621,7 @@ SELECT
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
     o.output::jsonb as output,
-    t.latest_retry_count as retry_count
+    COALESCE(t.latest_retry_count, 0)::int as retry_count
 FROM
     tasks t
 LEFT JOIN
@@ -1003,7 +1015,7 @@ SELECT
     m.finished_at,
     e.error_message,
     o.output,
-    mrc.max_retry_count::int as retry_count
+    COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id

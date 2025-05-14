@@ -99,6 +99,17 @@ type CreateDAGsOLAPParams struct {
 	TotalTasks           int32              `json:"total_tasks"`
 }
 
+const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
+SELECT
+    create_v1_range_partition('v1_events_olap'::text, $1::date),
+    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date)
+`
+
+func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createOLAPEventPartitions, date)
+	return err
+}
+
 const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
 SELECT
     create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int),
@@ -106,8 +117,6 @@ SELECT
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_events_olap'::text, $2::date),
-    create_v1_range_partition('v1_event_to_run_olap'::text, $2::date),
     create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $2::date)
 `
 
@@ -639,67 +648,80 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
-    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $1::date) AS p
+    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $2::date) AS p
 ), dag_partitions AS (
-    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $1::date) AS p
+    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $2::date) AS p
 ), runs_partitions AS (
-    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $1::date) AS p
+    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $2::date) AS p
 ), events_partitions AS (
-    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $1::date) AS p
+    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $2::date) AS p
 ), event_trigger_partitions AS (
-    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $1::date) AS p
+    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $2::date) AS p
 ), events_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $1::date) AS p
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_lookup_table_olap', $2::date) AS p
+), candidates AS (
+    SELECT
+        parent_table, partition_name
+    FROM
+        task_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        dag_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        runs_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        events_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        event_trigger_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        events_lookup_table_partitions
 )
 
-SELECT
-    parent_table, partition_name
-FROM
-    task_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    dag_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    runs_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    events_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    event_trigger_partitions
-
-UNION ALL
-
-SELECT
-    parent_table, partition_name
-FROM
-    events_lookup_table_partitions
+SELECT parent_table, partition_name
+FROM candidates
+WHERE
+    CASE
+        WHEN $1::BOOLEAN THEN TRUE
+        ELSE parent_table NOT IN ('v1_events_olap', 'v1_event_to_run_olap')
+    END
 `
+
+type ListOLAPPartitionsBeforeDateParams struct {
+	Shouldpartitioneventstables bool        `json:"shouldpartitioneventstables"`
+	Date                        pgtype.Date `json:"date"`
+}
 
 type ListOLAPPartitionsBeforeDateRow struct {
 	ParentTable   string `json:"parent_table"`
 	PartitionName string `json:"partition_name"`
 }
 
-func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListOLAPPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, date)
+func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg ListOLAPPartitionsBeforeDateParams) ([]*ListOLAPPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldpartitioneventstables, arg.Date)
 	if err != nil {
 		return nil, err
 	}
@@ -1164,7 +1186,7 @@ SELECT
     m.finished_at,
     e.error_message,
     o.output,
-    mrc.max_retry_count::int as retry_count
+    COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
@@ -1579,7 +1601,7 @@ SELECT
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
     o.output::jsonb as output,
-    t.latest_retry_count as retry_count
+    COALESCE(t.latest_retry_count, 0)::int as retry_count
 FROM
     tasks t
 LEFT JOIN

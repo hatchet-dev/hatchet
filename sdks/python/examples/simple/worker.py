@@ -13,7 +13,7 @@ def step1(input: EmptyModel, ctx: Context) -> None:
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", slots=1, workflows=[step1])
+    worker = hatchet.worker("test-worker", workflows=[step1])
     worker.start()
 
 

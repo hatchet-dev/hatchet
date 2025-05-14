@@ -119,6 +119,39 @@ type TriggerFromEventsResult struct {
 	EventExternalIdToRuns map[string][]*Run
 }
 
+func (r *TriggerRepositoryImpl) checkIfShouldTrigger(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) bool {
+	for _, filterPtr := range filters {
+		if filterPtr == nil {
+			continue
+		}
+
+		filter := *filterPtr
+
+		if filter.Expression != "" {
+			shouldTrigger, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
+
+			if err != nil {
+				r.l.Error().
+					Err(err).
+					Str("expression", filter.Expression).
+					Msg("Failed to evaluate workflow expression")
+
+				// If we fail to parse the expression, we should not run the workflow.
+				// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
+				return false
+			}
+
+			if shouldTrigger {
+				return true
+			}
+		}
+	}
+
+	// If we reach here, we haven't returned yet meaning we haven't found
+	// an expression that evaluates to `true`.
+	return false
+}
+
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
@@ -206,33 +239,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		for _, opt := range opts {
-			shouldSkip := false
-			if len(filters) > 0 {
-				for _, filter := range filters {
-					if filter.Expression != "" {
-						parsedAsShouldSkip, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
+			shouldTrigger := r.checkIfShouldTrigger(ctx, filters, opt)
 
-						if err != nil {
-							r.l.Error().
-								Err(err).
-								Str("workflow_id", workflow.WorkflowId.String()).
-								Str("expression", filter.Expression).
-								Msg("Failed to evaluate workflow expression")
-
-							// If we fail to parse the expression, we should not run the workflow.
-							// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
-							continue
-						}
-
-						if parsedAsShouldSkip {
-							shouldSkip = true
-							break
-						}
-					}
-				}
-			}
-
-			if shouldSkip {
+			if !shouldTrigger {
 				continue
 			}
 
