@@ -124,7 +124,15 @@ type TriggerDecision struct {
 	FilterPayload []byte
 }
 
-func (r *TriggerRepositoryImpl) checkIfShouldTrigger(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) TriggerDecision {
+func (r *TriggerRepositoryImpl) makeTriggerDecision(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) TriggerDecision {
+	if len(filters) == 0 {
+		// If no filters were found, we should trigger the workflow
+		return TriggerDecision{
+			ShouldTrigger: true,
+			FilterPayload: nil,
+		}
+	}
+
 	for _, filterPtr := range filters {
 		if filterPtr == nil {
 			continue
@@ -253,7 +261,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		for _, opt := range opts {
-			triggerDecision := r.checkIfShouldTrigger(ctx, filters, opt)
+			triggerDecision := r.makeTriggerDecision(ctx, filters, opt)
 
 			if !triggerDecision.ShouldTrigger {
 				continue
