@@ -6,7 +6,7 @@ hatchet = Hatchet(debug=True)
 
 
 @hatchet.task(
-    name="SimpleWorkflowEventFiltering", on_events=["workflow-filters:test:1"]
+    name="SimpleWorkflowEventFiltering", on_events=["workflow-filters:test:2"]
 )
 def step1(input: EmptyModel, ctx: Context) -> None:
     print("executed step1")

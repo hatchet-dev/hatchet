@@ -955,9 +955,9 @@ class FilterApi:
             ],
             Field(description="The workflow ids to filter by"),
         ] = None,
-        resource_hints: Annotated[
+        scopes: Annotated[
             Optional[List[StrictStr]],
-            Field(description="The resource hints to filter by"),
+            Field(description="The scopes to subset candidate filters by"),
         ] = None,
         _request_timeout: Union[
             None,
@@ -983,8 +983,8 @@ class FilterApi:
         :type limit: int
         :param workflow_ids: The workflow ids to filter by
         :type workflow_ids: List[str]
-        :param resource_hints: The resource hints to filter by
-        :type resource_hints: List[str]
+        :param scopes: The scopes to subset candidate filters by
+        :type scopes: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1012,7 +1012,7 @@ class FilterApi:
             offset=offset,
             limit=limit,
             workflow_ids=workflow_ids,
-            resource_hints=resource_hints,
+            scopes=scopes,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1054,9 +1054,9 @@ class FilterApi:
             ],
             Field(description="The workflow ids to filter by"),
         ] = None,
-        resource_hints: Annotated[
+        scopes: Annotated[
             Optional[List[StrictStr]],
-            Field(description="The resource hints to filter by"),
+            Field(description="The scopes to subset candidate filters by"),
         ] = None,
         _request_timeout: Union[
             None,
@@ -1082,8 +1082,8 @@ class FilterApi:
         :type limit: int
         :param workflow_ids: The workflow ids to filter by
         :type workflow_ids: List[str]
-        :param resource_hints: The resource hints to filter by
-        :type resource_hints: List[str]
+        :param scopes: The scopes to subset candidate filters by
+        :type scopes: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1111,7 +1111,7 @@ class FilterApi:
             offset=offset,
             limit=limit,
             workflow_ids=workflow_ids,
-            resource_hints=resource_hints,
+            scopes=scopes,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1153,9 +1153,9 @@ class FilterApi:
             ],
             Field(description="The workflow ids to filter by"),
         ] = None,
-        resource_hints: Annotated[
+        scopes: Annotated[
             Optional[List[StrictStr]],
-            Field(description="The resource hints to filter by"),
+            Field(description="The scopes to subset candidate filters by"),
         ] = None,
         _request_timeout: Union[
             None,
@@ -1181,8 +1181,8 @@ class FilterApi:
         :type limit: int
         :param workflow_ids: The workflow ids to filter by
         :type workflow_ids: List[str]
-        :param resource_hints: The resource hints to filter by
-        :type resource_hints: List[str]
+        :param scopes: The scopes to subset candidate filters by
+        :type scopes: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1210,7 +1210,7 @@ class FilterApi:
             offset=offset,
             limit=limit,
             workflow_ids=workflow_ids,
-            resource_hints=resource_hints,
+            scopes=scopes,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1233,7 +1233,7 @@ class FilterApi:
         offset,
         limit,
         workflow_ids,
-        resource_hints,
+        scopes,
         _request_auth,
         _content_type,
         _headers,
@@ -1244,7 +1244,7 @@ class FilterApi:
 
         _collection_formats: Dict[str, str] = {
             "workflowIds": "multi",
-            "resourceHints": "multi",
+            "scopes": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -1272,9 +1272,9 @@ class FilterApi:
 
             _query_params.append(("workflowIds", workflow_ids))
 
-        if resource_hints is not None:
+        if scopes is not None:
 
-            _query_params.append(("resourceHints", resource_hints))
+            _query_params.append(("scopes", scopes))
 
         # process the header parameters
         # process the form parameters

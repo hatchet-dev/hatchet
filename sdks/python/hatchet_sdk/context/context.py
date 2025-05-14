@@ -58,6 +58,8 @@ class Context:
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
+        print("\n\nData", self.data, "\n\n")
+
         self.input = self.data.input
 
         self._lifespan_context = lifespan_context

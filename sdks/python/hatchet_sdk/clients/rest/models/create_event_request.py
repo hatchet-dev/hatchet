@@ -38,17 +38,15 @@ class CreateEventRequest(BaseModel):
     priority: Optional[StrictInt] = Field(
         default=None, description="The priority of the event."
     )
-    resource_hint: Optional[StrictStr] = Field(
-        default=None,
-        description="The resource hint for the event.",
-        alias="resourceHint",
+    scope: Optional[StrictStr] = Field(
+        default=None, description="The scope for event filtering."
     )
     __properties: ClassVar[List[str]] = [
         "key",
         "data",
         "additionalMetadata",
         "priority",
-        "resourceHint",
+        "scope",
     ]
 
     model_config = ConfigDict(
@@ -105,7 +103,7 @@ class CreateEventRequest(BaseModel):
                 "data": obj.get("data"),
                 "additionalMetadata": obj.get("additionalMetadata"),
                 "priority": obj.get("priority"),
-                "resourceHint": obj.get("resourceHint"),
+                "scope": obj.get("scope"),
             }
         )
         return _obj

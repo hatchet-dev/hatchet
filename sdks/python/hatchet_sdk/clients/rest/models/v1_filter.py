@@ -41,9 +41,8 @@ class V1Filter(BaseModel):
             alias="workflowId",
         )
     )
-    resource_hint: StrictStr = Field(
-        description="The resource hint associated with this filter.",
-        alias="resourceHint",
+    scope: StrictStr = Field(
+        description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time"
     )
     expression: StrictStr = Field(
         description="The expression associated with this filter."
@@ -55,7 +54,7 @@ class V1Filter(BaseModel):
         "metadata",
         "tenantId",
         "workflowId",
-        "resourceHint",
+        "scope",
         "expression",
         "payload",
     ]
@@ -120,7 +119,7 @@ class V1Filter(BaseModel):
                 ),
                 "tenantId": obj.get("tenantId"),
                 "workflowId": obj.get("workflowId"),
-                "resourceHint": obj.get("resourceHint"),
+                "scope": obj.get("scope"),
                 "expression": obj.get("expression"),
                 "payload": obj.get("payload"),
             }

@@ -73,9 +73,10 @@ class ActionPayload(BaseModel):
     step_run_errors: dict[str, str] = Field(default_factory=dict)
     triggered_by: str | None = None
     triggers: JSONSerializableMapping = Field(default_factory=dict)
+    filter_payload: JSONSerializableMapping = Field(default_factory=dict)
 
     @field_validator(
-        "input", "parents", "overrides", "user_data", "step_run_errors", mode="before"
+        "input", "parents", "overrides", "user_data", "step_run_errors", "filter_payload", mode="before"
     )
     @classmethod
     def validate_fields(cls, v: Any) -> Any:
@@ -304,6 +305,8 @@ class ActionListener:
                     self.retries = 0
 
                     assigned_action = result.data
+
+                    print("\n\nAssigned action data", result.data.actionPayload, "\n\n")
 
                     try:
                         action_payload = (

@@ -1,5 +1,4 @@
 import asyncio
-import re
 from enum import Enum
 from typing import Any, Callable, ParamSpec, Type, TypeGuard, TypeVar, Union
 

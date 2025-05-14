@@ -7,22 +7,22 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Event(_message.Message):
-    __slots__ = ("tenantId", "eventId", "key", "payload", "eventTimestamp", "additionalMetadata", "resourceHint")
+    __slots__ = ("tenantId", "eventId", "key", "payload", "eventTimestamp", "additionalMetadata", "scope")
     TENANTID_FIELD_NUMBER: _ClassVar[int]
     EVENTID_FIELD_NUMBER: _ClassVar[int]
     KEY_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     ADDITIONALMETADATA_FIELD_NUMBER: _ClassVar[int]
-    RESOURCEHINT_FIELD_NUMBER: _ClassVar[int]
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
     tenantId: str
     eventId: str
     key: str
     payload: str
     eventTimestamp: _timestamp_pb2.Timestamp
     additionalMetadata: str
-    resourceHint: str
-    def __init__(self, tenantId: _Optional[str] = ..., eventId: _Optional[str] = ..., key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., resourceHint: _Optional[str] = ...) -> None: ...
+    scope: str
+    def __init__(self, tenantId: _Optional[str] = ..., eventId: _Optional[str] = ..., key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., scope: _Optional[str] = ...) -> None: ...
 
 class Events(_message.Message):
     __slots__ = ("events",)
@@ -73,20 +73,20 @@ class BulkPushEventRequest(_message.Message):
     def __init__(self, events: _Optional[_Iterable[_Union[PushEventRequest, _Mapping]]] = ...) -> None: ...
 
 class PushEventRequest(_message.Message):
-    __slots__ = ("key", "payload", "eventTimestamp", "additionalMetadata", "priority", "resourceHint")
+    __slots__ = ("key", "payload", "eventTimestamp", "additionalMetadata", "priority", "scope")
     KEY_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     EVENTTIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     ADDITIONALMETADATA_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
-    RESOURCEHINT_FIELD_NUMBER: _ClassVar[int]
+    SCOPE_FIELD_NUMBER: _ClassVar[int]
     key: str
     payload: str
     eventTimestamp: _timestamp_pb2.Timestamp
     additionalMetadata: str
     priority: int
-    resourceHint: str
-    def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., priority: _Optional[int] = ..., resourceHint: _Optional[str] = ...) -> None: ...
+    scope: str
+    def __init__(self, key: _Optional[str] = ..., payload: _Optional[str] = ..., eventTimestamp: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., additionalMetadata: _Optional[str] = ..., priority: _Optional[int] = ..., scope: _Optional[str] = ...) -> None: ...
 
 class ReplayEventRequest(_message.Message):
     __slots__ = ("eventId",)

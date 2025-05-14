@@ -24,7 +24,7 @@ class FiltersClient(BaseRestClient):
         limit: int | None = None,
         offset: int | None = None,
         workflow_ids: list[str] | None = None,
-        resource_hints: list[str] | None = None,
+        scopes: list[str] | None = None,
     ) -> V1FilterList:
         """
         List filters for a given tenant.
@@ -32,20 +32,18 @@ class FiltersClient(BaseRestClient):
         :param limit: The maximum number of filters to return.
         :param offset: The number of filters to skip before starting to collect the result set.
         :param workflow_ids: A list of workflow IDs to filter by.
-        :param resource_hints: A list of resource hints to filter by.
+        :param scopes: A list of scopes to filter by.
 
         :return: A list of filters matching the specified criteria.
         """
-        return await asyncio.to_thread(
-            self.list, limit, offset, workflow_ids, resource_hints
-        )
+        return await asyncio.to_thread(self.list, limit, offset, workflow_ids, scopes)
 
     def list(
         self,
         limit: int | None = None,
         offset: int | None = None,
         workflow_ids: list[str] | None = None,
-        resource_hints: list[str] | None = None,
+        scopes: list[str] | None = None,
     ) -> V1FilterList:
         """
         List filters for a given tenant.
@@ -53,7 +51,7 @@ class FiltersClient(BaseRestClient):
         :param limit: The maximum number of filters to return.
         :param offset: The number of filters to skip before starting to collect the result set.
         :param workflow_ids: A list of workflow IDs to filter by.
-        :param resource_hints: A list of resource hints to filter by.
+        :param scopes: A list of scopes to filter by.
 
         :return: A list of filters matching the specified criteria.
         """
@@ -63,7 +61,7 @@ class FiltersClient(BaseRestClient):
                 limit=limit,
                 offset=offset,
                 workflow_ids=workflow_ids,
-                resource_hints=resource_hints,
+                scopes=scopes,
             )
 
     def get(
@@ -100,7 +98,7 @@ class FiltersClient(BaseRestClient):
         self,
         workflow_id: str,
         expression: str,
-        resource_hint: str,
+        scope: str,
         payload: JSONSerializableMapping = {},
     ) -> V1Filter:
         """
@@ -108,7 +106,7 @@ class FiltersClient(BaseRestClient):
 
         :param workflow_id: The ID of the workflow to associate with the filter.
         :param expression: The expression to evaluate for the filter.
-        :param resource_hint: The resource hint for the filter.
+        :param scope: The scope for the filter.
         :param payload: The payload to send with the filter.
 
         :return: The created filter.
@@ -119,7 +117,7 @@ class FiltersClient(BaseRestClient):
                 v1_create_filter_request=V1CreateFilterRequest(
                     workflowId=workflow_id,
                     expression=expression,
-                    resourceHint=resource_hint,
+                    scope=scope,
                     payload=dict(payload),
                 ),
             )
@@ -128,7 +126,7 @@ class FiltersClient(BaseRestClient):
         self,
         workflow_id: str,
         expression: str,
-        resource_hint: str,
+        scope: str,
         payload: JSONSerializableMapping = {},
     ) -> V1Filter:
         """
@@ -136,13 +134,13 @@ class FiltersClient(BaseRestClient):
 
         :param workflow_id: The ID of the workflow to associate with the filter.
         :param expression: The expression to evaluate for the filter.
-        :param resource_hint: The resource hint for the filter.
+        :param scope: The scope for the filter.
         :param payload: The payload to send with the filter.
 
         :return: The created filter.
         """
         return await asyncio.to_thread(
-            self.create, workflow_id, expression, resource_hint, payload
+            self.create, workflow_id, expression, scope, payload
         )
 
     def delete(

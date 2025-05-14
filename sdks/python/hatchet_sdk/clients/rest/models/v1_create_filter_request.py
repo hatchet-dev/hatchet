@@ -32,18 +32,13 @@ class V1CreateFilterRequest(BaseModel):
         Field(description="The workflow id", alias="workflowId")
     )
     expression: StrictStr = Field(description="The expression for the filter")
-    resource_hint: StrictStr = Field(
-        description="The resource hint for the filter", alias="resourceHint"
+    scope: StrictStr = Field(
+        description="The scope associated with this filter. Used for subsetting candidate filters at evaluation time"
     )
     payload: Optional[Dict[str, Any]] = Field(
         default=None, description="The payload for the filter"
     )
-    __properties: ClassVar[List[str]] = [
-        "workflowId",
-        "expression",
-        "resourceHint",
-        "payload",
-    ]
+    __properties: ClassVar[List[str]] = ["workflowId", "expression", "scope", "payload"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -97,7 +92,7 @@ class V1CreateFilterRequest(BaseModel):
             {
                 "workflowId": obj.get("workflowId"),
                 "expression": obj.get("expression"),
-                "resourceHint": obj.get("resourceHint"),
+                "scope": obj.get("scope"),
                 "payload": obj.get("payload"),
             }
         )
