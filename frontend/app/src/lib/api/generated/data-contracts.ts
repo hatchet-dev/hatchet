@@ -1926,4 +1926,92 @@ export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
 }
 
+export interface V1TaskSummaryWithoutInputAndOutput {
+  metadata: APIResourceMeta;
+  /** The action ID of the task. */
+  actionId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The list of children tasks */
+  children?: V1TaskSummary[];
+  /**
+   * The timestamp the task was created.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The display name of the task run. */
+  displayName: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The number of spawned children tasks */
+  numSpawnedChildren: number;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The step ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  stepId?: string;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** The type of the workflow (whether it's a DAG or a task) */
+  type: V1WorkflowType;
+  /** @format uuid */
+  workflowId: string;
+  workflowName?: string;
+  /**
+   * The external ID of the workflow run
+   * @format uuid
+   */
+  workflowRunExternalId: string;
+  /**
+   * The version ID of the workflow
+   * @format uuid
+   */
+  workflowVersionId?: string;
+}
+
+export interface V1TaskSummaryListWithoutInputAndOutput {
+  pagination: PaginationResponse;
+  /** The list of tasks */
+  rows: V1TaskSummaryWithoutInputAndOutput[];
+}
+
 export type BulkCreateEventResponse = Events;
