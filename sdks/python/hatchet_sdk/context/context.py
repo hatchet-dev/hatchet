@@ -69,7 +69,7 @@ class Context:
     def trigger_data(self) -> JSONSerializableMapping:
         return self.data.triggers
 
-    def _task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
         if self.was_skipped(task):
@@ -84,19 +84,6 @@ class Context:
             return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
-
-    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
-        from hatchet_sdk.runnables.types import R
-
-        ## If the task is async, we need to wrap its output in a coroutine
-        ## so that the type checker behaves right
-        async def _aio_output() -> "R":
-            return self._task_output(task)
-
-        if task.is_async_function:
-            return cast(R, _aio_output())
-
-        return self._task_output(task)
 
     def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         warn(
