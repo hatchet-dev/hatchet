@@ -1553,7 +1553,7 @@ type V2TaskSummary struct {
 	Attempt *int `json:"attempt,omitempty"`
 
 	// Children The list of children tasks
-	Children *[]V1TaskSummary `json:"children,omitempty"`
+	Children *[]V2TaskSummary `json:"children,omitempty"`
 
 	// CreatedAt The timestamp the task was created.
 	CreatedAt time.Time `json:"createdAt"`

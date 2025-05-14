@@ -503,7 +503,7 @@ export interface V2TaskSummary {
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
-  children?: V1TaskSummary[];
+  children?: V2TaskSummary[];
   /**
    * The timestamp the task was created.
    * @format date-time

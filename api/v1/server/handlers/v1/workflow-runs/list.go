@@ -328,11 +328,43 @@ func (t *V1WorkflowRunsService) V2WorkflowRunList(ctx echo.Context, request gen.
 	v2TaskSummaries := make([]gen.V2TaskSummary, len(taskSummaryList.Rows))
 
 	for i, taskSummary := range taskSummaryList.Rows {
+		children := make([]gen.V2TaskSummary, 0)
+
+		if taskSummary.Children != nil {
+			for _, child := range *taskSummary.Children {
+				children = append(children, gen.V2TaskSummary{
+					ActionId:              child.ActionId,
+					AdditionalMetadata:    child.AdditionalMetadata,
+					Attempt:               child.Attempt,
+					CreatedAt:             child.CreatedAt,
+					DisplayName:           child.DisplayName,
+					Duration:              child.Duration,
+					ErrorMessage:          child.ErrorMessage,
+					FinishedAt:            child.FinishedAt,
+					Metadata:              child.Metadata,
+					NumSpawnedChildren:    child.NumSpawnedChildren,
+					RetryCount:            child.RetryCount,
+					StartedAt:             child.StartedAt,
+					Status:                child.Status,
+					StepId:                child.StepId,
+					TaskExternalId:        child.TaskExternalId,
+					TaskId:                child.TaskId,
+					TaskInsertedAt:        child.TaskInsertedAt,
+					TenantId:              child.TenantId,
+					Type:                  child.Type,
+					WorkflowId:            child.WorkflowId,
+					WorkflowName:          child.WorkflowName,
+					WorkflowRunExternalId: child.WorkflowRunExternalId,
+					WorkflowVersionId:     child.WorkflowVersionId,
+				})
+			}
+		}
+
 		v2TaskSummaries[i] = gen.V2TaskSummary{
 			ActionId:              taskSummary.ActionId,
 			AdditionalMetadata:    taskSummary.AdditionalMetadata,
 			Attempt:               taskSummary.Attempt,
-			Children:              taskSummary.Children,
+			Children:              &children,
 			CreatedAt:             taskSummary.CreatedAt,
 			DisplayName:           taskSummary.DisplayName,
 			Duration:              taskSummary.Duration,

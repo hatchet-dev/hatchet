@@ -145,7 +145,7 @@ V2TaskSummary:
     children:
       type: array
       items:
-        $ref: "#/V1TaskSummary"
+        $ref: "#/V2TaskSummary"
       description: The list of children tasks
     createdAt:
       type: string
