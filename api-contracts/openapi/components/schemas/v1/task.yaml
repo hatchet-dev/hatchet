@@ -126,7 +126,6 @@ V1TaskSummary:
     - workflowId
     - workflowRunExternalId
 
-
 V1WorkflowRunDisplayName:
   properties:
     metadata:
@@ -161,7 +160,6 @@ V1TaskSummaryList:
   required:
     - pagination
     - rows
-
 
 V1WorkflowRunDisplayNameList:
   type: object
