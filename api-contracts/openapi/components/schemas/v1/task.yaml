@@ -220,9 +220,7 @@ V2TaskSummary:
     - createdAt
     - displayName
     - id
-    - input
     - numSpawnedChildren
-    - output
     - status
     - taskExternalId
     - taskId
