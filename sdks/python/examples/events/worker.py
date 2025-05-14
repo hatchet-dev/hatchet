@@ -2,17 +2,17 @@ from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
 
+hatchet = Hatchet()
+EVENT_KEY = "user:create"
 
 class EventWorkflowInput(BaseModel):
     should_skip: bool
 
 
-hatchet = Hatchet()
-
 # > Event trigger
 event_workflow = hatchet.workflow(
     name="EventWorkflow",
-    on_events=["user:create"],
+    on_events=[EVENT_KEY],
     input_validator=EventWorkflowInput,
 )
 # !!

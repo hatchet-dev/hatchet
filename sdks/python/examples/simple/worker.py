@@ -4,12 +4,10 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet(debug=True)
 
-EVENT_KEY = "user:create"
 
-
-@hatchet.task(name="SimpleWorkflowEventFiltering", on_events=[EVENT_KEY])
+@hatchet.task(name="SimpleWorkflow")
 def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    return {"hello": "world!"}
+    return {"result": "Hello, world!"}
 
 
 def main() -> None:
