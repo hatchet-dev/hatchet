@@ -69,7 +69,7 @@ class Context:
     def trigger_data(self) -> JSONSerializableMapping:
         return self.data.triggers
 
-    def _task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
+    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         from hatchet_sdk.runnables.types import R
 
         if self.was_skipped(task):
@@ -84,9 +84,6 @@ class Context:
             return cast(R, v.model_validate(parent_step_data))
 
         return parent_step_data
-
-    def task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
-        return self._task_output(task)
 
     def aio_task_output(self, task: "Task[TWorkflowInput, R]") -> "R":
         warn(
