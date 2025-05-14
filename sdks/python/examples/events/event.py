@@ -17,7 +17,7 @@ hatchet.event.push(
         ## (i.e. the filter will not apply)
         scope=SCOPE,
         additional_metadata={
-            "shouldSkipThis": True,
+            "should_skip": True,
         },
     ),
 )
@@ -30,7 +30,7 @@ hatchet.event.push(
         ## (i.e. the filter will not apply)
         scope=SCOPE,
         additional_metadata={
-            "shouldSkipThis": False,
+            "should_skip": False,
         },
     ),
 )
