@@ -621,7 +621,7 @@ SELECT
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
     o.output::jsonb as output,
-    t.latest_retry_count as retry_count
+    COALESCE(t.latest_retry_count, 0)::int as retry_count
 FROM
     tasks t
 LEFT JOIN
