@@ -277,7 +277,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 		taskSummaryList, err = t.WithDags(spanContext, request, tenantId, true)
 	}
 
-	if err != nil {
+	if err != nil || taskSummaryList == nil {
 		return nil, err
 	}
 
@@ -358,7 +358,7 @@ func (t *V1WorkflowRunsService) V2WorkflowRunList(ctx echo.Context, request gen.
 		taskSummaryList, err = t.WithDags(spanContext, v1Request, tenantId, false)
 	}
 
-	if err != nil {
+	if err != nil || taskSummaryList == nil {
 		return nil, err
 	}
 
