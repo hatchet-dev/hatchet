@@ -14,7 +14,7 @@ SELECT
     create_v1_range_partition('v1_event_to_run_olap'::text, @date::date)
 ;
 
--- name: ListOLAPPartitionsBeforeDateExcludingEvents :many
+-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
 ), dag_partitions AS (

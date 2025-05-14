@@ -646,7 +646,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	return items, nil
 }
 
-const listOLAPPartitionsBeforeDateExcludingEvents = `-- name: ListOLAPPartitionsBeforeDateExcludingEvents :many
+const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $2::date) AS p
 ), dag_partitions AS (
@@ -710,25 +710,25 @@ WHERE
     END
 `
 
-type ListOLAPPartitionsBeforeDateExcludingEventsParams struct {
+type ListOLAPPartitionsBeforeDateParams struct {
 	Shouldpartitioneventstables bool        `json:"shouldpartitioneventstables"`
 	Date                        pgtype.Date `json:"date"`
 }
 
-type ListOLAPPartitionsBeforeDateExcludingEventsRow struct {
+type ListOLAPPartitionsBeforeDateRow struct {
 	ParentTable   string `json:"parent_table"`
 	PartitionName string `json:"partition_name"`
 }
 
-func (q *Queries) ListOLAPPartitionsBeforeDateExcludingEvents(ctx context.Context, db DBTX, arg ListOLAPPartitionsBeforeDateExcludingEventsParams) ([]*ListOLAPPartitionsBeforeDateExcludingEventsRow, error) {
-	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDateExcludingEvents, arg.Shouldpartitioneventstables, arg.Date)
+func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg ListOLAPPartitionsBeforeDateParams) ([]*ListOLAPPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldpartitioneventstables, arg.Date)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListOLAPPartitionsBeforeDateExcludingEventsRow
+	var items []*ListOLAPPartitionsBeforeDateRow
 	for rows.Next() {
-		var i ListOLAPPartitionsBeforeDateExcludingEventsRow
+		var i ListOLAPPartitionsBeforeDateRow
 		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
 			return nil, err
 		}

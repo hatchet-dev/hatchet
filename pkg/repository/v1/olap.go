@@ -268,8 +268,7 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  today,
 			Valid: true,
 		},
-		Partitions:                  NUM_PARTITIONS,
-		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
+		Partitions: NUM_PARTITIONS,
 	})
 
 	if err != nil {
@@ -281,8 +280,7 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  tomorrow,
 			Valid: true,
 		},
-		Partitions:                  NUM_PARTITIONS,
-		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
+		Partitions: NUM_PARTITIONS,
 	})
 
 	if err != nil {
