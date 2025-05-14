@@ -87,6 +87,7 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			Limit:              limit,
 			Offset:             offset,
 			AdditionalMetadata: additionalMetadataFilters,
+			IncludePayloads:    false,
 		}
 
 		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)
@@ -214,6 +215,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			Limit:              limit,
 			Offset:             offset,
 			AdditionalMetadata: additionalMetadataFilters,
+			IncludePayloads:    false,
 		}
 
 		runs, _, err := a.repo.OLAP().ListWorkflowRuns(ctx, sqlchelpers.UUIDToStr(tenant.ID), opts)

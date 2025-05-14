@@ -204,7 +204,7 @@ type OLAPRepository interface {
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
-	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error)
+	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID,) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error
@@ -690,6 +690,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: true,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
