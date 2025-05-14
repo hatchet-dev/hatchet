@@ -1541,6 +1541,79 @@ type V1WorkflowRunDisplayNameList struct {
 // V1WorkflowType defines model for V1WorkflowType.
 type V1WorkflowType string
 
+// V2TaskSummary defines model for V2TaskSummary.
+type V2TaskSummary struct {
+	// ActionId The action ID of the task.
+	ActionId *string `json:"actionId,omitempty"`
+
+	// AdditionalMetadata Additional metadata for the task run.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// Attempt The attempt number of the task.
+	Attempt *int `json:"attempt,omitempty"`
+
+	// Children The list of children tasks
+	Children *[]V1TaskSummary `json:"children,omitempty"`
+
+	// CreatedAt The timestamp the task was created.
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DisplayName The display name of the task run.
+	DisplayName string `json:"displayName"`
+
+	// Duration The duration of the task run, in milliseconds.
+	Duration *int `json:"duration,omitempty"`
+
+	// ErrorMessage The error message of the task run (for the latest run)
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
+	// FinishedAt The timestamp the task run finished.
+	FinishedAt *time.Time      `json:"finishedAt,omitempty"`
+	Metadata   APIResourceMeta `json:"metadata"`
+
+	// NumSpawnedChildren The number of spawned children tasks
+	NumSpawnedChildren int `json:"numSpawnedChildren"`
+
+	// RetryCount The number of retries of the task.
+	RetryCount *int `json:"retryCount,omitempty"`
+
+	// StartedAt The timestamp the task run started.
+	StartedAt *time.Time   `json:"startedAt,omitempty"`
+	Status    V1TaskStatus `json:"status"`
+
+	// StepId The step ID of the task.
+	StepId *openapi_types.UUID `json:"stepId,omitempty"`
+
+	// TaskExternalId The external ID of the task.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+
+	// TaskId The ID of the task.
+	TaskId int `json:"taskId"`
+
+	// TaskInsertedAt The timestamp the task was inserted.
+	TaskInsertedAt time.Time `json:"taskInsertedAt"`
+
+	// TenantId The ID of the tenant.
+	TenantId     openapi_types.UUID `json:"tenantId"`
+	Type         V1WorkflowType     `json:"type"`
+	WorkflowId   openapi_types.UUID `json:"workflowId"`
+	WorkflowName *string            `json:"workflowName,omitempty"`
+
+	// WorkflowRunExternalId The external ID of the workflow run
+	WorkflowRunExternalId openapi_types.UUID `json:"workflowRunExternalId"`
+
+	// WorkflowVersionId The version ID of the workflow
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
+}
+
+// V2TaskSummaryList defines model for V2TaskSummaryList.
+type V2TaskSummaryList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of tasks
+	Rows []V2TaskSummary `json:"rows"`
+}
+
 // WebhookWorker defines model for WebhookWorker.
 type WebhookWorker struct {
 	Metadata APIResourceMeta `json:"metadata"`
@@ -2301,8 +2374,8 @@ type WorkflowVersionGetParams struct {
 	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
 }
 
-// V1WorkflowRunListParams defines parameters for V1WorkflowRunList.
-type V1WorkflowRunListParams struct {
+// V2WorkflowRunListParams defines parameters for V2WorkflowRunList.
+type V2WorkflowRunListParams struct {
 	// Offset The number to skip
 	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
 
@@ -2882,8 +2955,8 @@ type ClientInterface interface {
 	// WorkflowVersionGet request
 	WorkflowVersionGet(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// V1WorkflowRunList request
-	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// V2WorkflowRunList request
+	V2WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) LivenessGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4542,8 +4615,8 @@ func (c *Client) WorkflowVersionGet(ctx context.Context, workflow openapi_types.
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WorkflowRunListRequest(c.Server, tenant, params)
+func (c *Client) V2WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2WorkflowRunListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -10406,8 +10479,8 @@ func NewWorkflowVersionGetRequest(server string, workflow openapi_types.UUID, pa
 	return req, nil
 }
 
-// NewV1WorkflowRunListRequest generates requests for V1WorkflowRunList
-func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunListParams) (*http.Request, error) {
+// NewV2WorkflowRunListRequest generates requests for V2WorkflowRunList
+func NewV2WorkflowRunListRequest(server string, tenant openapi_types.UUID, params *V2WorkflowRunListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11042,8 +11115,8 @@ type ClientWithResponsesInterface interface {
 	// WorkflowVersionGetWithResponse request
 	WorkflowVersionGetWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetParams, reqEditors ...RequestEditorFn) (*WorkflowVersionGetResponse, error)
 
-	// V1WorkflowRunListWithResponse request
-	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
+	// V2WorkflowRunListWithResponse request
+	V2WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V2WorkflowRunListResponse, error)
 }
 
 type LivenessGetResponse struct {
@@ -13679,17 +13752,17 @@ func (r WorkflowVersionGetResponse) StatusCode() int {
 	return 0
 }
 
-type V1WorkflowRunListResponse struct {
+type V2WorkflowRunListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1TaskSummaryList
+	JSON200      *V2TaskSummaryList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r V1WorkflowRunListResponse) Status() string {
+func (r V2WorkflowRunListResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -13697,7 +13770,7 @@ func (r V1WorkflowRunListResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r V1WorkflowRunListResponse) StatusCode() int {
+func (r V2WorkflowRunListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14917,13 +14990,13 @@ func (c *ClientWithResponses) WorkflowVersionGetWithResponse(ctx context.Context
 	return ParseWorkflowVersionGetResponse(rsp)
 }
 
-// V1WorkflowRunListWithResponse request returning *V1WorkflowRunListResponse
-func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error) {
-	rsp, err := c.V1WorkflowRunList(ctx, tenant, params, reqEditors...)
+// V2WorkflowRunListWithResponse request returning *V2WorkflowRunListResponse
+func (c *ClientWithResponses) V2WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V2WorkflowRunListResponse, error) {
+	rsp, err := c.V2WorkflowRunList(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseV1WorkflowRunListResponse(rsp)
+	return ParseV2WorkflowRunListResponse(rsp)
 }
 
 // ParseLivenessGetResponse parses an HTTP response from a LivenessGetWithResponse call
@@ -19345,22 +19418,22 @@ func ParseWorkflowVersionGetResponse(rsp *http.Response) (*WorkflowVersionGetRes
 	return response, nil
 }
 
-// ParseV1WorkflowRunListResponse parses an HTTP response from a V1WorkflowRunListWithResponse call
-func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListResponse, error) {
+// ParseV2WorkflowRunListResponse parses an HTTP response from a V2WorkflowRunListWithResponse call
+func ParseV2WorkflowRunListResponse(rsp *http.Response) (*V2WorkflowRunListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &V1WorkflowRunListResponse{
+	response := &V2WorkflowRunListResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1TaskSummaryList
+		var dest V2TaskSummaryList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

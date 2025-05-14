@@ -126,7 +126,7 @@ V1TaskSummary:
     - workflowId
     - workflowRunExternalId
 
-V1TaskSummaryWithoutInputAndOutput:
+V2TaskSummary:
   properties:
     metadata:
       $ref: ".././metadata.yaml#/APIResourceMeta"
@@ -267,7 +267,7 @@ V1TaskSummaryList:
     - pagination
     - rows
 
-V1TaskSummaryListWithoutInputAndOutput:
+V2TaskSummaryList:
   type: object
   properties:
     pagination:
@@ -275,7 +275,7 @@ V1TaskSummaryListWithoutInputAndOutput:
     rows:
       type: array
       items:
-        $ref: "#/V1TaskSummaryWithoutInputAndOutput"
+        $ref: "#/V2TaskSummary"
       description: The list of tasks
   required:
     - pagination

@@ -130,11 +130,11 @@ listWorkflowRuns:
     tags:
       - Workflow Runs
 
-listWorkflowRunsWithoutInputsAndOutputs:
+v2ListWorkflowRuns:
   get:
     x-resources: ["tenant"]
     description: Lists workflow runs for a tenant.
-    operationId: v1-workflow-run:list
+    operationId: v2-workflow-run:list
     parameters:
       - description: The tenant id
         in: path
@@ -238,7 +238,7 @@ listWorkflowRunsWithoutInputsAndOutputs:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V1TaskSummaryList"
+              $ref: "../../../components/schemas/_index.yaml#/V2TaskSummaryList"
         description: Successfully listed the tasks
       "400":
         content:

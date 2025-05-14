@@ -35,7 +35,7 @@ paths:
   /api/v1/stable/tenants/{tenant}/workflow-runs:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRuns"
   /api/v2/stable/tenants/{tenant}/workflow-runs:
-    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRuns"
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/v2ListWorkflowRuns"
   /api/v1/stable/tenants/{tenant}/workflow-runs/display-names:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRunDisplayNames"
   /api/v1/stable/tenants/{tenant}/workflow-runs/trigger:

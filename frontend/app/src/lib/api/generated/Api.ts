@@ -99,6 +99,7 @@ import {
   V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
+  V2TaskSummaryList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -354,14 +355,12 @@ export class Api<
    * @description Lists workflow runs for a tenant.
    *
    * @tags Workflow Runs
-   * @name V1WorkflowRunList2
+   * @name V2WorkflowRunList
    * @summary List workflow runs
    * @request GET:/api/v2/stable/tenants/{tenant}/workflow-runs
-   * @originalName v1WorkflowRunList
-   * @duplicate
    * @secure
    */
-  v1WorkflowRunList2 = (
+  v2WorkflowRunList = (
     tenant: string,
     query: {
       /**
@@ -416,7 +415,7 @@ export class Api<
     },
     params: RequestParams = {},
   ) =>
-    this.request<V1TaskSummaryList, APIErrors>({
+    this.request<V2TaskSummaryList, APIErrors>({
       path: `/api/v2/stable/tenants/${tenant}/workflow-runs`,
       method: "GET",
       query: query,
