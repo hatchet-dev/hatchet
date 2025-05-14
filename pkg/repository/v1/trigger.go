@@ -119,7 +119,7 @@ type TriggerFromEventsResult struct {
 	EventExternalIdToRuns map[string][]*Run
 }
 
-func (r *TriggerRepositoryImpl) shouldTrigger(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) bool {
+func (r *TriggerRepositoryImpl) checkIfShouldTrigger(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) bool {
 	for _, filterPtr := range filters {
 		if filterPtr == nil {
 			continue
@@ -239,9 +239,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		for _, opt := range opts {
-			shouldTriggerWorkflow := r.shouldTrigger(ctx, filters, opt)
+			shouldTrigger := r.checkIfShouldTrigger(ctx, filters, opt)
 
-			if !shouldTriggerWorkflow {
+			if !shouldTrigger {
 				continue
 			}
 
