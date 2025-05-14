@@ -312,8 +312,6 @@ class ActionListener:
 
                     assigned_action = result.data
 
-                    print("\n\nAssigned action data", result.data.actionPayload, "\n\n")
-
                     try:
                         action_payload = (
                             ActionPayload()
