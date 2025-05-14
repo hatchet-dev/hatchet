@@ -26,6 +26,9 @@ class ProcessedEvent(BaseModel):
     should_have_runs: bool
     test_run_id: str
 
+    def __hash__(self) -> int:
+        return hash(self.model_dump_json())
+
 
 @asynccontextmanager
 async def event_filter(
