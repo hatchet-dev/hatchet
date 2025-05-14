@@ -623,12 +623,11 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
-    COALESCE(t.latest_retry_count, 0)::int as retry_count
+    COALESCE(t.latest_retry_count, 0)::int as retry_count,
     CASE
         WHEN @includeInputAndOutput::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
-    END::JSONB as output,
-    t.latest_retry_count as retry_count
+    END::JSONB as output
 FROM
     tasks t
 LEFT JOIN
