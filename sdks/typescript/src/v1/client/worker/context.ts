@@ -88,6 +88,15 @@ export class Context<T, K = {}> {
     return this.controller.signal.aborted;
   }
 
+  async cancel() {
+    await this.v1.runs.cancel({
+      ids: [this.action.stepRunId],
+    });
+
+    // optimistically abort the run
+    this.controller.abort();
+  }
+
   /**
    * Retrieves the output of a parent task.
    * @param parentTask - The a CreateTaskOpts or string of the parent task name.
