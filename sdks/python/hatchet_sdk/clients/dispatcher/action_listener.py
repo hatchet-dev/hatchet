@@ -82,6 +82,12 @@ class ActionPayload(BaseModel):
     def validate_fields(cls, v: Any) -> Any:
         return v or {}
 
+    @model_validator(mode="after")
+    def validate_filter_payload(self) -> "ActionPayload":
+        self.filter_payload = self.triggers.get("filter_payload", {})
+
+        return self
+
 
 class ActionType(str, Enum):
     START_STEP_RUN = "START_STEP_RUN"
