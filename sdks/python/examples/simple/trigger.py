@@ -1,18 +1,21 @@
-from examples.simple.worker import hatchet
+from examples.simple.worker import EVENT_KEY, hatchet, step1
 from hatchet_sdk.clients.events import PushEventOptions
 
+SCOPE = "foobar"
 hatchet.filters.create(
-    workflow_id="1563ea96-3d4a-4b62-ae68-94bb11ea3bb1",
-    expression="input.shouldSkipThis == true",
-    scope="foobar",
+    workflow_id=step1.id,
+    expression="input.shouldSkipThis == false",
+    scope=SCOPE,
     payload={"test": "test"},
 )
 
 hatchet.event.push(
-    "workflow-filters:test:2",
+    EVENT_KEY,
     {"shouldSkipThis": True},
     PushEventOptions(
-        scope="foobar",
+        ## If no scope is provided, all events pushed will trigger workflows
+        ## (i.e. the filter will not apply)
+        scope=SCOPE,
         additional_metadata={
             "shouldSkipThis": True,
         },
@@ -20,10 +23,12 @@ hatchet.event.push(
 )
 
 hatchet.event.push(
-    "workflow-filters:test:2",
+    EVENT_KEY,
     {"shouldSkipThis": False},
     PushEventOptions(
-        scope="foobar",
+        ## If no scope is provided, all events pushed will trigger workflows
+        ## (i.e. the filter will not apply)
+        scope=SCOPE,
         additional_metadata={
             "shouldSkipThis": False,
         },

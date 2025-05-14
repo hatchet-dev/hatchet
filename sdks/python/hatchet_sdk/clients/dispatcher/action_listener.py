@@ -76,7 +76,13 @@ class ActionPayload(BaseModel):
     filter_payload: JSONSerializableMapping = Field(default_factory=dict)
 
     @field_validator(
-        "input", "parents", "overrides", "user_data", "step_run_errors", "filter_payload", mode="before"
+        "input",
+        "parents",
+        "overrides",
+        "user_data",
+        "step_run_errors",
+        "filter_payload",
+        mode="before",
     )
     @classmethod
     def validate_fields(cls, v: Any) -> Any:
