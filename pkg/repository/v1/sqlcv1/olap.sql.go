@@ -1186,7 +1186,7 @@ SELECT
     m.finished_at,
     e.error_message,
     o.output,
-    mrc.max_retry_count::int as retry_count
+    COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
