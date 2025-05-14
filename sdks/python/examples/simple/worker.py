@@ -6,8 +6,14 @@ hatchet = Hatchet(debug=True)
 
 
 @hatchet.task(name="SimpleWorkflow")
-def step1(input: EmptyModel, ctx: Context) -> None:
+async def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print("executed step1")
+    return {
+        "step1": "step1",
+    }
+
+
+x = step1.run()
 
 
 def main() -> None:
