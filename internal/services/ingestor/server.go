@@ -277,12 +277,20 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 	eventId := sqlchelpers.UUIDToStr(e.ID)
 
+	var additionalMeta *string
+
+	if e.AdditionalMetadata != nil {
+		additionalMetaStr := string(e.AdditionalMetadata)
+		additionalMeta = &additionalMetaStr
+	}
+
 	return &contracts.Event{
-		TenantId:       tenantId,
-		EventId:        eventId,
-		Key:            e.Key,
-		Payload:        string(e.Data),
-		EventTimestamp: timestamppb.New(e.CreatedAt.Time),
+		TenantId:           tenantId,
+		EventId:            eventId,
+		Key:                e.Key,
+		Payload:            string(e.Data),
+		EventTimestamp:     timestamppb.New(e.CreatedAt.Time),
+		AdditionalMetadata: additionalMeta,
 	}, nil
 }
 
