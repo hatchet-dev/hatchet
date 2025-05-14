@@ -119,7 +119,12 @@ type TriggerFromEventsResult struct {
 	EventExternalIdToRuns map[string][]*Run
 }
 
-func (r *TriggerRepositoryImpl) checkIfShouldTrigger(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) bool {
+type TriggerDecision struct {
+	ShouldTrigger bool
+	FilterPayload []byte
+}
+
+func (r *TriggerRepositoryImpl) checkIfShouldTrigger(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) TriggerDecision {
 	for _, filterPtr := range filters {
 		if filterPtr == nil {
 			continue
@@ -138,18 +143,27 @@ func (r *TriggerRepositoryImpl) checkIfShouldTrigger(ctx context.Context, filter
 
 				// If we fail to parse the expression, we should not run the workflow.
 				// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
-				return false
+				return TriggerDecision{
+					ShouldTrigger: false,
+					FilterPayload: filter.Payload,
+				}
 			}
 
 			if shouldTrigger {
-				return true
+				return TriggerDecision{
+					ShouldTrigger: true,
+					FilterPayload: filter.Payload,
+				}
 			}
 		}
 	}
 
 	// If we reach here, we haven't returned yet meaning we haven't found
 	// an expression that evaluates to `true`.
-	return false
+	return TriggerDecision{
+		ShouldTrigger: false,
+		FilterPayload: nil,
+	}
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
@@ -239,9 +253,9 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 
 		for _, opt := range opts {
-			shouldTrigger := r.checkIfShouldTrigger(ctx, filters, opt)
+			triggerDecision := r.checkIfShouldTrigger(ctx, filters, opt)
 
-			if !shouldTrigger {
+			if !triggerDecision.ShouldTrigger {
 				continue
 			}
 
@@ -262,6 +276,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				input:              opt.Data,
 				additionalMetadata: additionalMetadata,
 				priority:           opt.Priority,
+				filterPayload:      triggerDecision.FilterPayload,
 			})
 
 			externalIdToEventId[externalId] = opt.ExternalId
@@ -499,7 +514,7 @@ type triggerTuple struct {
 
 	input []byte
 
-	eventFilterPayload []byte
+	filterPayload []byte
 
 	additionalMetadata []byte
 
@@ -883,7 +898,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						ExternalId:           taskExternalId,
 						WorkflowRunId:        tuple.externalId,
 						StepId:               sqlchelpers.UUIDToStr(step.ID),
-						Input:                r.newTaskInput(tuple.input, nil, tuple.eventFilterPayload),
+						Input:                r.newTaskInput(tuple.input, nil, tuple.filterPayload),
 						AdditionalMetadata:   tuple.additionalMetadata,
 						InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
 						DesiredWorkerId:      tuple.desiredWorkerId,
