@@ -230,13 +230,11 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 	}
 
-	listFiltersParams := sqlcv1.ListFiltersParams{
+	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
 		Tenantids:   tenantIds,
 		Workflowids: workflowIds,
 		Scopes:      scopes,
-	}
-
-	filters, err := r.queries.ListFilters(ctx, r.pool, listFiltersParams)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list filters: %w", err)

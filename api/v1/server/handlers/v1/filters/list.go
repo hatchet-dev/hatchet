@@ -51,17 +51,15 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 		}
 	}
 
-	params := sqlcv1.ListFiltersParams{
-		Tenantids:    tenantIds,
-		Workflowids:  workflowIdParams,
-		Scopes:       scopeParams,
-		FilterLimit:  request.Params.Limit,
-		FilterOffset: request.Params.Offset,
-	}
-
 	filters, err := t.config.V1.Filters().ListFilters(
 		ctx.Request().Context(),
-		params,
+		sqlcv1.ListFiltersParams{
+			Tenantids:    tenantIds,
+			Workflowids:  workflowIdParams,
+			Scopes:       scopeParams,
+			FilterLimit:  request.Params.Limit,
+			FilterOffset: request.Params.Offset,
+		},
 	)
 
 	if err != nil {
