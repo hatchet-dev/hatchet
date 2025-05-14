@@ -31,6 +31,8 @@ type CreateTaskOpts struct {
 	// (required) the input bytes to the task
 	Input *TaskInput
 
+	FilterPayload []byte
+
 	// (required) the step index for the task
 	StepIndex int
 
