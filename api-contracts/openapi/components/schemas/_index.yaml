@@ -296,8 +296,6 @@ WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
 V1TaskSummaryList:
   $ref: "./v1/task.yaml#/V1TaskSummaryList"
-V2TaskSummaryList:
-  $ref: "./v1/task.yaml#/V2TaskSummaryList"
 V1WorkflowRunDisplayNameList:
   $ref: "./v1/task.yaml#/V1WorkflowRunDisplayNameList"
 V1TaskSummary:

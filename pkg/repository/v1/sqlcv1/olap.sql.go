@@ -1202,10 +1202,10 @@ ORDER BY r.inserted_at DESC, r.run_id DESC
 `
 
 type PopulateDAGMetadataParams struct {
-	Includeinputandoutput bool                 `json:"includeinputandoutput"`
-	Ids                   []int64              `json:"ids"`
-	Insertedats           []pgtype.Timestamptz `json:"insertedats"`
-	Tenantid              pgtype.UUID          `json:"tenantid"`
+	Includepayloads bool                 `json:"includepayloads"`
+	Ids             []int64              `json:"ids"`
+	Insertedats     []pgtype.Timestamptz `json:"insertedats"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
 
 type PopulateDAGMetadataRow struct {
@@ -1232,7 +1232,7 @@ type PopulateDAGMetadataRow struct {
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
 	rows, err := db.Query(ctx, populateDAGMetadata,
-		arg.Includeinputandoutput,
+		arg.Includepayloads,
 		arg.Ids,
 		arg.Insertedats,
 		arg.Tenantid,
@@ -1636,10 +1636,10 @@ ORDER BY t.inserted_at DESC, t.id DESC
 `
 
 type PopulateTaskRunDataParams struct {
-	Includeinputandoutput bool                 `json:"includeinputandoutput"`
-	Taskids               []int64              `json:"taskids"`
-	Taskinsertedats       []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid              pgtype.UUID          `json:"tenantid"`
+	Includepayloads bool                 `json:"includepayloads"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
 
 type PopulateTaskRunDataRow struct {
@@ -1672,7 +1672,7 @@ type PopulateTaskRunDataRow struct {
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
 	rows, err := db.Query(ctx, populateTaskRunData,
-		arg.Includeinputandoutput,
+		arg.Includepayloads,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Tenantid,

@@ -99,7 +99,6 @@ import {
   V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
-  V2TaskSummaryList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -340,83 +339,13 @@ export class Api<
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+      include_payloads?: boolean;
     },
     params: RequestParams = {},
   ) =>
     this.request<V1TaskSummaryList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Lists workflow runs for a tenant.
-   *
-   * @tags Workflow Runs
-   * @name V2WorkflowRunList
-   * @summary List workflow runs
-   * @request GET:/api/v2/stable/tenants/{tenant}/workflow-runs
-   * @secure
-   */
-  v2WorkflowRunList = (
-    tenant: string,
-    query: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-      /** A list of statuses to filter by */
-      statuses?: V1TaskStatus[];
-      /**
-       * The earliest date to filter by
-       * @format date-time
-       */
-      since: string;
-      /**
-       * The latest date to filter by
-       * @format date-time
-       */
-      until?: string;
-      /** Additional metadata k-v pairs to filter by */
-      additional_metadata?: string[];
-      /** The workflow ids to find runs for */
-      workflow_ids?: string[];
-      /**
-       * The worker id to filter by
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      worker_id?: string;
-      /** Whether to include DAGs or only to include tasks */
-      only_tasks: boolean;
-      /**
-       * The parent task external id to filter by
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      parent_task_external_id?: string;
-      /**
-       * The external id of the event that triggered the workflow run
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      triggering_event_external_id?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<V2TaskSummaryList, APIErrors>({
-      path: `/api/v2/stable/tenants/${tenant}/workflow-runs`,
       method: "GET",
       query: query,
       secure: true,

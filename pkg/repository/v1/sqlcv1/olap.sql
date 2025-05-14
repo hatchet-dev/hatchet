@@ -614,7 +614,7 @@ SELECT
     t.additional_metadata,
     t.parent_task_external_id,
     CASE
-        WHEN @includeInputAndOutput::BOOLEAN THEN t.input
+        WHEN @includePayloads::BOOLEAN THEN t.input
         ELSE '{}'::JSONB
     END::JSONB AS input,
     t.readable_status::v1_readable_status_olap as status,
@@ -625,7 +625,7 @@ SELECT
     e.error_message as error_message,
     COALESCE(t.latest_retry_count, 0)::int as retry_count,
     CASE
-        WHEN @includeInputAndOutput::BOOLEAN THEN o.output::JSONB
+        WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB as output
 FROM
@@ -964,7 +964,7 @@ WITH input AS (
         r.workflow_id,
         d.display_name,
         CASE
-            WHEN @includeInputAndOutput::BOOLEAN THEN d.input
+            WHEN @includePayloads::BOOLEAN THEN d.input
             ELSE '{}'::JSONB
         END::JSONB AS input,
         d.additional_metadata,
@@ -1024,7 +1024,7 @@ SELECT
     m.finished_at,
     e.error_message,
     CASE
-        WHEN @includeInputAndOutput::BOOLEAN THEN o.output::JSONB
+        WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
         ELSE '{}'::JSONB
     END::JSONB AS output,
     mrc.max_retry_count::int as retry_count
