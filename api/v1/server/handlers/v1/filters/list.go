@@ -38,16 +38,16 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 	workflowIdParams := make([]pgtype.UUID, numScopesOrIds)
 
 	if workflowIds != nil {
-		for _, id := range *workflowIds {
-			workflowIdParams = append(workflowIdParams, sqlchelpers.UUIDFromStr(id.String()))
+		for ix, id := range *workflowIds {
+			workflowIdParams[ix] = sqlchelpers.UUIDFromStr(id.String())
 		}
 	}
 
 	scopeParams := make([]*string, numScopesOrIds)
 
 	if scopes != nil {
-		for _, hint := range *scopes {
-			scopeParams = append(scopeParams, &hint)
+		for ix, scope := range *scopes {
+			scopeParams[ix] = &scope
 		}
 	}
 
