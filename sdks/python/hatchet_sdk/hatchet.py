@@ -32,6 +32,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
+from hatchet_sdk.utils.typing import CoroutineLike
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 
@@ -300,7 +301,10 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]: ...
+    ) -> Callable[
+        [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
+        Standalone[EmptyModel, R],
+    ]: ...
 
     @overload
     def task(
@@ -323,7 +327,8 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        Standalone[TWorkflowInput, R],
     ]: ...
 
     def task(
@@ -346,9 +351,13 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> (
-        Callable[[Callable[[EmptyModel, Context], R]], Standalone[EmptyModel, R]]
+        Callable[
+            [Callable[[EmptyModel, Context], R | CoroutineLike[R]]],
+            Standalone[EmptyModel, R],
+        ]
         | Callable[
-            [Callable[[TWorkflowInput, Context], R]], Standalone[TWorkflowInput, R]
+            [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+            Standalone[TWorkflowInput, R],
         ]
     ):
         """
@@ -426,7 +435,7 @@ class Hatchet:
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R]
+            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
         ) -> Standalone[TWorkflowInput, R]:
             created_task = task_wrapper(func)
 
@@ -458,7 +467,8 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
-        [Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]
+        [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
+        Standalone[EmptyModel, R],
     ]: ...
 
     @overload
@@ -482,7 +492,8 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> Callable[
-        [Callable[[TWorkflowInput, DurableContext], R]], Standalone[TWorkflowInput, R]
+        [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+        Standalone[TWorkflowInput, R],
     ]: ...
 
     def durable_task(
@@ -505,9 +516,12 @@ class Hatchet:
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
     ) -> (
-        Callable[[Callable[[EmptyModel, DurableContext], R]], Standalone[EmptyModel, R]]
+        Callable[
+            [Callable[[EmptyModel, DurableContext], R | CoroutineLike[R]]],
+            Standalone[EmptyModel, R],
+        ]
         | Callable[
-            [Callable[[TWorkflowInput, DurableContext], R]],
+            [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
             Standalone[TWorkflowInput, R],
         ]
     ):
@@ -579,7 +593,7 @@ class Hatchet:
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, DurableContext], R]
+            func: Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]],
         ) -> Standalone[TWorkflowInput, R]:
             created_task = task_wrapper(func)
 

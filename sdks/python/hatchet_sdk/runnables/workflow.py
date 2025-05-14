@@ -35,7 +35,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
-from hatchet_sdk.utils.typing import JSONSerializableMapping
+from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.waits import Condition, OrGroup
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -545,10 +545,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     def _parse_task_name(
         self,
         name: str | None,
-        func: (
-            Callable[[TWorkflowInput, Context], R]
-            | Callable[[TWorkflowInput, DurableContext], R]
-        ),
+        func: Callable[..., Any],
     ) -> str:
         non_null_name = name or func.__name__
 
@@ -569,7 +566,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] = [],
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
-    ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
+    ) -> Callable[
+        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        Task[TWorkflowInput, R],
+    ]:
         """
         A decorator to transform a function into a Hatchet task that runs as part of a workflow.
 
@@ -612,7 +612,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R]
+            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 _fn=func,
@@ -659,7 +659,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] = [],
         cancel_if: list[Condition | OrGroup] = [],
     ) -> Callable[
-        [Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]
+        [Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]]],
+        Task[TWorkflowInput, R],
     ]:
         """
         A decorator to transform a function into a durable Hatchet task that runs as part of a workflow.
@@ -707,7 +708,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[[TWorkflowInput, DurableContext], R]
+            func: Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 _fn=func,
@@ -748,7 +749,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: list[ConcurrencyExpression] = [],
-    ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
+    ) -> Callable[
+        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        Task[TWorkflowInput, R],
+    ]:
         """
         A decorator to transform a function into a Hatchet on-failure task that runs as the last step in a workflow that had at least one task fail.
 
@@ -772,7 +776,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R]
+            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 is_durable=False,
@@ -808,7 +812,10 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: list[ConcurrencyExpression] = [],
-    ) -> Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]:
+    ) -> Callable[
+        [Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]],
+        Task[TWorkflowInput, R],
+    ]:
         """
         A decorator to transform a function into a Hatchet on-success task that runs as the last step in a workflow that had all upstream tasks succeed.
 
@@ -832,7 +839,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         """
 
         def inner(
-            func: Callable[[TWorkflowInput, Context], R]
+            func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
         ) -> Task[TWorkflowInput, R]:
             task = Task(
                 is_durable=False,

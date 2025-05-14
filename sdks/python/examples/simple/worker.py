@@ -6,12 +6,12 @@ hatchet = Hatchet(debug=True)
 
 
 @hatchet.task(name="SimpleWorkflow")
-def step1(input: EmptyModel, ctx: Context) -> None:
-    print("executed step1")
+def step1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {"result": "Hello, world!"}
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", slots=1, workflows=[step1])
+    worker = hatchet.worker("test-worker", workflows=[step1])
     worker.start()
 
 
