@@ -1,9 +1,9 @@
-from examples.simple.worker import EVENT_KEY, hatchet, step1
+from examples.events.worker import EVENT_KEY, event_workflow, hatchet
 from hatchet_sdk.clients.events import PushEventOptions
 
 SCOPE = "foobar"
 hatchet.filters.create(
-    workflow_id=step1.id,
+    workflow_id=event_workflow.id,
     expression="input.should_skip == false",
     scope=SCOPE,
     payload={"test": "test"},

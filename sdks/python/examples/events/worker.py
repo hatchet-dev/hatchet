@@ -5,6 +5,7 @@ from hatchet_sdk import Context, Hatchet
 hatchet = Hatchet()
 EVENT_KEY = "user:create"
 
+
 class EventWorkflowInput(BaseModel):
     should_skip: bool
 
