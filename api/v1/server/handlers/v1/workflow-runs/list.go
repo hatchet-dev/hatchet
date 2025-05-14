@@ -286,6 +286,43 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	), nil
 }
 
+func v1TaskSummaryToV2TaskSummary(taskSummary gen.V1TaskSummary) gen.V2TaskSummary {
+	children := make([]gen.V2TaskSummary, 0)
+
+	if taskSummary.Children != nil {
+		for _, child := range *taskSummary.Children {
+			children = append(children, v1TaskSummaryToV2TaskSummary(child))
+		}
+	}
+
+	return gen.V2TaskSummary{
+		ActionId:              taskSummary.ActionId,
+		AdditionalMetadata:    taskSummary.AdditionalMetadata,
+		Attempt:               taskSummary.Attempt,
+		Children:              &children,
+		CreatedAt:             taskSummary.CreatedAt,
+		DisplayName:           taskSummary.DisplayName,
+		Duration:              taskSummary.Duration,
+		ErrorMessage:          taskSummary.ErrorMessage,
+		FinishedAt:            taskSummary.FinishedAt,
+		Metadata:              taskSummary.Metadata,
+		NumSpawnedChildren:    taskSummary.NumSpawnedChildren,
+		RetryCount:            taskSummary.RetryCount,
+		StartedAt:             taskSummary.StartedAt,
+		Status:                taskSummary.Status,
+		StepId:                taskSummary.StepId,
+		TaskExternalId:        taskSummary.TaskExternalId,
+		TaskId:                taskSummary.TaskId,
+		TaskInsertedAt:        taskSummary.TaskInsertedAt,
+		TenantId:              taskSummary.TenantId,
+		Type:                  taskSummary.Type,
+		WorkflowId:            taskSummary.WorkflowId,
+		WorkflowName:          taskSummary.WorkflowName,
+		WorkflowRunExternalId: taskSummary.WorkflowRunExternalId,
+		WorkflowVersionId:     taskSummary.WorkflowVersionId,
+	}
+}
+
 func (t *V1WorkflowRunsService) V2WorkflowRunList(ctx echo.Context, request gen.V2WorkflowRunListRequestObject) (gen.V2WorkflowRunListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
@@ -328,64 +365,7 @@ func (t *V1WorkflowRunsService) V2WorkflowRunList(ctx echo.Context, request gen.
 	v2TaskSummaries := make([]gen.V2TaskSummary, len(taskSummaryList.Rows))
 
 	for i, taskSummary := range taskSummaryList.Rows {
-		children := make([]gen.V2TaskSummary, 0)
-
-		if taskSummary.Children != nil {
-			for _, child := range *taskSummary.Children {
-				children = append(children, gen.V2TaskSummary{
-					ActionId:              child.ActionId,
-					AdditionalMetadata:    child.AdditionalMetadata,
-					Attempt:               child.Attempt,
-					CreatedAt:             child.CreatedAt,
-					DisplayName:           child.DisplayName,
-					Duration:              child.Duration,
-					ErrorMessage:          child.ErrorMessage,
-					FinishedAt:            child.FinishedAt,
-					Metadata:              child.Metadata,
-					NumSpawnedChildren:    child.NumSpawnedChildren,
-					RetryCount:            child.RetryCount,
-					StartedAt:             child.StartedAt,
-					Status:                child.Status,
-					StepId:                child.StepId,
-					TaskExternalId:        child.TaskExternalId,
-					TaskId:                child.TaskId,
-					TaskInsertedAt:        child.TaskInsertedAt,
-					TenantId:              child.TenantId,
-					Type:                  child.Type,
-					WorkflowId:            child.WorkflowId,
-					WorkflowName:          child.WorkflowName,
-					WorkflowRunExternalId: child.WorkflowRunExternalId,
-					WorkflowVersionId:     child.WorkflowVersionId,
-				})
-			}
-		}
-
-		v2TaskSummaries[i] = gen.V2TaskSummary{
-			ActionId:              taskSummary.ActionId,
-			AdditionalMetadata:    taskSummary.AdditionalMetadata,
-			Attempt:               taskSummary.Attempt,
-			Children:              &children,
-			CreatedAt:             taskSummary.CreatedAt,
-			DisplayName:           taskSummary.DisplayName,
-			Duration:              taskSummary.Duration,
-			ErrorMessage:          taskSummary.ErrorMessage,
-			FinishedAt:            taskSummary.FinishedAt,
-			Metadata:              taskSummary.Metadata,
-			NumSpawnedChildren:    taskSummary.NumSpawnedChildren,
-			RetryCount:            taskSummary.RetryCount,
-			StartedAt:             taskSummary.StartedAt,
-			Status:                taskSummary.Status,
-			StepId:                taskSummary.StepId,
-			TaskExternalId:        taskSummary.TaskExternalId,
-			TaskId:                taskSummary.TaskId,
-			TaskInsertedAt:        taskSummary.TaskInsertedAt,
-			TenantId:              taskSummary.TenantId,
-			Type:                  taskSummary.Type,
-			WorkflowId:            taskSummary.WorkflowId,
-			WorkflowName:          taskSummary.WorkflowName,
-			WorkflowRunExternalId: taskSummary.WorkflowRunExternalId,
-			WorkflowVersionId:     taskSummary.WorkflowVersionId,
-		}
+		v2TaskSummaries[i] = v1TaskSummaryToV2TaskSummary(taskSummary)
 	}
 
 	v2TaskSummaryList := gen.V2TaskSummaryList{
