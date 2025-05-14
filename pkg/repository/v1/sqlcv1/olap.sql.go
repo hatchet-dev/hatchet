@@ -99,6 +99,17 @@ type CreateDAGsOLAPParams struct {
 	TotalTasks           int32              `json:"total_tasks"`
 }
 
+const createOLAPEventPartitions = `-- name: CreateOLAPEventPartitions :exec
+SELECT
+    create_v1_range_partition('v1_events_olap'::text, $1::date),
+    create_v1_range_partition('v1_event_to_run_olap'::text, $1::date)
+`
+
+func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createOLAPEventPartitions, date)
+	return err
+}
+
 const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
 SELECT
     create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int),
@@ -106,27 +117,16 @@ SELECT
     create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
     create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date),
-    CASE
-        WHEN $3::BOOLEAN THEN
-            create_v1_range_partition('v1_events_olap'::text, $2::date)
-        ELSE 0
-    END,
-    CASE
-        WHEN $3::BOOLEAN THEN
-            create_v1_range_partition('v1_event_to_run_olap'::text, $2::date)
-        ELSE 0
-    END,
     create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
-	Partitions                  int32       `json:"partitions"`
-	Date                        pgtype.Date `json:"date"`
-	Shouldpartitioneventstables bool        `json:"shouldpartitioneventstables"`
+	Partitions int32       `json:"partitions"`
+	Date       pgtype.Date `json:"date"`
 }
 
 func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) error {
-	_, err := db.Exec(ctx, createOLAPPartitions, arg.Partitions, arg.Date, arg.Shouldpartitioneventstables)
+	_, err := db.Exec(ctx, createOLAPPartitions, arg.Partitions, arg.Date)
 	return err
 }
 

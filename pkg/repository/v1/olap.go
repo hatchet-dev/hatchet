@@ -268,12 +268,22 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  today,
 			Valid: true,
 		},
-		Partitions:                  NUM_PARTITIONS,
-		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
+		Partitions: NUM_PARTITIONS,
 	})
 
 	if err != nil {
 		return err
+	}
+
+	if o.shouldPartitionEventsTables {
+		err = o.queries.CreateOLAPEventPartitions(ctx, o.pool, pgtype.Date{
+			Time:  today,
+			Valid: true,
+		})
+
+		if err != nil {
+			return err
+		}
 	}
 
 	err = o.queries.CreateOLAPPartitions(ctx, o.pool, sqlcv1.CreateOLAPPartitionsParams{
@@ -281,12 +291,22 @@ func (o *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			Time:  tomorrow,
 			Valid: true,
 		},
-		Partitions:                  NUM_PARTITIONS,
-		Shouldpartitioneventstables: o.shouldPartitionEventsTables,
+		Partitions: NUM_PARTITIONS,
 	})
 
 	if err != nil {
 		return err
+	}
+
+	if o.shouldPartitionEventsTables {
+		err = o.queries.CreateOLAPEventPartitions(ctx, o.pool, pgtype.Date{
+			Time:  tomorrow,
+			Valid: true,
+		})
+
+		if err != nil {
+			return err
+		}
 	}
 
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
