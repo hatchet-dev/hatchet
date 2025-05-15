@@ -13,7 +13,6 @@
     "prettier:check": "prettier \"pages/**/*.{tsx,mdx}\" --list-different",
     "prettier:fix": "prettier \"pages/**/*.{tsx,mdx,js}\" --write",
     "generate-examples": "cd ../snips/ && pnpm i && pnpm generate && pnpm run copy:docs"
-
   },
   "repository": {
     "type": "git",
@@ -41,6 +40,7 @@
     "react-dom": "^18.2.0",
     "react-lottie-player": "^2.0.0",
     "react-tweet": "^3.2.0",
+    "recharts": "^2.15.3",
     "reodotdev": "^1.0.0",
     "shiki": "^1.22.2",
     "tailwind-merge": "^2.5.4",
