@@ -82,6 +82,14 @@ func (c *testHatchetContext) WorkflowRunId() string {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) WorkflowId() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) WorkflowVersionId() *string {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) Log(message string) {
 	panic("not implemented")
 }
