@@ -85,6 +85,20 @@ const chartConfig = {
 };
 
 export default function ConnectionsThroughputChart() {
+  // Common label and axis style with foreground color
+  const labelStyle = {
+    fontWeight: "bold",
+    fontSize: "11px",
+    textAnchor: "middle",
+    fill: "hsl(var(--foreground))",
+  };
+
+  // Style for axis text (without userSelect property)
+  const axisStyle = {
+    fontSize: "10px",
+    fill: "hsl(var(--foreground))",
+  };
+
   // Custom tooltip component
   const CustomTooltip = (props) => {
     const { active, payload } = props;
@@ -132,16 +146,12 @@ export default function ConnectionsThroughputChart() {
                   value: "Number of Connections",
                   position: "insideBottom",
                   offset: -10,
-                  style: {
-                    fontWeight: "bold",
-                    fontSize: "11px",
-                    textAnchor: "middle",
-                  },
+                  style: labelStyle,
                 }}
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                style={{ fontSize: "10px", userSelect: "none" }}
+                style={axisStyle}
               />
               <YAxis
                 label={{
@@ -149,16 +159,12 @@ export default function ConnectionsThroughputChart() {
                   angle: -90,
                   position: "insideLeft",
                   offset: -30,
-                  style: {
-                    fontWeight: "bold",
-                    fontSize: "11px",
-                    textAnchor: "middle",
-                  },
+                  style: labelStyle,
                 }}
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                style={{ fontSize: "10px", userSelect: "none" }}
+                style={axisStyle}
                 domain={[0, "dataMax + 1000"]}
               />
               <Tooltip content={<CustomTooltip />} cursor={false} />
@@ -169,7 +175,7 @@ export default function ConnectionsThroughputChart() {
                 label={{
                   value: "Baseline",
                   position: "insideBottomLeft",
-                  style: { fill: "gray", fontSize: 9 },
+                  style: { fill: "hsl(var(--foreground))", fontSize: 9 },
                 }}
               />
               <Bar

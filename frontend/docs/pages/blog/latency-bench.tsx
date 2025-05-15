@@ -148,6 +148,20 @@ export default function PerformanceChart() {
     setRefAreaRight(null);
   };
 
+  // Common label and axis style with foreground color
+  const labelStyle = {
+    fontWeight: "bold",
+    fontSize: "11px",
+    textAnchor: "middle",
+    fill: "hsl(var(--foreground))",
+  };
+
+  // Style for axis text (without userSelect property)
+  const axisStyle = {
+    fontSize: "10px",
+    fill: "hsl(var(--foreground))",
+  };
+
   return (
     <Card className="w-full my-8">
       <CardHeader className="gap-2">
@@ -199,17 +213,13 @@ export default function PerformanceChart() {
                     value: "Batch Size/Flush Interval",
                     position: "insideBottom",
                     offset: -10,
-                    style: {
-                      fontWeight: "bold",
-                      fontSize: "11px",
-                      textAnchor: "middle",
-                    },
+                    style: labelStyle,
                   }}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
                   minTickGap={16}
-                  style={{ fontSize: "10px", userSelect: "none" }}
+                  style={axisStyle}
                 />
                 <YAxis
                   yAxisId="left"
@@ -218,18 +228,14 @@ export default function PerformanceChart() {
                     angle: -90,
                     position: "insideLeft",
                     offset: -30,
-                    style: {
-                      fontWeight: "bold",
-                      fontSize: "11px",
-                      textAnchor: "middle",
-                    },
+                    style: labelStyle,
                   }}
                   orientation="left"
                   domain={[0, "auto"]}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
-                  style={{ fontSize: "10px", userSelect: "none" }}
+                  style={axisStyle}
                 />
                 <YAxis
                   yAxisId="right"
@@ -238,18 +244,14 @@ export default function PerformanceChart() {
                     angle: 90,
                     position: "insideRight",
                     offset: -25,
-                    style: {
-                      fontWeight: "bold",
-                      fontSize: "11px",
-                      textAnchor: "middle",
-                    },
+                    style: labelStyle,
                   }}
                   orientation="right"
                   domain={[0, "auto"]}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
-                  style={{ fontSize: "10px", userSelect: "none" }}
+                  style={axisStyle}
                 />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Bar
@@ -302,17 +304,13 @@ export default function PerformanceChart() {
                     value: "Batch Size/Flush Interval",
                     position: "insideBottom",
                     offset: -10,
-                    style: {
-                      fontWeight: "bold",
-                      fontSize: "11px",
-                      textAnchor: "middle",
-                    },
+                    style: labelStyle,
                   }}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
                   minTickGap={16}
-                  style={{ fontSize: "10px", userSelect: "none" }}
+                  style={axisStyle}
                 />
                 <YAxis
                   label={{
@@ -320,16 +318,12 @@ export default function PerformanceChart() {
                     angle: -90,
                     position: "insideLeft",
                     offset: -30,
-                    style: {
-                      fontWeight: "bold",
-                      fontSize: "11px",
-                      textAnchor: "middle",
-                    },
+                    style: labelStyle,
                   }}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
-                  style={{ fontSize: "10px", userSelect: "none" }}
+                  style={axisStyle}
                 />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Bar
@@ -371,17 +365,13 @@ export default function PerformanceChart() {
                     value: "Batch Size/Flush Interval",
                     position: "insideBottom",
                     offset: -10,
-                    style: {
-                      fontWeight: "bold",
-                      fontSize: "11px",
-                      textAnchor: "middle",
-                    },
+                    style: labelStyle,
                   }}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
                   minTickGap={16}
-                  style={{ fontSize: "10px", userSelect: "none" }}
+                  style={axisStyle}
                 />
                 <YAxis
                   label={{
@@ -389,16 +379,12 @@ export default function PerformanceChart() {
                     angle: -90,
                     position: "insideLeft",
                     offset: -30,
-                    style: {
-                      fontWeight: "bold",
-                      fontSize: "11px",
-                      textAnchor: "middle",
-                    },
+                    style: labelStyle,
                   }}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
-                  style={{ fontSize: "10px", userSelect: "none" }}
+                  style={axisStyle}
                 />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Line
