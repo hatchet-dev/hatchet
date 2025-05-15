@@ -53,6 +53,9 @@ class BaseRestClient:
         if name is None:
             return None
 
+        if not self.client_config.namespace:
+            return name
+
         if name.startswith(self.client_config.namespace):
             return name
 
