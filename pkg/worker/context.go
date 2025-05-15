@@ -65,6 +65,10 @@ type HatchetContext interface {
 
 	WorkflowRunId() string
 
+	WorkflowId() *string
+
+	WorkflowVersionId() *string
+
 	Log(message string)
 
 	StreamEvent(message []byte)
@@ -271,6 +275,14 @@ func (h *hatchetContext) StepId() string {
 
 func (h *hatchetContext) WorkflowRunId() string {
 	return h.a.WorkflowRunId
+}
+
+func (h *hatchetContext) WorkflowId() *string {
+	return h.a.WorkflowId
+}
+
+func (h *hatchetContext) WorkflowVersionId() *string {
+	return h.a.WorkflowVersionId
 }
 
 func (h *hatchetContext) Log(message string) {
