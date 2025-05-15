@@ -186,6 +186,22 @@ export class Context<T, K = {}> {
     return this.action.workflowRunId;
   }
 
+    /**
+   * Gets the workflow ID of the currently running workflow.
+   * @returns The workflow id.
+   */
+  workflowId(): string | undefined {
+    return this.action.workflowId;
+  }
+
+  /**
+   * Gets the workflow version ID of the currently running workflow.
+   * @returns The workflow version ID.
+   */
+  workflowVersionId(): string | undefined {
+    return this.action.workflowVersionId;
+  }
+
   /**
    * Gets the ID of the current task run.
    * @returns The task run ID.
