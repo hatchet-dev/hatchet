@@ -2,6 +2,8 @@ package features
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,25 +42,31 @@ type CreateScheduledRunTrigger struct {
 
 // schedulesClientImpl implements the SchedulesClient interface.
 type schedulesClientImpl struct {
-	api      *rest.ClientWithResponses
-	tenantId uuid.UUID
+	api       *rest.ClientWithResponses
+	tenantId  uuid.UUID
+	namespace *string
 }
 
 // NewSchedulesClient creates a new client for interacting with workflow schedules.
 func NewSchedulesClient(
 	api *rest.ClientWithResponses,
 	tenantId *string,
+	namespace *string,
 ) SchedulesClient {
 	tenantIdUUID := uuid.MustParse(*tenantId)
 
 	return &schedulesClientImpl{
-		api:      api,
-		tenantId: tenantIdUUID,
+		api:       api,
+		tenantId:  tenantIdUUID,
+		namespace: namespace,
 	}
 }
 
 // Create creates a new scheduled workflow run.
 func (s *schedulesClientImpl) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
+	if s.namespace != nil && *s.namespace != "" && !strings.HasPrefix(workflowName, *s.namespace) {
+		workflowName = fmt.Sprintf("%s%s", *s.namespace, workflowName)
+	}
 
 	request := rest.ScheduleWorkflowRunRequest{
 		Input:              trigger.Input,

@@ -157,9 +157,10 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 
 	api := v0.API()
 	tenantId := v0.TenantId()
+	namespace := v0.Namespace()
 
 	crons := features.NewCronsClient(api, &tenantId)
-	schedules := features.NewSchedulesClient(api, &tenantId)
+	schedules := features.NewSchedulesClient(api, &tenantId, &namespace)
 	metrics := features.NewMetricsClient(api, &tenantId)
 	workflows := features.NewWorkflowsClient(api, &tenantId)
 

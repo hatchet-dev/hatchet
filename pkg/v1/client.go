@@ -158,7 +158,9 @@ func (c *v1HatchetClientImpl) Schedules() features.SchedulesClient {
 	if c.schedules == nil {
 		api := c.V0().API()
 		tenantId := c.V0().TenantId()
-		c.schedules = features.NewSchedulesClient(api, &tenantId)
+		namespace := c.V0().Namespace()
+
+		c.schedules = features.NewSchedulesClient(api, &tenantId, &namespace)
 	}
 	return c.schedules
 }
