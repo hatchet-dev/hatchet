@@ -27,6 +27,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      loops:
+        specifier: ^5.0.1
+        version: 5.0.1
       lucide-react:
         specifier: ^0.459.0
         version: 0.459.0(react@18.3.1)
@@ -1412,6 +1415,10 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
+
+  loops@5.0.1:
+    resolution: {integrity: sha512-xM1c9mnlr8Hr4cHW944TQoK6ApynjinUWOgYZd9/B0/3lwTThq24BQ7+XLjgbFAP5kJzqDTRDQi3t+Diy51Udw==}
+    engines: {node: '>=18'}
 
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
@@ -3837,6 +3844,8 @@ snapshots:
   lodash@4.17.21: {}
 
   longest-streak@3.1.0: {}
+
+  loops@5.0.1: {}
 
   loose-envify@1.4.0:
     dependencies:
