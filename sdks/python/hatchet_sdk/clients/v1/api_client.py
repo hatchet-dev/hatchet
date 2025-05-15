@@ -3,6 +3,7 @@ from typing import ParamSpec, TypeVar, overload
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.utils.namespacing import apply_namespace
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ## Type variables to use with coroutines.
@@ -44,19 +45,13 @@ class BaseRestClient:
         return ApiClient(self.api_config)
 
     @overload
-    def apply_namespace(self, name: str) -> str: ...
+    def apply_namespace(self, resource_name: str) -> str: ...
 
     @overload
-    def apply_namespace(self, name: None) -> None: ...
+    def apply_namespace(self, resource_name: None) -> None: ...
 
-    def apply_namespace(self, name: str | None) -> str | None:
-        if name is None:
-            return None
-
-        if not self.client_config.namespace:
-            return name
-
-        if name.startswith(self.client_config.namespace):
-            return name
-
-        return self.client_config.namespace + "_" + name
+    def apply_namespace(self, resource_name: str | None) -> str | None:
+        return apply_namespace(
+            resource_name=resource_name,
+            namespace=self.client_config.namespace,
+        )
