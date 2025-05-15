@@ -190,6 +190,10 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		return err
 	}
 
+	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
+		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
+	}
+
 	_, err = a.client.ScheduleWorkflow(a.ctx.newContext(context.Background()), &admincontracts.ScheduleWorkflowRequest{
 		Name:      workflowName,
 		Schedules: pbSchedules,
