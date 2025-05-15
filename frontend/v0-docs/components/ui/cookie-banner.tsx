@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { CookieIcon } from "@radix-ui/react-icons";
-import posthog from "posthog-js";
-
-import { loadReoScript } from "@/lib/reoWrapper";
 
 
 export function cookieConsentGiven() {
@@ -67,27 +64,6 @@ export default function CookieConsent({ variant = "default", demo = false, onAcc
         }
     }, []);
 
-  const [reo, setReo] = useState<boolean>(false);
-
-
-  useEffect(() => {
-    const consented = consentGiven === 'yes';
-    posthog.capture("accept-cookies", { accepted: consented });
-
-    if (consented && !reo) {
-      const clientID = "c3e6c6700582dae";
-      // Resolve promise to get access to methods on Reo
-      const reoPromise = loadReoScript({ clientID });
-      reoPromise
-        .then((Reo: any) => {
-          Reo.init({ clientID });
-          setReo(true);
-        })
-        .catch((error: any) => {
-          console.error("Error loading r", error);
-        });
-    }
-  }, [consentGiven, reo]);
 
     // Default banner
     if (variant === "default") {
