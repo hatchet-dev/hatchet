@@ -26,6 +26,7 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.utils.namespacing import apply_namespace
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -253,8 +254,7 @@ class AdminClient:
         try:
             namespace = options.namespace or self.namespace
 
-            if namespace != "" and not name.startswith(self.namespace):
-                name = f"{namespace}{name}"
+            name = apply_namespace(name, namespace)
 
             request = self._prepare_schedule_workflow_request(
                 name, schedules, input, options
@@ -312,8 +312,7 @@ class AdminClient:
 
         namespace = options.namespace or self.namespace
 
-        if namespace != "" and not workflow_name.startswith(self.namespace):
-            workflow_name = f"{namespace}{workflow_name}"
+        workflow_name = apply_namespace(workflow_name, namespace)
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 

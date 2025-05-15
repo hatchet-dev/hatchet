@@ -19,4 +19,4 @@ def apply_namespace(resource_name: str | None, namespace: str | None) -> str | N
     if resource_name.startswith(namespace):
         return resource_name
 
-    return namespace + "_" + resource_name
+    return namespace + resource_name

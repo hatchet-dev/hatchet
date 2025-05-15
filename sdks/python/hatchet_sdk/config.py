@@ -121,8 +121,10 @@ class ClientConfig(BaseSettings):
     def validate_namespace(cls, namespace: str) -> str:
         if not namespace:
             return ""
+
         if not namespace.endswith("_"):
             namespace = f"{namespace}_"
+
         return namespace.lower()
 
     def __hash__(self) -> int:
