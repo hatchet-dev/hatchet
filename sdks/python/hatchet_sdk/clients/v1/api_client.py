@@ -1,4 +1,4 @@
-from typing import ParamSpec, TypeVar
+from typing import ParamSpec, TypeVar, overload
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.configuration import Configuration
@@ -42,3 +42,18 @@ class BaseRestClient:
 
     def client(self) -> ApiClient:
         return ApiClient(self.api_config)
+
+    @overload
+    def apply_namespace(self, name: str) -> str: ...
+
+    @overload
+    def apply_namespace(self, name: None) -> None: ...
+
+    def apply_namespace(self, name: str | None) -> str | None:
+        if name is None:
+            return None
+
+        if name.startswith(self.client_config.namespace):
+            return name
+
+        return self.client_config.namespace + "_" + name

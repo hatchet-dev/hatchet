@@ -102,7 +102,7 @@ class CronClient(BaseRestClient):
         with self.client() as client:
             return self._wra(client).cron_workflow_trigger_create(
                 tenant=self.client_config.tenant_id,
-                workflow=workflow_name,
+                workflow=self.apply_namespace(workflow_name),
                 create_cron_workflow_trigger_request=CreateCronWorkflowTriggerRequest(
                     cronName=cron_name,
                     cronExpression=validated_input.expression,

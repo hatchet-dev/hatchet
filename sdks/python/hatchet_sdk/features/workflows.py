@@ -61,7 +61,7 @@ class WorkflowsClient(BaseRestClient):
                 tenant=self.client_config.tenant_id,
                 limit=limit,
                 offset=offset,
-                name=workflow_name,
+                name=self.apply_namespace(workflow_name),
             )
 
     async def aio_list(
