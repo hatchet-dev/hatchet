@@ -530,6 +530,17 @@ func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Actio
 	}
 }
 
+type ActionKey string
+
+func createActionKey(action *client.Action) ActionKey {
+	switch action.ActionType {
+	case client.ActionTypeStartGetGroupKey:
+		return ActionKey(action.GetGroupKeyRunId)
+	default:
+		return ActionKey(fmt.Sprintf("%s/%d", action.StepRunId, action.RetryCount))
+	}
+}
+
 func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action) error {
 	// send a message that the step run started
 	_, err := w.client.Dispatcher().SendStepActionEvent(
@@ -554,9 +565,10 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	}
 
 	runContext, cancel := context.WithCancel(context.Background())
+	actionKey := createActionKey(assignedAction)
 
-	w.cancelMap.Store(assignedAction.StepRunId, cancel)
-	defer w.cancelMap.Delete(assignedAction.StepRunId)
+	w.cancelMap.Store(actionKey, cancel)
+	defer w.cancelMap.Delete(actionKey)
 
 	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
 
@@ -590,7 +602,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 			// check whether run context was cancelled while action was running
 			select {
 			case <-ctx.Done():
-				w.l.Debug().Msgf("step run %s was cancelled, returning", assignedAction.StepRunId)
+				w.l.Debug().Msgf("step run %s was cancelled, returning", createActionKey(assignedAction))
 				return nil
 			default:
 			}
@@ -709,13 +721,14 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 }
 
 func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Action) error {
-	cancel, ok := w.cancelMap.Load(assignedAction.StepRunId)
+	key := createActionKey(assignedAction)
+	cancel, ok := w.cancelMap.Load(key)
 
 	if !ok {
 		return fmt.Errorf("could not find step run to cancel")
 	}
 
-	w.l.Debug().Msgf("cancelling step run %s", assignedAction.StepRunId)
+	w.l.Debug().Msgf("cancelling step run %s", key)
 
 	cancelFn := cancel.(context.CancelFunc)
 
