@@ -95,6 +95,8 @@ class Action(BaseModel):
     worker_id: str
     tenant_id: str
     workflow_run_id: str
+    workflow_id: str | None = None
+    workflow_version_id: str | None = None
     get_group_key_run_id: str
     job_id: str
     job_name: str
@@ -140,6 +142,8 @@ class Action(BaseModel):
             "hatchet.workflow_name": self.job_name,
             "hatchet.action_name": self.action_id,
             "hatchet.get_group_key_run_id": self.get_group_key_run_id,
+            "hatchet.workflow_id": self.workflow_id,
+            "hatchet.workflow_version_id": self.workflow_version_id,
         }
 
         return {k: v for k, v in attrs.items() if v}
@@ -343,6 +347,8 @@ class ActionListener:
                         child_workflow_key=assigned_action.child_workflow_key,
                         parent_workflow_run_id=assigned_action.parent_workflow_run_id,
                         priority=assigned_action.priority,
+                        workflow_version_id=assigned_action.workflowVersionId,
+                        workflow_id=assigned_action.workflowId,
                     )
 
                     yield action
