@@ -34,7 +34,7 @@ Here's attempt to make things more concrete, at least on the write side of Postg
 
 ## The basics
 
-_Note: you might want to skip to the next section if you're familiar with connection pooling and the danger of using too many connections._
+_Note: you might want to skip to the [next section](#batched-inserts) if you're familiar with connection pooling and the danger of using too many connections._
 
 Let's start simple: we'd like to insert some data into Postgres. Out of a force of habit, I'm going to call the table we're interacting with `tasks` — this is a very simple table that contains an ID, a created_at timestamp, and a JSONB payload to represent arbitrary data:
 
