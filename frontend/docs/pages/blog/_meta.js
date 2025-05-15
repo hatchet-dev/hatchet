@@ -1,4 +1,7 @@
 export default {
+  "fastest-postgres-inserts": {
+    title: "The fastest Postgres inserts",
+  },
   "task-queue-modern-python": {
     title: "A task queue for modern Python applications",
   },
