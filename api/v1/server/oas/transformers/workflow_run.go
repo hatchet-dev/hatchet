@@ -532,10 +532,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 
 	input := make(map[string]interface{})
 	if scheduled.Input != nil {
-		err := json.Unmarshal(scheduled.Input, &input)
-		if err != nil {
-			return nil
-		}
+		json.Unmarshal(scheduled.Input, &input)
 	}
 
 	res := &gen.ScheduledWorkflows{
