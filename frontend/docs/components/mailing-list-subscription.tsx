@@ -56,7 +56,7 @@ export function MailingListSubscription() {
               Stay updated with our latest work. We share insights about distributed systems, workflow engines, and developer tools.
             </p>
           </div>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex gap-2 md:flex-row flex-col">
               <Input
@@ -78,4 +78,4 @@ export function MailingListSubscription() {
       )}
     </div>
   );
-} 
+}
