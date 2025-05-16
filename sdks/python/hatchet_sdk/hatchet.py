@@ -293,7 +293,7 @@ class Hatchet:
     def task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: None = None,
         on_events: list[str] = [],
@@ -318,7 +318,7 @@ class Hatchet:
     def task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: Type[TWorkflowInput],
         on_events: list[str] = [],
@@ -342,7 +342,7 @@ class Hatchet:
     def task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: Type[TWorkflowInput] | None = None,
         on_events: list[str] = [],
@@ -406,45 +406,47 @@ class Hatchet:
         :returns: A decorator which creates a `Standalone` task object.
         """
 
-        workflow = Workflow[TWorkflowInput](
-            WorkflowConfig(
-                name=name,
-                version=version,
-                description=description,
-                on_events=on_events,
-                on_crons=on_crons,
-                sticky=sticky,
-                concurrency=concurrency,
-                default_priority=default_priority,
-                input_validator=input_validator
-                or cast(Type[TWorkflowInput], EmptyModel),
-            ),
-            self,
-        )
-
-        if isinstance(concurrency, list):
-            _concurrency = concurrency
-        elif isinstance(concurrency, ConcurrencyExpression):
-            _concurrency = [concurrency]
-        else:
-            _concurrency = []
-
-        task_wrapper = workflow.task(
-            name=name,
-            schedule_timeout=schedule_timeout,
-            execution_timeout=execution_timeout,
-            parents=[],
-            retries=retries,
-            rate_limits=rate_limits,
-            desired_worker_labels=desired_worker_labels,
-            backoff_factor=backoff_factor,
-            backoff_max_seconds=backoff_max_seconds,
-            concurrency=_concurrency,
-        )
-
         def inner(
             func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
         ) -> Standalone[TWorkflowInput, R]:
+            name = name or func.__name__
+
+            workflow = Workflow[TWorkflowInput](
+                WorkflowConfig(
+                    name=name,
+                    version=version,
+                    description=description,
+                    on_events=on_events,
+                    on_crons=on_crons,
+                    sticky=sticky,
+                    concurrency=concurrency,
+                    default_priority=default_priority,
+                    input_validator=input_validator
+                    or cast(Type[TWorkflowInput], EmptyModel),
+                ),
+                self,
+            )
+
+            if isinstance(concurrency, list):
+                _concurrency = concurrency
+            elif isinstance(concurrency, ConcurrencyExpression):
+                _concurrency = [concurrency]
+            else:
+                _concurrency = []
+
+            task_wrapper = workflow.task(
+                name=name,
+                schedule_timeout=schedule_timeout,
+                execution_timeout=execution_timeout,
+                parents=[],
+                retries=retries,
+                rate_limits=rate_limits,
+                desired_worker_labels=desired_worker_labels,
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+                concurrency=_concurrency,
+            )
+
             created_task = task_wrapper(func)
 
             return Standalone[TWorkflowInput, R](
