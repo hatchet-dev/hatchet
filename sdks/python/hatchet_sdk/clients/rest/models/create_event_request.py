@@ -19,7 +19,7 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
 
 
@@ -35,7 +35,19 @@ class CreateEventRequest(BaseModel):
         description="Additional metadata for the event.",
         alias="additionalMetadata",
     )
-    __properties: ClassVar[List[str]] = ["key", "data", "additionalMetadata"]
+    priority: Optional[StrictInt] = Field(
+        default=None, description="The priority of the event."
+    )
+    scope: Optional[StrictStr] = Field(
+        default=None, description="The scope for event filtering."
+    )
+    __properties: ClassVar[List[str]] = [
+        "key",
+        "data",
+        "additionalMetadata",
+        "priority",
+        "scope",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -90,6 +102,8 @@ class CreateEventRequest(BaseModel):
                 "key": obj.get("key"),
                 "data": obj.get("data"),
                 "additionalMetadata": obj.get("additionalMetadata"),
+                "priority": obj.get("priority"),
+                "scope": obj.get("scope"),
             }
         )
         return _obj

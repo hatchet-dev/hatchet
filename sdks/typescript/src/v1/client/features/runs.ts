@@ -50,6 +50,14 @@ export interface ListRunsOpts extends RunFilter {
    * @maxLength 36
    */
   parentTaskExternalId?: string;
+
+  /**
+   * The triggering event external id to filter by
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  triggeringEventExternalId?: string;
 }
 
 /**
@@ -138,6 +146,7 @@ export class RunsClient {
       ),
       additional_metadata: am,
       only_tasks: opts.onlyTasks || false,
+      triggering_event_external_id: opts.triggeringEventExternalId,
     };
   }
 }

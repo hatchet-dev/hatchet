@@ -96,7 +96,7 @@ class Worker:
         lifespan: LifespanFn | None = None,
     ) -> None:
         self.config = config
-        self.name = self.config.namespace + name
+        self.name = self.config.apply_namespace(name)
         self.slots = slots
         self.durable_slots = durable_slots
         self.debug = debug

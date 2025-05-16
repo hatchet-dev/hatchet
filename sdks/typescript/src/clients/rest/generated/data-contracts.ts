@@ -615,6 +615,13 @@ export interface CreateEventRequest {
   data: object;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+  /**
+   * The priority of the event.
+   * @format int32
+   */
+  priority?: number;
+  /** The scope for event filtering. */
+  scope?: string;
 }
 
 export interface BulkCreateEventRequest {
@@ -678,6 +685,73 @@ export interface EventList {
   rows?: Event[];
 }
 
+export interface V1EventList {
+  pagination?: PaginationResponse;
+  rows?: {
+    metadata: APIResourceMeta;
+    /** The key for the event. */
+    key: string;
+    /** The tenant associated with this event. */
+    tenant?: Tenant;
+    /** The ID of the tenant associated with this event. */
+    tenantId: string;
+    /** The workflow run summary for this event. */
+    workflowRunSummary: {
+      /**
+       * The number of running runs.
+       * @format int64
+       */
+      running: number;
+      /**
+       * The number of queued runs.
+       * @format int64
+       */
+      queued: number;
+      /**
+       * The number of succeeded runs.
+       * @format int64
+       */
+      succeeded: number;
+      /**
+       * The number of failed runs.
+       * @format int64
+       */
+      failed: number;
+      /**
+       * The number of cancelled runs.
+       * @format int64
+       */
+      cancelled: number;
+    };
+    /** Additional metadata for the event. */
+    additionalMetadata?: object;
+  }[];
+}
+
+export interface V1FilterList {
+  pagination?: PaginationResponse;
+  rows?: V1Filter[];
+}
+
+export interface V1Filter {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this filter. */
+  tenantId: string;
+  /**
+   * The workflow id associated with this filter.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The expression associated with this filter. */
+  expression: string;
+  /** Additional payload data associated with the filter */
+  payload: object;
+}
+
 export interface RateLimit {
   /** The key for the rate limit. */
   key: string;
@@ -723,6 +797,8 @@ export interface Workflow {
   tags?: WorkflowTag[];
   /** The jobs of the workflow. */
   jobs?: Job[];
+  /** The tenant id of the workflow. */
+  tenantId: string;
 }
 
 export interface WorkflowUpdateRequest {
@@ -1481,6 +1557,10 @@ export interface V1TaskSummary {
   metadata: APIResourceMeta;
   /** The action ID of the task. */
   actionId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
@@ -1551,7 +1631,7 @@ export interface V1TaskSummary {
    * The external ID of the workflow run
    * @format uuid
    */
-  workflowRunExternalId?: string;
+  workflowRunExternalId: string;
   /**
    * The version ID of the workflow
    * @format uuid
@@ -1600,6 +1680,10 @@ export interface V1TaskEventList {
     /** @format uuid */
     workerId?: string;
     taskDisplayName?: string;
+    /** The number of retries of the task. */
+    retryCount?: number;
+    /** The attempt number of the task. */
+    attempt?: number;
   }[];
 }
 
@@ -1736,9 +1820,99 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /** The retry count of the log line. */
+  retryCount?: number;
+  /** The attempt number of the log line. */
+  attempt?: number;
+  /** The log level. */
+  level?: V1LogLineLevel;
 }
 
 export interface V1LogLineList {
   pagination?: PaginationResponse;
   rows?: V1LogLine[];
+}
+
+export interface V1TaskTiming {
+  metadata: APIResourceMeta;
+  /** The depth of the task in the waterfall. */
+  depth: number;
+  status: V1TaskStatus;
+  /** The display name of the task run. */
+  taskDisplayName: string;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /**
+   * The external ID of the parent task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  parentTaskExternalId?: string;
+  /**
+   * The timestamp the task run was queued.
+   * @format date-time
+   */
+  queuedAt?: string;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /**
+   * The external ID of the workflow run.
+   * @format uuid
+   */
+  workflowRunId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
+}
+
+export interface V1TaskTimingList {
+  pagination: PaginationResponse;
+  /** The list of task timings */
+  rows: V1TaskTiming[];
+}
+
+export interface V1CreateFilterRequest {
+  /**
+   * The workflow id
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The expression for the filter */
+  expression: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The payload for the filter */
+  payload?: object;
 }

@@ -15,6 +15,8 @@ import (
 
 type pushOpt struct {
 	additionalMetadata map[string]string
+	priority           *int32
+	scope              *string
 }
 
 type PushOpFunc func(*pushOpt) error
@@ -35,6 +37,8 @@ type EventWithAdditionalMetadata struct {
 	Event              interface{}       `json:"event"`
 	AdditionalMetadata map[string]string `json:"metadata"`
 	Key                string            `json:"key"`
+	Priority           *int32            `json:"priority"`
+	Scope              *string           `json:"scope"`
 }
 
 type eventClientImpl struct {
@@ -73,6 +77,20 @@ func WithEventMetadata(metadata map[string]string) PushOpFunc {
 	}
 }
 
+func WithEventPriority(priority *int32) PushOpFunc {
+	return func(r *pushOpt) error {
+		r.priority = priority
+		return nil
+	}
+}
+
+func WithFilterScope(scope *string) PushOpFunc {
+	return func(r *pushOpt) error {
+		r.scope = scope
+		return nil
+	}
+}
+
 func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error {
 
 	request := eventcontracts.PushEventRequest{
@@ -106,6 +124,8 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	additionalMetaString := string(additionalMetaBytes)
 
 	request.AdditionalMetadata = &additionalMetaString
+	request.Priority = opts.priority
+	request.Scope = opts.scope
 
 	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
 
@@ -139,6 +159,8 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 			EventTimestamp:     timestamppb.Now(),
 			Payload:            string(ePayload),
 			AdditionalMetadata: &eMetadataString,
+			Priority:           p.Priority,
+			Scope:              p.Scope,
 		})
 	}
 

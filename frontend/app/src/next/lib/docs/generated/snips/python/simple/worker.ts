@@ -3,12 +3,12 @@ import { Snippet } from '@/next/lib/docs/generated/snips/types';
 const snippet: Snippet = {
   language: 'python',
   content:
-    "# > Simple\n\nfrom hatchet_sdk import Context, EmptyModel, Hatchet\n\nhatchet = Hatchet(debug=True)\n\n\n@hatchet.task(name='SimpleWorkflow')\ndef step1(input: EmptyModel, ctx: Context) -> None:\n    print('executed step1')\n\n\ndef main() -> None:\n    worker = hatchet.worker('test-worker', slots=1, workflows=[step1])\n    worker.start()\n\n\n\nif __name__ == '__main__':\n    main()\n",
+    "# > Simple\n\nfrom hatchet_sdk import Context, EmptyModel, Hatchet\n\nhatchet = Hatchet(debug=True)\n\n\n@hatchet.task()\ndef simple(input: EmptyModel, ctx: Context) -> dict[str, str]:\n    return {'result': 'Hello, world!'}\n\n\n@hatchet.durable_task()\ndef simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:\n    return {'result': 'Hello, world!'}\n\n\ndef main() -> None:\n    worker = hatchet.worker('test-worker', workflows=[simple, simple_durable])\n    worker.start()\n\n\n\nif __name__ == '__main__':\n    main()\n",
   source: 'out/python/simple/worker.py',
   blocks: {
     simple: {
       start: 2,
-      stop: 17,
+      stop: 22,
     },
   },
   highlights: {},

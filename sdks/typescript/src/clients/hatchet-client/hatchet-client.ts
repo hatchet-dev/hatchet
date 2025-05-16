@@ -87,7 +87,8 @@ export class LegacyHatchetClient {
     this.event = new EventClient(
       this.config,
       channelFactory(this.config, this.credentials),
-      clientFactory
+      clientFactory,
+      this
     );
     this.dispatcher = new DispatcherClient(
       this.config,

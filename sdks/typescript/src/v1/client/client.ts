@@ -35,6 +35,7 @@ import { RunsClient } from './features/runs';
 import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } from '../types';
 import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
+import { FiltersClient } from './features/filters';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -352,6 +353,19 @@ export class HatchetClient implements IHatchetClient {
       this._metrics = new MetricsClient(this);
     }
     return this._metrics;
+  }
+
+  private _filters: FiltersClient | undefined;
+
+  /**
+   * Get the filters client for creating and managing filters
+   * @returns A filters client instance
+   */
+  get filters() {
+    if (!this._filters) {
+      this._filters = new FiltersClient(this);
+    }
+    return this._filters;
   }
 
   private _ratelimits: RatelimitsClient | undefined;
