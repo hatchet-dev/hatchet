@@ -221,11 +221,7 @@ describe('events-e2e', () => {
     ].map((event) => convertBulkToSingle(event));
     const events = await Promise.all(eventPromises);
 
-    console.log('Pushing events:', events);
-
     const eventToRuns = await waitForEventsToProcess(events);
-
-    console.log('Event to runs:', eventToRuns);
 
     // Verify each event's runs
     Object.keys(eventToRuns).forEach((eventId) => {
