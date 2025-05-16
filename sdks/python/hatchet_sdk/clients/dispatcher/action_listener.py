@@ -31,6 +31,7 @@ from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
+from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -107,24 +108,6 @@ class ActionType(str, Enum):
 ActionKey = str
 
 
-class OTelAttribute(str, Enum):
-    TENANT_ID = "tenant_id"
-    WORKER_ID = "worker_id"
-    WORKFLOW_RUN_ID = "workflow_run_id"
-    STEP_ID = "step_id"
-    STEP_RUN_ID = "step_run_id"
-    RETRY_COUNT = "retry_count"
-    PARENT_WORKFLOW_RUN_ID = "parent_workflow_run_id"
-    CHILD_WORKFLOW_INDEX = "child_workflow_index"
-    CHILD_WORKFLOW_KEY = "child_workflow_key"
-    ACTION_PAYLOAD = "action_payload"
-    WORKFLOW_NAME = "workflow_name"
-    ACTION_NAME = "action_name"
-    GET_GROUP_KEY_RUN_ID = "get_group_key_run_id"
-    WORKFLOW_ID = "workflow_id"
-    WORKFLOW_VERSION_ID = "workflow_version_id"
-
-
 class Action(BaseModel):
     worker_id: str
     tenant_id: str
@@ -155,7 +138,7 @@ class Action(BaseModel):
         except Exception:
             return str(self.action_payload)
 
-    def get_otel_attributes(self, config: ClientConfig) -> dict[str, str | int]:
+    def get_otel_attributes(self, config: "ClientConfig") -> dict[str, str | int]:
         try:
             payload_str = json.dumps(self.action_payload.model_dump(), default=str)
         except Exception:
@@ -209,7 +192,7 @@ def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMappi
 
 
 class ActionListener:
-    def __init__(self, config: ClientConfig, worker_id: str) -> None:
+    def __init__(self, config: "ClientConfig", worker_id: str) -> None:
         self.config = config
         self.worker_id = worker_id
 

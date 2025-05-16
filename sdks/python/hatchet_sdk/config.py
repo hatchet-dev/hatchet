@@ -5,8 +5,8 @@ from typing import overload
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from hatchet_sdk.clients.dispatcher.action_listener import OTelAttribute
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
+from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
 
 def create_settings_config(env_prefix: str) -> SettingsConfigDict:
