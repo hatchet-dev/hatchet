@@ -71,7 +71,7 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 			for ev := range jobCh {
 				l.Info().Msgf("pushing event %d", ev.ID)
 
-				err := c.Events().Push(context.Background(), "load-test:event", ev, nil, nil, client.WithEventMetadata(map[string]string{
+				err := c.Events().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
 					"event_id": fmt.Sprintf("%d", ev.ID),
 				}))
 				if err != nil {
