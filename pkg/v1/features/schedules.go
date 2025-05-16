@@ -2,12 +2,11 @@ package features
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 )
 
 // SchedulesClient provides methods for interacting with workflow schedules
@@ -64,9 +63,7 @@ func NewSchedulesClient(
 
 // Create creates a new scheduled workflow run.
 func (s *schedulesClientImpl) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
-	if s.namespace != nil && *s.namespace != "" && !strings.HasPrefix(workflowName, *s.namespace) {
-		workflowName = fmt.Sprintf("%s%s", *s.namespace, workflowName)
-	}
+	workflowName = client.ApplyNamespace(workflowName, s.namespace)
 
 	request := rest.ScheduleWorkflowRunRequest{
 		Input:              trigger.Input,

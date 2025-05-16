@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -190,9 +190,7 @@ func (a *adminClientImpl) ScheduleWorkflow(workflowName string, fs ...ScheduleOp
 		return err
 	}
 
-	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
-		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
-	}
+	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
 	_, err = a.client.ScheduleWorkflow(a.ctx.newContext(context.Background()), &admincontracts.ScheduleWorkflowRequest{
 		Name:      workflowName,
@@ -248,9 +246,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 		return nil, fmt.Errorf("could not marshal input: %w", err)
 	}
 
-	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
-		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
-	}
+	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
 	request := &admincontracts.TriggerWorkflowRequest{
 		Name:  workflowName,
@@ -332,9 +328,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		return "", fmt.Errorf("could not marshal input: %w", err)
 	}
 
-	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
-		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
-	}
+	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
 	childIndex := int32(opts.ChildIndex) // nolint: gosec
 
@@ -393,11 +387,7 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 			return nil, fmt.Errorf("could not marshal input: %w", err)
 		}
 
-		var workflowName = workflow.WorkflowName
-
-		if a.namespace != "" && !strings.HasPrefix(workflow.WorkflowName, a.namespace) {
-			workflowName = fmt.Sprintf("%s%s", a.namespace, workflow.WorkflowName)
-		}
+		workflowName := client.ApplyNamespace(workflow.WorkflowName, &a.namespace)
 
 		if workflow.Opts.ChildIndex < math.MinInt32 || workflow.Opts.ChildIndex > math.MaxInt32 {
 			return nil, fmt.Errorf("child index out of range")
