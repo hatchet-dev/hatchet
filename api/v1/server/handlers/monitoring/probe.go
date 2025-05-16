@@ -232,8 +232,6 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 			ctx,
 			m.eventName,
 			testEvent,
-			nil,
-			nil,
 			client.WithEventMetadata(map[string]string{
 				streamKey: streamValue,
 			},

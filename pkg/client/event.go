@@ -24,7 +24,7 @@ type PushOpFunc func(*pushOpt) error
 type BulkPushOpFunc func(*eventcontracts.BulkPushEventRequest) error
 
 type EventClient interface {
-	Push(ctx context.Context, eventKey string, payload interface{}, priority *int32, scope *string, options ...PushOpFunc) error
+	Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
 
 	BulkPush(ctx context.Context, payloads []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error
 
@@ -77,13 +77,25 @@ func WithEventMetadata(metadata map[string]string) PushOpFunc {
 	}
 }
 
-func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, priority *int32, scope *string, options ...PushOpFunc) error {
+func WithEventPriority(priority *int32) PushOpFunc {
+	return func(r *pushOpt) error {
+		r.priority = priority
+		return nil
+	}
+}
+
+func WithFilterScope(scope *string) PushOpFunc {
+	return func(r *pushOpt) error {
+		r.scope = scope
+		return nil
+	}
+}
+
+func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error {
 
 	request := eventcontracts.PushEventRequest{
 		Key:            a.namespace + eventKey,
 		EventTimestamp: timestamppb.Now(),
-		Priority:       priority,
-		Scope:          scope,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
