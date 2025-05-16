@@ -15,7 +15,7 @@ V1FilterGetDelete:
           maxLength: 36
       - description: The filter id
         in: path
-        name: filter_id
+        name: v1-filter
         required: true
         schema:
           type: string
@@ -60,7 +60,7 @@ V1FilterGetDelete:
           maxLength: 36
       - description: The filter id to delete
         in: path
-        name: filter_id
+        name: v1-filter
         required: true
         schema:
           type: string

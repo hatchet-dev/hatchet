@@ -52,7 +52,7 @@ paths:
     $ref: "./paths/v1/events/event.yaml#/V1EventList"
   /api/v1/stable/tenants/{tenant}/filters:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
-  /api/v1/stable/tenants/{tenant}/filters/{filter_id}:
+  /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterGetDelete"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
