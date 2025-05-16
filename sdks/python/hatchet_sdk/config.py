@@ -43,7 +43,7 @@ class OpenTelemetryConfig(BaseSettings):
         env_prefix="HATCHET_CLIENT_OPENTELEMETRY_",
     )
 
-    excluded_otel_attributes: list[OTelAttribute] = Field(default_factory=list)
+    excluded_attributes: list[OTelAttribute] = Field(default_factory=list)
 
 
 DEFAULT_HOST_PORT = "localhost:7070"

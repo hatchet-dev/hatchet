@@ -182,7 +182,7 @@ class Action(BaseModel):
         return {
             f"hatchet.{k.value}": v
             for k, v in attrs.items()
-            if v and k not in config.otel.excluded_otel_attributes
+            if v and k not in config.otel.excluded_attributes
         }
 
     @property
