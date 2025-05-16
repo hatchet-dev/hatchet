@@ -53,7 +53,7 @@ export class WorkflowsClient {
           expiry: Date.now() + this.cacheTTL,
         });
 
-        return workflow;
+        return wf;
       }
 
       throw new Error(`Workflow with name ${name} not found`);
