@@ -3,6 +3,7 @@ from hatchet_sdk.clients.admin import (
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
 )
+from hatchet_sdk.clients.dispatcher.action_listener import OTelAttribute
 from hatchet_sdk.clients.events import PushEventOptions
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     RegisterDurableEventRequest,
@@ -271,4 +272,5 @@ __all__ = [
     "BulkCancelReplayOpts",
     "RunFilter",
     "V1TaskStatus",
+    "OTelAttribute",
 ]
