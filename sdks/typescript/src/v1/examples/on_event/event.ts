@@ -5,6 +5,7 @@ async function main() {
   // > Pushing an Event
   const res = await hatchet.events.push<Input>('simple-event:create', {
     Message: 'hello',
+    ShouldSkip: false,
   });
   // !!
 

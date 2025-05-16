@@ -141,6 +141,7 @@ class RunsClient(BaseRestClient):
         workflow_ids: list[str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
+        triggering_event_external_id: str | None = None,
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -155,6 +156,7 @@ class RunsClient(BaseRestClient):
         :param workflow_ids: The workflow IDs to filter task runs by.
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_external_id: The event id that triggered the task run.
 
         :return: A list of task runs matching the specified filters.
         """
@@ -170,6 +172,7 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
         )
 
     def list(
@@ -184,6 +187,7 @@ class RunsClient(BaseRestClient):
         workflow_ids: list[str] | None = None,
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
+        triggering_event_external_id: str | None = None,
     ) -> V1TaskSummaryList:
         """
         List task runs according to a set of filters.
@@ -198,6 +202,7 @@ class RunsClient(BaseRestClient):
         :param workflow_ids: The workflow IDs to filter task runs by.
         :param worker_id: The worker ID to filter task runs by.
         :param parent_task_external_id: The parent task external ID to filter task runs by.
+        :param triggering_event_external_id: The event id that triggered the task run.
 
         :return: A list of task runs matching the specified filters.
         """
@@ -216,6 +221,7 @@ class RunsClient(BaseRestClient):
                 workflow_ids=workflow_ids,
                 worker_id=worker_id,
                 parent_task_external_id=parent_task_external_id,
+                triggering_event_external_id=triggering_event_external_id,
             )
 
     def create(
@@ -241,7 +247,7 @@ class RunsClient(BaseRestClient):
             return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,
                 v1_trigger_workflow_run_request=V1TriggerWorkflowRunRequest(
-                    workflowName=workflow_name,
+                    workflowName=self.client_config.apply_namespace(workflow_name),
                     input=dict(input),
                     additionalMetadata=dict(additional_metadata),
                     priority=priority,

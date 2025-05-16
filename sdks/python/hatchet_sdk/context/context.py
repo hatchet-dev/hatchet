@@ -59,6 +59,7 @@ class Context:
         self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         self.input = self.data.input
+        self.filter_payload = self.data.filter_payload
 
         self._lifespan_context = lifespan_context
 

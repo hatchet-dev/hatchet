@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
+	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
 	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
@@ -61,6 +62,7 @@ type apiService struct {
 	*tasks.TasksService
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
+	*filtersv1.V1FiltersService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -84,6 +86,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		TasksService:          tasks.NewTasksService(config),
 		V1WorkflowRunsService: workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:       eventsv1.NewV1EventsService(config),
+		V1FiltersService:      filtersv1.NewV1FiltersService(config),
 	}
 }
 
@@ -389,6 +392,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
+	})
+	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		filter, err := t.config.V1.Filters().GetFilter(
+			context.Background(),
+			parentId,
+			id,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)

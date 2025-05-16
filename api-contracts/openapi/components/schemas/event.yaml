@@ -58,6 +58,9 @@ CreateEventRequest:
       type: integer
       description: The priority of the event.
       format: int32
+    scope:
+      type: string
+      description: The scope for event filtering.
   required:
     - key
     - data

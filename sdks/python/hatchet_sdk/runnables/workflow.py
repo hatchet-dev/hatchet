@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Callable, Generic, TypeVar, cast
 
 from google.protobuf import timestamp_pb2
@@ -127,7 +128,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @property
     def service_name(self) -> str:
-        return f"{self.client.config.namespace}{self.config.name.lower()}"
+        return self.client.config.apply_namespace(self.config.name.lower())
 
     def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
         return self.service_name + ":" + step.name
@@ -140,7 +141,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         service_name = self.service_name
 
         name = self.name
-        event_triggers = [namespace + event for event in self.config.on_events]
+        event_triggers = [
+            self.client.config.apply_namespace(event, namespace)
+            for event in self.config.on_events
+        ]
 
         if self._on_success_task:
             self._on_success_task.parents = [
@@ -250,6 +254,23 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         raise ValueError(
             f"Input must be a BaseModel or `None`, got {type(input)} instead."
         )
+
+    @cached_property
+    def id(self) -> str:
+        """
+        Get the ID of the workflow.
+
+        :raises ValueError: If no workflow ID is found for the workflow name.
+        :returns: The ID of the workflow.
+        """
+        workflows = self.client.workflows.list(workflow_name=self.name)
+
+        if not workflows.rows:
+            raise ValueError(f"No id found for {self.name}")
+
+        workflow = workflows.rows[0]
+
+        return workflow.metadata.id
 
 
 class Workflow(BaseWorkflow[TWorkflowInput]):
@@ -912,6 +933,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         only_tasks: bool = False,
+        triggering_event_external_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -925,6 +947,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param worker_id: The ID of the worker that ran the tasks.
         :param parent_task_external_id: The external ID of the parent task.
         :param only_tasks: Whether to list only task runs.
+        :param triggering_event_external_id: The event id that triggered the task run.
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
@@ -947,6 +970,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
         )
 
         return response.rows
@@ -962,6 +986,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         worker_id: str | None = None,
         parent_task_external_id: str | None = None,
         only_tasks: bool = False,
+        triggering_event_external_id: str | None = None,
     ) -> list[V1TaskSummary]:
         """
         List runs of the workflow.
@@ -975,6 +1000,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param worker_id: The ID of the worker that ran the tasks.
         :param parent_task_external_id: The external ID of the parent task.
         :param only_tasks: Whether to list only task runs.
+        :param triggering_event_external_id: The event id that triggered the task run.
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
@@ -989,4 +1015,5 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
+            triggering_event_external_id=triggering_event_external_id,
         )

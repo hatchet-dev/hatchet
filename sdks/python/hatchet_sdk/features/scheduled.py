@@ -59,7 +59,7 @@ class ScheduledClient(BaseRestClient):
         with self.client() as client:
             return self._wra(client).scheduled_workflow_run_create(
                 tenant=self.client_config.tenant_id,
-                workflow=workflow_name,
+                workflow=self.client_config.apply_namespace(workflow_name),
                 schedule_workflow_run_request=ScheduleWorkflowRunRequest(
                     triggerAt=trigger_at,
                     input=dict(input),

@@ -1,5 +1,6 @@
 import json
 from logging import Logger, getLogger
+from typing import overload
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -121,9 +122,37 @@ class ClientConfig(BaseSettings):
     def validate_namespace(cls, namespace: str) -> str:
         if not namespace:
             return ""
+
         if not namespace.endswith("_"):
             namespace = f"{namespace}_"
+
         return namespace.lower()
 
     def __hash__(self) -> int:
         return hash(json.dumps(self.model_dump(), default=str))
+
+    @overload
+    def apply_namespace(
+        self, resource_name: str, namespace_override: str | None = None
+    ) -> str: ...
+
+    @overload
+    def apply_namespace(
+        self, resource_name: None, namespace_override: str | None = None
+    ) -> None: ...
+
+    def apply_namespace(
+        self, resource_name: str | None, namespace_override: str | None = None
+    ) -> str | None:
+        if resource_name is None:
+            return None
+
+        namespace = namespace_override or self.namespace
+
+        if not namespace:
+            return resource_name
+
+        if resource_name.startswith(namespace):
+            return resource_name
+
+        return namespace + resource_name

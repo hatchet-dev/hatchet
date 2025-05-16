@@ -43,6 +43,7 @@ func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreate
 			Data:               dataBytes,
 			AdditionalMetadata: additionalMetadata,
 			Priority:           event.Priority,
+			Scope:              event.Scope,
 		}
 	}
 	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), tenant, eventOpts)

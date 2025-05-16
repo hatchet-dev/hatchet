@@ -73,13 +73,26 @@ class ActionPayload(BaseModel):
     step_run_errors: dict[str, str] = Field(default_factory=dict)
     triggered_by: str | None = None
     triggers: JSONSerializableMapping = Field(default_factory=dict)
+    filter_payload: JSONSerializableMapping = Field(default_factory=dict)
 
     @field_validator(
-        "input", "parents", "overrides", "user_data", "step_run_errors", mode="before"
+        "input",
+        "parents",
+        "overrides",
+        "user_data",
+        "step_run_errors",
+        "filter_payload",
+        mode="before",
     )
     @classmethod
     def validate_fields(cls, v: Any) -> Any:
         return v or {}
+
+    @model_validator(mode="after")
+    def validate_filter_payload(self) -> "ActionPayload":
+        self.filter_payload = self.triggers.get("filter_payload", {})
+
+        return self
 
 
 class ActionType(str, Enum):

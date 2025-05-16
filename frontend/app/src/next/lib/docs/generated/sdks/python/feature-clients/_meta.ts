@@ -7,6 +7,13 @@ const meta = {
     },
     href: '/sdks/python/feature-clients/cron',
   },
+  filters: {
+    title: 'Filters',
+    theme: {
+      toc: true,
+    },
+    href: '/sdks/python/feature-clients/filters',
+  },
   logs: {
     title: 'Logs',
     theme: {

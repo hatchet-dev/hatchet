@@ -46,9 +46,7 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     desired_worker_id: str | None = None
-    namespace: str | None = None
     sticky: bool = False
     key: str | None = None
 
@@ -253,8 +251,7 @@ class AdminClient:
         try:
             namespace = options.namespace or self.namespace
 
-            if namespace != "" and not name.startswith(self.namespace):
-                name = f"{namespace}{name}"
+            name = self.config.apply_namespace(name, namespace)
 
             request = self._prepare_schedule_workflow_request(
                 name, schedules, input, options
@@ -312,8 +309,7 @@ class AdminClient:
 
         namespace = options.namespace or self.namespace
 
-        if namespace != "" and not workflow_name.startswith(self.namespace):
-            workflow_name = f"{namespace}{workflow_name}"
+        workflow_name = self.config.apply_namespace(workflow_name, namespace)
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 

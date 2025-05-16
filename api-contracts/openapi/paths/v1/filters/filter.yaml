@@ -1,0 +1,217 @@
+V1FilterGetDelete:
+  get:
+    x-resources: ["tenant", "v1-filter"]
+    description: Get a filter by its id
+    operationId: v1-filter:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The filter id
+        in: path
+        name: v1-filter
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Filter"
+        description: Successfully got the filter
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get a filter
+    tags:
+      - Filter
+  delete:
+    x-resources: ["tenant", "v1-filter"]
+    description: Delete a filter
+    operationId: v1-filter:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The filter id to delete
+        in: path
+        name: v1-filter
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Filter"
+        description: Successfully created the cron job workflow trigger
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    tags:
+      - Filter
+V1FilterListCreate:
+  get:
+    x-resources: ["tenant"]
+    description: Lists all filters for a tenant.
+    operationId: v1-filter:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The workflow ids to filter by
+        in: query
+        name: workflowIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            description: The workflow id associated with this filter.
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: The scopes to subset candidate filters by
+        in: query
+        name: scopes
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            description: The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1FilterList"
+        description: Successfully listed the filters
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List filters
+    tags:
+      - Filter
+  post:
+    x-resources: ["tenant"]
+    description: Create a new filter
+    operationId: v1-filter:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1CreateFilterRequest"
+      description: The input to the filter creation
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1Filter"
+        description: Successfully created the cron job workflow trigger
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Create a filter
+    tags:
+      - Filter

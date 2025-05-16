@@ -18,6 +18,7 @@ sql:
       - log_line.sql
       - sleep.sql
       - ticker.sql
+      - filters.sql
     schema:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1-core.sql
