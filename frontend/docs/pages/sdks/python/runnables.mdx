@@ -42,7 +42,7 @@ Workflows support various execution patterns including:
 
 Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators and can be arranged into complex dependency patterns.
 
-### Methods
+Methods:
 
 | Name                   | Description                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -91,9 +91,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                                |
-| ----------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                              | Description                                |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `durable_task`
 
@@ -123,9 +123,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                                 | Description                                |
-| ------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                                     | Description                                |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[[TWorkflowInput, DurableContext], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `on_failure_task`
 
@@ -146,9 +146,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                                |
-| ----------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                              | Description                                |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `on_success_task`
 
@@ -169,9 +169,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                              |
-| ----------------------------------------------------------------------------- | ---------------------------------------- |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
+| Type                                                                                              | Description                              |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
 
 #### `run`
 
@@ -443,7 +443,7 @@ Returns:
 
 Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
 
-### Methods
+Methods:
 
 | Name                   | Description                                                               |
 | ---------------------- | ------------------------------------------------------------------------- |

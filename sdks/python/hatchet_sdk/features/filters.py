@@ -23,38 +23,47 @@ class FiltersClient(BaseRestClient):
         self,
         limit: int | None = None,
         offset: int | None = None,
-        workflow_ids: list[str] | None = None,
-        scopes: list[str] | None = None,
+        workflow_id_scope_pairs: list[tuple[str, str]] | None = None,
     ) -> V1FilterList:
         """
         List filters for a given tenant.
 
         :param limit: The maximum number of filters to return.
         :param offset: The number of filters to skip before starting to collect the result set.
-        :param workflow_ids: A list of workflow IDs to filter by.
-        :param scopes: A list of scopes to filter by.
+        :param workflow_id_scope_pairs: A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second.
 
         :return: A list of filters matching the specified criteria.
         """
-        return await asyncio.to_thread(self.list, limit, offset, workflow_ids, scopes)
+        return await asyncio.to_thread(
+            self.list, limit, offset, workflow_id_scope_pairs
+        )
 
     def list(
         self,
         limit: int | None = None,
         offset: int | None = None,
-        workflow_ids: list[str] | None = None,
-        scopes: list[str] | None = None,
+        workflow_id_scope_pairs: list[tuple[str, str]] | None = None,
     ) -> V1FilterList:
         """
         List filters for a given tenant.
 
         :param limit: The maximum number of filters to return.
         :param offset: The number of filters to skip before starting to collect the result set.
-        :param workflow_ids: A list of workflow IDs to filter by.
-        :param scopes: A list of scopes to filter by.
+        :param workflow_id_scope_pairs: A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second.
 
         :return: A list of filters matching the specified criteria.
         """
+        workflow_ids = (
+            [pair[0] for pair in workflow_id_scope_pairs]
+            if workflow_id_scope_pairs
+            else None
+        )
+        scopes = (
+            [pair[1] for pair in workflow_id_scope_pairs]
+            if workflow_id_scope_pairs
+            else None
+        )
+
         with self.client() as client:
             return self._fa(client).v1_filter_list(
                 tenant=self.tenant_id,
