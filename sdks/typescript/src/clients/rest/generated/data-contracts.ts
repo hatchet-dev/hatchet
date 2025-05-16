@@ -620,6 +620,8 @@ export interface CreateEventRequest {
    * @format int32
    */
   priority?: number;
+  /** The scope for event filtering. */
+  scope?: string;
 }
 
 export interface BulkCreateEventRequest {
@@ -724,6 +726,30 @@ export interface V1EventList {
     /** Additional metadata for the event. */
     additionalMetadata?: object;
   }[];
+}
+
+export interface V1FilterList {
+  pagination?: PaginationResponse;
+  rows?: V1Filter[];
+}
+
+export interface V1Filter {
+  metadata: APIResourceMeta;
+  /** The ID of the tenant associated with this filter. */
+  tenantId: string;
+  /**
+   * The workflow id associated with this filter.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The expression associated with this filter. */
+  expression: string;
+  /** Additional payload data associated with the filter */
+  payload: object;
 }
 
 export interface RateLimit {
@@ -1531,6 +1557,10 @@ export interface V1TaskSummary {
   metadata: APIResourceMeta;
   /** The action ID of the task. */
   actionId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
   /** Additional metadata for the task run. */
   additionalMetadata?: object;
   /** The list of children tasks */
@@ -1650,6 +1680,10 @@ export interface V1TaskEventList {
     /** @format uuid */
     workerId?: string;
     taskDisplayName?: string;
+    /** The number of retries of the task. */
+    retryCount?: number;
+    /** The attempt number of the task. */
+    attempt?: number;
   }[];
 }
 
@@ -1786,6 +1820,12 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /** The retry count of the log line. */
+  retryCount?: number;
+  /** The attempt number of the log line. */
+  attempt?: number;
+  /** The log level. */
+  level?: V1LogLineLevel;
 }
 
 export interface V1LogLineList {
@@ -1849,10 +1889,30 @@ export interface V1TaskTiming {
    * @format uuid
    */
   workflowRunId?: string;
+  /** The number of retries of the task. */
+  retryCount?: number;
+  /** The attempt number of the task. */
+  attempt?: number;
 }
 
 export interface V1TaskTimingList {
   pagination: PaginationResponse;
   /** The list of task timings */
   rows: V1TaskTiming[];
+}
+
+export interface V1CreateFilterRequest {
+  /**
+   * The workflow id
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  /** The expression for the filter */
+  expression: string;
+  /** The scope associated with this filter. Used for subsetting candidate filters at evaluation time */
+  scope: string;
+  /** The payload for the filter */
+  payload?: object;
 }
