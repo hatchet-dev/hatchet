@@ -54,7 +54,7 @@ export function PaymentMethods() {
                     <Icon size={24} />
                     {method.brand.toUpperCase()}
                     {method.last4 && ` *** *** ${method.last4} `}
-                    {method.expiration && `(Expires {method.expiration})`}
+                    {method.expiration && `(Expires ${method.expiration})`}
                   </div>
                 </div>
               </div>
