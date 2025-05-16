@@ -48,10 +48,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      RABBITMQ_DEFAULT_USER: "user"
-      RABBITMQ_DEFAULT_PASS: "password"
       DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
-      SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@localhost:5672/
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
@@ -63,12 +60,10 @@ services:
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
       SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: localhost:7077
     volumes:
-      - "hatchet_lite_rabbitmq_data:/var/lib/rabbitmq"
       - "hatchet_lite_config:/config"
 
 volumes:
   hatchet_lite_postgres_data:
-  hatchet_lite_rabbitmq_data:
   hatchet_lite_config:
 ```
 
@@ -89,12 +84,9 @@ services:
       - "8888:8888"
       - "7077:7077"
     environment:
-      RABBITMQ_DEFAULT_USER: "user"
-      RABBITMQ_DEFAULT_PASS: "password"
       DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
       DATABASE_POSTGRES_PORT: "5432"
       DATABASE_POSTGRES_HOST: "postgres"
-      SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@localhost:5672/
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
@@ -105,11 +97,9 @@ services:
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
     volumes:
-      - "hatchet_lite_rabbitmq_data:/var/lib/rabbitmq"
       - "hatchet_lite_config:/config"
 
 volumes:
-  hatchet_lite_rabbitmq_data:
   hatchet_lite_config:
 ```
 
