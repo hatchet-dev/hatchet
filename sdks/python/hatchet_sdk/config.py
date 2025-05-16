@@ -6,6 +6,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
+from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
 
 def create_settings_config(env_prefix: str) -> SettingsConfigDict:
@@ -37,6 +38,17 @@ class HealthcheckConfig(BaseSettings):
     enabled: bool = False
 
 
+class OpenTelemetryConfig(BaseSettings):
+    model_config = create_settings_config(
+        env_prefix="HATCHET_CLIENT_OPENTELEMETRY_",
+    )
+
+    excluded_attributes: list[OTelAttribute] = Field(
+        default_factory=list,
+        description='Note that if specifying this field via an environment variable, the variable must be a valid JSON array. For example: \'["action_name", "action_payload"]\'',
+    )
+
+
 DEFAULT_HOST_PORT = "localhost:7070"
 
 
@@ -55,6 +67,7 @@ class ClientConfig(BaseSettings):
 
     tls_config: ClientTLSConfig = Field(default_factory=lambda: ClientTLSConfig())
     healthcheck: HealthcheckConfig = Field(default_factory=lambda: HealthcheckConfig())
+    otel: OpenTelemetryConfig = Field(default_factory=lambda: OpenTelemetryConfig())
 
     listener_v2_timeout: int | None = None
     grpc_max_recv_message_length: int = Field(
