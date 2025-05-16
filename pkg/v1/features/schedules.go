@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 )
 
 // SchedulesClient provides methods for interacting with workflow schedules
@@ -40,25 +41,29 @@ type CreateScheduledRunTrigger struct {
 
 // schedulesClientImpl implements the SchedulesClient interface.
 type schedulesClientImpl struct {
-	api      *rest.ClientWithResponses
-	tenantId uuid.UUID
+	api       *rest.ClientWithResponses
+	tenantId  uuid.UUID
+	namespace *string
 }
 
 // NewSchedulesClient creates a new client for interacting with workflow schedules.
 func NewSchedulesClient(
 	api *rest.ClientWithResponses,
 	tenantId *string,
+	namespace *string,
 ) SchedulesClient {
 	tenantIdUUID := uuid.MustParse(*tenantId)
 
 	return &schedulesClientImpl{
-		api:      api,
-		tenantId: tenantIdUUID,
+		api:       api,
+		tenantId:  tenantIdUUID,
+		namespace: namespace,
 	}
 }
 
 // Create creates a new scheduled workflow run.
 func (s *schedulesClientImpl) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
+	workflowName = client.ApplyNamespace(workflowName, s.namespace)
 
 	request := rest.ScheduleWorkflowRunRequest{
 		Input:              trigger.Input,

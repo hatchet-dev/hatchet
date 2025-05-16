@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 )
 
 type triggerConverter interface {
@@ -101,7 +102,7 @@ func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) 
 
 	// Prepend the namespace to each event
 	for i, event := range wt.Events {
-		wt.Events[i] = namespace + event
+		wt.Events[i] = client.ApplyNamespace(event, &namespace)
 	}
 }
 
@@ -120,7 +121,7 @@ func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace stri
 
 	// Prepend the namespace to each event
 	for i, event := range wt.Events {
-		wt.Events[i] = namespace + event
+		wt.Events[i] = client.ApplyNamespace(event, &namespace)
 	}
 }
 
@@ -207,7 +208,7 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 	}
 
 	w := types.Workflow{
-		Name:            namespace + j.Name,
+		Name:            client.ApplyNamespace(j.Name, &namespace),
 		Jobs:            jobs,
 		OnFailureJob:    onFailureJob,
 		ScheduleTimeout: j.ScheduleTimeout,
