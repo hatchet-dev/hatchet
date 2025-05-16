@@ -19,6 +19,7 @@ import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { DestructiveDialog } from '@/next/components/ui/dialog/destructive-dialog';
 import { ROUTES } from '@/next/lib/routes';
+import { applyCouponsToPrice } from './coupon-utils';
 
 export const Subscription: React.FC = () => {
   // Implement the logic for the Subscription component here
@@ -185,10 +186,13 @@ export const Subscription: React.FC = () => {
               <CardDescription className="py-4">
                 $
                 {(
-                  plan.amount_cents /
+                  applyCouponsToPrice(plan.amount_cents, coupons) /
                   100 /
                   (plan.period == 'yearly' ? 12 : 1)
-                ).toLocaleString()}{' '}
+                ).toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{' '}
                 per month billed {plan.period}*
               </CardDescription>
               <CardDescription>
@@ -197,14 +201,16 @@ export const Subscription: React.FC = () => {
                   disabled={
                     !billing.hasPaymentMethods ||
                     plan.plan_code === activePlanCode ||
-                    billing.changePlan.isPending
+                    billing.changePlan.isPending ||
+                    (active?.plan === 'free' && plan.plan_code === 'free')
                   }
                   variant={
                     plan.plan_code !== activePlanCode ? 'default' : 'outline'
                   }
                   onClick={() => setChangeConfirmOpen(plan)}
                 >
-                  {plan.plan_code === activePlanCode
+                  {plan.plan_code === activePlanCode ||
+                  (active?.plan === 'free' && plan.plan_code === 'free')
                     ? 'Active'
                     : isUpgrade(plan)
                       ? 'Upgrade'
