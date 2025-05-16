@@ -63,7 +63,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId, nil)
+	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId)
 
 	if err != nil {
 		return nil, err

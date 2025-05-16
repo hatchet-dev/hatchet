@@ -31,10 +31,10 @@ type TenantLimitRepository interface {
 	Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32) (*dbsqlc.TenantResourceLimit, error)
 
 	// Create new Tenant Resource Limits for a tenant
-	SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *string) error
+	SelectOrInsertTenantLimits(ctx context.Context, tenantId string) error
 
 	// UpsertTenantLimits updates or inserts new tenant limits
-	UpsertTenantLimits(ctx context.Context, tenantId string, plan *string) error
+	UpsertTenantLimits(ctx context.Context, tenantId string, limits []Limit) error
 
 	// Resolve all tenant resource limits
 	ResolveAllTenantResourceLimits(ctx context.Context) error
