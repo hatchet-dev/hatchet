@@ -2590,10 +2590,10 @@ type ClientInterface interface {
 	V1FilterCreate(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1FilterDelete request
-	V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1FilterGet request
-	V1FilterGet(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3198,8 +3198,8 @@ func (c *Client) V1FilterCreate(ctx context.Context, tenant openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1FilterDeleteRequest(c.Server, tenant, filterId)
+func (c *Client) V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterDeleteRequest(c.Server, tenant, v1Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -3210,8 +3210,8 @@ func (c *Client) V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) V1FilterGet(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1FilterGetRequest(c.Server, tenant, filterId)
+func (c *Client) V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterGetRequest(c.Server, tenant, v1Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -5558,7 +5558,7 @@ func NewV1FilterCreateRequestWithBody(server string, tenant openapi_types.UUID, 
 }
 
 // NewV1FilterDeleteRequest generates requests for V1FilterDelete
-func NewV1FilterDeleteRequest(server string, tenant openapi_types.UUID, filterId openapi_types.UUID) (*http.Request, error) {
+func NewV1FilterDeleteRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5570,7 +5570,7 @@ func NewV1FilterDeleteRequest(server string, tenant openapi_types.UUID, filterId
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "filter_id", runtime.ParamLocationPath, filterId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -5599,7 +5599,7 @@ func NewV1FilterDeleteRequest(server string, tenant openapi_types.UUID, filterId
 }
 
 // NewV1FilterGetRequest generates requests for V1FilterGet
-func NewV1FilterGetRequest(server string, tenant openapi_types.UUID, filterId openapi_types.UUID) (*http.Request, error) {
+func NewV1FilterGetRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5611,7 +5611,7 @@ func NewV1FilterGetRequest(server string, tenant openapi_types.UUID, filterId op
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "filter_id", runtime.ParamLocationPath, filterId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -10834,10 +10834,10 @@ type ClientWithResponsesInterface interface {
 	V1FilterCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error)
 
 	// V1FilterDeleteWithResponse request
-	V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error)
+	V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error)
 
 	// V1FilterGetWithResponse request
-	V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error)
+	V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error)
 
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
@@ -14103,8 +14103,8 @@ func (c *ClientWithResponses) V1FilterCreateWithResponse(ctx context.Context, te
 }
 
 // V1FilterDeleteWithResponse request returning *V1FilterDeleteResponse
-func (c *ClientWithResponses) V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error) {
-	rsp, err := c.V1FilterDelete(ctx, tenant, filterId, reqEditors...)
+func (c *ClientWithResponses) V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error) {
+	rsp, err := c.V1FilterDelete(ctx, tenant, v1Filter, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -14112,8 +14112,8 @@ func (c *ClientWithResponses) V1FilterDeleteWithResponse(ctx context.Context, te
 }
 
 // V1FilterGetWithResponse request returning *V1FilterGetResponse
-func (c *ClientWithResponses) V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, filterId openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error) {
-	rsp, err := c.V1FilterGet(ctx, tenant, filterId, reqEditors...)
+func (c *ClientWithResponses) V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error) {
+	rsp, err := c.V1FilterGet(ctx, tenant, v1Filter, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
