@@ -166,7 +166,14 @@ message AssignedAction {
     // (optional) the parent workflow run id (if this is a child workflow)
     optional string parent_workflow_run_id = 17;
 
+    // (optional) the priority of the run
     int32 priority = 18;
+
+    // (optional) the workflow id
+    optional string workflowId = 19;
+
+    // (optional) the workflow version id
+    optional string workflowVersionId = 20;
 }
 
 message WorkerListenRequest {

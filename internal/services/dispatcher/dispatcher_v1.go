@@ -66,18 +66,23 @@ func (worker *subscribedWorker) CancelTask(
 }
 
 func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, retryCount int32) *contracts.AssignedAction {
+	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
+	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
+
 	action := &contracts.AssignedAction{
-		TenantId:      tenantID,
-		JobId:         sqlchelpers.UUIDToStr(task.StepID), // FIXME
-		JobName:       task.StepReadableID,
-		JobRunId:      sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
-		StepId:        sqlchelpers.UUIDToStr(task.StepID),
-		StepRunId:     sqlchelpers.UUIDToStr(task.ExternalID),
-		ActionId:      task.ActionID,
-		StepName:      task.StepReadableID,
-		WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
-		RetryCount:    retryCount,
-		Priority:      task.Priority.Int32,
+		TenantId:          tenantID,
+		JobId:             sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		JobName:           task.StepReadableID,
+		JobRunId:          sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
+		StepId:            sqlchelpers.UUIDToStr(task.StepID),
+		StepRunId:         sqlchelpers.UUIDToStr(task.ExternalID),
+		ActionId:          task.ActionID,
+		StepName:          task.StepReadableID,
+		WorkflowRunId:     sqlchelpers.UUIDToStr(task.WorkflowRunID),
+		RetryCount:        retryCount,
+		Priority:          task.Priority.Int32,
+		WorkflowId:        &workflowId,
+		WorkflowVersionId: &workflowVersionId,
 	}
 
 	if task.AdditionalMetadata != nil {
