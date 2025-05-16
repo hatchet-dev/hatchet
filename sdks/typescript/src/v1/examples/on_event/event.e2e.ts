@@ -7,8 +7,11 @@ import { Worker } from '../../client/worker/worker';
 
 describe('events-e2e', () => {
   let worker: Worker;
+  let testRunId: string;
 
   beforeEach(async () => {
+    testRunId = randomUUID();
+
     worker = await hatchet.worker('event-worker');
     await worker.registerWorkflow(lower);
 
@@ -21,7 +24,6 @@ describe('events-e2e', () => {
   })
 
   async function setupEventFilter(
-    testRunId: string,
     expression?: string,
     payload: Record<string, string> = {}
   ) {
@@ -134,7 +136,6 @@ describe('events-e2e', () => {
   // Helper to create bulk push event objects
   function createBulkPushEvent({
     index = 1,
-    testRunId = '',
     ShouldSkip = false,
     shouldHaveRuns = true,
     key = SIMPLE_EVENT,
@@ -142,7 +143,6 @@ describe('events-e2e', () => {
     scope = null,
   }: {
     index?: number;
-    testRunId?: string;
     ShouldSkip?: boolean;
     shouldHaveRuns?: boolean;
     key?: string;
@@ -183,23 +183,22 @@ describe('events-e2e', () => {
   it('should bulk push events', async () => {
     const events = [
       {
-        key: 'event1',
+        key: SIMPLE_EVENT,
         payload: { Message: 'This is event 1', ShouldSkip: false },
         additionalMetadata: { source: 'test', user_id: 'user123' },
       },
       {
-        key: 'event2',
+        key: SIMPLE_EVENT,
         payload: { Message: 'This is event 2', ShouldSkip: false },
         additionalMetadata: { source: 'test', user_id: 'user456' },
       },
       {
-        key: 'event3',
+        key: SIMPLE_EVENT,
         payload: { Message: 'This is event 3', ShouldSkip: false },
         additionalMetadata: { source: 'test', user_id: 'user789' },
       },
     ];
 
-    const options = { namespace: 'bulk-test' };
     const result = await hatchet.events.bulkPush(SIMPLE_EVENT, events);
 
     expect(result.events.length).toBe(3);
@@ -207,22 +206,17 @@ describe('events-e2e', () => {
     // Sort and verify namespacing
     const sortedEvents = [...events].sort((a, b) => a.key.localeCompare(b.key));
     const sortedResults = [...result.events].sort((a, b) => a.key.localeCompare(b.key));
-    const namespace = 'bulk-test';
 
     sortedEvents.forEach((originalEvent, index) => {
       const returnedEvent = sortedResults[index];
-      expect(returnedEvent.key).toBe(namespace + originalEvent.key);
+      expect(returnedEvent.key).toBe(originalEvent.key);
     });
   }, 15000);
 
   it('should process events according to event engine behavior', async () => {
-    const testRunId = randomUUID();
     const events = [
+      createBulkPushEvent(),
       createBulkPushEvent({
-        testRunId,
-      }),
-      createBulkPushEvent({
-        testRunId,
         key: 'thisisafakeeventfoobarbaz',
         shouldHaveRuns: false,
       }),
@@ -251,37 +245,32 @@ describe('events-e2e', () => {
     });
   }, 30000);
 
-  function generateBulkEvents(testRunId: string) {
+  function generateBulkEvents() {
     return [
       createBulkPushEvent({
         index: 1,
-        testRunId,
         ShouldSkip: false,
         shouldHaveRuns: true,
       }),
       createBulkPushEvent({
         index: 2,
-        testRunId,
         ShouldSkip: true,
         shouldHaveRuns: true,
       }),
       createBulkPushEvent({
         index: 3,
-        testRunId,
         ShouldSkip: false,
         shouldHaveRuns: true,
         scope: testRunId,
       }),
       createBulkPushEvent({
         index: 4,
-        testRunId,
         ShouldSkip: true,
         shouldHaveRuns: false,
         scope: testRunId,
       }),
       createBulkPushEvent({
         index: 5,
-        testRunId,
         ShouldSkip: true,
         shouldHaveRuns: false,
         scope: testRunId,
@@ -289,7 +278,6 @@ describe('events-e2e', () => {
       }),
       createBulkPushEvent({
         index: 6,
-        testRunId,
         ShouldSkip: false,
         shouldHaveRuns: false,
         scope: testRunId,
@@ -299,11 +287,10 @@ describe('events-e2e', () => {
   }
 
   it('should handle event skipping and filtering', async () => {
-    const testRunId = randomUUID();
-    const cleanup = await setupEventFilter(testRunId);
+    const cleanup = await setupEventFilter();
 
     try {
-      const events = generateBulkEvents(testRunId);
+      const events = generateBulkEvents();
       const result = await hatchet.events.bulkPush(SIMPLE_EVENT, events);
 
       const eventToRuns = await waitForEventsToProcess(result.events);
@@ -337,11 +324,10 @@ describe('events-e2e', () => {
   }
 
   it('should handle event skipping and filtering without bulk push', async () => {
-    const testRunId = randomUUID();
-    const cleanup = await setupEventFilter(testRunId);
+    const cleanup = await setupEventFilter();
 
     try {
-      const rawEvents = generateBulkEvents(testRunId);
+      const rawEvents = generateBulkEvents();
       const eventPromises = rawEvents.map((event) => convertBulkToSingle(event));
       const events = await Promise.all(eventPromises);
 
@@ -368,9 +354,7 @@ describe('events-e2e', () => {
   }, 30000);
 
   it('should filter events by payload expression not matching', async () => {
-    const testRunId = randomUUID();
     const cleanup = await setupEventFilter(
-      testRunId,
       "input.ShouldSkip == false && payload.foobar == 'baz'",
       { foobar: 'qux' }
     );
@@ -397,9 +381,7 @@ describe('events-e2e', () => {
   }, 20000);
 
   it('should filter events by payload expression matching', async () => {
-    const testRunId = randomUUID();
     const cleanup = await setupEventFilter(
-      testRunId,
       "input.ShouldSkip == false && payload.foobar == 'baz'",
       { foobar: 'baz' }
     );
