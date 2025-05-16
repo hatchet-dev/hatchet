@@ -17,7 +17,7 @@ from examples.lifespans.simple import lifespan, lifespan_task
 from examples.logger.workflow import logging_workflow
 from examples.non_retryable.worker import non_retryable_workflow
 from examples.on_failure.worker import on_failure_wf, on_failure_wf_with_details
-from examples.simple.worker import simple
+from examples.simple.worker import simple, simple_durable
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from examples.waits.worker import task_condition_workflow
 from hatchet_sdk import Hatchet
@@ -56,6 +56,7 @@ def main() -> None:
             concurrency_workflow_level_workflow,
             lifespan_task,
             simple,
+            simple_durable,
         ],
         lifespan=lifespan,
     )
