@@ -6,7 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 )
@@ -18,7 +18,7 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 	workflowIds := request.Params.WorkflowIds
 
 	if scopes != nil && workflowIds != nil && len(*scopes) != len(*workflowIds) {
-		return gen.V1FilterList400JSONResponse(apierrors.NewAPIErrors("resource hints and workflow ids must be the same length")), nil
+		return gen.V1FilterList400JSONResponse(apierrors.NewAPIErrors("scopes and workflow ids must be the same length")), nil
 	}
 
 	numScopesOrIds := 1
@@ -27,12 +27,6 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 		numScopesOrIds = len(*scopes)
 	} else if workflowIds != nil {
 		numScopesOrIds = len(*workflowIds)
-	}
-
-	tenantIds := make([]pgtype.UUID, numScopesOrIds)
-
-	for ix := 0; ix < numScopesOrIds; ix++ {
-		tenantIds[ix] = sqlchelpers.UUIDFromStr(tenant.ID.String())
 	}
 
 	workflowIdParams := make([]pgtype.UUID, numScopesOrIds)
@@ -53,9 +47,9 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 
 	filters, err := t.config.V1.Filters().ListFilters(
 		ctx.Request().Context(),
-		sqlcv1.ListFiltersParams{
-			Tenantids:    tenantIds,
-			Workflowids:  workflowIdParams,
+		tenant.ID.String(),
+		v1.ListFiltersOpts{
+			WorkflowIds:  workflowIdParams,
 			Scopes:       scopeParams,
 			FilterLimit:  request.Params.Limit,
 			FilterOffset: request.Params.Offset,

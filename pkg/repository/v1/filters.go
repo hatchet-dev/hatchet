@@ -3,14 +3,16 @@ package v1
 import (
 	"context"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type FilterRepository interface {
-	CreateFilter(ctx context.Context, params sqlcv1.CreateFilterParams) (*sqlcv1.V1Filter, error)
-	ListFilters(ctx context.Context, params sqlcv1.ListFiltersParams) ([]*sqlcv1.V1Filter, error)
-	DeleteFilter(ctx context.Context, params sqlcv1.DeleteFilterParams) (*sqlcv1.V1Filter, error)
-	GetFilter(ctx context.Context, params sqlcv1.GetFilterParams) (*sqlcv1.V1Filter, error)
+	CreateFilter(ctx context.Context, tenantId string, params CreateFilterOpts) (*sqlcv1.V1Filter, error)
+	ListFilters(ctx context.Context, tenantId string, params ListFiltersOpts) ([]*sqlcv1.V1Filter, error)
+	DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error)
+	GetFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error)
 }
 
 type filterRepository struct {
@@ -23,18 +25,54 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 	}
 }
 
-func (r *filterRepository) CreateFilter(ctx context.Context, params sqlcv1.CreateFilterParams) (*sqlcv1.V1Filter, error) {
-	return r.queries.CreateFilter(ctx, r.pool, params)
+type CreateFilterOpts struct {
+	Workflowid pgtype.UUID `json:"workflowid"`
+	Scope      string      `json:"scope"`
+	Expression string      `json:"expression"`
+	Payload    []byte      `json:"payload"`
 }
 
-func (r *filterRepository) ListFilters(ctx context.Context, params sqlcv1.ListFiltersParams) ([]*sqlcv1.V1Filter, error) {
-	return r.queries.ListFilters(ctx, r.pool, params)
+func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {
+	return r.queries.CreateFilter(ctx, r.pool, sqlcv1.CreateFilterParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: opts.Workflowid,
+		Scope:      opts.Scope,
+		Expression: opts.Expression,
+		Payload:    opts.Payload,
+	})
 }
 
-func (r *filterRepository) DeleteFilter(ctx context.Context, params sqlcv1.DeleteFilterParams) (*sqlcv1.V1Filter, error) {
-	return r.queries.DeleteFilter(ctx, r.pool, params)
+type ListFiltersOpts struct {
+	WorkflowIds  []pgtype.UUID `json:"workflow_ids"`
+	Scopes       []*string     `json:"scopes"`
+	FilterLimit  *int64        `json:"limit" validate:"omitnil,min=1"`
+	FilterOffset *int64        `json:"offset" validate:"omitnil,min=0"`
 }
 
-func (r *filterRepository) GetFilter(ctx context.Context, params sqlcv1.GetFilterParams) (*sqlcv1.V1Filter, error) {
-	return r.queries.GetFilter(ctx, r.pool, params)
+func (r *filterRepository) ListFilters(ctx context.Context, tenantId string, opts ListFiltersOpts) ([]*sqlcv1.V1Filter, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	return r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+		Workflowids:  opts.WorkflowIds,
+		Scopes:       opts.Scopes,
+		FilterLimit:  opts.FilterLimit,
+		FilterOffset: opts.FilterOffset,
+	})
+}
+
+func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {
+	return r.queries.DeleteFilter(ctx, r.pool, sqlcv1.DeleteFilterParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       sqlchelpers.UUIDFromStr(filterId),
+	})
+}
+
+func (r *filterRepository) GetFilter(ctx context.Context, tenantId, filterId string) (*sqlcv1.V1Filter, error) {
+	return r.queries.GetFilter(ctx, r.pool, sqlcv1.GetFilterParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       sqlchelpers.UUIDFromStr(filterId),
+	})
 }
