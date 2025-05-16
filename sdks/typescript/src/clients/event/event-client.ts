@@ -9,6 +9,8 @@ import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
+import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
+import { LegacyHatchetClient } from '../hatchet-client';
 
 // eslint-disable-next-line no-shadow
 export enum LogLevel {
@@ -35,14 +37,23 @@ export class EventClient {
   config: ClientConfig;
   client: EventsServiceClient;
   retrier: typeof retrier;
+  api: HatchetClient['api'];
+  tenantId: string;
 
   logger: Logger;
 
-  constructor(config: ClientConfig, channel: Channel, factory: ClientFactory) {
+  constructor(
+    config: ClientConfig,
+    channel: Channel,
+    factory: ClientFactory,
+    hatchetClient: LegacyHatchetClient
+  ) {
     this.config = config;
     this.client = factory.create(EventsServiceDefinition, channel);
     this.logger = config.logger(`Dispatcher`, config.log_level);
     this.retrier = retrier;
+    this.api = hatchetClient.api;
+    this.tenantId = config.tenant_id;
   }
 
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
@@ -157,5 +168,10 @@ export class EventClient {
       // log a warning, but this is not a fatal error
       this.logger.warn(`Could not put log: ${e.message}`);
     });
+  }
+
+  async list(opts?: Parameters<typeof this.api.v1EventList>[1]) {
+    const { data } = await this.api.v1EventList(this.tenantId, opts);
+    return data;
   }
 }
