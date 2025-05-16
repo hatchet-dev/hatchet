@@ -120,13 +120,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 				event = concurrencyLimitEvent{1}
 			}
 
-			c.Event().Push(
-				context.Background(),
-				"concurrency-test-event-rr",
-				event,
-				nil,
-				nil,
-			)
+			c.Event().Push(context.Background(), "concurrency-test-event-rr", event)
 		}
 
 		select {

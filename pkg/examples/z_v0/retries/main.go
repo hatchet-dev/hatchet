@@ -118,8 +118,6 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		context.Background(),
 		"user:create:simple",
 		testEvent,
-		nil,
-		nil,
 	)
 
 	if err != nil {

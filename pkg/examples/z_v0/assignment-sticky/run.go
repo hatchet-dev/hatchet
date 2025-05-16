@@ -111,8 +111,6 @@ func run() (func() error, error) {
 			context.Background(),
 			"user:create:sticky",
 			testEvent,
-			nil,
-			nil,
 		)
 		if err != nil {
 			panic(fmt.Errorf("error pushing event: %w", err))

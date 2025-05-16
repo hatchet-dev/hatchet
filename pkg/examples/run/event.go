@@ -26,8 +26,6 @@ func event() {
 		v1_workflows.SimpleInput{
 			Message: "Hello, World!",
 		},
-		nil,
-		nil,
 	)
 	// !!
 

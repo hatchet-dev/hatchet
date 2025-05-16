@@ -128,8 +128,6 @@ func run(events chan<- string) (func() error, error) {
 			context.Background(),
 			"user:create:simple",
 			testEvent,
-			nil,
-			nil,
 		)
 		if err != nil {
 			panic(fmt.Errorf("error pushing event: %w", err))

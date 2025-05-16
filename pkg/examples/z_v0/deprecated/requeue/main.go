@@ -59,8 +59,6 @@ func main() {
 		context.Background(),
 		"example:event",
 		event,
-		nil,
-		nil,
 	)
 
 	if err != nil {
