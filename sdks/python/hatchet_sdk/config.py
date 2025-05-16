@@ -147,10 +147,10 @@ class ClientConfig(BaseSettings):
         if resource_name is None:
             return None
 
-        if not self.namespace:
-            return resource_name
-
         namespace = namespace_override or self.namespace
+
+        if not namespace:
+            return resource_name
 
         if resource_name.startswith(namespace):
             return resource_name
