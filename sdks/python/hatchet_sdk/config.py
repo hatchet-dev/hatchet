@@ -39,6 +39,10 @@ class HealthcheckConfig(BaseSettings):
 
 
 class OpenTelemetryConfig(BaseSettings):
+    model_config = create_settings_config(
+        env_prefix="HATCHET_CLIENT_OPENTELEMETRY_",
+    )
+
     excluded_otel_attributes: list[OTelAttribute] = Field(default_factory=list)
 
 
