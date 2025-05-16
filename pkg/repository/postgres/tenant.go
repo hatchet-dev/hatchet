@@ -44,7 +44,7 @@ func (r *tenantAPIRepository) RegisterCreateCallback(callback repository.Unscope
 	r.createCallbacks = append(r.createCallbacks, callback)
 }
 
-func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository.CreateTenantOpts) (*dbsqlc.Tenant, error) {
+func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository.CreateTenantOpts, user *dbsqlc.User) (*dbsqlc.Tenant, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -92,6 +92,18 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+
+	if user != nil {
+		// add the user as an owner of the tenant
+		_, err = r.CreateTenantMember(ctx, tenantId, &repository.CreateTenantMemberOpts{
+			UserId: sqlchelpers.UUIDToStr(user.ID),
+			Role:   "OWNER",
+		})
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Call the create callbacks

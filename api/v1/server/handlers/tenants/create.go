@@ -55,7 +55,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// write the user to the db
-	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts)
+	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts, user)
 
 	if err != nil {
 		return nil, err
@@ -64,16 +64,6 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	err = t.config.EntitlementRepository.TenantLimit().SelectOrInsertTenantLimits(context.Background(), tenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// add the user as an owner of the tenant
-	_, err = t.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &repository.CreateTenantMemberOpts{
-		UserId: sqlchelpers.UUIDToStr(user.ID),
-		Role:   "OWNER",
-	})
 
 	if err != nil {
 		return nil, err
