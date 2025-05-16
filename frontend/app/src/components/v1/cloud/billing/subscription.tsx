@@ -8,8 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card';
-import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import { Label } from '@/components/v1/ui/label';
 import { Switch } from '@/components/v1/ui/switch';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -23,8 +23,10 @@ import { TenantContextType } from '@/lib/outlet';
 import queryClient from '@/query-client';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { useMutation } from '@tanstack/react-query';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import { Link, useOutletContext } from 'react-router-dom';
+import { applyCouponsToPrice } from '../../../../next/pages/authenticated/dashboard/settings/usage/components/coupon-utils';
+import { ROUTES } from '@/next/lib/routes';
 
 interface SubscriptionProps {
   active?: TenantSubscription;
@@ -50,6 +52,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const { tenant } = useOutletContext<TenantContextType>();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
+
+  useEffect(() => {
+    setShowAnnual(active?.period?.includes('yearly') || false);
+  }, [active]);
 
   const manageClicked = async () => {
     try {
@@ -92,14 +98,25 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const activePlanCode = useMemo(
     () =>
       active?.plan
-        ? [active.plan, active.period].filter((x) => !!x).join(':')
-        : 'free',
+        ? {
+            plan: active.plan,
+            period: active.period,
+          }
+        : {
+            plan: 'free',
+            period: 'monthly',
+          },
     [active],
   );
 
-  useEffect(() => {
-    return setShowAnnual(active?.period?.includes('yearly') || false);
-  }, [active]);
+  const isCustomPlan = useMemo(() => {
+    if (!active?.plan || !plans) {
+      return false;
+    }
+    return !plans.some(
+      (p) => p.plan_code === active.plan && p.period === active.period,
+    );
+  }, [active, plans]);
 
   const sortedPlans = useMemo(() => {
     return plans
@@ -120,7 +137,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       }
 
       const activePlan = sortedPlans?.find(
-        (p) => p.plan_code === activePlanCode,
+        (p) =>
+          p.plan_code === activePlanCode.plan &&
+          p.period === activePlanCode.period,
       );
 
       const activeAmount = activePlan?.amount_cents || 0;
@@ -163,7 +182,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             Subscription
             {coupons?.map((coupon, i) => (
               <Badge key={`c${i}`} variant="successful">
-                {coupon.name} coupon applied
+                {coupon.name} Applied
+                {coupon.percent && <> ({coupon.percent}% off)</>}
               </Badge>
             ))}
           </h3>
@@ -178,7 +198,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             />
             <Label htmlFor="sa" className="text-sm">
               Annual Billing{' '}
-              <Badge variant="inProgress" className="ml-2">
+              <Badge variant="successful" className="ml-2">
                 Save up to 20%
               </Badge>
             </Label>
@@ -217,47 +237,77 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {sortedPlans?.map((plan, i) => (
-            <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
+          {isCustomPlan ? (
+            <Card className="bg-muted/30 gap-4 flex-col flex">
               <CardHeader>
                 <CardTitle className="tracking-wide text-sm">
-                  {plan.name}
+                  {active?.plan
+                    ?.split(' ')
+                    .map(
+                      (word) =>
+                        word.charAt(0).toUpperCase() +
+                        word.slice(1).toLowerCase(),
+                    )
+                    .join(' ')}
                 </CardTitle>
                 <CardDescription className="py-4">
-                  $
-                  {(
-                    plan.amount_cents /
-                    100 /
-                    (plan.period == 'yearly' ? 12 : 1)
-                  ).toLocaleString()}{' '}
-                  per month billed {plan.period}*
+                  Contact us for details or to change your plan
                 </CardDescription>
                 <CardDescription>
-                  <Button
-                    disabled={
-                      !hasPaymentMethods ||
-                      plan.plan_code === activePlanCode ||
-                      loading === plan.plan_code
-                    }
-                    variant={
-                      plan.plan_code !== activePlanCode ? 'default' : 'outline'
-                    }
-                    onClick={() => setChangeConfirmOpen(plan)}
-                  >
-                    {loading === plan.plan_code ? (
-                      <Spinner />
-                    ) : plan.plan_code === activePlanCode ? (
-                      'Active'
-                    ) : isUpgrade(plan) ? (
-                      'Upgrade'
-                    ) : (
-                      'Downgrade'
-                    )}
-                  </Button>
+                  <Link to={ROUTES.common.contact}>
+                    <Button variant="outline">Contact Us</Button>
+                  </Link>
                 </CardDescription>
               </CardHeader>
             </Card>
-          ))}
+          ) : (
+            sortedPlans?.map((plan, i) => (
+              <Card className="bg-muted/30 gap-4 flex-col flex" key={i}>
+                <CardHeader>
+                  <CardTitle className="tracking-wide text-sm">
+                    {plan.name}
+                  </CardTitle>
+                  <CardDescription className="py-4">
+                    $
+                    {(
+                      applyCouponsToPrice(plan.amount_cents, coupons) /
+                      100 /
+                      (plan.period == 'yearly' ? 12 : 1)
+                    ).toLocaleString()}{' '}
+                    per month billed {plan.period}*
+                  </CardDescription>
+                  <CardDescription>
+                    <Button
+                      disabled={
+                        !hasPaymentMethods ||
+                        (plan.plan_code === activePlanCode.plan &&
+                          plan.period === activePlanCode.period) ||
+                        loading === plan.plan_code
+                      }
+                      variant={
+                        plan.plan_code !== activePlanCode.plan ||
+                        plan.period !== activePlanCode.period
+                          ? 'default'
+                          : 'outline'
+                      }
+                      onClick={() => setChangeConfirmOpen(plan)}
+                    >
+                      {loading === plan.plan_code ? (
+                        <Spinner />
+                      ) : plan.plan_code === activePlanCode.plan &&
+                        plan.period === activePlanCode.period ? (
+                        'Active'
+                      ) : isUpgrade(plan) ? (
+                        'Upgrade'
+                      ) : (
+                        'Downgrade'
+                      )}
+                    </Button>
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ))
+          )}
         </div>
         {active?.note && <p className="mt-4">{active?.note}</p>}
         <p className="text-sm text-gray-500 mt-4">

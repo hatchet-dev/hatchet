@@ -114,10 +114,7 @@ export default function useBilling({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ['tenant:*'],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['billing:*'],
+          queryKey: ['*'],
         }),
       ]);
     },
