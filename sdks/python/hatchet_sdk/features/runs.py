@@ -247,7 +247,7 @@ class RunsClient(BaseRestClient):
             return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,
                 v1_trigger_workflow_run_request=V1TriggerWorkflowRunRequest(
-                    workflowName=self.apply_namespace(workflow_name),
+                    workflowName=self.client_config.apply_namespace(workflow_name),
                     input=dict(input),
                     additionalMetadata=dict(additional_metadata),
                     priority=priority,
