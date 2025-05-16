@@ -16,6 +16,7 @@ import (
 type pushOpt struct {
 	additionalMetadata map[string]string
 	priority           *int32
+	scope              *string
 }
 
 type PushOpFunc func(*pushOpt) error
@@ -23,7 +24,7 @@ type PushOpFunc func(*pushOpt) error
 type BulkPushOpFunc func(*eventcontracts.BulkPushEventRequest) error
 
 type EventClient interface {
-	Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
+	Push(ctx context.Context, eventKey string, payload interface{}, priority *int32, scope *string, options ...PushOpFunc) error
 
 	BulkPush(ctx context.Context, payloads []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error
 
@@ -37,6 +38,7 @@ type EventWithAdditionalMetadata struct {
 	AdditionalMetadata map[string]string `json:"metadata"`
 	Key                string            `json:"key"`
 	Priority           *int32            `json:"priority"`
+	Scope              *string           `json:"scope"`
 }
 
 type eventClientImpl struct {
@@ -75,11 +77,13 @@ func WithEventMetadata(metadata map[string]string) PushOpFunc {
 	}
 }
 
-func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error {
+func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, priority *int32, scope *string, options ...PushOpFunc) error {
 
 	request := eventcontracts.PushEventRequest{
 		Key:            a.namespace + eventKey,
 		EventTimestamp: timestamppb.Now(),
+		Priority:       priority,
+		Scope:          scope,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -109,6 +113,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 
 	request.AdditionalMetadata = &additionalMetaString
 	request.Priority = opts.priority
+	request.Scope = opts.scope
 
 	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
 
@@ -143,6 +148,7 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAddit
 			Payload:            string(ePayload),
 			AdditionalMetadata: &eMetadataString,
 			Priority:           p.Priority,
+			Scope:              p.Scope,
 		})
 	}
 
