@@ -43,7 +43,10 @@ class OpenTelemetryConfig(BaseSettings):
         env_prefix="HATCHET_CLIENT_OPENTELEMETRY_",
     )
 
-    excluded_attributes: list[OTelAttribute] = Field(default_factory=list)
+    excluded_attributes: list[OTelAttribute] = Field(
+        default_factory=list,
+        description='Note that if specifying this field via an environment variable, the variable must be a valid JSON array. For example: \'["action_name", "action_payload"]\'',
+    )
 
 
 DEFAULT_HOST_PORT = "localhost:7070"
