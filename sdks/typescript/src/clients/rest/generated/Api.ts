@@ -650,12 +650,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Filter
    * @name V1FilterGet
    * @summary Get a filter
-   * @request GET:/api/v1/stable/tenants/{tenant}/filters/{filter_id}
+   * @request GET:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
    * @secure
    */
-  v1FilterGet = (tenant: string, filterId: string, params: RequestParams = {}) =>
+  v1FilterGet = (tenant: string, v1Filter: string, params: RequestParams = {}) =>
     this.request<V1Filter, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/filters/${filterId}`,
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -666,12 +666,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @tags Filter
    * @name V1FilterDelete
-   * @request DELETE:/api/v1/stable/tenants/{tenant}/filters/{filter_id}
+   * @request DELETE:/api/v1/stable/tenants/{tenant}/filters/{v1-filter}
    * @secure
    */
-  v1FilterDelete = (tenant: string, filterId: string, params: RequestParams = {}) =>
+  v1FilterDelete = (tenant: string, v1Filter: string, params: RequestParams = {}) =>
     this.request<V1Filter, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/filters/${filterId}`,
+      path: `/api/v1/stable/tenants/${tenant}/filters/${v1Filter}`,
       method: 'DELETE',
       secure: true,
       format: 'json',

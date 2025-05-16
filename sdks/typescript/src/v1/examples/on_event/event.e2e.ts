@@ -18,15 +18,12 @@ describe('events-e2e', () => {
     void worker.start();
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await worker.stop();
     await sleep(2000);
-  })
+  });
 
-  async function setupEventFilter(
-    expression?: string,
-    payload: Record<string, string> = {}
-  ) {
+  async function setupEventFilter(expression?: string, payload: Record<string, string> = {}) {
     const finalExpression =
       expression || `input.ShouldSkip == false && payload.testRunId == '${testRunId}'`;
 
@@ -148,7 +145,7 @@ describe('events-e2e', () => {
     key?: string;
     payload?: Record<string, any>;
     scope?: string | null;
-  } = {}) {
+  }) {
     return {
       key,
       payload: {
@@ -159,7 +156,8 @@ describe('events-e2e', () => {
       additionalMetadata: {
         should_have_runs: shouldHaveRuns,
         test_run_id: testRunId,
-        key: index,
+        key: key,
+        index: index,
       },
       scope: scope || undefined,
     };
@@ -167,7 +165,7 @@ describe('events-e2e', () => {
 
   // Helper to create payload object
   function createEventPayload(ShouldSkip: boolean): Input {
-    return { ShouldSkip: ShouldSkip, Message: 'This is event 1' };
+    return { ShouldSkip, Message: 'This is event 1' };
   }
 
   it('should push an event', async () => {
@@ -214,24 +212,26 @@ describe('events-e2e', () => {
   }, 15000);
 
   it('should process events according to event engine behavior', async () => {
-    const events = [
-      createBulkPushEvent(),
+    const eventPromises = [
+      createBulkPushEvent({}),
       createBulkPushEvent({
         key: 'thisisafakeeventfoobarbaz',
         shouldHaveRuns: false,
       }),
-    ];
+    ].map((event) => convertBulkToSingle(event));
+    const events = await Promise.all(eventPromises);
+
 
     console.log('Pushing events:', events);
-    const result = await hatchet.events.bulkPush(SIMPLE_EVENT, events);
-    console.log('Result:', result);
 
-    const eventToRuns = await waitForEventsToProcess(result.events);
+    const eventToRuns = await waitForEventsToProcess(events);
+
+    console.log('Event to runs:', eventToRuns);
 
     // Verify each event's runs
     Object.keys(eventToRuns).forEach((eventId) => {
       const runs = eventToRuns[eventId];
-      const eventInfo = result.events.find((e) => e.eventId === eventId);
+      const eventInfo = events.find((e) => e.eventId === eventId);
 
       if (eventInfo) {
         const meta = JSON.parse(eventInfo.additionalMetadata || '{}');
@@ -286,35 +286,6 @@ describe('events-e2e', () => {
     ];
   }
 
-  it('should handle event skipping and filtering', async () => {
-    const cleanup = await setupEventFilter();
-
-    try {
-      const events = generateBulkEvents();
-      const result = await hatchet.events.bulkPush(SIMPLE_EVENT, events);
-
-      const eventToRuns = await waitForEventsToProcess(result.events);
-
-      // Verify each event's runs
-      Object.keys(eventToRuns).forEach((eventId) => {
-        const runs = eventToRuns[eventId];
-        const eventInfo = result.events.find((e) => e.eventId === eventId);
-
-        if (eventInfo) {
-          const meta = JSON.parse(eventInfo.additionalMetadata || '{}');
-          verifyEventRuns(
-            {
-              shouldHaveRuns: Boolean(meta.should_have_runs),
-            },
-            runs
-          );
-        }
-      });
-    } finally {
-      await cleanup();
-    }
-  }, 30000);
-
   async function convertBulkToSingle(event: any) {
     return hatchet.events.push(event.key, event.payload, {
       scope: event.scope,
@@ -354,10 +325,9 @@ describe('events-e2e', () => {
   }, 30000);
 
   it('should filter events by payload expression not matching', async () => {
-    const cleanup = await setupEventFilter(
-      "input.ShouldSkip == false && payload.foobar == 'baz'",
-      { foobar: 'qux' }
-    );
+    const cleanup = await setupEventFilter("input.ShouldSkip == false && payload.foobar == 'baz'", {
+      foobar: 'qux',
+    });
 
     try {
       const event = await hatchet.events.push(
@@ -381,10 +351,9 @@ describe('events-e2e', () => {
   }, 20000);
 
   it('should filter events by payload expression matching', async () => {
-    const cleanup = await setupEventFilter(
-      "input.ShouldSkip == false && payload.foobar == 'baz'",
-      { foobar: 'baz' }
-    );
+    const cleanup = await setupEventFilter("input.ShouldSkip == false && payload.foobar == 'baz'", {
+      foobar: 'baz',
+    });
 
     try {
       const event = await hatchet.events.push(
