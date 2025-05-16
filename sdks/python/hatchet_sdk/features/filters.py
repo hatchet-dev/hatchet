@@ -78,7 +78,7 @@ class FiltersClient(BaseRestClient):
         with self.client() as client:
             return self._fa(client).v1_filter_get(
                 tenant=self.tenant_id,
-                filter_id=filter_id,
+                v1_filter=filter_id,
             )
 
     async def aio_get(
@@ -156,7 +156,7 @@ class FiltersClient(BaseRestClient):
         with self.client() as client:
             return self._fa(client).v1_filter_delete(
                 tenant=self.tenant_id,
-                filter_id=filter_id,
+                v1_filter=filter_id,
             )
 
     async def aio_delete(

@@ -345,7 +345,7 @@ class FilterApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        filter_id: Annotated[
+        v1_filter: Annotated[
             str,
             Field(
                 min_length=36,
@@ -372,8 +372,8 @@ class FilterApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param filter_id: The filter id to delete (required)
-        :type filter_id: str
+        :param v1_filter: The filter id to delete (required)
+        :type v1_filter: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -398,7 +398,7 @@ class FilterApi:
 
         _param = self._v1_filter_delete_serialize(
             tenant=tenant,
-            filter_id=filter_id,
+            v1_filter=v1_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -429,7 +429,7 @@ class FilterApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        filter_id: Annotated[
+        v1_filter: Annotated[
             str,
             Field(
                 min_length=36,
@@ -456,8 +456,8 @@ class FilterApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param filter_id: The filter id to delete (required)
-        :type filter_id: str
+        :param v1_filter: The filter id to delete (required)
+        :type v1_filter: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -482,7 +482,7 @@ class FilterApi:
 
         _param = self._v1_filter_delete_serialize(
             tenant=tenant,
-            filter_id=filter_id,
+            v1_filter=v1_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -513,7 +513,7 @@ class FilterApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        filter_id: Annotated[
+        v1_filter: Annotated[
             str,
             Field(
                 min_length=36,
@@ -540,8 +540,8 @@ class FilterApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param filter_id: The filter id to delete (required)
-        :type filter_id: str
+        :param v1_filter: The filter id to delete (required)
+        :type v1_filter: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -566,7 +566,7 @@ class FilterApi:
 
         _param = self._v1_filter_delete_serialize(
             tenant=tenant,
-            filter_id=filter_id,
+            v1_filter=v1_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -587,7 +587,7 @@ class FilterApi:
     def _v1_filter_delete_serialize(
         self,
         tenant,
-        filter_id,
+        v1_filter,
         _request_auth,
         _content_type,
         _headers,
@@ -610,8 +610,8 @@ class FilterApi:
         # process the path parameters
         if tenant is not None:
             _path_params["tenant"] = tenant
-        if filter_id is not None:
-            _path_params["filter_id"] = filter_id
+        if v1_filter is not None:
+            _path_params["v1-filter"] = v1_filter
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -628,7 +628,7 @@ class FilterApi:
 
         return self.api_client.param_serialize(
             method="DELETE",
-            resource_path="/api/v1/stable/tenants/{tenant}/filters/{filter_id}",
+            resource_path="/api/v1/stable/tenants/{tenant}/filters/{v1-filter}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -650,7 +650,7 @@ class FilterApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        filter_id: Annotated[
+        v1_filter: Annotated[
             str,
             Field(
                 min_length=36, strict=True, max_length=36, description="The filter id"
@@ -674,8 +674,8 @@ class FilterApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param filter_id: The filter id (required)
-        :type filter_id: str
+        :param v1_filter: The filter id (required)
+        :type v1_filter: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -700,7 +700,7 @@ class FilterApi:
 
         _param = self._v1_filter_get_serialize(
             tenant=tenant,
-            filter_id=filter_id,
+            v1_filter=v1_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -730,7 +730,7 @@ class FilterApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        filter_id: Annotated[
+        v1_filter: Annotated[
             str,
             Field(
                 min_length=36, strict=True, max_length=36, description="The filter id"
@@ -754,8 +754,8 @@ class FilterApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param filter_id: The filter id (required)
-        :type filter_id: str
+        :param v1_filter: The filter id (required)
+        :type v1_filter: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -780,7 +780,7 @@ class FilterApi:
 
         _param = self._v1_filter_get_serialize(
             tenant=tenant,
-            filter_id=filter_id,
+            v1_filter=v1_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -810,7 +810,7 @@ class FilterApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        filter_id: Annotated[
+        v1_filter: Annotated[
             str,
             Field(
                 min_length=36, strict=True, max_length=36, description="The filter id"
@@ -834,8 +834,8 @@ class FilterApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param filter_id: The filter id (required)
-        :type filter_id: str
+        :param v1_filter: The filter id (required)
+        :type v1_filter: str
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -860,7 +860,7 @@ class FilterApi:
 
         _param = self._v1_filter_get_serialize(
             tenant=tenant,
-            filter_id=filter_id,
+            v1_filter=v1_filter,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -880,7 +880,7 @@ class FilterApi:
     def _v1_filter_get_serialize(
         self,
         tenant,
-        filter_id,
+        v1_filter,
         _request_auth,
         _content_type,
         _headers,
@@ -903,8 +903,8 @@ class FilterApi:
         # process the path parameters
         if tenant is not None:
             _path_params["tenant"] = tenant
-        if filter_id is not None:
-            _path_params["filter_id"] = filter_id
+        if v1_filter is not None:
+            _path_params["v1-filter"] = v1_filter
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -921,7 +921,7 @@ class FilterApi:
 
         return self.api_client.param_serialize(
             method="GET",
-            resource_path="/api/v1/stable/tenants/{tenant}/filters/{filter_id}",
+            resource_path="/api/v1/stable/tenants/{tenant}/filters/{v1-filter}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
