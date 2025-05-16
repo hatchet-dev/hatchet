@@ -103,6 +103,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			context.Background(),
 			"concurrency-test-event",
 			firstEvent,
+			nil,
+			nil,
 		)
 
 		if err != nil {
@@ -123,6 +125,8 @@ func run(ch <-chan interface{}, events chan<- string) error {
 			concurrencyLimitEvent{
 				Index: 1,
 			},
+			nil,
+			nil,
 		)
 
 		if err != nil {

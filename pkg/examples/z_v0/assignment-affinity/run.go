@@ -89,6 +89,8 @@ func run() (func() error, error) {
 			context.Background(),
 			"user:create:affinity",
 			testEvent,
+			nil,
+			nil,
 		)
 		if err != nil {
 			panic(fmt.Errorf("error pushing event: %w", err))

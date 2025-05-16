@@ -49,6 +49,8 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 			context.Background(),
 			"user:create:timeout",
 			testEvent,
+			nil,
+			nil,
 		)
 		if err != nil {
 			panic(fmt.Errorf("error pushing event: %w", err))

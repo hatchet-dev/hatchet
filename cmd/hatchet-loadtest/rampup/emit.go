@@ -54,7 +54,7 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 					var err error
 					ev := Event{CreatedAt: time.Now(), ID: id}
 					l.Debug().Msgf("pushed event %d", ev.ID)
-					err = c.Event().Push(context.Background(), "load-test:event", ev)
+					err = c.Event().Push(context.Background(), "load-test:event", ev, nil, nil)
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))
 					}

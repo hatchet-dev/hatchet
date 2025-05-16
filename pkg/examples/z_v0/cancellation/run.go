@@ -69,6 +69,8 @@ func run(events chan<- string) (func() error, error) {
 			context.Background(),
 			"user:create:cancellation",
 			testEvent,
+			nil,
+			nil,
 		)
 		if err != nil {
 			panic(fmt.Errorf("error pushing event: %w", err))

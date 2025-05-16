@@ -69,6 +69,8 @@ func main() {
 		context.Background(),
 		"user:create",
 		event,
+		nil,
+		nil,
 	)
 
 	if err != nil {

@@ -72,6 +72,8 @@ func run(
 		context.Background(),
 		event,
 		testEvent,
+		nil,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("error pushing event: %w", err)
