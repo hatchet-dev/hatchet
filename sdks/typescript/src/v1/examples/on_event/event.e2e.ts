@@ -1,17 +1,32 @@
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { randomUUID } from 'crypto';
 import { Event } from '@hatchet-dev/typescript-sdk/protoc/events';
-import { hatchet } from '../hatchet-client';
 import { SIMPLE_EVENT, lower, Input } from './workflow';
+import { hatchet } from '../hatchet-client';
+import { Worker } from '../../client/worker/worker';
 
 describe('events-e2e', () => {
+  let worker: Worker;
+
+  beforeEach(async () => {
+    worker = await hatchet.worker('event-worker');
+    await worker.registerWorkflow(lower);
+
+    void worker.start();
+  });
+
+  afterEach(async () => {
+    await worker.stop();
+    await sleep(2000);
+  })
+
   async function setupEventFilter(
     testRunId: string,
     expression?: string,
     payload: Record<string, string> = {}
   ) {
     const finalExpression =
-      expression || `input.shouldSkip == false && payload.testRunId == '${testRunId}'`;
+      expression || `input.ShouldSkip == false && payload.testRunId == '${testRunId}'`;
 
     const workflowId = (await hatchet.workflows.get(lower.name)).metadata.id;
 
@@ -120,7 +135,7 @@ describe('events-e2e', () => {
   function createBulkPushEvent({
     index = 1,
     testRunId = '',
-    shouldSkip = false,
+    ShouldSkip = false,
     shouldHaveRuns = true,
     key = SIMPLE_EVENT,
     payload = {},
@@ -128,7 +143,7 @@ describe('events-e2e', () => {
   }: {
     index?: number;
     testRunId?: string;
-    shouldSkip?: boolean;
+    ShouldSkip?: boolean;
     shouldHaveRuns?: boolean;
     key?: string;
     payload?: Record<string, any>;
@@ -137,7 +152,8 @@ describe('events-e2e', () => {
     return {
       key,
       payload: {
-        shouldSkip,
+        ShouldSkip,
+        Message: `This is event ${index}`,
         ...payload,
       },
       additionalMetadata: {
@@ -150,8 +166,8 @@ describe('events-e2e', () => {
   }
 
   // Helper to create payload object
-  function createEventPayload(shouldSkip: boolean): Input {
-    return { ShouldSkip: shouldSkip, Message: 'This is event 1' };
+  function createEventPayload(ShouldSkip: boolean): Input {
+    return { ShouldSkip: ShouldSkip, Message: 'This is event 1' };
   }
 
   it('should push an event', async () => {
@@ -168,17 +184,17 @@ describe('events-e2e', () => {
     const events = [
       {
         key: 'event1',
-        payload: { message: 'This is event 1', shouldSkip: false },
+        payload: { Message: 'This is event 1', ShouldSkip: false },
         additionalMetadata: { source: 'test', user_id: 'user123' },
       },
       {
         key: 'event2',
-        payload: { message: 'This is event 2', shouldSkip: false },
+        payload: { Message: 'This is event 2', ShouldSkip: false },
         additionalMetadata: { source: 'test', user_id: 'user456' },
       },
       {
         key: 'event3',
-        payload: { message: 'This is event 3', shouldSkip: false },
+        payload: { Message: 'This is event 3', ShouldSkip: false },
         additionalMetadata: { source: 'test', user_id: 'user789' },
       },
     ];
@@ -240,33 +256,33 @@ describe('events-e2e', () => {
       createBulkPushEvent({
         index: 1,
         testRunId,
-        shouldSkip: false,
+        ShouldSkip: false,
         shouldHaveRuns: true,
       }),
       createBulkPushEvent({
         index: 2,
         testRunId,
-        shouldSkip: true,
+        ShouldSkip: true,
         shouldHaveRuns: true,
       }),
       createBulkPushEvent({
         index: 3,
         testRunId,
-        shouldSkip: false,
+        ShouldSkip: false,
         shouldHaveRuns: true,
         scope: testRunId,
       }),
       createBulkPushEvent({
         index: 4,
         testRunId,
-        shouldSkip: true,
+        ShouldSkip: true,
         shouldHaveRuns: false,
         scope: testRunId,
       }),
       createBulkPushEvent({
         index: 5,
         testRunId,
-        shouldSkip: true,
+        ShouldSkip: true,
         shouldHaveRuns: false,
         scope: testRunId,
         key: 'thisisafakeeventfoobarbaz',
@@ -274,7 +290,7 @@ describe('events-e2e', () => {
       createBulkPushEvent({
         index: 6,
         testRunId,
-        shouldSkip: false,
+        ShouldSkip: false,
         shouldHaveRuns: false,
         scope: testRunId,
         key: 'thisisafakeeventfoobarbaz',
@@ -355,14 +371,14 @@ describe('events-e2e', () => {
     const testRunId = randomUUID();
     const cleanup = await setupEventFilter(
       testRunId,
-      "input.shouldSkip == false && payload.foobar == 'baz'",
+      "input.ShouldSkip == false && payload.foobar == 'baz'",
       { foobar: 'qux' }
     );
 
     try {
       const event = await hatchet.events.push(
         SIMPLE_EVENT,
-        { message: 'This is event 1', shouldSkip: false },
+        { Message: 'This is event 1', ShouldSkip: false },
         {
           scope: testRunId,
           additionalMetadata: {
@@ -384,14 +400,14 @@ describe('events-e2e', () => {
     const testRunId = randomUUID();
     const cleanup = await setupEventFilter(
       testRunId,
-      "input.shouldSkip == false && payload.foobar == 'baz'",
+      "input.ShouldSkip == false && payload.foobar == 'baz'",
       { foobar: 'baz' }
     );
 
     try {
       const event = await hatchet.events.push(
         SIMPLE_EVENT,
-        { message: 'This is event 1', shouldSkip: false },
+        { Message: 'This is event 1', ShouldSkip: false },
         {
           scope: testRunId,
           additionalMetadata: {
