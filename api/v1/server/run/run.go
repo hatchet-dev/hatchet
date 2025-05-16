@@ -393,6 +393,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
 	})
+	populatorMW.RegisterGetter("v1-filter", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		filter, err := t.config.V1.Filters().GetFilter(
+			context.Background(),
+			parentId,
+			id,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return filter, sqlchelpers.UUIDToStr(filter.TenantID), nil
+	})
 
 	authnMW := authn.NewAuthN(t.config)
 	authzMW := authz.NewAuthZ(t.config)

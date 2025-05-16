@@ -210,7 +210,6 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
-	tenantIds := make([]pgtype.UUID, 0)
 	workflowIds := make([]pgtype.UUID, 0)
 	scopes := make([]*string, 0)
 
@@ -224,19 +223,16 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
-			tenantIds = append(tenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			workflowIds = append(workflowIds, workflow.WorkflowId)
 			scopes = append(scopes, opt.Scope)
 		}
 	}
 
-	listFiltersParams := sqlcv1.ListFiltersParams{
-		Tenantids:   tenantIds,
+	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
 		Workflowids: workflowIds,
 		Scopes:      scopes,
-	}
-
-	filters, err := r.queries.ListFilters(ctx, r.pool, listFiltersParams)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list filters: %w", err)

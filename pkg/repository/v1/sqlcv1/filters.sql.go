@@ -28,8 +28,6 @@ INSERT INTO v1_filter (
 ON CONFLICT (tenant_id, workflow_id, scope, expression) DO UPDATE
 SET
     payload = EXCLUDED.payload,
-    scope = EXCLUDED.scope,
-    expression = EXCLUDED.expression,
     updated_at = NOW()
 WHERE v1_filter.tenant_id = $1::UUID
   AND v1_filter.workflow_id = $2::UUID

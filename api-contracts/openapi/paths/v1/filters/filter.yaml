@@ -1,6 +1,6 @@
 V1FilterGetDelete:
   get:
-    x-resources: ["tenant"]
+    x-resources: ["tenant", "v1-filter"]
     description: Get a filter by its id
     operationId: v1-filter:get
     parameters:
@@ -45,7 +45,7 @@ V1FilterGetDelete:
     tags:
       - Filter
   delete:
-    x-resources: ["tenant"]
+    x-resources: ["tenant", "v1-filter"]
     description: Delete a filter
     operationId: v1-filter:delete
     parameters:
