@@ -26,9 +26,9 @@ func newFilterRepository(shared *sharedRepository) FilterRepository {
 }
 
 type CreateFilterOpts struct {
-	Workflowid pgtype.UUID `json:"workflowid"`
-	Scope      string      `json:"scope"`
-	Expression string      `json:"expression"`
+	Workflowid pgtype.UUID `json:"workflowid" validate:"required,uuid"`
+	Scope      string      `json:"scope" validate:"required"`
+	Expression string      `json:"expression" validate:"required"`
 	Payload    []byte      `json:"payload"`
 }
 
@@ -43,7 +43,7 @@ func (r *filterRepository) CreateFilter(ctx context.Context, tenantId string, op
 }
 
 type ListFiltersOpts struct {
-	WorkflowIds  []pgtype.UUID `json:"workflow_ids"`
+	WorkflowIds  []pgtype.UUID `json:"workflow_ids" validate:"required,dive,uuid"`
 	Scopes       []*string     `json:"scopes"`
 	FilterLimit  *int64        `json:"limit" validate:"omitnil,min=1"`
 	FilterOffset *int64        `json:"offset" validate:"omitnil,min=0"`
