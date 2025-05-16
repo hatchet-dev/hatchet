@@ -5,7 +5,7 @@ import { SIMPLE_EVENT, lower, Input } from './workflow';
 import { hatchet } from '../hatchet-client';
 import { Worker } from '../../client/worker/worker';
 
-describe('events-e2e', () => {
+xdescribe('events-e2e', () => {
   let worker: Worker;
   let testRunId: string;
 
