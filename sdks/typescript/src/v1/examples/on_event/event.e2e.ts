@@ -156,8 +156,8 @@ describe('events-e2e', () => {
       additionalMetadata: {
         should_have_runs: shouldHaveRuns,
         test_run_id: testRunId,
-        key: key,
-        index: index,
+        key,
+        index,
       },
       scope: scope || undefined,
     };
@@ -220,7 +220,6 @@ describe('events-e2e', () => {
       }),
     ].map((event) => convertBulkToSingle(event));
     const events = await Promise.all(eventPromises);
-
 
     console.log('Pushing events:', events);
 
