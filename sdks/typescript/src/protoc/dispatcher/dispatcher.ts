@@ -419,7 +419,12 @@ export interface AssignedAction {
   childWorkflowKey?: string | undefined;
   /** (optional) the parent workflow run id (if this is a child workflow) */
   parentWorkflowRunId?: string | undefined;
+  /** (optional) the priority of the run */
   priority: number;
+  /** (optional) the workflow id */
+  workflowId?: string | undefined;
+  /** (optional) the workflow version id */
+  workflowVersionId?: string | undefined;
 }
 
 export interface WorkerListenRequest {
@@ -1453,6 +1458,8 @@ function createBaseAssignedAction(): AssignedAction {
     childWorkflowKey: undefined,
     parentWorkflowRunId: undefined,
     priority: 0,
+    workflowId: undefined,
+    workflowVersionId: undefined,
   };
 }
 
@@ -1511,6 +1518,12 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     }
     if (message.priority !== 0) {
       writer.uint32(144).int32(message.priority);
+    }
+    if (message.workflowId !== undefined) {
+      writer.uint32(154).string(message.workflowId);
+    }
+    if (message.workflowVersionId !== undefined) {
+      writer.uint32(162).string(message.workflowVersionId);
     }
     return writer;
   },
@@ -1666,6 +1679,22 @@ export const AssignedAction: MessageFns<AssignedAction> = {
           message.priority = reader.int32();
           continue;
         }
+        case 19: {
+          if (tag !== 154) {
+            break;
+          }
+
+          message.workflowId = reader.string();
+          continue;
+        }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.workflowVersionId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1705,6 +1734,10 @@ export const AssignedAction: MessageFns<AssignedAction> = {
         ? globalThis.String(object.parentWorkflowRunId)
         : undefined,
       priority: isSet(object.priority) ? globalThis.Number(object.priority) : 0,
+      workflowId: isSet(object.workflowId) ? globalThis.String(object.workflowId) : undefined,
+      workflowVersionId: isSet(object.workflowVersionId)
+        ? globalThis.String(object.workflowVersionId)
+        : undefined,
     };
   },
 
@@ -1764,6 +1797,12 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     if (message.priority !== 0) {
       obj.priority = Math.round(message.priority);
     }
+    if (message.workflowId !== undefined) {
+      obj.workflowId = message.workflowId;
+    }
+    if (message.workflowVersionId !== undefined) {
+      obj.workflowVersionId = message.workflowVersionId;
+    }
     return obj;
   },
 
@@ -1790,6 +1829,8 @@ export const AssignedAction: MessageFns<AssignedAction> = {
     message.childWorkflowKey = object.childWorkflowKey ?? undefined;
     message.parentWorkflowRunId = object.parentWorkflowRunId ?? undefined;
     message.priority = object.priority ?? 0;
+    message.workflowId = object.workflowId ?? undefined;
+    message.workflowVersionId = object.workflowVersionId ?? undefined;
     return message;
   },
 };

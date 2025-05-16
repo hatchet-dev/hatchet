@@ -224,6 +224,14 @@ class Context:
         return self.action.priority
 
     @property
+    def workflow_id(self) -> str | None:
+        return self.action.workflow_id
+
+    @property
+    def workflow_version_id(self) -> str | None:
+        return self.action.workflow_version_id
+
+    @property
     def task_run_errors(self) -> dict[str, str]:
         errors = self.data.step_run_errors
 

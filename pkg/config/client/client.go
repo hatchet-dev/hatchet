@@ -2,6 +2,8 @@ package client
 
 import (
 	"crypto/tls"
+	"fmt"
+	"strings"
 
 	"github.com/spf13/viper"
 
@@ -78,4 +80,16 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tls.base.tlsKey", "HATCHET_CLIENT_TLS_KEY")
 	_ = v.BindEnv("tls.base.tlsRootCA", "HATCHET_CLIENT_TLS_ROOT_CA")
 	_ = v.BindEnv("tls.tlsServerName", "HATCHET_CLIENT_TLS_SERVER_NAME")
+}
+
+func ApplyNamespace(resourceName string, namespace *string) string {
+	if namespace == nil || *namespace == "" {
+		return resourceName
+	}
+
+	if strings.HasPrefix(resourceName, *namespace) {
+		return resourceName
+	}
+
+	return fmt.Sprintf("%s%s", *namespace, resourceName)
 }

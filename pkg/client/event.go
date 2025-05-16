@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -92,9 +93,10 @@ func WithFilterScope(scope *string) PushOpFunc {
 }
 
 func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error {
+	key := client.ApplyNamespace(eventKey, &a.namespace)
 
 	request := eventcontracts.PushEventRequest{
-		Key:            a.namespace + eventKey,
+		Key:            key,
 		EventTimestamp: timestamppb.Now(),
 	}
 

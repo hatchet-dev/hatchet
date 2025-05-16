@@ -163,7 +163,7 @@ class UpsertWorkerLabelsResponse(_message.Message):
     def __init__(self, tenantId: _Optional[str] = ..., workerId: _Optional[str] = ...) -> None: ...
 
 class AssignedAction(_message.Message):
-    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload", "stepName", "retryCount", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority")
+    __slots__ = ("tenantId", "workflowRunId", "getGroupKeyRunId", "jobId", "jobName", "jobRunId", "stepId", "stepRunId", "actionId", "actionType", "actionPayload", "stepName", "retryCount", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflowId", "workflowVersionId")
     TENANTID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOWRUNID_FIELD_NUMBER: _ClassVar[int]
     GETGROUPKEYRUNID_FIELD_NUMBER: _ClassVar[int]
@@ -182,6 +182,8 @@ class AssignedAction(_message.Message):
     CHILD_WORKFLOW_KEY_FIELD_NUMBER: _ClassVar[int]
     PARENT_WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOWID_FIELD_NUMBER: _ClassVar[int]
+    WORKFLOWVERSIONID_FIELD_NUMBER: _ClassVar[int]
     tenantId: str
     workflowRunId: str
     getGroupKeyRunId: str
@@ -200,7 +202,9 @@ class AssignedAction(_message.Message):
     child_workflow_key: str
     parent_workflow_run_id: str
     priority: int
-    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ..., stepName: _Optional[str] = ..., retryCount: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ...) -> None: ...
+    workflowId: str
+    workflowVersionId: str
+    def __init__(self, tenantId: _Optional[str] = ..., workflowRunId: _Optional[str] = ..., getGroupKeyRunId: _Optional[str] = ..., jobId: _Optional[str] = ..., jobName: _Optional[str] = ..., jobRunId: _Optional[str] = ..., stepId: _Optional[str] = ..., stepRunId: _Optional[str] = ..., actionId: _Optional[str] = ..., actionType: _Optional[_Union[ActionType, str]] = ..., actionPayload: _Optional[str] = ..., stepName: _Optional[str] = ..., retryCount: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflowId: _Optional[str] = ..., workflowVersionId: _Optional[str] = ...) -> None: ...
 
 class WorkerListenRequest(_message.Message):
     __slots__ = ("workerId",)

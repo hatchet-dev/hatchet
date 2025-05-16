@@ -116,6 +116,10 @@ type Action struct {
 	ParentWorkflowRunId *string
 
 	Priority int32 `json:"priority,omitempty"`
+
+	WorkflowId *string `json:"workflowId,omitempty"`
+
+	WorkflowVersionId *string `json:"workflowVersionId,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -443,6 +447,8 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				ChildKey:            assignedAction.ChildWorkflowKey,
 				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
 				Priority:            assignedAction.Priority,
+				WorkflowId:          assignedAction.WorkflowId,
+				WorkflowVersionId:   assignedAction.WorkflowVersionId,
 			}
 		}
 
