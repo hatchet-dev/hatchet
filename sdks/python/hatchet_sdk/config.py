@@ -5,6 +5,7 @@ from typing import overload
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hatchet_sdk.clients.dispatcher.action_listener import OTelAttribute
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 
 
@@ -37,6 +38,10 @@ class HealthcheckConfig(BaseSettings):
     enabled: bool = False
 
 
+class OpenTelemetryConfig(BaseSettings):
+    excluded_otel_attributes: list[OTelAttribute] = Field(default_factory=list)
+
+
 DEFAULT_HOST_PORT = "localhost:7070"
 
 
@@ -55,6 +60,7 @@ class ClientConfig(BaseSettings):
 
     tls_config: ClientTLSConfig = Field(default_factory=lambda: ClientTLSConfig())
     healthcheck: HealthcheckConfig = Field(default_factory=lambda: HealthcheckConfig())
+    otel: OpenTelemetryConfig = Field(default_factory=lambda: OpenTelemetryConfig())
 
     listener_v2_timeout: int | None = None
     grpc_max_recv_message_length: int = Field(
