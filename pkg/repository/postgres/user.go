@@ -85,6 +85,10 @@ func (r *userRepository) CreateUser(ctx context.Context, opts *repository.Create
 			Userid: sqlchelpers.UUIDFromStr(userId),
 			Hash:   *opts.Password,
 		})
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if opts.OAuth != nil {
@@ -154,6 +158,10 @@ func (r *userRepository) UpdateUser(ctx context.Context, id string, opts *reposi
 			Userid: sqlchelpers.UUIDFromStr(id),
 			Hash:   *opts.Password,
 		})
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if opts.OAuth != nil {
