@@ -132,19 +132,27 @@ class ClientConfig(BaseSettings):
         return hash(json.dumps(self.model_dump(), default=str))
 
     @overload
-    def apply_namespace(self, resource_name: str) -> str: ...
+    def apply_namespace(
+        self, resource_name: str, namespace_override: str | None = None
+    ) -> str: ...
 
     @overload
-    def apply_namespace(self, resource_name: None) -> None: ...
+    def apply_namespace(
+        self, resource_name: None, namespace_override: str | None = None
+    ) -> None: ...
 
-    def apply_namespace(self, resource_name: str | None) -> str | None:
+    def apply_namespace(
+        self, resource_name: str | None, namespace_override: str | None = None
+    ) -> str | None:
         if resource_name is None:
             return None
 
         if not self.namespace:
             return resource_name
 
-        if resource_name.startswith(self.namespace):
+        namespace = namespace_override or self.namespace
+
+        if resource_name.startswith(namespace):
             return resource_name
 
-        return self.namespace + resource_name
+        return namespace + resource_name

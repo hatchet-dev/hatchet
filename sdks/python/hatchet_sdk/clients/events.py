@@ -24,7 +24,6 @@ from hatchet_sdk.contracts.events_pb2 import (
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.namespacing import apply_namespace
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -97,7 +96,7 @@ class EventClient(BaseRestClient):
         options: PushEventOptions = PushEventOptions(),
     ) -> Event:
         namespace = options.namespace or self.namespace
-        namespaced_event_key = apply_namespace(event_key, namespace)
+        namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
 
         try:
             meta_bytes = json.dumps(options.additional_metadata)
@@ -128,7 +127,7 @@ class EventClient(BaseRestClient):
         event: BulkPushEventWithMetadata,
         namespace: str,
     ) -> PushEventRequest:
-        event_key = apply_namespace(event.key, namespace)
+        event_key = self.client_config.apply_namespace(event.key, namespace)
         payload = event.payload
 
         meta = event.additional_metadata

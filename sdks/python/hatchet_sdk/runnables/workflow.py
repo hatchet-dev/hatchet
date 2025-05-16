@@ -34,7 +34,6 @@ from hatchet_sdk.runnables.types import (
     TWorkflowInput,
     WorkflowConfig,
 )
-from hatchet_sdk.utils.namespacing import apply_namespace
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
@@ -129,7 +128,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @property
     def service_name(self) -> str:
-        return apply_namespace(self.config.name.lower(), self.client.config.namespace)
+        return self.client.config.apply_namespace(self.config.name.lower())
 
     def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
         return self.service_name + ":" + step.name
@@ -143,7 +142,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         name = self.name
         event_triggers = [
-            apply_namespace(event, namespace) for event in self.config.on_events
+            self.client.config.apply_namespace(event, namespace)
+            for event in self.config.on_events
         ]
 
         if self._on_success_task:

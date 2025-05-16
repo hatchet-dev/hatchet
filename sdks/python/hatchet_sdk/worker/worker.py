@@ -27,7 +27,6 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.utils.namespacing import apply_namespace
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
@@ -97,7 +96,7 @@ class Worker:
         lifespan: LifespanFn | None = None,
     ) -> None:
         self.config = config
-        self.name = apply_namespace(name, self.config.namespace)
+        self.name = self.config.apply_namespace(name)
         self.slots = slots
         self.durable_slots = durable_slots
         self.debug = debug
