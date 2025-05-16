@@ -409,11 +409,11 @@ class Hatchet:
         def inner(
             func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
         ) -> Standalone[TWorkflowInput, R]:
-            name = name or func.__name__
+            inferred_name = name or func.__name__
 
             workflow = Workflow[TWorkflowInput](
                 WorkflowConfig(
-                    name=name,
+                    name=inferred_name,
                     version=version,
                     description=description,
                     on_events=on_events,
