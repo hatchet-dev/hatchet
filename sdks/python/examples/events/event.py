@@ -1,36 +1,7 @@
-from examples.events.worker import EVENT_KEY, event_workflow, hatchet
-from hatchet_sdk.clients.events import PushEventOptions
+from hatchet_sdk import Hatchet
 
-SCOPE = "foobar"
-hatchet.filters.create(
-    workflow_id=event_workflow.id,
-    expression="input.should_skip == false",
-    scope=SCOPE,
-    payload={"test": "test"},
-)
+hatchet = Hatchet()
 
-hatchet.event.push(
-    EVENT_KEY,
-    {"should_skip": True},
-    PushEventOptions(
-        ## If no scope is provided, all events pushed will trigger workflows
-        ## (i.e. the filter will not apply)
-        scope=SCOPE,
-        additional_metadata={
-            "should_skip": True,
-        },
-    ),
-)
-
-hatchet.event.push(
-    EVENT_KEY,
-    {"should_skip": False},
-    PushEventOptions(
-        ## If no scope is provided, all events pushed will trigger workflows
-        ## (i.e. the filter will not apply)
-        scope=SCOPE,
-        additional_metadata={
-            "should_skip": False,
-        },
-    ),
-)
+# > Event trigger
+hatchet.event.push("user:create", {})
+# !!
