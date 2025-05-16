@@ -4,7 +4,7 @@ import { Event } from '@hatchet-dev/typescript-sdk/protoc/events';
 import { hatchet } from '../hatchet-client';
 import { SIMPLE_EVENT, lower, Input } from './workflow';
 
-xdescribe('events-e2e', () => {
+describe('events-e2e', () => {
   async function setupEventFilter(
     testRunId: string,
     expression?: string,
