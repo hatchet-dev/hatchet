@@ -21,12 +21,14 @@ export enum LogLevel {
 export interface PushEventOptions {
   additionalMetadata?: Record<string, string>;
   priority?: number;
+  scope?: string;
 }
 
 export interface EventWithMetadata<T> {
   payload: T;
   additionalMetadata?: Record<string, any>;
   priority?: number;
+  scope?: string;
 }
 
 export class EventClient {
@@ -54,6 +56,7 @@ export class EventClient {
         ? JSON.stringify(options.additionalMetadata)
         : undefined,
       priority: options.priority,
+      scope: options.scope,
     };
 
     try {
@@ -83,6 +86,7 @@ export class EventClient {
           return undefined;
         })(),
         priority: input.priority,
+        scope: input.scope,
       };
     });
 
