@@ -156,6 +156,14 @@ export class Context<T, K = {}> {
   }
 
   /**
+   * Gets the payload from the filter that matched when triggering the event.
+   * @returns The payload.
+   */
+  filterPayload(): TriggerData {
+    return this.data.triggers["filter_payload"];
+  }
+
+  /**
    * Determines if the workflow was triggered by an event.
    * @returns True if the workflow was triggered by an event, otherwise false.
    */
