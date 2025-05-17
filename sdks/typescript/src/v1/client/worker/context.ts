@@ -159,8 +159,8 @@ export class Context<T, K = {}> {
    * Gets the payload from the filter that matched when triggering the event.
    * @returns The payload.
    */
-  filterPayload(): TriggerData {
-    return this.data.triggers.filter_payload;
+  filterPayload(): Record<string, any> {
+    return this.data.triggers?.filter_payload || {};
   }
 
   /**
