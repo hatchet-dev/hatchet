@@ -160,7 +160,7 @@ export class Context<T, K = {}> {
    * @returns The payload.
    */
   filterPayload(): TriggerData {
-    return this.data.triggers["filter_payload"];
+    return this.data.triggers.filter_payload;
   }
 
   /**
