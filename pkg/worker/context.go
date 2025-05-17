@@ -260,9 +260,9 @@ func (h *hatchetContext) UserData(target interface{}) error {
 }
 
 func (h *hatchetContext) FilterPayload() map[string]interface{} {
-	fromTriggers := h.stepData.Triggers["filter_payload"]
+	payload := h.stepData.Triggers["filter_payload"]
 
-	return fromTriggers
+	return payload
 }
 
 func (h *hatchetContext) AdditionalMetadata() map[string]string {
