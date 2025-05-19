@@ -4,9 +4,9 @@ from multiprocessing import Queue
 from typing import Any, Literal, TypeVar
 
 from hatchet_sdk.client import Client
-from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
