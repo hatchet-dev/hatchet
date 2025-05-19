@@ -26,6 +26,14 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
+// Store referral code from URL if present
+// See AnalyticsProvider for more details
+const urlParams = new URLSearchParams(window.location.search);
+const ref = urlParams.get('ref');
+if (ref) {
+  localStorage.setItem('ref', ref);
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
     <ReactQueryDevtools initialIsOpen={false} />

@@ -53,11 +53,24 @@ posthog.init('${config.apiKey}',{
   }, [config, loaded, tenant]);
 
   useEffect(() => {
-    if (!config || !user) {
+    if (!config) {
       return;
     }
 
     setTimeout(() => {
+      const ref = localStorage.getItem('ref');
+      if (ref) {
+        (window as any).posthog.identify(
+          ref, // Required. Replace 'distinct_id' with your user's unique identifier
+          {}, // $set, optional
+          {}, // $set_once, optional
+        );
+      }
+
+      if (!user) {
+        return;
+      }
+
       (window as any).posthog.identify(
         user.metadata.id, // Required. Replace 'distinct_id' with your user's unique identifier
         { email: user.email, name: user.name }, // $set, optional
