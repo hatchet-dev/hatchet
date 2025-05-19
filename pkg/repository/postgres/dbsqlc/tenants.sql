@@ -34,7 +34,7 @@ SET
     "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
     "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version"),
-    "uiVersion" = COALESCE(sqlc.narg('uiVersion')::"TenantUiEngineVersion", "uiVersion")
+    "uiVersion" = COALESCE(sqlc.narg('uiVersion')::"TenantMajorUIVersion", "uiVersion")
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
