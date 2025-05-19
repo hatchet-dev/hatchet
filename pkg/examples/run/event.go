@@ -74,7 +74,7 @@ func event() {
 
 	// > Trigger a run
 	triggerPayload := map[string]interface{}{
-		"shouldSkip": true,
+		"shouldSkip": false,
 	}
 	triggerScope := "foobarbaz"
 	err = hatchet.Events().Push(
