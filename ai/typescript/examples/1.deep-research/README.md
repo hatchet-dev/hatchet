@@ -14,9 +14,10 @@ This is a TypeScript project demonstrating deep research capabilities using Hatc
 pnpm install
 ```
 
-2. Create a `.env` file in the root directory with your OpenAI API key:
+2. Create a `.env` file in the root directory with your OpenAI  and Hatchet API keys:
 ```bash
 OPENAI_API_KEY=your_api_key_here
+HATCHET_CLIENT_TOKEN=your_hatchet_token
 ```
 
 3. Run the development server:
