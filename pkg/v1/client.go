@@ -36,6 +36,7 @@ type HatchetClient interface {
 	Crons() features.CronsClient
 	Schedules() features.SchedulesClient
 	Events() v0Client.EventClient
+	Filters() features.FiltersClient
 
 	// TODO Run, RunNoWait, bulk
 }
@@ -51,6 +52,7 @@ type v1HatchetClientImpl struct {
 	workflows  features.WorkflowsClient
 	crons      features.CronsClient
 	schedules  features.SchedulesClient
+	filters    features.FiltersClient
 }
 
 // NewHatchetClient creates a new V1 Hatchet client with the provided configuration.
@@ -163,4 +165,13 @@ func (c *v1HatchetClientImpl) Schedules() features.SchedulesClient {
 		c.schedules = features.NewSchedulesClient(api, &tenantId, &namespace)
 	}
 	return c.schedules
+}
+
+func (c *v1HatchetClientImpl) Filters() features.FiltersClient {
+	if c.filters == nil {
+		api := c.V0().API()
+		tenantID := c.V0().TenantId()
+		c.filters = features.NewFiltersClient(api, &tenantID)
+	}
+	return c.filters
 }
