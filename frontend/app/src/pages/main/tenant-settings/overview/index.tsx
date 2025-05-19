@@ -2,12 +2,13 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
   queries,
   Tenant,
+  TenantUIVersion,
   TenantVersion,
   UpdateTenantRequest,
 } from '@/lib/api';
@@ -25,8 +26,13 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AxiosError } from 'axios';
+import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
+  const featureFlags = useCloudFeatureFlags(tenant?.metadata.id || '');
+
+  const hasUIVersionFlag =
+    featureFlags?.data['has-ui-version-upgrade-available'] === 'true';
 
   return (
     <div className="flex-grow h-full w-full">
@@ -40,6 +46,13 @@ export default function TenantSettings() {
         <AnalyticsOptOut tenant={tenant} />
         <Separator className="my-4" />
         <TenantVersionSwitcher />
+        {hasUIVersionFlag && (
+          <>
+            {' '}
+            <Separator className="my-4" />
+            <UIVersionSwitcher />
+          </>
+        )}
       </div>
     </div>
   );
@@ -170,6 +183,100 @@ const TenantVersionSwitcher = () => {
     </>
   );
 };
+
+function UIVersionSwitcher() {
+  const { tenant } = useOutletContext<TenantContextType>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const { handleApiError } = useApiError({});
+
+  const { mutateAsync: updateTenant, isPending } = useMutation({
+    mutationKey: ['tenant:update'],
+    mutationFn: async (data: UpdateTenantRequest) => {
+      return await api.tenantUpdate(tenant.metadata.id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queries.user.listTenantMemberships.queryKey,
+      });
+
+      window.location.reload();
+    },
+    onError: (error: AxiosError) => {
+      setShowUpgradeModal(false);
+      handleApiError(error);
+    },
+  });
+
+  console.log('tenant', tenant);
+
+  // Only show for V0 tenants
+  if (tenant?.uiVersion === TenantUIVersion.V1) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-y-2">
+      <h2 className="text-xl font-semibold leading-tight text-foreground">
+        UI Version
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        You can downgrade your dashboard to v0 if needed.
+      </p>
+      <Button
+        onClick={() => setShowUpgradeModal(true)}
+        disabled={isPending}
+        variant="destructive"
+        className="w-fit"
+      >
+        Downgrade to v0
+      </Button>
+
+      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Downgrade to v0</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            Please confirm your downgrade to the v0 UI version. Note that this
+            will have no effect on any of your workflows, and is a UI-only
+            change.
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUpgradeModal(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const tenant = await updateTenant({
+                  uiVersion: TenantUIVersion.V0,
+                });
+
+                if (tenant.data.uiVersion !== TenantUIVersion.V0) {
+                  return;
+                }
+
+                setShowUpgradeModal(false);
+                navigate('/next', {
+                  replace: false,
+                });
+              }}
+              disabled={isPending}
+            >
+              Confirm Downgrade
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 const UpdateTenant: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
   const [isLoading, setIsLoading] = useState(false);
