@@ -74,6 +74,7 @@ func NewCELParser() *CELParser {
 			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
 			decls.NewVar("payload", decls.NewMapType(decls.String, decls.Dyn)),
 			decls.NewVar("event_id", decls.String),
+			decls.NewVar("event_key", decls.String),
 			checksumDecl,
 		),
 	)
@@ -122,6 +123,12 @@ func WithPayload(payload map[string]interface{}) InputOpts {
 func WithEventID(eventID string) InputOpts {
 	return func(w Input) {
 		w["event_id"] = eventID
+	}
+}
+
+func WithEventKey(key string) InputOpts {
+	return func(w Input) {
+		w["event_key"] = key
 	}
 }
 
