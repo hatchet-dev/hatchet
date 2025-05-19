@@ -11,7 +11,8 @@ export default function useCloudFeatureFlags(tenantId: string) {
     retry: false,
     queryFn: async () => {
       try {
-        return await cloudApi.featureFlagsList(tenantId);
+        const flags = await cloudApi.featureFlagsList(tenantId);
+        return flags;
       } catch (e) {
         console.error('Failed to get cloud feature flags', e);
         return null;
