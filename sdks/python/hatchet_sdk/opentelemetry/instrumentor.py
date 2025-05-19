@@ -33,13 +33,13 @@ from hatchet_sdk.clients.admin import (
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
-from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.clients.events import (
     BulkPushEventWithMetadata,
     EventClient,
     PushEventOptions,
 )
 from hatchet_sdk.contracts.events_pb2 import Event
+from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
 

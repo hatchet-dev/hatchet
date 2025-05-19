@@ -14,7 +14,6 @@ from pydantic import BaseModel
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
-from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionKey, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
@@ -34,7 +33,9 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 from hatchet_sdk.exceptions import NonRetryableException
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
+    ctx_action_key,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -244,6 +245,7 @@ class Runner:
         ctx_step_run_id.set(action.step_run_id)
         ctx_workflow_run_id.set(action.workflow_run_id)
         ctx_worker_id.set(action.worker_id)
+        ctx_action_key.set(action.key)
 
         try:
             if task.is_async_function:
@@ -388,9 +390,9 @@ class Runner:
 
         ## Once the step run completes, we need to remove the workflow spawn index
         ## so we don't leak memory
-        if action.workflow_run_id in workflow_spawn_indices:
+        if action.key in workflow_spawn_indices:
             async with spawn_index_lock:
-                workflow_spawn_indices.pop(action.workflow_run_id)
+                workflow_spawn_indices.pop(action.key)
 
     ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_start_group_key_run(self, action: Action) -> Exception | None:
