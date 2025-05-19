@@ -1610,6 +1610,7 @@ func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expres
 			cel.WithAdditionalMetadata(additionalMetadata),
 			cel.WithPayload(payload),
 			cel.WithEventID(opt.ExternalId),
+			cel.WithEventKey(opt.Key),
 		),
 	)
 

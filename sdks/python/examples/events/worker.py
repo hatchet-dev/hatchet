@@ -4,6 +4,7 @@ from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 EVENT_KEY = "user:create"
+SECONDARY_KEY = "foobarbaz"
 
 
 class EventWorkflowInput(BaseModel):
@@ -13,7 +14,7 @@ class EventWorkflowInput(BaseModel):
 # > Event trigger
 event_workflow = hatchet.workflow(
     name="EventWorkflow",
-    on_events=[EVENT_KEY],
+    on_events=[EVENT_KEY, SECONDARY_KEY],
     input_validator=EventWorkflowInput,
 )
 # !!

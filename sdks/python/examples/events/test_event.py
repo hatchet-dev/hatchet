@@ -7,7 +7,12 @@ from uuid import uuid4
 import pytest
 from pydantic import BaseModel
 
-from examples.events.worker import EventWorkflowInput, event_workflow
+from examples.events.worker import (
+    EVENT_KEY,
+    SECONDARY_KEY,
+    EventWorkflowInput,
+    event_workflow,
+)
 from hatchet_sdk.clients.events import (
     BulkPushEventOptions,
     BulkPushEventWithMetadata,
@@ -140,7 +145,7 @@ def bpi(
     test_run_id: str = "",
     should_skip: bool = False,
     should_have_runs: bool = True,
-    key: str = "user:create",
+    key: str = EVENT_KEY,
     payload: dict[str, str] = {},
     scope: str | None = None,
 ) -> BulkPushEventWithMetadata:
@@ -165,14 +170,14 @@ def cp(should_skip: bool) -> dict[str, bool]:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_event_push(hatchet: Hatchet) -> None:
-    e = hatchet.event.push("user:create", cp(False))
+    e = hatchet.event.push(EVENT_KEY, cp(False))
 
     assert e.eventId is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_async_event_push(hatchet: Hatchet) -> None:
-    e = await hatchet.event.aio_push("user:create", cp(False))
+    e = await hatchet.event.aio_push(EVENT_KEY, cp(False))
 
     assert e.eventId is not None
 
@@ -338,7 +343,7 @@ async def test_event_payload_filtering(hatchet: Hatchet, test_run_id: str) -> No
         {"foobar": "qux"},
     ):
         event = await hatchet.event.aio_push(
-            event_key="user:create",
+            event_key=EVENT_KEY,
             payload={"message": "This is event 1", "should_skip": False},
             options=PushEventOptions(
                 scope=test_run_id,
@@ -365,7 +370,7 @@ async def test_event_payload_filtering_with_payload_match(
         {"foobar": "baz"},
     ):
         event = await hatchet.event.aio_push(
-            event_key="user:create",
+            event_key=EVENT_KEY,
             payload={"message": "This is event 1", "should_skip": False},
             options=PushEventOptions(
                 scope=test_run_id,
@@ -378,3 +383,45 @@ async def test_event_payload_filtering_with_payload_match(
         )
         runs = await wait_for_result(hatchet, [event])
         assert len(runs) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> None:
+    async with event_filter(
+        hatchet,
+        test_run_id,
+        f"event_key == '{SECONDARY_KEY}'",
+    ):
+        event_1 = await hatchet.event.aio_push(
+            event_key=SECONDARY_KEY,
+            payload={
+                "message": "Should run because filter matches",
+                "should_skip": False,
+            },
+            options=PushEventOptions(
+                scope=test_run_id,
+                additional_metadata={
+                    "should_have_runs": True,
+                    "test_run_id": test_run_id,
+                },
+            ),
+        )
+        event_2 = await hatchet.event.aio_push(
+            event_key=EVENT_KEY,
+            payload={
+                "message": "Should skip because filter does not match",
+                "should_skip": False,
+            },
+            options=PushEventOptions(
+                scope=test_run_id,
+                additional_metadata={
+                    "should_have_runs": False,
+                    "test_run_id": test_run_id,
+                },
+            ),
+        )
+
+        event_to_runs = await wait_for_result(hatchet, [event_1, event_2])
+
+        for event, runs in event_to_runs.items():
+            await assert_event_runs_processed(event, runs)
