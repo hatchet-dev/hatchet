@@ -113,6 +113,9 @@ UpdateTenantRequest:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI of the tenant.
   type: object
 
 TenantResource:

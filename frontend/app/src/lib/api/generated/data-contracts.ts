@@ -1078,6 +1078,8 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: TenantVersion;
+  /** The UI of the tenant. */
+  uiVersion?: TenantUIVersion;
 }
 
 export interface TenantAlertingSettings {
