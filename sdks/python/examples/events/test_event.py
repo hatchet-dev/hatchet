@@ -424,7 +424,4 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
         event_to_runs = await wait_for_result(hatchet, [event_1, event_2])
 
         for event, runs in event_to_runs.items():
-            if event.should_have_runs:
-                assert len(runs) == 1
-            else:
-                assert len(runs) == 0
+            await assert_event_runs_processed(event, runs)
