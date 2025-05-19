@@ -179,10 +179,16 @@ const (
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 
+// Defines values for TenantUIVersion.
+const (
+	TenantUIVersionV0 TenantUIVersion = "V0"
+	TenantUIVersionV1 TenantUIVersion = "V1"
+)
+
 // Defines values for TenantVersion.
 const (
-	V0 TenantVersion = "V0"
-	V1 TenantVersion = "V1"
+	TenantVersionV0 TenantVersion = "V0"
+	TenantVersionV1 TenantVersion = "V1"
 )
 
 // Defines values for V1LogLineLevel.
@@ -952,8 +958,9 @@ type Tenant struct {
 	Name string `json:"name"`
 
 	// Slug The slug of the tenant.
-	Slug    string        `json:"slug"`
-	Version TenantVersion `json:"version"`
+	Slug      string          `json:"slug"`
+	UiVersion TenantUIVersion `json:"uiVersion"`
+	Version   TenantVersion   `json:"version"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
@@ -1071,6 +1078,9 @@ type TenantResourcePolicy struct {
 type TenantStepRunQueueMetrics struct {
 	Queues *map[string]interface{} `json:"queues,omitempty"`
 }
+
+// TenantUIVersion defines model for TenantUIVersion.
+type TenantUIVersion string
 
 // TenantVersion defines model for TenantVersion.
 type TenantVersion string

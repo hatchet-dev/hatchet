@@ -17,14 +17,24 @@ Tenant:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI of the tenant.
   required:
     - metadata
     - name
     - slug
     - version
+    - uiVersion
   type: object
 
 TenantVersion:
+  enum:
+    - "V0"
+    - "V1"
+  type: string
+
+TenantUIVersion:
   enum:
     - "V0"
     - "V1"
