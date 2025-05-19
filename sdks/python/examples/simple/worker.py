@@ -1,27 +1,26 @@
+# > Simple
+
 from hatchet_sdk import Context, EmptyModel, Hatchet
-import time
-import asyncio
 
 hatchet = Hatchet(debug=True)
 
 
 @hatchet.task()
-async def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    for i in range(60):
-        print(f"blocking task {i}")
-        time.sleep(1)
+def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {"result": "Hello, world!"}
 
-@hatchet.task()
-async def non_blocking(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    for i in range(60):
-        print(f"non-blocking task {i}")
-        await asyncio.sleep(1)
+
+@hatchet.durable_task()
+def simple_durable(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    return {"result": "Hello, world!"}
 
 
 def main() -> None:
-    worker = hatchet.worker("test-worker", workflows=[simple, non_blocking])
+    worker = hatchet.worker("test-worker", workflows=[simple, simple_durable])
     worker.start()
 
+
+# !!
 
 if __name__ == "__main__":
     main()
