@@ -93,6 +93,8 @@ type HatchetContext interface {
 	IncChildIndex()
 
 	Priority() int32
+
+	FilterPayload() map[string]interface{}
 }
 
 type TriggeredBy string
@@ -255,6 +257,12 @@ func (h *hatchetContext) StepRunErrors() map[string]string {
 
 func (h *hatchetContext) UserData(target interface{}) error {
 	return toTarget(h.stepData.UserData, target)
+}
+
+func (h *hatchetContext) FilterPayload() map[string]interface{} {
+	payload := h.stepData.Triggers["filter_payload"]
+
+	return payload
 }
 
 func (h *hatchetContext) AdditionalMetadata() map[string]string {
