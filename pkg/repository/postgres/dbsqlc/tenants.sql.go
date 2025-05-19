@@ -1088,7 +1088,8 @@ SELECT
     t."slug" as "tenantSlug",
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
-    t."version" as "tenantVersion"
+    t."version" as "tenantVersion",
+    t."uiVersion" as "tenantUiVersion"
 FROM
     "TenantMember" tm
 JOIN
@@ -1116,6 +1117,7 @@ type PopulateTenantMembersRow struct {
 	AlertMemberEmails bool                     `json:"alertMemberEmails"`
 	AnalyticsOptOut   bool                     `json:"analyticsOptOut"`
 	TenantVersion     TenantMajorEngineVersion `json:"tenantVersion"`
+	TenantUiVersion   TenantMajorUIVersion     `json:"tenantUiVersion"`
 }
 
 func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*PopulateTenantMembersRow, error) {
@@ -1144,6 +1146,7 @@ func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []pgty
 			&i.AlertMemberEmails,
 			&i.AnalyticsOptOut,
 			&i.TenantVersion,
+			&i.TenantUiVersion,
 		); err != nil {
 			return nil, err
 		}

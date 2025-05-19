@@ -15,6 +15,8 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 		Slug:              tenant.Slug,
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
 		AlertMemberEmails: &tenant.AlertMemberEmails,
+		Version:           gen.TenantVersion(tenant.Version),
+		UiVersion:         gen.TenantUIVersion(tenant.UiVersion),
 	}
 }
 

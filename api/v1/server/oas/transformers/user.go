@@ -40,6 +40,7 @@ func ToTenantMember(tenantMember *dbsqlc.PopulateTenantMembersRow) *gen.TenantMe
 			AnalyticsOptOut:   &tenantMember.AnalyticsOptOut,
 			AlertMemberEmails: &tenantMember.AlertMemberEmails,
 			Version:           gen.TenantVersion(tenantMember.TenantVersion),
+			UiVersion:         gen.TenantUIVersion(tenantMember.TenantUiVersion),
 		},
 		Role: gen.TenantMemberRole(tenantMember.Role),
 	}
