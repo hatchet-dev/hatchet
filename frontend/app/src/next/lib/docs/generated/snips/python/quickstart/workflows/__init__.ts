@@ -6,6 +6,6 @@ const snippet: Snippet = {
   source: 'out/python/quickstart/workflows/__init__.py',
   blocks: {},
   highlights: {},
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;
