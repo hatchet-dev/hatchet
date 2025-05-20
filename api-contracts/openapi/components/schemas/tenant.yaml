@@ -25,7 +25,6 @@ Tenant:
     - name
     - slug
     - version
-    - uiVersion
   type: object
 
 TenantVersion:
