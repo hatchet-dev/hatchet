@@ -7,8 +7,7 @@ export const BASE_PATH = '/next';
 
 export const FEATURES_BASE_PATH = {
   auth: BASE_PATH + '/auth',
-  onboarding: (tenantId: string) =>
-    BASE_PATH + `/tenants/${tenantId}/onboarding`,
+  onboarding: BASE_PATH + `/onboarding`,
   learn: BASE_PATH + '/learn',
   runs: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/runs`,
   scheduled: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/scheduled`,

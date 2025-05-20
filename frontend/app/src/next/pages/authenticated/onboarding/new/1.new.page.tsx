@@ -1,4 +1,4 @@
-import { useCurrentTenantId, useTenant } from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/next/components/ui/button';
 import { Input } from '@/next/components/ui/input';
@@ -33,7 +33,6 @@ interface TenantFormValues {
 }
 
 export default function OnboardingNewPage() {
-  const { tenantId } = useCurrentTenantId();
   const { create: createTenant, setTenant } = useTenant();
   const { data: user, memberships } = useUser();
   const navigate = useNavigate();
@@ -149,7 +148,11 @@ export default function OnboardingNewPage() {
             <Button
               variant="outline"
               onClick={() => {
-                navigate(ROUTES.runs.list(tenantId));
+                const currentTenantId = memberships.at(0)?.tenant?.metadata.id;
+
+                if (currentTenantId) {
+                  navigate(ROUTES.runs.list(currentTenantId));
+                }
               }}
             >
               Cancel

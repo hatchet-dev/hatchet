@@ -72,8 +72,10 @@ export default function Register() {
 
 function BasicRegister() {
   const navigate = useNavigate();
-  const { register } = useUser();
-  const { tenant } = useTenant();
+  const { register, memberships } = useUser();
+  const { defaultTenant } = useTenant();
+
+  const tenant = defaultTenant || memberships?.[0]?.tenant;
 
   return (
     <UserRegisterForm

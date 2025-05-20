@@ -4,7 +4,7 @@ import { FEATURES_BASE_PATH, ROUTES } from '@/next/lib/routes';
 
 export const onboardingRoutes: RouteObject[] = [
   {
-    path: FEATURES_BASE_PATH.onboarding(':tenantId'),
+    path: FEATURES_BASE_PATH.onboarding,
     element: <OnboardingLayout />,
     children: [
       {
