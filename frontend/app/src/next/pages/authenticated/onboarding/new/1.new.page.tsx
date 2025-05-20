@@ -1,4 +1,4 @@
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/next/components/ui/button';
 import { Input } from '@/next/components/ui/input';
@@ -35,7 +35,7 @@ interface TenantFormValues {
 }
 
 export default function OnboardingNewPage() {
-  const { create: createTenant } = useTenant();
+  const { create: createTenant } = useTenantDetails();
   const { data: user, memberships } = useUser();
   const queryClient = useQueryClient();
   const navigate = useNavigate();

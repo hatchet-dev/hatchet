@@ -1,6 +1,6 @@
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useUser from '@/next/hooks/use-user';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 const AnalyticsProvider: React.FC<PropsWithChildren> = ({ children }) => {
@@ -9,7 +9,7 @@ const AnalyticsProvider: React.FC<PropsWithChildren> = ({ children }) => {
 
   const [loaded, setLoaded] = React.useState(false);
 
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const config = useMemo(() => {
     return meta.oss?.posthog;

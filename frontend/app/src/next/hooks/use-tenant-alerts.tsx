@@ -62,11 +62,11 @@ interface TenantAlertsProviderProps extends PropsWithChildren {
 
 const TenantAlertsContext = createContext<TenantAlertsState | null>(null);
 
-export function useTenantAlerts() {
+export function useTenantDetailsAlerts() {
   const context = useContext(TenantAlertsContext);
   if (!context) {
     throw new Error(
-      'useTenantAlerts must be used within a TenantAlertsProvider',
+      'useTenantDetailsAlerts must be used within a TenantAlertsProvider',
     );
   }
   return context;

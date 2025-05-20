@@ -1,6 +1,6 @@
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useUser from '@/next/hooks/use-user';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 import React, { PropsWithChildren, useEffect, useMemo } from 'react';
 
 interface PylonWindow extends Window {
@@ -18,7 +18,7 @@ interface PylonWindow extends Window {
 const SupportChat: React.FC<PropsWithChildren> = ({ children }) => {
   const { data: user } = useUser();
   const meta = useApiMeta();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
 
   const APP_ID = useMemo(
     () => meta.oss?.pylonAppId ?? null,

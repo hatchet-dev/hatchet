@@ -10,7 +10,7 @@ import {
 } from '../components/shared-auth-components';
 import useUser from '@/next/hooks/use-user';
 import { ROUTES } from '@/next/lib/routes';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 
 export default function Register() {
   const { oss: meta, isLoading } = useApiMeta();
@@ -73,7 +73,7 @@ export default function Register() {
 function BasicRegister() {
   const navigate = useNavigate();
   const { register, memberships } = useUser();
-  const { defaultTenant } = useTenant();
+  const { defaultTenant } = useTenantDetails();
 
   const tenant = defaultTenant || memberships?.[0]?.tenant;
 

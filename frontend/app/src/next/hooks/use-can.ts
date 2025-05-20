@@ -3,7 +3,7 @@ import {
   EvaluateResult,
 } from '@/next/lib/can/shared/permission.base';
 
-import { useTenant } from './use-tenant';
+import { useTenantDetails } from './use-tenant';
 import useUser from './use-user';
 import { useCallback } from 'react';
 import useApiMeta from './use-api-meta';
@@ -19,7 +19,7 @@ interface CanHook {
 
 export default function useCan(): CanHook {
   const { data: user } = useUser();
-  const { tenant, membership } = useTenant();
+  const { tenant, membership } = useTenantDetails();
   const { billing: billing } = useBilling();
   const meta = useApiMeta();
 

@@ -15,7 +15,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/next/components/ui/alert';
-import { useCurrentTenantId, useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/next/hooks/use-tenant';
 import {
   TenantUIVersion,
   TenantVersion,
@@ -67,7 +67,7 @@ export default function SettingsOverviewPage() {
 }
 
 function UpdateTenant() {
-  const { tenant, update } = useTenant();
+  const { tenant, update } = useTenantDetails();
 
   if (!tenant) {
     return null;
@@ -87,7 +87,7 @@ function UpdateTenant() {
 }
 
 function AnalyticsOptOut() {
-  const { tenant, update } = useTenant();
+  const { tenant, update } = useTenantDetails();
   const [checkedState, setChecked] = useState(false);
   const [changed, setChanged] = useState(false);
 
@@ -145,7 +145,7 @@ function AnalyticsOptOut() {
 }
 
 function TenantVersionSwitcher() {
-  const { tenant, update } = useTenant();
+  const { tenant, update } = useTenantDetails();
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
 
   if (!tenant || tenant.version === TenantVersion.V0) {
@@ -224,7 +224,7 @@ function TenantVersionSwitcher() {
 }
 
 function UIVersionSwitcher() {
-  const { tenant, update } = useTenant();
+  const { tenant, update } = useTenantDetails();
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const navigate = useNavigate();
 

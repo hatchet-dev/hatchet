@@ -20,7 +20,7 @@ export function useCurrentTenantId() {
   return { tenantId };
 }
 
-export function useTenant() {
+export function useTenantDetails() {
   const params = useParams();
   const tenantId = params.tenantId;
 

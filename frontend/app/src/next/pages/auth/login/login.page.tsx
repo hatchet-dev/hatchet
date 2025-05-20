@@ -10,7 +10,7 @@ import {
 } from '../components/shared-auth-components';
 import useUser from '@/next/hooks/use-user';
 import { ROUTES } from '@/next/lib/routes';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 import { useQueryClient } from '@tanstack/react-query';
 export default function Login() {
   const { oss: meta, isLoading } = useApiMeta();
@@ -76,7 +76,7 @@ export default function Login() {
 function BasicLogin() {
   const navigate = useNavigate();
   const { login, memberships } = useUser();
-  const { defaultTenant } = useTenant();
+  const { defaultTenant } = useTenantDetails();
   const queryClient = useQueryClient();
 
   return (

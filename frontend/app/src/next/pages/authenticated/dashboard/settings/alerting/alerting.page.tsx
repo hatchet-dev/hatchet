@@ -2,7 +2,7 @@ import { Separator } from '@/next/components/ui/separator';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import {
   TenantAlertsProvider,
-  useTenantAlerts,
+  useTenantDetailsAlerts,
 } from '@/next/hooks/use-tenant-alerts';
 import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
 import { SlackWebhook, TenantAlertEmailGroup } from '@/lib/api';
@@ -51,7 +51,11 @@ export default function Alerting() {
 }
 
 const AlertingSettings: React.FC = () => {
-  const { data: alertingSettings, isLoading, update } = useTenantAlerts();
+  const {
+    data: alertingSettings,
+    isLoading,
+    update,
+  } = useTenantDetailsAlerts();
 
   return (
     <div>
@@ -76,7 +80,7 @@ function EmailGroupsList() {
     emailGroups: { list, create, remove },
     data,
     update,
-  } = useTenantAlerts();
+  } = useTenantDetailsAlerts();
 
   const [showGroupsDialog, setShowGroupsDialog] = useState(false);
   const [deleteEmailGroup, setDeleteEmailGroup] =
@@ -172,7 +176,7 @@ function EmailGroupsList() {
 function SlackWebhooksList() {
   const {
     slackWebhooks: { list, startUrl, remove },
-  } = useTenantAlerts();
+  } = useTenantDetailsAlerts();
 
   const [deleteSlack, setDeleteSlack] = useState<SlackWebhook | null>(null);
 

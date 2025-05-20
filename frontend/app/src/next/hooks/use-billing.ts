@@ -5,7 +5,7 @@ import {
   useQuery,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useTenantDetails } from './use-tenant';
 import useApiMeta from './use-api-meta';
 import { cloudApi } from '@/lib/api/api';
 import { useMemo } from 'react';
@@ -34,7 +34,7 @@ export default function useBilling({
   refetchInterval,
 }: UseBillingOptions = {}): BillingHook {
   const meta = useApiMeta();
-  const { tenant } = useTenant();
+  const { tenant } = useTenantDetails();
   const { toast } = useToast();
 
   const canBill = !!meta.cloud?.canBill;
