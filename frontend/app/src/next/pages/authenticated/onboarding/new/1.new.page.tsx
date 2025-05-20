@@ -28,13 +28,16 @@ import {
 } from '@/next/lib/utils/name-generator';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import { TenantUIVersion } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 interface TenantFormValues {
   name: string;
 }
 
 export default function OnboardingNewPage() {
-  const { create: createTenant, setTenant } = useTenant();
+  const { create: createTenant } = useTenant();
   const { data: user, memberships } = useUser();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const {
     register,
@@ -46,18 +49,26 @@ export default function OnboardingNewPage() {
 
   const onSubmit = async (data: TenantFormValues) => {
     try {
-      createTenant.mutate(data.name, {
-        onSuccess: (tenant) => {
-          setTenant(tenant.metadata.id);
-          navigate(ROUTES.runs.list(tenant.metadata.id));
+      createTenant.mutate(
+        {
+          name: data.name,
+          uiVersion: TenantUIVersion.V1,
         },
-        onError: (error) => {
-          setError('name', {
-            type: 'server',
-            message: error.message || 'Failed to create tenant',
-          });
+        {
+          onSuccess: async (tenant) => {
+            const route = ROUTES.runs.list(tenant.metadata.id);
+            await queryClient.invalidateQueries();
+
+            navigate(route);
+          },
+          onError: (error) => {
+            setError('name', {
+              type: 'server',
+              message: error.message || 'Failed to create tenant',
+            });
+          },
         },
-      });
+      );
     } catch (error) {
       if (error instanceof Error) {
         setError('name', {

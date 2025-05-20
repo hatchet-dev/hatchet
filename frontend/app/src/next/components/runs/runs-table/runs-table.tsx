@@ -142,7 +142,6 @@ export function RunsTable({
 
   const handleRowDoubleClick = useCallback(
     (row: V1TaskSummary) => {
-      console.log(row);
       navigate(
         ROUTES.runs.detailWithSheet(tenantId, row.workflowRunExternalId || '', {
           type: 'task-detail',
