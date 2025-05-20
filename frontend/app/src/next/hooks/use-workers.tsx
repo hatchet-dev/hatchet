@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -83,7 +83,7 @@ function WorkersProviderContent({
   children,
   refetchInterval,
 }: WorkersProviderProps) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const filters = useFilters<WorkersFilters>();
   const pagination = usePagination();

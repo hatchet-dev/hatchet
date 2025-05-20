@@ -44,11 +44,11 @@ import { Summary } from './components/config/summary';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { Button } from '@/next/components/ui/button';
 import { BillingRequired } from './components/billing-required';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 function ServiceDetailPageContent() {
   const navigate = useNavigate();
 
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const { data: services, create } = useManagedCompute();
 

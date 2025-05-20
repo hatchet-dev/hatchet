@@ -8,7 +8,7 @@ import {
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { useMemo, useCallback, useState, useEffect } from 'react';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { MdOutlineReplay } from 'react-icons/md';
@@ -62,7 +62,7 @@ type RunDetailPageProps = {
 };
 
 function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);

@@ -24,7 +24,7 @@ import { RunsBulkActionDialog } from './bulk-action-dialog';
 import { Plus } from 'lucide-react';
 import { ROUTES } from '@/next/lib/routes';
 import { useNavigate } from 'react-router-dom';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
@@ -50,7 +50,7 @@ export function RunsTable({
     cancel,
     replay,
   } = useRuns();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const [selectAll, setSelectAll] = useState(false);
   const [showBulkActionDialog, setShowBulkActionDialog] = useState<

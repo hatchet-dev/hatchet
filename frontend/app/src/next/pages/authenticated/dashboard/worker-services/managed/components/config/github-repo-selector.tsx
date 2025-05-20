@@ -27,7 +27,7 @@ import { CreateManagedWorkerBuildConfigRequest } from '@/lib/api/generated/cloud
 import { Spinner } from '@/next/components/ui/spinner';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 export type GithubRepoSelectorValue = Omit<
   CreateManagedWorkerBuildConfigRequest,
@@ -60,7 +60,7 @@ export function GithubRepoSelector({
   const [openInstallation, setOpenInstallation] = useState(false);
   const [openRepo, setOpenRepo] = useState(false);
   const [openBranch, setOpenBranch] = useState(false);
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   // Set default installation on first mount
   useEffect(() => {

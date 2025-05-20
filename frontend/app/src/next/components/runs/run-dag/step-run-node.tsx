@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { Duration } from '@/next/components/ui/duration';
 import { RunsBadge } from '../runs-badge';
 import { ROUTES } from '@/next/lib/routes';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 enum TabOption {
   Output = 'output',
@@ -27,7 +27,7 @@ export type NodeData = {
 // eslint-disable-next-line react/display-name
 export default memo(({ data }: { data: NodeData }) => {
   const variant = data.graphVariant;
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">

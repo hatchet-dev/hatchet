@@ -9,7 +9,7 @@ import {
   useQuery,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -48,7 +48,7 @@ export function useIngestors() {
 }
 
 function IngestorsProviderContent({ children }: IngestorsProviderProps) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const listSNSIntegrationsQuery = useQuery({

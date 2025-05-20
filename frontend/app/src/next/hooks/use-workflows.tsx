@@ -1,7 +1,7 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 import { useToast } from './utils/use-toast';
@@ -39,7 +39,7 @@ function WorkflowsProviderContent({
   children,
   refetchInterval,
 }: WorkflowsProviderProps) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const filters = useFilters<WorkflowsFilters>();
   const pagination = usePagination();

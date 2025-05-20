@@ -1,6 +1,6 @@
 import api, { UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -42,12 +42,12 @@ function WorkerDetailProviderContent({
   children,
   workerId,
 }: WorkerDetailProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const workerDetailQuery = useQuery({
-    queryKey: ['worker:detail', tenant, workerId],
+    queryKey: ['worker:detail', tenantId, workerId],
     queryFn: async () => {
       if (!workerId) {
         return undefined;
@@ -70,7 +70,7 @@ function WorkerDetailProviderContent({
   });
 
   const updateWorkerMutation = useMutation({
-    mutationKey: ['worker:update', tenant, workerId],
+    mutationKey: ['worker:update', tenantId, workerId],
     mutationFn: async ({ workerId, data }: UpdateWorkerParams) => {
       try {
         const res = await api.workerUpdate(workerId, data);
@@ -87,7 +87,7 @@ function WorkerDetailProviderContent({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['worker:detail', tenant, workerId],
+        queryKey: ['worker:detail', tenantId, workerId],
       });
       queryClient.invalidateQueries({
         queryKey: ['worker:list'],

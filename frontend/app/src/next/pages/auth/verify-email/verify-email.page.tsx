@@ -10,14 +10,14 @@ import { useEffect } from 'react';
 import { FaEnvelope } from 'react-icons/fa';
 import { Navigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 export default function VerifyEmailPage() {
   const retryInterval = 5000;
 
   const user = useUser({
     refetchInterval: retryInterval,
   });
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const [countdown, setCountdown] = useState<number | null>(null);
 

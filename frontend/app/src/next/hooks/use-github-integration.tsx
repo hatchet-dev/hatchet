@@ -4,7 +4,7 @@ import {
   PropsWithChildren,
   createElement,
 } from 'react';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import { useState } from 'react';
 import {
   GithubAppInstallation,
@@ -71,7 +71,7 @@ function GithubIntegrationProviderContent({
   children,
   initialInstallationId,
 }: PropsWithChildren<{ initialInstallationId?: string }>) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
   const { toast } = useToast();
   const { isCloud } = useApiMeta();

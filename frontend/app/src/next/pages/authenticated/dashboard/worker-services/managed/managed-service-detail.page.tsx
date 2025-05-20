@@ -27,7 +27,7 @@ import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 export enum ManagedServiceDetailTabs {
   INSTANCES = 'instances',
@@ -39,7 +39,7 @@ export enum ManagedServiceDetailTabs {
 
 function ServiceDetailPageContent() {
   const { data: service } = useManagedComputeDetail();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const breadcrumb = useBreadcrumbs();
 

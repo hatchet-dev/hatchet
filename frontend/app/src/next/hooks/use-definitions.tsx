@@ -1,6 +1,6 @@
 import api, { Workflow, WorkflowWorkersCount } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   PaginationManager,
   PaginationManagerNoOp,
@@ -22,7 +22,7 @@ interface UseDefinitionsOptions {
 export default function useDefinitions({
   pagination = PaginationManagerNoOp,
 }: UseDefinitionsOptions = {}): DefinitionsState {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const listDefinitionsQuery = useQuery({

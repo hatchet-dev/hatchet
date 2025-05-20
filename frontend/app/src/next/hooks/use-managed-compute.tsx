@@ -15,7 +15,7 @@ import {
 import { WorkerType } from '@/lib/api';
 import { Worker } from '@/lib/api/generated/data-contracts';
 import { WorkerService } from './use-workers';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import { createContext, useContext, PropsWithChildren, useMemo } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
@@ -86,7 +86,7 @@ function ManagedComputeProviderContent({
   refetchInterval,
 }: ManagedComputeProviderProps) {
   const { cloud, isCloud } = useApiMeta();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const filters = useFilters<ManagedComputeFilters>();
   const pagination = usePagination();
   const { toast } = useToast();

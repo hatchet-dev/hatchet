@@ -16,7 +16,7 @@ import {
   UseQueryResult,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   PaginationProvider,
   PaginationProviderProps,
@@ -146,7 +146,7 @@ function RunsProviderContent({
   refetchInterval?: number;
 }) {
   const queryClient = useQueryClient();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const filters = useFilters<RunsFilters>();

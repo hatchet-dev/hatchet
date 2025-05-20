@@ -9,7 +9,7 @@ import {
   UseMutationResult,
   useQuery,
 } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import { useState, createContext, useContext, PropsWithChildren } from 'react';
 import {
   PaginationProvider,
@@ -54,7 +54,7 @@ export default function useApiTokens({
   initialFilters = {},
 }: UseApiTokensOptions = {}): ApiTokensState {
   const pagination = usePagination();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   // State for filters only

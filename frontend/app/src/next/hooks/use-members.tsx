@@ -5,7 +5,7 @@ import {
   UseMutationResult,
 } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   TenantMember,
   TenantMemberList,
@@ -33,7 +33,7 @@ interface MembersState {
 const MembersContext = createContext<MembersState | null>(null);
 
 export function MembersProvider({ children }: { children: React.ReactNode }) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const membersQuery = useQuery({

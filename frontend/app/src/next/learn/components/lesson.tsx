@@ -11,7 +11,7 @@ import { Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { Snippet } from '@/next/components/ui/code/snippet';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 export function Lesson<
   S extends string,
@@ -39,7 +39,7 @@ function LessonContent<
     codeBlocksRef,
     stepCardsRef,
   } = useLesson();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const steps = Object.entries(lesson.steps).map(([key, step], stepIndex) => {
     const typedStep = step as LessonStep;

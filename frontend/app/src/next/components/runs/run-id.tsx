@@ -8,7 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { cn } from '@/lib/utils';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 interface RunIdProps {
   wfRun?: V1WorkflowRun;
@@ -31,7 +31,7 @@ export function RunId({
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const url = !isTaskRun
     ? ROUTES.runs.detail(tenantId, wfRun?.metadata.id || id || '')

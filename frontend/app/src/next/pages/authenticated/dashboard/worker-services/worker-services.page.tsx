@@ -68,12 +68,12 @@ import docs from '@/next/lib/docs';
 import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 // Service row component to simplify the main component
 const ServiceRow = ({ service }: { service: WorkerService }) => {
   const { bulkUpdate } = useWorkers();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const getLastActiveTime = () => {
     const mostRecentWorker = service.workers
@@ -289,7 +289,7 @@ function WorkerServicesContent() {
   const unifiedServices = useUnifiedWorkerServices();
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const handleDismissCard = () => {
     setShowCloudCard(false);

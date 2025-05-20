@@ -10,10 +10,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from './utils/use-toast';
 import invariant from 'tiny-invariant';
 
+export function useCurrentTenantId() {
+  const params = useParams();
+  const tenantId = params.tenantId;
+
+  invariant(tenantId, 'Tenant ID is required');
+
+  return { tenantId };
+}
+
 export function useTenant() {
   const params = useParams();
   const tenantId = params.tenantId;
-  invariant(tenantId, 'tenantId is required');
 
   const { memberships, isLoading: isUserLoading } = useUser();
   const queryClient = useQueryClient();

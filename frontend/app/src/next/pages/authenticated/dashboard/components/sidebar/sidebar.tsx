@@ -48,7 +48,7 @@ import { TenantBlock } from './user-dropdown';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useSupportChat from '@/next/hooks/use-support-chat';
 import { QuestionMarkCircledIcon } from '@radix-ui/react-icons';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId, useTenant } from '@/next/hooks/use-tenant';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Logo } from '@/next/components/ui/logo';
 import { Code } from '@/next/components/ui/code';
@@ -68,7 +68,8 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const { data: user, memberships } = useUser();
   const chat = useSupportChat();
-  const { tenant, setTenant, tenantId } = useTenant();
+  const { tenant, setTenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
   const location = useLocation();
   const navLinks = getMainNavLinks(tenantId, location.pathname);

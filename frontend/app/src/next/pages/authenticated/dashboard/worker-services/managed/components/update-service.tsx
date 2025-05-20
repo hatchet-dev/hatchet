@@ -31,7 +31,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 interface SectionActionsProps {
   canUpdate: boolean | undefined;
   section: string;
@@ -46,7 +46,7 @@ const SectionActions = ({
   onRevert,
   onDeploy,
 }: SectionActionsProps) => {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   if (!canUpdate) {
     return (
       <Alert variant="warning">
@@ -84,7 +84,7 @@ export function UpdateServiceContent() {
   const navigate = useNavigate();
   const { data: service } = useManagedComputeDetail();
   const { update, delete: deleteService } = useManagedCompute();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);

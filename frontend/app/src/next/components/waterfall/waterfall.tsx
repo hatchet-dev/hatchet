@@ -25,7 +25,7 @@ import {
   BsArrowUpLeftCircle,
 } from 'react-icons/bs';
 import { Skeleton } from '../ui/skeleton';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 interface ProcessedTaskData {
   id: string;
   workflowRunId?: string;
@@ -202,7 +202,7 @@ export function Waterfall({
   const {
     timings: { data: taskData, isLoading, error: isError, depth, setDepth },
   } = useRunDetail();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   // Process and memoize task relationships to allow collapsing all descendants
   const taskRelationships = useMemo(() => {

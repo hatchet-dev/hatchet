@@ -12,7 +12,7 @@ import {
 import { Button } from '@/next/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import { useState } from 'react';
 import useCan from '@/next/hooks/use-can';
 import { members } from '@/next/lib/can/features/members.permissions';
@@ -23,7 +23,7 @@ interface RemoveMemberFormProps {
 }
 
 export function RemoveMemberForm({ member, close }: RemoveMemberFormProps) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const [error, setError] = useState<string | null>(null);
   const { canWithReason } = useCan();
 

@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { CheckCircle2 } from 'lucide-react';
 import { ROUTES } from '@/next/lib/routes';
 import { V1WorkflowRunDetails } from '@/lib/api';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 interface TaskExecutionProps {
   name: string;
   input?: Record<string, unknown>;
@@ -36,7 +36,7 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
     data: runs,
     filters: { setFilter },
   } = useRuns();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
 
   const definitionId = useMemo(
     () => definitions?.find((d) => d.name === name)?.metadata.id,

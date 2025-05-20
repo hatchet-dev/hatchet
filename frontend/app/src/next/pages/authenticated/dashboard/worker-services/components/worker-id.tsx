@@ -8,7 +8,7 @@ import {
 } from '@/next/components/ui/tooltip';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 interface WorkerIdProps {
   worker?: Worker;
@@ -21,7 +21,7 @@ export function WorkerId({
   serviceName,
   onClick,
 }: WorkerIdProps) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const worker = providedWorker;
 
   const name = useMemo(() => {

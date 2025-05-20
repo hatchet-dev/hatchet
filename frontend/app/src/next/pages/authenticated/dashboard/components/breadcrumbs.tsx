@@ -23,7 +23,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { BreadcrumbData, useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { BASE_PATH } from '@/next/lib/routes';
-import { useTenant } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 // Use the existing NavItem type from main-nav
 type NavItem = MainNavItem;
@@ -48,7 +48,7 @@ const stripNavSectionBasePath = (section: NavSection): NavSection => ({
 export function BreadcrumbNav() {
   const location = useLocation();
   const isMobile = useIsMobile();
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const navStructure = getMainNavLinks(tenantId, location.pathname);
 
   // Flattened navigation map for easy lookup

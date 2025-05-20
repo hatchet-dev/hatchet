@@ -75,7 +75,7 @@ export default function Login() {
 function BasicLogin() {
   const navigate = useNavigate();
   const { login } = useUser();
-  const { tenantId } = useTenant();
+  const { tenant } = useTenant();
 
   return (
     <UserLoginForm
@@ -83,7 +83,7 @@ function BasicLogin() {
       onSubmit={async (data) => {
         const user = await login.mutateAsync(data);
         if (user) {
-          navigate(ROUTES.runs.list(tenantId));
+          navigate(ROUTES.runs.list(tenant?.metadata.id || ''));
         }
       }}
       apiError={login.error?.message}

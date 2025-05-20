@@ -12,7 +12,7 @@ import {
   useQuery,
   UseQueryResult,
 } from '@tanstack/react-query';
-import { useTenant } from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -73,7 +73,7 @@ export function useTenantAlerts() {
 }
 
 function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
-  const { tenantId } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const alertingSettingsQuery = useQuery({
