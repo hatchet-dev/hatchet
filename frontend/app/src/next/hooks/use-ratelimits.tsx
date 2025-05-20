@@ -54,7 +54,7 @@ function RateLimitsProviderContent({ children }: PropsWithChildren) {
         const transformedRows = (res.data.rows || []).map(
           (row: ApiRateLimit) => ({
             key: row.key || '',
-            tenantId: row.tenantId || '',
+            tenantId,
             limitValue: row.limitValue || 0,
             value: row.value || 0,
             window: row.window || '',

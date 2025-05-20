@@ -24,6 +24,7 @@ import { RunsBulkActionDialog } from './bulk-action-dialog';
 import { Plus } from 'lucide-react';
 import { ROUTES } from '@/next/lib/routes';
 import { useNavigate } from 'react-router-dom';
+import { useTenant } from '@/next/hooks/use-tenant';
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
@@ -49,6 +50,7 @@ export function RunsTable({
     cancel,
     replay,
   } = useRuns();
+  const { tenantId } = useTenant();
 
   const [selectAll, setSelectAll] = useState(false);
   const [showBulkActionDialog, setShowBulkActionDialog] = useState<
@@ -142,17 +144,13 @@ export function RunsTable({
     (row: V1TaskSummary) => {
       console.log(row);
       navigate(
-        ROUTES.runs.detailWithSheet(
-          row.tenantId,
-          row.workflowRunExternalId || '',
-          {
-            type: 'task-detail',
-            props: {
-              selectedWorkflowRunId: row.workflowRunExternalId || '',
-              selectedTaskId: row.taskExternalId,
-            },
+        ROUTES.runs.detailWithSheet(tenantId, row.workflowRunExternalId || '', {
+          type: 'task-detail',
+          props: {
+            selectedWorkflowRunId: row.workflowRunExternalId || '',
+            selectedTaskId: row.taskExternalId,
           },
-        ),
+        }),
       );
     },
     [navigate],
