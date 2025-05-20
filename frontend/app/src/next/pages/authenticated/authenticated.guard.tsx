@@ -23,11 +23,10 @@ export default function AuthenticatedGuard() {
     !user.isLoading &&
     user.memberships &&
     user.memberships.length === 0 &&
-    !location.pathname.startsWith('/onboarding')
+    !location.pathname.startsWith('/next/onboarding')
   ) {
     return <Navigate to={ROUTES.onboarding.newTenant} />;
   }
-
   return (
     <>
       {user && (
