@@ -530,6 +530,11 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		workflowRunIdPtr = &workflowRunId
 	}
 
+	input := make(map[string]interface{})
+	if scheduled.Input != nil {
+		json.Unmarshal(scheduled.Input, &input)
+	}
+
 	res := &gen.ScheduledWorkflows{
 		Metadata:             *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
 		WorkflowVersionId:    sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
@@ -544,6 +549,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		WorkflowRunName:      &scheduled.WorkflowRunName.String,
 		Method:               gen.ScheduledWorkflowsMethod(scheduled.Method),
 		Priority:             &scheduled.Priority,
+		Input:                &input,
 	}
 
 	return res

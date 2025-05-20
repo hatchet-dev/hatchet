@@ -27,7 +27,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	if req.AdditionalMetadata != nil {
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
-	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority)
+	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -73,6 +73,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			Data:               []byte(e.Payload),
 			AdditionalMetadata: additionalMeta,
 			Priority:           e.Priority,
+			Scope:              e.Scope,
 		})
 	}
 
@@ -276,12 +277,20 @@ func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 	eventId := sqlchelpers.UUIDToStr(e.ID)
 
+	var additionalMeta *string
+
+	if e.AdditionalMetadata != nil {
+		additionalMetaStr := string(e.AdditionalMetadata)
+		additionalMeta = &additionalMetaStr
+	}
+
 	return &contracts.Event{
-		TenantId:       tenantId,
-		EventId:        eventId,
-		Key:            e.Key,
-		Payload:        string(e.Data),
-		EventTimestamp: timestamppb.New(e.CreatedAt.Time),
+		TenantId:           tenantId,
+		EventId:            eventId,
+		Key:                e.Key,
+		Payload:            string(e.Data),
+		EventTimestamp:     timestamppb.New(e.CreatedAt.Time),
+		AdditionalMetadata: additionalMeta,
 	}, nil
 }
 

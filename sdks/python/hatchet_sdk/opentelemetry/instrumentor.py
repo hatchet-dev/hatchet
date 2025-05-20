@@ -27,18 +27,19 @@ except (RuntimeError, ImportError, ModuleNotFoundError):
     )
 
 import hatchet_sdk
+from hatchet_sdk import ClientConfig
 from hatchet_sdk.clients.admin import (
     AdminClient,
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
 )
-from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.clients.events import (
     BulkPushEventWithMetadata,
     EventClient,
     PushEventOptions,
 )
 from hatchet_sdk.contracts.events_pb2 import Event
+from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -148,13 +149,17 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             If not provided, the global tracer provider will be used.
     :param meter_provider: MeterProvider | None: The OpenTelemetry MeterProvider to use.
             If not provided, a no-op meter provider will be used.
+    :param config: ClientConfig | None: The configuration for the Hatchet client. If not provided,
+            a default configuration will be used.
     """
 
     def __init__(
         self,
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
+        config: ClientConfig | None = None,
     ):
+        self.config = config or ClientConfig()
 
         self.tracer_provider = tracer_provider or get_tracer_provider()
         self.meter_provider = meter_provider or NoOpMeterProvider()
@@ -233,7 +238,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         with self._tracer.start_as_current_span(
             "hatchet.start_step_run",
-            attributes=action.otel_attributes,
+            attributes=action.get_otel_attributes(self.config),
             context=traceparent,
         ) as span:
             result = await wrapped(*args, **kwargs)
@@ -255,7 +260,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         with self._tracer.start_as_current_span(
             "hatchet.get_group_key_run",
-            attributes=action.otel_attributes,
+            attributes=action.get_otel_attributes(self.config),
         ) as span:
             result = await wrapped(*args, **kwargs)
 

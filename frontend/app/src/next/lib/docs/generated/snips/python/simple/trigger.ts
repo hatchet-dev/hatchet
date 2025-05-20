@@ -2,7 +2,8 @@ import { Snippet } from '@/next/lib/docs/generated/snips/types';
 
 const snippet: Snippet = {
   language: 'python',
-  content: 'from examples.simple.worker import step1\n\nstep1.run()\n',
+  content:
+    'from examples.simple.worker import simple, non_blocking\n\nsimple.run_no_wait()\nnon_blocking.run_no_wait()\n',
   source: 'out/python/simple/trigger.py',
   blocks: {},
   highlights: {},

@@ -1,14 +1,27 @@
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
+EVENT_KEY = "user:create"
+SECONDARY_KEY = "foobarbaz"
+
+
+class EventWorkflowInput(BaseModel):
+    should_skip: bool
+
 
 # > Event trigger
-event_workflow = hatchet.workflow(name="EventWorkflow", on_events=["user:create"])
+event_workflow = hatchet.workflow(
+    name="EventWorkflow",
+    on_events=[EVENT_KEY, SECONDARY_KEY],
+    input_validator=EventWorkflowInput,
+)
 # !!
 
 
 @event_workflow.task()
-def task(input: EmptyModel, ctx: Context) -> None:
+def task(input: EventWorkflowInput, ctx: Context) -> None:
     print("event received")
 
 

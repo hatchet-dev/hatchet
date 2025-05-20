@@ -10,6 +10,7 @@ from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
 from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
@@ -63,6 +64,13 @@ class Hatchet:
         The cron client is a client for managing cron workflows within Hatchet.
         """
         return self._client.cron
+
+    @property
+    def filters(self) -> FiltersClient:
+        """
+        The filters client is a client for interacting with Hatchet's filters API.
+        """
+        return self._client.filters
 
     @property
     def logs(self) -> LogsClient:
@@ -285,7 +293,7 @@ class Hatchet:
     def task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: None = None,
         on_events: list[str] = [],
@@ -310,7 +318,7 @@ class Hatchet:
     def task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: Type[TWorkflowInput],
         on_events: list[str] = [],
@@ -334,7 +342,7 @@ class Hatchet:
     def task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: Type[TWorkflowInput] | None = None,
         on_events: list[str] = [],
@@ -398,45 +406,47 @@ class Hatchet:
         :returns: A decorator which creates a `Standalone` task object.
         """
 
-        workflow = Workflow[TWorkflowInput](
-            WorkflowConfig(
-                name=name,
-                version=version,
-                description=description,
-                on_events=on_events,
-                on_crons=on_crons,
-                sticky=sticky,
-                concurrency=concurrency,
-                default_priority=default_priority,
-                input_validator=input_validator
-                or cast(Type[TWorkflowInput], EmptyModel),
-            ),
-            self,
-        )
-
-        if isinstance(concurrency, list):
-            _concurrency = concurrency
-        elif isinstance(concurrency, ConcurrencyExpression):
-            _concurrency = [concurrency]
-        else:
-            _concurrency = []
-
-        task_wrapper = workflow.task(
-            name=name,
-            schedule_timeout=schedule_timeout,
-            execution_timeout=execution_timeout,
-            parents=[],
-            retries=retries,
-            rate_limits=rate_limits,
-            desired_worker_labels=desired_worker_labels,
-            backoff_factor=backoff_factor,
-            backoff_max_seconds=backoff_max_seconds,
-            concurrency=_concurrency,
-        )
-
         def inner(
             func: Callable[[TWorkflowInput, Context], R | CoroutineLike[R]],
         ) -> Standalone[TWorkflowInput, R]:
+            inferred_name = name or func.__name__
+
+            workflow = Workflow[TWorkflowInput](
+                WorkflowConfig(
+                    name=inferred_name,
+                    version=version,
+                    description=description,
+                    on_events=on_events,
+                    on_crons=on_crons,
+                    sticky=sticky,
+                    concurrency=concurrency,
+                    default_priority=default_priority,
+                    input_validator=input_validator
+                    or cast(Type[TWorkflowInput], EmptyModel),
+                ),
+                self,
+            )
+
+            if isinstance(concurrency, list):
+                _concurrency = concurrency
+            elif isinstance(concurrency, ConcurrencyExpression):
+                _concurrency = [concurrency]
+            else:
+                _concurrency = []
+
+            task_wrapper = workflow.task(
+                name=inferred_name,
+                schedule_timeout=schedule_timeout,
+                execution_timeout=execution_timeout,
+                parents=[],
+                retries=retries,
+                rate_limits=rate_limits,
+                desired_worker_labels=desired_worker_labels,
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+                concurrency=_concurrency,
+            )
+
             created_task = task_wrapper(func)
 
             return Standalone[TWorkflowInput, R](
@@ -450,7 +460,7 @@ class Hatchet:
     def durable_task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: None = None,
         on_events: list[str] = [],
@@ -475,7 +485,7 @@ class Hatchet:
     def durable_task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: Type[TWorkflowInput],
         on_events: list[str] = [],
@@ -499,7 +509,7 @@ class Hatchet:
     def durable_task(
         self,
         *,
-        name: str,
+        name: str | None = None,
         description: str | None = None,
         input_validator: Type[TWorkflowInput] | None = None,
         on_events: list[str] = [],
@@ -563,38 +573,39 @@ class Hatchet:
         :returns: A decorator which creates a `Standalone` task object.
         """
 
-        workflow = Workflow[TWorkflowInput](
-            WorkflowConfig(
-                name=name,
-                version=version,
-                description=description,
-                on_events=on_events,
-                on_crons=on_crons,
-                sticky=sticky,
-                concurrency=concurrency,
-                input_validator=input_validator
-                or cast(Type[TWorkflowInput], EmptyModel),
-                default_priority=default_priority,
-            ),
-            self,
-        )
-
-        task_wrapper = workflow.durable_task(
-            name=name,
-            schedule_timeout=schedule_timeout,
-            execution_timeout=execution_timeout,
-            parents=[],
-            retries=retries,
-            rate_limits=rate_limits,
-            desired_worker_labels=desired_worker_labels,
-            backoff_factor=backoff_factor,
-            backoff_max_seconds=backoff_max_seconds,
-            concurrency=[concurrency] if concurrency else [],
-        )
-
         def inner(
             func: Callable[[TWorkflowInput, DurableContext], R | CoroutineLike[R]],
         ) -> Standalone[TWorkflowInput, R]:
+            inferred_name = name or func.__name__
+            workflow = Workflow[TWorkflowInput](
+                WorkflowConfig(
+                    name=inferred_name,
+                    version=version,
+                    description=description,
+                    on_events=on_events,
+                    on_crons=on_crons,
+                    sticky=sticky,
+                    concurrency=concurrency,
+                    input_validator=input_validator
+                    or cast(Type[TWorkflowInput], EmptyModel),
+                    default_priority=default_priority,
+                ),
+                self,
+            )
+
+            task_wrapper = workflow.durable_task(
+                name=inferred_name,
+                schedule_timeout=schedule_timeout,
+                execution_timeout=execution_timeout,
+                parents=[],
+                retries=retries,
+                rate_limits=rate_limits,
+                desired_worker_labels=desired_worker_labels,
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+                concurrency=[concurrency] if concurrency else [],
+            )
+
             created_task = task_wrapper(func)
 
             return Standalone[TWorkflowInput, R](

@@ -1115,8 +1115,8 @@ func (q *Queries) ListWorkflowRunDisplayNames(ctx context.Context, db DBTX, arg 
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :many
 WITH input AS (
     SELECT
-        UNNEST($2::bigint[]) AS id,
-        UNNEST($3::timestamptz[]) AS inserted_at
+        UNNEST($1::bigint[]) AS id,
+        UNNEST($2::timestamptz[]) AS inserted_at
 ), runs AS (
     SELECT
         d.id AS dag_id,
@@ -1128,10 +1128,7 @@ WITH input AS (
         r.kind,
         r.workflow_id,
         d.display_name,
-        CASE
-            WHEN $1::BOOLEAN THEN d.input
-            ELSE '{}'::JSONB
-        END::JSONB AS input,
+        d.input,
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
@@ -1139,7 +1136,7 @@ WITH input AS (
     FROM v1_runs_olap r
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
     JOIN input i ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
-    WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
+    WHERE r.tenant_id = $3::uuid AND r.kind = 'DAG'
 ), relevant_events AS (
     SELECT
         r.run_id,
@@ -1147,7 +1144,7 @@ WITH input AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON (r.dag_id, r.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
-    WHERE e.tenant_id = $4::uuid
+    WHERE e.tenant_id = $3::uuid
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -1188,11 +1185,8 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    CASE
-        WHEN $1::BOOLEAN THEN o.output::JSONB
-        ELSE '{}'::JSONB
-    END::JSONB AS output,
-    mrc.max_retry_count::int as retry_count
+    o.output,
+    COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
@@ -1202,10 +1196,9 @@ ORDER BY r.inserted_at DESC, r.run_id DESC
 `
 
 type PopulateDAGMetadataParams struct {
-	Includepayloads bool                 `json:"includepayloads"`
-	Ids             []int64              `json:"ids"`
-	Insertedats     []pgtype.Timestamptz `json:"insertedats"`
-	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Ids         []int64              `json:"ids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Tenantid    pgtype.UUID          `json:"tenantid"`
 }
 
 type PopulateDAGMetadataRow struct {
@@ -1231,12 +1224,7 @@ type PopulateDAGMetadataRow struct {
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
-	rows, err := db.Query(ctx, populateDAGMetadata,
-		arg.Includepayloads,
-		arg.Ids,
-		arg.Insertedats,
-		arg.Tenantid,
-	)
+	rows, err := db.Query(ctx, populateDAGMetadata, arg.Ids, arg.Insertedats, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1467,8 +1455,8 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 const populateTaskRunData = `-- name: PopulateTaskRunData :many
 WITH input AS (
     SELECT
-        UNNEST($2::bigint[]) AS id,
-        UNNEST($3::timestamptz[]) AS inserted_at
+        UNNEST($1::bigint[]) AS id,
+        UNNEST($2::timestamptz[]) AS inserted_at
 ), tasks AS (
     SELECT
         DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
@@ -1498,7 +1486,7 @@ WITH input AS (
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
     WHERE
-        t.tenant_id = $4::uuid
+        t.tenant_id = $3::uuid
 ), relevant_events AS (
     SELECT
         e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
@@ -1605,21 +1593,15 @@ SELECT
     t.display_name,
     t.additional_metadata,
     t.parent_task_external_id,
-    CASE
-        WHEN $1::BOOLEAN THEN t.input
-        ELSE '{}'::JSONB
-    END::JSONB AS input,
+    t.input,
     t.readable_status::v1_readable_status_olap as status,
     t.workflow_run_id,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
-    COALESCE(t.latest_retry_count, 0)::int as retry_count,
-    CASE
-        WHEN $1::BOOLEAN THEN o.output::JSONB
-        ELSE '{}'::JSONB
-    END::JSONB as output
+    o.output::jsonb as output,
+    COALESCE(t.latest_retry_count, 0)::int as retry_count
 FROM
     tasks t
 LEFT JOIN
@@ -1636,7 +1618,6 @@ ORDER BY t.inserted_at DESC, t.id DESC
 `
 
 type PopulateTaskRunDataParams struct {
-	Includepayloads bool                 `json:"includepayloads"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Tenantid        pgtype.UUID          `json:"tenantid"`
@@ -1666,17 +1647,12 @@ type PopulateTaskRunDataRow struct {
 	StartedAt            pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt             pgtype.Timestamptz   `json:"queued_at"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
-	RetryCount           int32                `json:"retry_count"`
 	Output               []byte               `json:"output"`
+	RetryCount           int32                `json:"retry_count"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
-	rows, err := db.Query(ctx, populateTaskRunData,
-		arg.Includepayloads,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Tenantid,
-	)
+	rows, err := db.Query(ctx, populateTaskRunData, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1708,8 +1684,8 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.StartedAt,
 			&i.QueuedAt,
 			&i.ErrorMessage,
-			&i.RetryCount,
 			&i.Output,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}

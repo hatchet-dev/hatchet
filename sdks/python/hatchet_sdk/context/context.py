@@ -59,6 +59,7 @@ class Context:
         self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
         self.input = self.data.input
+        self.filter_payload = self.data.filter_payload
 
         self._lifespan_context = lifespan_context
 
@@ -221,6 +222,14 @@ class Context:
     @property
     def priority(self) -> int | None:
         return self.action.priority
+
+    @property
+    def workflow_id(self) -> str | None:
+        return self.action.workflow_id
+
+    @property
+    def workflow_version_id(self) -> str | None:
+        return self.action.workflow_version_id
 
     @property
     def task_run_errors(self) -> dict[str, str]:

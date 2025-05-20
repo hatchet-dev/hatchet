@@ -1,0 +1,158 @@
+# Filters Client
+
+Bases: `BaseRestClient`
+
+The filters client is a client for interacting with Hatchet's filters API.
+
+Methods:
+
+| Name         | Description                      |
+| ------------ | -------------------------------- |
+| `aio_create` | Create a new filter.             |
+| `aio_delete` | Delete a filter by its ID.       |
+| `aio_get`    | Get a filter by its ID.          |
+| `aio_list`   | List filters for a given tenant. |
+| `create`     | Create a new filter.             |
+| `delete`     | Delete a filter by its ID.       |
+| `get`        | Get a filter by its ID.          |
+| `list`       | List filters for a given tenant. |
+
+### Functions
+
+#### `aio_create`
+
+Create a new filter.
+
+Parameters:
+
+| Name          | Type                      | Description                                          | Default    |
+| ------------- | ------------------------- | ---------------------------------------------------- | ---------- |
+| `workflow_id` | `str`                     | The ID of the workflow to associate with the filter. | _required_ |
+| `expression`  | `str`                     | The expression to evaluate for the filter.           | _required_ |
+| `scope`       | `str`                     | The scope for the filter.                            | _required_ |
+| `payload`     | `JSONSerializableMapping` | The payload to send with the filter.                 | `{}`       |
+
+Returns:
+
+| Type       | Description         |
+| ---------- | ------------------- |
+| `V1Filter` | The created filter. |
+
+#### `aio_delete`
+
+Delete a filter by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                     | Default    |
+| ----------- | ----- | ------------------------------- | ---------- |
+| `filter_id` | `str` | The ID of the filter to delete. | _required_ |
+
+Returns:
+
+| Type       | Description         |
+| ---------- | ------------------- |
+| `V1Filter` | The deleted filter. |
+
+#### `aio_get`
+
+Get a filter by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                       | Default    |
+| ----------- | ----- | --------------------------------- | ---------- |
+| `filter_id` | `str` | The ID of the filter to retrieve. | _required_ |
+
+Returns:
+
+| Type       | Description                       |
+| ---------- | --------------------------------- |
+| `V1Filter` | The filter with the specified ID. |
+
+#### `aio_list`
+
+List filters for a given tenant.
+
+Parameters:
+
+| Name                      | Type                            | Description                                                                                                           | Default |
+| ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+| `limit`                   | `int \| None`                   | The maximum number of filters to return.                                                                              | `None`  |
+| `offset`                  | `int \| None`                   | The number of filters to skip before starting to collect the result set.                                              | `None`  |
+| `workflow_id_scope_pairs` | `list[tuple[str, str]] \| None` | A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second. | `None`  |
+
+Returns:
+
+| Type           | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `V1FilterList` | A list of filters matching the specified criteria. |
+
+#### `create`
+
+Create a new filter.
+
+Parameters:
+
+| Name          | Type                      | Description                                          | Default    |
+| ------------- | ------------------------- | ---------------------------------------------------- | ---------- |
+| `workflow_id` | `str`                     | The ID of the workflow to associate with the filter. | _required_ |
+| `expression`  | `str`                     | The expression to evaluate for the filter.           | _required_ |
+| `scope`       | `str`                     | The scope for the filter.                            | _required_ |
+| `payload`     | `JSONSerializableMapping` | The payload to send with the filter.                 | `{}`       |
+
+Returns:
+
+| Type       | Description         |
+| ---------- | ------------------- |
+| `V1Filter` | The created filter. |
+
+#### `delete`
+
+Delete a filter by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                     | Default    |
+| ----------- | ----- | ------------------------------- | ---------- |
+| `filter_id` | `str` | The ID of the filter to delete. | _required_ |
+
+Returns:
+
+| Type       | Description         |
+| ---------- | ------------------- |
+| `V1Filter` | The deleted filter. |
+
+#### `get`
+
+Get a filter by its ID.
+
+Parameters:
+
+| Name        | Type  | Description                       | Default    |
+| ----------- | ----- | --------------------------------- | ---------- |
+| `filter_id` | `str` | The ID of the filter to retrieve. | _required_ |
+
+Returns:
+
+| Type       | Description                       |
+| ---------- | --------------------------------- |
+| `V1Filter` | The filter with the specified ID. |
+
+#### `list`
+
+List filters for a given tenant.
+
+Parameters:
+
+| Name                      | Type                            | Description                                                                                                           | Default |
+| ------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+| `limit`                   | `int \| None`                   | The maximum number of filters to return.                                                                              | `None`  |
+| `offset`                  | `int \| None`                   | The number of filters to skip before starting to collect the result set.                                              | `None`  |
+| `workflow_id_scope_pairs` | `list[tuple[str, str]] \| None` | A list of tuples containing workflow IDs and scopes to filter by. The workflow id is first, then the scope is second. | `None`  |
+
+Returns:
+
+| Type           | Description                                        |
+| -------------- | -------------------------------------------------- |
+| `V1FilterList` | A list of filters matching the specified criteria. |

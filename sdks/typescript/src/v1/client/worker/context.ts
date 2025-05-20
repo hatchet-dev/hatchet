@@ -88,6 +88,15 @@ export class Context<T, K = {}> {
     return this.controller.signal.aborted;
   }
 
+  async cancel() {
+    await this.v1.runs.cancel({
+      ids: [this.action.stepRunId],
+    });
+
+    // optimistically abort the run
+    this.controller.abort();
+  }
+
   /**
    * Retrieves the output of a parent task.
    * @param parentTask - The a CreateTaskOpts or string of the parent task name.
@@ -147,6 +156,14 @@ export class Context<T, K = {}> {
   }
 
   /**
+   * Gets the payload from the filter that matched when triggering the event.
+   * @returns The payload.
+   */
+  filterPayload(): Record<string, any> {
+    return this.data.triggers?.filter_payload || {};
+  }
+
+  /**
    * Determines if the workflow was triggered by an event.
    * @returns True if the workflow was triggered by an event, otherwise false.
    */
@@ -184,6 +201,22 @@ export class Context<T, K = {}> {
    */
   workflowRunId(): string {
     return this.action.workflowRunId;
+  }
+
+  /**
+   * Gets the workflow ID of the currently running workflow.
+   * @returns The workflow id.
+   */
+  workflowId(): string | undefined {
+    return this.action.workflowId;
+  }
+
+  /**
+   * Gets the workflow version ID of the currently running workflow.
+   * @returns The workflow version ID.
+   */
+  workflowVersionId(): string | undefined {
+    return this.action.workflowVersionId;
   }
 
   /**

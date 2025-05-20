@@ -9,7 +9,7 @@
 
 Bases: `BaseWorkflow[TWorkflowInput]`
 
-A Hatchet workflow allows you to define tasks to be run and perform actions on the workflow.
+A Hatchet workflow, which allows you to define tasks to be run and perform actions on the workflow.
 
 Workflows in Hatchet represent coordinated units of work that can be triggered, scheduled, or run on a cron schedule. Each workflow can contain multiple tasks that can be arranged in dependencies (DAGs), have customized retry behavior, timeouts, concurrency controls, and more.
 
@@ -40,9 +40,9 @@ Workflows support various execution patterns including:
 - Cron-based recurring execution with `create_cron()`
 - Bulk operations with `run_many()`
 
-Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators and arranged into complex dependency patterns.
+Tasks within workflows can be defined with `@workflow.task()` or `@workflow.durable_task()` decorators and can be arranged into complex dependency patterns.
 
-### Methods
+Methods:
 
 | Name                   | Description                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -91,9 +91,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                                |
-| ----------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                              | Description                                |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `durable_task`
 
@@ -123,9 +123,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                                 | Description                                |
-| ------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, DurableContext], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                                     | Description                                |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[[TWorkflowInput, DurableContext], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `on_failure_task`
 
@@ -146,9 +146,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                                |
-| ----------------------------------------------------------------------------- | ------------------------------------------ |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
+| Type                                                                                              | Description                                |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a `Task` object. |
 
 #### `on_success_task`
 
@@ -169,9 +169,9 @@ Parameters:
 
 Returns:
 
-| Type                                                                          | Description                              |
-| ----------------------------------------------------------------------------- | ---------------------------------------- |
-| `Callable[[Callable[[TWorkflowInput, Context], R]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
+| Type                                                                                              | Description                              |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `Callable[[Callable[[TWorkflowInput, Context], R \| CoroutineLike[R]]], Task[TWorkflowInput, R]]` | A decorator which creates a Task object. |
 
 #### `run`
 
@@ -395,17 +395,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                      | Type                         | Description                                 | Default |
-| ------------------------- | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                   | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
-| `only_tasks`              | `bool`                       | Whether to list only task runs.             | `False` |
+| Name                           | Type                         | Description                                 | Default |
+| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
+| `only_tasks`                   | `bool`                       | Whether to list only task runs.             | `False` |
+| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -419,17 +420,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                      | Type                         | Description                                 | Default |
-| ------------------------- | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                   | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
-| `only_tasks`              | `bool`                       | Whether to list only task runs.             | `False` |
+| Name                           | Type                         | Description                                 | Default |
+| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
+| `only_tasks`                   | `bool`                       | Whether to list only task runs.             | `False` |
+| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -441,7 +443,7 @@ Returns:
 
 Bases: `BaseWorkflow[TWorkflowInput]`, `Generic[TWorkflowInput, R]`
 
-### Methods
+Methods:
 
 | Name                   | Description                                                               |
 | ---------------------- | ------------------------------------------------------------------------- |
@@ -684,16 +686,17 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                      | Type                         | Description                                 | Default |
-| ------------------------- | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                   | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
+| Name                           | Type                         | Description                                 | Default |
+| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
+| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 
@@ -707,16 +710,17 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                      | Type                         | Description                                 | Default |
-| ------------------------- | ---------------------------- | ------------------------------------------- | ------- |
-| `since`                   | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
-| `until`                   | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
-| `limit`                   | `int`                        | The maximum number of runs to be listed.    | `100`   |
-| `offset`                  | `int \| None`                | The offset for pagination.                  | `None`  |
-| `statuses`                | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`     | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`               | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id` | `str \| None`                | The external ID of the parent task.         | `None`  |
+| Name                           | Type                         | Description                                 | Default |
+| ------------------------------ | ---------------------------- | ------------------------------------------- | ------- |
+| `since`                        | `datetime \| None`           | The start time for the runs to be listed.   | `None`  |
+| `until`                        | `datetime \| None`           | The end time for the runs to be listed.     | `None`  |
+| `limit`                        | `int`                        | The maximum number of runs to be listed.    | `100`   |
+| `offset`                       | `int \| None`                | The offset for pagination.                  | `None`  |
+| `statuses`                     | `list[V1TaskStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
+| `additional_metadata`          | `dict[str, str] \| None`     | Additional metadata for filtering the runs. | `None`  |
+| `worker_id`                    | `str \| None`                | The ID of the worker that ran the tasks.    | `None`  |
+| `parent_task_external_id`      | `str \| None`                | The external ID of the parent task.         | `None`  |
+| `triggering_event_external_id` | `str \| None`                | The event id that triggered the task run.   | `None`  |
 
 Returns:
 

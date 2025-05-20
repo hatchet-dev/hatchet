@@ -10,9 +10,7 @@ import grpc
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import (
-    Action,
     ActionListener,
-    ActionType,
     GetActionListenerRequest,
 )
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -23,7 +21,9 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
+    ctx_action_key,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -160,6 +160,7 @@ class WorkerActionListenerProcess:
 
             if count > 0:
                 logger.warning(f"{BLOCKED_THREAD_WARNING}: Waiting Steps {count}")
+                print(asyncio.current_task())
             await asyncio.sleep(1)
 
     async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
@@ -230,6 +231,7 @@ class WorkerActionListenerProcess:
                 ctx_step_run_id.set(action.step_run_id)
                 ctx_workflow_run_id.set(action.workflow_run_id)
                 ctx_worker_id.set(action.worker_id)
+                ctx_action_key.set(action.key)
 
                 # Process the action here
                 match action.action_type:

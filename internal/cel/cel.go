@@ -18,6 +18,7 @@ import (
 type CELParser struct {
 	workflowStrEnv *cel.Env
 	stepRunEnv     *cel.Env
+	eventEnv       *cel.Env
 }
 
 var checksumDecl = decls.NewFunction("checksum",
@@ -67,9 +68,21 @@ func NewCELParser() *CELParser {
 		checksum,
 	)
 
+	eventEnv, _ := cel.NewEnv(
+		cel.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("payload", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("event_id", decls.String),
+			decls.NewVar("event_key", decls.String),
+			checksumDecl,
+		),
+	)
+
 	return &CELParser{
 		workflowStrEnv: workflowStrEnv,
 		stepRunEnv:     stepRunEnv,
+		eventEnv:       eventEnv,
 	}
 }
 
@@ -98,6 +111,24 @@ func WithAdditionalMetadata(metadata map[string]interface{}) InputOpts {
 func WithWorkflowRunID(workflowRunID string) InputOpts {
 	return func(w Input) {
 		w["workflow_run_id"] = workflowRunID
+	}
+}
+
+func WithPayload(payload map[string]interface{}) InputOpts {
+	return func(w Input) {
+		w["payload"] = payload
+	}
+}
+
+func WithEventID(eventID string) InputOpts {
+	return func(w Input) {
+		w["event_id"] = eventID
+	}
+}
+
+func WithEventKey(key string) InputOpts {
+	return func(w Input) {
+		w["event_key"] = key
 	}
 }
 
@@ -293,4 +324,30 @@ func (p *CELParser) CheckStepRunOutAgainstKnownV1(out *StepRunOut, knownType sql
 	}
 
 	return nil
+}
+
+func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, error) {
+	ast, issues := p.eventEnv.Compile(expr)
+
+	if issues != nil && issues.Err() != nil {
+		return false, fmt.Errorf("failed to compile expression: %w", issues.Err())
+	}
+
+	program, err := p.eventEnv.Program(ast)
+	if err != nil {
+		return false, fmt.Errorf("failed to create program: %w", err)
+	}
+
+	var inMap map[string]interface{} = input
+
+	out, _, err := program.Eval(inMap)
+	if err != nil {
+		return false, fmt.Errorf("failed to evaluate expression: %w", err)
+	}
+
+	if out.Type() != types.BoolType {
+		return false, fmt.Errorf("expression did not evaluate to a boolean: got %s", out.Type().TypeName())
+	}
+
+	return out.Value().(bool), nil
 }

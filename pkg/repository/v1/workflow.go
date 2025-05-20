@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -973,26 +974,43 @@ func orderWorkflowStepsV1(steps []CreateStepOpts) ([]CreateStepOpts, error) {
 		}
 	}
 
-	// Queue for steps with no incoming edges.
-	var queue []string
+	// Queue for steps with no incoming edges, but use a slice to collect them first
+	var noIncomingEdges []string
 	for id, degree := range inDegree {
 		if degree == 0 {
-			queue = append(queue, id)
+			noIncomingEdges = append(noIncomingEdges, id)
 		}
 	}
+
+	// Sort the initial steps with no incoming edges
+	sort.Strings(noIncomingEdges)
+
+	// Now use these as the initial queue
+	queue := noIncomingEdges
 
 	var ordered []CreateStepOpts
 	// Process the steps in topological order.
 	for len(queue) > 0 {
+		// Get and remove the first element
 		id := queue[0]
 		queue = queue[1:]
+
 		ordered = append(ordered, stepMap[id])
+
+		// Collect children that become ready
+		var readyChildren []string
 		for _, child := range graph[id] {
 			inDegree[child]--
 			if inDegree[child] == 0 {
-				queue = append(queue, child)
+				readyChildren = append(readyChildren, child)
 			}
 		}
+
+		// Sort the children that are now ready
+		sort.Strings(readyChildren)
+
+		// Append sorted children to the queue
+		queue = append(queue, readyChildren...)
 	}
 
 	// If not all steps are processed, there is a cycle.

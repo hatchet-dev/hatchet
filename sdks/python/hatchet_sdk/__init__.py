@@ -130,7 +130,7 @@ from hatchet_sdk.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
 )
 from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
-from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import (
@@ -149,6 +149,7 @@ from hatchet_sdk.runnables.types import (
     TaskDefaults,
     WorkflowConfig,
 )
+from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.waits import (
     Condition,
     OrGroup,
@@ -271,4 +272,7 @@ __all__ = [
     "BulkCancelReplayOpts",
     "RunFilter",
     "V1TaskStatus",
+    "OTelAttribute",
+    "OpenTelemetryConfig",
+    "ClientTLSConfig",
 ]

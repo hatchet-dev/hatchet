@@ -5,6 +5,7 @@ from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerCli
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
+from hatchet_sdk.features.filters import FiltersClient
 from hatchet_sdk.features.logs import LogsClient
 from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
@@ -34,6 +35,7 @@ class Client:
         self.debug = debug
 
         self.cron = CronClient(self.config)
+        self.filters = FiltersClient(self.config)
         self.logs = LogsClient(self.config)
         self.metrics = MetricsClient(self.config)
         self.rate_limits = RateLimitsClient(self.config)

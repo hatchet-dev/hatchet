@@ -1,5 +1,9 @@
 // Generated from frontend/docs/pages/blog/_meta.js
 const meta = {
+  fastest_postgres_inserts: {
+    title: 'The fastest Postgres inserts',
+    href: '/blog/fastest-postgres-inserts',
+  },
   task_queue_modern_python: {
     title: 'A task queue for modern Python applications',
     href: '/blog/task-queue-modern-python',

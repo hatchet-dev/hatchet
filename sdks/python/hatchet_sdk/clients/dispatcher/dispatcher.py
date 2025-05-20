@@ -4,7 +4,6 @@ import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import (
-    Action,
     ActionListener,
     GetActionListenerRequest,
 )
@@ -29,6 +28,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.runnables.action import Action
 
 DEFAULT_REGISTER_TIMEOUT = 30
 

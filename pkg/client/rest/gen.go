@@ -426,6 +426,9 @@ type CreateEventRequest struct {
 
 	// Priority The priority of the event.
 	Priority *int32 `json:"priority,omitempty"`
+
+	// Scope The scope for event filtering.
+	Scope *string `json:"scope,omitempty"`
 }
 
 // CreateSNSIntegrationRequest defines model for CreateSNSIntegrationRequest.
@@ -1191,6 +1194,21 @@ type V1CancelTaskRequest struct {
 	Filter      *V1TaskFilter         `json:"filter,omitempty"`
 }
 
+// V1CreateFilterRequest defines model for V1CreateFilterRequest.
+type V1CreateFilterRequest struct {
+	// Expression The expression for the filter
+	Expression string `json:"expression"`
+
+	// Payload The payload for the filter
+	Payload *map[string]interface{} `json:"payload,omitempty"`
+
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope string `json:"scope"`
+
+	// WorkflowId The workflow id
+	WorkflowId openapi_types.UUID `json:"workflowId"`
+}
+
 // V1DagChildren defines model for V1DagChildren.
 type V1DagChildren struct {
 	Children *[]V1TaskSummary    `json:"children,omitempty"`
@@ -1234,6 +1252,31 @@ type V1EventWorkflowRunSummary struct {
 
 	// Succeeded The number of succeeded runs.
 	Succeeded int64 `json:"succeeded"`
+}
+
+// V1Filter defines model for V1Filter.
+type V1Filter struct {
+	// Expression The expression associated with this filter.
+	Expression string          `json:"expression"`
+	Metadata   APIResourceMeta `json:"metadata"`
+
+	// Payload Additional payload data associated with the filter
+	Payload map[string]interface{} `json:"payload"`
+
+	// Scope The scope associated with this filter. Used for subsetting candidate filters at evaluation time
+	Scope string `json:"scope"`
+
+	// TenantId The ID of the tenant associated with this filter.
+	TenantId string `json:"tenantId"`
+
+	// WorkflowId The workflow id associated with this filter.
+	WorkflowId openapi_types.UUID `json:"workflowId"`
+}
+
+// V1FilterList defines model for V1FilterList.
+type V1FilterList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1Filter         `json:"rows,omitempty"`
 }
 
 // V1LogLine defines model for V1LogLine.
@@ -1950,6 +1993,21 @@ type V1EventListParams struct {
 	Keys *[]EventKey `form:"keys,omitempty" json:"keys,omitempty"`
 }
 
+// V1FilterListParams defines parameters for V1FilterList.
+type V1FilterListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// WorkflowIds The workflow ids to filter by
+	WorkflowIds *[]openapi_types.UUID `form:"workflowIds,omitempty" json:"workflowIds,omitempty"`
+
+	// Scopes The scopes to subset candidate filters by
+	Scopes *[]string `form:"scopes,omitempty" json:"scopes,omitempty"`
+}
+
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
 type V1TaskListStatusMetricsParams struct {
 	// Since The start time to get metrics for
@@ -2307,6 +2365,9 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// V1FilterCreateJSONRequestBody defines body for V1FilterCreate for application/json ContentType.
+type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
+
 // V1TaskCancelJSONRequestBody defines body for V1TaskCancel for application/json ContentType.
 type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
 
@@ -2522,6 +2583,20 @@ type ClientInterface interface {
 
 	// V1EventList request
 	V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterList request
+	V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterCreateWithBody request with any body
+	V1FilterCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1FilterCreate(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterDelete request
+	V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1FilterGet request
+	V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3080,6 +3155,66 @@ func (c *Client) V1TaskEventList(ctx context.Context, task openapi_types.UUID, p
 
 func (c *Client) V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1EventListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterList(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterCreate(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterDelete(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterDeleteRequest(c.Server, tenant, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1FilterGet(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1FilterGetRequest(c.Server, tenant, v1Filter)
 	if err != nil {
 		return nil, err
 	}
@@ -5264,6 +5399,239 @@ func NewV1EventListRequest(server string, tenant openapi_types.UUID, params *V1E
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FilterListRequest generates requests for V1FilterList
+func NewV1FilterListRequest(server string, tenant openapi_types.UUID, params *V1FilterListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowIds", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Scopes != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "scopes", runtime.ParamLocationQuery, *params.Scopes); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FilterCreateRequest calls the generic V1FilterCreate builder with application/json body
+func NewV1FilterCreateRequest(server string, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1FilterCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1FilterCreateRequestWithBody generates requests for V1FilterCreate with any type of body
+func NewV1FilterCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1FilterDeleteRequest generates requests for V1FilterDelete
+func NewV1FilterDeleteRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1FilterGetRequest generates requests for V1FilterGet
+func NewV1FilterGetRequest(server string, tenant openapi_types.UUID, v1Filter openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "v1-filter", runtime.ParamLocationPath, v1Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/filters/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -10476,6 +10844,20 @@ type ClientWithResponsesInterface interface {
 	// V1EventListWithResponse request
 	V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error)
 
+	// V1FilterListWithResponse request
+	V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error)
+
+	// V1FilterCreateWithBodyWithResponse request with any body
+	V1FilterCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error)
+
+	V1FilterCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error)
+
+	// V1FilterDeleteWithResponse request
+	V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error)
+
+	// V1FilterGetWithResponse request
+	V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error)
+
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
 
@@ -11245,6 +11627,104 @@ func (r V1EventListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1EventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1FilterList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1FilterGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1Filter
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1FilterGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1FilterGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13615,6 +14095,50 @@ func (c *ClientWithResponses) V1EventListWithResponse(ctx context.Context, tenan
 	return ParseV1EventListResponse(rsp)
 }
 
+// V1FilterListWithResponse request returning *V1FilterListResponse
+func (c *ClientWithResponses) V1FilterListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1FilterListParams, reqEditors ...RequestEditorFn) (*V1FilterListResponse, error) {
+	rsp, err := c.V1FilterList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterListResponse(rsp)
+}
+
+// V1FilterCreateWithBodyWithResponse request with arbitrary body returning *V1FilterCreateResponse
+func (c *ClientWithResponses) V1FilterCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error) {
+	rsp, err := c.V1FilterCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1FilterCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1FilterCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1FilterCreateResponse, error) {
+	rsp, err := c.V1FilterCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterCreateResponse(rsp)
+}
+
+// V1FilterDeleteWithResponse request returning *V1FilterDeleteResponse
+func (c *ClientWithResponses) V1FilterDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterDeleteResponse, error) {
+	rsp, err := c.V1FilterDelete(ctx, tenant, v1Filter, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterDeleteResponse(rsp)
+}
+
+// V1FilterGetWithResponse request returning *V1FilterGetResponse
+func (c *ClientWithResponses) V1FilterGetWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Filter openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1FilterGetResponse, error) {
+	rsp, err := c.V1FilterGet(ctx, tenant, v1Filter, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1FilterGetResponse(rsp)
+}
+
 // V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
 func (c *ClientWithResponses) V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error) {
 	rsp, err := c.V1TaskListStatusMetrics(ctx, tenant, params, reqEditors...)
@@ -15323,6 +15847,180 @@ func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1EventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterListResponse parses an HTTP response from a V1FilterListWithResponse call
+func ParseV1FilterListResponse(rsp *http.Response) (*V1FilterListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1FilterList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterCreateResponse parses an HTTP response from a V1FilterCreateWithResponse call
+func ParseV1FilterCreateResponse(rsp *http.Response) (*V1FilterCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterDeleteResponse parses an HTTP response from a V1FilterDeleteWithResponse call
+func ParseV1FilterDeleteResponse(rsp *http.Response) (*V1FilterDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1FilterGetResponse parses an HTTP response from a V1FilterGetWithResponse call
+func ParseV1FilterGetResponse(rsp *http.Response) (*V1FilterGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1FilterGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1Filter
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -269,14 +270,8 @@ func (w *Worker) Use(mws ...MiddlewareFunc) {
 }
 
 func (w *Worker) NewService(name string) *Service {
-	svcName := name
-
-	if w.client.Namespace() != "" && !strings.HasPrefix(name, w.client.Namespace()) {
-		namespace := w.client.Namespace()
-		svcName = namespace + name
-	}
-
-	svcName = strings.ToLower(svcName)
+	ns := w.client.Namespace()
+	svcName := strings.ToLower(clientconfig.ApplyNamespace(name, &ns))
 
 	svc := &Service{
 		Name:   svcName,

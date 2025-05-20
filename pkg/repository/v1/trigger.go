@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -27,6 +28,8 @@ type EventTriggerOpts struct {
 	AdditionalMetadata []byte
 
 	Priority *int32
+
+	Scope *string
 }
 
 type TriggerTaskData struct {
@@ -116,6 +119,61 @@ type TriggerFromEventsResult struct {
 	EventExternalIdToRuns map[string][]*Run
 }
 
+type TriggerDecision struct {
+	ShouldTrigger bool
+	FilterPayload []byte
+}
+
+func (r *TriggerRepositoryImpl) makeTriggerDecision(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) TriggerDecision {
+	if len(filters) == 0 {
+		// If no filters were found, we should trigger the workflow
+		return TriggerDecision{
+			ShouldTrigger: true,
+			FilterPayload: nil,
+		}
+	}
+
+	for _, filterPtr := range filters {
+		if filterPtr == nil {
+			continue
+		}
+
+		filter := *filterPtr
+
+		if filter.Expression != "" {
+			shouldTrigger, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
+
+			if err != nil {
+				r.l.Error().
+					Err(err).
+					Str("expression", filter.Expression).
+					Msg("Failed to evaluate workflow expression")
+
+				// If we fail to parse the expression, we should not run the workflow.
+				// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
+				return TriggerDecision{
+					ShouldTrigger: false,
+					FilterPayload: filter.Payload,
+				}
+			}
+
+			if shouldTrigger {
+				return TriggerDecision{
+					ShouldTrigger: true,
+					FilterPayload: filter.Payload,
+				}
+			}
+		}
+	}
+
+	// If we reach here, we haven't returned yet meaning we haven't found
+	// an expression that evaluates to `true`.
+	return TriggerDecision{
+		ShouldTrigger: false,
+		FilterPayload: nil,
+	}
+}
+
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
@@ -152,8 +210,8 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
-	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
-	triggerOpts := make([]triggerTuple, 0)
+	workflowIds := make([]pgtype.UUID, 0)
+	scopes := make([]*string, 0)
 
 	externalIdToEventId := make(map[string]string)
 
@@ -165,6 +223,46 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		for _, opt := range opts {
+			workflowIds = append(workflowIds, workflow.WorkflowId)
+			scopes = append(scopes, opt.Scope)
+		}
+	}
+
+	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Workflowids: workflowIds,
+		Scopes:      scopes,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list filters: %w", err)
+	}
+
+	workflowIdToFilters := make(map[string][]*sqlcv1.V1Filter)
+
+	for _, filter := range filters {
+		workflowIdToFilters[filter.WorkflowID.String()] = append(workflowIdToFilters[filter.WorkflowID.String()], filter)
+	}
+
+	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
+	triggerOpts := make([]triggerTuple, 0)
+
+	for _, workflow := range workflowVersionIdsAndEventKeys {
+		opts, ok := eventKeysToOpts[workflow.EventKey]
+
+		if !ok {
+			continue
+		}
+
+		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
+
+		for _, opt := range opts {
+			triggerDecision := r.makeTriggerDecision(ctx, filters, opt)
+
+			if !triggerDecision.ShouldTrigger {
+				continue
+			}
+
 			triggerConverter := &TriggeredByEvent{
 				l:        r.l,
 				eventID:  opt.ExternalId,
@@ -182,6 +280,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 				input:              opt.Data,
 				additionalMetadata: additionalMetadata,
 				priority:           opt.Priority,
+				filterPayload:      triggerDecision.FilterPayload,
 			})
 
 			externalIdToEventId[externalId] = opt.ExternalId
@@ -418,6 +517,8 @@ type triggerTuple struct {
 	externalId string
 
 	input []byte
+
+	filterPayload []byte
 
 	additionalMetadata []byte
 
@@ -801,7 +902,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 						ExternalId:           taskExternalId,
 						WorkflowRunId:        tuple.externalId,
 						StepId:               sqlchelpers.UUIDToStr(step.ID),
-						Input:                r.newTaskInput(tuple.input, nil),
+						Input:                r.newTaskInput(tuple.input, nil, tuple.filterPayload),
 						AdditionalMetadata:   tuple.additionalMetadata,
 						InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
 						DesiredWorkerId:      tuple.desiredWorkerId,
@@ -1470,4 +1571,57 @@ func orderSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.List
 	})
 
 	return steps
+}
+
+func (r *sharedRepository) processWorkflowExpression(ctx context.Context, expression string, opt EventTriggerOpts, filterPayload []byte) (bool, error) {
+	var inputData map[string]interface{}
+	if opt.Data != nil {
+		err := json.Unmarshal(opt.Data, &inputData)
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal input data: %w", err)
+		}
+	} else {
+		inputData = make(map[string]interface{})
+	}
+
+	var additionalMetadata map[string]interface{}
+	if opt.AdditionalMetadata != nil {
+		err := json.Unmarshal(opt.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal additional metadata: %w", err)
+		}
+	} else {
+		additionalMetadata = make(map[string]interface{})
+	}
+
+	payload := make(map[string]interface{})
+	if filterPayload != nil {
+		err := json.Unmarshal(filterPayload, &payload)
+
+		if err != nil {
+			return false, fmt.Errorf("failed to unmarshal filter payload: %w", err)
+		}
+	}
+
+	match, err := r.celParser.EvaluateEventExpression(
+		expression,
+		cel.NewInput(
+			cel.WithInput(inputData),
+			cel.WithAdditionalMetadata(additionalMetadata),
+			cel.WithPayload(payload),
+			cel.WithEventID(opt.ExternalId),
+			cel.WithEventKey(opt.Key),
+		),
+	)
+
+	if err != nil {
+		r.l.Warn().
+			Err(err).
+			Str("expression", expression).
+			Msg("Failed to evaluate event expression")
+
+		return false, err
+	}
+
+	return match, nil
 }

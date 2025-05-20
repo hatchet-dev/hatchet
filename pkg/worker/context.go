@@ -65,6 +65,10 @@ type HatchetContext interface {
 
 	WorkflowRunId() string
 
+	WorkflowId() *string
+
+	WorkflowVersionId() *string
+
 	Log(message string)
 
 	StreamEvent(message []byte)
@@ -89,6 +93,8 @@ type HatchetContext interface {
 	IncChildIndex()
 
 	Priority() int32
+
+	FilterPayload() map[string]interface{}
 }
 
 type TriggeredBy string
@@ -253,6 +259,12 @@ func (h *hatchetContext) UserData(target interface{}) error {
 	return toTarget(h.stepData.UserData, target)
 }
 
+func (h *hatchetContext) FilterPayload() map[string]interface{} {
+	payload := h.stepData.Triggers["filter_payload"]
+
+	return payload
+}
+
 func (h *hatchetContext) AdditionalMetadata() map[string]string {
 	return h.stepData.AdditionalMetadata
 }
@@ -271,6 +283,14 @@ func (h *hatchetContext) StepId() string {
 
 func (h *hatchetContext) WorkflowRunId() string {
 	return h.a.WorkflowRunId
+}
+
+func (h *hatchetContext) WorkflowId() *string {
+	return h.a.WorkflowId
+}
+
+func (h *hatchetContext) WorkflowVersionId() *string {
+	return h.a.WorkflowVersionId
 }
 
 func (h *hatchetContext) Log(message string) {

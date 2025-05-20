@@ -1,13 +1,11 @@
 import asyncio
 import json
 import time
-from dataclasses import field
-from enum import Enum
-from typing import Any, AsyncGenerator, cast
+from typing import TYPE_CHECKING, AsyncGenerator, cast
 
 import grpc
 import grpc.aio
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hatchet_sdk.clients.event_ts import (
     ThreadSafeEvent,
@@ -18,7 +16,6 @@ from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -31,9 +28,14 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.config import ClientConfig
+
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
@@ -63,100 +65,6 @@ class GetActionListenerRequest(BaseModel):
         return self
 
 
-class ActionPayload(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    input: JSONSerializableMapping = Field(default_factory=dict)
-    parents: dict[str, JSONSerializableMapping] = Field(default_factory=dict)
-    overrides: JSONSerializableMapping = Field(default_factory=dict)
-    user_data: JSONSerializableMapping = Field(default_factory=dict)
-    step_run_errors: dict[str, str] = Field(default_factory=dict)
-    triggered_by: str | None = None
-    triggers: JSONSerializableMapping = Field(default_factory=dict)
-
-    @field_validator(
-        "input", "parents", "overrides", "user_data", "step_run_errors", mode="before"
-    )
-    @classmethod
-    def validate_fields(cls, v: Any) -> Any:
-        return v or {}
-
-
-class ActionType(str, Enum):
-    START_STEP_RUN = "START_STEP_RUN"
-    CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
-    START_GET_GROUP_KEY = "START_GET_GROUP_KEY"
-
-
-ActionKey = str
-
-
-class Action(BaseModel):
-    worker_id: str
-    tenant_id: str
-    workflow_run_id: str
-    get_group_key_run_id: str
-    job_id: str
-    job_name: str
-    job_run_id: str
-    step_id: str
-    step_run_id: str
-    action_id: str
-    action_type: ActionType
-    retry_count: int
-    action_payload: ActionPayload
-    additional_metadata: JSONSerializableMapping = field(default_factory=dict)
-
-    child_workflow_index: int | None = None
-    child_workflow_key: str | None = None
-    parent_workflow_run_id: str | None = None
-
-    priority: int | None = None
-
-    def _dump_payload_to_str(self) -> str:
-        try:
-            return json.dumps(self.action_payload.model_dump(), default=str)
-        except Exception:
-            return str(self.action_payload)
-
-    @property
-    def otel_attributes(self) -> dict[str, str | int]:
-        try:
-            payload_str = json.dumps(self.action_payload.model_dump(), default=str)
-        except Exception:
-            payload_str = str(self.action_payload)
-
-        attrs: dict[str, str | int | None] = {
-            "hatchet.tenant_id": self.tenant_id,
-            "hatchet.worker_id": self.worker_id,
-            "hatchet.workflow_run_id": self.workflow_run_id,
-            "hatchet.step_id": self.step_id,
-            "hatchet.step_run_id": self.step_run_id,
-            "hatchet.retry_count": self.retry_count,
-            "hatchet.parent_workflow_run_id": self.parent_workflow_run_id,
-            "hatchet.child_workflow_index": self.child_workflow_index,
-            "hatchet.child_workflow_key": self.child_workflow_key,
-            "hatchet.action_payload": payload_str,
-            "hatchet.workflow_name": self.job_name,
-            "hatchet.action_name": self.action_id,
-            "hatchet.get_group_key_run_id": self.get_group_key_run_id,
-        }
-
-        return {k: v for k, v in attrs.items() if v}
-
-    @property
-    def key(self) -> ActionKey:
-        """
-        This key is used to uniquely identify a single step run by its id + retry count.
-        It's used when storing references to a task, a context, etc. in a dictionary so that
-        we can look up those items in the dictionary by a unique key.
-        """
-        if self.action_type == ActionType.START_GET_GROUP_KEY:
-            return f"{self.get_group_key_run_id}/{self.retry_count}"
-        else:
-            return f"{self.step_run_id}/{self.retry_count}"
-
-
 def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:
     try:
         return cast(
@@ -168,7 +76,7 @@ def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMappi
 
 
 class ActionListener:
-    def __init__(self, config: ClientConfig, worker_id: str) -> None:
+    def __init__(self, config: "ClientConfig", worker_id: str) -> None:
         self.config = config
         self.worker_id = worker_id
 
@@ -343,6 +251,8 @@ class ActionListener:
                         child_workflow_key=assigned_action.child_workflow_key,
                         parent_workflow_run_id=assigned_action.parent_workflow_run_id,
                         priority=assigned_action.priority,
+                        workflow_version_id=assigned_action.workflowVersionId,
+                        workflow_id=assigned_action.workflowId,
                     )
 
                     yield action

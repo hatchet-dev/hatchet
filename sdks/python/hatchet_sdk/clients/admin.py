@@ -20,6 +20,7 @@ from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.rate_limit import RateLimitDuration
 from hatchet_sdk.runnables.contextvars import (
+    ctx_action_key,
     ctx_step_run_id,
     ctx_worker_id,
     ctx_workflow_run_id,
@@ -46,9 +47,7 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     desired_worker_id: str | None = None
-    namespace: str | None = None
     sticky: bool = False
     key: str | None = None
 
@@ -253,8 +252,7 @@ class AdminClient:
         try:
             namespace = options.namespace or self.namespace
 
-            if namespace != "" and not name.startswith(self.namespace):
-                name = f"{namespace}{name}"
+            name = self.config.apply_namespace(name, namespace)
 
             request = self._prepare_schedule_workflow_request(
                 name, schedules, input, options
@@ -284,11 +282,12 @@ class AdminClient:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
-        spawn_index = workflow_spawn_indices[workflow_run_id] if workflow_run_id else 0
+        action_key = ctx_action_key.get()
+        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
 
         ## Increment the spawn_index for the parent workflow
-        if workflow_run_id:
-            workflow_spawn_indices[workflow_run_id] += 1
+        if action_key:
+            workflow_spawn_indices[action_key] += 1
 
         desired_worker_id = (
             (options.desired_worker_id or worker_id) if options.sticky else None
@@ -312,8 +311,7 @@ class AdminClient:
 
         namespace = options.namespace or self.namespace
 
-        if namespace != "" and not workflow_name.startswith(self.namespace):
-            workflow_name = f"{namespace}{workflow_name}"
+        workflow_name = self.config.apply_namespace(workflow_name, namespace)
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 
