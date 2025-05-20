@@ -69,6 +69,10 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 			TenantMajorEngineVersion: r.defaultTenantVersion,
 			Valid:                    true,
 		},
+		UiVersion: dbsqlc.NullTenantMajorUIVersion{
+			TenantMajorUIVersion: *opts.UIVersion,
+			Valid:                true,
+		},
 	})
 
 	if err != nil {

@@ -462,7 +462,8 @@ type CreateTenantRequest struct {
 	Name string `json:"name" validate:"required"`
 
 	// Slug The slug of the tenant.
-	Slug string `json:"slug" validate:"required,hatchetName"`
+	Slug      string           `json:"slug" validate:"required,hatchetName"`
+	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
 }
 
 // CronWorkflows defines model for CronWorkflows.

@@ -79,6 +79,9 @@ CreateTenantRequest:
       description: The slug of the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required,hatchetName"
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI version of the tenant. Defaults to V0.
   required:
     - name
     - slug
