@@ -292,7 +292,7 @@ function UIVersionSwitcher() {
                 setShowDowngradeModal(false);
                 navigate(
                   {
-                    pathname: '/',
+                    pathname: '/v1/runs',
                     search: createSearchParams({
                       tenant: tenant.metadata.id,
                     }).toString(),
