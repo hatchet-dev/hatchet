@@ -1,20 +1,20 @@
 import { Snippet } from '@/lib/generated/snips/types';
 
 const snippet: Snippet = {
-  'language': 'typescript ',
-  'content': 'import Hatchet from \'@hatchet-dev/typescript-sdk/sdk\';\n\nexport const hatchet = Hatchet.init();\n',
-  'source': 'out/typescript/quickstart/hatchet-client.ts',
-  'blocks': {},
-  'highlights': {
-    'client': {
-      'lines': [
+  "language": "typescript ",
+  "content": "import Hatchet from '@hatchet-dev/typescript-sdk/sdk';\n\nexport const hatchet = Hatchet.init();\n",
+  "source": "out/typescript/quickstart/hatchet-client.ts",
+  "blocks": {},
+  "highlights": {
+    "client": {
+      "lines": [
         3
       ],
-      'strings': [
-        'Client'
+      "strings": [
+        "Client"
       ]
     }
   }
-};  // Then replace double quotes with single quotes
+};
 
 export default snippet;

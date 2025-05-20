@@ -159,7 +159,6 @@ const processSnippet: ContentProcessor = async ({ path, name, content }) => {
   const cleanedContent = sanitizeContent(content, extension);
   const { blocks, highlights } = processBlocksAndHighlights(content, language);
 
-  // Create a Snippet object
   const snippet: Snippet = {
     language,
     content: cleanedContent,
@@ -168,12 +167,9 @@ const processSnippet: ContentProcessor = async ({ path, name, content }) => {
     highlights,
   };
 
-  // Generate TypeScript content that exports the snippet
   const tsContent = `import { Snippet } from '@/lib/generated/snips/types';
 
-const snippet: Snippet = ${JSON.stringify(snippet, null, 2)
-    .replaceAll(/'/g, "\\'") // First escape any single quotes
-    .replaceAll(/"/g, "'")};  // Then replace double quotes with single quotes
+const snippet: Snippet = ${JSON.stringify(snippet, null, 2)};
 
 export default snippet;
 `;
