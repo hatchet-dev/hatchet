@@ -10,7 +10,7 @@ import {
 } from '../components/shared-auth-components';
 import useUser from '@/next/hooks/use-user';
 import { ROUTES } from '@/next/lib/routes';
-import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+import { useCurrentTenantId, useTenant } from '@/next/hooks/use-tenant';
 
 export default function Register() {
   const { oss: meta, isLoading } = useApiMeta();
@@ -73,16 +73,21 @@ export default function Register() {
 function BasicRegister() {
   const navigate = useNavigate();
   const { register } = useUser();
-  const { tenantId } = useCurrentTenantId();
-  // TODO: handle error
+  const { tenant } = useTenant();
 
   return (
     <UserRegisterForm
       isLoading={register.isPending}
       onSubmit={async (data) => {
         const user = await register.mutateAsync(data);
-        if (user) {
-          navigate(ROUTES.runs.list(tenantId));
+        if (user && tenant?.metadata.id) {
+          navigate(ROUTES.runs.list(tenant.metadata.id));
+          return;
+        }
+
+        if (!tenant?.metadata.id) {
+          navigate(ROUTES.onboarding.newTenant);
+          return;
         }
       }}
       apiError={register.error?.message}
