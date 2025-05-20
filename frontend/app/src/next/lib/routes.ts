@@ -7,16 +7,16 @@ export const BASE_PATH = '/next';
 
 export const FEATURES_BASE_PATH = {
   auth: BASE_PATH + '/auth',
-  onboarding: BASE_PATH + '/onboarding',
+  onboarding: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/onboarding`,
   learn: BASE_PATH + '/learn',
-  runs: BASE_PATH + '/runs',
-  scheduled: BASE_PATH + '/scheduled',
-  crons: BASE_PATH + '/crons',
-  workflows: BASE_PATH + '/workflows',
-  services: BASE_PATH + '/services',
-  rateLimits: BASE_PATH + '/rate-limits',
-  settings: BASE_PATH + '/settings',
-  events: BASE_PATH + '/events',
+  runs: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/runs`,
+  scheduled: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/scheduled`,
+  crons: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/crons`,
+  workflows: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/workflows`,
+  services: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/services`,
+  rateLimits: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/rate-limits`,
+  settings: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/settings`,
+  events: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/events`,
 };
 
 const FB = FEATURES_BASE_PATH;
@@ -33,16 +33,17 @@ export const ROUTES = {
     invites: `${FB.onboarding}/invites`,
   },
   events: {
-    list: `${FB.events}`,
-    detail: (externalId: string) => `${FB.events}/${externalId}`,
+    list: (tenantId: string) => `${FB.events(tenantId)}`,
+    detail: (tenantId: string, externalId: string) => `${FB.events(tenantId)}/${externalId}`,
   },
   learn: {
     firstRun: `${FB.learn}/first-run`,
   },
   runs: {
-    list: `${FB.runs}`,
-    detail: (runId: string) => `${FB.runs}/${runId}`,
+    list: (tenantId: string) => `${FB.runs(tenantId)}`,
+    detail: (tenantId: string, runId: string) => `${FB.runs(tenantId)}/${runId}`,
     detailWithSheet: (
+      tenantId: string,
       runId: string,
       sheet: OpenSheetProps,
       options?: { taskTab?: string },
@@ -53,44 +54,44 @@ export const ROUTES = {
       }
 
       params.set(SHEET_PARAM_KEY, encodeSheetProps(sheet));
-      return `${FB.runs}/${runId}?${params.toString()}`;
+      return `${FB.runs(tenantId)}/${runId}?${params.toString()}`;
     },
-    parent: (run: V1WorkflowRun) =>
+    parent: (tenantId: string, run: V1WorkflowRun) =>
       run.parentTaskExternalId
-        ? `${FB.runs}/${run.parentTaskExternalId}`
+        ? `${FB.runs(tenantId)}/${run.parentTaskExternalId}`
         : undefined,
   },
   scheduled: {
-    list: `${FB.scheduled}`,
+    list: (tenantId: string) => `${FB.scheduled(tenantId)}`,
   },
   crons: {
-    list: `${FB.crons}`,
+    list: (tenantId: string) => `${FB.crons(tenantId)}`,
   },
   workflows: {
-    list: `${FB.workflows}`,
-    detail: (workflowId: string) => `${FB.workflows}/${workflowId}`,
+    list: (tenantId: string) => `${FB.workflows(tenantId)}`,
+    detail: (tenantId: string, workflowId: string) => `${FB.workflows(tenantId)}/${workflowId}`,
   },
   services: {
-    list: `${FB.services}`,
-    new: (type: WorkerType) => `${FB.services}/${type.toLowerCase()}`,
-    detail: (serviceName: string, type: WorkerType, tab?: string) =>
-      `${FB.services}/${type.toLowerCase()}/${serviceName}${
+    list: (tenantId: string) => `${FB.services(tenantId)}`,
+    new: (tenantId: string, type: WorkerType) => `${FB.services(tenantId)}/${type.toLowerCase()}`,
+    detail: (tenantId: string, serviceName: string, type: WorkerType, tab?: string) =>
+      `${FB.services(tenantId)}/${type.toLowerCase()}/${serviceName}${
         tab ? `?tab=${tab}` : ''
       }`,
-    workerDetail: (serviceName: string, workerName: string, type: WorkerType) =>
-      `${FB.services}/${type.toLowerCase()}/${serviceName}/${workerName}`,
+    workerDetail: (tenantId: string, serviceName: string, workerName: string, type: WorkerType) =>
+      `${FB.services(tenantId)}/${type.toLowerCase()}/${serviceName}/${workerName}`,
   },
   rateLimits: {
-    list: `${FB.rateLimits}`,
+    list: (tenantId: string) => `${FB.rateLimits(tenantId)}`,
   },
   settings: {
-    apiTokens: `${FB.settings}/api-tokens`,
-    team: `${FB.settings}/team`,
-    overview: `${FB.settings}/overview`,
-    github: `${FB.settings}/github`,
-    usage: `${FB.settings}/usage`,
-    alerting: `${FB.settings}/alerting`,
-    ingestors: `${FB.settings}/ingestors`,
+    apiTokens: (tenantId: string) => `${FB.settings(tenantId)}/api-tokens`,
+    team: (tenantId: string) => `${FB.settings(tenantId)}/team`,
+    overview: (tenantId: string) => `${FB.settings(tenantId)}/overview`,
+    github: (tenantId: string) => `${FB.settings(tenantId)}/github`,
+    usage: (tenantId: string) => `${FB.settings(tenantId)}/usage`,
+    alerting: (tenantId: string) => `${FB.settings(tenantId)}/alerting`,
+    ingestors: (tenantId: string) => `${FB.settings(tenantId)}/ingestors`,
   },
   common: {
     community: `https://hatchet.run/discord`,

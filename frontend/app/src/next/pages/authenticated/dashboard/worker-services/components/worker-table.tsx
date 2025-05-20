@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
 import { Checkbox } from '@/next/components/ui/checkbox';
+import useTenant from '@/next/hooks/use-tenant';
 
 interface WorkerTableProps {
   serviceName: string;
@@ -69,6 +70,7 @@ export const TableRowSkeleton = () => (
 export function WorkerTable({ serviceName }: WorkerTableProps) {
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const navigate = useNavigate();
+  const { tenant } = useTenant();
 
   const {
     services,
@@ -174,6 +176,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   const handleWorkerClick = (workerId: string) => {
     navigate(
       ROUTES.services.workerDetail(
+        tenant?.metadata.id || '',
         encodeURIComponent(serviceName),
         workerId,
         service?.type || WorkerType.SELFHOSTED,

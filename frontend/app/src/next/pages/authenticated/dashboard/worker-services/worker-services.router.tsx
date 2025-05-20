@@ -3,7 +3,7 @@ import { RouteObject } from 'react-router-dom';
 import { WorkerType } from '@/lib/api';
 export const workerServicesRoutes: RouteObject[] = [
   {
-    path: ROUTES.services.list,
+    path: ROUTES.services.list(':tenantId'),
     lazy: () =>
       import('./worker-services.page').then((res) => {
         return {
@@ -12,7 +12,7 @@ export const workerServicesRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.new(WorkerType.SELFHOSTED),
+    path: ROUTES.services.new(':tenantId', WorkerType.SELFHOSTED),
     lazy: () =>
       import('./selfhost/new-selfhost-service.page').then((res) => {
         return {
@@ -21,7 +21,7 @@ export const workerServicesRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.new(WorkerType.MANAGED),
+    path: ROUTES.services.new(':tenantId', WorkerType.MANAGED),
     lazy: () =>
       import('./managed/new-managed-service.page').then((res) => {
         return {
@@ -30,7 +30,11 @@ export const workerServicesRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.detail(':serviceName', WorkerType.SELFHOSTED),
+    path: ROUTES.services.detail(
+      ':tenantId',
+      ':serviceName',
+      WorkerType.SELFHOSTED,
+    ),
     lazy: () =>
       import('./selfhost/worker-service-detail.page').then((res) => {
         return {
@@ -40,6 +44,7 @@ export const workerServicesRoutes: RouteObject[] = [
   },
   {
     path: ROUTES.services.workerDetail(
+      ':tenantId',
       ':serviceName',
       ':workerName',
       WorkerType.SELFHOSTED,
@@ -53,7 +58,11 @@ export const workerServicesRoutes: RouteObject[] = [
   },
 
   {
-    path: ROUTES.services.detail(':serviceName', WorkerType.MANAGED),
+    path: ROUTES.services.detail(
+      ':tenantId',
+      ':serviceName',
+      WorkerType.MANAGED,
+    ),
     lazy: () =>
       import('./managed/managed-service-detail.page').then((res) => {
         return {
@@ -63,6 +72,7 @@ export const workerServicesRoutes: RouteObject[] = [
   },
   {
     path: ROUTES.services.workerDetail(
+      ':tenantId',
       ':serviceName',
       ':workerName',
       WorkerType.MANAGED,

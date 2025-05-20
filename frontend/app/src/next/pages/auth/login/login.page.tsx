@@ -10,6 +10,7 @@ import {
 } from '../components/shared-auth-components';
 import useUser from '@/next/hooks/use-user';
 import { ROUTES } from '@/next/lib/routes';
+import useTenant from '@/next/hooks/use-tenant';
 export default function Login() {
   const { oss: meta, isLoading } = useApiMeta();
 
@@ -74,6 +75,7 @@ export default function Login() {
 function BasicLogin() {
   const navigate = useNavigate();
   const { login } = useUser();
+  const { tenant } = useTenant();
 
   return (
     <UserLoginForm
@@ -81,7 +83,7 @@ function BasicLogin() {
       onSubmit={async (data) => {
         const user = await login.mutateAsync(data);
         if (user) {
-          navigate(ROUTES.runs.list);
+          navigate(ROUTES.runs.list(tenant?.metadata.id || ''));
         }
       }}
       apiError={login.error?.message}

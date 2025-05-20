@@ -15,7 +15,7 @@ import api, {
   TenantResourceLimit,
 } from '@/lib/api';
 import useUser from './use-user';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   useMutation,
   UseMutationResult,
@@ -49,6 +49,10 @@ interface TenantProviderProps {
 }
 
 export function TenantProvider({ children }: TenantProviderProps) {
+  const params = useParams();
+
+  console.log({ params });
+
   const { memberships, isLoading: isUserLoading } = useUser();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();

@@ -44,8 +44,11 @@ import { Summary } from './components/config/summary';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { Button } from '@/next/components/ui/button';
 import { BillingRequired } from './components/billing-required';
+import useTenant from '@/next/hooks/use-tenant';
 function ServiceDetailPageContent() {
   const navigate = useNavigate();
+
+  const { tenant } = useTenant();
 
   const { data: services, create } = useManagedCompute();
 
@@ -56,7 +59,7 @@ function ServiceDetailPageContent() {
       {
         title: 'Worker Services',
         label: 'New Managed Worker Service',
-        url: ROUTES.services.new(WorkerType.MANAGED),
+        url: ROUTES.services.new(tenant?.metadata.id || '', WorkerType.MANAGED),
       },
     ]);
   }, [breadcrumb]);
@@ -125,7 +128,11 @@ function ServiceDetailPageContent() {
       });
 
       navigate(
-        ROUTES.services.detail(deployedService.metadata.id, WorkerType.MANAGED),
+        ROUTES.services.detail(
+          tenant?.metadata.id || '',
+          deployedService.metadata.id,
+          WorkerType.MANAGED,
+        ),
       );
     } catch (error) {
       console.error('Failed to deploy service:', error);

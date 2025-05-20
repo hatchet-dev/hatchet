@@ -11,6 +11,7 @@ import { Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { Snippet } from '@/next/components/ui/code/snippet';
+import useTenant from '@/next/hooks/use-tenant';
 
 export function Lesson<
   S extends string,
@@ -38,6 +39,7 @@ function LessonContent<
     codeBlocksRef,
     stepCardsRef,
   } = useLesson();
+  const { tenant } = useTenant();
 
   const steps = Object.entries(lesson.steps).map(([key, step], stepIndex) => {
     const typedStep = step as LessonStep;
@@ -119,7 +121,7 @@ function LessonContent<
                   </div>
 
                   <div className="flex gap-2 items-center">
-                    <Link to={ROUTES.runs.list}>
+                    <Link to={ROUTES.runs.list(tenant?.metadata.id || '')}>
                       <Button variant="ghost">Skip Tutorial</Button>
                     </Link>
                     <Button

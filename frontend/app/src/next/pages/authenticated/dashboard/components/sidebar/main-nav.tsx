@@ -56,15 +56,15 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Runs',
-            url: ROUTES.runs.list,
+            url: ROUTES.runs.list(':tenantId'),
             icon: Play,
-            isActive: isActive(ROUTES.runs.list),
+            isActive: isActive(ROUTES.runs.list(':tenantId')),
           },
           {
             title: 'Events',
-            url: ROUTES.events.list,
+            url: ROUTES.events.list(':tenantId'),
             icon: SquareActivity,
-            isActive: isActive(ROUTES.events.list),
+            isActive: isActive(ROUTES.events.list(':tenantId')),
           },
         ],
       },
@@ -73,15 +73,15 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Scheduled Runs',
-            url: ROUTES.scheduled.list,
+            url: ROUTES.scheduled.list(':tenantId'),
             icon: Calendar,
-            isActive: isActive(ROUTES.scheduled.list),
+            isActive: isActive(ROUTES.scheduled.list(':tenantId')),
           },
           {
             title: 'Cron Jobs',
-            url: ROUTES.crons.list,
+            url: ROUTES.crons.list(':tenantId'),
             icon: Clock,
-            isActive: isActive(ROUTES.crons.list),
+            isActive: isActive(ROUTES.crons.list(':tenantId')),
           },
         ],
       },
@@ -90,21 +90,21 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Tasks & Workflows',
-            url: ROUTES.workflows.list,
+            url: ROUTES.workflows.list(':tenantId'),
             icon: Code,
-            isActive: isActive(ROUTES.workflows.list),
+            isActive: isActive(ROUTES.workflows.list(':tenantId')),
           },
           {
             title: 'Worker Services',
-            url: ROUTES.services.list,
+            url: ROUTES.services.list(':tenantId'),
             icon: Cpu,
-            isActive: isActive(ROUTES.services.list),
+            isActive: isActive(ROUTES.services.list(':tenantId')),
           },
           {
             title: 'Rate Limits',
-            url: ROUTES.rateLimits.list,
+            url: ROUTES.rateLimits.list(':tenantId'),
             icon: Scale,
-            isActive: isActive(ROUTES.rateLimits.list),
+            isActive: isActive(ROUTES.rateLimits.list(':tenantId')),
           },
         ],
       },
@@ -113,54 +113,54 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'API Tokens',
-            url: ROUTES.settings.apiTokens,
+            url: ROUTES.settings.apiTokens(':tenantId'),
             icon: Key,
-            isActive: isActive(ROUTES.settings.apiTokens),
+            isActive: isActive(ROUTES.settings.apiTokens(':tenantId')),
           },
           {
             title: 'Team',
-            url: ROUTES.settings.team,
+            url: ROUTES.settings.team(':tenantId'),
             icon: Users,
-            isActive: isActive(ROUTES.settings.team),
+            isActive: isActive(ROUTES.settings.team(':tenantId')),
           },
           {
             title: 'More Settings',
-            url: FEATURES_BASE_PATH.settings,
+            url: FEATURES_BASE_PATH.settings(':tenantId'),
             icon: Settings,
             isActive:
-              isActive(FEATURES_BASE_PATH.settings) &&
-              !isActive(ROUTES.settings.apiTokens) &&
-              !isActive(ROUTES.settings.team),
+              isActive(FEATURES_BASE_PATH.settings(':tenantId')) &&
+              !isActive(ROUTES.settings.apiTokens(':tenantId')) &&
+              !isActive(ROUTES.settings.team(':tenantId')),
             items: [
               {
                 title: 'Tenant Settings',
-                url: ROUTES.settings.overview,
+                url: ROUTES.settings.overview(':tenantId'),
                 icon: UsersIcon,
-                isActive: isActive(ROUTES.settings.overview),
+                isActive: isActive(ROUTES.settings.overview(':tenantId')),
               },
               {
                 title: 'Github',
-                url: ROUTES.settings.github,
+                url: ROUTES.settings.github(':tenantId'),
                 icon: Github,
-                isActive: isActive(ROUTES.settings.github),
+                isActive: isActive(ROUTES.settings.github(':tenantId')),
               },
               {
                 title: 'Billing & Usage',
-                url: ROUTES.settings.usage,
+                url: ROUTES.settings.usage(':tenantId'),
                 icon: Scale,
-                isActive: isActive(ROUTES.settings.usage),
+                isActive: isActive(ROUTES.settings.usage(':tenantId')),
               },
               {
                 title: 'Alerting',
-                url: ROUTES.settings.alerting,
+                url: ROUTES.settings.alerting(':tenantId'),
                 icon: AlertTriangle,
-                isActive: isActive(ROUTES.settings.alerting),
+                isActive: isActive(ROUTES.settings.alerting(':tenantId')),
               },
               {
                 title: 'Ingestors',
-                url: ROUTES.settings.ingestors,
+                url: ROUTES.settings.ingestors(':tenantId'),
                 icon: Database,
-                isActive: isActive(ROUTES.settings.ingestors),
+                isActive: isActive(ROUTES.settings.ingestors(':tenantId')),
               },
             ],
           },

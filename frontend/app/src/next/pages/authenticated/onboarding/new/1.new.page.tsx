@@ -33,7 +33,7 @@ interface TenantFormValues {
 }
 
 export default function OnboardingNewPage() {
-  const { create: createTenant, setTenant } = useTenant();
+  const { create: createTenant, setTenant, tenant } = useTenant();
   const { data: user, memberships } = useUser();
   const navigate = useNavigate();
   const {
@@ -49,7 +49,7 @@ export default function OnboardingNewPage() {
       createTenant.mutate(data.name, {
         onSuccess: (tenant) => {
           setTenant(tenant.metadata.id);
-          navigate(ROUTES.runs.list);
+          navigate(ROUTES.runs.list(tenant.metadata.id));
         },
         onError: (error) => {
           setError('name', {
@@ -148,7 +148,9 @@ export default function OnboardingNewPage() {
             <Button
               variant="outline"
               onClick={() => {
-                navigate(ROUTES.runs.list);
+                if (tenant?.metadata.id) {
+                  navigate(ROUTES.runs.list(tenant?.metadata.id));
+                }
               }}
             >
               Cancel

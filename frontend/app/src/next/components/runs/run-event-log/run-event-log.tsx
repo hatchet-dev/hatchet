@@ -52,7 +52,7 @@ interface RunEventLogProps {
   workflow: V1WorkflowRun;
   onTaskSelect?: (
     event: V1TaskEvent,
-    options?: Parameters<typeof ROUTES.runs.detailWithSheet>[2],
+    options?: Parameters<typeof ROUTES.runs.detailWithSheet>[3],
   ) => void;
   showFilters?: {
     search?: boolean;

@@ -25,6 +25,7 @@ import {
   BsArrowUpLeftCircle,
 } from 'react-icons/bs';
 import { Skeleton } from '../ui/skeleton';
+import useTenant from '@/next/hooks/use-tenant';
 interface ProcessedTaskData {
   id: string;
   workflowRunId?: string;
@@ -201,6 +202,7 @@ export function Waterfall({
   const {
     timings: { data: taskData, isLoading, error: isError, depth, setDepth },
   } = useRunDetail();
+  const { tenant } = useTenant();
 
   // Process and memoize task relationships to allow collapsing all descendants
   const taskRelationships = useMemo(() => {
@@ -670,13 +672,17 @@ export function Waterfall({
             {workflowRunId === task.workflowRunId ? (
               task.parentId ? (
                 <Link
-                  to={ROUTES.runs.detailWithSheet(task.parentId, {
-                    type: 'task-detail',
-                    props: {
-                      selectedWorkflowRunId: task.workflowRunId,
-                      selectedTaskId: task.id,
+                  to={ROUTES.runs.detailWithSheet(
+                    tenant?.metadata.id || '',
+                    task.parentId,
+                    {
+                      type: 'task-detail',
+                      props: {
+                        selectedWorkflowRunId: task.workflowRunId,
+                        selectedTaskId: task.id,
+                      },
                     },
-                  })}
+                  )}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Button
@@ -700,13 +706,17 @@ export function Waterfall({
               )
             ) : (
               <Link
-                to={ROUTES.runs.detailWithSheet(task.workflowRunId || task.id, {
-                  type: 'task-detail',
-                  props: {
-                    selectedWorkflowRunId: task.workflowRunId || task.id,
-                    selectedTaskId: task.id,
+                to={ROUTES.runs.detailWithSheet(
+                  tenant?.metadata.id || '',
+                  task.workflowRunId || task.id,
+                  {
+                    type: 'task-detail',
+                    props: {
+                      selectedWorkflowRunId: task.workflowRunId || task.id,
+                      selectedTaskId: task.id,
+                    },
                   },
-                })}
+                )}
               >
                 <Button
                   tooltip="Scope into child task"

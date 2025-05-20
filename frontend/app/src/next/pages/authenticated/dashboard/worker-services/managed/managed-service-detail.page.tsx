@@ -27,6 +27,7 @@ import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
+import useTenant from '@/next/hooks/use-tenant';
 
 export enum ManagedServiceDetailTabs {
   INSTANCES = 'instances',
@@ -38,6 +39,7 @@ export enum ManagedServiceDetailTabs {
 
 function ServiceDetailPageContent() {
   const { data: service } = useManagedComputeDetail();
+  const { tenant } = useTenant();
 
   const breadcrumb = useBreadcrumbs();
 
@@ -47,6 +49,7 @@ function ServiceDetailPageContent() {
         title: 'Worker Services',
         label: service?.name || '',
         url: ROUTES.services.detail(
+          tenant?.metadata.id || '',
           encodeURIComponent(service?.metadata?.id || ''),
           WorkerType.MANAGED,
         ),

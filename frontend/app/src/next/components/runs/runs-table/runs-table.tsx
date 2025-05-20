@@ -142,13 +142,17 @@ export function RunsTable({
     (row: V1TaskSummary) => {
       console.log(row);
       navigate(
-        ROUTES.runs.detailWithSheet(row.workflowRunExternalId || '', {
-          type: 'task-detail',
-          props: {
-            selectedWorkflowRunId: row.workflowRunExternalId || '',
-            selectedTaskId: row.taskExternalId,
+        ROUTES.runs.detailWithSheet(
+          row.tenantId,
+          row.workflowRunExternalId || '',
+          {
+            type: 'task-detail',
+            props: {
+              selectedWorkflowRunId: row.workflowRunExternalId || '',
+              selectedTaskId: row.taskExternalId,
+            },
           },
-        }),
+        ),
       );
     },
     [navigate],

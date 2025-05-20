@@ -9,6 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { CheckCircle2 } from 'lucide-react';
 import { ROUTES } from '@/next/lib/routes';
 import { V1WorkflowRunDetails } from '@/lib/api';
+import useTenant from '@/next/hooks/use-tenant';
 interface TaskExecutionProps {
   name: string;
   input?: Record<string, unknown>;
@@ -35,6 +36,7 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
     data: runs,
     filters: { setFilter },
   } = useRuns();
+  const { tenant } = useTenant();
 
   const definitionId = useMemo(
     () => definitions?.find((d) => d.name === name)?.metadata.id,
@@ -48,8 +50,8 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
   }, [definitionId, setFilter]);
 
   useEffect(() => {
-    if (runs?.length > 0) {
-      onRun?.(ROUTES.runs.detail(runs[0].metadata.id));
+    if (runs?.length > 0 && tenant?.metadata.id) {
+      onRun?.(ROUTES.runs.detail(tenant?.metadata.id, runs[0].metadata.id));
     }
   }, [runs, onRun]);
 
@@ -85,9 +87,14 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
         defaultInput={JSON.stringify(input)}
         disabledCapabilities={['timing', 'fromRecent', 'additionalMeta']}
         onRun={(run) => {
-          onRun?.(
-            ROUTES.runs.detail((run as V1WorkflowRunDetails).run.metadata.id),
-          );
+          if (tenant?.metadata.id) {
+            onRun?.(
+              ROUTES.runs.detail(
+                tenant.metadata.id,
+                (run as V1WorkflowRunDetails).run.metadata.id,
+              ),
+            );
+          }
           setShowTriggerModal(false);
         }}
       />

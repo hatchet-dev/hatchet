@@ -31,6 +31,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
+import useTenant from '@/next/hooks/use-tenant';
 interface SectionActionsProps {
   canUpdate: boolean | undefined;
   section: string;
@@ -45,6 +46,7 @@ const SectionActions = ({
   onRevert,
   onDeploy,
 }: SectionActionsProps) => {
+  const { tenant } = useTenant();
   if (!canUpdate) {
     return (
       <Alert variant="warning">
@@ -54,7 +56,10 @@ const SectionActions = ({
         </AlertTitle>
         <AlertDescription>
           Your connected{' '}
-          <Link to={ROUTES.settings.github} className="underline">
+          <Link
+            to={ROUTES.settings.github(tenant?.metadata.id || '')}
+            className="underline"
+          >
             GitHub app
           </Link>{' '}
           must have push permissions to the managed service's repository.
@@ -82,6 +87,7 @@ export function UpdateServiceContent() {
   const navigate = useNavigate();
   const { data: service } = useManagedComputeDetail();
   const { update, delete: deleteService } = useManagedCompute();
+  const { tenant } = useTenant();
 
   const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
@@ -176,6 +182,7 @@ export function UpdateServiceContent() {
       });
 
       const to = ROUTES.services.detail(
+        tenant?.metadata.id || '',
         service?.metadata?.id || '',
         WorkerType.MANAGED,
         ManagedServiceDetailTabs.BUILDS,
@@ -189,7 +196,7 @@ export function UpdateServiceContent() {
 
   const handleDelete = async (serviceId: string) => {
     await deleteService.mutateAsync(serviceId);
-    navigate(ROUTES.services.list);
+    navigate(ROUTES.services.list(tenant?.metadata.id || ''));
   };
 
   const canUpdate = service?.canUpdate;

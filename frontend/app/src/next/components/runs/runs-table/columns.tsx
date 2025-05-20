@@ -105,6 +105,7 @@ export const columns = (
     ),
     cell: ({ row }) => {
       const url = ROUTES.runs.detailWithSheet(
+        row.original.tenantId,
         row.original.workflowRunExternalId || '',
         {
           type: 'task-detail',

@@ -103,7 +103,12 @@ export const columns = (): ColumnDef<V1Event>[] => {
       ),
       cell: ({ row }) => (
         <div className="w-full">
-          <Link to={ROUTES.events.detail(row.original.metadata.id)}>
+          <Link
+            to={ROUTES.events.detail(
+              row.original.tenantId,
+              row.original.metadata.id,
+            )}
+          >
             <Button variant="link">{row.original.metadata.id}</Button>
           </Link>
         </div>

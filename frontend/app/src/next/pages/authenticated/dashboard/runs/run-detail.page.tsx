@@ -109,7 +109,10 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     const breadcrumbs = [];
 
     if (parentData) {
-      const parentUrl = ROUTES.runs.detail(parentData.run.metadata.id);
+      const parentUrl = ROUTES.runs.detail(
+        tenant?.metadata.id || '',
+        parentData.run.metadata.id,
+      );
       breadcrumbs.push({
         title: getFriendlyWorkflowRunId(parentData.run) || '',
         label: <RunId wfRun={parentData.run} />,
@@ -125,14 +128,18 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       label: <RunId wfRun={workflow} />,
       url:
         selectedTask?.metadata.id === workflow?.metadata.id
-          ? ROUTES.runs.detail(workflow.metadata.id)
-          : ROUTES.runs.detailWithSheet(workflow.metadata.id, {
-              type: 'task-detail',
-              props: {
-                selectedWorkflowRunId: workflow.metadata.id,
-                selectedTaskId: selectedTask?.taskExternalId,
+          ? ROUTES.runs.detail(tenant?.metadata.id || '', workflow.metadata.id)
+          : ROUTES.runs.detailWithSheet(
+              tenant?.metadata.id || '',
+              workflow.metadata.id,
+              {
+                type: 'task-detail',
+                props: {
+                  selectedWorkflowRunId: workflow.metadata.id,
+                  selectedTaskId: selectedTask?.taskExternalId,
+                },
               },
-            }),
+            ),
       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
       alwaysShowIcon: true,
     });

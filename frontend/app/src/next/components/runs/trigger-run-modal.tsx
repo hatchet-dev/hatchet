@@ -34,6 +34,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { getFriendlyWorkflowRunId } from '@/next/components/runs/run-id';
 import { FaCodeBranch } from 'react-icons/fa';
+import useTenant from '@/next/hooks/use-tenant';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -121,6 +122,7 @@ function TriggerRunModalContent({
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<
     string | undefined
   >(defaultWorkflowId);
+  const { tenant } = useTenant();
 
   const { data: recentRuns, triggerNow } = useRuns();
 
@@ -198,7 +200,12 @@ function TriggerRunModalContent({
             if (onRun) {
               onRun(workflowRun);
             } else {
-              navigate(ROUTES.runs.detail(workflowRun.run.metadata.id));
+              navigate(
+                ROUTES.runs.detail(
+                  tenant?.metadata.id || '',
+                  workflowRun.run.metadata.id,
+                ),
+              );
             }
           },
           onError: (error) => {
@@ -228,7 +235,7 @@ function TriggerRunModalContent({
             if (onRun) {
               onRun(schedule);
             } else {
-              navigate(ROUTES.scheduled.list);
+              navigate(ROUTES.scheduled.list(tenant?.metadata.id || ''));
             }
           },
           onError: (error: any) => {
@@ -265,7 +272,7 @@ function TriggerRunModalContent({
             if (onRun) {
               onRun(cron);
             } else {
-              navigate(ROUTES.crons.list);
+              navigate(ROUTES.crons.list(tenant?.metadata.id || ''));
             }
           },
           onError: (error: any) => {

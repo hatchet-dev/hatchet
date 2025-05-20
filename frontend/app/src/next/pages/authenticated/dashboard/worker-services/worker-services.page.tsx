@@ -68,10 +68,12 @@ import docs from '@/next/lib/docs';
 import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
+import useTenant from '@/next/hooks/use-tenant';
 
 // Service row component to simplify the main component
 const ServiceRow = ({ service }: { service: WorkerService }) => {
   const { bulkUpdate } = useWorkers();
+  const { tenant } = useTenant();
 
   const getLastActiveTime = () => {
     const mostRecentWorker = service.workers
@@ -121,6 +123,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
       <TableCell className="font-medium">
         <Link
           to={ROUTES.services.detail(
+            tenant?.metadata.id || '',
             encodeURIComponent(service.id || service.name),
             service.type,
           )}
@@ -156,6 +159,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
         <div className="flex justify-end">
           <Link
             to={ROUTES.services.detail(
+              tenant?.metadata.id || '',
               encodeURIComponent(service.name),
               service.type,
             )}
@@ -177,6 +181,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
               <DropdownMenuItem>
                 <Link
                   to={ROUTES.services.detail(
+                    tenant?.metadata.id || '',
                     encodeURIComponent(service.name),
                     service.type,
                   )}
@@ -284,6 +289,7 @@ function WorkerServicesContent() {
   const unifiedServices = useUnifiedWorkerServices();
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const { tenant } = useTenant();
 
   const handleDismissCard = () => {
     setShowCloudCard(false);
@@ -335,12 +341,22 @@ function WorkerServicesContent() {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem asChild>
-                  <Link to={ROUTES.services.new(WorkerType.MANAGED)}>
+                  <Link
+                    to={ROUTES.services.new(
+                      tenant?.metadata.id || '',
+                      WorkerType.MANAGED,
+                    )}
+                  >
                     Managed Service
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to={ROUTES.services.new(WorkerType.SELFHOSTED)}>
+                  <Link
+                    to={ROUTES.services.new(
+                      tenant?.metadata.id || '',
+                      WorkerType.SELFHOSTED,
+                    )}
+                  >
                     Self-hosted Service
                   </Link>
                 </DropdownMenuItem>

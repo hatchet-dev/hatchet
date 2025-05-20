@@ -17,6 +17,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { Badge } from '@/next/components/ui/badge';
 import { WorkerType } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
+import useTenant from '@/next/hooks/use-tenant';
 
 function ServiceDetailPageContent() {
   const { serviceName = '' } = useParams<{
@@ -24,6 +25,7 @@ function ServiceDetailPageContent() {
     workerName?: string;
   }>();
   const decodedServiceName = decodeURIComponent(serviceName);
+  const { tenant } = useTenant();
 
   const { services, isLoading } = useWorkers();
 
@@ -39,6 +41,7 @@ function ServiceDetailPageContent() {
         title: 'Worker Services',
         label: serviceName,
         url: ROUTES.services.detail(
+          tenant?.metadata?.id || '',
           encodeURIComponent(decodedServiceName),
           service?.type || WorkerType.SELFHOSTED,
         ),

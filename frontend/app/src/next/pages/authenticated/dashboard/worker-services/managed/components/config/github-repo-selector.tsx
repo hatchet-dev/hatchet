@@ -27,6 +27,7 @@ import { CreateManagedWorkerBuildConfigRequest } from '@/lib/api/generated/cloud
 import { Spinner } from '@/next/components/ui/spinner';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import useTenant from '@/next/hooks/use-tenant';
 
 export type GithubRepoSelectorValue = Omit<
   CreateManagedWorkerBuildConfigRequest,
@@ -59,6 +60,7 @@ export function GithubRepoSelector({
   const [openInstallation, setOpenInstallation] = useState(false);
   const [openRepo, setOpenRepo] = useState(false);
   const [openBranch, setOpenBranch] = useState(false);
+  const { tenant } = useTenant();
 
   // Set default installation on first mount
   useEffect(() => {
@@ -153,7 +155,10 @@ export function GithubRepoSelector({
         <CardDescription>
           Select the GitHub repository you want to use for your worker service.
           If you don't see the repository you want to use, please update your{' '}
-          <Link to={ROUTES.settings.github} className="underline">
+          <Link
+            to={ROUTES.settings.github(tenant?.metadata.id || '')}
+            className="underline"
+          >
             GitHub integration
           </Link>
           .
