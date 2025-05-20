@@ -613,15 +613,21 @@ SELECT
     t.display_name,
     t.additional_metadata,
     t.parent_task_external_id,
-    t.input,
+    CASE
+        WHEN @includePayloads::BOOLEAN THEN t.input
+        ELSE '{}'::JSONB
+    END::JSONB AS input,
     t.readable_status::v1_readable_status_olap as status,
     t.workflow_run_id,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     e.error_message as error_message,
-    o.output::jsonb as output,
-    COALESCE(t.latest_retry_count, 0)::int as retry_count
+    COALESCE(t.latest_retry_count, 0)::int as retry_count,
+    CASE
+        WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
+        ELSE '{}'::JSONB
+    END::JSONB as output
 FROM
     tasks t
 LEFT JOIN
@@ -957,7 +963,10 @@ WITH input AS (
         r.kind,
         r.workflow_id,
         d.display_name,
-        d.input,
+        CASE
+            WHEN @includePayloads::BOOLEAN THEN d.input
+            ELSE '{}'::JSONB
+        END::JSONB AS input,
         d.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id
@@ -1014,7 +1023,10 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    o.output,
+    CASE
+        WHEN @includePayloads::BOOLEAN THEN o.output::JSONB
+        ELSE '{}'::JSONB
+    END::JSONB AS output,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id

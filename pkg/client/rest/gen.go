@@ -2080,6 +2080,9 @@ type V1WorkflowRunListParams struct {
 
 	// TriggeringEventExternalId The external id of the event that triggered the workflow run
 	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
+
+	// IncludePayloads A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+	IncludePayloads *bool `form:"include_payloads,omitempty" json:"include_payloads,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -6116,6 +6119,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		if params.TriggeringEventExternalId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IncludePayloads != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_payloads", runtime.ParamLocationQuery, *params.IncludePayloads); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

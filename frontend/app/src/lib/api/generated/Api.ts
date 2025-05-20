@@ -342,6 +342,8 @@ export class Api<
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+      include_payloads?: boolean;
     },
     params: RequestParams = {},
   ) =>
