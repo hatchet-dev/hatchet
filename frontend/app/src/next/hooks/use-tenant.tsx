@@ -34,6 +34,7 @@ interface TenantState {
   create: UseMutationResult<Tenant, Error, string, unknown>;
   update: {
     mutate: (data: UpdateTenantRequest) => void;
+    mutateAsync: (data: UpdateTenantRequest) => Promise<Tenant>;
     isPending: boolean;
   };
 }
@@ -200,6 +201,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
     create: createTenantMutation,
     update: {
       mutate: (data: UpdateTenantRequest) => updateTenantMutation.mutate(data),
+      mutateAsync: (data: UpdateTenantRequest) =>
+        updateTenantMutation.mutateAsync(data),
       isPending: updateTenantMutation.isPending,
     },
     limit: resourcePolicyQuery,

@@ -17,6 +17,9 @@ Tenant:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI of the tenant.
   required:
     - metadata
     - name
@@ -25,6 +28,12 @@ Tenant:
   type: object
 
 TenantVersion:
+  enum:
+    - "V0"
+    - "V1"
+  type: string
+
+TenantUIVersion:
   enum:
     - "V0"
     - "V1"
@@ -103,6 +112,9 @@ UpdateTenantRequest:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
+    uiVersion:
+      $ref: "#/TenantUIVersion"
+      description: The UI of the tenant.
   type: object
 
 TenantResource:

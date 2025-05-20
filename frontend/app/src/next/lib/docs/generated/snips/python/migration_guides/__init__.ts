@@ -6,6 +6,6 @@ const snippet: Snippet = {
   source: 'out/python/migration_guides/__init__.py',
   blocks: {},
   highlights: {},
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;

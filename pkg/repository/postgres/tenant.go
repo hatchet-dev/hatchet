@@ -113,6 +113,10 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 		params.Version = *opts.Version
 	}
 
+	if opts.UIVersion != nil && opts.UIVersion.Valid {
+		params.UiVersion = *opts.UIVersion
+	}
+
 	return r.queries.UpdateTenant(
 		ctx,
 		r.pool,

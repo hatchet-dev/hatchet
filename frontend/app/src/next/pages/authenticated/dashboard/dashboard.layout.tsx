@@ -23,7 +23,6 @@ import { Button } from '@/next/components/ui/button';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { Logo } from '@/next/components/ui/logo';
 import { Alerter } from './components/sidebar/alerter';
-import { GrRevert } from 'react-icons/gr';
 import { cn } from '@/next/lib/utils';
 
 export default function DashboardLayout() {
@@ -94,15 +93,6 @@ function DashboardLayoutContent() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          localStorage.setItem('next-ui', 'false');
-                          window.location.href = '/';
-                        }}
-                      >
-                        <GrRevert className="mr-2 h-4 w-4" />
-                        Switch to Old UI
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => toggleTheme()}>
                         {theme === 'dark' ? (
                           <Moon className="mr-2 h-4 w-4" />

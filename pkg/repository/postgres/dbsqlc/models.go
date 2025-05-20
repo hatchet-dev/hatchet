@@ -729,6 +729,48 @@ func (ns NullTenantMajorEngineVersion) Value() (driver.Value, error) {
 	return string(ns.TenantMajorEngineVersion), nil
 }
 
+type TenantMajorUIVersion string
+
+const (
+	TenantMajorUIVersionV0 TenantMajorUIVersion = "V0"
+	TenantMajorUIVersionV1 TenantMajorUIVersion = "V1"
+)
+
+func (e *TenantMajorUIVersion) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantMajorUIVersion(s)
+	case string:
+		*e = TenantMajorUIVersion(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantMajorUIVersion: %T", src)
+	}
+	return nil
+}
+
+type NullTenantMajorUIVersion struct {
+	TenantMajorUIVersion TenantMajorUIVersion `json:"TenantMajorUIVersion"`
+	Valid                bool                 `json:"valid"` // Valid is true if TenantMajorUIVersion is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTenantMajorUIVersion) Scan(value interface{}) error {
+	if value == nil {
+		ns.TenantMajorUIVersion, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TenantMajorUIVersion.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTenantMajorUIVersion) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TenantMajorUIVersion), nil
+}
+
 type TenantMemberRole string
 
 const (
@@ -1613,6 +1655,7 @@ type Tenant struct {
 	UpdatedAt             pgtype.Timestamp         `json:"updatedAt"`
 	DeletedAt             pgtype.Timestamp         `json:"deletedAt"`
 	Version               TenantMajorEngineVersion `json:"version"`
+	UiVersion             TenantMajorUIVersion     `json:"uiVersion"`
 	Name                  string                   `json:"name"`
 	Slug                  string                   `json:"slug"`
 	AnalyticsOptOut       bool                     `json:"analyticsOptOut"`

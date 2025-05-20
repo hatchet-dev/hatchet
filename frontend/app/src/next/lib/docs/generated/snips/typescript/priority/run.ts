@@ -16,6 +16,6 @@ const snippet: Snippet = {
     },
   },
   highlights: {},
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;

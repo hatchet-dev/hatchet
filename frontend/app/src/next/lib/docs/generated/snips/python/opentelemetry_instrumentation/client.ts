@@ -6,6 +6,6 @@ const snippet: Snippet = {
   source: 'out/python/opentelemetry_instrumentation/client.py',
   blocks: {},
   highlights: {},
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;
