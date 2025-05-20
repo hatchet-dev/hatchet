@@ -48,7 +48,7 @@ import { useTenant } from '@/next/hooks/use-tenant';
 function ServiceDetailPageContent() {
   const navigate = useNavigate();
 
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const { data: services, create } = useManagedCompute();
 
@@ -59,7 +59,7 @@ function ServiceDetailPageContent() {
       {
         title: 'Worker Services',
         label: 'New Managed Worker Service',
-        url: ROUTES.services.new(tenant?.metadata.id || '', WorkerType.MANAGED),
+        url: ROUTES.services.new(tenantId, WorkerType.MANAGED),
       },
     ]);
   }, [breadcrumb]);
@@ -129,7 +129,7 @@ function ServiceDetailPageContent() {
 
       navigate(
         ROUTES.services.detail(
-          tenant?.metadata.id || '',
+          tenantId,
           deployedService.metadata.id,
           WorkerType.MANAGED,
         ),

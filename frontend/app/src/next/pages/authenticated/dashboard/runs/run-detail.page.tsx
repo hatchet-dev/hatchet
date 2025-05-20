@@ -9,7 +9,6 @@ import {
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useTenant } from '@/next/hooks/use-tenant';
-import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { MdOutlineReplay } from 'react-icons/md';
@@ -63,7 +62,7 @@ type RunDetailPageProps = {
 };
 
 function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
@@ -110,7 +109,7 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
 
     if (parentData) {
       const parentUrl = ROUTES.runs.detail(
-        tenant?.metadata.id || '',
+        tenantId,
         parentData.run.metadata.id,
       );
       breadcrumbs.push({
@@ -128,18 +127,14 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       label: <RunId wfRun={workflow} />,
       url:
         selectedTask?.metadata.id === workflow?.metadata.id
-          ? ROUTES.runs.detail(tenant?.metadata.id || '', workflow.metadata.id)
-          : ROUTES.runs.detailWithSheet(
-              tenant?.metadata.id || '',
-              workflow.metadata.id,
-              {
-                type: 'task-detail',
-                props: {
-                  selectedWorkflowRunId: workflow.metadata.id,
-                  selectedTaskId: selectedTask?.taskExternalId,
-                },
+          ? ROUTES.runs.detail(tenantId, workflow.metadata.id)
+          : ROUTES.runs.detailWithSheet(tenantId, workflow.metadata.id, {
+              type: 'task-detail',
+              props: {
+                selectedWorkflowRunId: workflow.metadata.id,
+                selectedTaskId: selectedTask?.taskExternalId,
               },
-            ),
+            }),
       icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
       alwaysShowIcon: true,
     });
@@ -272,18 +267,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
       </div>
     );
   }
-
-  // wrong tenant selected error
-  if (tenant?.metadata.id !== workflow.tenantId) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 p-4">
-        {workflow?.tenantId && (
-          <WrongTenant desiredTenantId={workflow.tenantId} />
-        )}
-      </div>
-    );
-  }
-
   const Timing = () => {
     const timings: JSX.Element[] = [
       <span key="created" className="flex items-center gap-2">

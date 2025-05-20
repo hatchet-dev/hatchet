@@ -39,7 +39,7 @@ function LessonContent<
     codeBlocksRef,
     stepCardsRef,
   } = useLesson();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const steps = Object.entries(lesson.steps).map(([key, step], stepIndex) => {
     const typedStep = step as LessonStep;
@@ -121,7 +121,7 @@ function LessonContent<
                   </div>
 
                   <div className="flex gap-2 items-center">
-                    <Link to={ROUTES.runs.list(tenant?.metadata.id || '')}>
+                    <Link to={ROUTES.runs.list(tenantId)}>
                       <Button variant="ghost">Skip Tutorial</Button>
                     </Link>
                     <Button

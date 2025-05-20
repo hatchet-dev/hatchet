@@ -202,7 +202,7 @@ export function Waterfall({
   const {
     timings: { data: taskData, isLoading, error: isError, depth, setDepth },
   } = useRunDetail();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   // Process and memoize task relationships to allow collapsing all descendants
   const taskRelationships = useMemo(() => {
@@ -672,17 +672,13 @@ export function Waterfall({
             {workflowRunId === task.workflowRunId ? (
               task.parentId ? (
                 <Link
-                  to={ROUTES.runs.detailWithSheet(
-                    tenant?.metadata.id || '',
-                    task.parentId,
-                    {
-                      type: 'task-detail',
-                      props: {
-                        selectedWorkflowRunId: task.workflowRunId,
-                        selectedTaskId: task.id,
-                      },
+                  to={ROUTES.runs.detailWithSheet(tenantId, task.parentId, {
+                    type: 'task-detail',
+                    props: {
+                      selectedWorkflowRunId: task.workflowRunId,
+                      selectedTaskId: task.id,
                     },
-                  )}
+                  })}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Button
@@ -707,7 +703,7 @@ export function Waterfall({
             ) : (
               <Link
                 to={ROUTES.runs.detailWithSheet(
-                  tenant?.metadata.id || '',
+                  tenantId,
                   task.workflowRunId || task.id,
                   {
                     type: 'task-detail',

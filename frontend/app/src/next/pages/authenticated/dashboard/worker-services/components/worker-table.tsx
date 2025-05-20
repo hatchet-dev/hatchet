@@ -70,7 +70,7 @@ export const TableRowSkeleton = () => (
 export function WorkerTable({ serviceName }: WorkerTableProps) {
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const navigate = useNavigate();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const {
     services,
@@ -176,7 +176,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   const handleWorkerClick = (workerId: string) => {
     navigate(
       ROUTES.services.workerDetail(
-        tenant?.metadata.id || '',
+        tenantId,
         encodeURIComponent(serviceName),
         workerId,
         service?.type || WorkerType.SELFHOSTED,

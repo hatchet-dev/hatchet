@@ -48,14 +48,14 @@ export function useIngestors() {
 }
 
 function IngestorsProviderContent({ children }: IngestorsProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const { toast } = useToast();
 
   const listSNSIntegrationsQuery = useQuery({
-    queryKey: ['sns:list', tenant],
+    queryKey: ['sns:list', tenantId],
     queryFn: async () => {
       try {
-        return (await api.snsList(tenant?.metadata.id || '')).data;
+        return (await api.snsList(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error fetching SNS integrations',
@@ -72,10 +72,10 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
   });
 
   const createSNSIntegrationMutation = useMutation({
-    mutationKey: ['sns:create', tenant],
+    mutationKey: ['sns:create', tenantId],
     mutationFn: async (data: CreateSNSIntegrationRequest) => {
       try {
-        const res = await api.snsCreate(tenant?.metadata.id || '', data);
+        const res = await api.snsCreate(tenantId, data);
         return res.data;
       } catch (error) {
         toast({
@@ -93,7 +93,7 @@ function IngestorsProviderContent({ children }: IngestorsProviderProps) {
   });
 
   const deleteSNSIntegrationMutation = useMutation({
-    mutationKey: ['sns:delete', tenant],
+    mutationKey: ['sns:delete', tenantId],
     mutationFn: async (snsIntegration: SNSIntegration) => {
       try {
         await api.snsDelete(snsIntegration.metadata.id);

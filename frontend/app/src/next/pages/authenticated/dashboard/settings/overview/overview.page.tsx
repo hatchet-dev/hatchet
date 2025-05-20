@@ -28,15 +28,7 @@ import { ROUTES } from '@/next/lib/routes';
 import useApiMeta from '@/next/hooks/use-api-meta';
 
 export default function SettingsOverviewPage() {
-  const { tenant } = useTenant();
   const { isCloud } = useApiMeta();
-  if (!tenant) {
-    return (
-      <div className="flex-grow h-full w-full flex items-center justify-center">
-        <p>Loading tenant information...</p>
-      </div>
-    );
-  }
 
   return (
     <BasicLayout>

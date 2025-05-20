@@ -71,7 +71,7 @@ function GithubIntegrationProviderContent({
   children,
   initialInstallationId,
 }: PropsWithChildren<{ initialInstallationId?: string }>) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const { handleApiError } = useApiError({});
   const { toast } = useToast();
   const { isCloud } = useApiMeta();
@@ -84,14 +84,11 @@ function GithubIntegrationProviderContent({
 
   // List installations query
   const listInstallationsQuery = useQuery({
-    queryKey: ['github-app:list:installations', tenant?.metadata.id],
+    queryKey: ['github-app:list:installations', tenantId],
     queryFn: async () => {
-      if (!tenant?.metadata.id) {
-        return { rows: [] };
-      }
       try {
         const res = await cloudApi.githubAppListInstallations({
-          tenant: tenant.metadata.id,
+          tenant: tenantId,
         });
         return res.data;
       } catch (error) {
@@ -104,23 +101,19 @@ function GithubIntegrationProviderContent({
         return { rows: [] };
       }
     },
-    enabled: !!tenant?.metadata.id && isCloud,
+    enabled: !!isCloud,
   });
 
   // List repos query
   const listReposQuery = useQuery({
-    queryKey: [
-      'github-app:list:repos',
-      tenant?.metadata.id,
-      selectedInstallation,
-    ],
+    queryKey: ['github-app:list:repos', tenantId, selectedInstallation],
     queryFn: async () => {
-      if (!tenant?.metadata.id || !selectedInstallation) {
+      if (!selectedInstallation) {
         return [];
       }
       try {
         const res = await cloudApi.githubAppListRepos(selectedInstallation, {
-          tenant: tenant.metadata.id,
+          tenant: tenantId,
         });
         return res.data;
       } catch (error) {
@@ -133,21 +126,20 @@ function GithubIntegrationProviderContent({
         return [];
       }
     },
-    enabled: isCloud && !!tenant?.metadata.id && !!selectedInstallation,
+    enabled: isCloud && !!selectedInstallation,
   });
 
   // List branches query
   const listBranchesQuery = useQuery({
     queryKey: [
       'github-app:list:branches',
-      tenant?.metadata.id,
+      tenantId,
       selectedInstallation,
       selectedRepo?.repo_owner,
       selectedRepo?.repo_name,
     ],
     queryFn: async () => {
       if (
-        !tenant?.metadata.id ||
         !selectedInstallation ||
         !selectedRepo?.repo_owner ||
         !selectedRepo?.repo_name
@@ -160,7 +152,7 @@ function GithubIntegrationProviderContent({
           selectedRepo.repo_owner,
           selectedRepo.repo_name,
           {
-            tenant: tenant.metadata.id,
+            tenant: tenantId,
           },
         );
         return res.data;
@@ -176,7 +168,6 @@ function GithubIntegrationProviderContent({
     },
     enabled:
       isCloud &&
-      !!tenant?.metadata.id &&
       !!selectedInstallation &&
       !!selectedRepo?.repo_owner &&
       !!selectedRepo?.repo_name,
@@ -184,11 +175,11 @@ function GithubIntegrationProviderContent({
 
   // Link installation mutation
   const linkInstallationMutation = useMutation({
-    mutationKey: ['github-app:update:installation', tenant?.metadata.id],
+    mutationKey: ['github-app:update:installation', tenantId],
     mutationFn: async (installationId: string) => {
       try {
         await cloudApi.githubAppUpdateInstallation(installationId, {
-          tenant: tenant!.metadata.id,
+          tenant: tenantId,
         });
       } catch (error) {
         toast({

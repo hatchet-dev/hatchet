@@ -22,16 +22,13 @@ interface RevokeInviteFormProps {
 }
 
 export function RevokeInviteForm({ invite, close }: RevokeInviteFormProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const { refetchInvites } = useMembers();
   const [error, setError] = useState<string | null>(null);
 
   const revokeMutation = useMutation({
     mutationFn: async () => {
-      if (!tenant?.metadata.id) {
-        return;
-      }
-      await api.tenantInviteDelete(tenant.metadata.id, invite.metadata.id);
+      await api.tenantInviteDelete(tenantId, invite.metadata.id);
     },
     onSuccess: () => {
       refetchInvites();

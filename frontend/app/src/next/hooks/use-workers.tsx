@@ -83,25 +83,17 @@ function WorkersProviderContent({
   children,
   refetchInterval,
 }: WorkersProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const filters = useFilters<WorkersFilters>();
   const pagination = usePagination();
   const { toast } = useToast();
 
   const listWorkersQuery = useQuery({
-    queryKey: ['worker:list', tenant, filters.filters, pagination],
+    queryKey: ['worker:list', tenantId, filters.filters, pagination],
     queryFn: async () => {
-      if (!tenant) {
-        return {
-          rows: [],
-          pagination: { current_page: 0, num_pages: 0 },
-          services: [],
-        };
-      }
-
       try {
-        const res = await api.workerList(tenant?.metadata.id || '');
+        const res = await api.workerList(tenantId);
 
         const sorted = (res?.data?.rows || []).sort((a, b) => {
           const aCreatedAt = new Date(a.metadata.createdAt);
@@ -248,11 +240,8 @@ function WorkersProviderContent({
   });
 
   const updateWorkerMutation = useMutation({
-    mutationKey: ['worker:update', tenant],
+    mutationKey: ['worker:update', tenantId],
     mutationFn: async ({ workerId, data }: UpdateWorkerParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
       try {
         const res = await api.workerUpdate(workerId, data);
         return res.data;
@@ -273,16 +262,12 @@ function WorkersProviderContent({
 
   // Bulk update mutation
   const bulkUpdateWorkersMutation = useMutation({
-    mutationKey: ['worker:bulkUpdate', tenant],
+    mutationKey: ['worker:bulkUpdate', tenantId],
     mutationFn: async ({
       workerIds,
       data,
       serviceName,
     }: BulkUpdateWorkersParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       // If service name is provided, get all worker IDs for that service
       let targetWorkerIds = workerIds;
       if (serviceName && !workerIds.length) {

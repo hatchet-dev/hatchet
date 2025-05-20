@@ -23,19 +23,16 @@ interface RemoveMemberFormProps {
 }
 
 export function RemoveMemberForm({ member, close }: RemoveMemberFormProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const [error, setError] = useState<string | null>(null);
   const { canWithReason } = useCan();
 
   const { allowed: canRemove, message } = canWithReason(members.remove(member));
 
   const mutation = useMutation({
-    mutationKey: ['remove-member', tenant?.metadata.id, member.metadata.id],
+    mutationKey: ['remove-member', tenantId, member.metadata.id],
     mutationFn: async () => {
-      if (!tenant?.metadata.id) {
-        throw new Error('No tenant selected');
-      }
-      await api.tenantMemberDelete(tenant.metadata.id, member.metadata.id);
+      await api.tenantMemberDelete(tenantId, member.metadata.id);
     },
     onSuccess: () => {
       close();

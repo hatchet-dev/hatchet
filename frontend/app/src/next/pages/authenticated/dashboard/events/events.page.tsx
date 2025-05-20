@@ -19,7 +19,6 @@ import {
 import RelativeDate from '@/next/components/ui/relative-date';
 import { Separator } from '@/next/components/ui/separator';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
-import { useTenant } from '@/next/hooks/use-tenant';
 import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
@@ -27,17 +26,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Link } from 'react-router-dom';
 
 function EventsContent() {
-  const { tenant } = useTenant();
-
   const { data, isLoading } = useEvents();
-
-  if (!tenant) {
-    return (
-      <div className="flex-grow h-full w-full flex items-center justify-center">
-        <p>Loading tenant information...</p>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (

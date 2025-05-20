@@ -27,7 +27,7 @@ export type NodeData = {
 // eslint-disable-next-line react/display-name
 export default memo(({ data }: { data: NodeData }) => {
   const variant = data.graphVariant;
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">
@@ -87,7 +87,7 @@ export default memo(({ data }: { data: NodeData }) => {
       {data.childWorkflowsCount && data.taskRun ? (
         <Link
           to={{
-            pathname: ROUTES.runs.list(tenant?.metadata.id || ''),
+            pathname: ROUTES.runs.list(tenantId),
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
               // [queryParamNames.parentTaskExternalId]: data.taskRun.metadata.id,

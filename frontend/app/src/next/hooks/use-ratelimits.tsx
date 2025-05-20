@@ -36,23 +36,14 @@ export function RateLimitsProvider({
 
 function RateLimitsProviderContent({ children }: PropsWithChildren) {
   const pagination = usePagination();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const { toast } = useToast();
 
   const listRateLimitsQuery = useQuery({
-    queryKey: ['rate-limit:list', tenant, pagination],
+    queryKey: ['rate-limit:list', tenantId, pagination],
     queryFn: async () => {
-      if (!tenant) {
-        const p = {
-          rows: [],
-          pagination: { current_page: 0, num_pages: 0 },
-        };
-        pagination.setNumPages(p.pagination.num_pages);
-        return p;
-      }
-
       try {
-        const res = await api.rateLimitList(tenant?.metadata.id || '', {
+        const res = await api.rateLimitList(tenantId, {
           limit: pagination.pageSize || 10,
           offset: (pagination.currentPage - 1) * pagination.pageSize || 0,
         });

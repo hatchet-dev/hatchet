@@ -46,7 +46,7 @@ const SectionActions = ({
   onRevert,
   onDeploy,
 }: SectionActionsProps) => {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   if (!canUpdate) {
     return (
       <Alert variant="warning">
@@ -56,10 +56,7 @@ const SectionActions = ({
         </AlertTitle>
         <AlertDescription>
           Your connected{' '}
-          <Link
-            to={ROUTES.settings.github(tenant?.metadata.id || '')}
-            className="underline"
-          >
+          <Link to={ROUTES.settings.github(tenantId)} className="underline">
             GitHub app
           </Link>{' '}
           must have push permissions to the managed service's repository.
@@ -87,7 +84,7 @@ export function UpdateServiceContent() {
   const navigate = useNavigate();
   const { data: service } = useManagedComputeDetail();
   const { update, delete: deleteService } = useManagedCompute();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
@@ -182,7 +179,7 @@ export function UpdateServiceContent() {
       });
 
       const to = ROUTES.services.detail(
-        tenant?.metadata.id || '',
+        tenantId,
         service?.metadata?.id || '',
         WorkerType.MANAGED,
         ManagedServiceDetailTabs.BUILDS,
@@ -196,7 +193,7 @@ export function UpdateServiceContent() {
 
   const handleDelete = async (serviceId: string) => {
     await deleteService.mutateAsync(serviceId);
-    navigate(ROUTES.services.list(tenant?.metadata.id || ''));
+    navigate(ROUTES.services.list(tenantId));
   };
 
   const canUpdate = service?.canUpdate;

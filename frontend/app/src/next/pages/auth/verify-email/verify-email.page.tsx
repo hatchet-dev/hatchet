@@ -17,7 +17,7 @@ export default function VerifyEmailPage() {
   const user = useUser({
     refetchInterval: retryInterval,
   });
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const [countdown, setCountdown] = useState<number | null>(null);
 
@@ -44,7 +44,7 @@ export default function VerifyEmailPage() {
 
   // once the email is verified, redirect to the home page
   if (user.data?.emailVerified) {
-    return <Navigate to={ROUTES.runs.list(tenant?.metadata.id || '')} />;
+    return <Navigate to={ROUTES.runs.list(tenantId)} />;
   }
 
   return (

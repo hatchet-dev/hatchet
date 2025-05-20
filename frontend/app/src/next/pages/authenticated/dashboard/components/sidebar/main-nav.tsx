@@ -46,7 +46,10 @@ type NavStructure = {
   navSecondary: NavItem[];
 };
 
-export const getMainNavLinks = (currentPath: string): NavStructure => {
+export const getMainNavLinks = (
+  tenantId: string,
+  currentPath: string,
+): NavStructure => {
   const isActive = (path: string) => currentPath.startsWith(path);
 
   return {
@@ -56,15 +59,15 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Runs',
-            url: ROUTES.runs.list(':tenantId'),
+            url: ROUTES.runs.list(tenantId),
             icon: Play,
-            isActive: isActive(ROUTES.runs.list(':tenantId')),
+            isActive: isActive(ROUTES.runs.list(tenantId)),
           },
           {
             title: 'Events',
-            url: ROUTES.events.list(':tenantId'),
+            url: ROUTES.events.list(tenantId),
             icon: SquareActivity,
-            isActive: isActive(ROUTES.events.list(':tenantId')),
+            isActive: isActive(ROUTES.events.list(tenantId)),
           },
         ],
       },
@@ -73,15 +76,15 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Scheduled Runs',
-            url: ROUTES.scheduled.list(':tenantId'),
+            url: ROUTES.scheduled.list(tenantId),
             icon: Calendar,
-            isActive: isActive(ROUTES.scheduled.list(':tenantId')),
+            isActive: isActive(ROUTES.scheduled.list(tenantId)),
           },
           {
             title: 'Cron Jobs',
-            url: ROUTES.crons.list(':tenantId'),
+            url: ROUTES.crons.list(tenantId),
             icon: Clock,
-            isActive: isActive(ROUTES.crons.list(':tenantId')),
+            isActive: isActive(ROUTES.crons.list(tenantId)),
           },
         ],
       },
@@ -90,21 +93,21 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'Tasks & Workflows',
-            url: ROUTES.workflows.list(':tenantId'),
+            url: ROUTES.workflows.list(tenantId),
             icon: Code,
-            isActive: isActive(ROUTES.workflows.list(':tenantId')),
+            isActive: isActive(ROUTES.workflows.list(tenantId)),
           },
           {
             title: 'Worker Services',
-            url: ROUTES.services.list(':tenantId'),
+            url: ROUTES.services.list(tenantId),
             icon: Cpu,
-            isActive: isActive(ROUTES.services.list(':tenantId')),
+            isActive: isActive(ROUTES.services.list(tenantId)),
           },
           {
             title: 'Rate Limits',
-            url: ROUTES.rateLimits.list(':tenantId'),
+            url: ROUTES.rateLimits.list(tenantId),
             icon: Scale,
-            isActive: isActive(ROUTES.rateLimits.list(':tenantId')),
+            isActive: isActive(ROUTES.rateLimits.list(tenantId)),
           },
         ],
       },
@@ -113,54 +116,54 @@ export const getMainNavLinks = (currentPath: string): NavStructure => {
         items: [
           {
             title: 'API Tokens',
-            url: ROUTES.settings.apiTokens(':tenantId'),
+            url: ROUTES.settings.apiTokens(tenantId),
             icon: Key,
-            isActive: isActive(ROUTES.settings.apiTokens(':tenantId')),
+            isActive: isActive(ROUTES.settings.apiTokens(tenantId)),
           },
           {
             title: 'Team',
-            url: ROUTES.settings.team(':tenantId'),
+            url: ROUTES.settings.team(tenantId),
             icon: Users,
-            isActive: isActive(ROUTES.settings.team(':tenantId')),
+            isActive: isActive(ROUTES.settings.team(tenantId)),
           },
           {
             title: 'More Settings',
-            url: FEATURES_BASE_PATH.settings(':tenantId'),
+            url: FEATURES_BASE_PATH.settings(tenantId),
             icon: Settings,
             isActive:
-              isActive(FEATURES_BASE_PATH.settings(':tenantId')) &&
-              !isActive(ROUTES.settings.apiTokens(':tenantId')) &&
-              !isActive(ROUTES.settings.team(':tenantId')),
+              isActive(FEATURES_BASE_PATH.settings(tenantId)) &&
+              !isActive(ROUTES.settings.apiTokens(tenantId)) &&
+              !isActive(ROUTES.settings.team(tenantId)),
             items: [
               {
                 title: 'Tenant Settings',
-                url: ROUTES.settings.overview(':tenantId'),
+                url: ROUTES.settings.overview(tenantId),
                 icon: UsersIcon,
-                isActive: isActive(ROUTES.settings.overview(':tenantId')),
+                isActive: isActive(ROUTES.settings.overview(tenantId)),
               },
               {
                 title: 'Github',
-                url: ROUTES.settings.github(':tenantId'),
+                url: ROUTES.settings.github(tenantId),
                 icon: Github,
-                isActive: isActive(ROUTES.settings.github(':tenantId')),
+                isActive: isActive(ROUTES.settings.github(tenantId)),
               },
               {
                 title: 'Billing & Usage',
-                url: ROUTES.settings.usage(':tenantId'),
+                url: ROUTES.settings.usage(tenantId),
                 icon: Scale,
-                isActive: isActive(ROUTES.settings.usage(':tenantId')),
+                isActive: isActive(ROUTES.settings.usage(tenantId)),
               },
               {
                 title: 'Alerting',
-                url: ROUTES.settings.alerting(':tenantId'),
+                url: ROUTES.settings.alerting(tenantId),
                 icon: AlertTriangle,
-                isActive: isActive(ROUTES.settings.alerting(':tenantId')),
+                isActive: isActive(ROUTES.settings.alerting(tenantId)),
               },
               {
                 title: 'Ingestors',
-                url: ROUTES.settings.ingestors(':tenantId'),
+                url: ROUTES.settings.ingestors(tenantId),
                 icon: Database,
-                isActive: isActive(ROUTES.settings.ingestors(':tenantId')),
+                isActive: isActive(ROUTES.settings.ingestors(tenantId)),
               },
             ],
           },

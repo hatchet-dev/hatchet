@@ -49,7 +49,7 @@ function WorkerDetailProviderContent({
   const workerDetailQuery = useQuery({
     queryKey: ['worker:detail', tenant, workerId],
     queryFn: async () => {
-      if (!tenant || !workerId) {
+      if (!workerId) {
         return undefined;
       }
 
@@ -72,9 +72,6 @@ function WorkerDetailProviderContent({
   const updateWorkerMutation = useMutation({
     mutationKey: ['worker:update', tenant, workerId],
     mutationFn: async ({ workerId, data }: UpdateWorkerParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
       try {
         const res = await api.workerUpdate(workerId, data);
         return res.data;

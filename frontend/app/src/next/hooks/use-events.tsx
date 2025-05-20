@@ -33,17 +33,17 @@ export function useEvents() {
 }
 
 function EventsProviderContent({ children }: EventsProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const pagination = usePagination();
   const filters = useFilters<EventsFilters>();
 
   const eventsQuery = useQuery({
-    queryKey: ['v1:events:list', tenant, pagination, filters],
+    queryKey: ['v1:events:list', tenantId, pagination, filters],
     queryFn: async () => {
       try {
         return (
-          await api.v1EventList(tenant?.metadata.id || '', {
+          await api.v1EventList(tenantId, {
             offset: pagination.pageSize * (pagination.currentPage - 1),
             limit: pagination.pageSize,
             keys: filters.filters.keys,
@@ -63,9 +63,9 @@ function EventsProviderContent({ children }: EventsProviderProps) {
 
   const invalidate = useCallback(async () => {
     await queryClient.invalidateQueries({
-      queryKey: ['v1:events:list', tenant, pagination, filters],
+      queryKey: ['v1:events:list', tenantId, pagination, filters],
     });
-  }, [queryClient, tenant?.metadata.id, pagination, filters]);
+  }, [queryClient, tenantId, pagination, filters]);
 
   const value = useMemo(
     () => ({

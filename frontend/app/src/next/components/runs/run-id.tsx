@@ -31,17 +31,14 @@ export function RunId({
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const url = !isTaskRun
-    ? ROUTES.runs.detail(
-        tenant?.metadata.id || '',
-        wfRun?.metadata.id || id || '',
-      )
+    ? ROUTES.runs.detail(tenantId, wfRun?.metadata.id || id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
       : ROUTES.runs.detailWithSheet(
-          tenant?.metadata.id || '',
+          tenantId,
           taskRun?.workflowRunExternalId || '',
           {
             type: 'task-detail',

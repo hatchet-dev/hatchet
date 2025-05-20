@@ -36,7 +36,7 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
     data: runs,
     filters: { setFilter },
   } = useRuns();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const definitionId = useMemo(
     () => definitions?.find((d) => d.name === name)?.metadata.id,
@@ -50,8 +50,8 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
   }, [definitionId, setFilter]);
 
   useEffect(() => {
-    if (runs?.length > 0 && tenant?.metadata.id) {
-      onRun?.(ROUTES.runs.detail(tenant?.metadata.id, runs[0].metadata.id));
+    if (runs?.length > 0) {
+      onRun?.(ROUTES.runs.detail(tenantId, runs[0].metadata.id));
     }
   }, [runs, onRun]);
 
@@ -87,14 +87,12 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
         defaultInput={JSON.stringify(input)}
         disabledCapabilities={['timing', 'fromRecent', 'additionalMeta']}
         onRun={(run) => {
-          if (tenant?.metadata.id) {
-            onRun?.(
-              ROUTES.runs.detail(
-                tenant.metadata.id,
-                (run as V1WorkflowRunDetails).run.metadata.id,
-              ),
-            );
-          }
+          onRun?.(
+            ROUTES.runs.detail(
+              tenantId,
+              (run as V1WorkflowRunDetails).run.metadata.id,
+            ),
+          );
           setShowTriggerModal(false);
         }}
       />

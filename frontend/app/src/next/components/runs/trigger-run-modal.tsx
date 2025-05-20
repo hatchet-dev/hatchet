@@ -122,7 +122,7 @@ function TriggerRunModalContent({
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<
     string | undefined
   >(defaultWorkflowId);
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const { data: recentRuns, triggerNow } = useRuns();
 
@@ -201,10 +201,7 @@ function TriggerRunModalContent({
               onRun(workflowRun);
             } else {
               navigate(
-                ROUTES.runs.detail(
-                  tenant?.metadata.id || '',
-                  workflowRun.run.metadata.id,
-                ),
+                ROUTES.runs.detail(tenantId, workflowRun.run.metadata.id),
               );
             }
           },
@@ -235,7 +232,7 @@ function TriggerRunModalContent({
             if (onRun) {
               onRun(schedule);
             } else {
-              navigate(ROUTES.scheduled.list(tenant?.metadata.id || ''));
+              navigate(ROUTES.scheduled.list(tenantId));
             }
           },
           onError: (error: any) => {
@@ -272,7 +269,7 @@ function TriggerRunModalContent({
             if (onRun) {
               onRun(cron);
             } else {
-              navigate(ROUTES.crons.list(tenant?.metadata.id || ''));
+              navigate(ROUTES.crons.list(tenantId));
             }
           },
           onError: (error: any) => {

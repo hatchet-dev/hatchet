@@ -68,10 +68,10 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const { data: user, memberships } = useUser();
   const chat = useSupportChat();
-  const { tenant, setTenant } = useTenant();
+  const { tenant, setTenant, tenantId } = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
-  const navLinks = getMainNavLinks(location.pathname);
+  const navLinks = getMainNavLinks(tenantId, location.pathname);
   const { toggleSidebar, isCollapsed, isMobile, setOpenMobile } = useSidebar();
   const docs = useDocs();
   const [collapsibleState, setCollapsibleState] = useState<
@@ -105,7 +105,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
 
   const supportReference = useMemo(() => {
     return `ver: ${meta?.version}
-tenantId: ${tenant?.metadata.id}
+tenantId: ${tenantId}
 userId: ${user?.metadata.id}
 email: ${user?.email}
 name: ${user?.name}`;
@@ -343,7 +343,7 @@ name: ${user?.name}`;
                     setOpenTenant(false);
                   }}
                 >
-                  {membership.tenant?.metadata.id === tenant?.metadata.id && (
+                  {membership.tenant?.metadata.id === tenantId && (
                     <CheckIcon className="h-4 w-4 mr-2" />
                   )}
                   <span>{membership.tenant?.name}</span>

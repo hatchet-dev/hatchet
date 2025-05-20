@@ -86,7 +86,7 @@ function ManagedComputeProviderContent({
   refetchInterval,
 }: ManagedComputeProviderProps) {
   const { cloud, isCloud } = useApiMeta();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const filters = useFilters<ManagedComputeFilters>();
   const pagination = usePagination();
   const { toast } = useToast();
@@ -94,7 +94,7 @@ function ManagedComputeProviderContent({
   const listManagedComputeQuery = useQuery({
     queryKey: [
       'managed-compute:list',
-      tenant,
+      tenantId,
       filters.filters.search,
       filters.filters.sortBy,
       filters.filters.sortDirection,
@@ -104,7 +104,7 @@ function ManagedComputeProviderContent({
       pagination.pageSize,
     ],
     queryFn: async () => {
-      if (!cloud || !tenant) {
+      if (!cloud) {
         return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
       }
 
@@ -120,7 +120,7 @@ function ManagedComputeProviderContent({
           queryParams.orderDirection = filters.filters.sortDirection || 'asc';
         }
 
-        const res = await cloudApi.managedWorkerList(tenant?.metadata.id || '');
+        const res = await cloudApi.managedWorkerList(tenantId);
 
         // Client-side filtering for search if API doesn't support it
         let filteredRows = res.data.rows || [];
@@ -198,12 +198,8 @@ function ManagedComputeProviderContent({
 
   // Create implementation
   const createManagedComputeMutation = useMutation({
-    mutationKey: ['managed-compute:create', tenant],
+    mutationKey: ['managed-compute:create', tenantId],
     mutationFn: async ({ data }: CreateManagedComputeParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         // Validate that only one of numReplicas or autoscaling is set
         if (data.runtimeConfig?.autoscaling) {
@@ -212,10 +208,7 @@ function ManagedComputeProviderContent({
           data.runtimeConfig.autoscaling = undefined;
         }
 
-        const res = await cloudApi.managedWorkerCreate(
-          tenant.metadata.id,
-          data,
-        );
+        const res = await cloudApi.managedWorkerCreate(tenantId, data);
         return res.data;
       } catch (error) {
         toast({
@@ -234,15 +227,11 @@ function ManagedComputeProviderContent({
 
   // Update implementation
   const updateManagedComputeMutation = useMutation({
-    mutationKey: ['managed-compute:update', tenant],
+    mutationKey: ['managed-compute:update', tenantId],
     mutationFn: async ({
       managedWorkerId,
       data,
     }: UpdateManagedComputeParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         // Validate that only one of numReplicas or autoscaling is set
         if (data.runtimeConfig?.autoscaling) {
@@ -270,12 +259,8 @@ function ManagedComputeProviderContent({
 
   // Delete implementation
   const deleteManagedComputeMutation = useMutation({
-    mutationKey: ['managed-compute:delete', tenant],
+    mutationKey: ['managed-compute:delete', tenantId],
     mutationFn: async (managedWorkerId: string) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         const res = await cloudApi.managedWorkerDelete(managedWorkerId);
         return res.data;
@@ -295,14 +280,10 @@ function ManagedComputeProviderContent({
   });
 
   const costsQuery = useQuery({
-    queryKey: ['managed-compute:costs', tenant],
+    queryKey: ['managed-compute:costs', tenantId],
     queryFn: async () => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
-        return (await cloudApi.computeCostGet(tenant.metadata.id)).data;
+        return (await cloudApi.computeCostGet(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error fetching compute costs',

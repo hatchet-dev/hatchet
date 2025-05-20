@@ -8,10 +8,12 @@ import useUser from './use-user';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from './utils/use-toast';
+import invariant from 'tiny-invariant';
 
 export function useTenant() {
   const params = useParams();
   const tenantId = params.tenantId;
+  invariant(tenantId, 'tenantId is required');
 
   const { memberships, isLoading: isUserLoading } = useUser();
   const queryClient = useQueryClient();
@@ -20,10 +22,6 @@ export function useTenant() {
   const navigate = useNavigate();
 
   const setTenant = useCallback((tenantId?: string) => {
-    if (!tenantId) {
-      return;
-    }
-
     const currentPath = location.pathname;
 
     const newPath = currentPath.replace(

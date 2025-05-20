@@ -39,7 +39,7 @@ export enum ManagedServiceDetailTabs {
 
 function ServiceDetailPageContent() {
   const { data: service } = useManagedComputeDetail();
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   const breadcrumb = useBreadcrumbs();
 
@@ -49,7 +49,7 @@ function ServiceDetailPageContent() {
         title: 'Worker Services',
         label: service?.name || '',
         url: ROUTES.services.detail(
-          tenant?.metadata.id || '',
+          tenantId,
           encodeURIComponent(service?.metadata?.id || ''),
           WorkerType.MANAGED,
         ),

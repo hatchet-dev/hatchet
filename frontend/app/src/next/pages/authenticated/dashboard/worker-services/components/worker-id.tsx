@@ -21,7 +21,7 @@ export function WorkerId({
   serviceName,
   onClick,
 }: WorkerIdProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const worker = providedWorker;
 
   const name = useMemo(() => {
@@ -33,7 +33,7 @@ export function WorkerId({
 
   const url = worker
     ? ROUTES.services.workerDetail(
-        tenant?.metadata.id || '',
+        tenantId,
         serviceName,
         worker.metadata.id,
         worker.type,

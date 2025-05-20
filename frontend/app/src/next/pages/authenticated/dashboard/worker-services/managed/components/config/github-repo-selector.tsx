@@ -60,7 +60,7 @@ export function GithubRepoSelector({
   const [openInstallation, setOpenInstallation] = useState(false);
   const [openRepo, setOpenRepo] = useState(false);
   const [openBranch, setOpenBranch] = useState(false);
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
 
   // Set default installation on first mount
   useEffect(() => {
@@ -155,10 +155,7 @@ export function GithubRepoSelector({
         <CardDescription>
           Select the GitHub repository you want to use for your worker service.
           If you don't see the repository you want to use, please update your{' '}
-          <Link
-            to={ROUTES.settings.github(tenant?.metadata.id || '')}
-            className="underline"
-          >
+          <Link to={ROUTES.settings.github(tenantId)} className="underline">
             GitHub integration
           </Link>
           .

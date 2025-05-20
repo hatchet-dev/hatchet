@@ -22,20 +22,15 @@ interface UseDefinitionsOptions {
 export default function useDefinitions({
   pagination = PaginationManagerNoOp,
 }: UseDefinitionsOptions = {}): DefinitionsState {
-  const { tenant } = useTenant();
+  const { tenantId } = useTenant();
   const { toast } = useToast();
 
   const listDefinitionsQuery = useQuery({
-    queryKey: ['definition:list', tenant, pagination],
+    queryKey: ['definition:list', tenantId, pagination],
     queryFn: async () => {
-      if (!tenant) {
-        pagination?.setNumPages(1);
-        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
-      }
-
       try {
         // Fetch workflow list as a basis for definitions
-        const res = await api.workflowList(tenant?.metadata.id || '');
+        const res = await api.workflowList(tenantId);
 
         if (!res.data.rows) {
           return {
