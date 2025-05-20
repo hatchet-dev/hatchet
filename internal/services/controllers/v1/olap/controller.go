@@ -175,21 +175,21 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		time.Second*30,
 		"update task statuses",
 		o.updateTaskStatuses,
-	).WithJitter(200 * time.Millisecond)
+	).WithJitter(1500 * time.Millisecond)
 
 	o.updateDAGStatusOperations = queueutils.NewOperationPool(
 		opts.l,
 		time.Second*30,
 		"update dag statuses",
 		o.updateDAGStatuses,
-	).WithJitter(200 * time.Millisecond)
+	).WithJitter(1500 * time.Millisecond)
 
 	o.processTenantAlertOperations = queueutils.NewOperationPool(
 		opts.l,
 		time.Second*15,
 		"process tenant alerts",
 		o.processTenantAlerts,
-	).WithJitter(200 * time.Millisecond)
+	).WithJitter(1500 * time.Millisecond)
 
 	return o, nil
 }
@@ -226,7 +226,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+		gocron.DurationJob(time.Second*2),
 		gocron.NewTask(
 			o.runTenantTaskStatusUpdates(ctx),
 		),
@@ -238,7 +238,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+		gocron.DurationJob(time.Second*2),
 		gocron.NewTask(
 			o.runTenantDAGStatusUpdates(ctx),
 		),
