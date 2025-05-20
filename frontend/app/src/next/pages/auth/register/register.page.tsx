@@ -10,7 +10,7 @@ import {
 } from '../components/shared-auth-components';
 import useUser from '@/next/hooks/use-user';
 import { ROUTES } from '@/next/lib/routes';
-import { useCurrentTenantId, useTenant } from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 export default function Register() {
   const { oss: meta, isLoading } = useApiMeta();

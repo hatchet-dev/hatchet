@@ -51,6 +51,7 @@ export function useTenant() {
   }, [tenantId, memberships]);
 
   const tenant = membership?.tenant;
+  const defaultTenant = memberships?.[0]?.tenant;
 
   // Mutation for creating a tenant
   const createTenantMutation = useMutation({
@@ -131,6 +132,7 @@ export function useTenant() {
   return {
     tenantId,
     tenant,
+    defaultTenant,
     isLoading: isUserLoading,
     membership: membership?.role,
     setTenant,

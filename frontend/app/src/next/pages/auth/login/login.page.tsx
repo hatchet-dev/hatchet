@@ -11,6 +11,7 @@ import {
 import useUser from '@/next/hooks/use-user';
 import { ROUTES } from '@/next/lib/routes';
 import { useTenant } from '@/next/hooks/use-tenant';
+import { useQueryClient } from '@tanstack/react-query';
 export default function Login() {
   const { oss: meta, isLoading } = useApiMeta();
 
@@ -74,16 +75,27 @@ export default function Login() {
 
 function BasicLogin() {
   const navigate = useNavigate();
-  const { login } = useUser();
-  const { tenant } = useTenant();
+  const { login, memberships } = useUser();
+  const { defaultTenant } = useTenant();
+  const queryClient = useQueryClient();
 
   return (
     <UserLoginForm
       isLoading={login.isPending}
       onSubmit={async (data) => {
         const user = await login.mutateAsync(data);
+        await queryClient.invalidateQueries({
+          queryKey: ['user:memberships:list'],
+        });
+
         if (user) {
-          navigate(ROUTES.runs.list(tenant?.metadata.id || ''));
+          const tenantId =
+            defaultTenant?.metadata.id ||
+            memberships?.at(0)?.tenant?.metadata.id;
+
+          if (tenantId) {
+            navigate(ROUTES.runs.list(defaultTenant?.metadata.id || ''));
+          }
         }
       }}
       apiError={login.error?.message}
