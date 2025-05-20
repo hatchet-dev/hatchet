@@ -56,8 +56,9 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 		Statuses: []sqlcv1.V1ReadableStatusOlap{
 			sqlcv1.V1ReadableStatusOlapFAILED,
 		},
-		CreatedAfter: lastAlerted,
-		Limit:        1000,
+		CreatedAfter:    lastAlerted,
+		Limit:           1000,
+		IncludePayloads: false,
 	})
 
 	if err != nil {

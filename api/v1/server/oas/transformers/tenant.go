@@ -9,12 +9,15 @@ import (
 )
 
 func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
+	uiVersion := gen.TenantUIVersion(tenant.UiVersion)
 	return &gen.Tenant{
 		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenant.ID), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:              tenant.Name,
 		Slug:              tenant.Slug,
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
 		AlertMemberEmails: &tenant.AlertMemberEmails,
+		Version:           gen.TenantVersion(tenant.Version),
+		UiVersion:         &uiVersion,
 	}
 }
 

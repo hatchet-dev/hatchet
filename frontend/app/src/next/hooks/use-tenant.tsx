@@ -139,6 +139,8 @@ export function useTenant() {
     create: createTenantMutation,
     update: {
       mutate: (data: UpdateTenantRequest) => updateTenantMutation.mutate(data),
+      mutateAsync: (data: UpdateTenantRequest) =>
+        updateTenantMutation.mutateAsync(data),
       isPending: updateTenantMutation.isPending,
     },
     limit: resourcePolicyQuery,

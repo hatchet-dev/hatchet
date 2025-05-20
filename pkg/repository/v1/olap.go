@@ -47,6 +47,8 @@ type ListTaskRunOpts struct {
 	Limit int64
 
 	Offset int64
+
+	IncludePayloads bool
 }
 
 type ListWorkflowRunOpts struct {
@@ -69,6 +71,8 @@ type ListWorkflowRunOpts struct {
 	ParentTaskExternalId *pgtype.UUID
 
 	TriggeringEventExternalId *pgtype.UUID
+
+	IncludePayloads bool
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -210,7 +214,7 @@ type OLAPRepository interface {
 	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, []UpdateTaskStatusRow, error)
 	UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
-	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
+	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error)
 
 	// ListTasksByExternalIds returns a list of tasks based on their external ids or the external id of their parent DAG.
@@ -590,6 +594,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	}
 
 	tasksWithData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
+		Includepayloads: opts.IncludePayloads,
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
@@ -612,7 +617,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId string, opt
 	return tasksWithData, int(count), nil
 }
 
-func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
+func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-dag-id-olap")
 	defer span.End()
 
@@ -650,6 +655,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId stri
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: includePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -684,6 +690,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: true,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -798,9 +805,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 	}
 
 	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
-		Ids:         runIdsWithDAGs,
-		Insertedats: runInsertedAtsWithDAGs,
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Ids:             runIdsWithDAGs,
+		Insertedats:     runInsertedAtsWithDAGs,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: opts.IncludePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -819,6 +827,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		Taskids:         runIdsWithTasks,
 		Taskinsertedats: runInsertedAtsWithTasks,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Includepayloads: opts.IncludePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {

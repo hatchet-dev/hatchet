@@ -28,6 +28,8 @@ type UpdateTenantOpts struct {
 	AlertMemberEmails *bool `validate:"omitempty"`
 
 	Version *dbsqlc.NullTenantMajorEngineVersion `validate:"omitempty"`
+
+	UIVersion *dbsqlc.NullTenantMajorUIVersion `validate:"omitempty"`
 }
 
 type CreateTenantMemberOpts struct {

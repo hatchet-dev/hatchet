@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AxiosError } from 'axios';
+
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
 
@@ -88,7 +89,7 @@ const TenantVersionSwitcher = () => {
           Tenant Version
         </h2>
         <p className="text-sm text-muted-foreground">
-          Upgrade your tenant to v1 to access new features and improvements.
+          Upgrade your tenant to V1 to access new features and improvements.
         </p>
         <Button
           onClick={() => setShowUpgradeModal(true)}
@@ -96,21 +97,21 @@ const TenantVersionSwitcher = () => {
           className="w-fit"
         >
           {isPending ? <Spinner /> : null}
-          Upgrade to v1
+          Upgrade to V1
         </Button>
       </div>
 
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Upgrade to v1</DialogTitle>
+            <DialogTitle>Upgrade to V1</DialogTitle>
           </DialogHeader>
           {!upgradeRestrictedError && (
             <div className="space-y-4 py-4">
-              <p className="text-sm">Upgrading your tenant to v1 will:</p>
+              <p className="text-sm">Upgrading your tenant to V1 will:</p>
               <ul className="list-disc list-inside text-sm space-y-2">
-                <li>Enable new v1 features and improvements</li>
-                <li>Redirect you to the v1 interface</li>
+                <li>Enable new V1 features and improvements</li>
+                <li>Redirect you to the V1 interface</li>
               </ul>
               <Alert variant="warn">
                 <AlertTitle>Warning</AlertTitle>
@@ -118,7 +119,7 @@ const TenantVersionSwitcher = () => {
                   This upgrade will not automatically migrate your existing
                   workflows or in-progress runs. To ensure zero downtime during
                   the upgrade, please follow our migration guide which includes
-                  steps for parallel operation of v0 and v1 environments.
+                  steps for parallel operation of V0 and V1 environments.
                 </AlertDescription>
               </Alert>
 
@@ -130,7 +131,7 @@ const TenantVersionSwitcher = () => {
                   rel="noopener noreferrer"
                   className="text-indigo-400 hover:underline"
                 >
-                  v1 preview announcement
+                  V1 preview announcement
                 </a>{' '}
                 before proceeding.
               </p>

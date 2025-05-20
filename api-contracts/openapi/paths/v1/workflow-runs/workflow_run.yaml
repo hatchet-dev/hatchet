@@ -101,6 +101,12 @@ listWorkflowRuns:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+        in: query
+        name: include_payloads
+        required: false
+        schema:
+          type: boolean
     responses:
       "200":
         content:

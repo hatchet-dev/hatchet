@@ -23,6 +23,7 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		ctx.Request().Context(),
 		tenantId,
 		pguuids,
+		true,
 	)
 
 	if err != nil {
