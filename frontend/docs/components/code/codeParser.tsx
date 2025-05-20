@@ -84,16 +84,5 @@ export const parseDocComments = (
     return `🚨 No snippet found for ${target} \n\n${source}`;
   }
 
-  // Shift indentation to the least indented level
-  const nonEmptyLines = resultLines.filter((line) => line.trim() !== "");
-  const indents = nonEmptyLines.map(
-    (line) => line.match(/^(\s*)/)?.[1].length || 0
-  );
-  const minIndent = Math.min(...indents);
-
-  const shiftedLines = resultLines.map((line) =>
-    line.length >= minIndent ? line.slice(minIndent) : line.trimStart()
-  );
-
-  return shiftedLines.join("\n");
+  return resultLines.join("\n");
 };
