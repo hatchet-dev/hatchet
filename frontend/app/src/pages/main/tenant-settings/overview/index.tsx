@@ -2,17 +2,12 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import {
-  createSearchParams,
-  useNavigate,
-  useOutletContext,
-} from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
   queries,
   Tenant,
-  TenantUIVersion,
   TenantVersion,
   UpdateTenantRequest,
 } from '@/lib/api';
@@ -30,13 +25,9 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AxiosError } from 'axios';
-import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
-  const featureFlags = useCloudFeatureFlags(tenant?.metadata.id || '');
-
-  const hasUIVersionFlag =
-    featureFlags?.data['has-ui-version-upgrade-available'] === 'true';
 
   return (
     <div className="flex-grow h-full w-full">
@@ -50,13 +41,6 @@ export default function TenantSettings() {
         <AnalyticsOptOut tenant={tenant} />
         <Separator className="my-4" />
         <TenantVersionSwitcher />
-        {hasUIVersionFlag && (
-          <>
-            {' '}
-            <Separator className="my-4" />
-            <UIVersionSwitcher />
-          </>
-        )}
       </div>
     </div>
   );
@@ -105,7 +89,7 @@ const TenantVersionSwitcher = () => {
           Tenant Version
         </h2>
         <p className="text-sm text-muted-foreground">
-          Upgrade your tenant to v1 to access new features and improvements.
+          Upgrade your tenant to V1 to access new features and improvements.
         </p>
         <Button
           onClick={() => setShowUpgradeModal(true)}
@@ -113,21 +97,21 @@ const TenantVersionSwitcher = () => {
           className="w-fit"
         >
           {isPending ? <Spinner /> : null}
-          Upgrade to v1
+          Upgrade to V1
         </Button>
       </div>
 
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Upgrade to v1</DialogTitle>
+            <DialogTitle>Upgrade to V1</DialogTitle>
           </DialogHeader>
           {!upgradeRestrictedError && (
             <div className="space-y-4 py-4">
-              <p className="text-sm">Upgrading your tenant to v1 will:</p>
+              <p className="text-sm">Upgrading your tenant to V1 will:</p>
               <ul className="list-disc list-inside text-sm space-y-2">
-                <li>Enable new v1 features and improvements</li>
-                <li>Redirect you to the v1 interface</li>
+                <li>Enable new V1 features and improvements</li>
+                <li>Redirect you to the V1 interface</li>
               </ul>
               <Alert variant="warn">
                 <AlertTitle>Warning</AlertTitle>
@@ -135,7 +119,7 @@ const TenantVersionSwitcher = () => {
                   This upgrade will not automatically migrate your existing
                   workflows or in-progress runs. To ensure zero downtime during
                   the upgrade, please follow our migration guide which includes
-                  steps for parallel operation of v0 and v1 environments.
+                  steps for parallel operation of V0 and V1 environments.
                 </AlertDescription>
               </Alert>
 
@@ -147,7 +131,7 @@ const TenantVersionSwitcher = () => {
                   rel="noopener noreferrer"
                   className="text-indigo-400 hover:underline"
                 >
-                  v1 preview announcement
+                  V1 preview announcement
                 </a>{' '}
                 before proceeding.
               </p>
@@ -187,100 +171,6 @@ const TenantVersionSwitcher = () => {
     </>
   );
 };
-
-function UIVersionSwitcher() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  const navigate = useNavigate();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const { handleApiError } = useApiError({});
-
-  const { mutateAsync: updateTenant, isPending } = useMutation({
-    mutationKey: ['tenant:update'],
-    mutationFn: async (data: UpdateTenantRequest) => {
-      return api.tenantUpdate(tenant.metadata.id, data);
-    },
-    onError: (error: AxiosError) => {
-      setShowUpgradeModal(false);
-      handleApiError(error);
-    },
-  });
-
-  if (tenant?.uiVersion === TenantUIVersion.V1) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col gap-y-2">
-      <h2 className="text-xl font-semibold leading-tight text-foreground">
-        UI Version
-      </h2>
-      <p className="text-sm text-muted-foreground">
-        You can downgrade your dashboard to v0 if needed.
-      </p>
-      <Button
-        onClick={() => setShowUpgradeModal(true)}
-        disabled={isPending}
-        variant="default"
-        className="w-fit"
-      >
-        Upgrade to the V1 UI
-      </Button>
-
-      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Upgrade to the V1 UI</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            Please confirm your upgrade to the V1 UI version. Note that this
-            will have no effect on any of your workflows, and is a UI-only
-            change.
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowUpgradeModal(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="default"
-              onClick={async () => {
-                const tenant = await updateTenant({
-                  uiVersion: TenantUIVersion.V1,
-                });
-
-                if (
-                  !tenant.data.uiVersion ||
-                  tenant.data.uiVersion !== TenantUIVersion.V1
-                ) {
-                  return;
-                }
-
-                setShowUpgradeModal(false);
-                navigate(
-                  {
-                    pathname: '/next',
-                    search: createSearchParams({
-                      tenant: tenant.data.metadata.id,
-                    }).toString(),
-                  },
-                  {
-                    replace: false,
-                  },
-                );
-              }}
-              disabled={isPending}
-            >
-              Confirm Upgrade 🎉🎉
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
 
 const UpdateTenant: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
   const [isLoading, setIsLoading] = useState(false);

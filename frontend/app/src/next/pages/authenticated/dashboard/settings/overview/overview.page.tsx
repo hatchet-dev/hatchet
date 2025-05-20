@@ -158,7 +158,7 @@ function TenantVersionSwitcher() {
   if (!tenant || tenant.version === TenantVersion.V0) {
     return (
       <div>
-        This is a v0 tenant. Please upgrade to v1 or use v0 from the frontend.
+        This is a V0 tenant. Please upgrade to V1 or use V0 from the frontend.
       </div>
     );
   }
@@ -169,7 +169,7 @@ function TenantVersionSwitcher() {
         Tenant Version
       </h2>
       <p className="text-sm text-muted-foreground">
-        You can downgrade your tenant to v0 if needed. Please help us improve v1
+        You can downgrade your tenant to V0 if needed. Please help us improve V1
         by reporting any bugs in our{' '}
         <a
           href={ROUTES.common.feedback}
@@ -186,20 +186,20 @@ function TenantVersionSwitcher() {
         variant="destructive"
         className="w-fit"
       >
-        Downgrade to v0
+        Downgrade to V0
       </Button>
 
       <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Downgrade to v0</DialogTitle>
+            <DialogTitle>Downgrade to V0</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Alert variant="warning">
               <Lock className="w-4 h-4 mr-2" />
               <AlertTitle>Warning</AlertTitle>
               <AlertDescription>
-                Downgrading to v0 will remove access to v1 features and may
+                Downgrading to V0 will remove access to V1 features and may
                 affect your existing workflows. This action should only be taken
                 if absolutely necessary.
               </AlertDescription>
@@ -238,7 +238,7 @@ function UIVersionSwitcher() {
   if (!tenant || !tenant.uiVersion || tenant.uiVersion === TenantUIVersion.V0) {
     return (
       <div>
-        This is a v0 tenant. Please upgrade to v1 or use v0 from the frontend.
+        This is a V0 tenant. Please upgrade to V1 or use V0 from the frontend.
       </div>
     );
   }
@@ -249,7 +249,7 @@ function UIVersionSwitcher() {
         UI Version
       </h2>
       <p className="text-sm text-muted-foreground">
-        You can downgrade your dashboard to v0 if needed.
+        You can downgrade your dashboard to V0 if needed.
       </p>
       <Button
         onClick={() => setShowDowngradeModal(true)}
@@ -257,16 +257,16 @@ function UIVersionSwitcher() {
         variant="destructive"
         className="w-fit"
       >
-        Downgrade to the v0 UI
+        Downgrade to the V0 UI
       </Button>
 
       <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Downgrade to v0</DialogTitle>
+            <DialogTitle>Downgrade to V0</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            Please confirm your downgrade to the v0 UI version. Note that this
+            Please confirm your downgrade to the V0 UI version. Note that this
             will have no effect on any of your workflows, and is a UI-only
             change.
           </div>
