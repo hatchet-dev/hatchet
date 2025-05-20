@@ -257,7 +257,7 @@ function UIVersionSwitcher() {
         variant="destructive"
         className="w-fit"
       >
-        Downgrade to v0
+        Downgrade to the v0 UI
       </Button>
 
       <Dialog open={showDowngradeModal} onOpenChange={setShowDowngradeModal}>

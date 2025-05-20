@@ -189,7 +189,7 @@ function UIVersionSwitcher() {
         UI Version
       </h2>
       <p className="text-sm text-muted-foreground">
-        You can downgrade your dashboard to v0 if needed.
+        You can downgrade your UI to V0 if needed.
       </p>
       <Button
         onClick={() => setShowUpgradeModal(true)}
