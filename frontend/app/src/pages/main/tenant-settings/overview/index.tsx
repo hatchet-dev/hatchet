@@ -2,7 +2,11 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import {
+  createSearchParams,
+  useNavigate,
+  useOutletContext,
+} from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
@@ -187,21 +191,13 @@ const TenantVersionSwitcher = () => {
 function UIVersionSwitcher() {
   const { tenant } = useOutletContext<TenantContextType>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { handleApiError } = useApiError({});
 
   const { mutateAsync: updateTenant, isPending } = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      return await api.tenantUpdate(tenant.metadata.id, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queries.user.listTenantMemberships.queryKey,
-      });
-
-      window.location.reload();
+      return api.tenantUpdate(tenant.metadata.id, data);
     },
     onError: (error: AxiosError) => {
       setShowUpgradeModal(false);
@@ -209,9 +205,6 @@ function UIVersionSwitcher() {
     },
   });
 
-  console.log('tenant', tenant);
-
-  // Only show for V0 tenants
   if (tenant?.uiVersion === TenantUIVersion.V1) {
     return null;
   }
@@ -227,19 +220,19 @@ function UIVersionSwitcher() {
       <Button
         onClick={() => setShowUpgradeModal(true)}
         disabled={isPending}
-        variant="destructive"
+        variant="default"
         className="w-fit"
       >
-        Downgrade to v0
+        Upgrade to the V1 UI
       </Button>
 
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Downgrade to v0</DialogTitle>
+            <DialogTitle>Upgrade to the V1 UI</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            Please confirm your downgrade to the v0 UI version. Note that this
+            Please confirm your upgrade to the V1 UI version. Note that this
             will have no effect on any of your workflows, and is a UI-only
             change.
           </div>
@@ -252,24 +245,32 @@ function UIVersionSwitcher() {
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant="default"
               onClick={async () => {
                 const tenant = await updateTenant({
-                  uiVersion: TenantUIVersion.V0,
+                  uiVersion: TenantUIVersion.V1,
                 });
 
-                if (tenant.data.uiVersion !== TenantUIVersion.V0) {
+                if (tenant.data.uiVersion !== TenantUIVersion.V1) {
                   return;
                 }
 
                 setShowUpgradeModal(false);
-                navigate('/next', {
-                  replace: false,
-                });
+                navigate(
+                  {
+                    pathname: '/next',
+                    search: createSearchParams({
+                      tenant: tenant.data.metadata.id,
+                    }).toString(),
+                  },
+                  {
+                    replace: false,
+                  },
+                );
               }}
               disabled={isPending}
             >
-              Confirm Downgrade
+              Confirm Upgrade 🎉🎉
             </Button>
           </DialogFooter>
         </DialogContent>

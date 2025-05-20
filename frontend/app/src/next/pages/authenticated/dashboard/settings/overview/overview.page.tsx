@@ -28,7 +28,7 @@ import { Headline, PageTitle } from '@/next/components/ui/page-header';
 import { ROUTES } from '@/next/lib/routes';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
-import { useNavigate } from 'react-router-dom';
+import { createSearchParams, useNavigate } from 'react-router-dom';
 
 export default function SettingsOverviewPage() {
   const { tenant } = useTenant();
@@ -290,9 +290,17 @@ function UIVersionSwitcher() {
                 }
 
                 setShowDowngradeModal(false);
-                navigate('/', {
-                  replace: false,
-                });
+                navigate(
+                  {
+                    pathname: '/',
+                    search: createSearchParams({
+                      tenant: tenant.metadata.id,
+                    }).toString(),
+                  },
+                  {
+                    replace: false,
+                  },
+                );
               }}
               loading={update.isPending}
             >

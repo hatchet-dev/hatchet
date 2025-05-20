@@ -2,7 +2,11 @@ import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import {
+  createSearchParams,
+  useNavigate,
+  useOutletContext,
+} from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
@@ -160,21 +164,13 @@ const TenantVersionSwitcher = () => {
 function UIVersionSwitcher() {
   const { tenant } = useOutletContext<TenantContextType>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { handleApiError } = useApiError({});
 
   const { mutateAsync: updateTenant, isPending } = useMutation({
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
-      return await api.tenantUpdate(tenant.metadata.id, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queries.user.listTenantMemberships.queryKey,
-      });
-
-      window.location.reload();
+      return api.tenantUpdate(tenant.metadata.id, data);
     },
     onError: (error: AxiosError) => {
       setShowUpgradeModal(false);
@@ -226,17 +222,25 @@ function UIVersionSwitcher() {
               variant="default"
               onClick={async () => {
                 const tenant = await updateTenant({
-                  uiVersion: TenantUIVersion.V0,
+                  uiVersion: TenantUIVersion.V1,
                 });
 
-                if (tenant.data.uiVersion !== TenantUIVersion.V0) {
+                if (tenant.data.uiVersion !== TenantUIVersion.V1) {
                   return;
                 }
 
                 setShowUpgradeModal(false);
-                navigate('/next', {
-                  replace: false,
-                });
+                navigate(
+                  {
+                    pathname: '/next',
+                    search: createSearchParams({
+                      tenant: tenant.data.metadata.id,
+                    }).toString(),
+                  },
+                  {
+                    replace: false,
+                  },
+                );
               }}
               disabled={isPending}
             >
