@@ -7,6 +7,6 @@ const snippet: Snippet = {
   source: 'out/python/non_retryable/trigger.py',
   blocks: {},
   highlights: {},
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;

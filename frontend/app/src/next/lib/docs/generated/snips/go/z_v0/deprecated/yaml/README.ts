@@ -7,6 +7,6 @@ const snippet: Snippet = {
   source: 'out/go/z_v0/deprecated/yaml/README.md',
   blocks: {},
   highlights: {},
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;

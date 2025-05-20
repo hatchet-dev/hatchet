@@ -7,6 +7,6 @@ const snippet: Snippet = {
   source: 'out/typescript/on_event/worker.ts',
   blocks: {},
   highlights: {},
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;

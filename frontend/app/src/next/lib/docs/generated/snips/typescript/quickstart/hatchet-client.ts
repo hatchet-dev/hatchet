@@ -12,6 +12,6 @@ const snippet: Snippet = {
       strings: ['Client'],
     },
   },
-}; // Then replace double quotes with single quotes
+};
 
 export default snippet;
