@@ -12,7 +12,7 @@ import {
 import { Button } from '@/next/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { useState } from 'react';
 import useCan from '@/next/hooks/use-can';
 import { members } from '@/next/lib/can/features/members.permissions';

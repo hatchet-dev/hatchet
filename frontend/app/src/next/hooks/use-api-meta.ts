@@ -3,7 +3,7 @@ import { cloudApi } from '@/lib/api/api';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from './utils/use-toast';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 
 export default function useApiMeta() {
   const [refetchInterval, setRefetchInterval] = useState<number | undefined>(

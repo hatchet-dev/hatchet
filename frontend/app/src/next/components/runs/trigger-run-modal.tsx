@@ -34,7 +34,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { getFriendlyWorkflowRunId } from '@/next/components/runs/run-id';
 import { FaCodeBranch } from 'react-icons/fa';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 

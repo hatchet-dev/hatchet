@@ -20,7 +20,7 @@ import {
 import useApiTokens from '@/next/hooks/use-api-tokens';
 import useUser from '@/next/hooks/use-user';
 import { Code } from '@/next/components/ui/code';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 interface CreateTokenDialogProps {
   onSuccess?: (data?: CreateAPITokenResponse) => void;
   close: () => void;

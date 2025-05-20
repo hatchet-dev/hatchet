@@ -9,7 +9,7 @@ import {
   UseMutationResult,
   useQuery,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import { useState, createContext, useContext, PropsWithChildren } from 'react';
 import {
   PaginationProvider,

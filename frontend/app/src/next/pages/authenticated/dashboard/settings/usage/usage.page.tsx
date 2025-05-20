@@ -1,6 +1,6 @@
 import { Separator } from '@/next/components/ui/separator';
 import useApiMeta from '@/next/hooks/use-api-meta';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { PaymentMethods } from './components/payment-methods';
 import { DataTable } from '@/next/components/ui/data-table';
 import { columns } from './components/resource-limit-columns';

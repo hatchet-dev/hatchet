@@ -68,7 +68,7 @@ import docs from '@/next/lib/docs';
 import { Separator } from '@/next/components/ui/separator';
 import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 // Service row component to simplify the main component
 const ServiceRow = ({ service }: { service: WorkerService }) => {

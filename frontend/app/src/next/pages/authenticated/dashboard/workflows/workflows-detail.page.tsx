@@ -28,7 +28,7 @@ import WorkflowGeneralSettings from './settings';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { V1TaskStatus } from '@/lib/api';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 
 export default function WorkflowDetailPage() {

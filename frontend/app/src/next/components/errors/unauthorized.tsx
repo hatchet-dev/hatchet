@@ -3,7 +3,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { FaLock } from 'react-icons/fa';
 import { Button } from '../ui/button';
 

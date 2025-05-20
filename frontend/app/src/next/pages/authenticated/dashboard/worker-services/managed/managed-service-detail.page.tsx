@@ -27,7 +27,7 @@ import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 export enum ManagedServiceDetailTabs {
   INSTANCES = 'instances',

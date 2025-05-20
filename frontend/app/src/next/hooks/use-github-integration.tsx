@@ -4,7 +4,7 @@ import {
   PropsWithChildren,
   createElement,
 } from 'react';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import { useState } from 'react';
 import {
   GithubAppInstallation,

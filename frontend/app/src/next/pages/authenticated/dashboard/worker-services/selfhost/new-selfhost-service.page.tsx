@@ -8,7 +8,7 @@ import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Separator } from '@/next/components/ui/separator';
 import { baseDocsUrl } from '@/next/hooks/use-docs-sheet';
 import { useEffect } from 'react';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 function ServiceDetailPageContent() {
   const breadcrumb = useBreadcrumbs();
   const { tenant } = useTenant();

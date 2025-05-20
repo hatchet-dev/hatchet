@@ -1,57 +1,21 @@
-import {
-  useCallback,
-  useMemo,
-  useState,
-  createContext,
-  useContext,
-  ReactNode,
-  useEffect,
-} from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import api, {
   UpdateTenantRequest,
   Tenant,
-  TenantMember,
   CreateTenantRequest,
-  TenantResourceLimit,
 } from '@/lib/api';
 import useUser from './use-user';
 import { useParams, useSearchParams } from 'react-router-dom';
-import {
-  useMutation,
-  UseMutationResult,
-  useQuery,
-  useQueryClient,
-  UseQueryResult,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from './utils/use-toast';
-
-interface TenantState {
-  tenant?: Tenant;
-  membership?: TenantMember['role'];
-  limit?: UseQueryResult<TenantResourceLimit[], Error>;
-  isLoading: boolean;
-  setTenant: (tenantId: string) => void;
-  create: UseMutationResult<Tenant, Error, string, unknown>;
-  update: {
-    mutate: (data: UpdateTenantRequest) => void;
-    isPending: boolean;
-  };
-}
-
-const TenantContext = createContext<TenantState | null>(null);
 
 export function clearTenant() {
   localStorage.removeItem('tenant');
 }
 
-interface TenantProviderProps {
-  children: ReactNode;
-}
-
-export function TenantProvider({ children }: TenantProviderProps) {
+export function useTenant() {
   const params = useParams();
-
-  console.log({ params });
+  const tenantId = params.tenantId;
 
   const { memberships, isLoading: isUserLoading } = useUser();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -196,7 +160,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
     enabled: !!tenant?.metadata.id,
   });
 
-  const value = {
+  return {
+    tenantId,
     tenant,
     isLoading: isUserLoading,
     membership: membership?.role,
@@ -208,16 +173,4 @@ export function TenantProvider({ children }: TenantProviderProps) {
     },
     limit: resourcePolicyQuery,
   };
-
-  return (
-    <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
-  );
-}
-
-export default function useTenant(): TenantState {
-  const context = useContext(TenantContext);
-  if (context === null) {
-    throw new Error('useTenant must be used within a TenantProvider');
-  }
-  return context;
 }

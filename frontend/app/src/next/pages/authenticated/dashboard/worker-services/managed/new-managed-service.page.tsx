@@ -44,7 +44,7 @@ import { Summary } from './components/config/summary';
 import { Step, Steps } from '@/components/v1/ui/steps';
 import { Button } from '@/next/components/ui/button';
 import { BillingRequired } from './components/billing-required';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 function ServiceDetailPageContent() {
   const navigate = useNavigate();
 

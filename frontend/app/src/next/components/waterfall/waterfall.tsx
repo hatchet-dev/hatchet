@@ -25,7 +25,7 @@ import {
   BsArrowUpLeftCircle,
 } from 'react-icons/bs';
 import { Skeleton } from '../ui/skeleton';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 interface ProcessedTaskData {
   id: string;
   workflowRunId?: string;

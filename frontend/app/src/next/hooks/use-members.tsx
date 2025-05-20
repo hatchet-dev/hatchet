@@ -5,7 +5,7 @@ import {
   UseMutationResult,
 } from '@tanstack/react-query';
 import api from '@/lib/api';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import {
   TenantMember,
   TenantMemberList,

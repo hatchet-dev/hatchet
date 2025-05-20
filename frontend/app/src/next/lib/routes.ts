@@ -7,14 +7,16 @@ export const BASE_PATH = '/next';
 
 export const FEATURES_BASE_PATH = {
   auth: BASE_PATH + '/auth',
-  onboarding: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/onboarding`,
+  onboarding: (tenantId: string) =>
+    BASE_PATH + `/tenants/${tenantId}/onboarding`,
   learn: BASE_PATH + '/learn',
   runs: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/runs`,
   scheduled: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/scheduled`,
   crons: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/crons`,
   workflows: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/workflows`,
   services: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/services`,
-  rateLimits: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/rate-limits`,
+  rateLimits: (tenantId: string) =>
+    BASE_PATH + `/tenants/${tenantId}/rate-limits`,
   settings: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/settings`,
   events: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/events`,
 };
@@ -34,14 +36,16 @@ export const ROUTES = {
   },
   events: {
     list: (tenantId: string) => `${FB.events(tenantId)}`,
-    detail: (tenantId: string, externalId: string) => `${FB.events(tenantId)}/${externalId}`,
+    detail: (tenantId: string, externalId: string) =>
+      `${FB.events(tenantId)}/${externalId}`,
   },
   learn: {
     firstRun: `${FB.learn}/first-run`,
   },
   runs: {
     list: (tenantId: string) => `${FB.runs(tenantId)}`,
-    detail: (tenantId: string, runId: string) => `${FB.runs(tenantId)}/${runId}`,
+    detail: (tenantId: string, runId: string) =>
+      `${FB.runs(tenantId)}/${runId}`,
     detailWithSheet: (
       tenantId: string,
       runId: string,
@@ -69,16 +73,28 @@ export const ROUTES = {
   },
   workflows: {
     list: (tenantId: string) => `${FB.workflows(tenantId)}`,
-    detail: (tenantId: string, workflowId: string) => `${FB.workflows(tenantId)}/${workflowId}`,
+    detail: (tenantId: string, workflowId: string) =>
+      `${FB.workflows(tenantId)}/${workflowId}`,
   },
   services: {
     list: (tenantId: string) => `${FB.services(tenantId)}`,
-    new: (tenantId: string, type: WorkerType) => `${FB.services(tenantId)}/${type.toLowerCase()}`,
-    detail: (tenantId: string, serviceName: string, type: WorkerType, tab?: string) =>
+    new: (tenantId: string, type: WorkerType) =>
+      `${FB.services(tenantId)}/${type.toLowerCase()}`,
+    detail: (
+      tenantId: string,
+      serviceName: string,
+      type: WorkerType,
+      tab?: string,
+    ) =>
       `${FB.services(tenantId)}/${type.toLowerCase()}/${serviceName}${
         tab ? `?tab=${tab}` : ''
       }`,
-    workerDetail: (tenantId: string, serviceName: string, workerName: string, type: WorkerType) =>
+    workerDetail: (
+      tenantId: string,
+      serviceName: string,
+      workerName: string,
+      type: WorkerType,
+    ) =>
       `${FB.services(tenantId)}/${type.toLowerCase()}/${serviceName}/${workerName}`,
   },
   rateLimits: {

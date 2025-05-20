@@ -1,6 +1,6 @@
 import api, { RateLimit as ApiRateLimit, RateLimit } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import { createContext, useContext, PropsWithChildren } from 'react';
 import {
   PaginationProvider,

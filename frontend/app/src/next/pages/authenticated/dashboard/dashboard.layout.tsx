@@ -3,7 +3,7 @@ import { SidebarTrigger, useSidebar } from '@/next/components/ui/sidebar';
 import { AppSidebar } from './components/sidebar/sidebar';
 import { Separator } from '@/next/components/ui/separator';
 import { BreadcrumbNav } from './components/breadcrumbs';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { Unauthorized } from '@/next/components/errors/unauthorized';
 import { BreadcrumbProvider } from '@/next/hooks/use-breadcrumbs';
 import { UserBlock } from './components/sidebar/user-dropdown';

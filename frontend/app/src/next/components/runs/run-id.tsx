@@ -8,7 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { cn } from '@/lib/utils';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 interface RunIdProps {
   wfRun?: V1WorkflowRun;

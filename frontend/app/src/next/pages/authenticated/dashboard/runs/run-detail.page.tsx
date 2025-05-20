@@ -8,7 +8,7 @@ import {
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
 import { useMemo, useCallback, useState, useEffect } from 'react';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
 import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';

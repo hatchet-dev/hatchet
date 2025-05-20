@@ -17,7 +17,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { Badge } from '@/next/components/ui/badge';
 import { WorkerType } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 function ServiceDetailPageContent() {
   const { serviceName = '' } = useParams<{

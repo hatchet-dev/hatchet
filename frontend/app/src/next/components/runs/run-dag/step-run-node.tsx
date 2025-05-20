@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { Duration } from '@/next/components/ui/duration';
 import { RunsBadge } from '../runs-badge';
 import { ROUTES } from '@/next/lib/routes';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 enum TabOption {
   Output = 'output',

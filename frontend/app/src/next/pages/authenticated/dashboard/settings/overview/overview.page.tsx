@@ -15,7 +15,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/next/components/ui/alert';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import {
   TenantVersion,
   UpdateTenantRequest,

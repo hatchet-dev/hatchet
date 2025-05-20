@@ -16,7 +16,7 @@ import {
   UseQueryResult,
   useQueryClient,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import {
   PaginationProvider,
   PaginationProviderProps,

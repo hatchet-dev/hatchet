@@ -1,4 +1,4 @@
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/next/components/ui/button';
 import { Input } from '@/next/components/ui/input';

@@ -24,7 +24,7 @@ import {
   useWorkerDetail,
 } from '@/next/hooks/use-worker-detail';
 import { WrongTenant } from '@/next/components/errors/unauthorized';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 import { formatDuration } from '@/next/lib/utils/formatDuration';
 import { intervalToDuration } from 'date-fns';
 // Extending Worker type with additional properties that may exist

@@ -9,7 +9,7 @@ import {
   useQuery,
   UseQueryResult,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import {
   createContext,
   useContext,

@@ -5,7 +5,7 @@ import {
   useQuery,
   UseQueryResult,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import useApiMeta from './use-api-meta';
 import { cloudApi } from '@/lib/api/api';
 import { useMemo } from 'react';

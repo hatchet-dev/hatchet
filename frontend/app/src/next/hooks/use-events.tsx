@@ -1,7 +1,7 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import api, { PaginationResponse, V1Event } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useTenant } from './use-tenant';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 import { FilterProvider, useFilters } from './utils/use-filters';
 

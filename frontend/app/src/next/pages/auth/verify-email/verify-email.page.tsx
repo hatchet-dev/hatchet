@@ -10,7 +10,7 @@ import { useEffect } from 'react';
 import { FaEnvelope } from 'react-icons/fa';
 import { Navigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 export default function VerifyEmailPage() {
   const retryInterval = 5000;
 

@@ -8,7 +8,7 @@ import {
 } from '@/next/components/ui/tooltip';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 interface WorkerIdProps {
   worker?: Worker;

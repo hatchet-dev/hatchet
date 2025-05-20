@@ -27,7 +27,7 @@ import { CreateManagedWorkerBuildConfigRequest } from '@/lib/api/generated/cloud
 import { Spinner } from '@/next/components/ui/spinner';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 
 export type GithubRepoSelectorValue = Omit<
   CreateManagedWorkerBuildConfigRequest,

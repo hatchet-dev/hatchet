@@ -31,7 +31,7 @@ import {
   AlertTitle,
   AlertDescription,
 } from '@/next/components/ui/alert';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenant } from '@/next/hooks/use-tenant';
 interface SectionActionsProps {
   canUpdate: boolean | undefined;
   section: string;
