@@ -1,86 +1,48 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo } from 'react';
 import api, {
   UpdateTenantRequest,
   Tenant,
   CreateTenantRequest,
 } from '@/lib/api';
 import useUser from './use-user';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from './utils/use-toast';
-
-export function clearTenant() {
-  localStorage.removeItem('tenant');
-}
 
 export function useTenant() {
   const params = useParams();
   const tenantId = params.tenantId;
 
   const { memberships, isLoading: isUserLoading } = useUser();
-  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [currentTenantId, setCurrentTenantId] = useState<string | undefined>(
-    () =>
-      searchParams.get('tenant') ?? localStorage.getItem('tenant') ?? undefined,
-  );
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // make sure the tenant id is in the url if it's not already
-  useEffect(() => {
-    if (!searchParams.get('tenant') && currentTenantId) {
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('tenant', currentTenantId);
-      setSearchParams(newSearchParams, { replace: true });
+  const setTenant = useCallback((tenantId?: string) => {
+    if (!tenantId) {
+      return;
     }
-  }, [searchParams, currentTenantId, setSearchParams]);
 
-  const setTenant = useCallback(
-    (tenantId?: string) => {
-      if (!tenantId) {
-        return;
-      }
+    const currentPath = location.pathname;
 
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('tenant', tenantId);
-      setSearchParams(newSearchParams, { replace: true });
-      setCurrentTenantId(tenantId);
-      localStorage.setItem('tenant', tenantId);
+    const newPath = currentPath.replace(
+      /\/tenants\/([^/]+)/,
+      `/tenants/${tenantId}`,
+    );
 
-      // Get the previous tenant ID that might be in existing query keys
-      const prevTenantId = searchParams.get('tenant');
-
-      // Invalidate all queries that use the tenant ID in their query key
-      if (prevTenantId) {
-        queryClient.invalidateQueries({
-          predicate: (query) => {
-            if (Array.isArray(query.queryKey)) {
-              return query.queryKey.includes(prevTenantId);
-            }
-            return false;
-          },
-        });
-      }
-    },
-    [searchParams, setSearchParams, queryClient],
-  );
+    navigate(newPath);
+  }, []);
 
   const membership = useMemo(() => {
-    if (!currentTenantId) {
+    if (!tenantId) {
       return undefined;
     }
 
     return memberships?.find(
-      (membership) => membership.tenant?.metadata.id === currentTenantId,
+      (membership) => membership.tenant?.metadata.id === tenantId,
     );
-  }, [currentTenantId, memberships]);
-
-  // Handle setting initial tenant when no tenant is selected
-  useEffect(() => {
-    if (!currentTenantId && memberships?.[0]?.tenant?.metadata.id) {
-      setTenant(memberships[0].tenant.metadata.id);
-    }
-  }, [currentTenantId, memberships, setTenant]);
+  }, [tenantId, memberships]);
 
   const tenant = membership?.tenant;
 
