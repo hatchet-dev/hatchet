@@ -700,7 +700,7 @@ export interface Tenant {
   /** The version of the tenant. */
   version: TenantVersion;
   /** The UI of the tenant. */
-  uiVersion: TenantUIVersion;
+  uiVersion?: TenantUIVersion;
 }
 
 export interface V1EventWorkflowRunSummary {

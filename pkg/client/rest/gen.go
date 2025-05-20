@@ -958,9 +958,9 @@ type Tenant struct {
 	Name string `json:"name"`
 
 	// Slug The slug of the tenant.
-	Slug      string          `json:"slug"`
-	UiVersion TenantUIVersion `json:"uiVersion"`
-	Version   TenantVersion   `json:"version"`
+	Slug      string           `json:"slug"`
+	UiVersion *TenantUIVersion `json:"uiVersion,omitempty"`
+	Version   TenantVersion    `json:"version"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.

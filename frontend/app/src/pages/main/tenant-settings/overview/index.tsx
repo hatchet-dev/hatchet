@@ -251,7 +251,10 @@ function UIVersionSwitcher() {
                   uiVersion: TenantUIVersion.V1,
                 });
 
-                if (tenant.data.uiVersion !== TenantUIVersion.V1) {
+                if (
+                  !tenant.data.uiVersion ||
+                  tenant.data.uiVersion !== TenantUIVersion.V1
+                ) {
                   return;
                 }
 

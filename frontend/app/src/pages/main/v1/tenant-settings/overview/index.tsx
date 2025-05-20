@@ -179,7 +179,7 @@ function UIVersionSwitcher() {
   });
 
   // Only show for V0 tenants
-  if (tenant?.uiVersion === TenantUIVersion.V1) {
+  if (!tenant.uiVersion || tenant?.uiVersion === TenantUIVersion.V1) {
     return null;
   }
 

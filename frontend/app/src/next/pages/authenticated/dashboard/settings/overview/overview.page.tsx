@@ -235,7 +235,7 @@ function UIVersionSwitcher() {
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const navigate = useNavigate();
 
-  if (!tenant || tenant.uiVersion === TenantUIVersion.V0) {
+  if (!tenant || !tenant.uiVersion || tenant.uiVersion === TenantUIVersion.V0) {
     return (
       <div>
         This is a v0 tenant. Please upgrade to v1 or use v0 from the frontend.
