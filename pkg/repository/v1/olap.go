@@ -1133,6 +1133,8 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 			}
 
 			mu.Lock()
+			defer mu.Unlock()
+
 			isSaturated = isSaturated || statusUpdateRes.Count == int64(limit)
 
 			if len(statusUpdateRes.TaskIds) != len(statusUpdateRes.TaskInsertedAts) ||
@@ -1149,8 +1151,6 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantId st
 					ExternalId:     statusUpdateRes.ExternalIds[i],
 				})
 			}
-
-			mu.Unlock()
 
 			return nil
 		})
@@ -1201,6 +1201,8 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 			}
 
 			mu.Lock()
+			defer mu.Unlock()
+
 			isSaturated = isSaturated || statusUpdateRes.Count == int64(limit)
 
 			if len(statusUpdateRes.DagIds) != len(statusUpdateRes.DagInsertedAts) ||
@@ -1217,8 +1219,6 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 					ExternalId:     statusUpdateRes.ExternalIds[i],
 				})
 			}
-
-			mu.Unlock()
 
 			return nil
 		})
