@@ -123,13 +123,7 @@ export function TimeFilterProvider({
     preset?: TimePreset;
     startTime?: string;
     endTime?: string;
-  }>(
-    {},
-    {
-      type: 'query',
-      prefix: 'time_',
-    },
-  );
+  }>({});
 
   const setTimeFilter = React.useCallback(
     (input: TimeFilterInput) => {

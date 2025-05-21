@@ -30,18 +30,9 @@ export function useFilters<T>() {
   return context as FilterManager<T>;
 }
 
-// Storage type for filters - either in-memory state or URL query parameters
-type FilterType = 'state' | 'query';
-
 interface FilterProviderProps<T extends Record<string, any>> {
   children: React.ReactNode;
   initialFilters?: T;
-  /**
-   * Storage type for filters:
-   * - 'query': Store filters in URL query parameters (default)
-   * - 'state': Store filters in component state
-   */
-  type?: FilterType;
 }
 
 /**
@@ -53,18 +44,11 @@ interface FilterProviderProps<T extends Record<string, any>> {
 export function FilterProvider<T extends Record<string, any>>({
   children,
   initialFilters = {} as T,
-  type = 'query',
 }: FilterProviderProps<T>) {
-  // Initialize the storage with default values and a prefix to avoid collisions
-  const state = useStateAdapter<T>(initialFilters, {
-    type,
-    prefix: '',
-  });
+  const state = useStateAdapter<T>(initialFilters);
 
-  // Get current filters from the storage adapter
   const filters = state.getValues();
 
-  // Set a single filter value
   const setFilter = React.useCallback(
     (key: keyof T, value: T[keyof T]) => {
       state.setValue(key as string, value);
@@ -72,7 +56,6 @@ export function FilterProvider<T extends Record<string, any>>({
     [state],
   );
 
-  // Set multiple filter values
   const setFilters = React.useCallback(
     (filters: Partial<T>) => {
       state.setValues(filters);
@@ -80,7 +63,6 @@ export function FilterProvider<T extends Record<string, any>>({
     [state],
   );
 
-  // Clear a single filter
   const clearFilter = React.useCallback(
     (key: keyof T) => {
       state.setValue(key as string, undefined as any);
@@ -88,7 +70,6 @@ export function FilterProvider<T extends Record<string, any>>({
     [state],
   );
 
-  // Clear all filters
   const clearAllFilters = React.useCallback(() => {
     const currentFilters = state.getValues();
     Object.keys(currentFilters).forEach((key) => {
