@@ -51,7 +51,6 @@ function ServiceDetailPageContent() {
       <Tabs
         defaultValue={ManagedServiceDetailTabs.INSTANCES}
         className="w-full"
-        state="query"
       >
         <TabsList>
           <TabsTrigger value={ManagedServiceDetailTabs.INSTANCES}>

@@ -230,7 +230,7 @@ function RunDetailSheetContent() {
               </div>
             </div>
           )}
-          <Tabs defaultValue="payload" state="query" className="w-full">
+          <Tabs defaultValue="payload" className="w-full">
             <TabsList
               layout="underlined"
               className="w-full sticky top-0 z-10 bg-slate-100 dark:bg-slate-900"
