@@ -1,4 +1,4 @@
-import {  useState } from 'react';
+import { useState } from 'react';
 import docMetadata from '@/next/lib/docs';
 
 export const pages = docMetadata;
@@ -13,7 +13,6 @@ export interface DocsSheet {
   url: string;
   title: string;
 }
-
 
 export const baseDocsUrl = 'https://docs.hatchet.run';
 

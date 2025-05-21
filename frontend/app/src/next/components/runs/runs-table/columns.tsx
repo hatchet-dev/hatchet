@@ -23,9 +23,8 @@ import { ROUTES } from '@/next/lib/routes';
 import { useRuns } from '@/next/hooks/use-runs';
 import { Checkbox } from '@/next/components/ui/checkbox';
 import { Button } from '@/next/components/ui/button';
-import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
+import { ChevronDownIcon, ChevronRightIcon, Drill } from 'lucide-react';
 import { cn } from '@/next/lib/utils';
-import { BsArrowDownRightCircle } from 'react-icons/bs';
 
 export const columns = (
   rowClicked?: (row: V1TaskSummary) => void,
@@ -130,8 +129,8 @@ export const columns = (
               className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
               onClick={(e) => e.stopPropagation()}
             >
-              <Button variant="link" tooltip="Scope into run" size="icon">
-                <BsArrowDownRightCircle className="w-4 h-4" />
+              <Button variant="link" tooltip="Drill down into run" size="icon">
+                <Drill className="w-4 h-4" />
               </Button>
             </Link>
           )}
