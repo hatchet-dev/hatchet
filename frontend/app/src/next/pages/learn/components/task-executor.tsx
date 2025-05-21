@@ -53,7 +53,7 @@ function TaskExecutionContent({ name, input, onRun }: TaskExecutionProps) {
     if (runs?.length > 0) {
       onRun?.(ROUTES.runs.detail(tenantId, runs[0].metadata.id));
     }
-  }, [runs, onRun]);
+  }, [runs, onRun, tenantId]);
 
   return (
     <div className="space-y-4">

@@ -30,16 +30,19 @@ export function useTenantDetails() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const setTenant = useCallback((tenantId?: string) => {
-    const currentPath = location.pathname;
+  const setTenant = useCallback(
+    (tenantId?: string) => {
+      const currentPath = location.pathname;
 
-    const newPath = currentPath.replace(
-      /\/tenants\/([^/]+)/,
-      `/tenants/${tenantId}`,
-    );
+      const newPath = currentPath.replace(
+        /\/tenants\/([^/]+)/,
+        `/tenants/${tenantId}`,
+      );
 
-    navigate(newPath);
-  }, []);
+      navigate(newPath);
+    },
+    [navigate, location.pathname],
+  );
 
   const membership = useMemo(() => {
     if (!tenantId) {

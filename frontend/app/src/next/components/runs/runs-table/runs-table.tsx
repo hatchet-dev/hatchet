@@ -152,7 +152,7 @@ export function RunsTable({
         }),
       );
     },
-    [navigate],
+    [navigate, tenantId],
   );
 
   return (

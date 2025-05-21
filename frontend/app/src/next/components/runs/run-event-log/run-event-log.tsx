@@ -451,7 +451,7 @@ function RunEventLogContent({
     }
 
     return sortedEvents;
-  }, [activity?.events, activity?.logs]);
+  }, [activity?.events, activity?.logs, filters.attempt]);
 
   const attemptOptions = useMemo(() => {
     const attempts = new Set<number>();

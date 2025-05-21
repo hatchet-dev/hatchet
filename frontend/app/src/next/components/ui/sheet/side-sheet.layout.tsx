@@ -79,7 +79,7 @@ export function SideSheetComponent({ variant = 'push' }: SideSheetProps) {
     }
 
     return undefined;
-  }, [sheet]);
+  }, [sheet, isOpen, onClose]);
 
   // If using push variant, render as a side panel instead of using Sheet
   if (variant === 'push' && !isMobile) {

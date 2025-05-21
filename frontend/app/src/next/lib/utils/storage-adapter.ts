@@ -43,7 +43,6 @@ class StateAdapter<T extends Record<string, any>> implements StorageAdapter<T> {
   }
 }
 
-
 /**
  * A hook that provides storage functionality using either React state or URL query parameters
  * @param initialValues The initial values for the storage
@@ -56,8 +55,5 @@ export function useStateAdapter<T extends Record<string, any>>(
 
   return React.useMemo(() => {
     return new StateAdapter<T>(stateValues, setStateValues);
-  }, [
-    stateValues,
-    setStateValues,
-  ]);
+  }, [stateValues, setStateValues]);
 }
