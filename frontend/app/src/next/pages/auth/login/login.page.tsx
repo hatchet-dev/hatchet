@@ -10,6 +10,7 @@ import { Icons } from '@/components/ui/icons';
 import React from 'react';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useErrorParam from '@/pages/auth/hooks/use-error-param';
+import { ROUTES } from '@/next/lib/routes';
 
 export default function Login() {
   useErrorParam();
@@ -67,7 +68,7 @@ export default function Login() {
               <p className="text-sm text-gray-700 dark:text-gray-300">
                 Don't have an account?{' '}
                 <Link
-                  to="/auth/register"
+                  to={ROUTES.auth.register}
                   className="underline underline-offset-4 hover:text-primary"
                 >
                   Sign up
