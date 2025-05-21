@@ -29,12 +29,6 @@ type SerialOperation struct {
 }
 
 func (o *SerialOperation) RunOrContinue(ql *zerolog.Logger) {
-	// Apply jitter if configured
-	if o.maxJitter > 0 {
-		jitter := time.Duration(rand.Int63n(int64(o.maxJitter)))
-		time.Sleep(jitter)
-	}
-
 	o.setContinue(true)
 	o.Run(ql)
 }
@@ -44,6 +38,8 @@ func (o *SerialOperation) Run(ql *zerolog.Logger) {
 		return
 	}
 
+	maxJitter := o.maxJitter
+
 	go func() {
 		defer func() {
 			o.setRunning(false, ql)
@@ -51,6 +47,12 @@ func (o *SerialOperation) Run(ql *zerolog.Logger) {
 
 		f := func() {
 			o.setContinue(false)
+
+			// Apply jitter if configured
+			if maxJitter > 0 {
+				jitter := time.Duration(rand.Int63n(int64(maxJitter))) // nolint:gosec
+				time.Sleep(jitter)
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
 			defer cancel()
