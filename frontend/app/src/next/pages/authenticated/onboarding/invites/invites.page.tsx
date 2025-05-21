@@ -7,9 +7,11 @@ import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/lib/docs';
 import { TenantBlock } from '../../dashboard/components/sidebar/user-dropdown';
 import { TenantInvite } from '@/lib/api';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 
 export function InviteCard({ invite }: { invite: TenantInvite }) {
   const { invites } = useUser();
+  const { setTenant } = useTenantDetails();
 
   return (
     <Card>
@@ -43,7 +45,7 @@ export function InviteCard({ invite }: { invite: TenantInvite }) {
             <Button
               onClick={async () => {
                 await invites.accept.mutateAsync(invite.metadata.id);
-                window.location.href = '/?tenant=' + invite.tenantId;
+                setTenant(invite.tenantId);
               }}
               disabled={invites.accept.isPending}
             >

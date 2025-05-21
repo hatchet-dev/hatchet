@@ -129,10 +129,10 @@ function BasicLogin() {
   const loginMutation = useMutation({
     mutationKey: ['user:update:login'],
     mutationFn: async (data: UserLoginRequest) => {
-      await api.userUpdateLogin(data);
+      return await api.userUpdateLogin(data);
     },
     onSuccess: () => {
-      navigate('/');
+      navigate('/next');
     },
     onError: handleApiError,
   });
