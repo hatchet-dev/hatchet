@@ -12,7 +12,7 @@ import api, {
   V1WorkflowRunDetails,
   Workflow,
 } from '@/lib/api';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/components/v1/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
@@ -63,9 +63,21 @@ export function TriggerWorkflowForm({
   const [cronExpression, setCronExpression] = useState<string>('* * * * *');
   const [cronName, setCronName] = useState<string>('');
 
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<
-    string | undefined
-  >(defaultWorkflow?.metadata.id);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState(
+    defaultWorkflow?.metadata.id,
+  );
+
+  const handleClose = useCallback(() => {
+    onClose();
+    setInput('{}');
+    setAddlMeta('{}');
+    setErrors([]);
+    setSelectedWorkflowId(defaultWorkflow?.metadata.id);
+    setTimingOption(defaultTimingOption);
+    setScheduleTime(new Date());
+    setCronExpression('* * * * *');
+    setCronName('');
+  }, [onClose, defaultWorkflow, defaultTimingOption]);
 
   const cronPretty = useMemo(() => {
     try {
@@ -87,31 +99,20 @@ export function TriggerWorkflowForm({
     refetchInterval: 15000,
   });
 
-  const workflow = useMemo(() => {
-    if (defaultWorkflow) {
-      return workflowKeys?.rows?.find(
-        (w) => w.metadata.id === defaultWorkflow.metadata.id,
-      );
-    }
-
-    if (selectedWorkflowId) {
-      return workflowKeys?.rows?.find(
-        (w) => w.metadata.id === selectedWorkflowId,
-      );
-    }
-
-    return (workflowKeys?.rows || [])[0];
-  }, [workflowKeys, defaultWorkflow, selectedWorkflowId]);
+  const selectedWorkflow = useMemo(
+    () => workflowKeys?.rows?.find((w) => w.metadata.id === selectedWorkflowId),
+    [selectedWorkflowId, workflowKeys],
+  );
 
   const triggerNowMutation = useMutation({
-    mutationKey: ['workflow-run:create', workflow?.metadata.id],
+    mutationKey: ['workflow-run:create', selectedWorkflow?.metadata.id],
     mutationFn: async (data: { input: object; addlMeta: object }) => {
-      if (!workflow) {
+      if (!selectedWorkflow) {
         return;
       }
 
       const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
-        workflowName: workflow.name,
+        workflowName: selectedWorkflow.name,
         input: data.input,
         additionalMetadata: data.addlMeta,
       });
@@ -132,19 +133,19 @@ export function TriggerWorkflowForm({
   });
 
   const triggerScheduleMutation = useMutation({
-    mutationKey: ['workflow-run:schedule', workflow?.metadata.id],
+    mutationKey: ['workflow-run:schedule', selectedWorkflow?.metadata.id],
     mutationFn: async (data: {
       input: object;
       addlMeta: object;
       scheduledAt: string;
     }) => {
-      if (!workflow) {
+      if (!selectedWorkflow) {
         return;
       }
 
       const res = await api.scheduledWorkflowRunCreate(
         tenant.metadata.id,
-        workflow?.name,
+        selectedWorkflow?.name,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,
@@ -161,27 +162,27 @@ export function TriggerWorkflowForm({
       if (!workflowRun) {
         return;
       }
-      onClose();
+      handleClose();
       navigate(`/v1/scheduled`);
     },
     onError: handleApiError,
   });
 
   const triggerCronMutation = useMutation({
-    mutationKey: ['workflow-run:cron', workflow?.metadata.id],
+    mutationKey: ['workflow-run:cron', selectedWorkflow?.metadata.id],
     mutationFn: async (data: {
       input: object;
       addlMeta: object;
       cron: string;
       cronName: string;
     }) => {
-      if (!workflow) {
+      if (!selectedWorkflow) {
         return;
       }
 
       const res = await api.cronWorkflowTriggerCreate(
         tenant.metadata.id,
-        workflow?.name,
+        selectedWorkflow?.name,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,
@@ -199,14 +200,14 @@ export function TriggerWorkflowForm({
       if (!workflowRun) {
         return;
       }
-      onClose();
+      handleClose();
       navigate(`/v1/cron-jobs`);
     },
     onError: handleApiError,
   });
 
   const handleSubmit = () => {
-    if (!workflow) {
+    if (!selectedWorkflow) {
       setErrors(['No workflow selected.']);
       return;
     }
@@ -243,13 +244,13 @@ export function TriggerWorkflowForm({
     }
   };
 
-  if (!workflow && isFetched) {
+  if ((!workflowKeys || workflowKeys.rows?.length === 0) && isFetched) {
     return (
       <Dialog
         open={show}
         onOpenChange={(open) => {
           if (!open) {
-            onClose();
+            handleClose();
           }
         }}
       >
@@ -267,10 +268,10 @@ export function TriggerWorkflowForm({
 
   return (
     <Dialog
-      open={!!workflow && show}
+      open={show}
       onOpenChange={(open) => {
         if (!open) {
-          onClose();
+          handleClose();
         }
       }}
     >
@@ -433,7 +434,8 @@ export function TriggerWorkflowForm({
             disabled={
               triggerNowMutation.isPending ||
               triggerScheduleMutation.isPending ||
-              triggerCronMutation.isPending
+              triggerCronMutation.isPending ||
+              !selectedWorkflow
             }
             onClick={handleSubmit}
           >
