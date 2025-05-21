@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -51,18 +50,6 @@ function ServiceDetailPageContent() {
   const { tenantId } = useCurrentTenantId();
 
   const { data: services, create } = useManagedCompute();
-
-  const breadcrumb = useBreadcrumbs();
-
-  useEffect(() => {
-    breadcrumb.set([
-      {
-        title: 'Worker Services',
-        label: 'New Managed Worker Service',
-        url: ROUTES.services.new(tenantId, WorkerType.MANAGED),
-      },
-    ]);
-  }, [breadcrumb]);
 
   const { canWithReason } = useCan();
 

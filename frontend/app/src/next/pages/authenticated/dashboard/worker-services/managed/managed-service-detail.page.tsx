@@ -1,8 +1,6 @@
-import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -11,8 +9,6 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
-import { ROUTES } from '@/next/lib/routes';
-import { WorkerType } from '@/lib/api';
 import { ManagedComputeProvider } from '@/next/hooks/use-managed-compute';
 import {
   Tabs,
@@ -27,7 +23,6 @@ import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 export enum ManagedServiceDetailTabs {
   INSTANCES = 'instances',
@@ -39,23 +34,6 @@ export enum ManagedServiceDetailTabs {
 
 function ServiceDetailPageContent() {
   const { data: service } = useManagedComputeDetail();
-  const { tenantId } = useCurrentTenantId();
-
-  const breadcrumb = useBreadcrumbs();
-
-  useEffect(() => {
-    breadcrumb.set([
-      {
-        title: 'Worker Services',
-        label: service?.name || '',
-        url: ROUTES.services.detail(
-          tenantId,
-          encodeURIComponent(service?.metadata?.id || ''),
-          WorkerType.MANAGED,
-        ),
-      },
-    ]);
-  }, [service?.name, service?.metadata?.id, breadcrumb]);
 
   return (
     <BasicLayout>

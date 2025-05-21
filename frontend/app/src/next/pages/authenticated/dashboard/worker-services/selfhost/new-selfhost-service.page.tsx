@@ -1,28 +1,11 @@
 import { WorkersProvider } from '@/next/hooks/use-workers';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { Headline, PageTitle } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
-import { ROUTES } from '@/next/lib/routes';
-import { WorkerType } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Separator } from '@/next/components/ui/separator';
 import { baseDocsUrl } from '@/next/hooks/use-docs-sheet';
-import { useEffect } from 'react';
-import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+
 function ServiceDetailPageContent() {
-  const breadcrumb = useBreadcrumbs();
-  const { tenantId } = useCurrentTenantId();
-
-  useEffect(() => {
-    breadcrumb.set([
-      {
-        title: 'Worker Services',
-        label: 'New Selfhosted Service',
-        url: ROUTES.services.new(tenantId, WorkerType.SELFHOSTED),
-      },
-    ]);
-  }, [breadcrumb]);
-
   return (
     <BasicLayout>
       <Headline>

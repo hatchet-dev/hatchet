@@ -1,8 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { WorkerStats } from '../components';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
@@ -13,11 +12,8 @@ import {
 } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
 import { WorkerTable } from '../components/worker-table';
-import { ROUTES } from '@/next/lib/routes';
 import { Badge } from '@/next/components/ui/badge';
-import { WorkerType } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 function ServiceDetailPageContent() {
   const { serviceName = '' } = useParams<{
@@ -25,29 +21,11 @@ function ServiceDetailPageContent() {
     workerName?: string;
   }>();
   const decodedServiceName = decodeURIComponent(serviceName);
-  const { tenantId } = useCurrentTenantId();
-
   const { services, isLoading } = useWorkers();
 
   const service = useMemo(() => {
     return services.find((s) => s.name === decodedServiceName);
   }, [services, decodedServiceName]);
-
-  const breadcrumb = useBreadcrumbs();
-
-  useEffect(() => {
-    breadcrumb.set([
-      {
-        title: 'Worker Services',
-        label: serviceName,
-        url: ROUTES.services.detail(
-          tenantId,
-          encodeURIComponent(decodedServiceName),
-          service?.type || WorkerType.SELFHOSTED,
-        ),
-      },
-    ]);
-  }, [decodedServiceName, service?.type, breadcrumb]);
 
   if (!service) {
     return <div>Service not found</div>;

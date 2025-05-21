@@ -70,7 +70,6 @@ import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
-// Service row component to simplify the main component
 const ServiceRow = ({ service }: { service: WorkerService }) => {
   const { bulkUpdate } = useWorkers();
   const { tenantId } = useCurrentTenantId();
@@ -89,9 +88,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
       : 'Never';
   };
 
-  // Handlers for pause and resume
   const handlePauseAllActive = async () => {
-    // Get all active worker IDs for this service
     const activeWorkerIds = service.workers
       .filter((worker) => worker.status === 'ACTIVE')
       .map((worker) => worker.metadata.id);
@@ -105,7 +102,6 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
   };
 
   const handleResumeAllPaused = async () => {
-    // Get all paused worker IDs for this service
     const pausedWorkerIds = service.workers
       .filter((worker) => worker.status === 'PAUSED')
       .map((worker) => worker.metadata.id);
@@ -214,7 +210,6 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
   );
 };
 
-// Skeleton row component for loading state
 const SkeletonRow = () => (
   <TableRow>
     <TableCell>
@@ -241,7 +236,6 @@ const SkeletonRow = () => (
   </TableRow>
 );
 
-// Hatchet Cloud advertisement component
 const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
   <Card className="mt-8 relative">
     <Button
@@ -287,6 +281,7 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
 function WorkerServicesContent() {
   const { isLoading } = useWorkers();
   const unifiedServices = useUnifiedWorkerServices();
+
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const { tenantId } = useCurrentTenantId();
