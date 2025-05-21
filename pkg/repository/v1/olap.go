@@ -1181,7 +1181,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 15000)
 
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to prepare transaction: %w", err)
 			}
 
 			defer rollback()
@@ -1193,7 +1193,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantId str
 			})
 
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to update DAG statuses: %w", err)
 			}
 
 			if err := commit(ctx); err != nil {
