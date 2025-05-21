@@ -46,7 +46,7 @@ export const workerServicesRoutes: RouteObject[] = [
     path: ROUTES.services.workerDetail(
       ':tenantId',
       ':serviceName',
-      ':workerName',
+      ':workerId',
       WorkerType.SELFHOSTED,
     ),
     lazy: () =>
@@ -74,7 +74,7 @@ export const workerServicesRoutes: RouteObject[] = [
     path: ROUTES.services.workerDetail(
       ':tenantId',
       ':serviceName',
-      ':workerName',
+      ':workerId',
       WorkerType.MANAGED,
     ),
     lazy: () =>

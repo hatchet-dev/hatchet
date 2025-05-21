@@ -4,7 +4,6 @@ import { ApiConnectionError } from '@/next/components/errors/api-connection-erro
 import useApiMeta from '@/next/hooks/use-api-meta';
 import { PropsWithChildren } from 'react';
 import { Outlet } from 'react-router-dom';
-import { DocsContext, useDocsState } from '@/next/hooks/use-docs-sheet';
 import { DocsSheetComponent } from '@/next/components/ui/docs-sheet';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
@@ -14,37 +13,36 @@ import {
   useSideSheetState,
 } from '@/next/hooks/use-side-sheet';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
+import { useDocs } from '../hooks/use-docs-sheet';
 
 function RootContent({ children }: PropsWithChildren) {
   const meta = useApiMeta();
-  const docsState = useDocsState();
+  const docsState = useDocs();
   const sideSheetState = useSideSheetState();
 
   return (
     <SideSheetContext.Provider value={sideSheetState}>
-      <DocsContext.Provider value={docsState}>
-        <div className="flex h-screen w-full">
-          {meta.isLoading ? (
-            <CenterStageLayout>
-              <div className="flex h-screen w-full items-center justify-center"></div>
-            </CenterStageLayout>
-          ) : meta.hasFailed ? (
-            <ApiConnectionError
-              retryInterval={meta.refetchInterval}
-              errorMessage={meta.hasFailed.message}
+      <div className="flex h-screen w-full">
+        {meta.isLoading ? (
+          <CenterStageLayout>
+            <div className="flex h-screen w-full items-center justify-center"></div>
+          </CenterStageLayout>
+        ) : meta.hasFailed ? (
+          <ApiConnectionError
+            retryInterval={meta.refetchInterval}
+            errorMessage={meta.hasFailed.message}
+          />
+        ) : (
+          <>
+            {children ?? <Outlet />}
+            <SideSheetComponent />
+            <DocsSheetComponent
+              sheet={docsState.sheet}
+              onClose={docsState.close}
             />
-          ) : (
-            <>
-              {children ?? <Outlet />}
-              <SideSheetComponent />
-              <DocsSheetComponent
-                sheet={docsState.sheet}
-                onClose={docsState.close}
-              />
-            </>
-          )}
-        </div>
-      </DocsContext.Provider>
+          </>
+        )}
+      </div>
     </SideSheetContext.Provider>
   );
 }

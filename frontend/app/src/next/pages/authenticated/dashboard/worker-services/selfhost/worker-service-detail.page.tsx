@@ -14,6 +14,7 @@ import docs from '@/next/lib/docs';
 import { WorkerTable } from '../components/worker-table';
 import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
+import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
 
 function ServiceDetailPageContent() {
   const { serviceName = '' } = useParams<{
@@ -22,6 +23,8 @@ function ServiceDetailPageContent() {
   }>();
   const decodedServiceName = decodeURIComponent(serviceName);
   const { services, isLoading } = useWorkers();
+  const { data } = useRuns();
+  console.log(data);
 
   const service = useMemo(() => {
     return services.find((s) => s.name === decodedServiceName);
@@ -56,9 +59,20 @@ function ServiceDetailPageContent() {
 }
 
 export default function ServiceDetailPage() {
+  const { workerId } = useParams();
+
   return (
     <WorkersProvider>
-      <ServiceDetailPageContent />
+      <RunsProvider
+        initialFilters={{
+          worker_id: workerId,
+        }}
+        initialTimeRange={{
+          activePreset: '24h',
+        }}
+      >
+        <ServiceDetailPageContent />
+      </RunsProvider>
     </WorkersProvider>
   );
 }

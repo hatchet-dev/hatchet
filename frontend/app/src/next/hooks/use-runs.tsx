@@ -494,6 +494,7 @@ function RunsProviderContent({
       histogramQuery,
       queueMetricsQuery,
       hasFilters,
+      listRunsQuery.isFetching,
     ],
   );
 
