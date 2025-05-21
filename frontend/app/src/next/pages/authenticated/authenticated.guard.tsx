@@ -21,13 +21,11 @@ export default function AuthenticatedGuard() {
     return <Navigate to="../auth/verify-email" />;
   }
 
-  // user has no tenant
   if (
     !user.isLoading &&
     !tenantIsLoading &&
     tenant?.uiVersion !== TenantUIVersion.V1
   ) {
-    console.log('In here');
     return <Navigate to={'/v1/runs'} />;
   }
 
