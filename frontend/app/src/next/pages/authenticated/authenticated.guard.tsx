@@ -24,6 +24,7 @@ export default function AuthenticatedGuard() {
   if (
     !user.isLoading &&
     !tenantIsLoading &&
+    tenant &&
     tenant?.uiVersion !== TenantUIVersion.V1
   ) {
     return <Navigate to={'/v1/runs'} />;
