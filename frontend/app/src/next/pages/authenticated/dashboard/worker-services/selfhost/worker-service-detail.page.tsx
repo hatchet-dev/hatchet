@@ -24,6 +24,8 @@ function ServiceDetailPageContent() {
   const decodedServiceName = decodeURIComponent(serviceName);
   const { services, isLoading } = useWorkers();
   const { data } = useRuns();
+
+  // TODO: Do something with this
   console.log(data);
 
   const service = useMemo(() => {
