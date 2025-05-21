@@ -179,7 +179,7 @@ export const getMainNavLinks = (
       },
       {
         title: 'Restart Tutorial',
-        url: ROUTES.learn.firstRun,
+        url: ROUTES.learn.firstRun(tenantId),
         icon: FaPlay,
         target: '_self',
       },

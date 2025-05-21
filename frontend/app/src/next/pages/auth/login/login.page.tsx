@@ -11,8 +11,6 @@ import React from 'react';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useErrorParam from '@/pages/auth/hooks/use-error-param';
 import { ROUTES } from '@/next/lib/routes';
-import { useTenantDetails } from '@/next/hooks/use-tenant';
-import useUser from '@/next/hooks/use-user';
 
 export default function Login() {
   useErrorParam();

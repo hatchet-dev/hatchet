@@ -8,7 +8,7 @@ export const BASE_PATH = '/next';
 export const FEATURES_BASE_PATH = {
   auth: BASE_PATH + '/auth',
   onboarding: BASE_PATH + `/onboarding`,
-  learn: BASE_PATH + '/learn',
+  learn: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/learn`,
   runs: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/runs`,
   scheduled: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/scheduled`,
   crons: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/crons`,
@@ -39,7 +39,7 @@ export const ROUTES = {
       `${FB.events(tenantId)}/${externalId}`,
   },
   learn: {
-    firstRun: `${FB.learn}/first-run`,
+    firstRun: (tenantId: string) => `${FB.learn(tenantId)}/first-run`,
   },
   runs: {
     list: (tenantId: string) => `${FB.runs(tenantId)}`,

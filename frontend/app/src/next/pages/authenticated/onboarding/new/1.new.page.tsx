@@ -56,8 +56,8 @@ export default function OnboardingNewPage() {
         },
         {
           onSuccess: async (tenant) => {
-            const route = ROUTES.runs.list(tenant.metadata.id);
             await queryClient.invalidateQueries();
+            const route = ROUTES.learn.firstRun(tenant.metadata.id);
 
             navigate(route);
           },
