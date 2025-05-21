@@ -33,7 +33,7 @@ export function LearnLayout() {
   );
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen w-full">
       <header className="sticky top-0 z-50 w-full bg-background">
         <div className="flex h-16 items-center gap-2 border-b">
           <div className="flex w-full items-center justify-between px-4">
