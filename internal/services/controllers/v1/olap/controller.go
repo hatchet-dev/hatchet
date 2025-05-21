@@ -44,6 +44,7 @@ type OLAPControllerImpl struct {
 	updateDAGStatusOperations    *queueutils.OperationPool
 	processTenantAlertOperations *queueutils.OperationPool
 	samplingHashThreshold        *int64
+	olapConfig                   *server.ConfigFileOLAP
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -57,6 +58,7 @@ type OLAPControllerOpts struct {
 	p                     *partition.Partition
 	ta                    *alerting.TenantAlertManager
 	samplingHashThreshold *int64
+	olapConfig            *server.ConfigFileOLAP
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -123,6 +125,12 @@ func WithSamplingConfig(c server.ConfigFileSampling) OLAPControllerOpt {
 	}
 }
 
+func WithOLAPConfig(c server.ConfigFileOLAP) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.olapConfig = &c
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -168,6 +176,15 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		a:                     a,
 		ta:                    opts.ta,
 		samplingHashThreshold: opts.samplingHashThreshold,
+		olapConfig:            opts.olapConfig,
+	}
+
+	// Default jitter value
+	jitterMs := 1500
+
+	// Override with config value if available
+	if o.olapConfig != nil && o.olapConfig.OpsJitter > 0 {
+		jitterMs = o.olapConfig.OpsJitter
 	}
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(
@@ -175,21 +192,21 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		time.Second*30,
 		"update task statuses",
 		o.updateTaskStatuses,
-	).WithJitter(1500 * time.Millisecond)
+	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
 
 	o.updateDAGStatusOperations = queueutils.NewOperationPool(
 		opts.l,
 		time.Second*30,
 		"update dag statuses",
 		o.updateDAGStatuses,
-	).WithJitter(1500 * time.Millisecond)
+	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
 
 	o.processTenantAlertOperations = queueutils.NewOperationPool(
 		opts.l,
 		time.Second*15,
 		"process tenant alerts",
 		o.processTenantAlerts,
-	).WithJitter(1500 * time.Millisecond)
+	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
 
 	return o, nil
 }
@@ -225,8 +242,16 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule task table partition: %w", err)
 	}
 
+	// Default poll interval
+	pollIntervalSec := 2
+
+	// Override with config value if available
+	if o.olapConfig != nil && o.olapConfig.OpsPollInterval > 0 {
+		pollIntervalSec = o.olapConfig.OpsPollInterval
+	}
+
 	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Second*2),
+		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
 		gocron.NewTask(
 			o.runTenantTaskStatusUpdates(ctx),
 		),
@@ -238,7 +263,7 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Second*2),
+		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
 		gocron.NewTask(
 			o.runTenantDAGStatusUpdates(ctx),
 		),
