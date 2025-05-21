@@ -189,14 +189,14 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(
 		opts.l,
-		time.Second*30,
+		time.Second*15,
 		"update task statuses",
 		o.updateTaskStatuses,
 	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
 
 	o.updateDAGStatusOperations = queueutils.NewOperationPool(
 		opts.l,
-		time.Second*30,
+		time.Second*15,
 		"update dag statuses",
 		o.updateDAGStatuses,
 	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
