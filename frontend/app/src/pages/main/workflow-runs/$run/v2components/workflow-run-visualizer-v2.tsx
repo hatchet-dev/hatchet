@@ -168,7 +168,7 @@ const WorkflowRunVisualizer = ({
   }, [theme]);
 
   return (
-    <div className="w-full h-[300px]">
+    <div className="w-full h-[800px]">
       <ReactFlow
         nodes={dagrNodes}
         edges={dagrEdges}
