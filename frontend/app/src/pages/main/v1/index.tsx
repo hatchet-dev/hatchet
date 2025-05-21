@@ -14,6 +14,7 @@ import {
   Navigate,
   Outlet,
   useLocation,
+  useNavigate,
   useOutletContext,
 } from 'react-router-dom';
 import { Tenant, TenantMember, TenantUIVersion } from '@/lib/api';
@@ -39,6 +40,7 @@ import { ROUTES } from '@/next/lib/routes';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
+  const navigate = useNavigate();
 
   const { user, memberships } = ctx;
 
@@ -55,7 +57,23 @@ function Main() {
   }
 
   if (currTenant.uiVersion === TenantUIVersion.V1) {
-    return <Navigate to={ROUTES.runs.list(currTenant.metadata.id)} />;
+    // FIXME: Not sure why `<Navigate />` is not working here
+    // think it's probably because of an effect hook race condition
+    // where the URL is updated in two places
+    return (
+      <div className="flex flex-col w-full items-center mt-4">
+        <div className="flex flex-col items-center justify-center border rounded-lg p-4 max-w-96 gap-y-6">
+          You're currently on a V0 UI page, but you've upgraded to the V1 UI.
+          <Button
+            onClick={() => {
+              navigate(ROUTES.runs.list(currTenant.metadata.id));
+            }}
+          >
+            Take me to the V1 UI
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
