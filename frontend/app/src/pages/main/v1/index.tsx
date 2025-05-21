@@ -9,8 +9,14 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
-import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
-import { Tenant, TenantMember } from '@/lib/api';
+import {
+  Link,
+  Navigate,
+  Outlet,
+  useLocation,
+  useOutletContext,
+} from 'react-router-dom';
+import { Tenant, TenantMember, TenantUIVersion } from '@/lib/api';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import React, { useCallback } from 'react';
 import {
@@ -29,6 +35,7 @@ import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
 import invariant from 'tiny-invariant';
+import { ROUTES } from '@/next/lib/routes';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -45,6 +52,10 @@ function Main() {
 
   if (!user || !memberships || !currTenant) {
     return <Loading />;
+  }
+
+  if (currTenant.uiVersion === TenantUIVersion.V1) {
+    return <Navigate to={ROUTES.runs.list(currTenant.metadata.id)} />;
   }
 
   return (
