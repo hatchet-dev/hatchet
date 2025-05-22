@@ -67,6 +67,8 @@ interface WorkersState {
 
 interface WorkersProviderProps extends PropsWithChildren {
   refetchInterval?: number;
+  status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
+  workerName?: string;
 }
 
 const WorkersContext = createContext<WorkersState | null>(null);
@@ -316,16 +318,18 @@ function WorkersProviderContent({
 export function WorkersProvider({
   children,
   refetchInterval,
+  status,
+  workerName,
 }: WorkersProviderProps) {
   return (
     <FilterProvider<WorkersFilters>
       initialFilters={{
-        search: undefined,
+        search: workerName,
         sortBy: undefined,
         sortDirection: undefined,
         fromDate: undefined,
         toDate: undefined,
-        status: undefined,
+        status,
       }}
     >
       <PaginationProvider initialPage={1} initialPageSize={50}>

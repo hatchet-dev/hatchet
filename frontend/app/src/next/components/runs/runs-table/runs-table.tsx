@@ -13,6 +13,7 @@ import {
   FilterTaskSelect,
   FilterKeyValue,
   ClearFiltersButton,
+  FilterWorkerSelect,
 } from '@/next/components/ui/filters/filters';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
@@ -25,6 +26,7 @@ import { Plus } from 'lucide-react';
 import { ROUTES } from '@/next/lib/routes';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+import { WorkersProvider } from '@/next/hooks/use-workers';
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
@@ -197,6 +199,15 @@ export function RunsTable({
             placeholder="Task Name"
             multi
           />
+        )}
+        {!excludedFilters.includes('worker_id') && (
+          <WorkersProvider status="ACTIVE">
+            <FilterWorkerSelect<RunsFilters>
+              name="worker_id"
+              placeholder="Worker"
+              multi
+            />
+          </WorkersProvider>
         )}
         {!excludedFilters.includes('additional_metadata') && (
           <FilterKeyValue<RunsFilters>

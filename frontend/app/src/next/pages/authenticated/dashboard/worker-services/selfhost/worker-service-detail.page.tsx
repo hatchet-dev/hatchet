@@ -22,7 +22,6 @@ import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 function ServiceDetailPageContent() {
   const { serviceName = '' } = useParams<{
     serviceName: string;
-    workerName?: string;
   }>();
   const decodedServiceName = decodeURIComponent(serviceName);
   const { services } = useWorkers();
