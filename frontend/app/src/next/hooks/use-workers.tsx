@@ -28,6 +28,7 @@ export interface WorkerPool {
   inactiveCount: number;
   totalMaxRuns: number;
   totalAvailableRuns: number;
+  actions: string[];
 }
 
 interface WorkersFilters {
@@ -96,54 +97,43 @@ function WorkersProviderContent({
       try {
         const res = await api.workerList(tenantId);
 
-        const sorted = (res?.data?.rows || []).sort((a, b) => {
-          const aCreatedAt = new Date(a.metadata.createdAt);
-          const bCreatedAt = new Date(b.metadata.createdAt);
-          return bCreatedAt.getTime() - aCreatedAt.getTime();
-        });
+        const searchLower = filters.filters.search?.toLowerCase();
+        const fromDate = filters.filters.fromDate
+          ? new Date(filters.filters.fromDate)
+          : undefined;
+        const toDate = filters.filters?.toDate
+          ? new Date(filters.filters.toDate)
+          : undefined;
 
-        // Client-side filtering for search if API doesn't support it
-        let filteredRows = sorted || [];
-        if (filters.filters.search) {
-          const searchLower = filters.filters.search.toLowerCase();
-          filteredRows = filteredRows.filter((worker) =>
-            worker.name.toLowerCase().includes(searchLower),
-          );
-        }
-
-        // Client-side date filtering
-        if (filters.filters.fromDate) {
-          const fromDate = new Date(filters.filters.fromDate);
-          filteredRows = filteredRows.filter((worker) => {
-            if (!worker.lastHeartbeatAt) {
+        const filteredRows = (res?.data?.rows || [])
+          .filter(
+            (worker) =>
+              !searchLower || worker.name.toLowerCase().includes(searchLower),
+          )
+          .filter((worker) => {
+            if (!worker.lastHeartbeatAt || !fromDate) {
               return true;
             }
             const lastHeartbeatAt = new Date(worker.lastHeartbeatAt);
             return lastHeartbeatAt >= fromDate;
-          });
-        }
-
-        if (filters.filters.toDate) {
-          const toDate = new Date(filters.filters.toDate);
-          filteredRows = filteredRows.filter((worker) => {
-            if (!worker.lastHeartbeatAt) {
+          })
+          .filter((worker) => {
+            if (!worker.lastHeartbeatAt || !toDate) {
               return true;
             }
             const lastHeartbeatAt = new Date(worker.lastHeartbeatAt);
             return lastHeartbeatAt <= toDate;
-          });
-        }
+          })
+          .filter(
+            (worker) =>
+              !filters.filters.status ||
+              worker.status === filters.filters.status,
+          )
+          .sort((a, b) => {
+            if (!filters.filters.sortBy) {
+              return 0;
+            }
 
-        // Filter by status
-        if (filters.filters.status) {
-          filteredRows = filteredRows.filter(
-            (worker) => worker.status === filters.filters.status,
-          );
-        }
-
-        // Client-side sorting if API doesn't support it
-        if (filters.filters.sortBy) {
-          filteredRows.sort((a, b) => {
             let valueA: any;
             let valueB: any;
 
@@ -181,7 +171,6 @@ function WorkersProviderContent({
             }
             return 0;
           });
-        }
 
         const groupedByName = filteredRows.reduce(
           (acc, worker) => {
@@ -198,6 +187,7 @@ function WorkersProviderContent({
         const pools: WorkerPool[] = Object.entries(groupedByName).map(
           ([name, workers]) => {
             const activeWorkers = workers.filter((w) => w.status === 'ACTIVE');
+
             return {
               name,
               type: workers[0].type,
@@ -214,6 +204,7 @@ function WorkersProviderContent({
                 (sum, worker) => sum + (worker.availableRuns || 0),
                 0,
               ),
+              actions: workers.flatMap((w) => w.actions || []),
             };
           },
         );

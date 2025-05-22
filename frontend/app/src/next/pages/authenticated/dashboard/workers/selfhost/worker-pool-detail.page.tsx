@@ -19,6 +19,7 @@ import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { WorkerTable } from '../components';
+import { useWorker } from '@/next/hooks/use-worker';
 
 function WorkerPoolDetailPageContent() {
   const { poolName = '', workerId } = useParams();
@@ -38,6 +39,9 @@ function WorkerPoolDetailPageContent() {
     return pool.workers.find((w) => w.metadata.id === workerId);
   }, [pool, workerId]);
 
+  const { data: workerDetails, isLoading: isWorkerLoading } = useWorker({
+    workerId: workerId || '',
+  });
   const { open: openSideSheet, sheet } = useSideSheet();
 
   const handleRowClick = (task: V1TaskSummary) => {
@@ -101,6 +105,9 @@ function WorkerPoolDetailPageContent() {
                 selectedTaskId={selectedTaskId}
               />
             </RunsProvider>
+            <div>
+              {workerDetails?.actions?.map((action) => <div>{action}</div>)}
+            </div>
           </>
         )}
       </div>
