@@ -204,7 +204,9 @@ function WorkersProviderContent({
                 (sum, worker) => sum + (worker.availableRuns || 0),
                 0,
               ),
-              actions: workers.flatMap((w) => w.actions || []),
+              actions: [
+                ...new Set(workers.flatMap((w) => w.actions || [])),
+              ].sort((a, b) => a.localeCompare(b)),
             };
           },
         );

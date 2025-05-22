@@ -13,6 +13,7 @@ import docs from '@/next/lib/docs';
 import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { WorkerTable } from '../components';
+import { WorkerActions } from '../components/actions';
 
 function WorkerPoolDetailPageContent() {
   const { poolName = '' } = useParams();
@@ -28,14 +29,20 @@ function WorkerPoolDetailPageContent() {
     return <div>Worker not found</div>;
   }
 
-  const description = `Viewing workers in pool "${pool.name}"`;
-
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description={description}>
-          {decodedPoolName} <Badge variant="outline">Self-hosted</Badge>
-        </PageTitle>
+        <div className="flex flex-col gap-y-2">
+          <PageTitle>
+            {decodedPoolName} <Badge variant="outline">Self-hosted</Badge>
+          </PageTitle>
+          <p className="text-muted-foreground">
+            Viewing workers in pool{'  '}
+            <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">
+              {decodedPoolName}
+            </code>
+          </p>
+        </div>
         <HeadlineActions>
           <HeadlineActionItem>
             <DocsButton doc={docs.home.workers} size="icon" />
@@ -43,9 +50,9 @@ function WorkerPoolDetailPageContent() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      <div className="flex flex-col gap-4 mt-4">
-        <WorkerTable poolName={pool.name} />
-      </div>
+      <WorkerTable poolName={pool.name} />
+      <Separator className="my-4" />
+      <WorkerActions actions={pool.actions} />
     </BasicLayout>
   );
 }

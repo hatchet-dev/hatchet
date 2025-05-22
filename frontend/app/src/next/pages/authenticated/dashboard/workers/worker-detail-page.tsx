@@ -20,6 +20,7 @@ import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metric
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { useWorker } from '@/next/hooks/use-worker';
 import { Spinner } from '@/next/components/ui/spinner';
+import { WorkerActions } from './components/actions';
 
 function WorkerDetailPageContent() {
   const { workerId } = useParams();
@@ -88,9 +89,8 @@ function WorkerDetailPageContent() {
             selectedTaskId={selectedTaskId}
           />
         </RunsProvider>
-        <div>
-          {workerDetails?.actions?.map((action) => <div>{action}</div>)}
-        </div>
+        <Separator className="my-4" />
+        <WorkerActions actions={workerDetails.actions || []} />
       </div>
     </BasicLayout>
   );
