@@ -50,7 +50,7 @@ export const workerRoutes: RouteObject[] = [
       WorkerType.SELFHOSTED,
     ),
     lazy: () =>
-      import('./selfhost/worker-pool-detail.page').then((res) => {
+      import('./worker-detail-page').then((res) => {
         return {
           Component: res.default,
         };
@@ -78,7 +78,7 @@ export const workerRoutes: RouteObject[] = [
       WorkerType.MANAGED,
     ),
     lazy: () =>
-      import('./managed/managed-worker-pool-detail.page').then((res) => {
+      import('./worker-detail-page').then((res) => {
         return {
           Component: res.default,
         };
