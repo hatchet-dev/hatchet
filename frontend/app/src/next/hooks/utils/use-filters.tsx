@@ -1,4 +1,3 @@
-import { useStateAdapter } from '@/next/lib/utils';
 import * as React from 'react';
 
 interface FilterManager<T> {
@@ -27,6 +26,7 @@ export function useFilters<T>() {
   if (!context) {
     throw new Error('useFilters must be used within a FilterProvider');
   }
+
   return context as FilterManager<T>;
 }
 
@@ -45,37 +45,27 @@ export function FilterProvider<T extends Record<string, any>>({
   children,
   initialFilters = {} as T,
 }: FilterProviderProps<T>) {
-  const state = useStateAdapter<T>(initialFilters);
-
-  const filters = state.getValues();
+  const [filters, setFilters] = React.useState<T>(initialFilters);
 
   const setFilter = React.useCallback(
     (key: keyof T, value: T[keyof T]) => {
-      state.setValue(key as string, value);
+      filters.setValue(key as string, value);
     },
-    [state],
+    [filters],
   );
-
-  const setFilters = React.useCallback(
-    (filters: Partial<T>) => {
-      state.setValues(filters);
-    },
-    [state],
-  );
-
   const clearFilter = React.useCallback(
     (key: keyof T) => {
-      state.setValue(key as string, undefined as any);
+      filters.setValue(key as string, undefined as any);
     },
-    [state],
+    [filters],
   );
 
   const clearAllFilters = React.useCallback(() => {
-    const currentFilters = state.getValues();
+    const currentFilters = filters.getValues();
     Object.keys(currentFilters).forEach((key) => {
-      state.setValue(key, undefined as any);
+      filters.setValue(key, undefined as any);
     });
-  }, [state]);
+  }, [filters]);
 
   const value = React.useMemo(
     () => ({

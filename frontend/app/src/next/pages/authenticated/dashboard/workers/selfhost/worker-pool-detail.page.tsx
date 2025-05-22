@@ -85,12 +85,22 @@ function WorkerPoolDetailPageContent() {
           <WorkerTable poolName={pool.name} />
         ) : (
           <>
-            <TimeFilters />
-            <RunsMetricsView />
-            <RunsTable
-              onRowClick={handleRowClick}
-              selectedTaskId={selectedTaskId}
-            />
+            <RunsProvider
+              initialFilters={{
+                worker_id: workerId,
+                only_tasks: true,
+              }}
+              initialTimeRange={{
+                activePreset: '24h',
+              }}
+            >
+              <TimeFilters />
+              <RunsMetricsView />
+              <RunsTable
+                onRowClick={handleRowClick}
+                selectedTaskId={selectedTaskId}
+              />
+            </RunsProvider>
           </>
         )}
       </div>
@@ -99,21 +109,9 @@ function WorkerPoolDetailPageContent() {
 }
 
 export default function WorkerPoolDetailPage() {
-  const { workerId } = useParams();
-
   return (
     <WorkersProvider>
-      <RunsProvider
-        initialFilters={{
-          worker_id: workerId,
-          only_tasks: true,
-        }}
-        initialTimeRange={{
-          activePreset: '24h',
-        }}
-      >
-        <WorkerPoolDetailPageContent />
-      </RunsProvider>
+      <WorkerPoolDetailPageContent />
     </WorkersProvider>
   );
 }

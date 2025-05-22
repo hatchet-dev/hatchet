@@ -46,7 +46,11 @@ export function WorkerId({
         <TooltipTrigger asChild>
           <span>
             {url && !onClick ? (
-              <Link to={url} className="hover:underline text-foreground">
+              <Link
+                to={url}
+                className="hover:underline text-foreground"
+                replace={true}
+              >
                 {name}-{worker?.metadata.id.split('-')[0]}
               </Link>
             ) : (

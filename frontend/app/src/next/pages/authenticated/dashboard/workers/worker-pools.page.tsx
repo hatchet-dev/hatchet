@@ -123,6 +123,7 @@ const WorkerPoolRow = ({ pool }: { pool: WorkerPool }) => {
             encodeURIComponent(pool.id || pool.name),
             pool.type,
           )}
+          replace={true}
         >
           {pool.name}
         </Link>
@@ -159,6 +160,7 @@ const WorkerPoolRow = ({ pool }: { pool: WorkerPool }) => {
               encodeURIComponent(pool.name),
               pool.type,
             )}
+            replace={true}
           >
             <Button variant="ghost" size="icon">
               <ArrowUpRight className="h-4 w-4" />
@@ -182,6 +184,7 @@ const WorkerPoolRow = ({ pool }: { pool: WorkerPool }) => {
                     pool.type,
                   )}
                   className="w-full"
+                  replace={true}
                 >
                   View details
                 </Link>
@@ -333,13 +336,17 @@ function WorkerContext() {
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem asChild>
-                  <Link to={ROUTES.workers.new(tenantId, WorkerType.MANAGED)}>
+                  <Link
+                    to={ROUTES.workers.new(tenantId, WorkerType.MANAGED)}
+                    replace={true}
+                  >
                     Managed Worker
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link
                     to={ROUTES.workers.new(tenantId, WorkerType.SELFHOSTED)}
+                    replace={true}
                   >
                     Self-hosted Worker
                   </Link>
