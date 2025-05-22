@@ -392,7 +392,7 @@ export function Waterfall({
       taskDepthMap,
       rootTasks,
     };
-  }, [taskData]); // Only recompute when taskData or depth changes
+  }, [taskData]); // Only recompute when taskData changes
 
   const closeTask = (taskId: string) => {
     const newExpandedTasks = new Set(expandedTasks);
