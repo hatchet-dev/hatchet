@@ -115,7 +115,7 @@ function ServiceDetailPageContent() {
       });
 
       navigate(
-        ROUTES.services.detail(
+        ROUTES.workers.poolDetail(
           tenantId,
           deployedService.metadata.id,
           WorkerType.MANAGED,

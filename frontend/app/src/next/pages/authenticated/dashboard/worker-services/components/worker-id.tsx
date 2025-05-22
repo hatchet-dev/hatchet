@@ -32,7 +32,7 @@ export function WorkerId({
   }, [worker]);
 
   const url = worker
-    ? ROUTES.services.workerDetail(
+    ? ROUTES.workers.workerDetail(
         tenantId,
         serviceName,
         worker.metadata.id,

@@ -178,7 +178,7 @@ export function UpdateServiceContent() {
         },
       });
 
-      const to = ROUTES.services.detail(
+      const to = ROUTES.workers.poolDetail(
         tenantId,
         service?.metadata?.id || '',
         WorkerType.MANAGED,
@@ -193,7 +193,7 @@ export function UpdateServiceContent() {
 
   const handleDelete = async (serviceId: string) => {
     await deleteService.mutateAsync(serviceId);
-    navigate(ROUTES.services.list(tenantId));
+    navigate(ROUTES.workers.list(tenantId));
   };
 
   const canUpdate = service?.canUpdate;

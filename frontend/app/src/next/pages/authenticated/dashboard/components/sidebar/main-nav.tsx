@@ -99,9 +99,9 @@ export const getMainNavLinks = (
           },
           {
             title: 'Worker Pools',
-            url: ROUTES.services.list(tenantId),
+            url: ROUTES.workers.list(tenantId),
             icon: Cpu,
-            isActive: isActive(ROUTES.services.list(tenantId)),
+            isActive: isActive(ROUTES.workers.list(tenantId)),
           },
           {
             title: 'Rate Limits',

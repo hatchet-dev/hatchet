@@ -3,7 +3,7 @@ import { RouteObject } from 'react-router-dom';
 import { WorkerType } from '@/lib/api';
 export const workerRoutes: RouteObject[] = [
   {
-    path: ROUTES.services.list(':tenantId'),
+    path: ROUTES.workers.list(':tenantId'),
     lazy: () =>
       import('./worker-pools.page').then((res) => {
         return {
@@ -12,7 +12,7 @@ export const workerRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.new(':tenantId', WorkerType.SELFHOSTED),
+    path: ROUTES.workers.new(':tenantId', WorkerType.SELFHOSTED),
     lazy: () =>
       import('./selfhost/new-selfhost-service.page').then((res) => {
         return {
@@ -21,7 +21,7 @@ export const workerRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.new(':tenantId', WorkerType.MANAGED),
+    path: ROUTES.workers.new(':tenantId', WorkerType.MANAGED),
     lazy: () =>
       import('./managed/new-managed-service.page').then((res) => {
         return {
@@ -30,9 +30,9 @@ export const workerRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.detail(
+    path: ROUTES.workers.poolDetail(
       ':tenantId',
-      ':serviceName',
+      ':poolName',
       WorkerType.SELFHOSTED,
     ),
     lazy: () =>
@@ -43,9 +43,9 @@ export const workerRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.workerDetail(
+    path: ROUTES.workers.workerDetail(
       ':tenantId',
-      ':serviceName',
+      ':poolName',
       ':workerId',
       WorkerType.SELFHOSTED,
     ),
@@ -58,9 +58,9 @@ export const workerRoutes: RouteObject[] = [
   },
 
   {
-    path: ROUTES.services.detail(
+    path: ROUTES.workers.poolDetail(
       ':tenantId',
-      ':serviceName',
+      ':poolName',
       WorkerType.MANAGED,
     ),
     lazy: () =>
@@ -71,9 +71,9 @@ export const workerRoutes: RouteObject[] = [
       }),
   },
   {
-    path: ROUTES.services.workerDetail(
+    path: ROUTES.workers.workerDetail(
       ':tenantId',
-      ':serviceName',
+      ':poolName',
       ':workerId',
       WorkerType.MANAGED,
     ),
