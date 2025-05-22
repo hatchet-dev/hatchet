@@ -91,10 +91,10 @@ export const ROUTES = {
     workerDetail: (
       tenantId: string,
       poolName: string,
-      workerName: string,
+      workerId: string,
       type: WorkerType,
     ) =>
-      `${FB.workers(tenantId)}/${type.toLowerCase()}/${poolName}/${workerName}`,
+      `${FB.workers(tenantId)}/${type.toLowerCase()}/${poolName}/${workerId}`,
   },
   rateLimits: {
     list: (tenantId: string) => `${FB.rateLimits(tenantId)}`,
