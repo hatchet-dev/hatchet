@@ -6,7 +6,11 @@ export const WorkerActions = ({ actions }: { actions: string[] }) => {
       <p className="text-lg">Actions</p>
       <div className="gap-2">
         {actions?.map((action) => (
-          <Badge key={action} variant="outline" className="h-8 p-2 m-1">
+          <Badge
+            key={action}
+            variant="outline"
+            className="h-8 p-2 m-1 text-base font-normal hover:text-purple-300"
+          >
             {action}
           </Badge>
         ))}
