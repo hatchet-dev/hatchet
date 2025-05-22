@@ -281,8 +281,6 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
 function WorkerContext() {
   const { pools, isLoading } = useUnifiedWorkerPools();
 
-  console.log(isLoading, pools);
-
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const { tenantId } = useCurrentTenantId();

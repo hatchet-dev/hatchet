@@ -49,7 +49,7 @@ interface UpdateWorkerParams {
 interface BulkUpdateWorkersParams {
   workerIds: string[];
   data: UpdateWorkerRequest;
-  serviceName?: string; // Optional parameter to update all workers in a service
+  poolName?: string; // Optional parameter to update all workers in a pool
 }
 
 // Main hook return type
@@ -233,7 +233,7 @@ function WorkersProviderContent({
         return {
           rows: [],
           pagination: { current_page: 0, num_pages: 0 },
-          services: [],
+          pools: [],
         };
       }
     },
@@ -267,18 +267,17 @@ function WorkersProviderContent({
     mutationFn: async ({
       workerIds,
       data,
-      serviceName,
+      poolName,
     }: BulkUpdateWorkersParams) => {
-      // If service name is provided, get all worker IDs for that service
+      // If pool name is provided, get all worker IDs for that pool
       let targetWorkerIds = workerIds;
-      if (serviceName && !workerIds.length) {
+      if (poolName && !workerIds.length) {
         const workers = listWorkersQuery.data?.rows || [];
         targetWorkerIds = workers
-          .filter((worker: Worker) => worker.name === serviceName)
+          .filter((worker: Worker) => worker.name === poolName)
           .map((worker: Worker) => worker.metadata.id);
       }
 
-      // Execute all updates in parallel
       try {
         await Promise.all(
           targetWorkerIds.map((workerId) => api.workerUpdate(workerId, data)),
@@ -308,8 +307,10 @@ function WorkersProviderContent({
     bulkUpdate: bulkUpdateWorkersMutation,
     filters,
     pagination,
-    pools: listWorkersQuery.data?.services || [],
+    pools: listWorkersQuery.data?.pools || [],
   };
+
+  console.log(value);
 
   return createElement(WorkersContext.Provider, { value }, children);
 }
