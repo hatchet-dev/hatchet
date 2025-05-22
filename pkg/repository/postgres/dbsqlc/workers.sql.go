@@ -217,34 +217,44 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 }
 
 const getWorkerActionsByWorkerId = `-- name: GetWorkerActionsByWorkerId :many
+WITH inputs AS (
+    SELECT UNNEST($2::UUID[]) AS "workerId"
+)
+
 SELECT
+    w."id" AS "workerId",
     a."actionId" AS actionId
 FROM "Worker" w
+JOIN inputs i ON w."id" = i."workerId"
 LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
 LEFT JOIN "Action" a ON aw."A" = a.id
 WHERE
-    a."tenantId" = $1::uuid AND
-    w."id" = $2::uuid
+    a."tenantId" = $1::UUID
 `
 
 type GetWorkerActionsByWorkerIdParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Workerid pgtype.UUID `json:"workerid"`
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Workerids []pgtype.UUID `json:"workerids"`
 }
 
-func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerIdParams) ([]pgtype.Text, error) {
-	rows, err := db.Query(ctx, getWorkerActionsByWorkerId, arg.Tenantid, arg.Workerid)
+type GetWorkerActionsByWorkerIdRow struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	Actionid pgtype.Text `json:"actionid"`
+}
+
+func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerIdParams) ([]*GetWorkerActionsByWorkerIdRow, error) {
+	rows, err := db.Query(ctx, getWorkerActionsByWorkerId, arg.Tenantid, arg.Workerids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.Text
+	var items []*GetWorkerActionsByWorkerIdRow
 	for rows.Next() {
-		var actionid pgtype.Text
-		if err := rows.Scan(&actionid); err != nil {
+		var i GetWorkerActionsByWorkerIdRow
+		if err := rows.Scan(&i.WorkerId, &i.Actionid); err != nil {
 			return nil, err
 		}
-		items = append(items, actionid)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
