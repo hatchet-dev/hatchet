@@ -13,36 +13,38 @@ import {
   useSideSheetState,
 } from '@/next/hooks/use-side-sheet';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
-import { useDocs } from '../hooks/use-docs-sheet';
+import { DocsContext, useDocsState } from '../hooks/use-docs-sheet';
 
 function RootContent({ children }: PropsWithChildren) {
   const meta = useApiMeta();
-  const docsState = useDocs();
+  const docsState = useDocsState();
   const sideSheetState = useSideSheetState();
 
   return (
     <SideSheetContext.Provider value={sideSheetState}>
-      <div className="flex h-screen w-full">
-        {meta.isLoading ? (
-          <CenterStageLayout>
-            <div className="flex h-screen w-full items-center justify-center"></div>
-          </CenterStageLayout>
-        ) : meta.hasFailed ? (
-          <ApiConnectionError
-            retryInterval={meta.refetchInterval}
-            errorMessage={meta.hasFailed.message}
-          />
-        ) : (
-          <>
-            {children ?? <Outlet />}
-            <SideSheetComponent />
-            <DocsSheetComponent
-              sheet={docsState.sheet}
-              onClose={docsState.close}
+      <DocsContext.Provider value={docsState}>
+        <div className="flex h-screen w-full">
+          {meta.isLoading ? (
+            <CenterStageLayout>
+              <div className="flex h-screen w-full items-center justify-center"></div>
+            </CenterStageLayout>
+          ) : meta.hasFailed ? (
+            <ApiConnectionError
+              retryInterval={meta.refetchInterval}
+              errorMessage={meta.hasFailed.message}
             />
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              {children ?? <Outlet />}
+              <SideSheetComponent />
+              <DocsSheetComponent
+                sheet={docsState.sheet}
+                onClose={docsState.close}
+              />
+            </>
+          )}
+        </div>
+      </DocsContext.Provider>
     </SideSheetContext.Provider>
   );
 }
