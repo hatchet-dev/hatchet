@@ -5,7 +5,7 @@ export const workerRoutes: RouteObject[] = [
   {
     path: ROUTES.services.list(':tenantId'),
     lazy: () =>
-      import('./worker-services.page').then((res) => {
+      import('./worker-pools.page').then((res) => {
         return {
           Component: res.default,
         };
