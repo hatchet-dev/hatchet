@@ -5,12 +5,12 @@ import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Separator } from '@/next/components/ui/separator';
 import { baseDocsUrl } from '@/next/hooks/use-docs-sheet';
 
-function ServiceDetailPageContent() {
+function WorkerPoolDetailPageContent() {
   return (
     <BasicLayout>
       <Headline>
         <PageTitle description="Create workers that run in your own cloud or local environment.">
-          New Selfhost Worker Service
+          New Self-Hosted Worker
         </PageTitle>
         {/* <HeadlineActions>
           <HeadlineActionItem>
@@ -32,10 +32,10 @@ function ServiceDetailPageContent() {
   );
 }
 
-export default function ServiceDetailPage() {
+export default function WorkerPoolDetailPage() {
   return (
     <WorkersProvider>
-      <ServiceDetailPageContent />
+      <WorkerPoolDetailPageContent />
     </WorkersProvider>
   );
 }

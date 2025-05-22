@@ -19,16 +19,16 @@ import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 
-function ServiceDetailPageContent() {
-  const { serviceName = '' } = useParams<{
-    serviceName: string;
+function WorkerPoolDetailPageContent() {
+  const { poolName = '' } = useParams<{
+    poolName: string;
   }>();
-  const decodedServiceName = decodeURIComponent(serviceName);
+  const decodedPoolName = decodeURIComponent(poolName);
   const { pools } = useWorkers();
 
-  const service = useMemo(() => {
-    return pools.find((s) => s.name === decodedServiceName);
-  }, [pools, decodedServiceName]);
+  const pool = useMemo(() => {
+    return pools.find((s) => s.name === decodedPoolName);
+  }, [pools, decodedPoolName]);
 
   const { open: openSideSheet, sheet } = useSideSheet();
 
@@ -50,17 +50,17 @@ function ServiceDetailPageContent() {
     return undefined;
   }, [sheet]);
 
-  if (!service) {
-    return <div>Service not found</div>;
+  if (!pool) {
+    return <div>Worker not found</div>;
   }
 
   return (
     <BasicLayout>
       <Headline>
         <PageTitle
-          description={`Viewing task runs executed by worker "${service.name}"`}
+          description={`Viewing task runs executed by worker "${pool.name}"`}
         >
-          {decodedServiceName} <Badge variant="outline">Self-hosted</Badge>
+          {decodedPoolName} <Badge variant="outline">Self-hosted</Badge>
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -81,7 +81,7 @@ function ServiceDetailPageContent() {
   );
 }
 
-export default function ServiceDetailPage() {
+export default function WorkerPoolDetailPage() {
   const { workerId } = useParams();
 
   return (
@@ -94,7 +94,7 @@ export default function ServiceDetailPage() {
           activePreset: '24h',
         }}
       >
-        <ServiceDetailPageContent />
+        <WorkerPoolDetailPageContent />
       </RunsProvider>
     </WorkersProvider>
   );

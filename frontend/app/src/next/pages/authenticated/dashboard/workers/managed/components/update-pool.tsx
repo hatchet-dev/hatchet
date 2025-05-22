@@ -24,7 +24,7 @@ import { Dialog, DialogContent } from '@/next/components/ui/dialog';
 import { RotateCcw, Lock } from 'lucide-react';
 import { Separator } from '@/next/components/ui/separator';
 import { DangerZone } from './config/danger-zone';
-import { ManagedServiceDetailTabs } from '../managed-service-detail.page';
+import { ManagedWorkerPoolDetailTabs } from '../managed-worker-pool-detail.page';
 import { WorkerType } from '@/lib/api';
 import {
   Alert,
@@ -52,14 +52,14 @@ const SectionActions = ({
       <Alert variant="warning">
         <AlertTitle className="flex items-center gap-2">
           <Lock className="h-4 w-4" /> You don't have permission to update this
-          service's configuration.
+          pool's configuration.
         </AlertTitle>
         <AlertDescription>
           Your connected{' '}
           <Link to={ROUTES.settings.github(tenantId)} className="underline">
             GitHub app
           </Link>{' '}
-          must have push permissions to the managed service's repository.
+          must have push permissions to the managed pool's repository.
         </AlertDescription>
       </Alert>
     );
@@ -80,41 +80,39 @@ const SectionActions = ({
   );
 };
 
-export function UpdateServiceContent() {
+export function UpdateWorkerPoolContent() {
   const navigate = useNavigate();
-  const { data: service } = useManagedComputeDetail();
-  const { update, delete: deleteService } = useManagedCompute();
+  const { data: pool } = useManagedComputeDetail();
+  const { update, delete: deletePool } = useManagedCompute();
   const { tenantId } = useCurrentTenantId();
 
   const [hasChanged, setHasChanged] = useState<Record<string, boolean>>({});
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
 
-  // Initial values from service
   const initialGithubRepo: GithubRepoSelectorValue = {
-    githubInstallationId: service?.buildConfig?.githubInstallationId || '',
+    githubInstallationId: pool?.buildConfig?.githubInstallationId || '',
     githubRepositoryOwner:
-      service?.buildConfig?.githubRepository?.repo_owner || '',
-    githubRepositoryName:
-      service?.buildConfig?.githubRepository?.repo_name || '',
-    githubRepositoryBranch: service?.buildConfig?.githubRepositoryBranch || '',
+      pool?.buildConfig?.githubRepository?.repo_owner || '',
+    githubRepositoryName: pool?.buildConfig?.githubRepository?.repo_name || '',
+    githubRepositoryBranch: pool?.buildConfig?.githubRepositoryBranch || '',
   };
 
   const initialBuildConfig: BuildConfigValue = {
-    buildDir: service?.buildConfig?.steps?.[0]?.buildDir || './',
+    buildDir: pool?.buildConfig?.steps?.[0]?.buildDir || './',
     dockerfilePath:
-      service?.buildConfig?.steps?.[0]?.dockerfilePath || './Dockerfile',
-    serviceName: service?.name || '',
+      pool?.buildConfig?.steps?.[0]?.dockerfilePath || './Dockerfile',
+    poolName: pool?.name || '',
   };
 
   const initialMachineConfig: MachineConfigValue = {
-    cpuKind: service?.runtimeConfigs?.[0]?.cpuKind || 'shared',
-    cpus: service?.runtimeConfigs?.[0]?.cpus || 1,
-    memoryMb: service?.runtimeConfigs?.[0]?.memoryMb || 1024,
-    regions: service?.runtimeConfigs?.[0]?.region
-      ? [service.runtimeConfigs[0].region]
+    cpuKind: pool?.runtimeConfigs?.[0]?.cpuKind || 'shared',
+    cpus: pool?.runtimeConfigs?.[0]?.cpus || 1,
+    memoryMb: pool?.runtimeConfigs?.[0]?.memoryMb || 1024,
+    regions: pool?.runtimeConfigs?.[0]?.region
+      ? [pool.runtimeConfigs[0].region]
       : [ManagedWorkerRegion.Ewr],
-    numReplicas: service?.runtimeConfigs?.[0]?.numReplicas,
-    autoscaling: service?.runtimeConfigs?.[0]?.autoscaling,
+    numReplicas: pool?.runtimeConfigs?.[0]?.numReplicas,
+    autoscaling: pool?.runtimeConfigs?.[0]?.autoscaling,
   };
 
   const initialSecrets: UpdateManagedWorkerSecretRequest = {
@@ -160,9 +158,9 @@ export function UpdateServiceContent() {
 
     try {
       await update.mutateAsync({
-        managedWorkerId: service?.metadata?.id || '',
+        managedWorkerId: pool?.metadata?.id || '',
         data: {
-          name: buildConfig.serviceName,
+          name: buildConfig.poolName,
           buildConfig: {
             ...githubRepo,
             steps: [
@@ -180,23 +178,23 @@ export function UpdateServiceContent() {
 
       const to = ROUTES.workers.poolDetail(
         tenantId,
-        service?.metadata?.id || '',
+        pool?.metadata?.id || '',
         WorkerType.MANAGED,
-        ManagedServiceDetailTabs.BUILDS,
+        ManagedWorkerPoolDetailTabs.BUILDS,
       );
 
       navigate(to);
     } catch (error) {
-      console.error('Failed to update service:', error);
+      console.error('Failed to update pool:', error);
     }
   };
 
-  const handleDelete = async (serviceId: string) => {
-    await deleteService.mutateAsync(serviceId);
+  const handleDelete = async (poolId: string) => {
+    await deletePool.mutateAsync(poolId);
     navigate(ROUTES.workers.list(tenantId));
   };
 
-  const canUpdate = service?.canUpdate;
+  const canUpdate = pool?.canUpdate;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -232,8 +230,8 @@ export function UpdateServiceContent() {
             });
           }}
           original={{
-            directSecrets: service?.directSecrets || [],
-            globalSecrets: service?.globalSecrets || [],
+            directSecrets: pool?.directSecrets || [],
+            globalSecrets: pool?.globalSecrets || [],
           }}
           actions={
             <SectionActions
@@ -293,8 +291,8 @@ export function UpdateServiceContent() {
         />
         <Separator />
         <DangerZone
-          serviceName={service?.name || ''}
-          serviceId={service?.metadata?.id || ''}
+          poolName={pool?.name || ''}
+          poolId={pool?.metadata?.id || ''}
           onDelete={handleDelete}
           type="update"
         />

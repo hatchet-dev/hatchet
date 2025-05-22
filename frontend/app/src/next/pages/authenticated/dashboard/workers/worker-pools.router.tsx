@@ -14,7 +14,7 @@ export const workerRoutes: RouteObject[] = [
   {
     path: ROUTES.workers.new(':tenantId', WorkerType.SELFHOSTED),
     lazy: () =>
-      import('./selfhost/new-selfhost-service.page').then((res) => {
+      import('./selfhost/new-selfhost-pool.page').then((res) => {
         return {
           Component: res.default,
         };
@@ -23,7 +23,7 @@ export const workerRoutes: RouteObject[] = [
   {
     path: ROUTES.workers.new(':tenantId', WorkerType.MANAGED),
     lazy: () =>
-      import('./managed/new-managed-service.page').then((res) => {
+      import('./managed/new-managed-pool.page').then((res) => {
         return {
           Component: res.default,
         };
@@ -36,7 +36,7 @@ export const workerRoutes: RouteObject[] = [
       WorkerType.SELFHOSTED,
     ),
     lazy: () =>
-      import('./selfhost/worker-service-detail.page').then((res) => {
+      import('./selfhost/worker-pool-detail.page').then((res) => {
         return {
           Component: res.default,
         };
@@ -50,7 +50,7 @@ export const workerRoutes: RouteObject[] = [
       WorkerType.SELFHOSTED,
     ),
     lazy: () =>
-      import('./selfhost/worker-service-detail.page').then((res) => {
+      import('./selfhost/worker-pool-detail.page').then((res) => {
         return {
           Component: res.default,
         };
@@ -64,7 +64,7 @@ export const workerRoutes: RouteObject[] = [
       WorkerType.MANAGED,
     ),
     lazy: () =>
-      import('./managed/managed-service-detail.page').then((res) => {
+      import('./managed/managed-worker-pool-detail.page').then((res) => {
         return {
           Component: res.default,
         };
@@ -78,7 +78,7 @@ export const workerRoutes: RouteObject[] = [
       WorkerType.MANAGED,
     ),
     lazy: () =>
-      import('./managed/managed-service-detail.page').then((res) => {
+      import('./managed/managed-worker-pool-detail.page').then((res) => {
         return {
           Component: res.default,
         };

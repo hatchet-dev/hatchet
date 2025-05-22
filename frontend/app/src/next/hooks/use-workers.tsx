@@ -310,8 +310,6 @@ function WorkersProviderContent({
     pools: listWorkersQuery.data?.pools || [],
   };
 
-  console.log(value);
-
   return createElement(WorkersContext.Provider, { value }, children);
 }
 

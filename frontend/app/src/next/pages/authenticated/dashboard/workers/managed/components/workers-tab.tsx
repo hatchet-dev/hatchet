@@ -1,13 +1,13 @@
 import { FC } from 'react';
 import { WorkerTable } from '../../components/worker-table';
 interface WorkersTabProps {
-  serviceName: string;
+  poolName: string;
 }
 
-export const WorkersTab: FC<WorkersTabProps> = ({ serviceName }) => {
+export const WorkersTab: FC<WorkersTabProps> = ({ poolName }) => {
   return (
     <>
-      <WorkerTable serviceName={serviceName} />
+      <WorkerTable poolName={poolName} />
     </>
   );
 };
