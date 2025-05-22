@@ -124,7 +124,7 @@ export function MachineConfig({
       <CardHeader>
         <CardTitle>Machine Configuration</CardTitle>
         <CardDescription>
-          Configure the compute resources for your worker service.
+          Configure the compute resources for your worker pool.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

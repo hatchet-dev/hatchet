@@ -196,9 +196,9 @@ export function EnvVarsEditor({
       <CardHeader>
         <CardTitle>Environment Variables</CardTitle>
         <CardDescription>
-          Add environment variables that will be available to the worker service
-          at runtime. These are encrypted at rest and can only be accessed by
-          the worker service.
+          Add environment variables that will be available to the worker pool at
+          runtime. These are encrypted at rest and can only be accessed by the
+          worker pool.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

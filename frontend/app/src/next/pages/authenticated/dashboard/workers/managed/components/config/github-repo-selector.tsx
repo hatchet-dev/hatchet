@@ -153,8 +153,8 @@ export function GithubRepoSelector({
       <CardHeader>
         <CardTitle>Worker Source</CardTitle>
         <CardDescription>
-          Select the GitHub repository you want to use for your worker service.
-          If you don't see the repository you want to use, please update your{' '}
+          Select the GitHub repository you want to use for your worker pool. If
+          you don't see the repository you want to use, please update your{' '}
           <Link to={ROUTES.settings.github(tenantId)} className="underline">
             GitHub integration
           </Link>
