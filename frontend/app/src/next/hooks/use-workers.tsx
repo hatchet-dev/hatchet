@@ -81,6 +81,23 @@ export function useWorkers() {
   return context;
 }
 
+const statusToInt = (status: WorkersFilters['status']) => {
+  switch (status) {
+    case 'ACTIVE':
+      return 1;
+    case 'INACTIVE':
+      return 2;
+    case 'PAUSED':
+      return 3;
+    case undefined:
+      return 4;
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = status;
+      throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
+  }
+};
+
 function WorkersProviderContent({
   children,
   refetchInterval,
@@ -131,7 +148,7 @@ function WorkersProviderContent({
           )
           .sort((a, b) => {
             if (!filters.filters.sortBy) {
-              return 0;
+              return statusToInt(a.status) < statusToInt(b.status) ? -1 : 1;
             }
 
             let valueA: any;
