@@ -360,30 +360,31 @@ const mapManagedWorkerToWorkerPool = (worker: ManagedWorker): WorkerPool => {
 };
 
 export const useUnifiedWorkerPools = () => {
-  const { pools: regularPools } = useWorkers();
-  const { data: managedCompute } = useManagedCompute();
+  const { pools: regularPools, isLoading: workersIsLoading } = useWorkers();
+  const { data: managedCompute, isLoading: managedComputeIsLoading } =
+    useManagedCompute();
 
-  return useMemo(() => {
+  const pools = useMemo(() => {
     const managedComputePools = (managedCompute || []).map((worker) => {
       return mapManagedWorkerToWorkerPool(worker);
     });
 
-    const allServices = [...regularPools, ...managedComputePools];
-    const uniqueServices = allServices.reduce(
-      (acc, service) => {
-        if (!acc[service.name]) {
-          acc[service.name] = service;
+    const allPools = [...regularPools, ...managedComputePools];
+    const uniquePools = allPools.reduce(
+      (acc, pool) => {
+        if (!acc[pool.name]) {
+          acc[pool.name] = pool;
         } else {
-          const existing = acc[service.name];
-          acc[service.name] = {
+          const existing = acc[pool.name];
+          acc[pool.name] = {
             ...existing,
-            workers: [...existing.workers, ...service.workers],
-            activeCount: existing.activeCount + service.activeCount,
-            inactiveCount: existing.inactiveCount + service.inactiveCount,
-            pausedCount: existing.pausedCount + service.pausedCount,
-            totalMaxRuns: existing.totalMaxRuns + service.totalMaxRuns,
+            workers: [...existing.workers, ...pool.workers],
+            activeCount: existing.activeCount + pool.activeCount,
+            inactiveCount: existing.inactiveCount + pool.inactiveCount,
+            pausedCount: existing.pausedCount + pool.pausedCount,
+            totalMaxRuns: existing.totalMaxRuns + pool.totalMaxRuns,
             totalAvailableRuns:
-              existing.totalAvailableRuns + service.totalAvailableRuns,
+              existing.totalAvailableRuns + pool.totalAvailableRuns,
           };
         }
         return acc;
@@ -391,6 +392,11 @@ export const useUnifiedWorkerPools = () => {
       {} as Record<string, WorkerPool>,
     );
 
-    return Object.values(uniqueServices);
+    return Object.values(uniquePools);
   }, [regularPools, managedCompute]);
+
+  return {
+    pools,
+    isLoading: workersIsLoading || managedComputeIsLoading,
+  };
 };
