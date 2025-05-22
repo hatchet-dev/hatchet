@@ -319,7 +319,7 @@ function WorkerContext() {
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage your worker pools and view their status">
+        <PageTitle description="Manage your workers and view their statuses and task runs">
           Worker Pools
         </PageTitle>
         <HeadlineActions>
