@@ -148,7 +148,27 @@ function WorkersProviderContent({
           )
           .sort((a, b) => {
             if (!filters.filters.sortBy) {
-              return statusToInt(a.status) < statusToInt(b.status) ? -1 : 1;
+              const statusA = statusToInt(a.status);
+              const statusB = statusToInt(b.status);
+
+              if (statusA < statusB) {
+                return -1;
+              }
+              if (statusA > statusB) {
+                return 1;
+              }
+
+              const lastHeartbeatA = a.lastHeartbeatAt;
+              const lastHeartbeatB = b.lastHeartbeatAt;
+
+              if (lastHeartbeatA && lastHeartbeatB) {
+                const dateA = new Date(lastHeartbeatA).getTime();
+                const dateB = new Date(lastHeartbeatB).getTime();
+
+                return dateB - dateA;
+              }
+
+              return 0;
             }
 
             let valueA: any;
