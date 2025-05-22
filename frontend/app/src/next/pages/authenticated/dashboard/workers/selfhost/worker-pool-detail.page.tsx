@@ -18,17 +18,25 @@ import { V1TaskSummary } from '@/lib/api';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
+import { WorkerTable } from '../components';
 
 function WorkerPoolDetailPageContent() {
-  const { poolName = '' } = useParams<{
-    poolName: string;
-  }>();
+  const { poolName = '', workerId } = useParams();
+
   const decodedPoolName = decodeURIComponent(poolName);
   const { pools } = useWorkers();
 
   const pool = useMemo(() => {
     return pools.find((s) => s.name === decodedPoolName);
   }, [pools, decodedPoolName]);
+
+  const worker = useMemo(() => {
+    if (!pool) {
+      return undefined;
+    }
+
+    return pool.workers.find((w) => w.metadata.id === workerId);
+  }, [pool, workerId]);
 
   const { open: openSideSheet, sheet } = useSideSheet();
 
@@ -54,12 +62,15 @@ function WorkerPoolDetailPageContent() {
     return <div>Worker not found</div>;
   }
 
+  const isPoolPage = !worker;
+  const description = isPoolPage
+    ? `Viewing workers in pool "${pool.name}"`
+    : `Viewing tasks executed by worker ${workerId}`;
+
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle
-          description={`Viewing task runs executed by worker "${pool.name}"`}
-        >
+        <PageTitle description={description}>
           {decodedPoolName} <Badge variant="outline">Self-hosted</Badge>
         </PageTitle>
         <HeadlineActions>
@@ -70,12 +81,18 @@ function WorkerPoolDetailPageContent() {
       </Headline>
       <Separator className="my-4" />
       <div className="flex flex-col gap-4 mt-4">
-        <TimeFilters />
-        <RunsMetricsView />
-        <RunsTable
-          onRowClick={handleRowClick}
-          selectedTaskId={selectedTaskId}
-        />
+        {isPoolPage ? (
+          <WorkerTable poolName={pool.name} />
+        ) : (
+          <>
+            <TimeFilters />
+            <RunsMetricsView />
+            <RunsTable
+              onRowClick={handleRowClick}
+              selectedTaskId={selectedTaskId}
+            />
+          </>
+        )}
       </div>
     </BasicLayout>
   );
@@ -89,6 +106,7 @@ export default function WorkerPoolDetailPage() {
       <RunsProvider
         initialFilters={{
           worker_id: workerId,
+          only_tasks: true,
         }}
         initialTimeRange={{
           activePreset: '24h',
