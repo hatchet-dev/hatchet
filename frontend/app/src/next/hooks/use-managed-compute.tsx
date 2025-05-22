@@ -356,6 +356,7 @@ const mapManagedWorkerToWorkerPool = (worker: ManagedWorker): WorkerPool => {
     inactiveCount: 0,
     totalMaxRuns: 0,
     totalAvailableRuns: 0,
+    actions: [],
   };
 };
 

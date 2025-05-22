@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { useWorkers, WorkersProvider } from '@/next/hooks/use-workers';
+import { WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
