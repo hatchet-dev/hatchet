@@ -360,6 +360,14 @@ const mapManagedWorkerToWorkerPool = (worker: ManagedWorker): WorkerPool => {
   };
 };
 
+const createPoolUniqueKey = (pool: WorkerPool) => {
+  if (!pool.actions) {
+    return pool.name;
+  }
+
+  return pool.actions.join(';');
+};
+
 export const useUnifiedWorkerPools = () => {
   const { pools: regularPools, isLoading: workersIsLoading } = useWorkers();
   const { data: managedCompute, isLoading: managedComputeIsLoading } =
@@ -373,11 +381,12 @@ export const useUnifiedWorkerPools = () => {
     const allPools = [...regularPools, ...managedComputePools];
     const uniquePools = allPools.reduce(
       (acc, pool) => {
-        if (!acc[pool.name]) {
-          acc[pool.name] = pool;
+        const key = createPoolUniqueKey(pool);
+        if (!acc[key]) {
+          acc[key] = pool;
         } else {
-          const existing = acc[pool.name];
-          acc[pool.name] = {
+          const existing = acc[key];
+          acc[key] = {
             ...existing,
             workers: [...existing.workers, ...pool.workers],
             activeCount: existing.activeCount + pool.activeCount,
