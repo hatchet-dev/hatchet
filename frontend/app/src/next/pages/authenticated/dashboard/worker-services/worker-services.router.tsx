@@ -1,7 +1,7 @@
 import { ROUTES } from '@/next/lib/routes';
 import { RouteObject } from 'react-router-dom';
 import { WorkerType } from '@/lib/api';
-export const workerServicesRoutes: RouteObject[] = [
+export const workerRoutes: RouteObject[] = [
   {
     path: ROUTES.services.list(':tenantId'),
     lazy: () =>

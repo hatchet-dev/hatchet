@@ -3,10 +3,10 @@ import { Skeleton } from '@/next/components/ui/skeleton';
 import { cn } from '@/next/lib/utils';
 import { WorkerStatusBadge } from './worker-status-badge';
 import { useEffect } from 'react';
-import { useWorkers, WorkerService } from '@/next/hooks/use-workers';
+import { useWorkers, WorkerPool } from '@/next/hooks/use-workers';
 
 interface WorkerStatsProps {
-  stats: WorkerService;
+  stats: WorkerPool;
   isLoading: boolean;
 }
 

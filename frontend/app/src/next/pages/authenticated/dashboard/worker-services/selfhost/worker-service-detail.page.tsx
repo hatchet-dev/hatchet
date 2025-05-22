@@ -24,11 +24,11 @@ function ServiceDetailPageContent() {
     serviceName: string;
   }>();
   const decodedServiceName = decodeURIComponent(serviceName);
-  const { services } = useWorkers();
+  const { pools } = useWorkers();
 
   const service = useMemo(() => {
-    return services.find((s) => s.name === decodedServiceName);
-  }, [services, decodedServiceName]);
+    return pools.find((s) => s.name === decodedServiceName);
+  }, [pools, decodedServiceName]);
 
   const { open: openSideSheet, sheet } = useSideSheet();
 

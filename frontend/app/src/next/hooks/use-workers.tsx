@@ -18,7 +18,7 @@ import { useToast } from './utils/use-toast';
 
 export type { Worker };
 
-export interface WorkerService {
+export interface WorkerPool {
   id?: string;
   name: string;
   type: Worker['type'];
@@ -30,7 +30,6 @@ export interface WorkerService {
   totalAvailableRuns: number;
 }
 
-// Types for filters and pagination
 interface WorkersFilters {
   search?: string;
   sortBy?: string;
@@ -62,7 +61,7 @@ interface WorkersState {
   bulkUpdate: UseMutationResult<void, Error, BulkUpdateWorkersParams, unknown>;
   filters: ReturnType<typeof useFilters<WorkersFilters>>;
   pagination: ReturnType<typeof usePagination>;
-  services: WorkerService[];
+  pools: WorkerPool[];
 }
 
 interface WorkersProviderProps extends PropsWithChildren {
@@ -196,7 +195,7 @@ function WorkersProviderContent({
           {} as Record<string, Worker[]>,
         );
 
-        const services = Object.entries(groupedByName).map(
+        const pools: WorkerPool[] = Object.entries(groupedByName).map(
           ([name, workers]) => {
             const activeWorkers = workers.filter((w) => w.status === 'ACTIVE');
             return {
@@ -215,14 +214,14 @@ function WorkersProviderContent({
                 (sum, worker) => sum + (worker.availableRuns || 0),
                 0,
               ),
-            } as WorkerService;
+            };
           },
         );
 
         return {
           ...res.data,
           rows: filteredRows,
-          services,
+          pools,
         };
       } catch (error) {
         toast({
@@ -309,7 +308,7 @@ function WorkersProviderContent({
     bulkUpdate: bulkUpdateWorkersMutation,
     filters,
     pagination,
-    services: listWorkersQuery.data?.services || [],
+    pools: listWorkersQuery.data?.services || [],
   };
 
   return createElement(WorkersContext.Provider, { value }, children);

@@ -73,7 +73,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   const { tenantId } = useCurrentTenantId();
 
   const {
-    services,
+    pools,
     isLoading,
     update,
     filters: { filters, setFilter },
@@ -82,7 +82,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
   const filterStatus = useMemo(() => filters.status || 'ALL', [filters]);
 
   // Filter workers for this service
-  const service = services.find((worker) => worker.name === serviceName);
+  const service = pools.find((worker) => worker.name === serviceName);
 
   // Set filter to paused if there are no active workers but there are paused workers
   useEffect(() => {

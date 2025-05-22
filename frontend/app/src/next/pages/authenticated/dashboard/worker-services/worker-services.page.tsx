@@ -2,11 +2,11 @@ import {
   WorkersProvider,
   useWorkers,
   Worker,
-  WorkerService,
+  WorkerPool,
 } from '@/next/hooks/use-workers';
 import {
   ManagedComputeProvider,
-  useUnifiedWorkerServices,
+  useUnifiedWorkerPools,
 } from '@/next/hooks/use-managed-compute';
 import { Button } from '@/next/components/ui/button';
 import {
@@ -70,7 +70,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
-const ServiceRow = ({ service }: { service: WorkerService }) => {
+const ServiceRow = ({ service }: { service: WorkerPool }) => {
   const { bulkUpdate } = useWorkers();
   const { tenantId } = useCurrentTenantId();
 
@@ -261,7 +261,7 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
         <div className="flex items-start space-x-2">
           <Server className="mt-1 h-4 w-4 text-muted-foreground flex-shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Fully managed worker services with auto-scaling
+            Fully managed workers with auto-scaling
           </p>
         </div>
         <div className="flex items-start space-x-2">
@@ -278,9 +278,9 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
   </Card>
 );
 
-function WorkerServicesContent() {
+function WorkerContext() {
   const { isLoading } = useWorkers();
-  const unifiedServices = useUnifiedWorkerServices();
+  const unifiedServices = useUnifiedWorkerPools();
 
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -305,7 +305,7 @@ function WorkerServicesContent() {
       return (
         <TableRow>
           <TableCell colSpan={5} className="text-center">
-            No worker services found
+            No worker pools found
           </TableCell>
         </TableRow>
       );
@@ -319,8 +319,8 @@ function WorkerServicesContent() {
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage your worker services and view their status">
-          Worker Services
+        <PageTitle description="Manage your worker pools and view their status">
+          Worker Pools
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -389,11 +389,11 @@ function WorkerServicesContent() {
   );
 }
 
-export default function WorkerServicesPage() {
+export default function WorkerPoolsPage() {
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
-        <WorkerServicesContent />
+        <WorkerContext />
       </WorkersProvider>
     </ManagedComputeProvider>
   );

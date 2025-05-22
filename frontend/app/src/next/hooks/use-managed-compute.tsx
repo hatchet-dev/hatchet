@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-query';
 import { WorkerType } from '@/lib/api';
 import { Worker } from '@/lib/api/generated/data-contracts';
-import { WorkerService } from './use-workers';
+import { WorkerPool } from './use-workers';
 import { useCurrentTenantId } from './use-tenant';
 import { createContext, useContext, PropsWithChildren, useMemo } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
@@ -22,7 +22,7 @@ import { PaginationProvider, usePagination } from './utils/use-pagination';
 import useApiMeta from './use-api-meta';
 import { useWorkers } from './use-workers';
 import { useToast } from './utils/use-toast';
-// Types for filters and pagination
+
 interface ManagedComputeFilters {
   search?: string;
   sortBy?: string;
@@ -31,18 +31,15 @@ interface ManagedComputeFilters {
   toDate?: string;
 }
 
-// Create params
 interface CreateManagedComputeParams {
   data: CreateManagedWorkerRequest;
 }
 
-// Update params
 interface UpdateManagedComputeParams {
   managedWorkerId: string;
   data: UpdateManagedWorkerRequest;
 }
 
-// Main hook return type
 interface ManagedComputeState {
   data?: ManagedWorker[];
   paginationData?: ManagedWorkerList['pagination'];
@@ -339,10 +336,7 @@ export function ManagedComputeProvider({
   );
 }
 
-const mapManagedWorkerToWorkerService = (
-  worker: ManagedWorker,
-): WorkerService => {
-  // Map ManagedWorker to WorkerService format
+const mapManagedWorkerToWorkerPool = (worker: ManagedWorker): WorkerPool => {
   const mappedWorker: Worker = {
     metadata: worker.metadata,
     name: worker.name,
@@ -362,28 +356,24 @@ const mapManagedWorkerToWorkerService = (
     inactiveCount: 0,
     totalMaxRuns: 0,
     totalAvailableRuns: 0,
-  } as WorkerService;
+  };
 };
 
-// Helper function to unify regular and managed workers into services
-export const useUnifiedWorkerServices = () => {
-  const { services: regularServices } = useWorkers();
+export const useUnifiedWorkerPools = () => {
+  const { pools: regularPools } = useWorkers();
   const { data: managedCompute } = useManagedCompute();
 
   return useMemo(() => {
-    // Create services from managed compute workers
-    const managedComputeServices = (managedCompute || []).map((worker) => {
-      return mapManagedWorkerToWorkerService(worker);
+    const managedComputePools = (managedCompute || []).map((worker) => {
+      return mapManagedWorkerToWorkerPool(worker);
     });
 
-    // Combine and deduplicate services
-    const allServices = [...regularServices, ...managedComputeServices];
+    const allServices = [...regularPools, ...managedComputePools];
     const uniqueServices = allServices.reduce(
       (acc, service) => {
         if (!acc[service.name]) {
           acc[service.name] = service;
         } else {
-          // Merge services with the same name
           const existing = acc[service.name];
           acc[service.name] = {
             ...existing,
@@ -398,9 +388,9 @@ export const useUnifiedWorkerServices = () => {
         }
         return acc;
       },
-      {} as Record<string, WorkerService>,
+      {} as Record<string, WorkerPool>,
     );
 
     return Object.values(uniqueServices);
-  }, [regularServices, managedCompute]);
+  }, [regularPools, managedCompute]);
 };
