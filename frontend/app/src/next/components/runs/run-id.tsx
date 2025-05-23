@@ -49,10 +49,13 @@ export function RunId({
           },
         );
 
+  const displayNameIdPrefix = splitTime(displayName);
+  const friendlyDisplayName = displayNameIdPrefix || displayName;
+
   const name = isTaskRun
     ? getFriendlyTaskRunId(taskRun)
     : displayName && id
-      ? splitTime(displayName) + '-' + id.split('-')[0]
+      ? friendlyDisplayName + '-' + id.split('-')[0]
       : getFriendlyWorkflowRunId(wfRun);
 
   const handleDoubleClick = () => {

@@ -1321,6 +1321,8 @@ WITH RECURSIVE all_runs AS (
   WHERE
     r.tenant_id = @tenantId::uuid
     AND ar.depth < @depth::int
+    AND r.inserted_at >= @createdAfter::timestamptz
+    AND t.inserted_at >= @createdAfter::timestamptz
 )
 SELECT
   tenant_id,

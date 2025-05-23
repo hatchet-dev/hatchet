@@ -20,7 +20,10 @@ import {
 } from '@/next/components/ui/page-header';
 import { Headline } from '@/next/components/ui/page-header';
 import { Duration } from '@/next/components/ui/duration';
-import { V1TaskStatus } from '@/lib/api/generated/data-contracts';
+import {
+  V1TaskStatus,
+  V1WorkflowRun,
+} from '@/lib/api/generated/data-contracts';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 import {
   Tabs,
@@ -62,8 +65,8 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
-  const workflow = useMemo(() => data?.run, [data]);
-  const tasks = useMemo(() => data?.tasks, [data]);
+  const workflow = data?.run;
+  const tasks = data?.tasks;
 
   const { open: openSheet, sheet } = useSideSheet();
 
@@ -203,38 +206,11 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
       </div>
     );
   }
-  const Timing = () => {
-    const timings: JSX.Element[] = [
-      <span key="created" className="flex items-center gap-2">
-        <span>Created</span>
-        <RelativeDate date={workflow.createdAt} />
-      </span>,
-      <span key="started" className="flex items-center gap-2">
-        <span>Started</span>
-        <RelativeDate date={workflow.startedAt} />
-      </span>,
-      <span key="duration" className="flex items-center gap-2">
-        <span>Duration</span>
-        <span className="whitespace-nowrap">
-          <Duration
-            start={workflow.startedAt}
-            end={workflow.finishedAt}
-            status={workflow.status}
-          />
-        </span>
-      </span>,
-    ];
-    return (
-      <span className="flex flex-col items-start gap-y-2 text-sm text-muted-foreground">
-        {timings}
-      </span>
-    );
-  };
 
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description={<Timing />}>
+        <PageTitle description={<Timing workflow={workflow} />}>
           <div className="text-2xl font-bold truncate flex items-center gap-2">
             <RunsBadge status={workflow.status} variant="xs" />
             <RunId wfRun={workflow} />
@@ -368,3 +344,31 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
     </BasicLayout>
   );
 }
+
+const Timing = ({ workflow }: { workflow: V1WorkflowRun }) => {
+  const timings: JSX.Element[] = [
+    <span key="created" className="flex items-center gap-2">
+      <span>Created</span>
+      <RelativeDate date={workflow.createdAt} />
+    </span>,
+    <span key="started" className="flex items-center gap-2">
+      <span>Started</span>
+      <RelativeDate date={workflow.startedAt} />
+    </span>,
+    <span key="duration" className="flex items-center gap-2">
+      <span>Duration</span>
+      <span className="whitespace-nowrap">
+        <Duration
+          start={workflow.startedAt}
+          end={workflow.finishedAt}
+          status={workflow.status}
+        />
+      </span>
+    </span>,
+  ];
+  return (
+    <span className="flex flex-col items-start gap-y-2 text-sm text-muted-foreground">
+      {timings}
+    </span>
+  );
+};

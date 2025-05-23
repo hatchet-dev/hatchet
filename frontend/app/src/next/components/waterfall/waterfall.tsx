@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Bar,
   BarChart,
@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Drill, Loader } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
@@ -19,15 +19,19 @@ import { ROUTES } from '@/next/lib/routes';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { Button } from '../ui/button';
 import { RunId } from '../runs/run-id';
-import {
-  BsArrowDownRightCircle,
-  BsCircle,
-  BsArrowUpLeftCircle,
-} from 'react-icons/bs';
+import { BsArrowUpLeftCircle } from 'react-icons/bs';
 import { Skeleton } from '../ui/skeleton';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+import {
+  TooltipProvider,
+  Tooltip as BaseTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '../ui/tooltip';
+
 interface ProcessedTaskData {
   id: string;
+  taskExternalId: string;
   workflowRunId?: string;
   taskDisplayName: string;
   parentId?: string;
@@ -35,8 +39,8 @@ interface ProcessedTaskData {
   depth: number;
   isExpanded: boolean;
   offset: number;
-  queuedDuration: number;
-  ranDuration: number;
+  queuedDuration: number | null;
+  ranDuration: number | null;
   status: V1TaskStatus;
   taskId: number; // Added for tie-breaking
   attempt: number;
@@ -503,9 +507,9 @@ export function Waterfall({
     }
 
     // Find the global minimum time (queuedAt or startedAt) among visible tasks
-    let globalMinTime = Number.MAX_SAFE_INTEGER;
-    visibleTasks.forEach((id) => {
+    const globalMinTime = [...visibleTasks].reduce((acc, id) => {
       const task = taskMap.get(id);
+
       if (task) {
         // Use queuedAt if available, otherwise use startedAt
         const minTime = task.queuedAt
@@ -514,25 +518,32 @@ export function Waterfall({
             ? new Date(task.startedAt).getTime()
             : null;
 
-        if (minTime !== null && minTime < globalMinTime) {
-          globalMinTime = minTime;
+        if (minTime !== null && minTime < acc) {
+          return minTime;
         }
       }
-    });
+
+      return acc;
+    }, Number.MAX_SAFE_INTEGER);
 
     // Create the processed data for rendering
-    const data = Array.from(visibleTasks)
+    const data = [...visibleTasks]
       .map((id) => {
         const task = taskMap.get(id);
-        if (!task || !task.startedAt) {
+        if (!task) {
           return null;
         }
 
         // Handle missing queuedAt by defaulting to startedAt (no queue time)
         const queuedAt = task.queuedAt
           ? new Date(task.queuedAt).getTime()
-          : new Date(task.startedAt).getTime();
-        const startedAt = new Date(task.startedAt).getTime();
+          : task.startedAt
+            ? new Date(task.startedAt).getTime()
+            : new Date(task.taskInsertedAt).getTime();
+
+        const startedAt = task.startedAt
+          ? new Date(task.startedAt).getTime()
+          : null;
 
         // For running tasks, always use current time as finishedAt
         const now = new Date().getTime();
@@ -545,6 +556,7 @@ export function Waterfall({
 
         return {
           id: task.metadata.id,
+          taskExternalId: task.taskExternalId,
           taskDisplayName: task.taskDisplayName,
           parentId: task.parentTaskExternalId,
           hasChildren: taskHasChildrenMap.get(task.metadata.id) || false,
@@ -554,8 +566,13 @@ export function Waterfall({
           // Chart data
           offset: (queuedAt - globalMinTime) / 1000, // in seconds
           // If queuedAt equals startedAt (due to our fallback logic), then queuedDuration will be 0
-          queuedDuration: task.queuedAt ? (startedAt - queuedAt) / 1000 : 0, // in seconds
-          ranDuration: (finishedAt - startedAt) / 1000, // in seconds
+          queuedDuration: startedAt
+            ? task.queuedAt
+              ? (startedAt - queuedAt) / 1000
+              : 0
+            : null, // in seconds
+          ranDuration:
+            startedAt && finishedAt ? (finishedAt - startedAt) / 1000 : null, // in seconds
           status: task.status,
           taskId: task.taskId, // Add taskId for tie-breaking in sorting
           attempt: task.attempt || 1,
@@ -583,159 +600,52 @@ export function Waterfall({
     return { data, taskPathMap: new Map() };
   }, [taskData, expandedTasks, autoExpandedInitially, taskRelationships]); // Only recompute when dependencies change
 
-  // Custom tick renderer with expand/collapse buttons
-  const renderTick = (props: {
-    x: number;
-    y: number;
-    payload: { value: string };
-  }) => {
-    const { x, y, payload } = props;
-    const task = processedData.data.find(
-      (t) => t.taskDisplayName === payload.value,
-    );
-    if (!task) {
-      // Return empty element instead of null
-      return <g transform={`translate(${x},${y})`}></g>;
+  // Handler for bar click events
+  const handleBarClick = (data: any) => {
+    if (data && data.id) {
+      // Handle task selection for sidebar
+      if (handleTaskSelect) {
+        handleTaskSelect(data.id, data.workflowRunId);
+      }
+
+      // Handle expansion if the task has children
+      if (data.hasChildren) {
+        openTask(data.id, data.depth);
+      }
     }
-
-    const indentation = task.depth * 12; // 12px indentation per level
-
-    return (
-      <g transform={`translate(${x},${y})`}>
-        <foreignObject
-          x={-160} // Start position (right aligned)
-          y={-10} // Vertically center
-          width={160}
-          height={20}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              paddingLeft: `${indentation}px`,
-              height: '100%',
-            }}
-            className="group"
-          >
-            {/* Expand/collapse button */}
-            <div
-              style={{
-                cursor: task.hasChildren ? 'pointer' : 'default',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '20px',
-                height: '20px',
-                marginRight: '4px',
-              }}
-              onClick={() =>
-                task.hasChildren &&
-                toggleTask(task.id, task.hasChildren, task.depth)
-              }
-            >
-              {task.hasChildren &&
-                (task.isExpanded ? (
-                  <ChevronDown size={14} />
-                ) : (
-                  <ChevronRight size={14} />
-                ))}
-            </div>
-
-            {/* Task label */}
-            <div
-              style={{
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                fontSize: '12px',
-                textAlign: 'left',
-                flexGrow: 1,
-                cursor: 'pointer',
-              }}
-              className=" flex items-center gap-2"
-              onClick={() => handleBarClick(task)}
-            >
-              <RunId
-                displayName={task.taskDisplayName}
-                id={task.id}
-                onClick={() => handleBarClick(task)}
-                className={task.id === selectedTaskId ? 'underline' : ''}
-                attempt={task.attempt}
-              />
-            </div>
-            {workflowRunId === task.workflowRunId ? (
-              task.parentId ? (
-                <Link
-                  to={ROUTES.runs.detailWithSheet(tenantId, task.parentId, {
-                    type: 'task-detail',
-                    props: {
-                      selectedWorkflowRunId: task.workflowRunId,
-                      selectedTaskId: task.id,
-                    },
-                  })}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    tooltip="Scope out to parent task"
-                    variant="link"
-                    size="icon"
-                    className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                  >
-                    <BsArrowUpLeftCircle className="w-4 h-4 transform" />
-                  </Button>
-                </Link>
-              ) : (
-                <Button
-                  tooltip="No parent task, this is a root task"
-                  variant="link"
-                  size="icon"
-                  className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                >
-                  <BsCircle className="w-4 h-4" />
-                </Button>
-              )
-            ) : (
-              <Link
-                to={ROUTES.runs.detailWithSheet(
-                  tenantId,
-                  task.workflowRunId || task.id,
-                  {
-                    type: 'task-detail',
-                    props: {
-                      selectedWorkflowRunId: task.workflowRunId || task.id,
-                      selectedTaskId: task.id,
-                    },
-                  },
-                )}
-              >
-                <Button
-                  tooltip="Scope into child task"
-                  variant="link"
-                  size="icon"
-                  className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                >
-                  <BsArrowDownRightCircle className="w-4 h-4" />
-                </Button>
-              </Link>
-            )}
-          </div>
-        </foreignObject>
-      </g>
-    );
   };
+
+  const renderTick = useCallback(
+    (props: { x: number; y: number; payload: { value: string } }) => {
+      const { x, y, payload } = props;
+
+      return (
+        <Tick
+          x={x}
+          y={y}
+          payload={payload}
+          workflowRunId={workflowRunId}
+          selectedTaskId={selectedTaskId}
+          handleBarClick={handleBarClick}
+          toggleTask={toggleTask}
+          processedData={processedData}
+          tenantId={tenantId}
+        />
+      );
+    },
+    [workflowRunId, selectedTaskId, handleBarClick, toggleTask, processedData],
+  );
 
   // Handle loading or error states
   if (
-    isLoading ||
-    isError ||
-    !processedData.data ||
-    processedData.data.length === 0
+    !isLoading &&
+    (isError || !processedData.data || processedData.data.length === 0)
   ) {
-    return (
-      <>
-        <Skeleton className="h-[100px] w-full" />
-      </>
-    );
+    return null;
+  }
+
+  if (isLoading) {
+    return <Skeleton className="h-[100px] w-full" />;
   }
 
   // Compute dynamic chart height
@@ -754,21 +664,6 @@ export function Waterfall({
       label: 'Ran For',
       color: 'rgb(99 102 241 / 0.8)',
     },
-  };
-
-  // Handler for bar click events
-  const handleBarClick = (data: any) => {
-    if (data && data.id) {
-      // Handle task selection for sidebar
-      if (handleTaskSelect) {
-        handleTaskSelect(data.id, data.workflowRunId);
-      }
-
-      // Handle expansion if the task has children
-      if (data.hasChildren) {
-        openTask(data.id, data.depth);
-      }
-    }
   };
 
   return (
@@ -873,3 +768,139 @@ export function Waterfall({
     </ChartContainer>
   );
 }
+
+const Tick = ({
+  x,
+  y,
+  payload,
+  workflowRunId,
+  selectedTaskId,
+  handleBarClick,
+  toggleTask,
+  processedData,
+  tenantId,
+}: {
+  x: number;
+  y: number;
+  payload: { value: string };
+  workflowRunId: string;
+  selectedTaskId?: string;
+  handleBarClick: (task: ProcessedTaskData) => void;
+  toggleTask: (taskId: string, hasChildren: boolean, taskDepth: number) => void;
+  processedData: ProcessedData;
+  tenantId: string;
+}) => {
+  const task = processedData.data.find(
+    (t) => t.taskDisplayName === payload.value,
+  );
+  if (!task) {
+    // Return empty element instead of null
+    return <g transform={`translate(${x},${y})`}></g>;
+  }
+
+  const indentation = task.depth * 12; // 12px indentation per level
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <foreignObject
+        x={-180} // Start position (right aligned)
+        y={-10} // Vertically center
+        width={180}
+        height={20}
+      >
+        <div
+          className={`group flex flex-row items-center pl-[${indentation}px] size-full`}
+        >
+          {/* Expand/collapse button */}
+          <div
+            data-haschildren={task.hasChildren}
+            className="data-[haschildren=true]:cursor-info flex flex-row items-center justify-between size-[20px] h-[20px] mr-[4px]"
+            onClick={() =>
+              task.hasChildren &&
+              toggleTask(task.id, task.hasChildren, task.depth)
+            }
+          >
+            {task.hasChildren &&
+              (task.isExpanded ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              ))}
+          </div>
+
+          {/* Task label */}
+          <div
+            className="cursor-pointer flex flex-row justify-between w-full grow text-left text-xs overflow-auto text-ellipsis whitespace-nowrap gap-2 items-center"
+            onClick={() => handleBarClick(task)}
+          >
+            <RunId
+              displayName={task.taskDisplayName}
+              id={task.id}
+              onClick={() => handleBarClick(task)}
+              className={task.id === selectedTaskId ? 'underline' : ''}
+              attempt={task.attempt}
+            />
+          </div>
+          {workflowRunId === task.workflowRunId &&
+            task.taskExternalId === workflowRunId &&
+            task.parentId && (
+              <Link
+                to={ROUTES.runs.detailWithSheet(tenantId, task.parentId, {
+                  type: 'task-detail',
+                  props: {
+                    selectedWorkflowRunId: task.workflowRunId,
+                    selectedTaskId: task.id,
+                  },
+                })}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Button
+                  tooltip="Zoom out to parent task"
+                  variant="link"
+                  size="icon"
+                  className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+                >
+                  <BsArrowUpLeftCircle className="w-4 h-4 transform" />
+                </Button>
+              </Link>
+            )}
+          {task.hasChildren && (
+            <Link
+              to={ROUTES.runs.detailWithSheet(
+                tenantId,
+                task.workflowRunId || task.id,
+                {
+                  type: 'task-detail',
+                  props: {
+                    selectedWorkflowRunId: task.workflowRunId || task.id,
+                    selectedTaskId: task.id,
+                  },
+                },
+              )}
+            >
+              <Button
+                tooltip="Drill into child task"
+                variant="link"
+                size="icon"
+                className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
+              >
+                {' '}
+                <Drill className="w-4 h-4" />
+              </Button>
+            </Link>
+          )}
+          {task.queuedDuration === null && (
+            <TooltipProvider>
+              <BaseTooltip>
+                <TooltipTrigger>
+                  <Loader className="animate-[spin_3s_linear_infinite] h-4" />
+                </TooltipTrigger>
+                <TooltipContent>This task has not started</TooltipContent>
+              </BaseTooltip>
+            </TooltipProvider>
+          )}
+        </div>
+      </foreignObject>
+    </g>
+  );
+};

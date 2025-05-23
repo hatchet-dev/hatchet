@@ -16,6 +16,7 @@ import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { cn } from '@/lib/utils';
 import { ChevronDownIcon, ChevronUpIcon } from '@radix-ui/react-icons';
 import { Button } from '@/next/components/ui/button';
+import { Fullscreen } from 'lucide-react';
 const connectionLineStyleDark = { stroke: '#fff' };
 const connectionLineStyleLight = { stroke: '#000' };
 
@@ -228,6 +229,7 @@ function WorkflowRunVisualizerContent({
       if (!reactFlowInstance.current) {
         return;
       }
+
       const node = layoutedNodes?.find(
         (n: Node) => n.data.taskRun?.taskExternalId === selectedTaskId,
       );
@@ -239,6 +241,8 @@ function WorkflowRunVisualizerContent({
           duration: 800,
         });
         lastCenteredTaskId.current = selectedTaskId;
+      } else {
+        reactFlowInstance.current.fitView();
       }
     }, 1);
   }, [selectedTaskId, layoutedNodes]);
@@ -311,20 +315,30 @@ function WorkflowRunVisualizerContent({
         }
         snapToGrid={true}
       />
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleExpand}
-        className="absolute bottom-2 right-2 z-20"
-        tooltip={isExpanded ? 'Collapse' : 'Expand'}
-      >
-        {isExpanded ? (
-          <ChevronUpIcon className="h-4 w-4" />
-        ) : (
-          <ChevronDownIcon className="h-4 w-4" />
-        )}
-        <span className="sr-only">{isExpanded ? 'Collapse' : 'Expand'}</span>
-      </Button>
+      <div className="flex flex-col absolute bottom-2 right-2 z-20">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={recenter}
+          tooltip={'Recenter'}
+        >
+          <Fullscreen className="size-4" />
+          <span className="sr-only">{'Recenter'}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleExpand}
+          tooltip={isExpanded ? 'Collapse' : 'Expand'}
+        >
+          {isExpanded ? (
+            <ChevronUpIcon className="h-4 w-4" />
+          ) : (
+            <ChevronDownIcon className="h-4 w-4" />
+          )}
+          <span className="sr-only">{isExpanded ? 'Collapse' : 'Expand'}</span>
+        </Button>
+      </div>
     </div>
   );
 }
