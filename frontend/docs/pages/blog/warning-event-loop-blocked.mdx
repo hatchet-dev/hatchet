@@ -160,3 +160,31 @@ Here's a play-by-play of what happened:
 7. The scary warning goes away, and we immediately go back to business as usual, seeing the next `Non blocking async 2` log. Importantly, this index (3) was where it left off before, but it "slept" for about six seconds (the duration of the blocking task), as opposed to the one second that we intended, between log lines.
 8. All of the remaining work completes, including the new `Non blocking sync` task starting and finishing.
 
+## Debugging
+
+So you're seeing the scary warning: Now what?
+
+### Turn on `asyncio`'s `DEBUG` mode
+
+`asyncio` has a [debug mode](https://docs.python.org/3/library/asyncio-dev.html#debug-mode), which will give you some more observability into the async operations that your worker is doing.
+
+### Look for obviously blocking code
+
+First line of defense: look for things that are obviously blocking. API calls, database operations, for loops doing something involved or running many iterations, and so on. Depending on what the problem is, there are different ways to handle different situations:
+
+* If you're making API calls with `requests` or similar, try using `aiohttp` instead to make the calls async.
+* If you're using `psycopg*` or similar for database I/O, try using e.g. `asyncpg` instead, to make database operations async.
+* If you're relying on an external library that does not provide async methods, try wrapping the methods in `asyncio.to_thread` to run them in a separate thread so they don't block.
+* Similarly, if you have some expensive CPU-bound work (see: solving Sudoku), use `asyncio.to_thread` there too.
+
+As a last resort, you can also change you tasks from being async to sync, although we don't recommend this in the majority of cases.
+
+### Instrument your code
+
+If you've resolved all of the obvious issues but the Scary Warning ™️ is still popping up, instrumenting your code can help find the bottleneck. Hatchet's Python SDK provides [an OpenTelemetry Instrumentor](../home/opentelemetry.mdx), which allows you to easily export traces and spans from your Hatchet workers. If you have some long-running tasks (or long start times), you can use the traces to get a better sense for what might be blocking. In particular, if there are some async operations that appear to just be hanging for significantly longer durations than they should take, this is a good indication they're being blocked by something.
+
+Similarly, you can also instrument your code with the [`AsyncioInstrumentor`](https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/asyncio/asyncio.html) and other, similar instrumentors depending on other tools in your stack.
+
+### Run your code separately from Hatchet
+
+As a last resort, another thing to try is running your code in a fashion similar to how we did above, outside of Hatchet, by creating async tasks and using `gather` to run them concurrently. If there's blocking behavior, it'll be apparent when one of the tasks is blocked.
