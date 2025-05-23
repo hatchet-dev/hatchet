@@ -1,5 +1,4 @@
 # > Trigger
-
 from examples.blocked_async.blocking_example_worker import non_blocking_async, non_blocking_sync, blocking
 import time
 
