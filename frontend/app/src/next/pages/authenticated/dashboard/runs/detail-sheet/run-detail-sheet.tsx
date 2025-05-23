@@ -80,7 +80,7 @@ function RunDetailSheetContent() {
   return (
     <>
       <div className="h-full flex flex-col relative">
-        <div className="sticky top-0 z-10 bg-yellow-500 bg-slate-100 dark:bg-slate-900 px-4 pb-2">
+        <div className="sticky top-0 z-10  bg-slate-100 dark:bg-slate-900 px-4 pb-2">
           <div className="flex flex-row items-center justify-between">
             <div className="flex flex-col gap-2 mt-4">
               <div className="flex flex-row items-center gap-2">
@@ -119,7 +119,7 @@ function RunDetailSheetContent() {
             </div>
           </div>
         </div>
-        <div className="flex-1 overflow-y-scroll">
+        <div className="flex-1 overflow-y-clip">
           <div className="bg-slate-100 dark:bg-slate-900">
             <WorkflowRunVisualizer
               workflowRunId={data?.run?.metadata.id || ''}

@@ -830,7 +830,7 @@ const Tick = ({
 
           {/* Task label */}
           <div
-            className="cursor-pointer flex flex-row justify-between w-full grow text-left text-xs overflow-hidden text-ellipsis whitespace-nowrap gap-2 items-center"
+            className="cursor-pointer flex flex-row justify-between w-full grow text-left text-xs overflow-auto text-ellipsis whitespace-nowrap gap-2 items-center"
             onClick={() => handleBarClick(task)}
           >
             <RunId
