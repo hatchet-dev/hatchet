@@ -1,5 +1,4 @@
 # > Worker
-
 from hatchet_sdk import Context, EmptyModel, Hatchet
 import time
 import asyncio
