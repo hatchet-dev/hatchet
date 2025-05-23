@@ -1,4 +1,5 @@
 import DynamicLottie from "../../components/DynamicLottie";
+import {LogViewer} from "../../components/LogViewer";
 import * as prefetch from "./_celery_prefetch.json";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import { Snippet } from "@/components/code";
@@ -66,3 +67,96 @@ B 1
 A 2
 B 2
 ```
+
+If you were to run code like this in a Hatchet task, you'd see the scary warning from above.
+
+## Understanding the Problem
+
+The long-and-short of the problem here, as so nicely put by the `asyncio` documentation, is that if some async code is doing _anything_ blocking, then _everything_ else will need to wait for that blocking operation to complete. This means that if you have a Hatchet worker running 1,000 tasks concurrently and _one_ of them does something blocking, none of your other tasks will run while that blocking operation is happening.
+
+Some common (and some less common) examples of blocking operations might include:
+
+* Making a synchronous API call using `requests.get`
+* Performing a synchronous database operation using `psycopg`, such as running an expensive `SELECT` statement that takes a long time to complete
+* Running a CPU-bound algorithm, such as [solving a Sudoku puzzle](https://en.wikipedia.org/wiki/NP_(complexity))
+
+In each of these cases, while this work is happening, no other async work on your Hatchet workers will be able to progress. We see some interesting and scary behavior if we run some blocking code in Hatchet.
+
+<Snippet src={snips.python.blocked_async.blocking_example_worker} block="worker" />
+
+Here we define a few tasks, one which is async and does blocking work (`time.sleep`), one which is sync and does blocking work (`time.sleep`), and one that is async and does non-blocking work (`asyncio.sleep`).
+
+As an experiment, we can run them as follows to simulate what might happen in a production environment:
+
+<Snippet src={snips.python.blocked_async.blocking_example_trigger} block="trigger" />
+
+The intention of this example is to first kick off the non-blocking sync and async tasks, let them start to process, then kick off the blocking task, let it start to process, and finally kick off the non-blocking sync task again, and then let all of them complete. The worker logs are illustrative:
+
+<LogViewer title="Worker logs">
+```
+[INFO]  🪓 -- 2025-05-23 16:27:01,165 - ------------------------------------------
+[INFO]  🪓 -- 2025-05-23 16:27:01,165 - STARTING HATCHET...
+[INFO]  🪓 -- 2025-05-23 16:27:01,169 - starting runner...
+[INFO]  🪓 -- 2025-05-23 16:27:05,224 - rx: start step run: 7c7f831c-316d-4331-b9d4-9e264c63b82f/non_blocking_async:non_blocking_async
+[INFO]  🪓 -- 2025-05-23 16:27:05,225 - run: start step: non_blocking_async:non_blocking_async/7c7f831c-316d-4331-b9d4-9e264c63b82f
+Non blocking async 0
+[INFO]  🪓 -- 2025-05-23 16:27:05,226 - rx: start step run: 1e9e1a58-f8e5-43a6-8ebc-20b84b62eef9/non_blocking_sync:non_blocking_sync
+[INFO]  🪓 -- 2025-05-23 16:27:05,226 - run: start step: non_blocking_sync:non_blocking_sync/1e9e1a58-f8e5-43a6-8ebc-20b84b62eef9
+Non blocking sync 0
+Non blocking async 1
+Non blocking sync 1
+[INFO]  🪓 -- 2025-05-23 16:27:06,236 - rx: start step run: 3ce959c5-0b05-4202-a6de-bfcf4600a517/blocking:blocking
+[INFO]  🪓 -- 2025-05-23 16:27:06,237 - run: start step: blocking:blocking/3ce959c5-0b05-4202-a6de-bfcf4600a517
+Blocking 0
+Non blocking sync 2
+Blocking 1
+[INFO]  🪓 -- 2025-05-23 16:27:07,245 - rx: start step run: 7742df98-169f-4afa-9075-e43c8b3ea8df/non_blocking_sync:non_blocking_sync
+Non blocking sync 3
+Blocking 2
+[WARNING]       🪓 -- 2025-05-23 16:27:08,899 - THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED: Waiting Steps 1
+<Task pending name='Task-5' coro=<WorkerActionListenerProcess.start_blocked_main_loop() running at /Users/matt/Documents/GitHub/hatchet/sdks/python/hatchet_sdk/worker/action_listener_process.py:163>>
+Non blocking sync 4
+Blocking 3
+[WARNING]       🪓 -- 2025-05-23 16:27:09,900 - THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED: Waiting Steps 1
+<Task pending name='Task-5' coro=<WorkerActionListenerProcess.start_blocked_main_loop() running at /Users/matt/Documents/GitHub/hatchet/sdks/python/hatchet_sdk/worker/action_listener_process.py:163>>
+Non blocking sync 5
+Blocking 4
+[WARNING]       🪓 -- 2025-05-23 16:27:10,902 - THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED: Waiting Steps 1
+<Task pending name='Task-5' coro=<WorkerActionListenerProcess.start_blocked_main_loop() running at /Users/matt/Documents/GitHub/hatchet/sdks/python/hatchet_sdk/worker/action_listener_process.py:163>>
+Blocking 5
+[WARNING]       🪓 -- 2025-05-23 16:27:11,904 - THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED: Waiting Steps 1
+<Task pending name='Task-5' coro=<WorkerActionListenerProcess.start_blocked_main_loop() running at /Users/matt/Documents/GitHub/hatchet/sdks/python/hatchet_sdk/worker/action_listener_process.py:163>>
+[INFO]  🪓 -- 2025-05-23 16:27:12,257 - finished step run: blocking:blocking/3ce959c5-0b05-4202-a6de-bfcf4600a517
+[INFO]  🪓 -- 2025-05-23 16:27:12,258 - run: start step: non_blocking_sync:non_blocking_sync/7742df98-169f-4afa-9075-e43c8b3ea8df
+Non blocking async 2
+[INFO]  🪓 -- 2025-05-23 16:27:12,258 - finished step run: non_blocking_sync:non_blocking_sync/1e9e1a58-f8e5-43a6-8ebc-20b84b62eef9
+Non blocking sync 0
+[WARNING]       🪓 -- 2025-05-23 16:27:12,259 - THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED: time to start: 5.012734889984131s
+Non blocking async 3
+Non blocking sync 1
+Non blocking async 4
+Non blocking sync 2
+Non blocking async 5
+Non blocking sync 3
+[INFO]  🪓 -- 2025-05-23 16:27:16,262 - finished step run: non_blocking_async:non_blocking_async/7c7f831c-316d-4331-b9d4-9e264c63b82f
+Non blocking sync 4
+Non blocking sync 5
+[INFO]  🪓 -- 2025-05-23 16:27:18,283 - finished step run: non_blocking_sync:non_blocking_sync/7742df98-169f-4afa-9075-e43c8b3ea8df
+^C[INFO]        🪓 -- 2025-05-23 16:27:23,532 - received signal SIGINT...
+[INFO]  🪓 -- 2025-05-23 16:27:24,270 - gracefully exiting runner...
+[INFO]  🪓 -- 2025-05-23 16:27:25,272 - closing worker 'test-worker'...
+[INFO]  🪓 -- 2025-05-23 16:27:25,272 - 👋
+```
+</LogViewer>
+
+Here's a play-by-play of what happened:
+
+1. The non-blocking sync and async work starts, and their logs are interleaved (as you'd expect, since Hatchet runs tasks concurrently).
+2. We see this internal event: `run: start step: blocking:blocking`, indicating that the worker has now started running the blocking task.
+3. After that log, we stop seeing any `Non blocking async` logs, as the event loop is blocked. Notice that at this point, we continue to see `Non blocking sync` logs. This is an important design decision in Hatchet. Hatchet runs sync tasks in a thread pool so they can be run in a non-blocking way, which means that once the sync task has started, there's no risk of it being blocked even if the main event loop is blocked.
+4. We receive a `start step run` event, which indicates the last run has been triggered: `rx: start step run: 7742df98-169f-4afa-9075-e43c8b3ea8df/non_blocking_sync:non_blocking_sync`. Importantly, you might expect that since this task is sync, it will be executed correctly without being blocked, similarly to how the previous one was in 3). This is not the case! Since the event loop is blocked, Hatchet _cannot begin to execute this task run_, which is why we immediately start seeing the scary warning log.
+5. `THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED: Waiting Steps 1`
+6. We get a finished event for the blocking step: `finished step run: blocking:blocking`
+7. The scary warning goes away, and we immediately go back to business as usual, seeing the next `Non blocking async 2` log. Importantly, this index (3) was where it left off before, but it "slept" for about six seconds (the duration of the blocking task), as opposed to the one second that we intended, between log lines.
+8. All of the remaining work completes, including the new `Non blocking sync` task starting and finishing.
+
