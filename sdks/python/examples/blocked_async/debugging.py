@@ -2,17 +2,17 @@
 import asyncio
 import time
 
-sleep_time = 3
+SLEEP_TIME = 3
 
 
 async def blocking() -> None:
-    for i in range(sleep_time):
+    for i in range(SLEEP_TIME):
         print("Blocking", i)
         time.sleep(1)
 
 
 async def non_blocking(task_id: str = "Non-blocking") -> None:
-    for i in range(sleep_time):
+    for i in range(SLEEP_TIME):
         print(task_id, i)
         await asyncio.sleep(1)
 
