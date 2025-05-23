@@ -1,5 +1,9 @@
 // Generated from frontend/docs/pages/blog/_meta.js
 const meta = {
+  warning_event_loop_blocked: {
+    title: 'Warning: The Event Loop May Be Blocked',
+    href: '/blog/warning-event-loop-blocked',
+  },
   fastest_postgres_inserts: {
     title: 'The fastest Postgres inserts',
     href: '/blog/fastest-postgres-inserts',
