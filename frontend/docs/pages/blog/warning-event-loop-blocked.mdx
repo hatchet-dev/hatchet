@@ -1,0 +1,68 @@
+import DynamicLottie from "../../components/DynamicLottie";
+import * as prefetch from "./_celery_prefetch.json";
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import { Snippet } from "@/components/code";
+import snips from "@/lib/snips";
+
+# **Warning! The Event Loop May Be Blocked**
+
+<div className="w-full pb-4 mx-auto border-b shadow-md flex flex-row justify-between items-center mt-10">
+  <h5 className="text-xl font-bold tracking-tight text-foreground">
+    Matt Kaye
+  </h5>
+  <p className="font-light text-foreground">Published on May 27th, 2025</p>
+</div>
+
+Blocked event loops are, by far, the most common problem we see when providing support to Hatchet users. If you use Hatchet, and Hatchet's Python SDK in particular, you might've seen a warning like this:
+
+<Callout type="warning" emoji="🪓">
+THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED
+</Callout>
+
+Scary! Let's talk through what's going on under the hood, and some possible causes for this warning in Hatchet and how to effectively debug.
+
+<Callout type="info" emoji="🧱">
+    New to `async` / `await` and event loops in Python? I'd recommend checking out [FastAPI's async documentation](https://fastapi.tiangolo.com/async/) quickly before getting started here. Hatchet handles synchronous and asynchronous work very similarly to FastAPI.
+</Callout>
+
+## Blocking I/O
+
+First and foremost, in the vast majority of cases, this scary warning from Hatchet is being caused by the event loop being blocked. And if the event loop is blocked, there's a very good chance that some code it is trying to run (read: a Hatchet task) is doing some blocking work. The [`asyncio` documentation](https://docs.python.org/3/library/asyncio-dev.html#running-blocking-code) puts their recommendation for how to handle blocking functions correctly very eloquently, in one sentence that gets right to the crux of the issue:
+
+> Blocking (CPU-bound) code should not be called directly.
+
+#### A simple example of a blocked loop
+
+Let's give a simple example, which we'll come back to later as a helpful debugging strategy. We'll first write two functions:
+
+<Snippet src={snips.python.blocked_async.debugging} block="functions" />
+
+And let's run these concurrently with `asyncio.gather` and `asyncio.create_task`:
+
+<Snippet src={snips.python.blocked_async.debugging} block="blocked" />
+
+If you run this code, you'll see logs like this:
+
+```
+Blocking 0
+Blocking 1
+Blocking 2
+Non-blocking 0
+Non-blocking 1
+Non-blocking 2
+```
+
+On the other hand, you can run two tasks running the non-blocking function concurrently as you'd expect:
+
+<Snippet src={snips.python.blocked_async.debugging} block="unblocked" />
+
+Which results in the logs below. Note that the output from the two tasks, `A` and `B`, are interleaved, indicating that they're correctly running concurrently.
+
+```
+A 0
+B 0
+A 1
+B 1
+A 2
+B 2
+```
