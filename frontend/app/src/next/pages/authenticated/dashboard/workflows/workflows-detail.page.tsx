@@ -213,7 +213,7 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
 
             <ConfirmDialog
               title={`Delete workflow`}
-              description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
+              description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any workers running with this workflow from executing steps.`}
               submitLabel={'Delete'}
               onSubmit={function (): void {
                 deleteWorkflow();

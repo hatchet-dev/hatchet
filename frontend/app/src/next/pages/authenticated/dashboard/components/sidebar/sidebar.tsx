@@ -68,7 +68,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const { data: user, memberships } = useUser();
   const chat = useSupportChat();
-  const { tenant, setTenant } = useTenantDetails();
+  const { setTenant } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
   const location = useLocation();
@@ -80,7 +80,6 @@ export function AppSidebar({ children }: PropsWithChildren) {
   >({});
   const [openTenant, setOpenTenant] = useState(false);
 
-  // Load collapsible state from localStorage on initial render
   useEffect(() => {
     const savedState = localStorage.getItem('sidebar_collapsible_state');
     if (savedState) {
@@ -110,7 +109,7 @@ tenantId: ${tenantId}
 userId: ${user?.metadata.id}
 email: ${user?.email}
 name: ${user?.name}`;
-  }, [meta, tenant, user]);
+  }, [meta, user, tenantId]);
 
   return (
     <>

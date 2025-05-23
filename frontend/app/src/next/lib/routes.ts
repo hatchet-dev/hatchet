@@ -13,7 +13,7 @@ export const FEATURES_BASE_PATH = {
   scheduled: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/scheduled`,
   crons: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/crons`,
   workflows: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/workflows`,
-  services: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/services`,
+  workers: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/workers`,
   rateLimits: (tenantId: string) =>
     BASE_PATH + `/tenants/${tenantId}/rate-limits`,
   settings: (tenantId: string) => BASE_PATH + `/tenants/${tenantId}/settings`,
@@ -75,26 +75,26 @@ export const ROUTES = {
     detail: (tenantId: string, workflowId: string) =>
       `${FB.workflows(tenantId)}/${workflowId}`,
   },
-  services: {
-    list: (tenantId: string) => `${FB.services(tenantId)}`,
+  workers: {
+    list: (tenantId: string) => `${FB.workers(tenantId)}`,
     new: (tenantId: string, type: WorkerType) =>
-      `${FB.services(tenantId)}/${type.toLowerCase()}`,
-    detail: (
+      `${FB.workers(tenantId)}/${type.toLowerCase()}`,
+    poolDetail: (
       tenantId: string,
-      serviceName: string,
+      poolName: string,
       type: WorkerType,
       tab?: string,
     ) =>
-      `${FB.services(tenantId)}/${type.toLowerCase()}/${serviceName}${
+      `${FB.workers(tenantId)}/${type.toLowerCase()}/${poolName}${
         tab ? `?tab=${tab}` : ''
       }`,
     workerDetail: (
       tenantId: string,
-      serviceName: string,
-      workerName: string,
+      poolName: string,
+      workerId: string,
       type: WorkerType,
     ) =>
-      `${FB.services(tenantId)}/${type.toLowerCase()}/${serviceName}/${workerName}`,
+      `${FB.workers(tenantId)}/${type.toLowerCase()}/${poolName}/${workerId}`,
   },
   rateLimits: {
     list: (tenantId: string) => `${FB.rateLimits(tenantId)}`,

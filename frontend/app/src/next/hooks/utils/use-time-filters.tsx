@@ -6,7 +6,6 @@ import {
   subHours,
   subMinutes,
 } from 'date-fns';
-import { useStateAdapter } from '../../lib/utils/storage-adapter';
 
 export const TIME_PRESETS = {
   '30m': (now: Date) => startOfMinute(subMinutes(now, 30)),
@@ -118,81 +117,26 @@ export function TimeFilterProvider({
     endTime: initialTimeRange?.endTime,
   });
 
-  // Initialize storage for time filter
-  const timeFilterStorage = useStateAdapter<{
-    preset?: TimePreset;
-    startTime?: string;
-    endTime?: string;
-  }>(
-    {},
-    {
-      type: 'query',
-      prefix: 'time_',
-    },
-  );
-
-  const setTimeFilter = React.useCallback(
-    (input: TimeFilterInput) => {
-      if (typeof input === 'string') {
-        // Handle preset
-        const now = startOfMinute(new Date());
-        const startTime = TIME_PRESETS[input](now);
-        setState((prev) => ({
-          ...prev,
-          startTime: startTime.toISOString(),
-          endTime: undefined,
-          activePreset: input,
-          lastActivePreset: input,
-        }));
-        // Store preset in storage
-        timeFilterStorage.setValues({
-          preset: input,
-          startTime: undefined,
-          endTime: undefined,
-        });
-      } else {
-        // Handle custom time range
-        setState((prev) => ({
-          ...prev,
-          startTime: input.startTime,
-          endTime: input.endTime,
-          activePreset: null,
-        }));
-        // Only store in storage if both start and end time are set
-        if (input.startTime && input.endTime) {
-          timeFilterStorage.setValues({
-            preset: undefined,
-            startTime: input.startTime,
-            endTime: input.endTime,
-          });
-        } else {
-          // Clear storage if not a complete time range
-          timeFilterStorage.setValues({
-            preset: undefined,
-            startTime: undefined,
-            endTime: undefined,
-          });
-        }
-      }
-    },
-    [timeFilterStorage],
-  );
-
-  // Load initial values from storage
-  React.useEffect(() => {
-    const stored = timeFilterStorage.getValues();
-    if (stored.preset) {
-      setTimeFilter(stored.preset);
-    } else if (stored.startTime && stored.endTime) {
-      setTimeFilter({
-        startTime: stored.startTime,
-        endTime: stored.endTime,
-      });
+  const setTimeFilter = React.useCallback((input: TimeFilterInput) => {
+    if (typeof input === 'string') {
+      const now = startOfMinute(new Date());
+      const startTime = TIME_PRESETS[input](now);
+      setState((prev) => ({
+        ...prev,
+        startTime: startTime.toISOString(),
+        endTime: undefined,
+        activePreset: input,
+        lastActivePreset: input,
+      }));
     } else {
-      // Set initial time if no stored values
-      setTimeFilter('1h');
+      setState((prev) => ({
+        ...prev,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        activePreset: null,
+      }));
     }
-  }, [setTimeFilter, timeFilterStorage]);
+  }, []);
 
   const setActivePreset = React.useCallback((preset: TimePreset | null) => {
     setState((prev) => ({

@@ -7,9 +7,8 @@ import {
   AlertTitle,
 } from '@/next/components/ui/alert';
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { useMemo, useCallback, useState, useEffect } from 'react';
-import { useCurrentTenantId } from '@/next/hooks/use-tenant';
-import { getFriendlyWorkflowRunId, RunId } from '@/next/components/runs/run-id';
+import { useMemo, useCallback, useState } from 'react';
+import { RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { MdOutlineReplay } from 'react-icons/md';
 import { MdOutlineCancel } from 'react-icons/md';
@@ -22,7 +21,6 @@ import {
 import { Headline } from '@/next/components/ui/page-header';
 import { Duration } from '@/next/components/ui/duration';
 import { V1TaskStatus } from '@/lib/api/generated/data-contracts';
-import { ROUTES } from '@/next/lib/routes';
 import { TriggerRunModal } from '@/next/components/runs/trigger-run-modal';
 import {
   Tabs,
@@ -34,16 +32,14 @@ import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log'
 import { Separator } from '@/next/components/ui/separator';
 import { Waterfall } from '@/next/components/waterfall/waterfall';
 import RelativeDate from '@/next/components/ui/relative-date';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
 import WorkflowGeneralSettings from '../workflows/settings';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
 
 export default function RunDetailPage() {
-  const { workflowRunId, taskId } = useParams<{
+  const { workflowRunId } = useParams<{
     workflowRunId: string;
-    taskId: string;
   }>();
 
   return (
@@ -51,7 +47,7 @@ export default function RunDetailPage() {
       runId={workflowRunId || ''}
       defaultRefetchInterval={1000}
     >
-      <RunDetailPageContent workflowRunId={workflowRunId} taskId={taskId} />
+      <RunDetailPageContent workflowRunId={workflowRunId} />
     </RunDetailProvider>
   );
 }
@@ -61,21 +57,13 @@ type RunDetailPageProps = {
   taskId?: string;
 };
 
-function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
-  const { tenantId } = useCurrentTenantId();
-  const { data, isLoading, error, cancel, replay, parentData } = useRunDetail();
+function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
+  const { data, isLoading, error, cancel, replay } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
 
   const workflow = useMemo(() => data?.run, [data]);
   const tasks = useMemo(() => data?.tasks, [data]);
-
-  const selectedTask = useMemo(() => {
-    if (taskId) {
-      return tasks?.find((t) => t.taskExternalId === taskId);
-    }
-    return tasks?.[0];
-  }, [tasks, taskId]);
 
   const { open: openSheet, sheet } = useSideSheet();
 
@@ -99,58 +87,6 @@ function RunDetailPageContent({ workflowRunId, taskId }: RunDetailPageProps) {
     }
     return undefined;
   }, [sheet]);
-
-  const breadcrumbs = useMemo(() => {
-    if (!workflow) {
-      return [];
-    }
-
-    const breadcrumbs = [];
-
-    if (parentData) {
-      const parentUrl = ROUTES.runs.detail(
-        tenantId,
-        parentData.run.metadata.id,
-      );
-      breadcrumbs.push({
-        title: getFriendlyWorkflowRunId(parentData.run) || '',
-        label: <RunId wfRun={parentData.run} />,
-        url: parentUrl,
-        icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-        alwaysShowIcon: true,
-        alwaysShowTitle: true,
-      });
-    }
-
-    breadcrumbs.push({
-      title: getFriendlyWorkflowRunId(workflow) || '',
-      label: <RunId wfRun={workflow} />,
-      url:
-        selectedTask?.metadata.id === workflow?.metadata.id
-          ? ROUTES.runs.detail(tenantId, workflow.metadata.id)
-          : ROUTES.runs.detailWithSheet(tenantId, workflow.metadata.id, {
-              type: 'task-detail',
-              props: {
-                selectedWorkflowRunId: workflow.metadata.id,
-                selectedTaskId: selectedTask?.taskExternalId,
-              },
-            }),
-      icon: () => <RunsBadge status={workflow?.status} variant="xs" />,
-      alwaysShowIcon: true,
-    });
-
-    return breadcrumbs;
-  }, [workflow, parentData, selectedTask]);
-
-  const breadcrumb = useBreadcrumbs();
-
-  useEffect(() => {
-    breadcrumb.set(breadcrumbs);
-
-    return () => {
-      breadcrumb.set([]);
-    };
-  }, [breadcrumbs, breadcrumb]);
 
   const canCancel = useMemo(() => {
     return (

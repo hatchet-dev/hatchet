@@ -126,7 +126,7 @@ export function RunsProvider({
   },
 }: RunsProviderProps) {
   return (
-    <FilterProvider initialFilters={initialFilters} type="state">
+    <FilterProvider initialFilters={initialFilters}>
       <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
           <RunsProviderContent refetchInterval={refetchInterval}>
@@ -494,6 +494,7 @@ function RunsProviderContent({
       histogramQuery,
       queueMetricsQuery,
       hasFilters,
+      listRunsQuery.isFetching,
     ],
   );
 

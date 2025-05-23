@@ -392,7 +392,7 @@ export function Waterfall({
       taskDepthMap,
       rootTasks,
     };
-  }, [taskData, depth]); // Only recompute when taskData or depth changes
+  }, [taskData]); // Only recompute when taskData changes
 
   const closeTask = (taskId: string) => {
     const newExpandedTasks = new Set(expandedTasks);
@@ -581,13 +581,7 @@ export function Waterfall({
       });
 
     return { data, taskPathMap: new Map() };
-  }, [
-    taskData,
-    expandedTasks,
-    depth,
-    autoExpandedInitially,
-    taskRelationships,
-  ]); // Only recompute when dependencies change
+  }, [taskData, expandedTasks, autoExpandedInitially, taskRelationships]); // Only recompute when dependencies change
 
   // Custom tick renderer with expand/collapse buttons
   const renderTick = (props: {

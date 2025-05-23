@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -45,31 +44,20 @@ import { Step, Steps } from '@/components/v1/ui/steps';
 import { Button } from '@/next/components/ui/button';
 import { BillingRequired } from './components/billing-required';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
-function ServiceDetailPageContent() {
+
+function WorkerPoolDetailPageContent() {
   const navigate = useNavigate();
 
   const { tenantId } = useCurrentTenantId();
 
-  const { data: services, create } = useManagedCompute();
-
-  const breadcrumb = useBreadcrumbs();
-
-  useEffect(() => {
-    breadcrumb.set([
-      {
-        title: 'Worker Services',
-        label: 'New Managed Worker Service',
-        url: ROUTES.services.new(tenantId, WorkerType.MANAGED),
-      },
-    ]);
-  }, [breadcrumb]);
+  const { data: pools, create } = useManagedCompute();
 
   const { canWithReason } = useCan();
 
   const { rejectReason } = canWithReason(managedCompute.create());
 
   // Only show BillingRequired if there are no managed workers AND billing is required
-  const hasExistingWorkers = (services?.length || 0) > 0;
+  const hasExistingWorkers = (pools?.length || 0) > 0;
 
   const [secrets, setSecrets] = useState<UpdateManagedWorkerSecretRequest>({
     add: [],
@@ -87,7 +75,7 @@ function ServiceDetailPageContent() {
   const [buildConfig, setBuildConfig] = useState<BuildConfigValue>({
     buildDir: './',
     dockerfilePath: './Dockerfile',
-    serviceName: '',
+    poolName: '',
   });
 
   const [machineConfig, setMachineConfig] = useState<MachineConfigValue>({
@@ -109,9 +97,9 @@ function ServiceDetailPageContent() {
 
     setIsDeploying(true);
     try {
-      const deployedService = await create.mutateAsync({
+      const deployedPool = await create.mutateAsync({
         data: {
-          name: buildConfig.serviceName,
+          name: buildConfig.poolName,
           buildConfig: {
             ...githubRepo,
             steps: [
@@ -128,14 +116,14 @@ function ServiceDetailPageContent() {
       });
 
       navigate(
-        ROUTES.services.detail(
+        ROUTES.workers.poolDetail(
           tenantId,
-          deployedService.metadata.id,
+          deployedPool.metadata.id,
           WorkerType.MANAGED,
         ),
       );
     } catch (error) {
-      console.error('Failed to deploy service:', error);
+      console.error('Failed to deploy worker:', error);
     } finally {
       setIsDeploying(false);
     }
@@ -156,8 +144,8 @@ function ServiceDetailPageContent() {
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage workers in a worker service">
-          New Managed Worker Service
+        <PageTitle description="Manage workers in a worker pool">
+          New Managed Worker Pool
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -260,7 +248,7 @@ function ServiceDetailPageContent() {
                 Previous
               </Button>
               <Button onClick={handleDeploy} disabled={isDeploying}>
-                {isDeploying ? 'Deploying...' : 'Deploy Service'}
+                {isDeploying ? 'Deploying...' : 'Deploy Pool'}
               </Button>
             </div>
           </Step>
@@ -270,7 +258,7 @@ function ServiceDetailPageContent() {
   );
 }
 
-export default function ServiceDetailPage() {
+export default function WorkerPoolDetailPage() {
   const { canWithReason } = useCan();
 
   const { rejectReason } = canWithReason(managedCompute.create());
@@ -282,7 +270,7 @@ export default function ServiceDetailPage() {
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
-        <ServiceDetailPageContent />
+        <WorkerPoolDetailPageContent />
       </WorkersProvider>
     </ManagedComputeProvider>
   );

@@ -33,7 +33,7 @@ import { Checkbox } from '@/next/components/ui/checkbox';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 interface WorkerTableProps {
-  serviceName: string;
+  poolName: string;
 }
 
 interface WorkerFilters {
@@ -67,43 +67,41 @@ export const TableRowSkeleton = () => (
   </TableRow>
 );
 
-export function WorkerTable({ serviceName }: WorkerTableProps) {
+export function WorkerTable({ poolName }: WorkerTableProps) {
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const navigate = useNavigate();
   const { tenantId } = useCurrentTenantId();
 
   const {
-    services,
+    pools,
     isLoading,
     update,
     filters: { filters, setFilter },
   } = useWorkers();
 
   const filterStatus = useMemo(() => filters.status || 'ALL', [filters]);
-
-  // Filter workers for this service
-  const service = services.find((worker) => worker.name === serviceName);
+  const pool = pools.find((worker) => worker.name === poolName);
 
   // Set filter to paused if there are no active workers but there are paused workers
   useEffect(() => {
     if (!isLoading) {
       if (
-        (service?.activeCount === 0 && filterStatus === 'ACTIVE') ||
-        (service?.pausedCount === 0 && filterStatus === 'PAUSED')
+        (pool?.activeCount === 0 && filterStatus === 'ACTIVE') ||
+        (pool?.pausedCount === 0 && filterStatus === 'PAUSED')
       ) {
         setFilter('status', 'all');
       }
     }
   }, [
-    service?.activeCount,
-    service?.pausedCount,
+    pool?.activeCount,
+    pool?.pausedCount,
     isLoading,
     filterStatus,
     setFilter,
   ]);
 
   // Filter workers based on selected status
-  const filteredWorkers = service?.workers.filter((worker) => {
+  const filteredWorkers = pool?.workers.filter((worker) => {
     if (filterStatus === 'ALL') {
       return true;
     }
@@ -175,20 +173,20 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
 
   const handleWorkerClick = (workerId: string) => {
     navigate(
-      ROUTES.services.workerDetail(
+      ROUTES.workers.workerDetail(
         tenantId,
-        encodeURIComponent(serviceName),
+        encodeURIComponent(poolName),
         workerId,
-        service?.type || WorkerType.SELFHOSTED,
+        pool?.type || WorkerType.SELFHOSTED,
       ),
     );
   };
 
   const statusOptions = [
-    { label: 'All Workers', value: 'all', count: service?.workers.length },
-    { label: 'Active', value: 'active', count: service?.activeCount },
-    { label: 'Paused', value: 'paused', count: service?.pausedCount },
-    { label: 'Inactive', value: 'inactive', count: service?.inactiveCount },
+    { label: 'All Workers', value: 'all', count: pool?.workers.length },
+    { label: 'Active', value: 'active', count: pool?.activeCount },
+    { label: 'Paused', value: 'paused', count: pool?.pausedCount },
+    { label: 'Inactive', value: 'inactive', count: pool?.inactiveCount },
   ];
 
   return (
@@ -273,8 +271,8 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
                   {filterStatus === 'ALL'
-                    ? 'No workers in this service.'
-                    : `No ${filterStatus} workers in this service.`}
+                    ? 'No workers in this pool.'
+                    : `No ${filterStatus} workers in this pool.`}
                 </TableCell>
               </TableRow>
             ) : (
@@ -295,7 +293,7 @@ export function WorkerTable({ serviceName }: WorkerTableProps) {
                       onClick={() => handleWorkerClick(worker.metadata.id)}
                       className="hover:underline text-left"
                     >
-                      <WorkerId worker={worker} serviceName={serviceName} />
+                      <WorkerId worker={worker} poolName={poolName} />
                     </button>
                   </TableCell>
                   <TableCell>

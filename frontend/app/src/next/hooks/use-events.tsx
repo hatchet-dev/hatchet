@@ -104,7 +104,7 @@ export function EventsProvider({
   refetchInterval,
 }: EventsProviderProps) {
   return (
-    <FilterProvider initialFilters={{}} type="state">
+    <FilterProvider initialFilters={{}}>
       <PaginationProvider initialPage={1} initialPageSize={50}>
         <EventsProviderContent refetchInterval={refetchInterval}>
           {children}

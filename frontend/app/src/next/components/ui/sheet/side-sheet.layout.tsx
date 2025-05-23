@@ -5,7 +5,7 @@ import { Cross2Icon, ExternalLinkIcon } from '@radix-ui/react-icons';
 import { RunDetailSheet } from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
 import { useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { WorkerDetails } from '@/next/pages/authenticated/dashboard/worker-services/components/worker-details';
+import { WorkerDetails } from '@/next/pages/authenticated/dashboard/workers/components/worker-details';
 import { useSidebar } from '@/next/components/ui/sidebar';
 
 interface SideSheetProps {
@@ -79,7 +79,7 @@ export function SideSheetComponent({ variant = 'push' }: SideSheetProps) {
     }
 
     return undefined;
-  }, [sheet]);
+  }, [sheet, isOpen, onClose]);
 
   // If using push variant, render as a side panel instead of using Sheet
   if (variant === 'push' && !isMobile) {

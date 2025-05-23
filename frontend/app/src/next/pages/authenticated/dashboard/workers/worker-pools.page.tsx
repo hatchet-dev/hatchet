@@ -2,11 +2,11 @@ import {
   WorkersProvider,
   useWorkers,
   Worker,
-  WorkerService,
+  WorkerPool,
 } from '@/next/hooks/use-workers';
 import {
   ManagedComputeProvider,
-  useUnifiedWorkerServices,
+  useUnifiedWorkerPools,
 } from '@/next/hooks/use-managed-compute';
 import { Button } from '@/next/components/ui/button';
 import {
@@ -70,13 +70,12 @@ import { ROUTES } from '@/next/lib/routes';
 import { WorkerType } from '@/lib/api';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
-// Service row component to simplify the main component
-const ServiceRow = ({ service }: { service: WorkerService }) => {
+const WorkerPoolRow = ({ pool }: { pool: WorkerPool }) => {
   const { bulkUpdate } = useWorkers();
   const { tenantId } = useCurrentTenantId();
 
   const getLastActiveTime = () => {
-    const mostRecentWorker = service.workers
+    const mostRecentWorker = pool.workers
       .filter((worker) => worker.lastHeartbeatAt)
       .sort(
         (a: Worker, b: Worker) =>
@@ -89,10 +88,8 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
       : 'Never';
   };
 
-  // Handlers for pause and resume
   const handlePauseAllActive = async () => {
-    // Get all active worker IDs for this service
-    const activeWorkerIds = service.workers
+    const activeWorkerIds = pool.workers
       .filter((worker) => worker.status === 'ACTIVE')
       .map((worker) => worker.metadata.id);
 
@@ -105,8 +102,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
   };
 
   const handleResumeAllPaused = async () => {
-    // Get all paused worker IDs for this service
-    const pausedWorkerIds = service.workers
+    const pausedWorkerIds = pool.workers
       .filter((worker) => worker.status === 'PAUSED')
       .map((worker) => worker.metadata.id);
 
@@ -119,29 +115,29 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
   };
 
   return (
-    <TableRow key={service.name}>
+    <TableRow key={pool.name}>
       <TableCell className="font-medium">
         <Link
-          to={ROUTES.services.detail(
+          to={ROUTES.workers.poolDetail(
             tenantId,
-            encodeURIComponent(service.id || service.name),
-            service.type,
+            encodeURIComponent(pool.id || pool.name),
+            pool.type,
           )}
         >
-          {service.name}
+          {pool.name}
         </Link>
       </TableCell>
       <TableCell>
         <div className="flex gap-2">
           <WorkerStatusBadge
             status="ACTIVE"
-            count={service.activeCount}
+            count={pool.activeCount}
             variant="outline"
           />
-          {service.pausedCount > 0 && (
+          {pool.pausedCount > 0 && (
             <WorkerStatusBadge
               status="PAUSED"
-              count={service.pausedCount}
+              count={pool.pausedCount}
               variant="outline"
             />
           )}
@@ -149,19 +145,19 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
       </TableCell>
       <TableCell>
         <SlotsBadge
-          available={service.totalAvailableRuns}
-          max={service.totalMaxRuns}
+          available={pool.totalAvailableRuns}
+          max={pool.totalMaxRuns}
         />
       </TableCell>
       <TableCell>{getLastActiveTime()}</TableCell>
-      <TableCell>{service.type}</TableCell>
+      <TableCell>{pool.type}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end">
           <Link
-            to={ROUTES.services.detail(
+            to={ROUTES.workers.poolDetail(
               tenantId,
-              encodeURIComponent(service.name),
-              service.type,
+              encodeURIComponent(pool.name),
+              pool.type,
             )}
           >
             <Button variant="ghost" size="icon">
@@ -180,10 +176,10 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Link
-                  to={ROUTES.services.detail(
+                  to={ROUTES.workers.poolDetail(
                     tenantId,
-                    encodeURIComponent(service.name),
-                    service.type,
+                    encodeURIComponent(pool.name),
+                    pool.type,
                   )}
                   className="w-full"
                 >
@@ -191,7 +187,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={service.activeCount === 0}
+                disabled={pool.activeCount === 0}
                 onClick={handlePauseAllActive}
                 className="flex items-center"
               >
@@ -199,7 +195,7 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
                 Pause all active workers
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={service.pausedCount === 0}
+                disabled={pool.pausedCount === 0}
                 onClick={handleResumeAllPaused}
                 className="flex items-center"
               >
@@ -214,7 +210,6 @@ const ServiceRow = ({ service }: { service: WorkerService }) => {
   );
 };
 
-// Skeleton row component for loading state
 const SkeletonRow = () => (
   <TableRow>
     <TableCell>
@@ -241,7 +236,6 @@ const SkeletonRow = () => (
   </TableRow>
 );
 
-// Hatchet Cloud advertisement component
 const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
   <Card className="mt-8 relative">
     <Button
@@ -267,7 +261,7 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
         <div className="flex items-start space-x-2">
           <Server className="mt-1 h-4 w-4 text-muted-foreground flex-shrink-0" />
           <p className="text-sm text-muted-foreground">
-            Fully managed worker services with auto-scaling
+            Fully managed workers with auto-scaling
           </p>
         </div>
         <div className="flex items-start space-x-2">
@@ -284,9 +278,9 @@ const HatchetCloudCard = ({ onDismiss }: { onDismiss: () => void }) => (
   </Card>
 );
 
-function WorkerServicesContent() {
-  const { isLoading } = useWorkers();
-  const unifiedServices = useUnifiedWorkerServices();
+function WorkerContext() {
+  const { pools, isLoading } = useUnifiedWorkerPools();
+
   const [showCloudCard, setShowCloudCard] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const { tenantId } = useCurrentTenantId();
@@ -306,26 +300,24 @@ function WorkerServicesContent() {
         .map((_, i) => <SkeletonRow key={i} />);
     }
 
-    if (!unifiedServices || unifiedServices.length === 0) {
+    if (!pools || pools.length === 0) {
       return (
         <TableRow>
           <TableCell colSpan={5} className="text-center">
-            No worker services found
+            No worker pools found
           </TableCell>
         </TableRow>
       );
     }
 
-    return unifiedServices.map((service) => (
-      <ServiceRow key={service.name} service={service} />
-    ));
+    return pools.map((pool) => <WorkerPoolRow key={pool.name} pool={pool} />);
   };
 
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage your worker services and view their status">
-          Worker Services
+        <PageTitle description="Manage your workers and view their statuses and task runs">
+          Worker Pools
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -336,20 +328,20 @@ function WorkerServicesContent() {
               <DropdownMenuTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4" />
-                  New Service
+                  New Worker
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem asChild>
-                  <Link to={ROUTES.services.new(tenantId, WorkerType.MANAGED)}>
-                    Managed Service
+                  <Link to={ROUTES.workers.new(tenantId, WorkerType.MANAGED)}>
+                    Managed Worker
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link
-                    to={ROUTES.services.new(tenantId, WorkerType.SELFHOSTED)}
+                    to={ROUTES.workers.new(tenantId, WorkerType.SELFHOSTED)}
                   >
-                    Self-hosted Service
+                    Self-hosted Worker
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -377,7 +369,7 @@ function WorkerServicesContent() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Service</TableHead>
+              <TableHead>Pool</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Slots</TableHead>
               <TableHead>Last Active</TableHead>
@@ -394,11 +386,11 @@ function WorkerServicesContent() {
   );
 }
 
-export default function WorkerServicesPage() {
+export default function WorkerPoolsPage() {
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
-        <WorkerServicesContent />
+        <WorkerContext />
       </WorkersProvider>
     </ManagedComputeProvider>
   );

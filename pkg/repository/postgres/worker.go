@@ -37,11 +37,35 @@ func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerB
 	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
-func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error) {
-	return w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, dbsqlc.GetWorkerActionsByWorkerIdParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantid),
+func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid string, workerIds []string) (map[string][]string, error) {
+	uuidWorkerIds := make([]pgtype.UUID, len(workerIds))
+	for i, workerId := range workerIds {
+		uuidWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
+	}
+
+	records, err := w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, dbsqlc.GetWorkerActionsByWorkerIdParams{
+		Workerids: uuidWorkerIds,
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantid),
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerIdToActionIds := make(map[string][]string)
+
+	for _, record := range records {
+		workerId := record.WorkerId.String()
+		actionId := record.Actionid.String
+
+		if _, ok := workerIdToActionIds[workerId]; !ok {
+			workerIdToActionIds[workerId] = make([]string, 0)
+		}
+
+		workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], actionId)
+	}
+
+	return workerIdToActionIds, nil
 }
 
 func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {

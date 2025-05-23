@@ -98,10 +98,10 @@ export const getMainNavLinks = (
             isActive: isActive(ROUTES.workflows.list(tenantId)),
           },
           {
-            title: 'Worker Services',
-            url: ROUTES.services.list(tenantId),
+            title: 'Worker Pools',
+            url: ROUTES.workers.list(tenantId),
             icon: Cpu,
-            isActive: isActive(ROUTES.services.list(tenantId)),
+            isActive: isActive(ROUTES.workers.list(tenantId)),
           },
           {
             title: 'Rate Limits',

@@ -38,13 +38,19 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, err
 	}
 
-	actions, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
+	workerIdToActionIds, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
 	)
 
 	if err != nil {
 		return nil, err
+	}
+
+	actions, ok := workerIdToActionIds[sqlchelpers.UUIDToStr(worker.Worker.ID)]
+
+	if !ok {
+		return nil, fmt.Errorf("worker %s has no actions", sqlchelpers.UUIDToStr(worker.Worker.ID))
 	}
 
 	respStepRuns := make([]gen.RecentStepRuns, len(recent))
@@ -99,13 +105,18 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, req
 		return nil, err
 	}
 
-	actions, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
+	workerIdToActions, err := t.config.APIRepository.Worker().GetWorkerActionsByWorkerId(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
-		sqlchelpers.UUIDToStr(worker.Worker.ID),
+		[]string{sqlchelpers.UUIDToStr(worker.Worker.ID)},
 	)
 
 	if err != nil {
 		return nil, err
+	}
+
+	actions, ok := workerIdToActions[sqlchelpers.UUIDToStr(worker.Worker.ID)]
+	if !ok {
+		return nil, fmt.Errorf("worker %s has no actions", sqlchelpers.UUIDToStr(worker.Worker.ID))
 	}
 
 	respStepRuns := make([]gen.RecentStepRuns, len(recent))

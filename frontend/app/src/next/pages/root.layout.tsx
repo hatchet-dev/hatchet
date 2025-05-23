@@ -4,7 +4,6 @@ import { ApiConnectionError } from '@/next/components/errors/api-connection-erro
 import useApiMeta from '@/next/hooks/use-api-meta';
 import { PropsWithChildren } from 'react';
 import { Outlet } from 'react-router-dom';
-import { DocsContext, useDocsState } from '@/next/hooks/use-docs-sheet';
 import { DocsSheetComponent } from '@/next/components/ui/docs-sheet';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
@@ -14,6 +13,7 @@ import {
   useSideSheetState,
 } from '@/next/hooks/use-side-sheet';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
+import { DocsContext, useDocsState } from '../hooks/use-docs-sheet';
 
 function RootContent({ children }: PropsWithChildren) {
   const meta = useApiMeta();

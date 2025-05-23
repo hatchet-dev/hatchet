@@ -12,13 +12,13 @@ import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 interface WorkerIdProps {
   worker?: Worker;
-  serviceName: string;
+  poolName: string;
   onClick?: () => void;
 }
 
 export function WorkerId({
   worker: providedWorker,
-  serviceName,
+  poolName,
   onClick,
 }: WorkerIdProps) {
   const { tenantId } = useCurrentTenantId();
@@ -32,9 +32,9 @@ export function WorkerId({
   }, [worker]);
 
   const url = worker
-    ? ROUTES.services.workerDetail(
+    ? ROUTES.workers.workerDetail(
         tenantId,
-        serviceName,
+        poolName,
         worker.metadata.id,
         worker.type,
       )
