@@ -1,5 +1,5 @@
 import DynamicLottie from "../../components/DynamicLottie";
-import {LogViewer} from "../../components/LogViewer";
+import { LogViewer } from "../../components/LogViewer";
 import * as prefetch from "./_celery_prefetch.json";
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import { Snippet } from "@/components/code";
@@ -17,13 +17,16 @@ import snips from "@/lib/snips";
 Blocked event loops are, by far, the most common problem we see when providing support to Hatchet users. If you use Hatchet, and Hatchet's Python SDK in particular, you might've seen a warning like this:
 
 <Callout type="warning" emoji="🪓">
-THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED
+  THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED
 </Callout>
 
 Scary! Let's talk through what's going on under the hood, and some possible causes for this warning in Hatchet and how to effectively debug.
 
 <Callout type="info" emoji="🧱">
-    New to `async` / `await` and event loops in Python? I'd recommend checking out [FastAPI's async documentation](https://fastapi.tiangolo.com/async/) quickly before getting started here. Hatchet handles synchronous and asynchronous work very similarly to FastAPI.
+  New to `async` / `await` and event loops in Python? I'd recommend checking out
+  [FastAPI's async documentation](https://fastapi.tiangolo.com/async/) quickly
+  before getting started here. Hatchet handles synchronous and asynchronous work
+  very similarly to FastAPI.
 </Callout>
 
 ## Blocking I/O
@@ -72,23 +75,29 @@ If you were to run code like this in a Hatchet task, you'd see the scary warning
 
 ## Understanding the Problem
 
-The long-and-short of the problem here, as so nicely put by the `asyncio` documentation, is that if some async code is doing _anything_ blocking, then _everything_ else will need to wait for that blocking operation to complete. This means that if you have a Hatchet worker running 1,000 tasks concurrently and _one_ of them does something blocking, none of your other tasks will run while that blocking operation is happening.
+The long and short of the problem here, as so nicely put by the `asyncio` documentation, is that if some async code is doing _anything_ blocking, then _everything_ else will need to wait for that blocking operation to complete. This means that if you have a Hatchet worker running 1,000 tasks concurrently and _one_ of them does something blocking, none of your other tasks will run while that blocking operation is happening.
 
 Some common (and some less common) examples of blocking operations might include:
 
-* Making a synchronous API call using `requests.get`
-* Performing a synchronous database operation using `psycopg`, such as running an expensive `SELECT` statement that takes a long time to complete
-* Running a CPU-bound algorithm, such as [solving a Sudoku puzzle](https://en.wikipedia.org/wiki/NP_(complexity))
+- Making a synchronous API call using `requests.get`
+- Performing a synchronous database operation using `psycopg`, such as running an expensive `SELECT` statement that takes a long time to complete
+- Running a CPU-bound algorithm, such as [solving a Sudoku puzzle](<https://en.wikipedia.org/wiki/NP_(complexity)>)
 
 In each of these cases, while this work is happening, no other async work on your Hatchet workers will be able to progress. We see some interesting and scary behavior if we run some blocking code in Hatchet.
 
-<Snippet src={snips.python.blocked_async.blocking_example_worker} block="worker" />
+<Snippet
+  src={snips.python.blocked_async.blocking_example_worker}
+  block="worker"
+/>
 
 Here we define a few tasks, one which is async and does blocking work (`time.sleep`), one which is sync and does blocking work (`time.sleep`), and one that is async and does non-blocking work (`asyncio.sleep`).
 
 As an experiment, we can run them as follows to simulate what might happen in a production environment:
 
-<Snippet src={snips.python.blocked_async.blocking_example_trigger} block="trigger" />
+<Snippet
+  src={snips.python.blocked_async.blocking_example_trigger}
+  block="trigger"
+/>
 
 The intention of this example is to first kick off the non-blocking sync and async tasks, let them start to process, then kick off the blocking task, let it start to process, and finally kick off the non-blocking sync task again, and then let all of them complete. The worker logs are illustrative:
 
@@ -153,11 +162,11 @@ Here's a play-by-play of what happened:
 
 1. The non-blocking sync and async work starts, and their logs are interleaved (as you'd expect, since Hatchet runs tasks concurrently).
 2. We see this internal event: `run: start step: blocking:blocking`, indicating that the worker has now started running the blocking task.
-3. After that log, we stop seeing any `Non blocking async` logs, as the event loop is blocked. Notice that at this point, we continue to see `Non blocking sync` logs. This is an important design decision in Hatchet. Hatchet runs sync tasks in a thread pool so they can be run in a non-blocking way, which means that once the sync task has started, there's no risk of it being blocked even if the main event loop is blocked.
+3. After that log, we stop seeing any `Non blocking async` logs, as the event loop is blocked. Notice that at this point, we continue to see `Non blocking sync` logs. This is an important design decision in Hatchet. Hatchet runs synchronous tasks in a thread pool so they can be executed in a non-blocking way, which means that once a sync task has started, it can continue executing even if the main event loop is blocked.
 4. We receive a `start step run` event, which indicates the last run has been triggered: `rx: start step run: 7742df98-169f-4afa-9075-e43c8b3ea8df/non_blocking_sync:non_blocking_sync`. Importantly, you might expect that since this task is sync, it will be executed correctly without being blocked, similarly to how the previous one was in 3). This is not the case! Since the event loop is blocked, Hatchet _cannot begin to execute this task run_, which is why we immediately start seeing the scary warning log.
 5. `THE TIME TO START THE STEP RUN IS TOO LONG, THE MAIN THREAD MAY BE BLOCKED: Waiting Steps 1`
 6. We get a finished event for the blocking step: `finished step run: blocking:blocking`
-7. The scary warning goes away, and we immediately go back to business as usual, seeing the next `Non blocking async 2` log. Importantly, this index (3) was where it left off before, but it "slept" for about six seconds (the duration of the blocking task), as opposed to the one second that we intended, between log lines.
+7. The scary warning goes away, and we immediately go back to business as usual, seeing the next `Non blocking async 2` log. Importantly, this index (2) was where it left off before, but it "slept" for about six seconds (the duration of the blocking task), as opposed to the one second that we intended, between log lines.
 8. All of the remaining work completes, including the new `Non blocking sync` task starting and finishing.
 
 ## Debugging
@@ -166,18 +175,20 @@ So you're seeing the scary warning: Now what?
 
 ### Turn on `asyncio`'s `DEBUG` mode
 
-`asyncio` has a [debug mode](https://docs.python.org/3/library/asyncio-dev.html#debug-mode), which will give you some more observability into the async operations that your worker is doing.
+`asyncio` has a [debug mode](https://docs.python.org/3/library/asyncio-dev.html#debug-mode), which will give you more observability into the async operations that your worker is doing.
+
+This will log warnings about slow callbacks and provide additional information about tasks that are taking too long.
 
 ### Look for obviously blocking code
 
 First line of defense: look for things that are obviously blocking. API calls, database operations, for loops doing something involved or running many iterations, and so on. Depending on what the problem is, there are different ways to handle different situations:
 
-* If you're making API calls with `requests` or similar, try using `aiohttp` instead to make the calls async.
-* If you're using `psycopg*` or similar for database I/O, try using e.g. `asyncpg` instead, to make database operations async.
-* If you're relying on an external library that does not provide async methods, try wrapping the methods in `asyncio.to_thread` to run them in a separate thread so they don't block.
-* Similarly, if you have some expensive CPU-bound work (see: solving Sudoku), use `asyncio.to_thread` there too.
+- If you're making API calls with `requests` or similar, try using `aiohttp` instead to make the calls async.
+- If you're using `psycopg2` or similar synchronous database libraries for database I/O, try using `asyncpg` or `psycopg[binary]` with `asyncio` support instead, to make database operations async.
+- If you're relying on an external library that does not provide async methods, try wrapping the methods in `asyncio.to_thread` to run them in a separate thread so they don't block the main event loop. For example: `await asyncio.to_thread(some_blocking_function, arg1, arg2)`.
+- Similarly, if you have some expensive CPU-bound work (see: solving Sudoku), use `asyncio.to_thread` there too to offload the work to a separate thread.
 
-As a last resort, you can also change you tasks from being async to sync, although we don't recommend this in the majority of cases.
+As a last resort, you can also change your tasks from being async to sync, although we don't recommend this in the majority of cases.
 
 ### Instrument your code
 
@@ -188,3 +199,16 @@ Similarly, you can also instrument your code with the [`AsyncioInstrumentor`](ht
 ### Run your code separately from Hatchet
 
 As a last resort, another thing to try is running your code in a fashion similar to how we did above, outside of Hatchet, by creating async tasks and using `gather` to run them concurrently. If there's blocking behavior, it'll be apparent when one of the tasks is blocked.
+
+## Takeaways
+
+Blocked event loops can significantly impact the performance of your Hatchet workers, causing tasks to wait unnecessarily and triggering those scary warning messages. By following the debugging steps outlined in this post, you should be able to:
+
+1. Identify blocking code in your async functions
+2. Replace synchronous operations with asynchronous alternatives
+3. Offload CPU-bound work to separate threads using `asyncio.to_thread`
+4. Use instrumentation to triangulate performance bottlenecks
+
+To reiterate the main point from the start of the post, taken directly from the `asyncio` documentation:
+
+> Blocking (CPU-bound) code should not be called directly.
