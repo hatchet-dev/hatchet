@@ -12,7 +12,7 @@ import {
   encodeSheetProps,
   decodeSheetProps,
 } from '@/next/utils/sheet-url';
-import { WorkerDetailsProps } from '../pages/authenticated/dashboard/worker-services/components/worker-details';
+import { WorkerDetailsProps } from '../pages/authenticated/dashboard/workers/components/worker-details';
 
 const EXPANDED_STATE_KEY = 'side-sheet-expanded-state';
 

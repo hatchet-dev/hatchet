@@ -89,10 +89,10 @@ export function Summary({
         <div className="space-y-2">
           <h3 className="font-medium">Build Configuration</h3>
           <p className="text-sm text-muted-foreground">
-            Service Name:{' '}
+            Pool Name:{' '}
             <DiffValue
-              current={buildConfig.serviceName}
-              original={originalBuildConfig?.serviceName}
+              current={buildConfig.poolName}
+              original={originalBuildConfig?.poolName}
               type={type}
             />
           </p>

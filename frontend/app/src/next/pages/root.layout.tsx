@@ -4,9 +4,7 @@ import { ApiConnectionError } from '@/next/components/errors/api-connection-erro
 import useApiMeta from '@/next/hooks/use-api-meta';
 import { PropsWithChildren } from 'react';
 import { Outlet } from 'react-router-dom';
-import { DocsContext, useDocsState } from '@/next/hooks/use-docs-sheet';
 import { DocsSheetComponent } from '@/next/components/ui/docs-sheet';
-import { TenantProvider } from '../hooks/use-tenant';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
 import { SideSheetComponent } from '../components/ui/sheet/side-sheet.layout';
@@ -15,6 +13,7 @@ import {
   useSideSheetState,
 } from '@/next/hooks/use-side-sheet';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
+import { DocsContext, useDocsState } from '../hooks/use-docs-sheet';
 
 function RootContent({ children }: PropsWithChildren) {
   const meta = useApiMeta();
@@ -53,14 +52,12 @@ function RootContent({ children }: PropsWithChildren) {
 function Root({ children }: PropsWithChildren) {
   return (
     <ToastProvider>
-      <TenantProvider>
-        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <SidebarProvider>
-            <Toaster />
-            <RootContent>{children}</RootContent>
-          </SidebarProvider>
-        </ThemeProvider>
-      </TenantProvider>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <SidebarProvider>
+          <Toaster />
+          <RootContent>{children}</RootContent>
+        </SidebarProvider>
+      </ThemeProvider>
     </ToastProvider>
   );
 }

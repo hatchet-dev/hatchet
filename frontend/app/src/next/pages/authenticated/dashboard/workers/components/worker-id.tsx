@@ -8,18 +8,20 @@ import {
 } from '@/next/components/ui/tooltip';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 interface WorkerIdProps {
   worker?: Worker;
-  serviceName: string;
+  poolName: string;
   onClick?: () => void;
 }
 
 export function WorkerId({
   worker: providedWorker,
-  serviceName,
+  poolName,
   onClick,
 }: WorkerIdProps) {
+  const { tenantId } = useCurrentTenantId();
   const worker = providedWorker;
 
   const name = useMemo(() => {
@@ -30,7 +32,12 @@ export function WorkerId({
   }, [worker]);
 
   const url = worker
-    ? ROUTES.services.workerDetail(serviceName, worker.metadata.id, worker.type)
+    ? ROUTES.workers.workerDetail(
+        tenantId,
+        poolName,
+        worker.metadata.id,
+        worker.type,
+      )
     : undefined;
 
   return (

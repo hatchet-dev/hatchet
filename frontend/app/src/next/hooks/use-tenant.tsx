@@ -1,130 +1,77 @@
-import {
-  useCallback,
-  useMemo,
-  useState,
-  createContext,
-  useContext,
-  ReactNode,
-  useEffect,
-} from 'react';
+import { useCallback, useMemo } from 'react';
 import api, {
   UpdateTenantRequest,
   Tenant,
-  TenantMember,
   CreateTenantRequest,
-  TenantResourceLimit,
+  TenantUIVersion,
 } from '@/lib/api';
 import useUser from './use-user';
-import { useSearchParams } from 'react-router-dom';
-import {
-  useMutation,
-  UseMutationResult,
-  useQuery,
-  useQueryClient,
-  UseQueryResult,
-} from '@tanstack/react-query';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from './utils/use-toast';
+import invariant from 'tiny-invariant';
 
-interface TenantState {
-  tenant?: Tenant;
-  membership?: TenantMember['role'];
-  limit?: UseQueryResult<TenantResourceLimit[], Error>;
-  isLoading: boolean;
-  setTenant: (tenantId: string) => void;
-  create: UseMutationResult<Tenant, Error, string, unknown>;
-  update: {
-    mutate: (data: UpdateTenantRequest) => void;
-    mutateAsync: (data: UpdateTenantRequest) => Promise<Tenant>;
-    isPending: boolean;
-  };
+export function useCurrentTenantId() {
+  const params = useParams();
+  const tenantId = params.tenantId;
+
+  invariant(tenantId, 'Tenant ID is required');
+
+  return { tenantId };
 }
 
-const TenantContext = createContext<TenantState | null>(null);
+export function useTenantDetails() {
+  const params = useParams();
+  const tenantId = params.tenantId;
 
-export function clearTenant() {
-  localStorage.removeItem('tenant');
-}
-
-interface TenantProviderProps {
-  children: ReactNode;
-}
-
-export function TenantProvider({ children }: TenantProviderProps) {
   const { memberships, isLoading: isUserLoading } = useUser();
-  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [currentTenantId, setCurrentTenantId] = useState<string | undefined>(
-    () =>
-      searchParams.get('tenant') ?? localStorage.getItem('tenant') ?? undefined,
-  );
-
-  // make sure the tenant id is in the url if it's not already
-  useEffect(() => {
-    if (!searchParams.get('tenant') && currentTenantId) {
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('tenant', currentTenantId);
-      setSearchParams(newSearchParams, { replace: true });
-    }
-  }, [searchParams, currentTenantId, setSearchParams]);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const setTenant = useCallback(
     (tenantId?: string) => {
-      if (!tenantId) {
-        return;
-      }
+      const currentPath = location.pathname;
 
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('tenant', tenantId);
-      setSearchParams(newSearchParams, { replace: true });
-      setCurrentTenantId(tenantId);
-      localStorage.setItem('tenant', tenantId);
+      const newPath = currentPath.replace(
+        /\/tenants\/([^/]+)/,
+        `/tenants/${tenantId}`,
+      );
 
-      // Get the previous tenant ID that might be in existing query keys
-      const prevTenantId = searchParams.get('tenant');
-
-      // Invalidate all queries that use the tenant ID in their query key
-      if (prevTenantId) {
-        queryClient.invalidateQueries({
-          predicate: (query) => {
-            if (Array.isArray(query.queryKey)) {
-              return query.queryKey.includes(prevTenantId);
-            }
-            return false;
-          },
-        });
-      }
+      navigate(newPath);
     },
-    [searchParams, setSearchParams, queryClient],
+    [navigate, location.pathname],
   );
 
   const membership = useMemo(() => {
-    if (!currentTenantId) {
+    if (!tenantId) {
       return undefined;
     }
 
     return memberships?.find(
-      (membership) => membership.tenant?.metadata.id === currentTenantId,
+      (membership) => membership.tenant?.metadata.id === tenantId,
     );
-  }, [currentTenantId, memberships]);
-
-  // Handle setting initial tenant when no tenant is selected
-  useEffect(() => {
-    if (!currentTenantId && memberships?.[0]?.tenant?.metadata.id) {
-      setTenant(memberships[0].tenant.metadata.id);
-    }
-  }, [currentTenantId, memberships, setTenant]);
+  }, [tenantId, memberships]);
 
   const tenant = membership?.tenant;
+  const defaultTenant = memberships?.[0]?.tenant;
 
   // Mutation for creating a tenant
   const createTenantMutation = useMutation({
     mutationKey: ['tenant:create'],
-    mutationFn: async (name: string): Promise<Tenant> => {
+    mutationFn: async ({
+      name,
+      uiVersion,
+    }: {
+      name: string;
+      uiVersion: TenantUIVersion;
+    }): Promise<Tenant> => {
       try {
         const tenantData: CreateTenantRequest = {
           name,
           slug: name.toLowerCase().replace(/\s+/g, '-'),
+          uiVersion,
         };
 
         const response = await api.tenantCreate(tenantData);
@@ -193,8 +140,10 @@ export function TenantProvider({ children }: TenantProviderProps) {
     enabled: !!tenant?.metadata.id,
   });
 
-  const value = {
+  return {
+    tenantId,
     tenant,
+    defaultTenant,
     isLoading: isUserLoading,
     membership: membership?.role,
     setTenant,
@@ -207,16 +156,4 @@ export function TenantProvider({ children }: TenantProviderProps) {
     },
     limit: resourcePolicyQuery,
   };
-
-  return (
-    <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
-  );
-}
-
-export default function useTenant(): TenantState {
-  const context = useContext(TenantContext);
-  if (context === null) {
-    throw new Error('useTenant must be used within a TenantProvider');
-  }
-  return context;
 }

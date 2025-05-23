@@ -13,7 +13,6 @@ import {
 import { AxiosResponse } from 'axios';
 import { useToast } from './utils/use-toast';
 import { ROUTES } from '@/next/lib/routes';
-import { clearTenant } from './use-tenant';
 interface UserState {
   data?: User;
   memberships?: TenantMember[];
@@ -106,7 +105,6 @@ export default function useUser({
     },
     onSuccess: () => {
       // force a page reload to ensure the user is logged out
-      clearTenant();
       window.location.href = ROUTES.auth.login;
     },
   });

@@ -10,12 +10,14 @@ import { useEffect } from 'react';
 import { FaEnvelope } from 'react-icons/fa';
 import { Navigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 export default function VerifyEmailPage() {
   const retryInterval = 5000;
 
   const user = useUser({
     refetchInterval: retryInterval,
   });
+  const { tenantId } = useCurrentTenantId();
 
   const [countdown, setCountdown] = useState<number | null>(null);
 
@@ -42,7 +44,7 @@ export default function VerifyEmailPage() {
 
   // once the email is verified, redirect to the home page
   if (user.data?.emailVerified) {
-    return <Navigate to={ROUTES.runs.list} />;
+    return <Navigate to={ROUTES.runs.list(tenantId)} />;
   }
 
   return (

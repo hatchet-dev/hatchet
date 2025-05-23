@@ -10,7 +10,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -83,19 +83,15 @@ function SchedulesProviderContent({
   children,
   refetchInterval,
 }: SchedulesProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const filters = useFilters<SchedulesFilters>();
   const pagination = usePagination();
   const { toast } = useToast();
 
   const listSchedulesQuery = useQuery({
-    queryKey: ['schedule:list', tenant, filters.filters, pagination],
+    queryKey: ['schedule:list', tenantId, filters.filters, pagination],
     queryFn: async () => {
-      if (!tenant) {
-        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
-      }
-
       try {
         // Build query params
         const queryParams: Parameters<typeof api.workflowScheduledList>[1] = {
@@ -107,10 +103,7 @@ function SchedulesProviderContent({
           ...filters.filters,
         };
 
-        const res = await api.workflowScheduledList(
-          tenant?.metadata.id || '',
-          queryParams,
-        );
+        const res = await api.workflowScheduledList(tenantId, queryParams);
 
         return res.data;
       } catch (error) {
@@ -128,15 +121,11 @@ function SchedulesProviderContent({
 
   // Create implementation
   const createScheduleMutation = useMutation({
-    mutationKey: ['schedule:create', tenant],
+    mutationKey: ['schedule:create', tenantId],
     mutationFn: async ({ workflowName, data }: CreateScheduleParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         const res = await api.scheduledWorkflowRunCreate(
-          tenant.metadata.id,
+          tenantId,
           workflowName,
           data,
         );
@@ -159,14 +148,10 @@ function SchedulesProviderContent({
 
   // Delete implementation
   const deleteScheduleMutation = useMutation({
-    mutationKey: ['schedule:delete', tenant],
+    mutationKey: ['schedule:delete', tenantId],
     mutationFn: async (scheduleId: string) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
-        await api.workflowScheduledDelete(tenant.metadata.id, scheduleId);
+        await api.workflowScheduledDelete(tenantId, scheduleId);
       } catch (error) {
         toast({
           title: 'Error deleting schedule',
@@ -184,23 +169,19 @@ function SchedulesProviderContent({
 
   // Update implementation that deletes and recreates the scheduled workflow
   const updateScheduleMutation = useMutation({
-    mutationKey: ['schedule:update', tenant],
+    mutationKey: ['schedule:update', tenantId],
     mutationFn: async ({
       scheduleId,
       workflowId,
       data,
     }: UpdateScheduleParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         // First delete the existing schedule
-        await api.workflowScheduledDelete(tenant.metadata.id, scheduleId);
+        await api.workflowScheduledDelete(tenantId, scheduleId);
 
         // Then create a new one with the updated data
         const res = await api.scheduledWorkflowRunCreate(
-          tenant.metadata.id,
+          tenantId,
           workflowId,
           data,
         );

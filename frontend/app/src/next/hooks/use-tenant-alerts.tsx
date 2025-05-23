@@ -12,7 +12,7 @@ import {
   useQuery,
   UseQueryResult,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -62,26 +62,25 @@ interface TenantAlertsProviderProps extends PropsWithChildren {
 
 const TenantAlertsContext = createContext<TenantAlertsState | null>(null);
 
-export function useTenantAlerts() {
+export function useTenantDetailsAlerts() {
   const context = useContext(TenantAlertsContext);
   if (!context) {
     throw new Error(
-      'useTenantAlerts must be used within a TenantAlertsProvider',
+      'useTenantDetailsAlerts must be used within a TenantAlertsProvider',
     );
   }
   return context;
 }
 
 function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const alertingSettingsQuery = useQuery({
-    queryKey: ['tenant-alerting-settings:get', tenant],
+    queryKey: ['tenant-alerting-settings:get', tenantId],
     queryFn: async () => {
       try {
-        return (await api.tenantAlertingSettingsGet(tenant?.metadata.id || ''))
-          .data;
+        return (await api.tenantAlertingSettingsGet(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error fetching alert settings',
@@ -98,9 +97,8 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
     mutationKey: ['tenant:update'],
     mutationFn: async (data: UpdateTenantRequest) => {
       try {
-        await api.tenantUpdate(tenant?.metadata.id || '', data);
-        return (await api.tenantAlertingSettingsGet(tenant?.metadata.id || ''))
-          .data;
+        await api.tenantUpdate(tenantId, data);
+        return (await api.tenantAlertingSettingsGet(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error updating alert settings',
@@ -117,10 +115,10 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   });
 
   const listEmailGroupQuery = useQuery({
-    queryKey: ['email-group:list', tenant],
+    queryKey: ['email-group:list', tenantId],
     queryFn: async () => {
       try {
-        return (await api.alertEmailGroupList(tenant?.metadata.id || '')).data;
+        return (await api.alertEmailGroupList(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error fetching email groups',
@@ -134,13 +132,10 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   });
 
   const createEmailGroupMutation = useMutation({
-    mutationKey: ['email-group:create', tenant],
+    mutationKey: ['email-group:create', tenantId],
     mutationFn: async (data: CreateTenantAlertEmailGroupRequest) => {
       try {
-        const res = await api.alertEmailGroupCreate(
-          tenant?.metadata.id || '',
-          data,
-        );
+        const res = await api.alertEmailGroupCreate(tenantId, data);
         return res.data;
       } catch (error) {
         toast({
@@ -158,7 +153,7 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   });
 
   const deleteEmailGroupMutation = useMutation({
-    mutationKey: ['alert-email-group:delete', tenant],
+    mutationKey: ['alert-email-group:delete', tenantId],
     mutationFn: async (emailGroupId: string) => {
       try {
         await api.alertEmailGroupDelete(emailGroupId);
@@ -178,10 +173,10 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
   });
 
   const listSlackWebhookQuery = useQuery({
-    queryKey: ['slack-webhook:list', tenant],
+    queryKey: ['slack-webhook:list', tenantId],
     queryFn: async () => {
       try {
-        return (await api.slackWebhookList(tenant?.metadata.id || '')).data;
+        return (await api.slackWebhookList(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error fetching Slack webhooks',
@@ -196,11 +191,11 @@ function TenantAlertsProviderContent({ children }: TenantAlertsProviderProps) {
 
   const startSlackWebhookUrl = useMemo(() => {
     // FIXME: This would be nice to grab from the generated API, but this can only be done as a request.
-    return `/api/v1/tenants/${tenant?.metadata.id}/slack/start`;
-  }, [tenant]);
+    return `/api/v1/tenants/${tenantId}/slack/start`;
+  }, [tenantId]);
 
   const deleteSlackWebhookMutation = useMutation({
-    mutationKey: ['slack-webhook:delete', tenant],
+    mutationKey: ['slack-webhook:delete', tenantId],
     mutationFn: async (id: string) => {
       try {
         await api.slackWebhookDelete(id);

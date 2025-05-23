@@ -9,7 +9,7 @@ import {
   UseMutationResult,
   useQuery,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import { useState, createContext, useContext, PropsWithChildren } from 'react';
 import {
   PaginationProvider,
@@ -54,7 +54,7 @@ export default function useApiTokens({
   initialFilters = {},
 }: UseApiTokensOptions = {}): ApiTokensState {
   const pagination = usePagination();
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   // State for filters only
@@ -63,7 +63,7 @@ export default function useApiTokens({
   const listTokensQuery = useQuery({
     queryKey: [
       'api-token:list',
-      tenant,
+      tenantId,
       filters.search,
       filters.sortBy,
       filters.sortDirection,
@@ -73,14 +73,6 @@ export default function useApiTokens({
       pagination?.pageSize,
     ],
     queryFn: async () => {
-      if (!tenant) {
-        pagination.setNumPages(0);
-        return {
-          rows: [],
-          pagination: { current_page: 0, num_pages: 0 },
-        };
-      }
-
       try {
         // Build query params
         const queryParams: Record<string, any> = {
@@ -93,10 +85,7 @@ export default function useApiTokens({
           queryParams.orderByDirection = filters.sortDirection || 'asc';
         }
 
-        const res = await api.apiTokenList(
-          tenant?.metadata.id || '',
-          queryParams,
-        );
+        const res = await api.apiTokenList(tenantId, queryParams);
 
         // Client-side filtering for search if API doesn't support it
         let filteredRows = res.data.rows || [];
@@ -147,13 +136,10 @@ export default function useApiTokens({
   });
 
   const createTokenMutation = useMutation({
-    mutationKey: ['api-token:create', tenant],
+    mutationKey: ['api-token:create', tenantId],
     mutationFn: async (data: CreateAPITokenRequest) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
       try {
-        const res = await api.apiTokenCreate(tenant.metadata.id, data);
+        const res = await api.apiTokenCreate(tenantId, data);
         return res.data;
       } catch (error) {
         toast({
@@ -172,7 +158,7 @@ export default function useApiTokens({
   });
 
   const revokeMutation = useMutation({
-    mutationKey: ['api-token:revoke', tenant],
+    mutationKey: ['api-token:revoke', tenantId],
     mutationFn: async (apiToken: APIToken) => {
       try {
         await api.apiTokenUpdateRevoke(apiToken.metadata.id);

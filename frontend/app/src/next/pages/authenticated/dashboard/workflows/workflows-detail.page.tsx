@@ -28,8 +28,6 @@ import WorkflowGeneralSettings from './settings';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { V1TaskStatus } from '@/lib/api';
-import useTenant from '@/next/hooks/use-tenant';
-import { WrongTenant } from '@/next/components/errors/unauthorized';
 
 export default function WorkflowDetailPage() {
   const { workflowId: workflowIdRaw } = useParams<{
@@ -45,7 +43,6 @@ export default function WorkflowDetailPage() {
 function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const { tenant } = useTenant();
 
   const {
     workflow,
@@ -62,17 +59,6 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
 
   if (workflowIsLoading || !workflow) {
     return <Loading />;
-  }
-
-  // wrong tenant selected error
-  if (tenant?.metadata.id !== workflow.tenantId) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 p-4">
-        {workflow?.tenantId && (
-          <WrongTenant desiredTenantId={workflow.tenantId} />
-        )}
-      </div>
-    );
   }
 
   return (
@@ -227,7 +213,7 @@ function WorkflowDetailPageContent({ workflowId }: { workflowId: string }) {
 
             <ConfirmDialog
               title={`Delete workflow`}
-              description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any services running with this workflow from executing steps.`}
+              description={`Are you sure you want to delete the workflow ${workflow.name}? This action cannot be undone, and will immediately prevent any workers running with this workflow from executing steps.`}
               submitLabel={'Delete'}
               onSubmit={function (): void {
                 deleteWorkflow();

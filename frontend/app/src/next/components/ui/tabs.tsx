@@ -1,15 +1,11 @@
 import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
-import { useSearchParams, useNavigate } from 'react-router-dom';
 import { cva } from 'class-variance-authority';
 
 import { cn } from '@/next/lib/utils';
 
 interface TabsProps
-  extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root> {
-  state?: 'local' | 'query';
-  stateKey?: string;
-}
+  extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root> {}
 
 const tabsListVariants = cva('', {
   variants: {
@@ -42,51 +38,24 @@ const tabsTriggerVariants = cva('', {
 const Tabs = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Root>,
   TabsProps
->(
-  (
-    {
-      state = 'local',
-      stateKey: tabKey = 'tab',
-      defaultValue,
-      value,
-      onValueChange,
-      ...props
+>(({ defaultValue, value, onValueChange, ...props }, ref) => {
+  const handleValueChange = React.useCallback(
+    (newValue: string) => {
+      onValueChange?.(newValue);
     },
-    ref,
-  ) => {
-    const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
+    [onValueChange],
+  );
 
-    const handleValueChange = React.useCallback(
-      (newValue: string) => {
-        if (state === 'query') {
-          const newParams = new URLSearchParams(searchParams);
-          newParams.set(tabKey, newValue);
-          navigate(`?${newParams.toString()}`, { replace: true });
-        }
-        onValueChange?.(newValue);
-      },
-      [state, tabKey, searchParams, navigate, onValueChange],
-    );
-
-    const currentValue = React.useMemo(() => {
-      if (state === 'query') {
-        return searchParams.get(tabKey) || defaultValue || '';
-      }
-      return value;
-    }, [state, tabKey, searchParams, defaultValue, value]);
-
-    return (
-      <TabsPrimitive.Root
-        ref={ref}
-        value={currentValue}
-        onValueChange={handleValueChange}
-        defaultValue={state === 'local' ? defaultValue : undefined}
-        {...props}
-      />
-    );
-  },
-);
+  return (
+    <TabsPrimitive.Root
+      ref={ref}
+      value={value}
+      onValueChange={handleValueChange}
+      defaultValue={defaultValue}
+      {...props}
+    />
+  );
+});
 Tabs.displayName = TabsPrimitive.Root.displayName;
 
 const TabsList = React.forwardRef<

@@ -11,12 +11,12 @@ import { CreateBuildStepRequest } from '@/lib/api/generated/cloud/data-contracts
 import { GithubRepoSelectorValue } from './github-repo-selector';
 import { useEffect, useState } from 'react';
 
-const sanitizeServiceName = (name: string): string => {
+const sanitizePoolName = (name: string): string => {
   return name.replace(/[^a-zA-Z0-9-]/g, '-');
 };
 
 export type BuildConfigValue = CreateBuildStepRequest & {
-  serviceName: string;
+  poolName: string;
 };
 
 interface BuildConfigProps {
@@ -46,18 +46,18 @@ export function BuildConfig({
     }
 
     const dockerfileName = value.dockerfilePath.split('/').pop();
-    const dockerfileServiceName = dockerfileName
+    const dockerfilePoolName = dockerfileName
       ?.split('.')
       .filter((part) => part !== 'Dockerfile')
       .pop();
 
     onChange({
       ...value,
-      serviceName: sanitizeServiceName(
+      poolName: sanitizePoolName(
         [
           githubRepo.githubRepositoryName,
           githubRepo.githubRepositoryBranch,
-          dockerfileServiceName,
+          dockerfilePoolName,
         ]
           .filter(Boolean)
           .join('-')
@@ -71,7 +71,7 @@ export function BuildConfig({
       <CardHeader>
         <CardTitle>Build Configuration</CardTitle>
         <CardDescription>
-          Configure the Docker build settings for your worker service.
+          Configure the Docker build settings for your worker.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -111,21 +111,21 @@ export function BuildConfig({
           </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="service-name">Service Name</Label>
+          <Label htmlFor="pool-name">Pool Name</Label>
           <Input
-            id="service-name"
-            placeholder="e.g. my-service"
-            value={value.serviceName || ''}
+            id="pool-name"
+            placeholder="e.g. my-pool"
+            value={value.poolName || ''}
             onChange={(e) => {
               setIsNamePristine(false);
               onChange({
                 ...value,
-                serviceName: sanitizeServiceName(e.target.value),
+                poolName: sanitizePoolName(e.target.value),
               });
             }}
           />
           <p className="text-sm text-muted-foreground">
-            A friendly name for the service
+            A friendly name for the worker pool
           </p>
         </div>
       </CardContent>

@@ -9,7 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -69,19 +69,15 @@ function CronsProviderContent({
   children,
   refetchInterval,
 }: CronsProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const filters = useFilters<CronsFilters>();
   const pagination = usePagination();
   const { toast } = useToast();
 
   const listCronsQuery = useQuery({
-    queryKey: ['cron:list', tenant, filters.filters, pagination],
+    queryKey: ['cron:list', tenantId, filters.filters, pagination],
     queryFn: async () => {
-      if (!tenant) {
-        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
-      }
-
       try {
         const queryParams: Record<string, any> = {
           limit: pagination.pageSize,
@@ -92,10 +88,7 @@ function CronsProviderContent({
           ...filters.filters,
         };
 
-        const res = await api.cronWorkflowList(
-          tenant?.metadata.id || '',
-          queryParams,
-        );
+        const res = await api.cronWorkflowList(tenantId, queryParams);
 
         return res.data;
       } catch (error) {
@@ -113,15 +106,11 @@ function CronsProviderContent({
 
   // Create implementation
   const createCronMutation = useMutation({
-    mutationKey: ['cron:create', tenant],
+    mutationKey: ['cron:create', tenantId],
     mutationFn: async ({ workflowId, data }: CreateCronParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         const res = await api.cronWorkflowTriggerCreate(
-          tenant.metadata.id,
+          tenantId,
           workflowId,
           data,
         );
@@ -144,14 +133,10 @@ function CronsProviderContent({
 
   // Delete implementation
   const deleteCronMutation = useMutation({
-    mutationKey: ['cron:delete', tenant],
+    mutationKey: ['cron:delete', tenantId],
     mutationFn: async (cronId: string) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
-        await api.workflowCronDelete(tenant.metadata.id, cronId);
+        await api.workflowCronDelete(tenantId, cronId);
       } catch (error) {
         toast({
           title: 'Error deleting cron',
@@ -168,19 +153,15 @@ function CronsProviderContent({
   });
 
   const updateCronMutation = useMutation({
-    mutationKey: ['cron:update', tenant],
+    mutationKey: ['cron:update', tenantId],
     mutationFn: async ({ cronId, workflowId, data }: UpdateCronParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         // First delete the existing cron
-        await api.workflowCronDelete(tenant.metadata.id, cronId);
+        await api.workflowCronDelete(tenantId, cronId);
 
         // Then create a new one with the updated data
         const res = await api.cronWorkflowTriggerCreate(
-          tenant.metadata.id,
+          tenantId,
           workflowId,
           data,
         );

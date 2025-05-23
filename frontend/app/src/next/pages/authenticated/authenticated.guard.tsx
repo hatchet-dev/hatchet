@@ -1,11 +1,15 @@
+import { TenantUIVersion } from '@/lib/api';
 import AnalyticsProvider from '@/next/components/providers/analytics.provider';
 import SupportChat from '@/next/components/providers/support-chat.provider';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 import useUser from '@/next/hooks/use-user';
+import { ROUTES } from '@/next/lib/routes';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 export default function AuthenticatedGuard() {
   const user = useUser();
   const location = useLocation();
+  const { tenant, isLoading: tenantIsLoading } = useTenantDetails();
 
   // user is not authenticated
   if (!user.isLoading && !user.data) {
@@ -17,16 +21,23 @@ export default function AuthenticatedGuard() {
     return <Navigate to="../auth/verify-email" />;
   }
 
-  // user has no tenant
+  if (
+    !user.isLoading &&
+    !tenantIsLoading &&
+    tenant &&
+    tenant?.uiVersion !== TenantUIVersion.V1
+  ) {
+    return <Navigate to={'/v1/runs'} />;
+  }
+
   if (
     !user.isLoading &&
     user.memberships &&
     user.memberships.length === 0 &&
-    !location.pathname.startsWith('/onboarding')
+    !location.pathname.startsWith('/next/onboarding')
   ) {
-    return <Navigate to="onboarding" />;
+    return <Navigate to={ROUTES.onboarding.newTenant} />;
   }
-
   return (
     <>
       {user && (

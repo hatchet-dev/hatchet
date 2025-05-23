@@ -11,6 +11,7 @@ import { Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { Snippet } from '@/next/components/ui/code/snippet';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 export function Lesson<
   S extends string,
@@ -38,6 +39,7 @@ function LessonContent<
     codeBlocksRef,
     stepCardsRef,
   } = useLesson();
+  const { tenantId } = useCurrentTenantId();
 
   const steps = Object.entries(lesson.steps).map(([key, step], stepIndex) => {
     const typedStep = step as LessonStep;
@@ -95,7 +97,7 @@ function LessonContent<
   });
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full items-center">
       <div
         className="h-[calc(100vh-10rem)] overflow-y-auto p-2 md:p-6"
         onScroll={() => {
@@ -104,7 +106,7 @@ function LessonContent<
           }
         }}
       >
-        <div className="mx-auto max-w-5xl">
+        <div className="md:px-24 lg:px-48 xl:px-64">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-stretch bg-card rounded-xl border p-6 md:p-8 md:my-40">
               <div className="flex flex-col gap-4 w-full">
@@ -119,7 +121,7 @@ function LessonContent<
                   </div>
 
                   <div className="flex gap-2 items-center">
-                    <Link to={ROUTES.runs.list}>
+                    <Link to={ROUTES.runs.list(tenantId)}>
                       <Button variant="ghost">Skip Tutorial</Button>
                     </Link>
                     <Button

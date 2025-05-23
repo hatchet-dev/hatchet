@@ -1,3 +1,4 @@
+import { Plan } from '@/next/hooks/use-billing';
 import { PermissionSet, RejectReason } from '@/next/lib/can';
 
 interface ComputeType {
@@ -8,8 +9,8 @@ interface ComputeType {
   gpus?: number;
 }
 
-// Represents the maximum number of worker services a tenant can create based on their plan
-const workerServiceLimits = {
+// Represents the maximum number of worker pools a tenant can create based on their plan
+const workerLimits = {
   free: 1,
   starter: 2,
   growth: 5,
@@ -22,6 +23,20 @@ const replicaLimits = {
   starter: 5,
   growth: 20,
   enterprise: 20,
+};
+
+const determineMaxWorkers = (plan: Plan) => {
+  switch (plan) {
+    case 'free':
+      return workerLimits.free;
+    case 'starter':
+      return workerLimits.starter;
+    case 'growth':
+      return workerLimits.growth;
+    default:
+      // For enterprise or unknown plans
+      return workerLimits.enterprise;
+  }
 };
 
 export const managedCompute: PermissionSet = {
@@ -53,8 +68,7 @@ export const managedCompute: PermissionSet = {
     };
   },
 
-  // Check if a tenant can create a new worker service based on their current count
-  canCreateWorkerService: (currentWorkerServiceCount: number) => (context) => {
+  canCreateWorker: (currentWorkerCount: number) => (context) => {
     if (!context.billing) {
       return {
         allowed: true,
@@ -62,24 +76,9 @@ export const managedCompute: PermissionSet = {
     }
 
     const plan = context.billing.plan;
-    let maxWorkerServices: number;
+    const maxWorkers = determineMaxWorkers(plan);
 
-    switch (plan) {
-      case 'free':
-        maxWorkerServices = workerServiceLimits.free;
-        break;
-      case 'starter':
-        maxWorkerServices = workerServiceLimits.starter;
-        break;
-      case 'growth':
-        maxWorkerServices = workerServiceLimits.growth;
-        break;
-      default:
-        // For enterprise or unknown plans
-        maxWorkerServices = workerServiceLimits.enterprise;
-    }
-
-    if (currentWorkerServiceCount >= maxWorkerServices) {
+    if (currentWorkerCount >= maxWorkers) {
       return {
         allowed: false,
         rejectReason: RejectReason.UPGRADE_REQUIRED,
@@ -91,7 +90,6 @@ export const managedCompute: PermissionSet = {
     };
   },
 
-  // Check if the requested number of replicas is allowed for the tenant's plan
   maxReplicas: (replicaCount: number) => (context) => {
     if (!context.billing) {
       return {
@@ -129,7 +127,6 @@ export const managedCompute: PermissionSet = {
     };
   },
 
-  // Check if GPU is allowed for the tenant's plan
   canUseGpu: (gpuConfig: { gpuKind?: string; gpus?: number }) => (context) => {
     if (!context.billing) {
       return {
@@ -146,7 +143,6 @@ export const managedCompute: PermissionSet = {
 
     const plan = context.billing.plan;
 
-    // Only growth and enterprise plans can use GPUs
     switch (plan) {
       case 'free':
       case 'starter':
@@ -179,7 +175,6 @@ export const managedCompute: PermissionSet = {
     const plan = context.billing.plan;
     const { cpuKind, cpus, memoryMb, gpuKind, gpus } = machineType;
 
-    // Check GPU restrictions first
     if (gpuKind || gpus) {
       const { allowed: gpuAllowed, rejectReason: gpuRejectReason } =
         managedCompute.canUseGpu({
@@ -196,7 +191,6 @@ export const managedCompute: PermissionSet = {
 
     switch (plan) {
       case 'free':
-        // Free plan restrictions
         if (cpuKind !== 'shared') {
           return {
             allowed: false,
@@ -217,7 +211,6 @@ export const managedCompute: PermissionSet = {
         }
         break;
       case 'starter':
-        // Starter plan restrictions
         if (cpus > 4) {
           return {
             allowed: false,
@@ -232,7 +225,6 @@ export const managedCompute: PermissionSet = {
         }
         break;
       case 'growth':
-        // Growth plan has fewer restrictions
         // No specific restrictions, they can use any machine type
         break;
       default:

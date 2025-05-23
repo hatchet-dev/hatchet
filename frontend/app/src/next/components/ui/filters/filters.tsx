@@ -20,6 +20,7 @@ import {
 import useDefinitions from '@/next/hooks/use-definitions';
 import { useMemo } from 'react';
 import { PlusCircledIcon } from '@radix-ui/react-icons';
+import { useWorkers } from '@/next/hooks/use-workers';
 
 interface FiltersProps {
   children?: React.ReactNode;
@@ -235,6 +236,27 @@ export function FilterTaskSelect<T>({ ...props }: FilterTaskSelectProps<T>) {
       options={options.map((o) => ({
         label: o.name,
         value: o.metadata.id,
+      }))}
+      {...props}
+    />
+  );
+}
+
+interface FilterWorkerSelectProps<T> extends FilterBuilderProps<T> {
+  multi?: boolean;
+  only?: boolean;
+  value?: string;
+}
+
+export function FilterWorkerSelect<T>({
+  ...props
+}: FilterWorkerSelectProps<T>) {
+  const { data: options = [] } = useWorkers();
+  return (
+    <FilterSelect<T, string>
+      options={[...new Set(options.map((o) => o.name))].map((o) => ({
+        label: o,
+        value: o,
       }))}
       {...props}
     />

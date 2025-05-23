@@ -19,7 +19,7 @@ import {
 import RelativeDate from '@/next/components/ui/relative-date';
 import { Separator } from '@/next/components/ui/separator';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
-import useTenant from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
@@ -27,17 +27,8 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Link } from 'react-router-dom';
 
 function EventsContent() {
-  const { tenant } = useTenant();
-
   const { data, isLoading } = useEvents();
-
-  if (!tenant) {
-    return (
-      <div className="flex-grow h-full w-full flex items-center justify-center">
-        <p>Loading tenant information...</p>
-      </div>
-    );
-  }
+  const { tenantId } = useCurrentTenantId();
 
   if (isLoading) {
     return (
@@ -77,7 +68,7 @@ function EventsContent() {
         </div>
       </FilterGroup> */}
       <DataTable
-        columns={columns()}
+        columns={columns(tenantId)}
         data={data || []}
         emptyState={
           <div className="flex flex-col items-center justify-center gap-4 py-8">
@@ -94,7 +85,7 @@ function EventsContent() {
   );
 }
 
-export const columns = (): ColumnDef<V1Event>[] => {
+export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
   return [
     {
       accessorKey: 'EventId',
@@ -103,7 +94,7 @@ export const columns = (): ColumnDef<V1Event>[] => {
       ),
       cell: ({ row }) => (
         <div className="w-full">
-          <Link to={ROUTES.events.detail(row.original.metadata.id)}>
+          <Link to={ROUTES.events.detail(tenantId, row.original.metadata.id)}>
             <Button variant="link">{row.original.metadata.id}</Button>
           </Link>
         </div>

@@ -52,7 +52,7 @@ interface RunEventLogProps {
   workflow: V1WorkflowRun;
   onTaskSelect?: (
     event: V1TaskEvent,
-    options?: Parameters<typeof ROUTES.runs.detailWithSheet>[2],
+    options?: Parameters<typeof ROUTES.runs.detailWithSheet>[3],
   ) => void;
   showFilters?: {
     search?: boolean;
@@ -317,7 +317,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
 
 export function RunEventLog(props: RunEventLogProps) {
   return (
-    <FilterProvider type="state" initialFilters={props.filters}>
+    <FilterProvider initialFilters={props.filters}>
       <RunEventLogContent {...props} />
     </FilterProvider>
   );
@@ -451,7 +451,7 @@ function RunEventLogContent({
     }
 
     return sortedEvents;
-  }, [activity?.events, activity?.logs]);
+  }, [activity?.events, activity?.logs, filters.attempt]);
 
   const attemptOptions = useMemo(() => {
     const attempts = new Set<number>();

@@ -73,24 +73,17 @@ export function PaginationProvider({
   initialPage = 1,
   initialPageSize = 50,
   pageSizeOptions = [10, 50, 100, 500],
-  type = 'query',
 }: PaginationProviderProps & React.PropsWithChildren) {
-  // Initialize the storage with default values
-  const state = useStateAdapter<PaginationState>(
-    {
-      page: initialPage,
-      pageSize: initialPageSize,
-    },
-    { type },
-  );
+  const state = useStateAdapter<PaginationState>({
+    page: initialPage,
+    pageSize: initialPageSize,
+  });
 
   const [numPages, setNumPages] = React.useState(1);
 
-  // Get current values from the storage adapter
   const currentPage = state.getValue('page', initialPage);
   const pageSize = state.getValue('pageSize', initialPageSize);
 
-  // Set current page through the adapter
   const setCurrentPage = React.useCallback(
     (page: number) => {
       state.setValue('page', page);
@@ -98,15 +91,12 @@ export function PaginationProvider({
     [state],
   );
 
-  // Handle page size change through the adapter
   const handlePageSizeChange = React.useCallback(
     (newPageSize: number) => {
       state.setValue('pageSize', newPageSize);
 
-      // Calculate the new number of pages based on the new page size
       const newNumPages = Math.ceil((currentPage * pageSize) / newPageSize);
 
-      // Ensure current page is valid
       if (currentPage > newNumPages) {
         state.setValue('page', Math.min(currentPage, newNumPages));
       }

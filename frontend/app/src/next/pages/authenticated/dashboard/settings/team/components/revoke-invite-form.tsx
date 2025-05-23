@@ -13,7 +13,7 @@ import useMembers from '@/next/hooks/use-members';
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
-import useTenant from '@/next/hooks/use-tenant';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import { Button } from '@/next/components/ui/button';
 
 interface RevokeInviteFormProps {
@@ -22,16 +22,13 @@ interface RevokeInviteFormProps {
 }
 
 export function RevokeInviteForm({ invite, close }: RevokeInviteFormProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { refetchInvites } = useMembers();
   const [error, setError] = useState<string | null>(null);
 
   const revokeMutation = useMutation({
     mutationFn: async () => {
-      if (!tenant?.metadata.id) {
-        return;
-      }
-      await api.tenantInviteDelete(tenant.metadata.id, invite.metadata.id);
+      await api.tenantInviteDelete(tenantId, invite.metadata.id);
     },
     onSuccess: () => {
       refetchInvites();

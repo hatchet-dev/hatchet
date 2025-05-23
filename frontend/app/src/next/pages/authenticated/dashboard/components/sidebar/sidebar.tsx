@@ -48,7 +48,7 @@ import { TenantBlock } from './user-dropdown';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useSupportChat from '@/next/hooks/use-support-chat';
 import { QuestionMarkCircledIcon } from '@radix-ui/react-icons';
-import useTenant from '@/next/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/next/hooks/use-tenant';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Logo } from '@/next/components/ui/logo';
 import { Code } from '@/next/components/ui/code';
@@ -68,10 +68,11 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const { data: user, memberships } = useUser();
   const chat = useSupportChat();
-  const { tenant, setTenant } = useTenant();
+  const { setTenant } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
   const navigate = useNavigate();
   const location = useLocation();
-  const navLinks = getMainNavLinks(location.pathname);
+  const navLinks = getMainNavLinks(tenantId, location.pathname);
   const { toggleSidebar, isCollapsed, isMobile, setOpenMobile } = useSidebar();
   const docs = useDocs();
   const [collapsibleState, setCollapsibleState] = useState<
@@ -79,7 +80,6 @@ export function AppSidebar({ children }: PropsWithChildren) {
   >({});
   const [openTenant, setOpenTenant] = useState(false);
 
-  // Load collapsible state from localStorage on initial render
   useEffect(() => {
     const savedState = localStorage.getItem('sidebar_collapsible_state');
     if (savedState) {
@@ -105,11 +105,11 @@ export function AppSidebar({ children }: PropsWithChildren) {
 
   const supportReference = useMemo(() => {
     return `ver: ${meta?.version}
-tenantId: ${tenant?.metadata.id}
+tenantId: ${tenantId}
 userId: ${user?.metadata.id}
 email: ${user?.email}
 name: ${user?.name}`;
-  }, [meta, tenant, user]);
+  }, [meta, user, tenantId]);
 
   return (
     <>
@@ -343,7 +343,7 @@ name: ${user?.name}`;
                     setOpenTenant(false);
                   }}
                 >
-                  {membership.tenant?.metadata.id === tenant?.metadata.id && (
+                  {membership.tenant?.metadata.id === tenantId && (
                     <CheckIcon className="h-4 w-4 mr-2" />
                   )}
                   <span>{membership.tenant?.name}</span>

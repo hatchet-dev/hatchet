@@ -2,10 +2,8 @@ import { Outlet } from 'react-router-dom';
 import { SidebarTrigger, useSidebar } from '@/next/components/ui/sidebar';
 import { AppSidebar } from './components/sidebar/sidebar';
 import { Separator } from '@/next/components/ui/separator';
-import { BreadcrumbNav } from './components/breadcrumbs';
-import useTenant from '@/next/hooks/use-tenant';
+import { useTenantDetails } from '@/next/hooks/use-tenant';
 import { Unauthorized } from '@/next/components/errors/unauthorized';
-import { BreadcrumbProvider } from '@/next/hooks/use-breadcrumbs';
 import { UserBlock } from './components/sidebar/user-dropdown';
 import {
   DropdownMenu,
@@ -26,15 +24,11 @@ import { Alerter } from './components/sidebar/alerter';
 import { cn } from '@/next/lib/utils';
 
 export default function DashboardLayout() {
-  return (
-    <BreadcrumbProvider>
-      <DashboardLayoutContent />
-    </BreadcrumbProvider>
-  );
+  return <DashboardLayoutContent />;
 }
 
 function DashboardLayoutContent() {
-  const { tenant, isLoading } = useTenant();
+  const { tenant, isLoading } = useTenantDetails();
   const { toggleTheme, theme } = useTheme();
   const { logout } = useUser();
   const isMobile = useIsMobile();
@@ -66,7 +60,6 @@ function DashboardLayoutContent() {
                     <Separator orientation="vertical" className="mr-2 h-4" />
                   </>
                 )}
-                <BreadcrumbNav />
               </div>
 
               <div className="flex items-center gap-2">

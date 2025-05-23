@@ -1,7 +1,7 @@
 import { createContext, useContext, useCallback, useMemo } from 'react';
 import api from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 import { useToast } from './utils/use-toast';
@@ -39,27 +39,17 @@ function WorkflowsProviderContent({
   children,
   refetchInterval,
 }: WorkflowsProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const filters = useFilters<WorkflowsFilters>();
   const pagination = usePagination();
   const { toast } = useToast();
 
   const listWorkflowsQuery = useQuery({
-    queryKey: [
-      'workflows',
-      'list',
-      tenant?.metadata.id || 'tenant',
-      filters.filters,
-      pagination,
-    ],
+    queryKey: ['workflows', 'list', tenantId, filters.filters, pagination],
     queryFn: async () => {
-      if (!tenant) {
-        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
-      }
-
       try {
-        const res = await api.workflowList(tenant.metadata.id, {
+        const res = await api.workflowList(tenantId, {
           ...filters.filters,
           offset: Math.max(
             0,
@@ -89,15 +79,9 @@ function WorkflowsProviderContent({
 
   const invalidate = useCallback(async () => {
     await queryClient.invalidateQueries({
-      queryKey: [
-        'workflows',
-        'list',
-        tenant?.metadata.id || 'tenant',
-        filters.filters,
-        pagination,
-      ],
+      queryKey: ['workflows', 'list', tenantId, filters.filters, pagination],
     });
-  }, [queryClient, tenant?.metadata.id, filters.filters, pagination]);
+  }, [queryClient, tenantId, filters.filters, pagination]);
 
   const value = useMemo(
     () => ({

@@ -23,8 +23,6 @@ import {
   WorkerDetailProvider,
   useWorkerDetail,
 } from '@/next/hooks/use-worker-detail';
-import { WrongTenant } from '@/next/components/errors/unauthorized';
-import useTenant from '@/next/hooks/use-tenant';
 import { formatDuration } from '@/next/lib/utils/formatDuration';
 import { intervalToDuration } from 'date-fns';
 // Extending Worker type with additional properties that may exist
@@ -63,7 +61,6 @@ function WorkerDetailsContent({
   worker: providedWorker,
   showActions = true,
 }: WorkerDetailsProps) {
-  const { tenant } = useTenant();
   const { data: workerDetail, update } = useWorkerDetail();
 
   // Use provided worker if available, otherwise use the one from the hook
@@ -126,17 +123,6 @@ function WorkerDetailsContent({
       new Date().getTime() - new Date(currentWorker.lastHeartbeatAt).getTime(),
     );
   };
-
-  // wrong tenant selected error
-  if (tenant?.metadata.id !== currentWorker.tenantId) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 p-4">
-        {currentWorker?.tenantId && (
-          <WrongTenant desiredTenantId={currentWorker.tenantId} />
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-1 flex-col gap-4">

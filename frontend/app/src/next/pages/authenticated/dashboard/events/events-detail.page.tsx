@@ -61,7 +61,7 @@ export default function EventsDetailPage() {
           activePreset: '7d',
         }}
       >
-        <dl className="flex flex-col gap-4 mt-4">
+        <div className="flex flex-col gap-4 mt-4">
           <TimeFilters />
           <RunsMetricsView />
           <RunsTable
@@ -74,7 +74,7 @@ export default function EventsDetailPage() {
               'workflow_ids',
             ]}
           />
-        </dl>
+        </div>
       </RunsProvider>
     </BasicLayout>
   );

@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   createContext,
   useContext,
@@ -18,7 +18,7 @@ import { useToast } from './utils/use-toast';
 
 export type { Worker };
 
-export interface WorkerService {
+export interface WorkerPool {
   id?: string;
   name: string;
   type: Worker['type'];
@@ -28,9 +28,9 @@ export interface WorkerService {
   inactiveCount: number;
   totalMaxRuns: number;
   totalAvailableRuns: number;
+  actions: string[];
 }
 
-// Types for filters and pagination
 interface WorkersFilters {
   search?: string;
   sortBy?: string;
@@ -50,7 +50,7 @@ interface UpdateWorkerParams {
 interface BulkUpdateWorkersParams {
   workerIds: string[];
   data: UpdateWorkerRequest;
-  serviceName?: string; // Optional parameter to update all workers in a service
+  poolName?: string; // Optional parameter to update all workers in a pool
 }
 
 // Main hook return type
@@ -62,11 +62,13 @@ interface WorkersState {
   bulkUpdate: UseMutationResult<void, Error, BulkUpdateWorkersParams, unknown>;
   filters: ReturnType<typeof useFilters<WorkersFilters>>;
   pagination: ReturnType<typeof usePagination>;
-  services: WorkerService[];
+  pools: WorkerPool[];
 }
 
 interface WorkersProviderProps extends PropsWithChildren {
   refetchInterval?: number;
+  status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
+  workerName?: string;
 }
 
 const WorkersContext = createContext<WorkersState | null>(null);
@@ -79,78 +81,96 @@ export function useWorkers() {
   return context;
 }
 
+const statusToInt = (status: WorkersFilters['status']) => {
+  switch (status) {
+    case 'ACTIVE':
+      return 1;
+    case 'INACTIVE':
+      return 2;
+    case 'PAUSED':
+      return 3;
+    case undefined:
+      return 4;
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = status;
+      throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
+  }
+};
+
 function WorkersProviderContent({
   children,
   refetchInterval,
 }: WorkersProviderProps) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const queryClient = useQueryClient();
   const filters = useFilters<WorkersFilters>();
   const pagination = usePagination();
   const { toast } = useToast();
 
   const listWorkersQuery = useQuery({
-    queryKey: ['worker:list', tenant, filters.filters, pagination],
+    queryKey: ['worker:list', tenantId, filters.filters, pagination],
     queryFn: async () => {
-      if (!tenant) {
-        return {
-          rows: [],
-          pagination: { current_page: 0, num_pages: 0 },
-          services: [],
-        };
-      }
-
       try {
-        const res = await api.workerList(tenant?.metadata.id || '');
+        const res = await api.workerList(tenantId);
 
-        const sorted = (res?.data?.rows || []).sort((a, b) => {
-          const aCreatedAt = new Date(a.metadata.createdAt);
-          const bCreatedAt = new Date(b.metadata.createdAt);
-          return bCreatedAt.getTime() - aCreatedAt.getTime();
-        });
+        const searchLower = filters.filters.search?.toLowerCase();
+        const fromDate = filters.filters.fromDate
+          ? new Date(filters.filters.fromDate)
+          : undefined;
+        const toDate = filters.filters?.toDate
+          ? new Date(filters.filters.toDate)
+          : undefined;
 
-        // Client-side filtering for search if API doesn't support it
-        let filteredRows = sorted || [];
-        if (filters.filters.search) {
-          const searchLower = filters.filters.search.toLowerCase();
-          filteredRows = filteredRows.filter((worker) =>
-            worker.name.toLowerCase().includes(searchLower),
-          );
-        }
-
-        // Client-side date filtering
-        if (filters.filters.fromDate) {
-          const fromDate = new Date(filters.filters.fromDate);
-          filteredRows = filteredRows.filter((worker) => {
-            if (!worker.lastHeartbeatAt) {
+        const filteredRows = (res?.data?.rows || [])
+          .filter(
+            (worker) =>
+              !searchLower || worker.name.toLowerCase().includes(searchLower),
+          )
+          .filter((worker) => {
+            if (!worker.lastHeartbeatAt || !fromDate) {
               return true;
             }
             const lastHeartbeatAt = new Date(worker.lastHeartbeatAt);
             return lastHeartbeatAt >= fromDate;
-          });
-        }
-
-        if (filters.filters.toDate) {
-          const toDate = new Date(filters.filters.toDate);
-          filteredRows = filteredRows.filter((worker) => {
-            if (!worker.lastHeartbeatAt) {
+          })
+          .filter((worker) => {
+            if (!worker.lastHeartbeatAt || !toDate) {
               return true;
             }
             const lastHeartbeatAt = new Date(worker.lastHeartbeatAt);
             return lastHeartbeatAt <= toDate;
-          });
-        }
+          })
+          .filter(
+            (worker) =>
+              !filters.filters.status ||
+              worker.status === filters.filters.status,
+          )
+          .sort((a, b) => {
+            if (!filters.filters.sortBy) {
+              const statusA = statusToInt(a.status);
+              const statusB = statusToInt(b.status);
 
-        // Filter by status
-        if (filters.filters.status) {
-          filteredRows = filteredRows.filter(
-            (worker) => worker.status === filters.filters.status,
-          );
-        }
+              if (statusA < statusB) {
+                return -1;
+              }
+              if (statusA > statusB) {
+                return 1;
+              }
 
-        // Client-side sorting if API doesn't support it
-        if (filters.filters.sortBy) {
-          filteredRows.sort((a, b) => {
+              const lastHeartbeatA = a.lastHeartbeatAt;
+              const lastHeartbeatB = b.lastHeartbeatAt;
+
+              if (lastHeartbeatA && lastHeartbeatB) {
+                const dateA = new Date(lastHeartbeatA).getTime();
+                const dateB = new Date(lastHeartbeatB).getTime();
+
+                return dateB - dateA;
+              }
+
+              return 0;
+            }
+
             let valueA: any;
             let valueB: any;
 
@@ -188,7 +208,6 @@ function WorkersProviderContent({
             }
             return 0;
           });
-        }
 
         const groupedByName = filteredRows.reduce(
           (acc, worker) => {
@@ -202,9 +221,10 @@ function WorkersProviderContent({
           {} as Record<string, Worker[]>,
         );
 
-        const services = Object.entries(groupedByName).map(
+        const pools: WorkerPool[] = Object.entries(groupedByName).map(
           ([name, workers]) => {
             const activeWorkers = workers.filter((w) => w.status === 'ACTIVE');
+
             return {
               name,
               type: workers[0].type,
@@ -221,14 +241,17 @@ function WorkersProviderContent({
                 (sum, worker) => sum + (worker.availableRuns || 0),
                 0,
               ),
-            } as WorkerService;
+              actions: [
+                ...new Set(workers.flatMap((w) => w.actions || [])),
+              ].sort((a, b) => a.localeCompare(b)),
+            };
           },
         );
 
         return {
           ...res.data,
           rows: filteredRows,
-          services,
+          pools,
         };
       } catch (error) {
         toast({
@@ -240,7 +263,7 @@ function WorkersProviderContent({
         return {
           rows: [],
           pagination: { current_page: 0, num_pages: 0 },
-          services: [],
+          pools: [],
         };
       }
     },
@@ -248,11 +271,8 @@ function WorkersProviderContent({
   });
 
   const updateWorkerMutation = useMutation({
-    mutationKey: ['worker:update', tenant],
+    mutationKey: ['worker:update', tenantId],
     mutationFn: async ({ workerId, data }: UpdateWorkerParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
       try {
         const res = await api.workerUpdate(workerId, data);
         return res.data;
@@ -273,26 +293,21 @@ function WorkersProviderContent({
 
   // Bulk update mutation
   const bulkUpdateWorkersMutation = useMutation({
-    mutationKey: ['worker:bulkUpdate', tenant],
+    mutationKey: ['worker:bulkUpdate', tenantId],
     mutationFn: async ({
       workerIds,
       data,
-      serviceName,
+      poolName,
     }: BulkUpdateWorkersParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
-      // If service name is provided, get all worker IDs for that service
+      // If pool name is provided, get all worker IDs for that pool
       let targetWorkerIds = workerIds;
-      if (serviceName && !workerIds.length) {
+      if (poolName && !workerIds.length) {
         const workers = listWorkersQuery.data?.rows || [];
         targetWorkerIds = workers
-          .filter((worker: Worker) => worker.name === serviceName)
+          .filter((worker: Worker) => worker.name === poolName)
           .map((worker: Worker) => worker.metadata.id);
       }
 
-      // Execute all updates in parallel
       try {
         await Promise.all(
           targetWorkerIds.map((workerId) => api.workerUpdate(workerId, data)),
@@ -322,7 +337,7 @@ function WorkersProviderContent({
     bulkUpdate: bulkUpdateWorkersMutation,
     filters,
     pagination,
-    services: listWorkersQuery.data?.services || [],
+    pools: listWorkersQuery.data?.pools || [],
   };
 
   return createElement(WorkersContext.Provider, { value }, children);
@@ -331,16 +346,18 @@ function WorkersProviderContent({
 export function WorkersProvider({
   children,
   refetchInterval,
+  status,
+  workerName,
 }: WorkersProviderProps) {
   return (
     <FilterProvider<WorkersFilters>
       initialFilters={{
-        search: undefined,
+        search: workerName,
         sortBy: undefined,
         sortDirection: undefined,
         fromDate: undefined,
         toDate: undefined,
-        status: undefined,
+        status,
       }}
     >
       <PaginationProvider initialPage={1} initialPageSize={50}>

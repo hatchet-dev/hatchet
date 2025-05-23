@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { Duration } from '@/next/components/ui/duration';
 import { RunsBadge } from '../runs-badge';
 import { ROUTES } from '@/next/lib/routes';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 enum TabOption {
   Output = 'output',
@@ -26,6 +27,7 @@ export type NodeData = {
 // eslint-disable-next-line react/display-name
 export default memo(({ data }: { data: NodeData }) => {
   const variant = data.graphVariant;
+  const { tenantId } = useCurrentTenantId();
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">
@@ -85,7 +87,7 @@ export default memo(({ data }: { data: NodeData }) => {
       {data.childWorkflowsCount && data.taskRun ? (
         <Link
           to={{
-            pathname: ROUTES.runs.list,
+            pathname: ROUTES.runs.list(tenantId),
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
               // [queryParamNames.parentTaskExternalId]: data.taskRun.metadata.id,

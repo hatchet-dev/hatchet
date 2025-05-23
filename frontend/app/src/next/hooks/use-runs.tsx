@@ -16,7 +16,7 @@ import {
   UseQueryResult,
   useQueryClient,
 } from '@tanstack/react-query';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   PaginationProvider,
   PaginationProviderProps,
@@ -126,7 +126,7 @@ export function RunsProvider({
   },
 }: RunsProviderProps) {
   return (
-    <FilterProvider initialFilters={initialFilters} type="state">
+    <FilterProvider initialFilters={initialFilters}>
       <TimeFilterProvider initialTimeRange={initialTimeRange}>
         <PaginationProvider {...initialPagination}>
           <RunsProviderContent refetchInterval={refetchInterval}>
@@ -146,7 +146,7 @@ function RunsProviderContent({
   refetchInterval?: number;
 }) {
   const queryClient = useQueryClient();
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const filters = useFilters<RunsFilters>();
@@ -156,18 +156,13 @@ function RunsProviderContent({
   const listRunsQuery = useQuery({
     queryKey: [
       'v1:workflow-run:list',
-      tenant,
+      tenantId,
       filters.filters,
       timeRange.filters.startTime,
       timeRange.filters.endTime || endOfMinute(new Date()).toISOString(),
       pagination,
     ],
     queryFn: async () => {
-      if (!tenant) {
-        pagination.setNumPages(1);
-        return { rows: [], pagination: { current_page: 0, num_pages: 0 } };
-      }
-
       try {
         const since = timeRange.filters.startTime
           ? startOfMinute(new Date(timeRange.filters.startTime)).toISOString()
@@ -190,8 +185,7 @@ function RunsProviderContent({
           only_tasks: !!filters.filters.only_tasks,
         };
 
-        const res = (await api.v1WorkflowRunList(tenant.metadata.id, query))
-          .data;
+        const res = (await api.v1WorkflowRunList(tenantId, query)).data;
         pagination.setNumPages(res.pagination?.num_pages || 1);
         return res;
       } catch (error) {
@@ -211,17 +205,13 @@ function RunsProviderContent({
   const metricsRunsQuery = useQuery({
     queryKey: [
       'v1:workflow-run:metrics',
-      tenant,
+      tenantId,
       filters.filters,
       pagination,
       timeRange.filters.startTime,
       timeRange.filters.endTime || endOfMinute(new Date()).toISOString(),
     ],
     queryFn: async () => {
-      if (!tenant) {
-        return [] as V1TaskRunMetrics;
-      }
-
       try {
         const since =
           timeRange.filters.startTime ||
@@ -244,7 +234,7 @@ function RunsProviderContent({
         };
 
         const res = (
-          await api.v1TaskListStatusMetrics(tenant.metadata.id, {
+          await api.v1TaskListStatusMetrics(tenantId, {
             ...query,
             workflow_ids: filters.filters.workflow_ids,
           })
@@ -266,15 +256,11 @@ function RunsProviderContent({
   });
 
   const histogramQuery = useQuery({
-    queryKey: ['v1:workflow-run:metrics', tenant, timeRange.filters],
+    queryKey: ['v1:workflow-run:metrics', tenantId, timeRange.filters],
     queryFn: async () => {
-      if (!tenant) {
-        return [] as V1TaskPointMetrics;
-      }
-
       try {
         const res = (
-          await api.v1TaskGetPointMetrics(tenant.metadata.id, {
+          await api.v1TaskGetPointMetrics(tenantId, {
             createdAfter: timeRange.filters.startTime,
             finishedBefore: timeRange.filters.endTime,
           })
@@ -292,25 +278,19 @@ function RunsProviderContent({
       }
     },
     placeholderData: (prev: any) => prev,
-    enabled: !!tenant?.metadata.id,
     refetchInterval,
   });
 
   const queueMetricsQuery = useQuery({
     queryKey: [
       'v1:workflow-run:queue-metrics',
-      tenant,
+      tenantId,
       filters.filters,
       pagination,
     ],
     queryFn: async () => {
-      if (!tenant) {
-        return [] as TenantStepRunQueueMetrics;
-      }
-
       try {
-        const res = (await api.tenantGetStepRunQueueMetrics(tenant.metadata.id))
-          .data;
+        const res = (await api.tenantGetStepRunQueueMetrics(tenantId)).data;
 
         return res;
       } catch (error) {
@@ -327,13 +307,10 @@ function RunsProviderContent({
   });
 
   const createRunMutation = useMutation({
-    mutationKey: ['v1:workflow-run:create', tenant],
+    mutationKey: ['v1:workflow-run:create', tenantId],
     mutationFn: async ({ data }: CreateRunParams) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
       try {
-        const res = await api.v1WorkflowRunCreate(tenant.metadata.id, data);
+        const res = await api.v1WorkflowRunCreate(tenantId, data);
         return res.data;
       } catch (error) {
         toast({
@@ -351,20 +328,16 @@ function RunsProviderContent({
   });
 
   const cancelRunMutation = useMutation({
-    mutationKey: ['run:cancel', tenant],
+    mutationKey: ['run:cancel', tenantId],
     mutationFn: async ({ tasks, bulk }: BulkMutation) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         if (tasks) {
-          const res = await api.v1TaskCancel(tenant.metadata.id, {
+          const res = await api.v1TaskCancel(tenantId, {
             externalIds: tasks.map((run) => run.taskExternalId),
           });
           return res.data;
         } else if (bulk) {
-          const res = await api.v1TaskCancel(tenant.metadata.id, {
+          const res = await api.v1TaskCancel(tenantId, {
             filter: {
               ...filters.filters,
               since: timeRange.filters.startTime || new Date().toISOString(),
@@ -389,20 +362,16 @@ function RunsProviderContent({
   });
 
   const replayRunMutation = useMutation({
-    mutationKey: ['run:replay', tenant],
+    mutationKey: ['run:replay', tenantId],
     mutationFn: async ({ tasks, bulk }: BulkMutation) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
-
       try {
         if (tasks) {
-          const res = await api.v1TaskReplay(tenant.metadata.id, {
+          const res = await api.v1TaskReplay(tenantId, {
             externalIds: tasks.map((run) => run.taskExternalId),
           });
           return res.data;
         } else if (bulk) {
-          const res = await api.v1TaskReplay(tenant.metadata.id, {
+          const res = await api.v1TaskReplay(tenantId, {
             filter: {
               ...filters.filters,
               since: timeRange.filters.startTime || new Date().toISOString(),
@@ -430,17 +399,14 @@ function RunsProviderContent({
   });
 
   const triggerNowMutation = useMutation({
-    mutationKey: ['workflow-run:create', tenant?.metadata.id],
+    mutationKey: ['workflow-run:create', tenantId],
     mutationFn: async (data: {
       workflowName: string;
       input: object;
       additionalMetadata: object;
     }) => {
-      if (!tenant) {
-        throw new Error('Tenant not found');
-      }
       try {
-        const res = await api.v1WorkflowRunCreate(tenant.metadata.id, {
+        const res = await api.v1WorkflowRunCreate(tenantId, {
           workflowName: data.workflowName,
           input: data.input,
           additionalMetadata: data.additionalMetadata,
@@ -528,6 +494,7 @@ function RunsProviderContent({
       histogramQuery,
       queueMetricsQuery,
       hasFilters,
+      listRunsQuery.isFetching,
     ],
   );
 

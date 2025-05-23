@@ -8,6 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/next/lib/routes';
 import { cn } from '@/lib/utils';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 
 interface RunIdProps {
   wfRun?: V1WorkflowRun;
@@ -30,18 +31,23 @@ export function RunId({
 }: RunIdProps) {
   const isTaskRun = taskRun !== undefined;
   const navigate = useNavigate();
+  const { tenantId } = useCurrentTenantId();
 
   const url = !isTaskRun
-    ? ROUTES.runs.detail(wfRun?.metadata.id || id || '')
+    ? ROUTES.runs.detail(tenantId, wfRun?.metadata.id || id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
-      : ROUTES.runs.detailWithSheet(taskRun?.workflowRunExternalId || '', {
-          type: 'task-detail',
-          props: {
-            selectedWorkflowRunId: taskRun?.workflowRunExternalId || '',
-            selectedTaskId: taskRun?.taskExternalId,
+      : ROUTES.runs.detailWithSheet(
+          tenantId,
+          taskRun?.workflowRunExternalId || '',
+          {
+            type: 'task-detail',
+            props: {
+              selectedWorkflowRunId: taskRun?.workflowRunExternalId || '',
+              selectedTaskId: taskRun?.taskExternalId,
+            },
           },
-        });
+        );
 
   const name = isTaskRun
     ? getFriendlyTaskRunId(taskRun)

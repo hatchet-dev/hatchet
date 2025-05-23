@@ -54,6 +54,15 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
 
+	uiVersion := dbsqlc.TenantMajorUIVersionV0
+
+	if request.Body.UiVersion != nil {
+		ver := *request.Body.UiVersion
+		uiVersion = dbsqlc.TenantMajorUIVersion(ver)
+	}
+
+	createOpts.UIVersion = &uiVersion
+
 	// write the user to the db
 	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts)
 

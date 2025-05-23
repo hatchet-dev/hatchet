@@ -5,7 +5,7 @@ import {
   UseMutationResult,
 } from '@tanstack/react-query';
 import api from '@/lib/api';
-import useTenant from './use-tenant';
+import { useCurrentTenantId } from './use-tenant';
 import {
   TenantMember,
   TenantMemberList,
@@ -33,17 +33,14 @@ interface MembersState {
 const MembersContext = createContext<MembersState | null>(null);
 
 export function MembersProvider({ children }: { children: React.ReactNode }) {
-  const { tenant } = useTenant();
+  const { tenantId } = useCurrentTenantId();
   const { toast } = useToast();
 
   const membersQuery = useQuery({
-    queryKey: ['tenant-members:list', tenant?.metadata.id],
+    queryKey: ['tenant-members:list', tenantId],
     queryFn: async (): Promise<TenantMemberList> => {
-      if (!tenant?.metadata.id) {
-        return { rows: [] };
-      }
       try {
-        return (await api.tenantMemberList(tenant.metadata.id)).data;
+        return (await api.tenantMemberList(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error fetching members',
@@ -54,17 +51,13 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
         return { rows: [] };
       }
     },
-    enabled: !!tenant?.metadata.id,
   });
 
   const invitesQuery = useQuery({
-    queryKey: ['tenant-invites:list', tenant?.metadata.id],
+    queryKey: ['tenant-invites:list', tenantId],
     queryFn: async (): Promise<TenantInviteList> => {
-      if (!tenant?.metadata.id) {
-        return { rows: [] };
-      }
       try {
-        return (await api.tenantInviteList(tenant.metadata.id)).data;
+        return (await api.tenantInviteList(tenantId)).data;
       } catch (error) {
         toast({
           title: 'Error fetching invites',
@@ -75,17 +68,13 @@ export function MembersProvider({ children }: { children: React.ReactNode }) {
         return { rows: [] };
       }
     },
-    enabled: !!tenant?.metadata.id,
   });
 
   const inviteMutation = useMutation({
-    mutationKey: ['tenant-invite:create', tenant?.metadata.id],
+    mutationKey: ['tenant-invite:create', tenantId],
     mutationFn: async (data: CreateTenantInviteRequest) => {
-      if (!tenant?.metadata.id) {
-        throw new Error('Tenant not found');
-      }
       try {
-        const res = await api.tenantInviteCreate(tenant.metadata.id, data);
+        const res = await api.tenantInviteCreate(tenantId, data);
         return res.data;
       } catch (error) {
         toast({

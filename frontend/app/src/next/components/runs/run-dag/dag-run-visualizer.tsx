@@ -268,7 +268,7 @@ function WorkflowRunVisualizerContent({
       }, 1);
       lastCenteredTaskId.current = selectedTaskId;
     }
-  }, [selectedTaskId, layoutedNodes]);
+  }, [selectedTaskId, layoutedNodes, recenter]);
 
   const toggleExpand = useCallback(() => {
     setIsExpanded(!isExpanded);

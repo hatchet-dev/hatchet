@@ -1,8 +1,6 @@
-import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
-import { useBreadcrumbs } from '@/next/hooks/use-breadcrumbs';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
   Headline,
@@ -11,8 +9,6 @@ import {
   HeadlineActionItem,
 } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
-import { ROUTES } from '@/next/lib/routes';
-import { WorkerType } from '@/lib/api';
 import { ManagedComputeProvider } from '@/next/hooks/use-managed-compute';
 import {
   Tabs,
@@ -22,13 +18,13 @@ import {
 } from '@/next/components/ui/tabs';
 import { useManagedComputeDetail } from '@/next/hooks/use-managed-compute-detail';
 import { ManagedComputeDetailProvider } from '@/next/hooks/use-managed-compute-detail';
-import { UpdateServiceContent } from './components/update-service';
+import { UpdateWorkerPoolContent } from './components/update-pool';
 import { WorkersTab } from './components/workers-tab';
 import { LogsTab } from './components/logs-tab';
 import { Badge } from '@/next/components/ui/badge';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 
-export enum ManagedServiceDetailTabs {
+export enum ManagedWorkerPoolDetailTabs {
   INSTANCES = 'instances',
   LOGS = 'logs',
   BUILDS = 'builds',
@@ -36,29 +32,14 @@ export enum ManagedServiceDetailTabs {
   CONFIGURATION = 'configuration',
 }
 
-function ServiceDetailPageContent() {
-  const { data: service } = useManagedComputeDetail();
-
-  const breadcrumb = useBreadcrumbs();
-
-  useEffect(() => {
-    breadcrumb.set([
-      {
-        title: 'Worker Services',
-        label: service?.name || '',
-        url: ROUTES.services.detail(
-          encodeURIComponent(service?.metadata?.id || ''),
-          WorkerType.MANAGED,
-        ),
-      },
-    ]);
-  }, [service?.name, service?.metadata?.id, breadcrumb]);
+function WorkerPoolDetailPageContent() {
+  const { data: pool } = useManagedComputeDetail();
 
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description="Manage workers in a worker service">
-          {service?.name || ''} <Badge variant="outline">Managed</Badge>
+        <PageTitle description="Manage workers in a worker pool">
+          {pool?.name || ''} <Badge variant="outline">Managed</Badge>
         </PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
@@ -68,54 +49,54 @@ function ServiceDetailPageContent() {
       </Headline>
       <Separator className="my-4" />
       <Tabs
-        defaultValue={ManagedServiceDetailTabs.INSTANCES}
+        defaultValue={ManagedWorkerPoolDetailTabs.INSTANCES}
         className="w-full"
-        state="query"
       >
         <TabsList>
-          <TabsTrigger value={ManagedServiceDetailTabs.INSTANCES}>
+          <TabsTrigger value={ManagedWorkerPoolDetailTabs.INSTANCES}>
             Workers
           </TabsTrigger>
-          <TabsTrigger value={ManagedServiceDetailTabs.LOGS}>Logs</TabsTrigger>
-          <TabsTrigger value={ManagedServiceDetailTabs.BUILDS}>
+          <TabsTrigger value={ManagedWorkerPoolDetailTabs.LOGS}>
+            Logs
+          </TabsTrigger>
+          <TabsTrigger value={ManagedWorkerPoolDetailTabs.BUILDS}>
             Builds & Deployments
           </TabsTrigger>
-          <TabsTrigger value={ManagedServiceDetailTabs.METRICS}>
+          <TabsTrigger value={ManagedWorkerPoolDetailTabs.METRICS}>
             Metrics
           </TabsTrigger>
-          <TabsTrigger value={ManagedServiceDetailTabs.CONFIGURATION}>
+          <TabsTrigger value={ManagedWorkerPoolDetailTabs.CONFIGURATION}>
             Configuration
           </TabsTrigger>
         </TabsList>
         <TabsContent value="instances">
-          <WorkersTab serviceName={service?.name || ''} />
+          <WorkersTab poolName={pool?.name || ''} />
         </TabsContent>
         <TabsContent value="logs">
           <LogsTab />
         </TabsContent>
         {/* <TabsContent value="builds">
-          <BuildsTab serviceName={service?.name || ''} />
+          <BuildsTab poolName={pool?.name || ''} />
         </TabsContent> */}
         <TabsContent value="metrics">{/* <MetricsTab /> */}</TabsContent>
         <TabsContent value="configuration">
-          {service && <UpdateServiceContent />}
+          {pool && <UpdateWorkerPoolContent />}
         </TabsContent>
       </Tabs>
     </BasicLayout>
   );
 }
 
-export default function ServiceDetailPage() {
-  const { serviceName } = useParams<{
-    serviceName: string;
-    workerName?: string;
+export default function WorkerPoolDetailPage() {
+  const { poolName } = useParams<{
+    poolName: string;
   }>();
 
   return (
     <ManagedComputeProvider>
       <WorkersProvider>
-        <ManagedComputeDetailProvider managedWorkerId={serviceName || ''}>
-          <ServiceDetailPageContent />
+        <ManagedComputeDetailProvider managedWorkerId={poolName || ''}>
+          <WorkerPoolDetailPageContent />
         </ManagedComputeDetailProvider>
       </WorkersProvider>
     </ManagedComputeProvider>

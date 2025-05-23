@@ -13,6 +13,7 @@ import {
   FilterTaskSelect,
   FilterKeyValue,
   ClearFiltersButton,
+  FilterWorkerSelect,
 } from '@/next/components/ui/filters/filters';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { DocsButton } from '@/next/components/ui/docs-button';
@@ -24,6 +25,8 @@ import { RunsBulkActionDialog } from './bulk-action-dialog';
 import { Plus } from 'lucide-react';
 import { ROUTES } from '@/next/lib/routes';
 import { useNavigate } from 'react-router-dom';
+import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+import { WorkersProvider } from '@/next/hooks/use-workers';
 interface RunsTableProps {
   onRowClick?: (row: V1TaskSummary) => void;
   selectedTaskId?: string;
@@ -49,6 +52,7 @@ export function RunsTable({
     cancel,
     replay,
   } = useRuns();
+  const { tenantId } = useCurrentTenantId();
 
   const [selectAll, setSelectAll] = useState(false);
   const [showBulkActionDialog, setShowBulkActionDialog] = useState<
@@ -140,9 +144,8 @@ export function RunsTable({
 
   const handleRowDoubleClick = useCallback(
     (row: V1TaskSummary) => {
-      console.log(row);
       navigate(
-        ROUTES.runs.detailWithSheet(row.workflowRunExternalId || '', {
+        ROUTES.runs.detailWithSheet(tenantId, row.workflowRunExternalId || '', {
           type: 'task-detail',
           props: {
             selectedWorkflowRunId: row.workflowRunExternalId || '',
@@ -151,7 +154,7 @@ export function RunsTable({
         }),
       );
     },
-    [navigate],
+    [navigate, tenantId],
   );
 
   return (
@@ -196,6 +199,15 @@ export function RunsTable({
             placeholder="Task Name"
             multi
           />
+        )}
+        {!excludedFilters.includes('worker_id') && (
+          <WorkersProvider status="ACTIVE">
+            <FilterWorkerSelect<RunsFilters>
+              name="worker_id"
+              placeholder="Worker"
+              multi
+            />
+          </WorkersProvider>
         )}
         {!excludedFilters.includes('additional_metadata') && (
           <FilterKeyValue<RunsFilters>
