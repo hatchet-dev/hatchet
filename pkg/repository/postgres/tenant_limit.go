@@ -102,9 +102,9 @@ func (t *tenantLimitRepository) planLimitMap(plan *string) []repository.Limit {
 	return (*t.plans)[*plan]
 }
 
-func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
+func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, tenantId string) error {
 
-	planLimits := t.planLimitMap(plan)
+	planLimits := t.DefaultLimits()
 
 	for _, limits := range planLimits {
 		err := t.patchTenantResourceLimit(ctx, tenantId, limits, false)
@@ -116,11 +116,14 @@ func (t *tenantLimitRepository) SelectOrInsertTenantLimits(ctx context.Context, 
 	return nil
 }
 
-func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId string, plan *string) error {
-	planLimits := t.planLimitMap(plan)
+func (t *tenantLimitRepository) UpsertTenantLimits(ctx context.Context, tenantId string, limits []repository.Limit) error {
 
-	for _, limits := range planLimits {
-		err := t.patchTenantResourceLimit(ctx, tenantId, limits, true)
+	if len(limits) == 0 {
+		limits = t.DefaultLimits()
+	}
+
+	for _, limit := range limits {
+		err := t.patchTenantResourceLimit(ctx, tenantId, limit, true)
 		if err != nil {
 			return err
 		}
@@ -241,7 +244,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
 
-		err = t.SelectOrInsertTenantLimits(ctx, tenantId, nil)
+		err = t.SelectOrInsertTenantLimits(ctx, tenantId)
 
 		if err != nil {
 			return false, 0, err

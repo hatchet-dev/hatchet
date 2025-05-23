@@ -25,6 +25,7 @@ type tenantAPIRepository struct {
 
 	cache                cache.Cacheable
 	defaultTenantVersion dbsqlc.TenantMajorEngineVersion
+	createCallbacks      []repository.UnscopedCallback[*dbsqlc.Tenant]
 }
 
 func NewTenantAPIRepository(shared *sharedRepository, cache cache.Cacheable, defaultTenantVersion dbsqlc.TenantMajorEngineVersion) repository.TenantAPIRepository {
@@ -35,7 +36,15 @@ func NewTenantAPIRepository(shared *sharedRepository, cache cache.Cacheable, def
 	}
 }
 
-func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository.CreateTenantOpts) (*dbsqlc.Tenant, error) {
+func (r *tenantAPIRepository) RegisterCreateCallback(callback repository.UnscopedCallback[*dbsqlc.Tenant]) {
+	if r.createCallbacks == nil {
+		r.createCallbacks = make([]repository.UnscopedCallback[*dbsqlc.Tenant], 0)
+	}
+
+	r.createCallbacks = append(r.createCallbacks, callback)
+}
+
+func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository.CreateTenantOpts, user *dbsqlc.User) (*dbsqlc.Tenant, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -93,6 +102,23 @@ func (r *tenantAPIRepository) CreateTenant(ctx context.Context, opts *repository
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+
+	if user != nil {
+		// add the user as an owner of the tenant
+		_, err = r.CreateTenantMember(ctx, tenantId, &repository.CreateTenantMemberOpts{
+			UserId: sqlchelpers.UUIDToStr(user.ID),
+			Role:   "OWNER",
+		})
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Call the create callbacks
+	for _, cb := range r.createCallbacks {
+		cb.Do(r.l, createTenant)
 	}
 
 	return createTenant, nil
