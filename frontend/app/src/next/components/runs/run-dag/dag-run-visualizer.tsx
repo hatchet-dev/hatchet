@@ -315,7 +315,16 @@ function WorkflowRunVisualizerContent({
         }
         snapToGrid={true}
       />
-      <div className="absolute bottom-2 right-2 z-20">
+      <div className="flex flex-col absolute bottom-2 right-2 z-20">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={recenter}
+          tooltip={'Recenter'}
+        >
+          <Fullscreen className="size-4" />
+          <span className="sr-only">{'Recenter'}</span>
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -328,15 +337,6 @@ function WorkflowRunVisualizerContent({
             <ChevronDownIcon className="h-4 w-4" />
           )}
           <span className="sr-only">{isExpanded ? 'Collapse' : 'Expand'}</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={recenter}
-          tooltip={'Recenter'}
-        >
-          <Fullscreen className="size-4" />
-          <span className="sr-only">{'Recenter'}</span>
         </Button>
       </div>
     </div>
