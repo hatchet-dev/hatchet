@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight, Loader } from 'lucide-react';
+import { ChevronDown, ChevronRight, Drill, Loader } from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
@@ -19,7 +19,7 @@ import { ROUTES } from '@/next/lib/routes';
 import { useRunDetail } from '@/next/hooks/use-run-detail';
 import { Button } from '../ui/button';
 import { RunId } from '../runs/run-id';
-import { BsArrowDownRightCircle, BsArrowUpLeftCircle } from 'react-icons/bs';
+import { BsArrowUpLeftCircle } from 'react-icons/bs';
 import { Skeleton } from '../ui/skeleton';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import {
@@ -28,8 +28,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../ui/tooltip';
+
 interface ProcessedTaskData {
   id: string;
+  taskExternalId: string;
   workflowRunId?: string;
   taskDisplayName: string;
   parentId?: string;
@@ -554,6 +556,7 @@ export function Waterfall({
 
         return {
           id: task.metadata.id,
+          taskExternalId: task.taskExternalId,
           taskDisplayName: task.taskDisplayName,
           parentId: task.parentTaskExternalId,
           hasChildren: taskHasChildrenMap.get(task.metadata.id) || false,
@@ -800,24 +803,18 @@ const Tick = ({
   return (
     <g transform={`translate(${x},${y})`}>
       <foreignObject
-        x={-160} // Start position (right aligned)
+        x={-180} // Start position (right aligned)
         y={-10} // Vertically center
-        width={160}
+        width={180}
         height={20}
       >
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            paddingLeft: `${indentation}px`,
-            height: '100%',
-          }}
-          className="group"
+          className={`group flex flex-row items-center pl-[${indentation}px] size-full`}
         >
           {/* Expand/collapse button */}
           <div
             data-haschildren={task.hasChildren}
-            className="data-[haschildren=true]:cursor-info flex items-center justify-center size-[20px] h-[20px] mr-[4px]"
+            className="data-[haschildren=true]:cursor-info flex flex-row items-center justify-between size-[20px] h-[20px] mr-[4px]"
             onClick={() =>
               task.hasChildren &&
               toggleTask(task.id, task.hasChildren, task.depth)
@@ -833,16 +830,7 @@ const Tick = ({
 
           {/* Task label */}
           <div
-            style={{
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              fontSize: '12px',
-              textAlign: 'left',
-              flexGrow: 1,
-              cursor: 'pointer',
-            }}
-            className=" flex items-center gap-2"
+            className="cursor-pointer flex flex-row justify-between w-full grow text-left text-xs overflow-hidden text-ellipsis whitespace-nowrap gap-2 items-center"
             onClick={() => handleBarClick(task)}
           >
             <RunId
@@ -852,18 +840,9 @@ const Tick = ({
               className={task.id === selectedTaskId ? 'underline' : ''}
               attempt={task.attempt}
             />
-            {task.queuedDuration === null && (
-              <TooltipProvider>
-                <BaseTooltip>
-                  <TooltipTrigger>
-                    <Loader className="animate-[spin_3s_linear_infinite] h-4" />
-                  </TooltipTrigger>
-                  <TooltipContent>This task has not started</TooltipContent>
-                </BaseTooltip>
-              </TooltipProvider>
-            )}
           </div>
-          {workflowRunId === task.workflowRunId ? (
+          {workflowRunId === task.workflowRunId &&
+            task.taskExternalId === workflowRunId &&
             task.parentId && (
               <Link
                 to={ROUTES.runs.detailWithSheet(tenantId, task.parentId, {
@@ -876,7 +855,7 @@ const Tick = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <Button
-                  tooltip="Scope out to parent task"
+                  tooltip="Zoom out to parent task"
                   variant="link"
                   size="icon"
                   className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
@@ -884,8 +863,8 @@ const Tick = ({
                   <BsArrowUpLeftCircle className="w-4 h-4 transform" />
                 </Button>
               </Link>
-            )
-          ) : (
+            )}
+          {task.hasChildren && (
             <Link
               to={ROUTES.runs.detailWithSheet(
                 tenantId,
@@ -900,14 +879,25 @@ const Tick = ({
               )}
             >
               <Button
-                tooltip="Scope into child task"
+                tooltip="Drill into child task"
                 variant="link"
                 size="icon"
                 className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
               >
-                <BsArrowDownRightCircle className="w-4 h-4" />
+                {' '}
+                <Drill className="w-4 h-4" />
               </Button>
             </Link>
+          )}
+          {task.queuedDuration === null && (
+            <TooltipProvider>
+              <BaseTooltip>
+                <TooltipTrigger>
+                  <Loader className="animate-[spin_3s_linear_infinite] h-4" />
+                </TooltipTrigger>
+                <TooltipContent>This task has not started</TooltipContent>
+              </BaseTooltip>
+            </TooltipProvider>
           )}
         </div>
       </foreignObject>
