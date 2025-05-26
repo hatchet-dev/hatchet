@@ -167,7 +167,6 @@ require (
 	github.com/getsentry/sentry-go v0.33.0
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.26.0
-	github.com/go-test/deep v1.1.0 // indirect
 	github.com/goccy/go-json v0.10.5
 	github.com/google/cel-go v0.25.0
 	github.com/google/uuid v1.6.0
@@ -184,7 +183,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.34.0
-	github.com/slack-go/slack v0.16.0
+	github.com/slack-go/slack v0.17.0
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
