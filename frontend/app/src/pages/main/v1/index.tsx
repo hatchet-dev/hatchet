@@ -18,7 +18,7 @@ import {
 } from 'react-router-dom';
 import { Tenant, TenantMember, TenantUIVersion } from '@/lib/api';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   MembershipsContextType,
   UserContextType,
