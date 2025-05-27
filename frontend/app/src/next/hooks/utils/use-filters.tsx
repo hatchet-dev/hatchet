@@ -49,22 +49,29 @@ export function FilterProvider<T extends Record<string, any>>({
 
   const setFilter = React.useCallback(
     (key: keyof T, value: T[keyof T]) => {
-      filters.setValue(key as string, value);
+      setFilters((prev) => ({
+        ...prev,
+        [key]: value,
+      }));
     },
     [filters],
   );
   const clearFilter = React.useCallback(
     (key: keyof T) => {
-      filters.setValue(key as string, undefined as any);
+      setFilters((prev) => ({
+        ...prev,
+        [key]: undefined as any,
+      }));
     },
     [filters],
   );
 
   const clearAllFilters = React.useCallback(() => {
-    const currentFilters = filters.getValues();
-    Object.keys(currentFilters).forEach((key) => {
-      filters.setValue(key, undefined as any);
-    });
+    const clearedFilters = Object.keys(filters).reduce((acc, key) => {
+      acc[key as keyof T] = undefined as any;
+      return acc;
+    }, {} as T);
+    setFilters(clearedFilters);
   }, [filters]);
 
   const value = React.useMemo(
