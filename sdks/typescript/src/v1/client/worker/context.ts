@@ -14,7 +14,7 @@ import { parseJSON } from '@hatchet/util/parse';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
-import { CreateWorkflowTaskOpts } from '@hatchet/v1/task';
+import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
 import { OutputType } from '@hatchet/v1/types';
 import { Workflow } from '@hatchet/workflow';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
@@ -104,7 +104,7 @@ export class Context<T, K = {}> {
    * @throws An error if the task output is not found.
    */
   async parentOutput<L extends OutputType>(
-    parentTask: CreateWorkflowTaskOpts<any, L> | string
+    parentTask: CreateWorkflowTaskOpts<any, L> | CreateWorkflowDurableTaskOpts<any, L> | string
   ): Promise<L> {
     // NOTE: parentOutput is async since we plan on potentially making this a cacheable server call
     if (typeof parentTask !== 'string') {
