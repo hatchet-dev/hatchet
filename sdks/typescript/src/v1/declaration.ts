@@ -618,6 +618,7 @@ export class WorkflowDeclaration<
             ctx: Context<I>
           ) => TaskOutputType<O, Name, L> | Promise<TaskOutputType<O, Name, L>>;
         })
+      // FIXME this should be CreateOnSuccessTaskOpts to remove the name, but this is technically a breaking change
       | TaskWorkflowDeclaration<any, any>
   ): CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>> {
     let typedOptions: CreateWorkflowTaskOpts<I, TaskOutputType<O, Name, L>>;
