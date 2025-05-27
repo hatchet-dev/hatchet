@@ -2,7 +2,7 @@ import { RateLimitDuration } from '@hatchet-dev/typescript-sdk/protoc/v1/workflo
 import { hatchet } from '../hatchet-client';
 
 // > Upsert Rate Limit
-await hatchet.ratelimits.upsert({
+hatchet.ratelimits.upsert({
   key: 'api-service-rate-limit',
   limit: 10,
   duration: RateLimitDuration.SECOND,
