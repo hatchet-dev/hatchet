@@ -317,6 +317,8 @@ WITH RECURSIVE all_runs AS (
   WHERE
     r.tenant_id = $1::uuid
     AND ar.depth < $3::int
+    AND r.inserted_at >= $4::timestamptz
+    AND t.inserted_at >= $4::timestamptz
 )
 SELECT
   tenant_id,
@@ -332,9 +334,10 @@ WHERE
 `
 
 type GetRunsListRecursiveParams struct {
-	Tenantid        pgtype.UUID   `json:"tenantid"`
-	Taskexternalids []pgtype.UUID `json:"taskexternalids"`
-	Depth           int32         `json:"depth"`
+	Tenantid        pgtype.UUID        `json:"tenantid"`
+	Taskexternalids []pgtype.UUID      `json:"taskexternalids"`
+	Depth           int32              `json:"depth"`
+	Createdafter    pgtype.Timestamptz `json:"createdafter"`
 }
 
 type GetRunsListRecursiveRow struct {
@@ -347,7 +350,12 @@ type GetRunsListRecursiveRow struct {
 }
 
 func (q *Queries) GetRunsListRecursive(ctx context.Context, db DBTX, arg GetRunsListRecursiveParams) ([]*GetRunsListRecursiveRow, error) {
-	rows, err := db.Query(ctx, getRunsListRecursive, arg.Tenantid, arg.Taskexternalids, arg.Depth)
+	rows, err := db.Query(ctx, getRunsListRecursive,
+		arg.Tenantid,
+		arg.Taskexternalids,
+		arg.Depth,
+		arg.Createdafter,
+	)
 	if err != nil {
 		return nil, err
 	}

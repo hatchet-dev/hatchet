@@ -1392,6 +1392,8 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 
 	// start out by getting a list of task external ids for the workflow run id
 	rootTaskExternalIds := make([]pgtype.UUID, 0)
+	sevenDaysAgo := time.Now().Add(-time.Hour * 24 * 7)
+	minInsertedAt := time.Now()
 
 	rootTasks, err := r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
 		Externalids: []pgtype.UUID{workflowRunId},
@@ -1404,12 +1406,24 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId string
 
 	for _, task := range rootTasks {
 		rootTaskExternalIds = append(rootTaskExternalIds, task.ExternalID)
+
+		if task.InsertedAt.Time.Before(minInsertedAt) {
+			minInsertedAt = task.InsertedAt.Time
+		}
+	}
+
+	// Setting the maximum lookback period to 7 days
+	// to prevent scanning a zillion partitions on the tasks,
+	// runs, and dags tables.
+	if minInsertedAt.Before(sevenDaysAgo) {
+		minInsertedAt = sevenDaysAgo
 	}
 
 	runsList, err := r.queries.GetRunsListRecursive(ctx, r.readPool, sqlcv1.GetRunsListRecursiveParams{
 		Taskexternalids: rootTaskExternalIds,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 		Depth:           depth,
+		Createdafter:    sqlchelpers.TimestamptzFromTime(minInsertedAt),
 	})
 
 	if err != nil {
