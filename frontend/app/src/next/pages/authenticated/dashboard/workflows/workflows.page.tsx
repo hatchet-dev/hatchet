@@ -2,6 +2,7 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Workflow } from '@/lib/api';
 import { Badge } from '@/next/components/ui/badge';
 import { Button } from '@/next/components/ui/button';
+import { Skeleton } from '@/next/components/ui/skeleton';
 import { WorkflowsProvider, useWorkflows } from '@/next/hooks/use-workflows';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { useState } from 'react';
@@ -43,16 +44,13 @@ function WorkflowsContent() {
 
   if (isLoading) {
     return (
-      <>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div className="aspect-video rounded-xl bg-muted/50" />
-            <div className="aspect-video rounded-xl bg-muted/50" />
-            <div className="aspect-video rounded-xl bg-muted/50" />
-          </div>
-          <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-16">
+        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+          {Array.from({ length: 9 }).map((_, ix) => (
+            <Skeleton key={ix} className="h-40 rounded-md" />
+          ))}
         </div>
-      </>
+      </div>
     );
   }
 
