@@ -353,13 +353,26 @@ function TriggerRunModalContent({
                   <SelectValue placeholder="Select a recent run" />
                 </SelectTrigger>
                 <SelectContent>
-                  {recentRuns
-                    ?.filter((run) => run.workflowId === selectedWorkflowId)
-                    .map((run) => (
+                  {(() => {
+                    const filteredRuns =
+                      recentRuns?.filter(
+                        (run) => run.workflowId === selectedWorkflowId,
+                      ) || [];
+
+                    if (filteredRuns.length === 0) {
+                      return (
+                        <SelectItem value="no-runs" disabled>
+                          No recent runs available
+                        </SelectItem>
+                      );
+                    }
+
+                    return filteredRuns.map((run) => (
                       <SelectItem key={run.metadata.id} value={run.metadata.id}>
                         {getFriendlyWorkflowRunId(run)}
                       </SelectItem>
-                    ))}
+                    ));
+                  })()}
                 </SelectContent>
               </Select>
             </div>
