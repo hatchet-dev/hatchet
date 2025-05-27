@@ -252,6 +252,11 @@ export function FilterWorkerSelect<T>({
   ...props
 }: FilterWorkerSelectProps<T>) {
   const { data: options = [] } = useWorkers();
+
+  if (!options.length) {
+    return null;
+  }
+
   return (
     <FilterSelect<T, string>
       options={[...new Set(options.map((o) => o.name))].map((o) => ({
