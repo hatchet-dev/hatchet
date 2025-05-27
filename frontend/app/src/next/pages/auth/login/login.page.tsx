@@ -1,16 +1,14 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { UserLoginForm } from './components/user-login-form';
 import { Button } from '@/components/ui/button';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import api, { UserLoginRequest } from '@/lib/api';
-import { useState } from 'react';
-import { useApiError } from '@/lib/hooks';
 import { Loading } from '@/components/ui/loading';
 import { Icons } from '@/components/ui/icons';
-import React from 'react';
+import React, { useState } from 'react';
 import useApiMeta from '@/next/hooks/use-api-meta';
 import useErrorParam from '@/pages/auth/hooks/use-error-param';
 import { ROUTES } from '@/next/lib/routes';
+import useUser from '@/next/hooks/use-user';
+import { AxiosError } from 'axios';
 
 export default function Login() {
   useErrorParam();
@@ -124,34 +122,21 @@ export function OrContinueWith() {
 }
 
 function BasicLogin() {
-  const navigate = useNavigate();
+  const { login } = useUser();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({ setFieldErrors });
-  const queryClient = useQueryClient();
-
-  const loginMutation = useMutation({
-    mutationKey: ['user:update:login'],
-    mutationFn: async (data: UserLoginRequest) => {
-      return api.userUpdateLogin(data);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries();
-      const memberships = await api.tenantMembershipsList();
-      const tenant = memberships?.data?.rows?.at(0)?.tenant?.metadata.id;
-
-      if (tenant) {
-        navigate(ROUTES.runs.list(tenant));
-      } else {
-        navigate('/next');
-      }
-    },
-    onError: handleApiError,
-  });
-
   return (
     <UserLoginForm
-      isLoading={loginMutation.isPending}
-      onSubmit={loginMutation.mutate}
+      isLoading={login.isPending}
+      onSubmit={async (data) => {
+        try {
+          await login.mutateAsync(data);
+          window.location.href = '/';
+        } catch (error) {
+          if (error instanceof AxiosError) {
+            setFieldErrors(error.response?.data.errors || {});
+          }
+        }
+      }}
       fieldErrors={fieldErrors}
     />
   );
