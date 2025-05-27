@@ -38,7 +38,8 @@ First and foremost, in the vast majority of cases, this scary warning from Hatch
 <Callout type="info" emoji="💻">
   CPU-bound work in the simplest terms is work that spends most of its time doing actual computation as opposed to e.g. waiting for some external process (like an API call) to complete.
 
-  Importantly, using e.g. `requests.get` to make an API call also (confusingly) falls under this definition of "CPU-bound" even though it's also just waiting, since while it waits the program cannot context switch to some other work running in the event loop (because `requests` is not async).
+Importantly, using e.g. `requests.get` to make an API call also (confusingly) falls under this definition of "CPU-bound" even though it's also just waiting, since while it waits the program cannot context switch to some other work running in the event loop (because `requests` is not async).
+
 </Callout>
 
 #### A simple example of a blocked loop
