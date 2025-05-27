@@ -104,7 +104,7 @@ export class Worker {
             };
 
             this.durable = new V1Worker(this._v1, opts);
-            await this.durable.registerWorkflowV1(wf);
+            await this.durable.registerWorkflowV1(wf, true);
           }
           this.durable.registerDurableActionsV1(wf.definition);
         }

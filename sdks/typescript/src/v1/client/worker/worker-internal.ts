@@ -26,6 +26,7 @@ import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import {
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
+  CreateWorkflowDurableTaskOpts,
   CreateWorkflowTaskOpts,
   NonRetryableError,
 } from '@hatchet/v1/task';
@@ -184,7 +185,10 @@ export class V1Worker {
     };
   }
 
-  async registerWorkflowV1(initWorkflow: BaseWorkflowDeclaration<any, any>) {
+  async registerWorkflowV1(
+    initWorkflow: BaseWorkflowDeclaration<any, any>,
+    durable: boolean = false
+  ) {
     // patch the namespace
     const workflow: WorkflowDefinition = {
       ...initWorkflow.definition,
@@ -196,7 +200,7 @@ export class V1Worker {
 
       let onFailureTask: CreateTaskOpts | undefined;
 
-      if (workflow.onFailure && typeof workflow.onFailure === 'function') {
+      if (!durable && workflow.onFailure && typeof workflow.onFailure === 'function') {
         onFailureTask = {
           readableId: 'on-failure-task',
           action: onFailureTaskName(workflow),
@@ -210,7 +214,7 @@ export class V1Worker {
         };
       }
 
-      if (workflow.onFailure && typeof workflow.onFailure === 'object') {
+      if (!durable && workflow.onFailure && typeof workflow.onFailure === 'object') {
         const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
 
         onFailureTask = {
@@ -234,8 +238,8 @@ export class V1Worker {
 
       let onSuccessTask: CreateWorkflowTaskOpts<any, any> | undefined;
 
-      if (workflow.onSuccess && typeof workflow.onSuccess === 'function') {
-        const parents = getLeaves(workflow._tasks);
+      if (!durable && workflow.onSuccess && typeof workflow.onSuccess === 'function') {
+        const parents = getLeaves([...workflow._tasks, ...workflow._durableTasks]);
 
         onSuccessTask = {
           name: 'on-success-task',
@@ -249,9 +253,9 @@ export class V1Worker {
         };
       }
 
-      if (workflow.onSuccess && typeof workflow.onSuccess === 'object') {
+      if (!durable && workflow.onSuccess && typeof workflow.onSuccess === 'object') {
         const onSuccess = workflow.onSuccess as CreateOnSuccessTaskOpts<any, any>;
-        const parents = getLeaves(workflow._tasks);
+        const parents = getLeaves([...workflow._tasks, ...workflow._durableTasks]);
 
         onSuccessTask = {
           name: 'on-success-task',
@@ -885,13 +889,12 @@ function onFailureTaskName(workflow: WorkflowDefinition) {
   return `${workflow.name}:on-failure-task`;
 }
 
-function getLeaves(tasks: CreateWorkflowTaskOpts<any, any>[]): CreateWorkflowTaskOpts<any, any>[] {
+type LeafableTask = CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>;
+
+function getLeaves(tasks: LeafableTask[]): LeafableTask[] {
   return tasks.filter((task) => isLeafTask(task, tasks));
 }
 
-function isLeafTask(
-  task: CreateWorkflowTaskOpts<any, any>,
-  allTasks: CreateWorkflowTaskOpts<any, any>[]
-): boolean {
+function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
   return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
 }
