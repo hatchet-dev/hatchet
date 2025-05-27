@@ -35,6 +35,12 @@ First and foremost, in the vast majority of cases, this scary warning from Hatch
 
 > Blocking (CPU-bound) code should not be called directly.
 
+<Callout type="info" emoji="💻">
+  CPU-bound work in the simplest terms is work that spends most of its time doing actual computation as opposed to e.g. waiting for some external process (like an API call) to complete.
+
+  Importantly, using e.g. `requests.get` to make an API call also (confusingly) falls under this definition of "CPU-bound" even though it's also just waiting, since while it waits the program cannot context switch to some other work running in the event loop (because `requests` is not async).
+</Callout>
+
 #### A simple example of a blocked loop
 
 Let's give a simple example, which we'll come back to later as a helpful debugging strategy. We'll first write two functions:
@@ -83,7 +89,7 @@ Some common (and some less common) examples of blocking operations might include
 - Performing a synchronous database operation using `psycopg`, such as running an expensive `SELECT` statement that takes a long time to complete
 - Running a CPU-bound algorithm, such as [solving a Sudoku puzzle](<https://en.wikipedia.org/wiki/NP_(complexity)>)
 
-In each of these cases, while this work is happening, no other async work on your Hatchet workers will be able to progress. We see some interesting and scary behavior if we run some blocking code in Hatchet.
+In each of these cases, while this work is happening, no other async work on your Hatchet workers will be able to progress. We see some interesting and scary behavior if we run some blocking code in Hatchet. We'll share some ideas for how to work around each of these blocking operations below.
 
 <Snippet
   src={snips.python.blocked_async.blocking_example_worker}
@@ -202,7 +208,9 @@ As a last resort, another thing to try is running your code in a fashion similar
 
 ## Takeaways
 
-Blocked event loops can significantly impact the performance of your Hatchet workers, causing tasks to wait unnecessarily and triggering those scary warning messages. By following the debugging steps outlined in this post, you should be able to:
+Blocked event loops can significantly impact the performance of your Hatchet workers, causing tasks to wait unnecessarily and triggering those scary warning messages. We added the scary warning to the SDK to help flag that something might be blocking the loop. Note that it's not _always_ an indication that the event loop is blocked, but it's a hint that something might be wrong.
+
+By following the debugging steps outlined in this post, you should be able to:
 
 1. Identify blocking code in your async functions
 2. Replace synchronous operations with asynchronous alternatives
