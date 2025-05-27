@@ -2,6 +2,7 @@ import { hatchet } from '../hatchet-client';
 
 export type Input = {
   Message: string;
+  ShouldSkip: boolean;
 };
 
 export const SIMPLE_EVENT = 'simple-event:create';
