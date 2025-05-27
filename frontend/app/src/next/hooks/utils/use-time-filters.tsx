@@ -110,10 +110,17 @@ export function TimeFilterProvider({
   children,
   initialTimeRange,
 }: TimeFilterProviderProps) {
+  const activePreset: TimeFilterState['activePreset'] =
+    initialTimeRange?.activePreset || '1h';
+  const lastActivePreset: TimeFilterState['activePreset'] =
+    initialTimeRange?.activePreset || '1h';
+
   const [state, setState] = React.useState<TimeFilterState>({
-    activePreset: initialTimeRange?.activePreset || '1h',
-    lastActivePreset: initialTimeRange?.activePreset || '1h',
-    startTime: initialTimeRange?.startTime,
+    activePreset,
+    lastActivePreset,
+    startTime:
+      initialTimeRange?.startTime ||
+      TIME_PRESETS[activePreset](startOfMinute(new Date())).toISOString(),
     endTime: initialTimeRange?.endTime,
   });
 
