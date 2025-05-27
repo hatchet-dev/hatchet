@@ -1,5 +1,6 @@
 import { V1Event, V1TaskStatus } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
+import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { Badge, BadgeProps } from '@/next/components/ui/badge';
@@ -154,34 +155,29 @@ export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
         return (
           <div className="flex flex-row gap-2 items-center justify-start w-max">
             <StatusBadgeWithTooltip
-              badgeVariant="outline"
-              label={'Queued'}
               count={queued}
               eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.QUEUED}
             />
             <StatusBadgeWithTooltip
-              badgeVariant="outline"
-              label={'Running'}
               count={running}
               eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.RUNNING}
             />
             <StatusBadgeWithTooltip
-              badgeVariant="outline"
-              label={'Cancelled'}
               count={cancelled}
               eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.CANCELLED}
             />
             <StatusBadgeWithTooltip
-              badgeVariant="successful"
-              label={'Succeeded'}
               count={succeeded}
               eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.COMPLETED}
             />
             <StatusBadgeWithTooltip
-              badgeVariant="destructive"
-              label={'Failed'}
               count={failed}
               eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.FAILED}
             />
           </div>
         );
@@ -235,14 +231,12 @@ export default function EventsPage() {
 
 const StatusBadgeWithTooltip = ({
   count,
-  label,
-  badgeVariant,
   eventExternalId,
+  status,
 }: {
   count: number | undefined;
-  label: string;
-  badgeVariant: BadgeProps['variant'];
   eventExternalId: string;
+  status: V1TaskStatus;
 }) => {
   if (!count || count === 0) {
     return null;
@@ -252,9 +246,7 @@ const StatusBadgeWithTooltip = ({
     <Tooltip>
       <TooltipTrigger asChild>
         <div>
-          <Badge variant={badgeVariant}>
-            {count} {label}
-          </Badge>
+          <RunsBadge status={status} variant="default" />
         </div>
       </TooltipTrigger>
       <TooltipContent className="bg-[hsl(var(--background))] border-slate-700 border z-20 shadow-lg p-4 text-white">
