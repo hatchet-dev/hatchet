@@ -20,7 +20,7 @@ export default function Login() {
     return <Loading />;
   }
 
-  const schemes = ['basic', 'google', 'github'];
+  const schemes = meta.oss?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
@@ -42,7 +42,7 @@ export default function Login() {
     basicEnabled && <BasicLogin />,
     googleEnabled && <GoogleLogin />,
     githubEnabled && <GithubLogin />,
-  ].filter(Boolean);
+  ].filter((x) => x !== undefined);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center w-full h-full lg:flex-row">
@@ -60,7 +60,9 @@ export default function Login() {
             {forms.map((form, index) => (
               <React.Fragment key={index}>
                 {form}
-                {index < schemes.length - 1 && <OrContinueWith />}
+                {basicEnabled && schemes.length >= 2 && index == 0 && (
+                  <OrContinueWith />
+                )}
               </React.Fragment>
             ))}
 
