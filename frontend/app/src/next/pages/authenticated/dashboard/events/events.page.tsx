@@ -40,13 +40,6 @@ function EventsContent() {
     );
   }
 
-  // const eventKeys = Array.from(new Set(data.map((e) => e.key)))
-  //   .sort((a, b) => a.localeCompare(b))
-  //   .map((k) => ({
-  //     label: k,
-  //     value: k,
-  //   }));
-
   return (
     <BasicLayout>
       <Headline>
@@ -60,15 +53,6 @@ function EventsContent() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      {/* <FilterGroup>
-        <div className="flex flex-row gap-x-4">
-          <FilterSelect<EventsFilters, string>
-            name="keys"
-            placeholder="Event Key"
-          />
-          <ClearFiltersButton />
-        </div>
-      </FilterGroup> */}
       <DataTable
         columns={columns()}
         data={data || []}
