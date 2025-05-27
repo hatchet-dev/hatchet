@@ -113,17 +113,14 @@ func NewMatchData(mcAggregatedData []byte) (*MatchData, error) {
 		return nil, fmt.Errorf("no match condition aggregated data")
 	}
 
-	// look for any CREATE_MATCH data which should be merged into the match data
+	// Extract CREATE_MATCH data first - this contains existing data that should be merged
+	// CREATE_MATCH is used to create additional match conditions dynamically, not to create tasks directly
 	existingDataKeys := make(map[string][]interface{})
-
-	for k, v := range triggerDataMap {
-		if k == "CREATE_MATCH" {
-			for key, values := range v {
-				existingDataKeys[key] = values
-			}
-		}
+	if createMatchData, exists := triggerDataMap["CREATE_MATCH"]; exists {
+		existingDataKeys = createMatchData
 	}
 
+	// Find the action and its associated data
 	for k, v := range triggerDataMap {
 		var action sqlcv1.V1MatchConditionAction
 
@@ -136,19 +133,27 @@ func NewMatchData(mcAggregatedData []byte) (*MatchData, error) {
 			action = sqlcv1.V1MatchConditionActionCANCEL
 		case "SKIP":
 			action = sqlcv1.V1MatchConditionActionSKIP
+		case "CREATE_MATCH":
+			// CREATE_MATCH is not an action that creates tasks, skip it
+			continue
+		default:
+			return nil, fmt.Errorf("invalid match condition action: %s", k)
 		}
 
-		triggerDataKeys := map[string][]interface{}{}
-
-		if len(existingDataKeys) == 0 {
-			existingDataKeys = v
-		} else {
+		// If we have existing data from CREATE_MATCH, use it as dataKeys
+		// and the current action's data as triggerDataKeys
+		var dataKeys, triggerDataKeys map[string][]interface{}
+		if len(existingDataKeys) > 0 {
+			dataKeys = existingDataKeys
 			triggerDataKeys = v
+		} else {
+			dataKeys = v
+			triggerDataKeys = make(map[string][]interface{})
 		}
 
 		return &MatchData{
 			action:          action,
-			dataKeys:        existingDataKeys,
+			dataKeys:        dataKeys,
 			triggerDataKeys: triggerDataKeys,
 		}, nil
 	}
