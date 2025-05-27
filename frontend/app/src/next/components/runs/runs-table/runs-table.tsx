@@ -33,6 +33,9 @@ interface RunsTableProps {
   onSelectionChange?: (selectedRows: V1TaskSummary[]) => void;
   onTriggerRunClick?: () => void;
   excludedFilters?: (keyof RunsFilters)[];
+  showPagination?: boolean;
+  allowSelection?: boolean;
+  showActions?: boolean;
 }
 
 export function RunsTable({
@@ -41,6 +44,9 @@ export function RunsTable({
   onSelectionChange,
   onTriggerRunClick,
   excludedFilters = [],
+  showPagination = true,
+  allowSelection = true,
+  showActions = true,
 }: RunsTableProps) {
   const {
     data: runs,
@@ -236,7 +242,7 @@ export function RunsTable({
             </span>
           )}
 
-          {count > 0 && !selectAll && (
+          {count > 0 && !selectAll && allowSelection && (
             <Button
               variant="ghost"
               size="sm"
@@ -257,66 +263,71 @@ export function RunsTable({
             </Button>
           )}
         </div>
-        {!selectAll ? (
-          <div className="flex gap-2">
-            <Button
-              tooltip={
-                numSelectedRows == 0
-                  ? 'No runs selected'
-                  : canReplay
-                    ? 'Replay the selected runs'
-                    : 'Cannot replay the selected runs'
-              }
-              variant="outline"
-              size="sm"
-              disabled={!canReplay || replay.isPending}
-              onClick={async () => replay.mutateAsync({ tasks: selectedRuns })}
-            >
-              <MdOutlineReplay className="h-4 w-4" />
-              Replay
-            </Button>
-            <Button
-              tooltip={
-                numSelectedRows == 0
-                  ? 'No runs selected'
-                  : canCancel
-                    ? 'Cancel the selected runs'
-                    : 'Cannot cancel the selected runs because they are not running or queued'
-              }
-              variant="outline"
-              size="sm"
-              disabled={!canCancel || cancel.isPending}
-              onClick={async () => cancel.mutateAsync({ tasks: selectedRuns })}
-            >
-              <MdOutlineCancel className="h-4 w-4" />
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={replay.isPending}
-              onClick={() => setShowBulkActionDialog('replay')}
-            >
-              <MdOutlineReplay className="h-4 w-4" />
-              Replay All
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={cancel.isPending}
-              onClick={() => setShowBulkActionDialog('cancel')}
-            >
-              <MdOutlineCancel className="h-4 w-4" />
-              Cancel All
-            </Button>
-          </div>
-        )}
+        {showActions &&
+          (!selectAll ? (
+            <div className="flex gap-2">
+              <Button
+                tooltip={
+                  numSelectedRows == 0
+                    ? 'No runs selected'
+                    : canReplay
+                      ? 'Replay the selected runs'
+                      : 'Cannot replay the selected runs'
+                }
+                variant="outline"
+                size="sm"
+                disabled={!canReplay || replay.isPending}
+                onClick={async () =>
+                  replay.mutateAsync({ tasks: selectedRuns })
+                }
+              >
+                <MdOutlineReplay className="h-4 w-4" />
+                Replay
+              </Button>
+              <Button
+                tooltip={
+                  numSelectedRows == 0
+                    ? 'No runs selected'
+                    : canCancel
+                      ? 'Cancel the selected runs'
+                      : 'Cannot cancel the selected runs because they are not running or queued'
+                }
+                variant="outline"
+                size="sm"
+                disabled={!canCancel || cancel.isPending}
+                onClick={async () =>
+                  cancel.mutateAsync({ tasks: selectedRuns })
+                }
+              >
+                <MdOutlineCancel className="h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={replay.isPending}
+                onClick={() => setShowBulkActionDialog('replay')}
+              >
+                <MdOutlineReplay className="h-4 w-4" />
+                Replay All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={cancel.isPending}
+                onClick={() => setShowBulkActionDialog('cancel')}
+              >
+                <MdOutlineCancel className="h-4 w-4" />
+                Cancel All
+              </Button>
+            </div>
+          ))}
       </div>
       <DataTable
-        columns={columns(onRowClick, selectAll)}
+        columns={columns(onRowClick, selectAll, allowSelection)}
         data={runs || []}
         onDoubleClick={handleRowDoubleClick}
         emptyState={
@@ -355,10 +366,12 @@ export function RunsTable({
         selectAll={selectAll}
         getSubRows={(row) => row.children || []}
       />
-      <Pagination className="justify-between flex flex-row">
-        <PageSizeSelector />
-        <PageSelector variant="dropdown" />
-      </Pagination>
+      {showPagination && (
+        <Pagination className="justify-between flex flex-row">
+          <PageSizeSelector />
+          <PageSelector variant="dropdown" />
+        </Pagination>
+      )}
 
       <RunsBulkActionDialog
         open={!!showBulkActionDialog}

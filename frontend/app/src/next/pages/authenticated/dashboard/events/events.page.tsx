@@ -1,7 +1,8 @@
-import { V1Event } from '@/lib/api';
+import { V1Event, V1TaskStatus } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
-import { Badge } from '@/next/components/ui/badge';
+import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
+import { Badge, BadgeProps } from '@/next/components/ui/badge';
 import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
@@ -18,7 +19,13 @@ import {
 } from '@/next/components/ui/pagination';
 import RelativeDate from '@/next/components/ui/relative-date';
 import { Separator } from '@/next/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/next/components/ui/tooltip';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
+import { RunsProvider } from '@/next/hooks/use-runs';
 import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import docs from '@/next/lib/docs';
 import { ROUTES } from '@/next/lib/routes';
@@ -145,20 +152,37 @@ export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
         };
 
         return (
-          <div className="flex flex-row gap-2 items-center justify-start">
-            {!!queued && <Badge variant="outline">{queued} Queued</Badge>}
-            {!!running && (
-              <Badge className="bg-amber-400">{running} Running</Badge>
-            )}
-            {!!cancelled && (
-              <Badge className="bg-black border border-red-500 text-white">
-                {cancelled} Cancelled
-              </Badge>
-            )}
-            {!!succeeded && (
-              <Badge variant="successful">{succeeded} Succeeded</Badge>
-            )}
-            {!!failed && <Badge variant="destructive">{failed} Failed</Badge>}
+          <div className="flex flex-row gap-2 items-center justify-start w-max">
+            <StatusBadgeWithTooltip
+              badgeVariant="outline"
+              label={'Queued'}
+              count={queued}
+              eventExternalId={row.original.metadata.id}
+            />
+            <StatusBadgeWithTooltip
+              badgeVariant="outline"
+              label={'Running'}
+              count={running}
+              eventExternalId={row.original.metadata.id}
+            />
+            <StatusBadgeWithTooltip
+              badgeVariant="outline"
+              label={'Cancelled'}
+              count={cancelled}
+              eventExternalId={row.original.metadata.id}
+            />
+            <StatusBadgeWithTooltip
+              badgeVariant="successful"
+              label={'Succeeded'}
+              count={succeeded}
+              eventExternalId={row.original.metadata.id}
+            />
+            <StatusBadgeWithTooltip
+              badgeVariant="destructive"
+              label={'Failed'}
+              count={failed}
+              eventExternalId={row.original.metadata.id}
+            />
           </div>
         );
       },
@@ -208,3 +232,54 @@ export default function EventsPage() {
     </EventsProvider>
   );
 }
+
+const StatusBadgeWithTooltip = ({
+  count,
+  label,
+  badgeVariant,
+  eventExternalId,
+}: {
+  count: number | undefined;
+  label: string;
+  badgeVariant: BadgeProps['variant'];
+  eventExternalId: string;
+}) => {
+  if (!count || count === 0) {
+    return null;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div>
+          <Badge variant={badgeVariant}>
+            {count} {label}
+          </Badge>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="bg-[hsl(var(--background))] border-slate-700 border z-20 shadow-lg p-4 text-white">
+        <RunsProvider
+          initialFilters={{
+            triggering_event_external_id: eventExternalId,
+          }}
+        >
+          <RunsTable
+            excludedFilters={[
+              'additional_metadata',
+              'only_tasks',
+              'is_root_task',
+              'parent_task_external_id',
+              'statuses',
+              'triggering_event_external_id',
+              'worker_id',
+              'workflow_ids',
+            ]}
+            showPagination={false}
+            allowSelection={false}
+            showActions={false}
+          />
+        </RunsProvider>
+      </TooltipContent>
+    </Tooltip>
+  );
+};
