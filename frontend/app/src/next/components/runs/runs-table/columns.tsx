@@ -23,7 +23,11 @@ import { ROUTES } from '@/next/lib/routes';
 import { useRuns } from '@/next/hooks/use-runs';
 import { Checkbox } from '@/next/components/ui/checkbox';
 import { Button } from '@/next/components/ui/button';
-import { ChevronDownIcon, ChevronRightIcon, Drill } from 'lucide-react';
+import {
+  ArrowDownFromLine,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from 'lucide-react';
 import { cn } from '@/next/lib/utils';
 
 export const columns = (
@@ -130,7 +134,7 @@ export const columns = (
               onClick={(e) => e.stopPropagation()}
             >
               <Button variant="link" tooltip="Drill down into run" size="icon">
-                <Drill className="w-4 h-4" />
+                <ArrowDownFromLine className="w-4 h-4" />
               </Button>
             </Link>
           )}
