@@ -35,8 +35,6 @@ export const ROUTES = {
   },
   events: {
     list: (tenantId: string) => `${FB.events(tenantId)}`,
-    detail: (tenantId: string, externalId: string) =>
-      `${FB.events(tenantId)}/${externalId}`,
   },
   learn: {
     firstRun: (tenantId: string) => `${FB.learn(tenantId)}/first-run`,

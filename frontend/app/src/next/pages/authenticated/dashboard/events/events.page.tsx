@@ -3,8 +3,6 @@ import BasicLayout from '@/next/components/layouts/basic.layout';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
-import { Badge, BadgeProps } from '@/next/components/ui/badge';
-import { Button } from '@/next/components/ui/button';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
@@ -27,16 +25,12 @@ import {
 } from '@/next/components/ui/tooltip';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import { RunsProvider } from '@/next/hooks/use-runs';
-import { useCurrentTenantId } from '@/next/hooks/use-tenant';
 import docs from '@/next/lib/docs';
-import { ROUTES } from '@/next/lib/routes';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
 
 function EventsContent() {
   const { data, isLoading } = useEvents();
-  const { tenantId } = useCurrentTenantId();
 
   if (isLoading) {
     return (
@@ -76,7 +70,7 @@ function EventsContent() {
         </div>
       </FilterGroup> */}
       <DataTable
-        columns={columns(tenantId)}
+        columns={columns()}
         data={data || []}
         emptyState={
           <div className="flex flex-col items-center justify-center gap-4 py-8">
@@ -93,7 +87,7 @@ function EventsContent() {
   );
 }
 
-export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
+export const columns = (): ColumnDef<V1Event>[] => {
   return [
     {
       accessorKey: 'EventId',
@@ -101,11 +95,7 @@ export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
         <DataTableColumnHeader column={column} title="ID" className="pl-4" />
       ),
       cell: ({ row }) => (
-        <div className="w-full">
-          <Link to={ROUTES.events.detail(tenantId, row.original.metadata.id)}>
-            <Button variant="link">{row.original.metadata.id}</Button>
-          </Link>
-        </div>
+        <div className="w-full">{row.original.metadata.id} </div>
       ),
       enableSorting: false,
       enableHiding: true,
