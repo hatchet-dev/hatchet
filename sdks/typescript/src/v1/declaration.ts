@@ -320,6 +320,19 @@ export class BaseWorkflowDeclaration<
     return res;
   }
 
+  runRef(runId: string, _standaloneTaskName?: string): WorkflowRunRef<O> {
+    if (!this.client) {
+      throw UNBOUND_ERR;
+    }
+    const ref = new WorkflowRunRef<O>(runId, this.client._v0.listener, this.client.runs);
+
+    if (_standaloneTaskName) {
+      ref._standaloneTaskName = _standaloneTaskName;
+    }
+
+    return ref;
+  }
+
   /**
    * @alias run
    * Triggers a workflow run and waits for the result.
@@ -687,6 +700,10 @@ export class TaskWorkflowDeclaration<
     this.definition._tasks.push({
       ...options,
     });
+  }
+
+  runRef(runId: string): WorkflowRunRef<O> {
+    return super.runRef(runId, this._standalone_task_name);
   }
 
   async run(input: I, options?: RunOpts): Promise<O>;
