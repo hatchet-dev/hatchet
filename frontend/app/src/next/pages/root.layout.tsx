@@ -114,11 +114,30 @@ function RootContent({ children }: PropsWithChildren) {
             {/* Resize handle */}
             {isRightPanelOpen && (
               <div
-                className={`w-1 bg-gray-300 hover:bg-gray-400 cursor-col-resize flex-shrink-0 ${
-                  isDragging ? 'bg-gray-400' : ''
-                }`}
+                className="relative w-1 flex-shrink-0 group cursor-col-resize"
                 onMouseDown={handleMouseDown}
-              />
+              >
+                <div className="absolute inset-0 -left-2 -right-2 w-5" />
+
+                <div
+                  className={`
+                  h-full w-full transition-colors duration-150
+                  ${
+                    isDragging
+                      ? 'bg-blue-500'
+                      : 'bg-border hover:bg-blue-400/50 group-hover:bg-blue-400/50'
+                  }
+                `}
+                />
+
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <div className="flex flex-col space-y-1">
+                    <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
+                    <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
+                    <div className="w-0.5 h-0.5 bg-white/60 rounded-full" />
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Right panel - side sheet */}
