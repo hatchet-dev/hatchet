@@ -18,9 +18,9 @@ async function main() {
   console.log(scheduledRunId);
   // !!
 
-  // // > Delete a Scheduled Run
-  await hatchet.schedules.delete(scheduled);
-  // // !!
+  // > Delete a Scheduled Run
+  await hatchet.scheduled.delete(scheduled);
+  // !!
 
   // > List Scheduled Runs
   const scheduledRuns = await hatchet.scheduled.list({

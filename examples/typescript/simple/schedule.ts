@@ -17,11 +17,11 @@ async function main() {
   console.log(scheduledRunId);
 
   // > Delete a Scheduled Run
-  await hatchet.schedules.delete(scheduled);
+  await hatchet.scheduled.delete(scheduled);
 
   // > List Scheduled Runs
-  const scheduledRuns = await hatchet.schedules.list({
-    workflowId: simple.id,
+  const scheduledRuns = await hatchet.scheduled.list({
+    workflow: simple,
   });
   console.log(scheduledRuns);
 }
