@@ -100,7 +100,7 @@ function RootContent({ children }: PropsWithChildren) {
         ) : (
           <div ref={containerRef} className="flex flex-1 relative">
             <div
-              className="flex flex-col flex-1 overflow-hidden"
+              className="h-screen overflow-auto"
               style={{
                 width: isRightPanelOpen ? `${leftPanelWidth}%` : '100%',
                 transition: isRightPanelOpen ? 'none' : 'width 0.3s ease',

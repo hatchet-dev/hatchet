@@ -26,7 +26,6 @@ export function SideSheetComponent({
 }: SideSheetProps) {
   const isMobile = useIsMobile();
   const { sheet } = useSideSheet();
-  const { isCollapsed } = useSidebar();
 
   const isOpen = useMemo(() => !!sheet.openProps, [sheet.openProps]);
 
@@ -90,11 +89,7 @@ export function SideSheetComponent({
             <div
               className={cn(
                 'flex flex-row w-full justify-between items-center border-b bg-background',
-                isMobile
-                  ? 'h-16 px-4'
-                  : isCollapsed
-                    ? 'h-12 px-4'
-                    : 'h-12 px-4',
+                isMobile ? 'h-16 px-4' : 'h-12 px-4',
               )}
             >
               <h2 className="text-lg font-semibold truncate pr-2">
