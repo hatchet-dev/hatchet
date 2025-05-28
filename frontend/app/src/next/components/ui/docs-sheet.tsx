@@ -2,6 +2,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './sheet';
 import { DocsSheet } from '@/next/hooks/use-docs-sheet';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { Cross2Icon, ExternalLinkIcon } from '@radix-ui/react-icons';
+import { Button } from './button';
+import { cn } from '@/next/lib/utils';
 
 interface DocsSheetProps {
   sheet: DocsSheet;
@@ -21,14 +23,18 @@ export function DocsSheetComponent({
     return (
       <div
         className={`
-          h-full min-h-screen bg-background border-l border-border
-          transition-all duration-300 ease-in-out
-          ${sheet.isOpen ? 'lg:w-[500px] md:w-[350px] w-[250px]' : 'w-0 overflow-hidden'}
-        `}
+      h-screen bg-background border-l border-border
+      ${sheet.isOpen ? 'flex' : 'hidden'}
+    `}
       >
         {sheet.isOpen && (
-          <div className="h-full min-h-screen flex flex-col p-4 md:p-6 overflow-hidden">
-            <div className="flex justify-between items-center mb-4 shrink-0">
+          <div className="flex flex-col h-screen w-full p-4">
+            <div
+              className={cn(
+                'flex flex-row w-full justify-between items-center bg-background',
+                isMobile ? 'h-16 px-4' : 'h-12 px-4',
+              )}
+            >
               <h2 className="text-lg font-semibold truncate pr-2">
                 {sheet.title}
               </h2>
@@ -45,15 +51,17 @@ export function DocsSheetComponent({
                     <span className="sr-only">Open in new tab</span>
                   </a>
                 )}
-                <button
+                <Button
+                  variant="ghost"
                   onClick={onClose}
                   className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
                 >
                   <Cross2Icon className="h-4 w-4" />
                   <span className="sr-only">Close</span>
-                </button>
+                </Button>
               </div>
             </div>
+
             <div className="flex-1 overflow-hidden relative">
               {sheet.url && (
                 <iframe
