@@ -33,7 +33,9 @@ export class WorkflowsClient {
     // Check cache first
     const cached = this.workflowCache.get(name);
     if (cached && cached.expiry > Date.now()) {
-      return cached.workflow;
+      return cached.workflow as NonNullable<
+        Awaited<ReturnType<typeof this.api.workflowList>>['data']['rows']
+      >[number];
     }
 
     // If not in cache or expired, fetch from API

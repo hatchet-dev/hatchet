@@ -36,6 +36,8 @@ import { InputType, OutputType, UnknownInputType, StrictWorkflowOutputType } fro
 import { RatelimitsClient } from './features';
 import { AdminClient } from './admin';
 import { FiltersClient } from './features/filters';
+import { ScheduleClient } from './features/schedules';
+import { CronClient } from './features/crons';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -291,12 +293,17 @@ export class HatchetClient implements IHatchetClient {
     return run.output as Promise<O>;
   }
 
+  private _crons: CronClient | undefined;
+
   /**
    * Get the cron client for creating and managing cron workflow runs
    * @returns A cron client instance
    */
   get crons() {
-    return this._v0.cron;
+    if (!this._crons) {
+      this._crons = new CronClient(this);
+    }
+    return this._crons;
   }
 
   /**
@@ -308,12 +315,17 @@ export class HatchetClient implements IHatchetClient {
     return this.crons;
   }
 
+  private _scheduled: ScheduleClient | undefined;
+
   /**
    * Get the schedules client for creating and managing scheduled workflow runs
    * @returns A schedules client instance
    */
-  get schedules() {
-    return this._v0.schedule;
+  get scheduled() {
+    if (!this._scheduled) {
+      this._scheduled = new ScheduleClient(this);
+    }
+    return this._scheduled;
   }
 
   /**
@@ -322,7 +334,14 @@ export class HatchetClient implements IHatchetClient {
    * @deprecated use client.schedules instead
    */
   get schedule() {
-    return this.schedules;
+    return this.scheduled;
+  }
+
+  /**
+   * @alias scheduled
+   */
+  get schedules() {
+    return this.scheduled;
   }
 
   /**

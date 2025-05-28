@@ -7,20 +7,23 @@ async function main() {
     Message: 'hello',
   });
 
-  // it may be useful to save the cron id for later
+  // 👀 Get the cron ID of the workflow
+  // it may be helpful to store the cron ID of the workflow
+  // in a database or other persistent storage for later use
   const cronId = cron.metadata.id;
+  console.log(cronId);
+  // !!
 
-  console.log(cron.metadata.id);
+  // // > Delete a Cron Trigger
+  // await hatchet.crons.delete(cron);
+  // // !!
 
-  // > Delete
-  await hatchet.crons.delete(cronId);
-
-  // > List
-  const crons = await hatchet.crons.list({
-    workflowId: simple.id,
-  });
-
-  console.log(crons);
+  // > List Cron Triggers
+  // const crons = await hatchet.crons.list({
+  //   workflow: simple,
+  // });
+  // console.log(crons);
+  // !!
 }
 
 if (require.main === module) {

@@ -1,11 +1,12 @@
-import { AdminClient } from '@hatchet/clients/admin';
-import { Api } from '@hatchet/clients/rest';
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod';
 import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
-import { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
-import { Logger } from '@util/logger';
+import { isValidUUID } from '@util/uuid';
+import { BaseWorkflowDeclaration } from '@hatchet/v1/declaration';
+import { HatchetClient } from '../client';
+import { workflowNameString, WorkflowsClient } from './workflows';
+
 /**
  * Schema for creating a Cron Trigger.
  */
@@ -26,22 +27,14 @@ export type CreateCronInput = z.infer<typeof CreateCronTriggerSchema>;
  * Client for managing Cron Triggers.
  */
 export class CronClient {
-  private logger: Logger;
+  api: HatchetClient['api'];
+  tenantId: string;
+  workflows: WorkflowsClient;
 
-  /**
-   * Initializes a new instance of CronClient.
-   * @param tenantId - The tenant identifier.
-   * @param config - Client configuration settings.
-   * @param api - API instance for REST interactions.
-   * @param adminClient - Admin client for administrative operations.
-   */
-  constructor(
-    private readonly tenantId: string,
-    private readonly config: ClientConfig,
-    private readonly api: Api,
-    private readonly adminClient: AdminClient
-  ) {
-    this.logger = config.logger('Cron', this.config.log_level);
+  constructor(client: HatchetClient) {
+    this.api = client.api;
+    this.tenantId = client.tenantId;
+    this.workflows = new WorkflowsClient(client);
   }
 
   /**
@@ -50,7 +43,49 @@ export class CronClient {
    * @returns The Cron ID as a string.
    */
   private getCronId(cron: CronWorkflows | string): string {
-    return typeof cron === 'string' ? cron : cron.metadata.id;
+    const str = typeof cron === 'string' ? cron : cron.metadata.id;
+
+    if (!isValidUUID(str)) {
+      throw new Error('Invalid cron ID: must be a valid UUID');
+    }
+
+    return str;
+  }
+
+  private async getWorkflowId(
+    workflow: string | Workflow | BaseWorkflowDeclaration<any, any>
+  ): Promise<string> {
+    const str = (() => {
+      if (typeof workflow === 'string') {
+        return workflow;
+      }
+
+      if (typeof workflow === 'object' && 'name' in workflow) {
+        return workflow.name;
+      }
+
+      if (typeof workflow === 'object' && 'id' in workflow) {
+        if (!workflow.id) {
+          throw new Error('Workflow ID is required');
+        }
+        return workflow.id;
+      }
+
+      throw new Error(
+        'Invalid workflow: must be a string, Workflow object, or WorkflowDefinition object'
+      );
+    })();
+
+    if (!isValidUUID(str)) {
+      console.log('getting workflow id', str);
+      const wf = await this.workflows.get(str);
+      if (!wf) {
+        throw new Error('Invalid workflow ID: must be a valid UUID');
+      }
+      return wf.metadata.id;
+    }
+
+    return str;
   }
 
   /**
@@ -60,8 +95,11 @@ export class CronClient {
    * @returns A promise that resolves to the created CronWorkflows object.
    * @throws Will throw an error if the input is invalid or the API call fails.
    */
-  async create(workflow: string | Workflow, cron: CreateCronInput): Promise<CronWorkflows> {
-    const workflowId = typeof workflow === 'string' ? workflow : workflow.id;
+  async create(
+    workflow: string | Workflow | BaseWorkflowDeclaration<any, any>,
+    cron: CreateCronInput
+  ): Promise<CronWorkflows> {
+    const workflowId = await workflowNameString(workflow);
 
     // Validate cron input with zod schema
     try {
@@ -102,8 +140,20 @@ export class CronClient {
    * @param query - Query parameters for listing Cron Triggers.
    * @returns A promise that resolves to a CronWorkflowsList object.
    */
-  async list(query: Parameters<typeof this.api.cronWorkflowList>[1]): Promise<CronWorkflowsList> {
-    const response = await this.api.cronWorkflowList(this.tenantId, query);
+  async list(
+    query: Parameters<typeof this.api.cronWorkflowList>[1] & {
+      workflow?: string | Workflow | BaseWorkflowDeclaration<any, any>;
+    }
+  ): Promise<CronWorkflowsList> {
+    const { workflow, ...rest } = query;
+
+    if (workflow) {
+      const workflowId = await this.getWorkflowId(workflow);
+      console.log('workflowId', workflowId);
+      rest.workflowId = workflowId;
+    }
+
+    const response = await this.api.cronWorkflowList(this.tenantId, rest);
     return response.data;
   }
 

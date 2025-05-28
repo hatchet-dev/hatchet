@@ -4,6 +4,8 @@ import { RunsClient } from './features/runs';
 import { WorkersClient } from './features/workers';
 import { WorkflowsClient } from './features/workflows';
 import { AdminClient } from './admin';
+import { ScheduleClient } from './features/schedules';
+import { CronClient } from './features/crons';
 
 export interface IHatchetClient {
   _v0: LegacyHatchetClient;
@@ -13,5 +15,7 @@ export interface IHatchetClient {
   workflows: WorkflowsClient;
   workers: WorkersClient;
 
+  scheduled: ScheduleClient;
+  crons: CronClient;
   admin: AdminClient;
 }
