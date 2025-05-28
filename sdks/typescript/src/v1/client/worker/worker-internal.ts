@@ -34,7 +34,7 @@ import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
-import { withNamespace } from '@hatchet/util/with-namespace';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Context, DurableContext } from './context';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -76,7 +76,7 @@ export class V1Worker {
     }
   ) {
     this.client = client;
-    this.name = withNamespace(options.name, this.client.config.namespace);
+    this.name = applyNamespace(options.name, this.client.config.namespace);
     this.action_registry = {};
     this.maxRuns = options.maxRuns;
 
@@ -192,7 +192,10 @@ export class V1Worker {
     // patch the namespace
     const workflow: WorkflowDefinition = {
       ...initWorkflow.definition,
-      name: withNamespace(initWorkflow.definition.name, this.client.config.namespace).toLowerCase(),
+      name: applyNamespace(
+        initWorkflow.definition.name,
+        this.client.config.namespace
+      ).toLowerCase(),
     };
 
     try {
@@ -351,7 +354,7 @@ export class V1Worker {
   async registerWorkflow(initWorkflow: Workflow) {
     const workflow: Workflow = {
       ...initWorkflow,
-      id: withNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
+      id: applyNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
     };
     try {
       if (workflow.concurrency?.key && workflow.concurrency.expression) {
@@ -399,7 +402,7 @@ export class V1Worker {
         version: workflow.version || '',
         eventTriggers:
           workflow.on && workflow.on.event
-            ? [withNamespace(workflow.on.event, this.client.config.namespace)]
+            ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
             : [],
         cronTriggers: workflow.on && workflow.on.cron ? [workflow.on.cron] : [],
         scheduledTriggers: [],

@@ -20,7 +20,7 @@ import { Workflow } from '@hatchet/workflow';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { ContextWorker, NextStep } from '@hatchet/step';
-import { withNamespace } from '@hatchet/util/with-namespace';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 
@@ -588,7 +588,7 @@ export class Context<T, K = {}> {
         workflowName = workflow.id;
       }
 
-      const name = withNamespace(workflowName, this.v1.config.namespace);
+      const name = applyNamespace(workflowName, this.v1.config.namespace);
 
       const opts = options || {};
       const { sticky } = opts;
@@ -664,7 +664,7 @@ export class Context<T, K = {}> {
       workflowName = workflow.id;
     }
 
-    const name = withNamespace(workflowName, this.v1.config.namespace);
+    const name = applyNamespace(workflowName, this.v1.config.namespace);
 
     const opts = options || {};
     const { sticky } = opts;

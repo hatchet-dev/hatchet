@@ -30,7 +30,7 @@ import { WebhookHandler } from '@clients/worker/handler';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
 import { WorkflowDefinition } from '@hatchet/v1';
 import { CreateWorkflowTaskOpts, NonRetryableError } from '@hatchet/v1/task';
-import { withNamespace } from '@hatchet/util/with-namespace';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { V0Context, CreateStep, V0DurableContext, mapRateLimit, StepRunFunction } from '../../step';
 import { WorkerLabels } from '../dispatcher/dispatcher-client';
 
@@ -73,7 +73,7 @@ export class V0Worker {
     }
   ) {
     this.client = client;
-    this.name = withNamespace(options.name, this.client.config.namespace);
+    this.name = applyNamespace(options.name, this.client.config.namespace);
     this.action_registry = {};
     this.maxRuns = options.maxRuns;
 
@@ -122,7 +122,7 @@ export class V0Worker {
     for (const workflow of workflows) {
       const wf: Workflow = {
         ...workflow,
-        id: withNamespace(workflow.id, this.client.config.namespace),
+        id: applyNamespace(workflow.id, this.client.config.namespace),
       };
 
       this.registerActions(wf);
@@ -145,7 +145,7 @@ export class V0Worker {
   async registerWorkflow(initWorkflow: Workflow) {
     const workflow: Workflow = {
       ...initWorkflow,
-      id: withNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
+      id: applyNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
     };
     try {
       if (workflow.concurrency?.key && workflow.concurrency.expression) {
@@ -193,7 +193,7 @@ export class V0Worker {
         version: workflow.version || '',
         eventTriggers:
           workflow.on && workflow.on.event
-            ? [withNamespace(workflow.on.event, this.client.config.namespace)]
+            ? [applyNamespace(workflow.on.event, this.client.config.namespace)]
             : [],
         cronTriggers: workflow.on && workflow.on.cron ? [workflow.on.cron] : [],
         scheduledTriggers: [],

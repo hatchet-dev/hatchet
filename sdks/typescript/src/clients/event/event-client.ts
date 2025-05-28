@@ -9,7 +9,7 @@ import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
-import { withNamespace } from '@hatchet/util/with-namespace';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
 import { LegacyHatchetClient } from '../hatchet-client';
 
@@ -58,7 +58,7 @@ export class EventClient {
   }
 
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
-    const namespacedType = withNamespace(type, this.config.namespace);
+    const namespacedType = applyNamespace(type, this.config.namespace);
 
     const req: PushEventRequest = {
       key: namespacedType,
@@ -81,7 +81,7 @@ export class EventClient {
   }
 
   bulkPush<T>(type: string, inputs: EventWithMetadata<T>[], options: PushEventOptions = {}) {
-    const namespacedType = withNamespace(type, this.config.namespace);
+    const namespacedType = applyNamespace(type, this.config.namespace);
 
     const events = inputs.map((input) => {
       return {

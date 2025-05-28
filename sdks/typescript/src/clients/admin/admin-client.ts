@@ -18,7 +18,7 @@ import {
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient } from '@hatchet/v1';
-import { withNamespace } from '@hatchet/util/with-namespace';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -180,11 +180,9 @@ export class AdminClient {
       priority?: Priority;
     }
   ) {
-    let computedName = workflowName;
+    const computedName = applyNamespace(workflowName, this.config.namespace);
 
     try {
-      computedName = withNamespace(workflowName, this.config.namespace);
-
       const inputStr = JSON.stringify(input);
 
       const resp = this.client.triggerWorkflow({
@@ -225,10 +223,7 @@ export class AdminClient {
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      let computedName = workflowName;
-
-      computedName = withNamespace(workflowName, this.config.namespace);
-
+      const computedName = applyNamespace(workflowName, this.config.namespace);
       const inputStr = JSON.stringify(input);
 
       return {
@@ -388,7 +383,7 @@ export class AdminClient {
     let computedName = name;
 
     try {
-      computedName = withNamespace(name, this.config.namespace);
+      computedName = applyNamespace(name, this.config.namespace);
 
       let input: string | undefined;
 

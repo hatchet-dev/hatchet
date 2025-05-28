@@ -25,7 +25,7 @@ import { JsonValue, OutputType } from './v1/types';
 import { V1Worker } from './v1/client/worker/worker-internal';
 import { V0Worker } from './clients/worker';
 import { LegacyHatchetClient } from './clients/hatchet-client';
-import { withNamespace } from './util/with-namespace';
+import { applyNamespace } from './util/apply-namespace';
 
 export const CreateRateLimitSchema = z.object({
   key: z.string().optional(),
@@ -432,7 +432,7 @@ export class V0Context<T, K = {}> {
         workflowName = workflow.id;
       }
 
-      const name = withNamespace(workflowName, this.v0.config.namespace);
+      const name = applyNamespace(workflowName, this.v0.config.namespace);
 
       const opts = options || {};
       const { sticky } = opts;
@@ -541,7 +541,7 @@ export class V0Context<T, K = {}> {
       workflowName = workflow.id;
     }
 
-    const name = withNamespace(workflowName, this.v0.config.namespace);
+    const name = applyNamespace(workflowName, this.v0.config.namespace);
 
     const opts = options || {};
     const { sticky } = opts;

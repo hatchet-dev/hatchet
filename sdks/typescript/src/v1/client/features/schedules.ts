@@ -7,7 +7,7 @@ import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
-import { withNamespace } from '@hatchet/util/with-namespace';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
 /**
@@ -67,7 +67,7 @@ export class ScheduleClient {
     workflow: string | Workflow,
     cron: CreateScheduledRunInput
   ): Promise<ScheduledWorkflows> {
-    const workflowId = withNamespace(workflowNameString(workflow), this.namespace);
+    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
 
     // Validate cron input with zod schema
     try {
@@ -117,7 +117,7 @@ export class ScheduleClient {
 
     if (workflow) {
       const workflowId = await this.workflows.getWorkflowIdFromName(
-        withNamespace(workflowNameString(workflow), this.namespace)
+        applyNamespace(workflowNameString(workflow), this.namespace)
       );
       rest.workflowId = workflowId;
     }
