@@ -20,7 +20,7 @@ import { Workflow } from '@hatchet/workflow';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { ContextWorker, NextStep } from '@hatchet/step';
-import { withNamespace } from '@hatchet-dev/typescript-sdk/util/with-namespace';
+import { withNamespace } from '@hatchet/util/with-namespace';
 import { V1Worker } from './worker-internal';
 import { Duration } from '../duration';
 

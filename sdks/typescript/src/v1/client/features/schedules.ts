@@ -7,7 +7,7 @@ import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
-import { withNamespace } from '@hatchet-dev/typescript-sdk/util/with-namespace';
+import { withNamespace } from '@hatchet/util/with-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
 /**

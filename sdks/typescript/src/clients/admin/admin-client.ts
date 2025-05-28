@@ -18,7 +18,7 @@ import {
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient } from '@hatchet/v1';
-import { withNamespace } from '@hatchet-dev/typescript-sdk/util/with-namespace';
+import { withNamespace } from '@hatchet/util/with-namespace';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
