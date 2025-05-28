@@ -7,6 +7,7 @@ import { useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { WorkerDetails } from '@/next/pages/authenticated/dashboard/workers/components/worker-details';
 import { useSidebar } from '@/next/components/ui/sidebar';
+import { Button } from '../button';
 
 interface SideSheetProps {
   variant?: 'overlay' | 'push';
@@ -24,7 +25,7 @@ export function SideSheetComponent({
   onClose,
 }: SideSheetProps) {
   const isMobile = useIsMobile();
-  const { toggleExpand, sheet } = useSideSheet();
+  const { sheet } = useSideSheet();
   const { isCollapsed } = useSidebar();
 
   const isOpen = useMemo(() => !!sheet.openProps, [sheet.openProps]);
@@ -83,17 +84,17 @@ export function SideSheetComponent({
 
   if (variant === 'push' && !isMobile) {
     return (
-      <div className="h-full bg-background border-l border-border flex flex-col">
+      <div>
         {isOpen && content && (
-          <>
+          <div className="flex flex-col h-screen">
             <div
               className={cn(
-                'flex justify-between items-center border-b shrink-0 bg-background',
+                'flex flex-row w-full justify-between items-center border-b bg-background',
                 isMobile
                   ? 'h-16 px-4'
                   : isCollapsed
-                    ? 'h-12 px-8'
-                    : 'h-16 px-8',
+                    ? 'h-12 px-4'
+                    : 'h-16 px-4',
               )}
             >
               <h2 className="text-lg font-semibold truncate pr-2">
@@ -101,20 +102,19 @@ export function SideSheetComponent({
               </h2>
               <div className="flex items-center gap-2">
                 {content.actions}
-                <button
+                <Button
+                  variant="ghost"
                   onClick={onClose}
                   className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
                 >
                   <Cross2Icon className="h-4 w-4" />
                   <span className="sr-only">Close</span>
-                </button>
+                </Button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
-              {content.component}
-            </div>
-          </>
+            {content.component}
+          </div>
         )}
 
         {(!isOpen || !content) && (
@@ -126,26 +126,26 @@ export function SideSheetComponent({
     );
   }
 
-  return (
-    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent
-        side="right"
-        className="w-[min(500px,90vw)] sm:w-[min(800px,90vw)]"
-      >
-        {content && (
-          <>
-            <SheetHeader>
-              <div className="flex justify-between items-center">
-                <SheetTitle className="truncate">{content.title}</SheetTitle>
-                <div className="flex items-center gap-2">{content.actions}</div>
-              </div>
-            </SheetHeader>
-            <div className="flex-1 overflow-y-auto mt-4">
-              {content.component}
-            </div>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
-  );
+  // return (
+  //   <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+  //     <SheetContent
+  //       side="right"
+  //       className="w-[min(500px,90vw)] sm:w-[min(800px,90vw)]"
+  //     >
+  //       {content && (
+  //         <>
+  //           <SheetHeader>
+  //             <div className="flex justify-between items-center">
+  //               <SheetTitle className="truncate">{content.title}</SheetTitle>
+  //               <div className="flex items-center gap-2">{content.actions}</div>
+  //             </div>
+  //           </SheetHeader>
+  //           <div className="flex-1 overflow-y-auto mt-4">
+  //             {content.component}
+  //           </div>
+  //         </>
+  //       )}
+  //     </SheetContent>
+  //   </Sheet>
+  // );
 }

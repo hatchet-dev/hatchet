@@ -120,7 +120,9 @@ function RootContent({ children }: PropsWithChildren) {
 
             {isRightPanelOpen && (
               <div
-                className="flex flex-col overflow-hidden"
+                className="flex flex-col overflow-auto"
+                // IMPORTANT: This can't be done in Tailwind b/c it causes too much
+                // lag as the width changes on every mouse move.
                 style={{ width: `${100 - leftPanelWidth}%` }}
               >
                 <SideSheetComponent variant="push" onClose={onSideSheetClose} />
