@@ -53,42 +53,6 @@ export class ScheduleClient {
     return str;
   }
 
-  private async getWorkflowId(
-    workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
-  ): Promise<string> {
-    const str = (() => {
-      if (typeof workflow === 'string') {
-        return workflow;
-      }
-
-      if (typeof workflow === 'object' && 'name' in workflow) {
-        return workflow.name;
-      }
-
-      if (typeof workflow === 'object' && 'id' in workflow) {
-        if (!workflow.id) {
-          throw new Error('Workflow ID is required');
-        }
-        return workflow.id;
-      }
-
-      throw new Error(
-        'Invalid workflow: must be a string, Workflow object, or WorkflowDefinition object'
-      );
-    })();
-
-    if (!isValidUUID(str)) {
-      console.log('getting workflow id', str);
-      const wf = await this.workflows.get(str);
-      if (!wf) {
-        throw new Error('Invalid workflow ID: must be a valid UUID');
-      }
-      return wf.metadata.id;
-    }
-
-    return str;
-  }
-
   /**
    * Creates a new Scheduled Run.
    * @param workflow - The workflow name or Workflow object.
@@ -149,8 +113,7 @@ export class ScheduleClient {
     const { workflow, ...rest } = query;
 
     if (workflow) {
-      const workflowId = await this.getWorkflowId(workflow);
-      console.log('workflowId', workflowId);
+      const workflowId = await this.workflows.getWorkflowIdFromName(workflow);
       rest.workflowId = workflowId;
     }
 
