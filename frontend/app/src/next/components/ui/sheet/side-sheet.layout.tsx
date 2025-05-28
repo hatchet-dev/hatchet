@@ -10,6 +10,7 @@ import { useSidebar } from '@/next/components/ui/sidebar';
 
 interface SideSheetProps {
   variant?: 'overlay' | 'push';
+  onClose: () => void;
 }
 
 interface SideSheetContent {
@@ -18,16 +19,15 @@ interface SideSheetContent {
   actions?: React.ReactNode;
 }
 
-export function SideSheetComponent({ variant = 'push' }: SideSheetProps) {
+export function SideSheetComponent({
+  variant = 'push',
+  onClose,
+}: SideSheetProps) {
   const isMobile = useIsMobile();
-  const { toggleExpand, sheet, close } = useSideSheet();
+  const { toggleExpand, sheet } = useSideSheet();
   const { isCollapsed } = useSidebar();
 
   const isOpen = useMemo(() => !!sheet.openProps, [sheet.openProps]);
-
-  const onClose = useCallback(() => {
-    close();
-  }, [close]);
 
   const content = useMemo<SideSheetContent | undefined>(() => {
     if (sheet.openProps?.type === 'task-detail') {
@@ -81,77 +81,70 @@ export function SideSheetComponent({ variant = 'push' }: SideSheetProps) {
     return undefined;
   }, [sheet, isOpen, onClose]);
 
-  // If using push variant, render as a side panel instead of using Sheet
   if (variant === 'push' && !isMobile) {
     return (
-      <div
-        className={`
-          h-full min-h-screen bg-background border-l border-border
-          transition-all duration-300 ease-in-out relative
-          ${isOpen ? (sheet.isExpanded ? 'lg:w-[800px] md:w-[600px] w-[400px]' : 'lg:w-[500px] md:w-[350px] w-[250px]') : 'w-0 overflow-hidden'}
-        `}
-      >
-        {isOpen && (
+      <div className="h-full bg-background border-l border-border flex flex-col">
+        {isOpen && content && (
           <>
-            <button
-              onClick={toggleExpand}
+            <div
               className={cn(
-                'absolute inset-y-0 -left-2 z-20 w-4 transition-w ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-border',
-                sheet.isExpanded ? 'cursor-e-resize' : 'cursor-w-resize',
+                'flex justify-between items-center border-b shrink-0 bg-background',
+                isMobile
+                  ? 'h-16 px-4'
+                  : isCollapsed
+                    ? 'h-12 px-8'
+                    : 'h-16 px-8',
               )}
-              title="Toggle width"
-            />
-            <div className="h-full min-h-screen flex flex-col overflow-hidden">
-              <div
-                className={cn(
-                  'flex justify-between items-center border-b shrink-0 transition-h duration-300',
-                  isMobile
-                    ? 'h-16 px-4'
-                    : isCollapsed
-                      ? 'h-12 px-8'
-                      : 'h-16 px-8',
-                )}
-              >
-                <h2 className="text-lg font-semibold truncate pr-2">
-                  {content?.title}
-                </h2>
-                <div className="flex items-center gap-2">
-                  {content?.actions}
-                  <button
-                    onClick={onClose}
-                    className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-                  >
-                    <Cross2Icon className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                  </button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto relative">
-                {content?.component}
+            >
+              <h2 className="text-lg font-semibold truncate pr-2">
+                {content.title}
+              </h2>
+              <div className="flex items-center gap-2">
+                {content.actions}
+                <button
+                  onClick={onClose}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                >
+                  <Cross2Icon className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </button>
               </div>
             </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {content.component}
+            </div>
           </>
+        )}
+
+        {(!isOpen || !content) && (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <p>No content selected</p>
+          </div>
         )}
       </div>
     );
   }
 
-  // Fall back to the overlay variant if not using push
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
-        className={`p-4 md:p-6 ${isOpen ? (sheet.isExpanded ? 'w-[min(800px,90vw)]' : 'w-[min(500px,90vw)]') : 'w-0 overflow-hidden'} h-screen`}
+        className="w-[min(500px,90vw)] sm:w-[min(800px,90vw)]"
       >
-        <SheetHeader className="mb-4 pr-8">
-          <div className="flex justify-between items-center">
-            <SheetTitle className="truncate">{content?.title}</SheetTitle>
-            {content?.actions}
-          </div>
-        </SheetHeader>
-        <div className="flex-1 relative overflow-hidden">
-          {content?.component}
-        </div>
+        {content && (
+          <>
+            <SheetHeader>
+              <div className="flex justify-between items-center">
+                <SheetTitle className="truncate">{content.title}</SheetTitle>
+                <div className="flex items-center gap-2">{content.actions}</div>
+              </div>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto mt-4">
+              {content.component}
+            </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );
