@@ -3,10 +3,9 @@ import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { useIsMobile } from '@/next/hooks/use-mobile';
 import { Cross2Icon, ExternalLinkIcon } from '@radix-ui/react-icons';
 import { RunDetailSheet } from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { WorkerDetails } from '@/next/pages/authenticated/dashboard/workers/components/worker-details';
-import { useSidebar } from '@/next/components/ui/sidebar';
 import { Button } from '../button';
 import { useDocs } from '@/next/hooks/use-docs-sheet';
 
@@ -123,26 +122,26 @@ export function SideSheetComponent({
     );
   }
 
-  // return (
-  //   <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-  //     <SheetContent
-  //       side="right"
-  //       className="w-[min(500px,90vw)] sm:w-[min(800px,90vw)]"
-  //     >
-  //       {content && (
-  //         <>
-  //           <SheetHeader>
-  //             <div className="flex justify-between items-center">
-  //               <SheetTitle className="truncate">{content.title}</SheetTitle>
-  //               <div className="flex items-center gap-2">{content.actions}</div>
-  //             </div>
-  //           </SheetHeader>
-  //           <div className="flex-1 overflow-y-auto mt-4">
-  //             {content.component}
-  //           </div>
-  //         </>
-  //       )}
-  //     </SheetContent>
-  //   </Sheet>
-  // );
+  return (
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-[min(500px,90vw)] sm:w-[min(800px,90vw)]"
+      >
+        {content && (
+          <>
+            <SheetHeader>
+              <div className="flex justify-between items-center">
+                <SheetTitle className="truncate">{content.title}</SheetTitle>
+                <div className="flex items-center gap-2">{content.actions}</div>
+              </div>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto mt-4">
+              {content.component}
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
 }

@@ -44,7 +44,9 @@ function RootContent({ children }: PropsWithChildren) {
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-      if (!isRightPanelOpen) return;
+      if (!isRightPanelOpen) {
+        return;
+      }
       setIsDragging(true);
       e.preventDefault();
     },
@@ -53,7 +55,9 @@ function RootContent({ children }: PropsWithChildren) {
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!isDragging || !containerRef.current) return;
+      if (!isDragging || !containerRef.current) {
+        return;
+      }
 
       const containerRect = containerRef.current.getBoundingClientRect();
       const newLeftWidth =
