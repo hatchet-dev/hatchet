@@ -93,13 +93,6 @@ export class HatchetClient implements IHatchetClient {
         logger: logConstructor,
       };
 
-      // FIXME: Remove this once we have a proper namespace validation
-      if (clientConfig.namespace) {
-        clientConfig.namespace = clientConfig.namespace.endsWith('_')
-          ? clientConfig.namespace.slice(0, -1)
-          : clientConfig.namespace;
-      }
-
       this._config = clientConfig;
 
       this.tenantId = clientConfig.tenant_id;

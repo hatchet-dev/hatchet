@@ -13,6 +13,7 @@ import {
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
 import { batch } from '@hatchet/util/batch';
+import { withNamespace } from '@hatchet-dev/typescript-sdk/util/with-namespace';
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
@@ -68,9 +69,7 @@ export class AdminClient {
     let computedName = workflowName;
 
     try {
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
+      computedName = withNamespace(workflowName, this.config.namespace);
 
       const inputStr = JSON.stringify(input);
 
@@ -128,9 +127,7 @@ export class AdminClient {
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
       let computedName = workflowName;
 
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
+      computedName = withNamespace(workflowName, this.config.namespace);
 
       const inputStr = JSON.stringify(input);
 

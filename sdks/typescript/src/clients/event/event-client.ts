@@ -9,7 +9,8 @@ import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
-import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
+import { withNamespace } from '@hatchet/util/with-namespace';
+import { HatchetClient } from '@hatchet/v1';
 import { LegacyHatchetClient } from '../hatchet-client';
 
 // eslint-disable-next-line no-shadow
@@ -57,7 +58,7 @@ export class EventClient {
   }
 
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
-    const namespacedType = `${this.config.namespace ?? ''}${type}`;
+    const namespacedType = withNamespace(type, this.config.namespace);
 
     const req: PushEventRequest = {
       key: namespacedType,
@@ -80,7 +81,7 @@ export class EventClient {
   }
 
   bulkPush<T>(type: string, inputs: EventWithMetadata<T>[], options: PushEventOptions = {}) {
-    const namespacedType = `${this.config.namespace ?? ''}${type}`;
+    const namespacedType = withNamespace(type, this.config.namespace);
 
     const events = inputs.map((input) => {
       return {

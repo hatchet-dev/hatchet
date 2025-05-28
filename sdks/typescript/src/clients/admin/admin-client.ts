@@ -18,6 +18,7 @@ import {
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient } from '@hatchet/v1';
+import { withNamespace } from '@hatchet-dev/typescript-sdk/util/with-namespace';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -182,9 +183,7 @@ export class AdminClient {
     let computedName = workflowName;
 
     try {
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
+      computedName = withNamespace(workflowName, this.config.namespace);
 
       const inputStr = JSON.stringify(input);
 
@@ -228,9 +227,7 @@ export class AdminClient {
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
       let computedName = workflowName;
 
-      if (this.config.namespace && !workflowName.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + workflowName;
-      }
+      computedName = withNamespace(workflowName, this.config.namespace);
 
       const inputStr = JSON.stringify(input);
 
@@ -385,14 +382,13 @@ export class AdminClient {
    * @param name the name of the workflow to schedule
    * @param options an object containing the schedules to set
    * @param input an object containing the input to the workflow
+   * @deprecated use hatchet.schedules.create instead
    */
   scheduleWorkflow(name: string, options?: { schedules?: Date[]; input?: object }) {
     let computedName = name;
 
     try {
-      if (this.config.namespace && !name.startsWith(this.config.namespace)) {
-        computedName = this.config.namespace + name;
-      }
+      computedName = withNamespace(name, this.config.namespace);
 
       let input: string | undefined;
 

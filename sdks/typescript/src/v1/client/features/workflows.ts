@@ -4,8 +4,16 @@ import { isValidUUID } from '@util/uuid';
 import { HatchetClient } from '../client';
 
 export const workflowNameString = (
-  workflow: string | Workflow | BaseWorkflowDeclaration<any, any>
-) => (typeof workflow === 'string' ? workflow : workflow.id);
+  workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+) => {
+  if (typeof workflow === 'string') {
+    return workflow;
+  }
+  if (typeof workflow === 'object' && 'id' in workflow) {
+    return workflow.id;
+  }
+  return workflow.name;
+};
 
 /**
  * WorkflowsClient is used to list and manage workflows

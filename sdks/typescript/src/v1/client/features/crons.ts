@@ -4,6 +4,7 @@ import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration } from '@hatchet/v1/declaration';
+import { withNamespace } from '@hatchet-dev/typescript-sdk/util/with-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
 
@@ -30,11 +31,13 @@ export class CronClient {
   api: HatchetClient['api'];
   tenantId: string;
   workflows: WorkflowsClient;
+  namespace: string | undefined;
 
   constructor(client: HatchetClient) {
     this.api = client.api;
     this.tenantId = client.tenantId;
     this.workflows = new WorkflowsClient(client);
+    this.namespace = client.config.namespace;
   }
 
   /**
@@ -63,7 +66,7 @@ export class CronClient {
     workflow: string | Workflow | BaseWorkflowDeclaration<any, any>,
     cron: CreateCronInput
   ): Promise<CronWorkflows> {
-    const workflowId = await workflowNameString(workflow);
+    const workflowId = withNamespace(workflowNameString(workflow), this.namespace);
 
     // Validate cron input with zod schema
     try {
@@ -112,7 +115,9 @@ export class CronClient {
     const { workflow, ...rest } = query;
 
     if (workflow) {
-      const workflowId = await this.workflows.getWorkflowIdFromName(workflow);
+      const workflowId = await this.workflows.getWorkflowIdFromName(
+        withNamespace(workflowNameString(workflow), this.namespace)
+      );
       rest.workflowId = workflowId;
     }
 

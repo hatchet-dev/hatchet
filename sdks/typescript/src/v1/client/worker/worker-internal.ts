@@ -35,6 +35,7 @@ import { HatchetClient } from '@hatchet/v1';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';
+import { withNamespace } from '@hatchet/util/with-namespace';
 import { Context, DurableContext } from './context';
 
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -76,7 +77,7 @@ export class V1Worker {
     }
   ) {
     this.client = client;
-    this.name = this.client.config.namespace + options.name;
+    this.name = withNamespace(options.name, this.client.config.namespace);
     this.action_registry = {};
     this.maxRuns = options.maxRuns;
 
@@ -192,7 +193,7 @@ export class V1Worker {
     // patch the namespace
     const workflow: WorkflowDefinition = {
       ...initWorkflow.definition,
-      name: (this.client.config.namespace + initWorkflow.definition.name).toLowerCase(),
+      name: withNamespace(initWorkflow.definition.name, this.client.config.namespace).toLowerCase(),
     };
 
     try {
@@ -351,7 +352,7 @@ export class V1Worker {
   async registerWorkflow(initWorkflow: Workflow) {
     const workflow: Workflow = {
       ...initWorkflow,
-      id: (this.client.config.namespace + initWorkflow.id).toLowerCase(),
+      id: withNamespace(initWorkflow.id, this.client.config.namespace).toLowerCase(),
     };
     try {
       if (workflow.concurrency?.key && workflow.concurrency.expression) {
@@ -399,7 +400,7 @@ export class V1Worker {
         version: workflow.version || '',
         eventTriggers:
           workflow.on && workflow.on.event
-            ? [this.client.config.namespace + workflow.on.event]
+            ? [withNamespace(workflow.on.event, this.client.config.namespace)]
             : [],
         cronTriggers: workflow.on && workflow.on.cron ? [workflow.on.cron] : [],
         scheduledTriggers: [],
