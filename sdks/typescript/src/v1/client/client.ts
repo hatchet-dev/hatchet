@@ -324,7 +324,7 @@ export class HatchetClient implements IHatchetClient {
   /**
    * Get the schedule client for creating and managing scheduled workflow runs
    * @returns A schedule client instance
-   * @deprecated use client.schedules instead
+   * @deprecated use client.scheduled instead
    */
   get schedule() {
     return this.scheduled;
