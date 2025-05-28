@@ -252,103 +252,106 @@ function RunDetailSheetContent() {
               Raw
             </TabsTrigger>
           </TabsList>
-          <TabsContent
-            value="activity"
-            className="flex flex-col min-h-0 h-full overflow-y-auto p-4"
-          >
-            {data?.run && (
-              <RunEventLog
-                workflow={data.run}
-                showNextButton={
-                  selectedTask &&
-                  populatedAttempt &&
-                  populatedAttempt < (latestTask?.attempt || 0)
-                    ? {
-                        label: `Next attempt (${populatedAttempt + 1} of ${latestTask?.attempt})`,
-                        onClick: () => {
-                          if (
-                            !data?.run?.metadata.id ||
-                            !selectedTask?.taskExternalId
-                          ) {
-                            return;
-                          }
-                          openSheet({
-                            type: 'task-detail',
-                            props: {
-                              selectedWorkflowRunId: data.run.metadata.id,
-                              selectedTaskId: selectedTask.taskExternalId,
-                              attempt: populatedAttempt + 1,
+          <TabsContent value="activity" className="flex-1 min-h-0">
+            <div className="h-full overflow-y-auto px-4">
+              <div className="pt-4 pb-4">
+                {data?.run && (
+                  <RunEventLog
+                    workflow={data.run}
+                    showNextButton={
+                      selectedTask &&
+                      populatedAttempt &&
+                      populatedAttempt < (latestTask?.attempt || 0)
+                        ? {
+                            label: `Next attempt (${populatedAttempt + 1} of ${latestTask?.attempt})`,
+                            onClick: () => {
+                              if (
+                                !data?.run?.metadata.id ||
+                                !selectedTask?.taskExternalId
+                              ) {
+                                return;
+                              }
+                              openSheet({
+                                type: 'task-detail',
+                                props: {
+                                  selectedWorkflowRunId: data.run.metadata.id,
+                                  selectedTaskId: selectedTask.taskExternalId,
+                                  attempt: populatedAttempt + 1,
+                                },
+                              });
                             },
-                          });
-                        },
-                      }
-                    : undefined
-                }
-                showPreviousButton={
-                  selectedTask && populatedAttempt && populatedAttempt > 1
-                    ? {
-                        label: `Previous attempt (${populatedAttempt - 1} of ${latestTask?.attempt})`,
-                        onClick: () => {
-                          if (
-                            !data?.run?.metadata.id ||
-                            !selectedTask?.taskExternalId
-                          ) {
-                            return;
                           }
-                          openSheet({
-                            type: 'task-detail',
-                            props: {
-                              selectedWorkflowRunId: data.run.metadata.id,
-                              selectedTaskId: selectedTask.taskExternalId,
-                              attempt: populatedAttempt - 1,
+                        : undefined
+                    }
+                    showPreviousButton={
+                      selectedTask && populatedAttempt && populatedAttempt > 1
+                        ? {
+                            label: `Previous attempt (${populatedAttempt - 1} of ${latestTask?.attempt})`,
+                            onClick: () => {
+                              if (
+                                !data?.run?.metadata.id ||
+                                !selectedTask?.taskExternalId
+                              ) {
+                                return;
+                              }
+                              openSheet({
+                                type: 'task-detail',
+                                props: {
+                                  selectedWorkflowRunId: data.run.metadata.id,
+                                  selectedTaskId: selectedTask.taskExternalId,
+                                  attempt: populatedAttempt - 1,
+                                },
+                              });
                             },
-                          });
+                          }
+                        : undefined
+                    }
+                    filters={{
+                      taskId: selectedTaskId ? [selectedTaskId] : undefined,
+                      attempt: populatedAttempt,
+                    }}
+                    showFilters={{
+                      taskId: false,
+                      attempt: false,
+                    }}
+                    onTaskSelect={(event) => {
+                      openSheet({
+                        type: 'task-detail',
+                        props: {
+                          selectedWorkflowRunId: data.run.metadata.id,
+                          selectedTaskId: event.taskId,
+                          attempt: event.attempt,
                         },
-                      }
-                    : undefined
-                }
-                filters={{
-                  taskId: selectedTaskId ? [selectedTaskId] : undefined,
-                  attempt: populatedAttempt,
-                }}
-                showFilters={{
-                  taskId: false,
-                  attempt: false,
-                }}
-                onTaskSelect={(event) => {
-                  openSheet({
-                    type: 'task-detail',
-                    props: {
-                      selectedWorkflowRunId: data.run.metadata.id,
-                      selectedTaskId: event.taskId,
-                      attempt: event.attempt,
-                    },
-                  });
-                }}
-              />
-            )}
+                      });
+                    }}
+                  />
+                )}
+              </div>
+            </div>
           </TabsContent>
           <TabsContent
             value="payload"
-            className="flex-1 min-h-0 h-full overflow-y-auto flex flex-col gap-4"
+            className="flex-1 flex-col gap-4 min-h-0 h-full overflow-y-auto p-4 pb-12"
           >
-            {selectedTask ? (
-              <TaskRunDetailPayloadContent
-                selectedTask={selectedTask}
-                attempt={populatedAttempt}
-              />
-            ) : (
-              <WorkflowRunDetailPayloadContent workflowRun={data?.run} />
-            )}
+            <div className="flex flex-col gap-4">
+              {selectedTask ? (
+                <TaskRunDetailPayloadContent
+                  selectedTask={selectedTask}
+                  attempt={populatedAttempt}
+                />
+              ) : (
+                <WorkflowRunDetailPayloadContent workflowRun={data?.run} />
+              )}
+            </div>
           </TabsContent>
-          <TabsContent value="worker" className="flex-1 min-h-0 ">
+          <TabsContent value="worker" className="flex-1 min-h-0 pb-12">
             <div className="text-center text-gray-500">
               Worker details coming soon
             </div>
           </TabsContent>
           <TabsContent
             value="raw"
-            className="flex flex-col min-h-0  h-full overflow-y-auto px-4"
+            className="flex-1 min-h-0 pb-12 h-full overflow-y-auto px-4 "
           >
             <RunDataCard
               title="Raw"
