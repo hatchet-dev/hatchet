@@ -98,9 +98,9 @@ function RootContent({ children }: PropsWithChildren) {
             errorMessage={meta.hasFailed.message}
           />
         ) : (
-          <div ref={containerRef} className="flex flex-1 relative">
+          <div ref={containerRef} className="h-screen flex flex-1 relative">
             <div
-              className="h-screen overflow-auto"
+              className="h-full overflow-auto"
               style={{
                 width: isRightPanelOpen ? `${leftPanelWidth}%` : '100%',
                 transition: isRightPanelOpen ? 'none' : 'width 0.3s ease',
