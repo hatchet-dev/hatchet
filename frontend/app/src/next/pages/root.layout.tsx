@@ -33,12 +33,11 @@ function RootContent({ children }: PropsWithChildren) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { sheet, close } = useSideSheet();
 
+  const isRightPanelOpen = useMemo(() => !!sheet.openProps, [sheet.openProps]);
+
   const onSideSheetClose = useCallback(() => {
-    setLeftPanelWidth(67);
     close();
   }, [close]);
-
-  const isRightPanelOpen = useMemo(() => !!sheet.openProps, [sheet.openProps]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
@@ -81,7 +80,7 @@ function RootContent({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (isRightPanelOpen) {
-      setLeftPanelWidth(67);
+      setLeftPanelWidth((prev) => (prev === 67 ? prev : 67));
     }
   }, [isRightPanelOpen]);
 
@@ -98,17 +97,21 @@ function RootContent({ children }: PropsWithChildren) {
             errorMessage={meta.hasFailed.message}
           />
         ) : (
-          <div ref={containerRef} className="h-screen flex flex-1 relative">
+          <div
+            ref={containerRef}
+            className="h-screen flex flex-1 relative overflow-hidden"
+          >
+            {/* Left panel - main content */}
             <div
-              className="h-full overflow-auto"
+              className="h-full overflow-auto flex-shrink-0"
               style={{
                 width: isRightPanelOpen ? `${leftPanelWidth}%` : '100%',
-                transition: isRightPanelOpen ? 'none' : 'width 0.3s ease',
               }}
             >
               {children ?? <Outlet />}
             </div>
 
+            {/* Resize handle */}
             {isRightPanelOpen && (
               <div
                 className={`w-1 bg-gray-300 hover:bg-gray-400 cursor-col-resize flex-shrink-0 ${
@@ -118,13 +121,9 @@ function RootContent({ children }: PropsWithChildren) {
               />
             )}
 
+            {/* Right panel - side sheet */}
             {isRightPanelOpen && (
-              <div
-                className="flex flex-col overflow-auto"
-                // IMPORTANT: This can't be done in Tailwind b/c it causes too much
-                // lag as the width changes on every mouse move.
-                style={{ width: `${100 - leftPanelWidth}%` }}
-              >
+              <div className="flex flex-col overflow-hidden flex-1">
                 <SideSheetComponent variant="push" onClose={onSideSheetClose} />
                 <DocsSheetComponent
                   sheet={docsState.sheet}
