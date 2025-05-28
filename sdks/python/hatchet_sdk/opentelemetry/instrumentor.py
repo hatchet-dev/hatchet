@@ -40,6 +40,7 @@ from hatchet_sdk.clients.events import (
 )
 from hatchet_sdk.contracts.events_pb2 import Event
 from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -299,8 +300,26 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ],
         kwargs: dict[str, str | dict[str, Any] | PushEventOptions | None],
     ) -> Event:
+        event_key = args[0]
+        payload = args[1]
+        options = args[2] or PushEventOptions()
+
+        attributes = {
+            OTelAttribute.EVENT_KEY: event_key,
+            OTelAttribute.EVENT_PAYLOAD: payload,
+            OTelAttribute.EVENT_ADDITIONAL_METADATA: options.additional_metadata,
+            OTelAttribute.EVENT_NAMESPACE: options.namespace,
+            OTelAttribute.EVENT_PRIORITY: options.priority,
+            OTelAttribute.EVENT_SCOPE: options.scope,
+        }
+
         with self._tracer.start_as_current_span(
             "hatchet.push_event",
+            attributes={
+                f"hatchet.{k.value}": v
+                for k, v in attributes.items()
+                if v and k not in self.config.otel.excluded_attributes
+            },
         ):
             return wrapped(*args, **kwargs)
 
@@ -325,13 +344,42 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_run_workflow(
         self,
-        wrapped: Callable[[str, Any, TriggerWorkflowOptions | None], WorkflowRunRef],
+        wrapped: Callable[
+            [str, JSONSerializableMapping, TriggerWorkflowOptions | None],
+            WorkflowRunRef,
+        ],
         instance: AdminClient,
-        args: tuple[str, Any, TriggerWorkflowOptions | None],
-        kwargs: dict[str, str | Any | TriggerWorkflowOptions | None],
+        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions | None],
+        kwargs: dict[
+            str, str | JSONSerializableMapping | TriggerWorkflowOptions | None
+        ],
     ) -> WorkflowRunRef:
+        workflow_name = args[0]
+        payload = args[1]
+        options = args[2] or TriggerWorkflowOptions()
+
+        attributes = {
+            OTelAttribute.RUN_WORKFLOW_WORKFLOW_NAME: workflow_name,
+            OTelAttribute.RUN_WORKFLOW_PAYLOAD: payload,
+            OTelAttribute.RUN_WORKFLOW_PARENT_ID: options.parent_id,
+            OTelAttribute.RUN_WORKFLOW_PARENT_STEP_RUN_ID: options.parent_step_run_id,
+            OTelAttribute.RUN_WORKFLOW_CHILD_INDEX: options.child_index,
+            OTelAttribute.RUN_WORKFLOW_CHILD_KEY: options.child_key,
+            OTelAttribute.RUN_WORKFLOW_NAMESPACE: options.namespace,
+            OTelAttribute.RUN_WORKFLOW_ADDITIONAL_METADATA: options.additional_metadata,
+            OTelAttribute.RUN_WORKFLOW_PRIORITY: options.priority,
+            OTelAttribute.RUN_WORKFLOW_DESIRED_WORKER_ID: options.desired_worker_id,
+            OTelAttribute.RUN_WORKFLOW_STICKY: options.sticky,
+            OTelAttribute.RUN_WORKFLOW_KEY: options.key,
+        }
+
         with self._tracer.start_as_current_span(
             "hatchet.run_workflow",
+            attributes={
+                f"hatchet.{k.value}": v
+                for k, v in attributes.items()
+                if v and k not in self.config.otel.excluded_attributes
+            },
         ):
             return wrapped(*args, **kwargs)
 
@@ -339,15 +387,41 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_async_run_workflow(
         self,
         wrapped: Callable[
-            [str, Any, TriggerWorkflowOptions | None],
+            [str, JSONSerializableMapping, TriggerWorkflowOptions | None],
             Coroutine[None, None, WorkflowRunRef],
         ],
         instance: AdminClient,
-        args: tuple[str, Any, TriggerWorkflowOptions | None],
-        kwargs: dict[str, str | Any | TriggerWorkflowOptions | None],
+        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions | None],
+        kwargs: dict[
+            str, str | JSONSerializableMapping | TriggerWorkflowOptions | None
+        ],
     ) -> WorkflowRunRef:
+        workflow_name = args[0]
+        payload = args[1]
+        options = args[2] or TriggerWorkflowOptions()
+
+        attributes = {
+            OTelAttribute.RUN_WORKFLOW_WORKFLOW_NAME: workflow_name,
+            OTelAttribute.RUN_WORKFLOW_PAYLOAD: payload,
+            OTelAttribute.RUN_WORKFLOW_PARENT_ID: options.parent_id,
+            OTelAttribute.RUN_WORKFLOW_PARENT_STEP_RUN_ID: options.parent_step_run_id,
+            OTelAttribute.RUN_WORKFLOW_CHILD_INDEX: options.child_index,
+            OTelAttribute.RUN_WORKFLOW_CHILD_KEY: options.child_key,
+            OTelAttribute.RUN_WORKFLOW_NAMESPACE: options.namespace,
+            OTelAttribute.RUN_WORKFLOW_ADDITIONAL_METADATA: options.additional_metadata,
+            OTelAttribute.RUN_WORKFLOW_PRIORITY: options.priority,
+            OTelAttribute.RUN_WORKFLOW_DESIRED_WORKER_ID: options.desired_worker_id,
+            OTelAttribute.RUN_WORKFLOW_STICKY: options.sticky,
+            OTelAttribute.RUN_WORKFLOW_KEY: options.key,
+        }
+
         with self._tracer.start_as_current_span(
             "hatchet.run_workflow",
+            attributes={
+                f"hatchet.{k.value}": v
+                for k, v in attributes.items()
+                if v and k not in self.config.otel.excluded_attributes
+            },
         ):
             return await wrapped(*args, **kwargs)
 
