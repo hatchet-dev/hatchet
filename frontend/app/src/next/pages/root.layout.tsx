@@ -33,7 +33,10 @@ function RootContent({ children }: PropsWithChildren) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { sheet, close } = useSideSheet();
 
-  const isRightPanelOpen = useMemo(() => !!sheet.openProps, [sheet.openProps]);
+  const isRightPanelOpen = useMemo(
+    () => !!sheet.openProps || docsState.sheet.isOpen,
+    [sheet.openProps, docsState.sheet.isOpen],
+  );
 
   const onSideSheetClose = useCallback(() => {
     close();

@@ -111,12 +111,6 @@ export function SideSheetComponent({
             {content.component}
           </div>
         )}
-
-        {(!isOpen || !content) && (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <p>No content selected</p>
-          </div>
-        )}
       </div>
     );
   }
