@@ -381,7 +381,7 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
-    const scheduled = this.client._v0.schedule.create(this.definition.name, {
+    const scheduled = this.client.scheduled.create(this.definition.name, {
       triggerAt: enqueueAt,
       input: input as JsonObject,
       ...options,
@@ -423,7 +423,7 @@ export class BaseWorkflowDeclaration<
       throw UNBOUND_ERR;
     }
 
-    const cronDef = this.client._v0.cron.create(this.definition.name, {
+    const cronDef = this.client.crons.create(this.definition.name, {
       expression,
       input: input as JsonObject,
       ...options,
@@ -505,7 +505,9 @@ export class BaseWorkflowDeclaration<
   //   return this.client.workflows.unpause(this);
   // }
 
-  // @deprecated use definition.name instead
+  /**
+   * @deprecated use definition.name instead
+   */
   get id() {
     return this.definition.name;
   }

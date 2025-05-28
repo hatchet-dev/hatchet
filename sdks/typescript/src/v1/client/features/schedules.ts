@@ -1,5 +1,3 @@
-import { AdminClient } from '@hatchet/clients/admin';
-import { Api } from '@hatchet/clients/rest';
 import {
   ScheduledWorkflows,
   ScheduledWorkflowsList,
@@ -7,8 +5,11 @@ import {
 import { z } from 'zod';
 import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
-import { ClientConfig } from '@hatchet/clients/hatchet-client/client-config';
-import { Logger } from '@util/logger';
+import { isValidUUID } from '@util/uuid';
+import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { HatchetClient } from '../client';
+import { workflowNameString, WorkflowsClient } from './workflows';
 /**
  * Schema for creating a Scheduled Run Trigger.
  */
@@ -28,22 +29,16 @@ export type CreateScheduledRunInput = z.infer<typeof CreateScheduledRunTriggerSc
  * Client for managing Scheduled Runs.
  */
 export class ScheduleClient {
-  private logger: Logger;
+  api: HatchetClient['api'];
+  tenantId: string;
+  workflows: WorkflowsClient;
+  namespace: string | undefined;
 
-  /**
-   * Initializes a new instance of ScheduleClient.
-   * @param tenantId - The tenant identifier.
-   * @param config - Client configuration settings.
-   * @param api - API instance for REST interactions.
-   * @param adminClient - Admin client for administrative operations.
-   */
-  constructor(
-    private readonly tenantId: string,
-    private readonly config: ClientConfig,
-    private readonly api: Api,
-    private readonly adminClient: AdminClient
-  ) {
-    this.logger = config.logger('Scheduled Run', this.config.log_level);
+  constructor(client: HatchetClient) {
+    this.api = client.api;
+    this.tenantId = client.tenantId;
+    this.workflows = new WorkflowsClient(client);
+    this.namespace = client.config.namespace;
   }
 
   /**
@@ -52,7 +47,13 @@ export class ScheduleClient {
    * @returns The Scheduled Run ID as a string.
    */
   private getScheduledRunId(scheduledRun: ScheduledWorkflows | string): string {
-    return typeof scheduledRun === 'string' ? scheduledRun : scheduledRun.metadata.id;
+    const str = typeof scheduledRun === 'string' ? scheduledRun : scheduledRun.metadata.id;
+
+    if (!isValidUUID(str)) {
+      throw new Error('Invalid scheduled run ID: must be a valid UUID');
+    }
+
+    return str;
   }
 
   /**
@@ -66,7 +67,7 @@ export class ScheduleClient {
     workflow: string | Workflow,
     cron: CreateScheduledRunInput
   ): Promise<ScheduledWorkflows> {
-    const workflowId = typeof workflow === 'string' ? workflow : workflow.id;
+    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
 
     // Validate cron input with zod schema
     try {
@@ -108,9 +109,20 @@ export class ScheduleClient {
    * @returns A promise that resolves to a ScheduledWorkflowsList object.
    */
   async list(
-    query: Parameters<typeof this.api.workflowScheduledList>[1]
+    query: Parameters<typeof this.api.workflowScheduledList>[1] & {
+      workflow?: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>;
+    }
   ): Promise<ScheduledWorkflowsList> {
-    const response = await this.api.workflowScheduledList(this.tenantId, query);
+    const { workflow, ...rest } = query;
+
+    if (workflow) {
+      const workflowId = await this.workflows.getWorkflowIdFromName(
+        applyNamespace(workflowNameString(workflow), this.namespace)
+      );
+      rest.workflowId = workflowId;
+    }
+
+    const response = await this.api.workflowScheduledList(this.tenantId, rest);
     return response.data;
   }
 

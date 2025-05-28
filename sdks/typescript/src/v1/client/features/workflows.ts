@@ -1,10 +1,19 @@
 import { Workflow } from '@hatchet/workflow';
-import { BaseWorkflowDeclaration } from '@hatchet/v1';
+import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
+import { isValidUUID } from '@util/uuid';
 import { HatchetClient } from '../client';
 
 export const workflowNameString = (
-  workflow: string | Workflow | BaseWorkflowDeclaration<any, any>
-) => (typeof workflow === 'string' ? workflow : workflow.id);
+  workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+) => {
+  if (typeof workflow === 'string') {
+    return workflow;
+  }
+  if (typeof workflow === 'object' && 'id' in workflow) {
+    return workflow.id;
+  }
+  return workflow.name;
+};
 
 /**
  * WorkflowsClient is used to list and manage workflows
@@ -26,6 +35,47 @@ export class WorkflowsClient {
     }
   }
 
+  /**
+   * Gets the workflow ID from a workflow name, ID, or object.
+   * If the input is not a valid UUID, it will look up the workflow by name.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns The workflow ID as a string.
+   */
+  async getWorkflowIdFromName(
+    workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>
+  ): Promise<string> {
+    const str = (() => {
+      if (typeof workflow === 'string') {
+        return workflow;
+      }
+
+      if (typeof workflow === 'object' && 'name' in workflow) {
+        return workflow.name;
+      }
+
+      if (typeof workflow === 'object' && 'id' in workflow) {
+        if (!workflow.id) {
+          throw new Error('Workflow ID is required');
+        }
+        return workflow.id;
+      }
+
+      throw new Error(
+        'Invalid workflow: must be a string, Workflow object, or WorkflowDefinition object'
+      );
+    })();
+
+    if (!isValidUUID(str)) {
+      const wf = await this.get(str);
+      if (!wf) {
+        throw new Error('Invalid workflow ID: must be a valid UUID');
+      }
+      return wf.metadata.id;
+    }
+
+    return str;
+  }
+
   async get(workflow: string | BaseWorkflowDeclaration<any, any> | Workflow) {
     // Get workflow name string
     const name = workflowNameString(workflow);
@@ -33,7 +83,9 @@ export class WorkflowsClient {
     // Check cache first
     const cached = this.workflowCache.get(name);
     if (cached && cached.expiry > Date.now()) {
-      return cached.workflow;
+      return cached.workflow as NonNullable<
+        Awaited<ReturnType<typeof this.api.workflowList>>['data']['rows']
+      >[number];
     }
 
     // If not in cache or expired, fetch from API
