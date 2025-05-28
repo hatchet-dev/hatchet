@@ -94,7 +94,7 @@ export function SideSheetComponent({
                   ? 'h-16 px-4'
                   : isCollapsed
                     ? 'h-12 px-4'
-                    : 'h-16 px-4',
+                    : 'h-12 px-4',
               )}
             >
               <h2 className="text-lg font-semibold truncate pr-2">

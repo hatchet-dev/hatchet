@@ -78,7 +78,7 @@ function RunDetailSheetContent() {
   const isDAG = data?.shape.length && data?.shape.length > 1;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Header with run id, run type, etc. */}
       <div className="bg-slate-100 dark:bg-slate-900 px-4 pb-2 flex flex-row items-center justify-between ">
         <div className="flex flex-col gap-2 pt-4">
@@ -331,7 +331,7 @@ function RunDetailSheetContent() {
           </TabsContent>
           <TabsContent
             value="payload"
-            className="flex-1 flex-col gap-4 min-h-0 h-full overflow-y-auto p-4 pb-12"
+            className="flex-1 flex-col gap-4 min-h-0 h-full overflow-y-auto p-4 pb-4"
           >
             <div className="flex flex-col gap-4">
               {selectedTask ? (
@@ -344,14 +344,14 @@ function RunDetailSheetContent() {
               )}
             </div>
           </TabsContent>
-          <TabsContent value="worker" className="flex-1 min-h-0 pb-12">
+          <TabsContent value="worker" className="flex-1 min-h-0 pb-4">
             <div className="text-center text-gray-500">
               Worker details coming soon
             </div>
           </TabsContent>
           <TabsContent
             value="raw"
-            className="flex-1 min-h-0 pb-12 h-full overflow-y-auto px-4 "
+            className="flex-1 min-h-0 pb-4 h-full overflow-y-auto px-4 "
           >
             <RunDataCard
               title="Raw"
