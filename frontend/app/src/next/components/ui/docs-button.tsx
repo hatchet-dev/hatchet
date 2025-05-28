@@ -9,6 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from './tooltip';
+import { useSideSheet } from '@/next/hooks/use-side-sheet';
 
 interface DocsButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -32,10 +33,12 @@ export function DocsButton({
   ...props
 }: DocsButtonProps) {
   const { open } = useDocs();
+  const { close: closeSideSheet } = useSideSheet();
 
   const handleClick = (e: React.MouseEvent) => {
     if (method === 'sheet') {
       e.preventDefault();
+      closeSideSheet();
       open(doc);
     } else {
       window.open(`${baseDocsUrl}${doc.href}`, '_blank');
