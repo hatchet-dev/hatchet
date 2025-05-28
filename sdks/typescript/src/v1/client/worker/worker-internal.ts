@@ -21,7 +21,7 @@ import {
 } from '@hatchet/protoc/workflows';
 import { Logger } from '@hatchet/util/logger';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
-import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
+import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
 import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
 import {
   CreateOnFailureTaskOpts,
@@ -31,7 +31,6 @@ import {
   NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
-import { HatchetClient } from '@hatchet/v1';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { CreateStep, mapRateLimit, StepRunFunction } from '@hatchet/step';

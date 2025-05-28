@@ -28,7 +28,7 @@ import {
 import { Logger } from '@hatchet/util/logger';
 import { WebhookHandler } from '@clients/worker/handler';
 import { WebhookWorkerCreateRequest } from '@clients/rest/generated/data-contracts';
-import { WorkflowDefinition } from '@hatchet/v1/declaration';
+import { WorkflowDefinition } from '@hatchet/v1';
 import { CreateWorkflowTaskOpts, NonRetryableError } from '@hatchet/v1/task';
 import { withNamespace } from '@hatchet/util/with-namespace';
 import { V0Context, CreateStep, V0DurableContext, mapRateLimit, StepRunFunction } from '../../step';

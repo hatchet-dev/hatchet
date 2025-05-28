@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
-import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
+import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import { withNamespace } from '@hatchet/util/with-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
