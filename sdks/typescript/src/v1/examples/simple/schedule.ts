@@ -19,7 +19,7 @@ async function main() {
   // !!
 
   // // > Delete a Scheduled Run
-  // await hatchet.schedules.delete(scheduled);
+  await hatchet.schedules.delete(scheduled);
   // // !!
 
   // > List Scheduled Runs
