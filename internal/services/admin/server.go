@@ -390,6 +390,63 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 	return resp, nil
 }
 
+func (a *AdminServiceImpl) GetOutput(ctx context.Context, req *contracts.GetWorkflowRunOutputRequest) (*contracts.GetWorkflowRunOutputResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	workflowRunIds := []string{req.WorkflowRunId}
+	task, err := a.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, req.WorkflowRunId, false)
+
+	if err != nil || task == nil {
+		return nil, status.Error(codes.NotFound, "No task found")
+	}
+
+	finalizedWorkflowRuns, err := a.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, workflowRunIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// At this point, if we get an empty set back we know the workflow has not finished yet,
+	// and the client should wait a bit and retry
+	if len(finalizedWorkflowRuns) == 0 {
+		// Return a deadline exceeded error to indicate that the task has not completed yet
+		return nil, status.Error(codes.DeadlineExceeded, "Task has not completed, please retry")
+	}
+
+	if len(finalizedWorkflowRuns) > 1 {
+		return nil, status.Error(codes.Internal, "Too many workflow runs found")
+	}
+
+	workflowRun := finalizedWorkflowRuns[0]
+
+	if workflowRun == nil {
+		return nil, status.Error(codes.NotFound, "No workflow run found")
+	}
+
+	output := make(map[string]interface{})
+
+	for _, outputEvent := range workflowRun.OutputEvents {
+		tmpOutput := make(map[string]json.RawMessage)
+		err = json.Unmarshal(outputEvent.Output, &tmpOutput)
+
+		if err != nil {
+			output[outputEvent.StepReadableID] = nil
+		} else {
+			output[outputEvent.StepReadableID] = tmpOutput
+		}
+	}
+
+	jsonBytes, err := json.Marshal(output)
+
+	if err != nil {
+		return nil, status.Error(codes.Internal, "could not marshal output")
+	}
+
+	return &contracts.GetWorkflowRunOutputResponse{
+		Output: string(jsonBytes),
+	}, nil
+}
+
 func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
