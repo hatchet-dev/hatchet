@@ -37,12 +37,7 @@ export interface RunDetailSheetSerializableProps {
   attempt?: number;
 }
 
-interface RunDetailSheetProps extends RunDetailSheetSerializableProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export function RunDetailSheet(props: RunDetailSheetProps) {
+export function RunDetailSheet(props: RunDetailSheetSerializableProps) {
   return (
     <RunDetailProvider
       runId={props.selectedWorkflowRunId}

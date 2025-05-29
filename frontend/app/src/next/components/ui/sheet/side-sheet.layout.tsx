@@ -1,17 +1,22 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../sheet';
 import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { useIsMobile } from '@/next/hooks/use-mobile';
-import { Cross2Icon, ExternalLinkIcon } from '@radix-ui/react-icons';
-import { RunDetailSheet } from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
+import { Cross2Icon } from '@radix-ui/react-icons';
+import {
+  RunDetailSheet,
+  RunDetailSheetSerializableProps,
+} from '@/next/pages/authenticated/dashboard/runs/detail-sheet/run-detail-sheet';
 import { useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { WorkerDetails } from '@/next/pages/authenticated/dashboard/workers/components/worker-details';
 import { Button } from '../button';
 import { useDocs } from '@/next/hooks/use-docs-sheet';
+import { useSidePanel } from '@/next/hooks/use-side-panel';
 
 interface SideSheetProps {
   variant?: 'overlay' | 'push';
   onClose: () => void;
+  isOpen: boolean;
+  props: SidePanelProps;
 }
 
 interface SideSheetContent {
@@ -19,6 +24,57 @@ interface SideSheetContent {
   title: React.ReactNode;
   actions?: React.ReactNode;
 }
+
+type SidePanelProps =
+  | {
+      type: 'docs';
+      url: string;
+      title: string;
+    }
+  | {
+      type: 'task-detail';
+      props: RunDetailSheetSerializableProps;
+    };
+
+type SidePanelContent = {
+  content: React.ReactNode;
+  title: string;
+  actions?: React.ReactNode;
+};
+
+const useSidePanelContent = (
+  props: SidePanelProps,
+): SidePanelContent | null => {
+  const { sheet } = useSideSheet();
+
+  switch (props.type) {
+    case 'task-detail':
+      if (
+        !sheet ||
+        !sheet.openProps ||
+        sheet.openProps.type !== 'task-detail'
+      ) {
+        return null;
+      }
+
+      return {
+        content: <RunDetailSheet {...sheet.openProps.props} />,
+        title: 'Run Detail',
+      };
+    case 'docs':
+      return {
+        content: (
+          <iframe
+            src={props.url}
+            className="absolute inset-0 w-full h-full rounded-md border"
+            title={`Documentation: ${props.title}`}
+            loading="lazy"
+          />
+        ),
+        title: props.title,
+      };
+  }
+};
 
 export function SideSheetComponent({
   variant = 'push',
@@ -39,49 +95,8 @@ export function SideSheetComponent({
   const content = useMemo<SideSheetContent | undefined>(() => {
     if (sheet.openProps?.type === 'task-detail') {
       return {
-        component: (
-          <RunDetailSheet
-            isOpen={isOpen}
-            onClose={onClose}
-            {...sheet.openProps.props}
-          />
-        ),
+        component: <RunDetailSheet {...sheet.openProps.props} />,
         title: 'Run Detail',
-        actions: (
-          <>
-            {/* <a
-            href={sheet.openProps?.props.detailsLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-            title="Open in new tab"
-          >
-            <ExternalLinkIcon className="h-4 w-4" />
-            <span className="sr-only">Open in new tab</span>
-          </a> */}
-          </>
-        ),
-      };
-    }
-
-    if (sheet.openProps?.type === 'worker-detail') {
-      return {
-        component: <WorkerDetails {...sheet.openProps.props} />,
-        title: 'Worker Detail',
-        actions: (
-          <>
-            <a
-              // href={ROUTES.workerServices.detail(sheet.openProps?.props.serviceName, sheet.openProps?.props.workerId)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-              title="Open in new tab"
-            >
-              <ExternalLinkIcon className="h-4 w-4" />
-              <span className="sr-only">Open in new tab</span>
-            </a>
-          </>
-        ),
       };
     }
 
@@ -143,5 +158,44 @@ export function SideSheetComponent({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+export function SidePanel() {
+  const { content: maybeContent, isOpen, close } = useSidePanel();
+
+  if (!maybeContent) {
+    return null;
+  }
+
+  const { component, title, actions } = maybeContent;
+
+  return (
+    <div>
+      {isOpen && (
+        <div className="flex flex-col h-screen">
+          <div
+            className={
+              'flex flex-row w-full justify-between items-center border-b bg-background h-16 px-4 md:p-12'
+            }
+          >
+            <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
+            <div className="flex items-center gap-2">
+              {actions}
+              <Button
+                variant="ghost"
+                onClick={close}
+                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+              >
+                <Cross2Icon className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </div>
+          </div>
+
+          {component}
+        </div>
+      )}
+    </div>
   );
 }

@@ -6,22 +6,20 @@ import {
   PropsWithChildren,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
 import { Outlet } from 'react-router-dom';
-import { DocsSheetComponent } from '@/next/components/ui/docs-sheet';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
-import { SideSheetComponent } from '../components/ui/sheet/side-sheet.layout';
+import { SidePanel } from '../components/ui/sheet/side-sheet.layout';
 import {
   SideSheetContext,
-  useSideSheet,
   useSideSheetState,
 } from '@/next/hooks/use-side-sheet';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
 import { DocsContext, useDocsState } from '../hooks/use-docs-sheet';
+import { SidePanelProvider, useSidePanel } from '../hooks/use-side-panel';
 
 function usePersistentPanelWidth(defaultWidth: number = 67) {
   const [leftPanelWidth, setLeftPanelWidth] = useState(() => {
@@ -55,16 +53,10 @@ function RootContent({ children }: PropsWithChildren) {
   const [leftPanelWidth, setLeftPanelWidth] = usePersistentPanelWidth(67);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { sheet, close } = useSideSheet();
 
-  const isRightPanelOpen = useMemo(
-    () => !!sheet.openProps || docsState.sheet.isOpen,
-    [sheet.openProps, docsState.sheet.isOpen],
-  );
+  const { isOpen: isRightPanelOpen } = useSidePanel();
 
-  const onSideSheetClose = useCallback(() => {
-    close();
-  }, [close]);
+  console.log('Is open:', isRightPanelOpen);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
@@ -180,11 +172,7 @@ function RootContent({ children }: PropsWithChildren) {
             {/* Right panel - side sheet */}
             {isRightPanelOpen && (
               <div className="flex flex-col overflow-hidden flex-1">
-                <SideSheetComponent variant="push" onClose={onSideSheetClose} />
-                <DocsSheetComponent
-                  sheet={docsState.sheet}
-                  onClose={docsState.close}
-                />
+                <SidePanel />
               </div>
             )}
           </div>
@@ -204,8 +192,10 @@ function Root({ children }: PropsWithChildren) {
         <SidebarProvider>
           <SideSheetContext.Provider value={sideSheetState}>
             <DocsContext.Provider value={docsState}>
-              <Toaster />
-              <RootContent>{children}</RootContent>
+              <SidePanelProvider>
+                <Toaster />
+                <RootContent>{children}</RootContent>
+              </SidePanelProvider>
             </DocsContext.Provider>
           </SideSheetContext.Provider>
         </SidebarProvider>

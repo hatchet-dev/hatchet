@@ -29,9 +29,11 @@ export const DocsContext = createContext<DocsContextValue | null>(null);
 // Hook to be used by consumers to access docs context
 export function useDocs() {
   const context = useContext(DocsContext);
+
   if (!context) {
     throw new Error('useDocs must be used within a DocsProvider');
   }
+  
   return {
     open: context.open,
     toggle: context.toggle,
