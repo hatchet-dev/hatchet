@@ -55,23 +55,38 @@ Hatchet's instrumentor is easy to integrate with a number of third-party tracing
 
 For example, you might be interested in using [Langfuse](https://langfuse.com/) for tracing an LLM-intensive application. Setup is straightforward. First, configure the Langfuse client [as described by their documentation](https://langfuse.com/docs/opentelemetry/example-python-sdk):
 
-<Snippet src={snips.python.opentelemetry_instrumentation.langfuse.client} block="configure_langfuse" />
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.client}
+  block="configure_langfuse"
+/>
 
 Next, configure your tracer provider:
 
-<Snippet src={snips.python.opentelemetry_instrumentation.langfuse.client} block="configure_tracer_provider" />
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.client}
+  block="configure_tracer_provider"
+/>
 
 Finally, create an OpenAI client [using Langfuse's OpenAI wrapper `langfuse.openai` as a drop-in replacement for the default OpenAI](https://langfuse.com/docs/integrations/openai/python/get-started) client:
 
-<Snippet src={snips.python.opentelemetry_instrumentation.langfuse.client} block="create_openai_client" />
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.client}
+  block="create_openai_client"
+/>
 
 And that's it! Now you're ready to instrument your Hatchet workers with Langfuse. For example, create a task like this:
 
-<Snippet src={snips.python.opentelemetry_instrumentation.langfuse.worker} block="task" />
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.worker}
+  block="task"
+/>
 
 And finally, run the task to view the Langfuse traces (cost, usage, etc.) interspersed with Hatchet's traces, in addition to any other traces you may have:
 
-<Snippet src={snips.python.opentelemetry_instrumentation.langfuse.trigger} block="trigger_task" />
+<Snippet
+  src={snips.python.opentelemetry_instrumentation.langfuse.trigger}
+  block="trigger_task"
+/>
 
 When you run this task, you'll see a trace like this in Langfuse!
 
@@ -80,5 +95,3 @@ When you run this task, you'll see a trace like this in Langfuse!
   alt="example-langfuse-trace"
   className="max-w-full mx-auto my-8"
 />
-
-
