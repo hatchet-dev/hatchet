@@ -37,6 +37,7 @@ from hatchet_sdk.clients.admin import (
     WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.clients.events import (
+    BulkPushEventOptions,
     BulkPushEventWithMetadata,
     EventClient,
     PushEventOptions,
@@ -359,30 +360,25 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_bulk_push_event(
         self,
         wrapped: Callable[
-            [list[BulkPushEventWithMetadata], PushEventOptions | None], list[Event]
+            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None], list[Event]
         ],
         instance: EventClient,
         args: tuple[
             list[BulkPushEventWithMetadata],
-            PushEventOptions | None,
+            BulkPushEventOptions | None,
         ],
-        kwargs: dict[str, list[BulkPushEventWithMetadata] | PushEventOptions | None],
+        kwargs: dict[
+            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
+        ],
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
         bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
-        options = cast(PushEventOptions, params[1])
+        options = cast(BulkPushEventOptions, params[1])
 
         with self._tracer.start_as_current_span(
             "hatchet.bulk_push_event",
         ):
-            options = PushEventOptions(
-                **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=inject_traceparent_into_metadata(
-                    dict(options.additional_metadata),
-                ),
-            )
-
             bulk_events_with_meta = [
                 BulkPushEventWithMetadata(
                     **event.model_dump(exclude={"additional_metadata"}),
