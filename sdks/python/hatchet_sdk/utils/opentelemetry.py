@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class OTelAttribute(str, Enum):
-    ## Action
+    ## Action (Deprecated)
     ACTION_NAME = "action_name"
     ACTION_PAYLOAD = "action_payload"
     CHILD_WORKFLOW_INDEX = "child_workflow_index"
@@ -18,6 +18,23 @@ class OTelAttribute(str, Enum):
     WORKFLOW_NAME = "workflow_name"
     WORKFLOW_RUN_ID = "workflow_run_id"
     WORKFLOW_VERSION_ID = "workflow_version_id"
+
+    ## Action
+    START_TASK_RUN_ACTION_NAME = "start_task_run.action_name"
+    START_TASK_RUN_ACTION_PAYLOAD = "start_task_run.action_payload"
+    START_TASK_RUN_CHILD_WORKFLOW_INDEX = "start_task_run.child_workflow_index"
+    START_TASK_RUN_CHILD_WORKFLOW_KEY = "start_task_run.child_workflow_key"
+    START_TASK_RUN_GET_GROUP_KEY_RUN_ID = "start_task_run.get_group_key_run_id"
+    START_TASK_RUN_PARENT_WORKFLOW_RUN_ID = "start_task_run.parent_workflow_run_id"
+    START_TASK_RUN_RETRY_COUNT = "start_task_run.retry_count"
+    START_TASK_RUN_STEP_ID = "start_task_run.step_id"
+    START_TASK_RUN_STEP_RUN_ID = "start_task_run.step_run_id"
+    START_TASK_RUN_TENANT_ID = "start_task_run.tenant_id"
+    START_TASK_RUN_WORKER_ID = "start_task_run.worker_id"
+    START_TASK_RUN_WORKFLOW_ID = "start_task_run.workflow_id"
+    START_TASK_RUN_WORKFLOW_NAME = "start_task_run.workflow_name"
+    START_TASK_RUN_WORKFLOW_RUN_ID = "start_task_run.workflow_run_id"
+    START_TASK_RUN_WORKFLOW_VERSION_ID = "start_task_run.workflow_version_id"
 
     ## Push Event
     EVENT_KEY = "push_event.key"
