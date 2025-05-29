@@ -222,16 +222,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             self._wrap_async_run_workflow,
         )
 
+        ## IMPORTANT: We don't need to instrument the async version of `schedule_workflow`
+        ## because it just calls the sync version internally.
         wrap_function_wrapper(
             hatchet_sdk,
             "clients.admin.AdminClient.schedule_workflow",
             self._wrap_schedule_workflow,
-        )
-
-        wrap_function_wrapper(
-            hatchet_sdk,
-            "clients.admin.AdminClient.aio_schedule_workflow",
-            self._wrap_async_schedule_workflow,
         )
 
         wrap_function_wrapper(
@@ -593,84 +589,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             )
 
             return wrapped(workflow_name, schedules, input, options)
-
-    ## IMPORTANT: Keep these types in sync with the wrapped method's signature
-    async def _wrap_async_schedule_workflow(
-        self,
-        wrapped: Callable[
-            [
-                str,
-                list[Union[datetime, timestamp_pb2.Timestamp]],
-                JSONSerializableMapping,
-                ScheduleTriggerWorkflowOptions,
-            ],
-            Coroutine[None, None, v0_workflow_protos.WorkflowVersion],
-        ],
-        instance: AdminClient,
-        args: tuple[
-            str,
-            list[Union[datetime, timestamp_pb2.Timestamp]],
-            JSONSerializableMapping,
-            ScheduleTriggerWorkflowOptions,
-        ],
-        kwargs: dict[
-            str,
-            str
-            | list[Union[datetime, timestamp_pb2.Timestamp]]
-            | JSONSerializableMapping
-            | ScheduleTriggerWorkflowOptions,
-        ],
-    ) -> v0_workflow_protos.WorkflowVersion:
-        params = self.extract_bound_args(wrapped, args, kwargs)
-
-        workflow_name = cast(str, params[0])
-        schedules = cast(list[Union[datetime, timestamp_pb2.Timestamp]], params[1])
-        input = cast(JSONSerializableMapping, params[2])
-        options = cast(
-            ScheduleTriggerWorkflowOptions,
-            params[3] if len(params) > 3 else ScheduleTriggerWorkflowOptions(),
-        )
-
-        attributes = {
-            OTelAttribute.SCHEDULE_WORKFLOW_WORKFLOW_NAME: workflow_name,
-            OTelAttribute.SCHEDULED_WORKFLOW_RUN_AT_TIMESTAMPS: json.dumps(
-                schedules, default=str
-            ),
-            OTelAttribute.SCHEDULE_WORKFLOW_PAYLOAD: json.dumps(input, default=str),
-            OTelAttribute.SCHEDULE_WORKFLOW_PARENT_ID: options.parent_id,
-            OTelAttribute.SCHEDULE_WORKFLOW_PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.SCHEDULE_WORKFLOW_CHILD_INDEX: options.child_index,
-            OTelAttribute.SCHEDULE_WORKFLOW_CHILD_KEY: options.child_key,
-            OTelAttribute.SCHEDULE_WORKFLOW_NAMESPACE: options.namespace,
-            OTelAttribute.SCHEDULE_WORKFLOW_ADDITIONAL_METADATA: json.dumps(
-                options.additional_metadata, default=str
-            ),
-            OTelAttribute.SCHEDULE_WORKFLOW_PRIORITY: options.priority,
-        }
-
-        with self._tracer.start_as_current_span(
-            "hatchet.schedule_workflow",
-            attributes={
-                f"hatchet.{k.value}": v
-                for k, v in attributes.items()
-                if v and k not in self.config.otel.excluded_attributes
-            },
-        ):
-            options = TriggerWorkflowOptions(
-                **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=inject_traceparent_into_metadata(
-                    dict(options.additional_metadata),
-                ),
-            )
-
-            options = ScheduleTriggerWorkflowOptions(
-                **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=inject_traceparent_into_metadata(
-                    dict(options.additional_metadata),
-                ),
-            )
-
-            return await wrapped(workflow_name, schedules, input, options)
 
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_run_workflows(
