@@ -351,14 +351,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_push_event(
         self,
-        wrapped: Callable[[str, dict[str, Any], PushEventOptions | None], Event],
+        wrapped: Callable[[str, dict[str, Any], PushEventOptions], Event],
         instance: EventClient,
         args: tuple[
             str,
             dict[str, Any],
-            PushEventOptions | None,
+            PushEventOptions,
         ],
-        kwargs: dict[str, str | dict[str, Any] | PushEventOptions | None],
+        kwargs: dict[str, str | dict[str, Any] | PushEventOptions],
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
@@ -401,16 +401,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_bulk_push_event(
         self,
         wrapped: Callable[
-            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None], list[Event]
+            [list[BulkPushEventWithMetadata], BulkPushEventOptions], list[Event]
         ],
         instance: EventClient,
         args: tuple[
             list[BulkPushEventWithMetadata],
-            BulkPushEventOptions | None,
+            BulkPushEventOptions,
         ],
-        kwargs: dict[
-            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
-        ],
+        kwargs: dict[str, list[BulkPushEventWithMetadata] | BulkPushEventOptions],
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
@@ -446,14 +444,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_run_workflow(
         self,
         wrapped: Callable[
-            [str, JSONSerializableMapping, TriggerWorkflowOptions | None],
+            [str, JSONSerializableMapping, TriggerWorkflowOptions],
             WorkflowRunRef,
         ],
         instance: AdminClient,
-        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions | None],
-        kwargs: dict[
-            str, str | JSONSerializableMapping | TriggerWorkflowOptions | None
-        ],
+        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions],
+        kwargs: dict[str, str | JSONSerializableMapping | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
@@ -502,14 +498,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_async_run_workflow(
         self,
         wrapped: Callable[
-            [str, JSONSerializableMapping, TriggerWorkflowOptions | None],
+            [str, JSONSerializableMapping, TriggerWorkflowOptions],
             Coroutine[None, None, WorkflowRunRef],
         ],
         instance: AdminClient,
-        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions | None],
-        kwargs: dict[
-            str, str | JSONSerializableMapping | TriggerWorkflowOptions | None
-        ],
+        args: tuple[str, JSONSerializableMapping, TriggerWorkflowOptions],
+        kwargs: dict[str, str | JSONSerializableMapping | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
