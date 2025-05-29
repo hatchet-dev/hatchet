@@ -57,3 +57,15 @@ class OTelAttribute(str, Enum):
     RUN_WORKFLOW_DESIRED_WORKER_ID = "run_workflow.desired_worker_id"
     RUN_WORKFLOW_STICKY = "run_workflow.sticky"
     RUN_WORKFLOW_KEY = "run_workflow.key"
+
+    ## Schedule Workflow
+    SCHEDULE_WORKFLOW_WORKFLOW_NAME = "schedule_workflow.workflow_name"
+    SCHEDULE_WORKFLOW_PAYLOAD = "schedule_workflow.payload"
+    SCHEDULED_WORKFLOW_RUN_AT_TIMESTAMPS = "schedule_workflow.run_at_timestamps"
+    SCHEDULE_WORKFLOW_PARENT_ID = "schedule_workflow.parent_id"
+    SCHEDULE_WORKFLOW_PARENT_STEP_RUN_ID = "schedule_workflow.parent_step_run_id"
+    SCHEDULE_WORKFLOW_CHILD_INDEX = "schedule_workflow.child_index"
+    SCHEDULE_WORKFLOW_CHILD_KEY = "schedule_workflow.child_key"
+    SCHEDULE_WORKFLOW_NAMESPACE = "schedule_workflow.namespace"
+    SCHEDULE_WORKFLOW_ADDITIONAL_METADATA = "schedule_workflow.additional_metadata"
+    SCHEDULE_WORKFLOW_PRIORITY = "schedule_workflow.priority"
