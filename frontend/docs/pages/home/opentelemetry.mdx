@@ -53,7 +53,15 @@ Hatchet's instrumentor is easy to integrate with a number of third-party tracing
 
 ### Langfuse
 
-For example, you might be interested in using [Langfuse](https://langfuse.com/) for tracing an LLM-intensive application. Setup is straightforward. First, configure the Langfuse client [as described by their documentation](https://langfuse.com/docs/opentelemetry/example-python-sdk):
+For example, you might be interested in using [Langfuse](https://langfuse.com/) for tracing an LLM-intensive application.
+
+<Callout type="warning" emoji="⚠️">
+  Note that this example uses Langfuse's [V3 (OTel-based)
+  SDK](https://langfuse.com/docs/sdk/python/sdk-v3). See their docs for more
+  information.
+</Callout>
+
+First, configure the Langfuse client [as described by their documentation](https://langfuse.com/docs/opentelemetry/example-python-sdk):
 
 <Snippet
   src={snips.python.opentelemetry_instrumentation.langfuse.client}

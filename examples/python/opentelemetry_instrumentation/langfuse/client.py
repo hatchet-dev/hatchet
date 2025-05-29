@@ -36,7 +36,7 @@ trace_provider = TracerProvider(
 ## Add Langfuse span processor to the OpenTelemetry trace provider
 trace_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
 
-# > Create an OpenAI client instrumented with Langfuse
+# > Create OpenAI client
 openai = AsyncOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
 )
