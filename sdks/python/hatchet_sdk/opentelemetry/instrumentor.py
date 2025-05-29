@@ -417,8 +417,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
         options = cast(BulkPushEventOptions, params[1])
 
+        num_bulk_events = len(bulk_events)
+        unique_event_keys = {event.key for event in bulk_events}
+
         with self._tracer.start_as_current_span(
             "hatchet.bulk_push_event",
+            attributes={
+                "hatchet.num_events": num_bulk_events,
+                "hatchet.unique_event_keys": json.dumps(unique_event_keys, default=str),
+            },
         ):
             bulk_events_with_meta = [
                 BulkPushEventWithMetadata(
@@ -640,8 +647,19 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         params = self.extract_bound_args(wrapped, args, kwargs)
         workflow_run_configs = cast(list[WorkflowRunTriggerConfig], params[0])
 
+        num_workflows = len(workflow_run_configs)
+        unique_workflow_names = {
+            config.workflow_name for config in workflow_run_configs
+        }
+
         with self._tracer.start_as_current_span(
             "hatchet.run_workflows",
+            attributes={
+                "hatchet.num_workflows": num_workflows,
+                "hatchet.unique_workflow_names": json.dumps(
+                    unique_workflow_names, default=str
+                ),
+            },
         ):
             workflow_run_configs_with_meta = [
                 WorkflowRunTriggerConfig(
