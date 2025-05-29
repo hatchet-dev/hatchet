@@ -89,7 +89,6 @@ class Action(BaseModel):
             payload_str = str(self.action_payload)
 
         attrs: dict[OTelAttribute, str | int | None] = {
-            ## Deprecated Action attributes
             OTelAttribute.TENANT_ID: self.tenant_id,
             OTelAttribute.WORKER_ID: self.worker_id,
             OTelAttribute.WORKFLOW_RUN_ID: self.workflow_run_id,
