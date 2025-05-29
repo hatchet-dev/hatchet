@@ -385,7 +385,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
-                if v and k not in self.config.otel.excluded_attributes
+                if v
+                and k not in self.config.otel.excluded_attributes
+                and v != "{}"
+                and v != "[]"
             },
         ):
             options = PushEventOptions(
@@ -482,7 +485,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
-                if v and k not in self.config.otel.excluded_attributes
+                if v
+                and k not in self.config.otel.excluded_attributes
+                and v != "{}"
+                and v != "[]"
             },
         ):
             options = TriggerWorkflowOptions(
@@ -536,7 +542,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
-                if v and k not in self.config.otel.excluded_attributes
+                if v
+                and k not in self.config.otel.excluded_attributes
+                and v != "{}"
+                and v != "[]"
             },
         ):
             options = TriggerWorkflowOptions(
@@ -615,7 +624,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
-                if v and k not in self.config.otel.excluded_attributes
+                if v
+                and k not in self.config.otel.excluded_attributes
+                and v != "{}"
+                and v != "[]"
             },
         ):
             options = ScheduleTriggerWorkflowOptions(
