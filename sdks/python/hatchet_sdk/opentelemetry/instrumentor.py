@@ -48,6 +48,7 @@ from hatchet_sdk.clients.events import (
     PushEventOptions,
 )
 from hatchet_sdk.contracts.events_pb2 import Event
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
@@ -61,6 +62,13 @@ OTEL_TRACEPARENT_KEY = "traceparent"
 
 
 def create_traceparent() -> str | None:
+    logger.warning(
+        "As of SDK version 1.11.0, you no longer need to call `create_traceparent` manually. The traceparent will be automatically created by the instrumentor and injected into the metadata of actions and events when appropriate. This method will be removed in a future version.",
+    )
+    return _create_traceparent()
+
+
+def _create_traceparent() -> str | None:
     """
     Creates and returns a W3C traceparent header value using OpenTelemetry's context propagation.
 
@@ -81,6 +89,16 @@ def create_traceparent() -> str | None:
 def parse_carrier_from_metadata(
     metadata: JSONSerializableMapping | None,
 ) -> Context | None:
+    logger.warning(
+        "As of SDK version 1.11.0, you no longer need to call `parse_carrier_from_metadata` manually. This method will be removed in a future version.",
+    )
+
+    return _parse_carrier_from_metadata(metadata)
+
+
+def _parse_carrier_from_metadata(
+    metadata: JSONSerializableMapping | None,
+) -> Context | None:
     """
     Parses OpenTelemetry trace context from a metadata dictionary.
 
@@ -96,7 +114,7 @@ def parse_carrier_from_metadata(
     :Example:
 
     >>> metadata = {"traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"}
-    >>> context = parse_carrier_from_metadata(metadata)
+    >>> context = _parse_carrier_from_metadata(metadata)
     """
 
     if not metadata:
@@ -111,6 +129,16 @@ def parse_carrier_from_metadata(
 
 
 def inject_traceparent_into_metadata(
+    metadata: dict[str, str], traceparent: str | None = None
+) -> dict[str, str]:
+    logger.warning(
+        "As of SDK version 1.11.0, you no longer need to call `inject_traceparent_into_metadata` manually. The traceparent will automatically be injected by the instrumentor. This method will be removed in a future version.",
+    )
+
+    return _inject_traceparent_into_metadata(metadata, traceparent)
+
+
+def _inject_traceparent_into_metadata(
     metadata: dict[str, str], traceparent: str | None = None
 ) -> dict[str, str]:
     """
@@ -136,7 +164,7 @@ def inject_traceparent_into_metadata(
     {"key": "value", "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
     """
     if not traceparent:
-        traceparent = create_traceparent()
+        traceparent = _create_traceparent()
 
     if not traceparent:
         return metadata
@@ -267,7 +295,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         action = cast(Action, params[0])
 
-        traceparent = parse_carrier_from_metadata(action.additional_metadata)
+        traceparent = _parse_carrier_from_metadata(action.additional_metadata)
 
         with self._tracer.start_as_current_span(
             "hatchet.start_step_run",
@@ -362,7 +390,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ):
             options = PushEventOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=inject_traceparent_into_metadata(
+                additional_metadata=_inject_traceparent_into_metadata(
                     dict(options.additional_metadata),
                 ),
             )
@@ -395,7 +423,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             bulk_events_with_meta = [
                 BulkPushEventWithMetadata(
                     **event.model_dump(exclude={"additional_metadata"}),
-                    additional_metadata=inject_traceparent_into_metadata(
+                    additional_metadata=_inject_traceparent_into_metadata(
                         dict(event.additional_metadata),
                     ),
                 )
@@ -456,7 +484,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ):
             options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=inject_traceparent_into_metadata(
+                additional_metadata=_inject_traceparent_into_metadata(
                     dict(options.additional_metadata),
                 ),
             )
@@ -512,7 +540,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ):
             options = TriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=inject_traceparent_into_metadata(
+                additional_metadata=_inject_traceparent_into_metadata(
                     dict(options.additional_metadata),
                 ),
             )
@@ -591,7 +619,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ):
             options = ScheduleTriggerWorkflowOptions(
                 **options.model_dump(exclude={"additional_metadata"}),
-                additional_metadata=inject_traceparent_into_metadata(
+                additional_metadata=_inject_traceparent_into_metadata(
                     dict(options.additional_metadata),
                 ),
             )
@@ -620,7 +648,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     **config.model_dump(exclude={"options"}),
                     options=TriggerWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
-                        additional_metadata=inject_traceparent_into_metadata(
+                        additional_metadata=_inject_traceparent_into_metadata(
                             dict(config.options.additional_metadata),
                         ),
                     ),
@@ -652,7 +680,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     **config.model_dump(exclude={"options"}),
                     options=TriggerWorkflowOptions(
                         **config.options.model_dump(exclude={"additional_metadata"}),
-                        additional_metadata=inject_traceparent_into_metadata(
+                        additional_metadata=_inject_traceparent_into_metadata(
                             dict(config.options.additional_metadata),
                         ),
                     ),
