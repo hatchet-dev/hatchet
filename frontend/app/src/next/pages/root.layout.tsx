@@ -23,12 +23,36 @@ import {
 import { SidebarProvider } from '@/next/components/ui/sidebar';
 import { DocsContext, useDocsState } from '../hooks/use-docs-sheet';
 
+function usePersistentPanelWidth(defaultWidth: number = 67) {
+  const [leftPanelWidth, setLeftPanelWidth] = useState(() => {
+    try {
+      const savedWidth = localStorage.getItem('leftPanelWidth');
+      return savedWidth ? parseFloat(savedWidth) : defaultWidth;
+    } catch {
+      return defaultWidth;
+    }
+  });
+
+  const updateLeftPanelWidth = useCallback((width: number) => {
+    const clampedWidth = Math.min(Math.max(width, 20), 80);
+    setLeftPanelWidth(clampedWidth);
+
+    try {
+      localStorage.setItem('leftPanelWidth', clampedWidth.toString());
+    } catch {
+      // Silently fail if localStorage is not available
+    }
+  }, []);
+
+  return [leftPanelWidth, updateLeftPanelWidth] as const;
+}
+
 function RootContent({ children }: PropsWithChildren) {
   const meta = useApiMeta();
   const docsState = useDocsState();
   const sideSheetState = useSideSheetState();
 
-  const [leftPanelWidth, setLeftPanelWidth] = useState(67);
+  const [leftPanelWidth, setLeftPanelWidth] = usePersistentPanelWidth(67);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { sheet, close } = useSideSheet();
@@ -63,10 +87,9 @@ function RootContent({ children }: PropsWithChildren) {
       const newLeftWidth =
         ((e.clientX - containerRect.left) / containerRect.width) * 100;
 
-      const clampedWidth = Math.min(Math.max(newLeftWidth, 20), 80);
-      setLeftPanelWidth(clampedWidth);
+      setLeftPanelWidth(newLeftWidth);
     },
-    [isDragging],
+    [isDragging, setLeftPanelWidth],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -86,10 +109,17 @@ function RootContent({ children }: PropsWithChildren) {
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
-    if (isRightPanelOpen) {
-      setLeftPanelWidth((prev) => (prev === 67 ? prev : 67));
+    if (isRightPanelOpen && leftPanelWidth === 100) {
+      try {
+        const savedWidth = localStorage.getItem('leftPanelWidth');
+        if (savedWidth) {
+          setLeftPanelWidth(parseFloat(savedWidth));
+        }
+      } catch {
+        setLeftPanelWidth(67);
+      }
     }
-  }, [isRightPanelOpen]);
+  }, [isRightPanelOpen, leftPanelWidth, setLeftPanelWidth]);
 
   return (
     <SideSheetContext.Provider value={sideSheetState}>
