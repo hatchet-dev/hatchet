@@ -519,6 +519,14 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(workflow_name, payload, options)
 
+    def _ts_to_iso(self, ts: Union[datetime, timestamp_pb2.Timestamp]) -> str:
+        if isinstance(ts, datetime):
+            return ts.isoformat()
+        elif isinstance(ts, timestamp_pb2.Timestamp):
+            return ts.ToJsonString()
+        else:
+            raise TypeError(f"Unsupported type for timestamp conversion: {type(ts)}")
+
     ## IMPORTANT: Keep these types in sync with the wrapped method's signature
     def _wrap_schedule_workflow(
         self,
@@ -559,7 +567,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes = {
             OTelAttribute.SCHEDULE_WORKFLOW_WORKFLOW_NAME: workflow_name,
             OTelAttribute.SCHEDULED_WORKFLOW_RUN_AT_TIMESTAMPS: json.dumps(
-                schedules, default=str
+                [self._ts_to_iso(ts) for ts in schedules]
             ),
             OTelAttribute.SCHEDULE_WORKFLOW_PAYLOAD: json.dumps(input, default=str),
             OTelAttribute.SCHEDULE_WORKFLOW_PARENT_ID: options.parent_id,
