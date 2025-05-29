@@ -8,7 +8,7 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-## Configure Langfuse
+# > Configure Langfuse
 lf = Langfuse(
     public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
     secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
@@ -23,7 +23,9 @@ os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = (
     os.getenv("LANGFUSE_HOST", "https://us.cloud.langfuse.com") + "/api/public/otel"
 )
 os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
+# !!
 
+# > Configure tracer provider
 trace_provider = TracerProvider(
     resource=Resource(
         attributes={
@@ -34,8 +36,10 @@ trace_provider = TracerProvider(
 
 ## Add Langfuse span processor to the OpenTelemetry trace provider
 trace_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+# !!
 
-## Create an OpenAI client instrumented with Langfuse
+# > Create an OpenAI client instrumented with Langfuse
 openai = AsyncOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
 )
+# !!

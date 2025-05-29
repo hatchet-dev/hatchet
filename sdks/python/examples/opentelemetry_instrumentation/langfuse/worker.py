@@ -1,5 +1,3 @@
-from langfuse import get_client  # type: ignore[import-untyped]
-
 from examples.opentelemetry_instrumentation.langfuse.client import (
     openai,
     trace_provider,
@@ -7,11 +5,11 @@ from examples.opentelemetry_instrumentation.langfuse.client import (
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
+# > Task
 HatchetInstrumentor(
     tracer_provider=trace_provider,
 ).instrument()
 
-langfuse = get_client()
 hatchet = Hatchet()
 
 
@@ -31,6 +29,9 @@ async def langfuse_task(input: EmptyModel, ctx: Context) -> dict[str, str | None
     return {
         "location": location,
     }
+
+
+# !!
 
 
 def main() -> None:
