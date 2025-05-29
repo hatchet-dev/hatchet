@@ -105,22 +105,6 @@ class Action(BaseModel):
             OTelAttribute.GET_GROUP_KEY_RUN_ID: self.get_group_key_run_id,
             OTelAttribute.WORKFLOW_ID: self.workflow_id,
             OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
-            ## Action attributes
-            OTelAttribute.START_TASK_RUN_TENANT_ID: self.tenant_id,
-            OTelAttribute.START_TASK_RUN_WORKER_ID: self.worker_id,
-            OTelAttribute.START_TASK_RUN_WORKFLOW_RUN_ID: self.workflow_run_id,
-            OTelAttribute.START_TASK_RUN_STEP_ID: self.step_id,
-            OTelAttribute.START_TASK_RUN_STEP_RUN_ID: self.step_run_id,
-            OTelAttribute.START_TASK_RUN_RETRY_COUNT: self.retry_count,
-            OTelAttribute.START_TASK_RUN_PARENT_WORKFLOW_RUN_ID: self.parent_workflow_run_id,
-            OTelAttribute.START_TASK_RUN_CHILD_WORKFLOW_INDEX: self.child_workflow_index,
-            OTelAttribute.START_TASK_RUN_CHILD_WORKFLOW_KEY: self.child_workflow_key,
-            OTelAttribute.START_TASK_RUN_ACTION_PAYLOAD: payload_str,
-            OTelAttribute.START_TASK_RUN_WORKFLOW_NAME: self.job_name,
-            OTelAttribute.START_TASK_RUN_ACTION_NAME: self.action_id,
-            OTelAttribute.START_TASK_RUN_GET_GROUP_KEY_RUN_ID: self.get_group_key_run_id,
-            OTelAttribute.START_TASK_RUN_WORKFLOW_ID: self.workflow_id,
-            OTelAttribute.START_TASK_RUN_WORKFLOW_VERSION_ID: self.workflow_version_id,
         }
 
         return {

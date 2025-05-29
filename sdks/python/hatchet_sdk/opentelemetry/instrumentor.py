@@ -371,13 +371,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         attributes = {
             OTelAttribute.EVENT_KEY: event_key,
-            OTelAttribute.EVENT_PAYLOAD: json.dumps(payload, default=str),
-            OTelAttribute.EVENT_ADDITIONAL_METADATA: json.dumps(
+            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 options.additional_metadata, default=str
             ),
-            OTelAttribute.EVENT_NAMESPACE: options.namespace,
-            OTelAttribute.EVENT_PRIORITY: options.priority,
-            OTelAttribute.EVENT_SCOPE: options.scope,
+            OTelAttribute.NAMESPACE: options.namespace,
+            OTelAttribute.PRIORITY: options.priority,
+            OTelAttribute.FILTER_SCOPE: options.scope,
         }
 
         with self._tracer.start_as_current_span(
@@ -458,20 +458,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         attributes = {
-            OTelAttribute.RUN_WORKFLOW_WORKFLOW_NAME: workflow_name,
-            OTelAttribute.RUN_WORKFLOW_PAYLOAD: json.dumps(payload, default=str),
-            OTelAttribute.RUN_WORKFLOW_PARENT_ID: options.parent_id,
-            OTelAttribute.RUN_WORKFLOW_PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.RUN_WORKFLOW_CHILD_INDEX: options.child_index,
-            OTelAttribute.RUN_WORKFLOW_CHILD_KEY: options.child_key,
-            OTelAttribute.RUN_WORKFLOW_NAMESPACE: options.namespace,
-            OTelAttribute.RUN_WORKFLOW_ADDITIONAL_METADATA: json.dumps(
+            OTelAttribute.WORKFLOW_NAME: workflow_name,
+            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.PARENT_ID: options.parent_id,
+            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
+            OTelAttribute.CHILD_INDEX: options.child_index,
+            OTelAttribute.CHILD_KEY: options.child_key,
+            OTelAttribute.NAMESPACE: options.namespace,
+            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 options.additional_metadata, default=str
             ),
-            OTelAttribute.RUN_WORKFLOW_PRIORITY: options.priority,
-            OTelAttribute.RUN_WORKFLOW_DESIRED_WORKER_ID: options.desired_worker_id,
-            OTelAttribute.RUN_WORKFLOW_STICKY: options.sticky,
-            OTelAttribute.RUN_WORKFLOW_KEY: options.key,
+            OTelAttribute.PRIORITY: options.priority,
+            OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
+            OTelAttribute.STICKY: options.sticky,
+            OTelAttribute.KEY: options.key,
         }
 
         with self._tracer.start_as_current_span(
@@ -514,20 +514,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         attributes = {
-            OTelAttribute.RUN_WORKFLOW_WORKFLOW_NAME: workflow_name,
-            OTelAttribute.RUN_WORKFLOW_PAYLOAD: json.dumps(payload, default=str),
-            OTelAttribute.RUN_WORKFLOW_PARENT_ID: options.parent_id,
-            OTelAttribute.RUN_WORKFLOW_PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.RUN_WORKFLOW_CHILD_INDEX: options.child_index,
-            OTelAttribute.RUN_WORKFLOW_CHILD_KEY: options.child_key,
-            OTelAttribute.RUN_WORKFLOW_NAMESPACE: options.namespace,
-            OTelAttribute.RUN_WORKFLOW_ADDITIONAL_METADATA: json.dumps(
+            OTelAttribute.WORKFLOW_NAME: workflow_name,
+            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.PARENT_ID: options.parent_id,
+            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
+            OTelAttribute.CHILD_INDEX: options.child_index,
+            OTelAttribute.CHILD_KEY: options.child_key,
+            OTelAttribute.NAMESPACE: options.namespace,
+            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 options.additional_metadata, default=str
             ),
-            OTelAttribute.RUN_WORKFLOW_PRIORITY: options.priority,
-            OTelAttribute.RUN_WORKFLOW_DESIRED_WORKER_ID: options.desired_worker_id,
-            OTelAttribute.RUN_WORKFLOW_STICKY: options.sticky,
-            OTelAttribute.RUN_WORKFLOW_KEY: options.key,
+            OTelAttribute.PRIORITY: options.priority,
+            OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
+            OTelAttribute.STICKY: options.sticky,
+            OTelAttribute.KEY: options.key,
         }
 
         with self._tracer.start_as_current_span(
@@ -593,20 +593,20 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         attributes = {
-            OTelAttribute.SCHEDULE_WORKFLOW_WORKFLOW_NAME: workflow_name,
-            OTelAttribute.SCHEDULED_WORKFLOW_RUN_AT_TIMESTAMPS: json.dumps(
+            OTelAttribute.WORKFLOW_NAME: workflow_name,
+            OTelAttribute.RUN_AT_TIMESTAMPS: json.dumps(
                 [self._ts_to_iso(ts) for ts in schedules]
             ),
-            OTelAttribute.SCHEDULE_WORKFLOW_PAYLOAD: json.dumps(input, default=str),
-            OTelAttribute.SCHEDULE_WORKFLOW_PARENT_ID: options.parent_id,
-            OTelAttribute.SCHEDULE_WORKFLOW_PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.SCHEDULE_WORKFLOW_CHILD_INDEX: options.child_index,
-            OTelAttribute.SCHEDULE_WORKFLOW_CHILD_KEY: options.child_key,
-            OTelAttribute.SCHEDULE_WORKFLOW_NAMESPACE: options.namespace,
-            OTelAttribute.SCHEDULE_WORKFLOW_ADDITIONAL_METADATA: json.dumps(
+            OTelAttribute.ACTION_PAYLOAD: json.dumps(input, default=str),
+            OTelAttribute.PARENT_ID: options.parent_id,
+            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
+            OTelAttribute.CHILD_INDEX: options.child_index,
+            OTelAttribute.CHILD_KEY: options.child_key,
+            OTelAttribute.NAMESPACE: options.namespace,
+            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
                 options.additional_metadata, default=str
             ),
-            OTelAttribute.SCHEDULE_WORKFLOW_PRIORITY: options.priority,
+            OTelAttribute.PRIORITY: options.priority,
         }
 
         with self._tracer.start_as_current_span(
