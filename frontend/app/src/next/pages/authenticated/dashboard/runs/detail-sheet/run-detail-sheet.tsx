@@ -7,7 +7,7 @@ import {
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { TaskRunDetailPayloadContent } from './task-run-detail-payloads';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Button } from '@/next/components/ui/button';
 import { AlertCircle, ArrowUpCircle } from 'lucide-react';
 import { RunsBadge } from '@/next/components/runs/runs-badge';

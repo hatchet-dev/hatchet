@@ -638,7 +638,14 @@ export function Waterfall({
         />
       );
     },
-    [workflowRunId, selectedTaskId, handleBarClick, toggleTask, processedData],
+    [
+      workflowRunId,
+      selectedTaskId,
+      handleBarClick,
+      toggleTask,
+      processedData,
+      tenantId,
+    ],
   );
 
   // Handle loading or error states
