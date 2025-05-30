@@ -850,13 +850,7 @@ const Tick = ({
             task.taskExternalId === workflowRunId &&
             task.parentId && (
               <Link
-                to={ROUTES.runs.detailWithSheet(tenantId, task.parentId, {
-                  type: 'task-detail',
-                  props: {
-                    selectedWorkflowRunId: task.workflowRunId,
-                    selectedTaskId: task.id,
-                  },
-                })}
+                to={ROUTES.runs.detail(tenantId, task.parentId)}
                 onClick={(e) => e.stopPropagation()}
               >
                 <Button
@@ -871,17 +865,7 @@ const Tick = ({
             )}
           {task.hasChildren && (
             <Link
-              to={ROUTES.runs.detailWithSheet(
-                tenantId,
-                task.workflowRunId || task.id,
-                {
-                  type: 'task-detail',
-                  props: {
-                    selectedWorkflowRunId: task.workflowRunId || task.id,
-                    selectedTaskId: task.id,
-                  },
-                },
-              )}
+              to={ROUTES.runs.detail(tenantId, task.workflowRunId || task.id)}
             >
               <Button
                 tooltip="Drill into child task"

@@ -150,15 +150,7 @@ export function RunsTable({
 
   const handleRowDoubleClick = useCallback(
     (row: V1TaskSummary) => {
-      navigate(
-        ROUTES.runs.detailWithSheet(tenantId, row.workflowRunExternalId || '', {
-          type: 'task-detail',
-          props: {
-            selectedWorkflowRunId: row.workflowRunExternalId || '',
-            selectedTaskId: row.taskExternalId,
-          },
-        }),
-      );
+      navigate(ROUTES.runs.detail(tenantId, row.workflowRunExternalId || ''));
     },
     [navigate, tenantId],
   );

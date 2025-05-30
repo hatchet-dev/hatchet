@@ -44,16 +44,12 @@ import {
   FilterSelect,
 } from '@/next/components/ui/filters/filters';
 import { useFilters } from '@/next/hooks/utils/use-filters';
-import { ROUTES } from '@/next/lib/routes';
 import { FilterProvider } from '@/next/hooks/utils/use-filters';
 
 interface RunEventLogProps {
   filters?: ActivityFilters;
   workflow: V1WorkflowRun;
-  onTaskSelect?: (
-    event: V1TaskEvent,
-    options?: Parameters<typeof ROUTES.runs.detailWithSheet>[3],
-  ) => void;
+  onTaskSelect?: (event: V1TaskEvent) => void;
   showFilters?: {
     search?: boolean;
     eventType?: boolean;
@@ -305,7 +301,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
           className="h-5 p-1 text-xs text-muted-foreground hover:text-muted-foreground/80 border-muted-foreground/50"
           onClick={(e) => {
             e.stopPropagation();
-            onTaskSelect(event, { taskTab: 'worker' });
+            onTaskSelect(event);
           }}
         >
           <CpuIcon className="h-3 w-3" />

@@ -37,17 +37,7 @@ export function RunId({
     ? ROUTES.runs.detail(tenantId, wfRun?.metadata.id || id || '')
     : taskRun?.type == V1WorkflowType.TASK
       ? undefined
-      : ROUTES.runs.detailWithSheet(
-          tenantId,
-          taskRun?.workflowRunExternalId || '',
-          {
-            type: 'task-detail',
-            props: {
-              selectedWorkflowRunId: taskRun?.workflowRunExternalId || '',
-              selectedTaskId: taskRun?.taskExternalId,
-            },
-          },
-        );
+      : ROUTES.runs.detail(tenantId, taskRun?.workflowRunExternalId || '');
 
   const displayNameIdPrefix = splitTime(displayName);
   const friendlyDisplayName = displayNameIdPrefix || displayName;

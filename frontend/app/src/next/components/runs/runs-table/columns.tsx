@@ -112,16 +112,9 @@ export const columns = (
         <DataTableColumnHeader column={column} title="Run ID" />
       ),
       cell: ({ row }) => {
-        const url = ROUTES.runs.detailWithSheet(
+        const url = ROUTES.runs.detail(
           row.original.tenantId,
           row.original.workflowRunExternalId || '',
-          {
-            type: 'task-detail',
-            props: {
-              selectedWorkflowRunId: row.original.workflowRunExternalId || '',
-              selectedTaskId: row.original.taskExternalId,
-            },
-          },
         );
 
         return (
