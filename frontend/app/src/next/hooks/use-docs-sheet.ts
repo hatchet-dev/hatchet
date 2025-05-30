@@ -33,7 +33,7 @@ export function useDocs() {
   if (!context) {
     throw new Error('useDocs must be used within a DocsProvider');
   }
-  
+
   return {
     open: context.open,
     toggle: context.toggle,

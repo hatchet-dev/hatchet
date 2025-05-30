@@ -18,14 +18,19 @@ export type DocRef = {
   href: string;
 };
 
-type SidePanelContent = {
-  component: React.ReactNode;
-  title: React.ReactNode;
-  actions?: React.ReactNode;
-};
+type SidePanelContent =
+  | {
+      isDocs: false;
+      component: React.ReactNode;
+      title: React.ReactNode;
+      actions?: React.ReactNode;
+    }
+  | {
+      isDocs: true;
+      component: React.ReactNode;
+    };
 
 type SidePanelData = {
-  type: 'docs' | 'run-details' | undefined;
   content: SidePanelContent | null;
   isOpen: boolean;
   open: (props: UseSidePanelProps) => void;
@@ -58,11 +63,13 @@ export function useSidePanelData(): SidePanelData {
     switch (panelType) {
       case 'run-details':
         return {
+          isDocs: false,
           component: <RunDetailSheet {...props.content} />,
           title: 'Run Detail',
         };
       case 'docs':
         return {
+          isDocs: true,
           component: (
             <iframe
               src={props.content.href}
@@ -71,7 +78,6 @@ export function useSidePanelData(): SidePanelData {
               loading="lazy"
             />
           ),
-          title: props.content.title,
         };
       default:
         // eslint-disable-next-line no-case-declarations
@@ -96,7 +102,6 @@ export function useSidePanelData(): SidePanelData {
   }, [setIsOpen]);
 
   return {
-    type: props?.type,
     isOpen,
     content,
     open,

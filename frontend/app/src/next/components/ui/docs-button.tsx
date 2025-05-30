@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Button, ButtonProps } from './button';
 import { BookOpenIcon } from 'lucide-react';
-import { DocRef, useDocs } from '@/next/hooks/use-docs-sheet';
+import { DocRef } from '@/next/hooks/use-docs-sheet';
 import { cn } from '@/next/lib/utils';
 import {
   Tooltip,
@@ -9,7 +9,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from './tooltip';
-import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { useSidePanel } from '@/next/hooks/use-side-panel';
 
 interface DocsButtonProps

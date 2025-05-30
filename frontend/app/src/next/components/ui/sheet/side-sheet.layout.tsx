@@ -36,46 +36,6 @@ type SidePanelProps =
       props: RunDetailSheetSerializableProps;
     };
 
-type SidePanelContent = {
-  content: React.ReactNode;
-  title: string;
-  actions?: React.ReactNode;
-};
-
-const useSidePanelContent = (
-  props: SidePanelProps,
-): SidePanelContent | null => {
-  const { sheet } = useSideSheet();
-
-  switch (props.type) {
-    case 'task-detail':
-      if (
-        !sheet ||
-        !sheet.openProps ||
-        sheet.openProps.type !== 'task-detail'
-      ) {
-        return null;
-      }
-
-      return {
-        content: <RunDetailSheet {...sheet.openProps.props} />,
-        title: 'Run Detail',
-      };
-    case 'docs':
-      return {
-        content: (
-          <iframe
-            src={props.url}
-            className="absolute inset-0 w-full h-full rounded-md border"
-            // title={`Documentation: ${props.title}`}
-            loading="lazy"
-          />
-        ),
-        title: props.title,
-      };
-  }
-};
-
 export function SideSheetComponent({
   variant = 'push',
   onClose,
@@ -162,27 +122,27 @@ export function SideSheetComponent({
 }
 
 export function SidePanel() {
-  const { content: maybeContent, isOpen, close, type } = useSidePanel();
+  const { content: maybeContent, isOpen, close } = useSidePanel();
 
   if (!maybeContent) {
     return null;
   }
 
-  const { component, title, actions } = maybeContent;
-
   return (
     <div>
       {isOpen && (
         <div className="flex flex-col h-screen">
-          {type && type !== 'docs' && (
+          {!maybeContent.isDocs && (
             <div
               className={
                 'flex flex-row w-full justify-between items-center border-b bg-background h-16 px-4 md:p-12'
               }
             >
-              <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
+              <h2 className="text-lg font-semibold truncate pr-2">
+                {maybeContent.title}
+              </h2>
               <div className="flex items-center gap-2">
-                {actions}
+                {maybeContent.actions}
                 <Button
                   variant="ghost"
                   onClick={close}
@@ -195,7 +155,7 @@ export function SidePanel() {
             </div>
           )}
 
-          {component}
+          {maybeContent.component}
         </div>
       )}
     </div>
