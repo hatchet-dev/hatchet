@@ -1,4 +1,6 @@
 import { Callout } from "nextra/components";
+import snips from "@/lib/snips";
+import { Snippet } from "@/components/code";
 
 # OpenTelemetry
 
@@ -12,7 +14,7 @@ Hatchet supports exporting traces from your tasks to an [OpenTelemetry Collector
 
 ### Setup
 
-Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code, if you opt in. Setup is straightforward:
+Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code if you opt in. Setup is straightforward:
 
 First, install the `otel` extra with (e.g.) `pip install hatchet-sdk[otel]`. Then, import the instrumentor:
 
@@ -31,39 +33,16 @@ You bring your own trace provider and plug it into the `HatchetInstrumentor`, ca
   for more information on how to set up a trace provider.
 </Callout>
 
-### Providing a `traceparent`
-
-In some cases, you might also want to provide a `traceparent` so any spans created in Hatchet are children of a parent that was created elsewhere in your application. You can do that by providing a `traceparent` key in the `additional_metadata` field of corresponding options field the following methods:
-
-- `hatchet.event.push` via the `PushEventOptions`
-- `hatchet.event.bulk_push` via the `BulkPushEventOptions`
-- `Workflow.run` via the `TriggerWorkflowOptions` (and similarly for all other flavors of `run`, like `aio_run`, `run_nowait`, etc.)
-- `Workflow.run_many` via the `TriggerWorkflowOptions` (and similarly for all other flavors of `run_many`, like `aio_run_many`, etc.)
-
-For example:
-
-```python
-hatchet.event.push(
-    "user:create",
-    {'userId': '1234'},
-    options=PushEventOptions(
-      additional_metadata={
-          "traceparent":"00-f1aff5c5ea45185eff2a06fd5c0ed6c5-6f4116aff54d54d1-01" ## example traceparent
-      }
-    )
-)
-```
-
-The `HatchetInstrumentor` also has some methods for generating traceparents that might be helpful:
-
-1. `create_traceparent` creates a `traceparent`
-2. `inject_traceparent_into_metadata` injects a traceparent into the `additional_metadata` field
-
 ### Spans
 
 By default, Hatchet creates spans at the following points in the lifecycle of a task run:
 
 1. When a trigger is run on the client side, e.g. `run()` or `push()` is called.
-2. When a worker handles a task event, like starting running the task or cancelling the task
+2. When a worker handles a task event, such as starting to run the task or cancelling the task
 
-In addition, you'll get a handful of attributes set (prefixed by `hatchet.`) on the task run events, such as the task name and the worker id, as well as success / failure states, and so on.
+In addition, you'll get a handful of attributes set (prefixed by `hatchet.`) on the task run events, such as the task name and the worker ID, as well as success/failure states, and so on.
+
+Some other important notes:
+
+1. The instrumentor will automatically propagate the trace context between task runs, so if you spawn a task from another task, the child will correctly show up as a child of its parent in the trace waterfall.
+2. You can exclude specific attributes from being attached to spans by providing the `otel` configuration option on the `ClientConfig` and passing a list of `excluded_attributes`, which come from [this list](https://github.com/hatchet-dev/hatchet/blob/main/sdks/python/hatchet_sdk/utils/opentelemetry.py).

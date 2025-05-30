@@ -5,6 +5,15 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2025-05-29
+
+### Changed
+
+- Significant improvements to the OpenTelemetry instrumentor, including:
+  - Traceparents are automatically propagated through the metadata now so the client does not need to provide them manually.
+  - Added a handful of attributes to the `run_workflow`, `push_event`, etc. spans, such as the workflow being run / event being pushed, the metadata, and so on. Ignoring
+  - Added tracing for workflow scheduling
+
 ## [1.10.2] - 2025-05-19
 
 ### Changed

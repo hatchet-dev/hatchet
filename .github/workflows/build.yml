@@ -4,6 +4,7 @@ on:
     paths-ignore:
       - 'sdks/**'
       - 'frontend/docs/**'
+      - 'examples/**'
 
 jobs:
   frontend:
