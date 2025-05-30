@@ -13,10 +13,6 @@ import { Outlet } from 'react-router-dom';
 import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
 import { SidePanel } from '../components/ui/sheet/side-sheet.layout';
-import {
-  SideSheetContext,
-  useSideSheetState,
-} from '@/next/hooks/use-side-sheet';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
 import { DocsContext, useDocsState } from '../hooks/use-docs-sheet';
 import { SidePanelProvider, useSidePanel } from '../hooks/use-side-panel';
@@ -178,20 +174,17 @@ function RootContent({ children }: PropsWithChildren) {
 
 function Root({ children }: PropsWithChildren) {
   const docsState = useDocsState();
-  const sideSheetState = useSideSheetState();
 
   return (
     <ToastProvider>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         <SidebarProvider>
-          <SideSheetContext.Provider value={sideSheetState}>
-            <DocsContext.Provider value={docsState}>
-              <SidePanelProvider>
-                <Toaster />
-                <RootContent>{children}</RootContent>
-              </SidePanelProvider>
-            </DocsContext.Provider>
-          </SideSheetContext.Provider>
+          <DocsContext.Provider value={docsState}>
+            <SidePanelProvider>
+              <Toaster />
+              <RootContent>{children}</RootContent>
+            </SidePanelProvider>
+          </DocsContext.Provider>
         </SidebarProvider>
       </ThemeProvider>
     </ToastProvider>
