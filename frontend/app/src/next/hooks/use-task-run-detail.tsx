@@ -30,6 +30,7 @@ interface TaskRunDetailState {
   >;
   lastRefetchTime: number;
   refetchInterval: number | undefined;
+  attempt?: number;
 }
 
 const TaskRunDetailContext = createContext<TaskRunDetailState | null>(null);
@@ -170,6 +171,7 @@ function TaskRunDetailProviderContent({
       refetch: runDetails.refetch,
       lastRefetchTime: lastRefetchTimeRef.current,
       refetchInterval,
+      attempt,
     }),
     [
       runDetails.data,
@@ -179,6 +181,7 @@ function TaskRunDetailProviderContent({
       cancel,
       replay,
       refetchInterval,
+      attempt,
     ],
   );
 

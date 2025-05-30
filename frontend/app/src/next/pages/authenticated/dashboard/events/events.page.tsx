@@ -1,8 +1,8 @@
-import { V1Event } from '@/lib/api';
+import { V1Event, V1TaskStatus } from '@/lib/api';
 import BasicLayout from '@/next/components/layouts/basic.layout';
+import { RunsBadge } from '@/next/components/runs/runs-badge';
 import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-table-column-header';
-import { Badge } from '@/next/components/ui/badge';
-import { Button } from '@/next/components/ui/button';
+import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import {
@@ -18,17 +18,19 @@ import {
 } from '@/next/components/ui/pagination';
 import RelativeDate from '@/next/components/ui/relative-date';
 import { Separator } from '@/next/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/next/components/ui/tooltip';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
-import { useCurrentTenantId } from '@/next/hooks/use-tenant';
+import { RunsProvider } from '@/next/hooks/use-runs';
 import docs from '@/next/lib/docs';
-import { ROUTES } from '@/next/lib/routes';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
 
 function EventsContent() {
   const { data, isLoading } = useEvents();
-  const { tenantId } = useCurrentTenantId();
 
   if (isLoading) {
     return (
@@ -37,13 +39,6 @@ function EventsContent() {
       </div>
     );
   }
-
-  // const eventKeys = Array.from(new Set(data.map((e) => e.key)))
-  //   .sort((a, b) => a.localeCompare(b))
-  //   .map((k) => ({
-  //     label: k,
-  //     value: k,
-  //   }));
 
   return (
     <BasicLayout>
@@ -58,17 +53,8 @@ function EventsContent() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
-      {/* <FilterGroup>
-        <div className="flex flex-row gap-x-4">
-          <FilterSelect<EventsFilters, string>
-            name="keys"
-            placeholder="Event Key"
-          />
-          <ClearFiltersButton />
-        </div>
-      </FilterGroup> */}
       <DataTable
-        columns={columns(tenantId)}
+        columns={columns()}
         data={data || []}
         emptyState={
           <div className="flex flex-col items-center justify-center gap-4 py-8">
@@ -85,7 +71,7 @@ function EventsContent() {
   );
 }
 
-export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
+export const columns = (): ColumnDef<V1Event>[] => {
   return [
     {
       accessorKey: 'EventId',
@@ -93,11 +79,7 @@ export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
         <DataTableColumnHeader column={column} title="ID" className="pl-4" />
       ),
       cell: ({ row }) => (
-        <div className="w-full">
-          <Link to={ROUTES.events.detail(tenantId, row.original.metadata.id)}>
-            <Button variant="link">{row.original.metadata.id}</Button>
-          </Link>
-        </div>
+        <div className="w-full">{row.original.metadata.id} </div>
       ),
       enableSorting: false,
       enableHiding: true,
@@ -145,20 +127,32 @@ export const columns = (tenantId: string): ColumnDef<V1Event>[] => {
         };
 
         return (
-          <div className="flex flex-row gap-2 items-center justify-start">
-            {!!queued && <Badge variant="outline">{queued} Queued</Badge>}
-            {!!running && (
-              <Badge className="bg-amber-400">{running} Running</Badge>
-            )}
-            {!!cancelled && (
-              <Badge className="bg-black border border-red-500 text-white">
-                {cancelled} Cancelled
-              </Badge>
-            )}
-            {!!succeeded && (
-              <Badge variant="successful">{succeeded} Succeeded</Badge>
-            )}
-            {!!failed && <Badge variant="destructive">{failed} Failed</Badge>}
+          <div className="flex flex-row gap-2 items-center justify-start w-max">
+            <StatusBadgeWithTooltip
+              count={queued}
+              eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.QUEUED}
+            />
+            <StatusBadgeWithTooltip
+              count={running}
+              eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.RUNNING}
+            />
+            <StatusBadgeWithTooltip
+              count={cancelled}
+              eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.CANCELLED}
+            />
+            <StatusBadgeWithTooltip
+              count={succeeded}
+              eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.COMPLETED}
+            />
+            <StatusBadgeWithTooltip
+              count={failed}
+              eventExternalId={row.original.metadata.id}
+              status={V1TaskStatus.FAILED}
+            />
           </div>
         );
       },
@@ -208,3 +202,50 @@ export default function EventsPage() {
     </EventsProvider>
   );
 }
+
+const StatusBadgeWithTooltip = ({
+  count,
+  eventExternalId,
+  status,
+}: {
+  count: number | undefined;
+  eventExternalId: string;
+  status: V1TaskStatus;
+}) => {
+  if (!count || count === 0) {
+    return null;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div>
+          <RunsBadge status={status} variant="default" />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="bg-[hsl(var(--background))] border-slate-700 border z-20 shadow-lg p-4 text-white">
+        <RunsProvider
+          initialFilters={{
+            triggering_event_external_id: eventExternalId,
+          }}
+        >
+          <RunsTable
+            excludedFilters={[
+              'additional_metadata',
+              'only_tasks',
+              'is_root_task',
+              'parent_task_external_id',
+              'statuses',
+              'triggering_event_external_id',
+              'worker_id',
+              'workflow_ids',
+            ]}
+            showPagination={false}
+            allowSelection={false}
+            showActions={false}
+          />
+        </RunsProvider>
+      </TooltipContent>
+    </Tooltip>
+  );
+};

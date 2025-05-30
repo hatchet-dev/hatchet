@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  BookOpen,
   CheckIcon,
   ChevronRight,
   ChevronsUpDown,
@@ -52,7 +51,6 @@ import { useCurrentTenantId, useTenantDetails } from '@/next/hooks/use-tenant';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Logo } from '@/next/components/ui/logo';
 import { Code } from '@/next/components/ui/code';
-import { pages, useDocs } from '@/next/hooks/use-docs-sheet';
 import { ROUTES } from '@/next/lib/routes';
 import {
   DropdownMenu,
@@ -63,6 +61,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
+import { DocsButton } from '@/next/components/ui/docs-button';
+import docMetadata from '@/next/lib/docs';
 
 export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
@@ -74,7 +74,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
   const location = useLocation();
   const navLinks = getMainNavLinks(tenantId, location.pathname);
   const { toggleSidebar, isCollapsed, isMobile, setOpenMobile } = useSidebar();
-  const docs = useDocs();
+
   const [collapsibleState, setCollapsibleState] = useState<
     Record<string, boolean>
   >({});
@@ -294,14 +294,13 @@ name: ${user?.name}`;
                   </DropdownMenu>
                 </SidebarMenuItem>
                 <SidebarMenuItem key="docs">
-                  <SidebarMenuButton
-                    size="sm"
-                    tooltip="Documentation"
-                    onClick={() => docs.toggle(pages.home.index)}
-                  >
-                    <BookOpen />
-                    <span>Documentation</span>
-                  </SidebarMenuButton>
+                  <DocsButton
+                    doc={docMetadata.home.index}
+                    prefix={''}
+                    titleOverride="Documentation"
+                    variant="ghost"
+                    className="px-2 hover:bg-background"
+                  />
                 </SidebarMenuItem>
                 {navLinks.navSecondary.map((item) => (
                   <SidebarMenuItem key={item.title}>

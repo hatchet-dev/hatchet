@@ -173,7 +173,11 @@ function RunsProviderContent({
           ? endOfMinute(new Date(timeRange.filters.endTime)).toISOString()
           : endOfMinute(new Date()).toISOString();
 
-        const query = {
+        type WorkflowRunListParams = Parameters<
+          typeof api.v1WorkflowRunList
+        >[1];
+
+        const query: WorkflowRunListParams = {
           offset: Math.max(
             0,
             (pagination.currentPage - 1) * pagination.pageSize,

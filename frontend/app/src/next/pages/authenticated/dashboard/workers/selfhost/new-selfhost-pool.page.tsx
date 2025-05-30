@@ -3,7 +3,7 @@ import { Headline, PageTitle } from '@/next/components/ui/page-header';
 import docs from '@/next/lib/docs';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Separator } from '@/next/components/ui/separator';
-import { baseDocsUrl } from '@/next/hooks/use-docs-sheet';
+import { baseDocsUrl } from '@/next/components/ui/docs-button';
 
 function WorkerPoolDetailPageContent() {
   return (

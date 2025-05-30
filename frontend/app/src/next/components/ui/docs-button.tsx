@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Button, ButtonProps } from './button';
 import { BookOpenIcon } from 'lucide-react';
-import { DocRef, useDocs } from '@/next/hooks/use-docs-sheet';
 import { cn } from '@/next/lib/utils';
 import {
   Tooltip,
@@ -9,6 +8,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from './tooltip';
+import { useSidePanel } from '@/next/hooks/use-side-panel';
+
+export type DocRef = {
+  title: string;
+  href: string;
+};
 
 interface DocsButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -20,7 +25,7 @@ interface DocsButtonProps
   titleOverride?: string;
 }
 
-const baseDocsUrl = 'https://docs.hatchet.run';
+export const baseDocsUrl = 'https://docs.hatchet.run';
 
 export function DocsButton({
   doc,
@@ -31,12 +36,19 @@ export function DocsButton({
   titleOverride,
   ...props
 }: DocsButtonProps) {
-  const { open } = useDocs();
+  const { close: closeSideSheet, open } = useSidePanel();
 
   const handleClick = (e: React.MouseEvent) => {
     if (method === 'sheet') {
       e.preventDefault();
-      open(doc);
+      closeSideSheet();
+      open({
+        type: 'docs',
+        content: {
+          href: `${baseDocsUrl}${doc.href}`,
+          title: doc.title,
+        },
+      });
     } else {
       window.open(`${baseDocsUrl}${doc.href}`, '_blank');
     }

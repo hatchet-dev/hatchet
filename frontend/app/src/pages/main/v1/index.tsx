@@ -18,7 +18,7 @@ import {
 } from 'react-router-dom';
 import { Tenant, TenantMember, TenantUIVersion } from '@/lib/api';
 import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   MembershipsContextType,
   UserContextType,
@@ -40,7 +40,6 @@ import { ROUTES } from '@/next/lib/routes';
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const navigate = useNavigate();
-
   const { user, memberships } = ctx;
 
   const { tenant: currTenant } = useTenant();
@@ -51,28 +50,19 @@ function Main() {
     tenant: currTenant,
   });
 
+  useEffect(() => {
+    if (!currTenant) {
+      return;
+    }
+
+    if (currTenant.uiVersion === TenantUIVersion.V1) {
+      // Hard redirect here because the navigate hook is racy with other url updates
+      window.location.href = ROUTES.runs.list(currTenant.metadata.id);
+    }
+  }, [currTenant, navigate]);
+
   if (!user || !memberships || !currTenant) {
     return <Loading />;
-  }
-
-  if (currTenant.uiVersion === TenantUIVersion.V1) {
-    // FIXME: Not sure why `<Navigate />` is not working here
-    // think it's probably because of an effect hook race condition
-    // where the URL is updated in two places
-    return (
-      <div className="flex flex-col w-full items-center mt-4">
-        <div className="flex flex-col items-center justify-center border rounded-lg p-4 max-w-96 gap-y-6">
-          You're currently on a V0 UI page, but you've upgraded to the V1 UI.
-          <Button
-            onClick={() => {
-              navigate(ROUTES.runs.list(currTenant.metadata.id));
-            }}
-          >
-            Take me to the V1 UI
-          </Button>
-        </div>
-      </div>
-    );
   }
 
   return (

@@ -3,7 +3,7 @@ import { Snippet } from '@/next/lib/docs/generated/snips/types';
 const snippet: Snippet = {
   language: 'python',
   content:
-    'from hatchet_sdk import Hatchet\n\nhatchet = Hatchet()\n\n# > Event trigger\nhatchet.event.push("user:create", {})\n',
+    'from hatchet_sdk import Hatchet\n\nhatchet = Hatchet()\n\n# > Event trigger\nhatchet.event.push("user:create", {"should_skip": False})\n',
   source: 'out/python/events/event.py',
   blocks: {
     event_trigger: {
