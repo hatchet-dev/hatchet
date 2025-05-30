@@ -67,7 +67,7 @@ const useSidePanelContent = (
           <iframe
             src={props.url}
             className="absolute inset-0 w-full h-full rounded-md border"
-            title={`Documentation: ${props.title}`}
+            // title={`Documentation: ${props.title}`}
             loading="lazy"
           />
         ),
@@ -162,7 +162,7 @@ export function SideSheetComponent({
 }
 
 export function SidePanel() {
-  const { content: maybeContent, isOpen, close } = useSidePanel();
+  const { content: maybeContent, isOpen, close, type } = useSidePanel();
 
   if (!maybeContent) {
     return null;
@@ -174,24 +174,26 @@ export function SidePanel() {
     <div>
       {isOpen && (
         <div className="flex flex-col h-screen">
-          <div
-            className={
-              'flex flex-row w-full justify-between items-center border-b bg-background h-16 px-4 md:p-12'
-            }
-          >
-            <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
-            <div className="flex items-center gap-2">
-              {actions}
-              <Button
-                variant="ghost"
-                onClick={close}
-                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-              >
-                <Cross2Icon className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </Button>
+          {type && type !== 'docs' && (
+            <div
+              className={
+                'flex flex-row w-full justify-between items-center border-b bg-background h-16 px-4 md:p-12'
+              }
+            >
+              <h2 className="text-lg font-semibold truncate pr-2">{title}</h2>
+              <div className="flex items-center gap-2">
+                {actions}
+                <Button
+                  variant="ghost"
+                  onClick={close}
+                  className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+                >
+                  <Cross2Icon className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {component}
         </div>

@@ -25,6 +25,7 @@ type SidePanelContent = {
 };
 
 type SidePanelData = {
+  type: 'docs' | 'run-details' | undefined;
   content: SidePanelContent | null;
   isOpen: boolean;
   open: (props: UseSidePanelProps) => void;
@@ -65,7 +66,7 @@ export function useSidePanelData(): SidePanelData {
           component: (
             <iframe
               src={props.content.href}
-              className="absolute inset-0 w-full h-full rounded-md border"
+              className="inset-0 w-full h-full rounded-md border"
               title={`Documentation: ${props.content.title}`}
               loading="lazy"
             />
@@ -95,6 +96,7 @@ export function useSidePanelData(): SidePanelData {
   }, [setIsOpen]);
 
   return {
+    type: props?.type,
     isOpen,
     content,
     open,
