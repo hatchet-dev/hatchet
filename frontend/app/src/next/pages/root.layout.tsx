@@ -14,7 +14,6 @@ import { Toaster } from '@/next/components/ui/toaster';
 import { ToastProvider } from '@/next/hooks/utils/use-toast';
 import { SidePanel } from '../components/ui/sheet/side-sheet.layout';
 import { SidebarProvider } from '@/next/components/ui/sidebar';
-import { DocsContext, useDocsState } from '../hooks/use-docs-sheet';
 import { SidePanelProvider, useSidePanel } from '../hooks/use-side-panel';
 
 function usePersistentPanelWidth(defaultWidth: number = 67) {
@@ -173,18 +172,14 @@ function RootContent({ children }: PropsWithChildren) {
 }
 
 function Root({ children }: PropsWithChildren) {
-  const docsState = useDocsState();
-
   return (
     <ToastProvider>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         <SidebarProvider>
-          <DocsContext.Provider value={docsState}>
-            <SidePanelProvider>
-              <Toaster />
-              <RootContent>{children}</RootContent>
-            </SidePanelProvider>
-          </DocsContext.Provider>
+          <SidePanelProvider>
+            <Toaster />
+            <RootContent>{children}</RootContent>
+          </SidePanelProvider>
         </SidebarProvider>
       </ThemeProvider>
     </ToastProvider>

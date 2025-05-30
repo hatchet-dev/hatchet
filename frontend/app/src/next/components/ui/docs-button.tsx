@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Button, ButtonProps } from './button';
 import { BookOpenIcon } from 'lucide-react';
-import { DocRef } from '@/next/hooks/use-docs-sheet';
 import { cn } from '@/next/lib/utils';
 import {
   Tooltip,
@@ -10,6 +9,11 @@ import {
   TooltipTrigger,
 } from './tooltip';
 import { useSidePanel } from '@/next/hooks/use-side-panel';
+
+export type DocRef = {
+  title: string;
+  href: string;
+};
 
 interface DocsButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -21,7 +25,7 @@ interface DocsButtonProps
   titleOverride?: string;
 }
 
-const baseDocsUrl = 'https://docs.hatchet.run';
+export const baseDocsUrl = 'https://docs.hatchet.run';
 
 export function DocsButton({
   doc,

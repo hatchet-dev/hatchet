@@ -48,8 +48,6 @@ type UseSidePanelProps =
       content: RunDetailSheetSerializableProps;
     };
 
-export const baseDocsUrl = 'https://docs.hatchet.run';
-
 export function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [props, setProps] = useState<UseSidePanelProps | null>(null);

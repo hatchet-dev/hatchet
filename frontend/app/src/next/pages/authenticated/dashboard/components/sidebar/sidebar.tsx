@@ -51,7 +51,6 @@ import { useCurrentTenantId, useTenantDetails } from '@/next/hooks/use-tenant';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Logo } from '@/next/components/ui/logo';
 import { Code } from '@/next/components/ui/code';
-import { pages } from '@/next/hooks/use-docs-sheet';
 import { ROUTES } from '@/next/lib/routes';
 import {
   DropdownMenu,
@@ -63,6 +62,7 @@ import {
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { DocsButton } from '@/next/components/ui/docs-button';
+import docMetadata from '@/next/lib/docs';
 
 export function AppSidebar({ children }: PropsWithChildren) {
   const meta = useApiMeta();
@@ -295,7 +295,7 @@ name: ${user?.name}`;
                 </SidebarMenuItem>
                 <SidebarMenuItem key="docs">
                   <DocsButton
-                    doc={pages.home.index}
+                    doc={docMetadata.home.index}
                     prefix={''}
                     titleOverride="Documentation"
                     variant="ghost"
