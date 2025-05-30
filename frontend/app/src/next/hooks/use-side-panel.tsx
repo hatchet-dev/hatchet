@@ -92,14 +92,11 @@ export function useSidePanelData(): SidePanelData {
 
   const open = useCallback(
     (props: UseSidePanelProps) => {
-      console.log('Calling open with props:', props);
       setProps(props);
       setIsOpen(true);
     },
     [setIsOpen],
   );
-
-  console.log({ props, isOpen });
 
   const close = useCallback(() => {
     setIsOpen(false);

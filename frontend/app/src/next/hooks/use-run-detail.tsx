@@ -109,6 +109,7 @@ function RunDetailProviderContent({
     refetchInterval,
   });
 
+
   const parentDetails = useQuery({
     queryKey: [
       'workflow-run-details:get',

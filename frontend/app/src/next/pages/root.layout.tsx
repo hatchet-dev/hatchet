@@ -56,8 +56,6 @@ function RootContent({ children }: PropsWithChildren) {
 
   const { isOpen: isRightPanelOpen } = useSidePanel();
 
-  console.log('Is open:', isRightPanelOpen);
-
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
       if (!isRightPanelOpen) {

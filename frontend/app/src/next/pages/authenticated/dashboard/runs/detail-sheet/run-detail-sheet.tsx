@@ -29,6 +29,7 @@ import {
 } from '@/next/hooks/use-task-run-detail';
 import { WorkflowRunDetailPayloadContent } from './workflow-run-detail-payloads';
 import { RunDataCard } from '@/next/components/runs/run-output-card';
+import { useSidePanel } from '@/next/hooks/use-side-panel';
 export interface RunDetailSheetSerializableProps {
   pageWorkflowRunId?: string;
   selectedWorkflowRunId: string;
@@ -57,14 +58,15 @@ export function RunDetailSheet(props: RunDetailSheetSerializableProps) {
 function RunDetailSheetContent() {
   const { data } = useRunDetail();
   const { data: selectedTask } = useTaskRunDetail();
-  const { open: openSheet, sheet } = useSideSheet();
+  const { open: openSheet } = useSidePanel();
 
-  const { selectedTaskId, attempt } = sheet.openProps
-    ?.props as RunDetailSheetSerializableProps;
+  const selectedTaskId = data?.run.metadata.id;
 
   const latestTask = useMemo(() => {
     return data?.tasks.find((task) => task.metadata.id === selectedTaskId);
   }, [data, selectedTaskId]);
+
+  const attempt = latestTask?.attempt || 1;
 
   const populatedAttempt = useMemo(() => {
     return attempt || latestTask?.attempt;
@@ -86,8 +88,8 @@ function RunDetailSheetContent() {
                   return;
                 }
                 openSheet({
-                  type: 'task-detail',
-                  props: {
+                  type: 'run-details',
+                  content: {
                     selectedWorkflowRunId: data.run.metadata.id,
                   },
                 });
@@ -123,8 +125,8 @@ function RunDetailSheetContent() {
                 return;
               }
               openSheet({
-                type: 'task-detail',
-                props: {
+                type: 'run-details',
+                content: {
                   selectedWorkflowRunId:
                     childWorkflowRunId || data?.run?.metadata.id,
                   selectedTaskId: taskId,
@@ -171,8 +173,8 @@ function RunDetailSheetContent() {
                       return;
                     }
                     openSheet({
-                      type: 'task-detail',
-                      props: {
+                      type: 'run-details',
+                      content: {
                         selectedWorkflowRunId: data.run.metadata.id,
                         selectedTaskId: selectedTask.taskExternalId,
                         attempt: latestTask.attempt,
@@ -194,8 +196,8 @@ function RunDetailSheetContent() {
                       return;
                     }
                     openSheet({
-                      type: 'task-detail',
-                      props: {
+                      type: 'run-details',
+                      content: {
                         selectedWorkflowRunId: data.run.metadata.id,
                         selectedTaskId: selectedTask.taskExternalId,
                         attempt: parseInt(value),
@@ -267,8 +269,8 @@ function RunDetailSheetContent() {
                                 return;
                               }
                               openSheet({
-                                type: 'task-detail',
-                                props: {
+                                type: 'run-details',
+                                content: {
                                   selectedWorkflowRunId: data.run.metadata.id,
                                   selectedTaskId: selectedTask.taskExternalId,
                                   attempt: populatedAttempt + 1,
@@ -290,8 +292,8 @@ function RunDetailSheetContent() {
                                 return;
                               }
                               openSheet({
-                                type: 'task-detail',
-                                props: {
+                                type: 'run-details',
+                                content: {
                                   selectedWorkflowRunId: data.run.metadata.id,
                                   selectedTaskId: selectedTask.taskExternalId,
                                   attempt: populatedAttempt - 1,
@@ -311,8 +313,8 @@ function RunDetailSheetContent() {
                     }}
                     onTaskSelect={(event) => {
                       openSheet({
-                        type: 'task-detail',
-                        props: {
+                        type: 'run-details',
+                        content: {
                           selectedWorkflowRunId: data.run.metadata.id,
                           selectedTaskId: event.taskId,
                           attempt: event.attempt,
