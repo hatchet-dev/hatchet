@@ -83,6 +83,9 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	scheduledWorkflowId := sqlchelpers.UUIDToStr(scheduledWorkflow.ID)
 	triggerAt := scheduledWorkflow.TriggerAt.Time
 
+	// store the schedule in the cron map
+	t.scheduledWorkflows.Store(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId), s)
+
 	// if start is in the past, run now
 	if triggerAt.Before(time.Now()) {
 		t.l.Debug().Msg("ticker: trigger time is in the past, running now")
@@ -104,9 +107,6 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 	if err != nil {
 		return fmt.Errorf("could not schedule workflow: %w", err)
 	}
-
-	// store the schedule in the cron map
-	t.scheduledWorkflows.Store(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId), s)
 
 	s.Start()
 
