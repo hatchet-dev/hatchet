@@ -27,6 +27,7 @@ type SidePanelContent =
     }
   | {
       isDocs: true;
+      title: string;
       component: React.ReactNode;
     };
 
@@ -71,13 +72,16 @@ export function useSidePanelData(): SidePanelData {
         return {
           isDocs: true,
           component: (
-            <iframe
-              src={props.content.href}
-              className="inset-0 w-full h-full rounded-md border"
-              title={`Documentation: ${props.content.title}`}
-              loading="lazy"
-            />
+            <div className="p-4 size-full">
+              <iframe
+                src={props.content.href}
+                className="inset-0 w-full rounded-md border border-slate-800 size-full"
+                title={`Documentation: ${props.content.title}`}
+                loading="lazy"
+              />
+            </div>
           ),
+          title: props.content.title,
         };
       default:
         // eslint-disable-next-line no-case-declarations
