@@ -94,9 +94,7 @@ function WithPreviousInput({
   const { data: selectedRunDetails } = useRunDetail();
   useEffect(() => {
     if (selectedRunDetails?.run) {
-      setInput(
-        JSON.stringify((selectedRunDetails.run.input as any).input, null, 2),
-      );
+      setInput(JSON.stringify(selectedRunDetails.run.input, null, 2));
       setAddlMeta(
         JSON.stringify(selectedRunDetails.run.additionalMetadata, null, 2),
       );
@@ -221,9 +219,7 @@ function TriggerRunModalContent({
           data: {
             input: inputObj,
             additionalMetadata: addlMetaObj,
-            triggerAt: new Date(
-              scheduleTime.getTime() - scheduleTime.getTimezoneOffset() * 60000,
-            ).toISOString(),
+            triggerAt: new Date(scheduleTime.getTime()).toISOString(),
           },
         },
         {
@@ -346,24 +342,39 @@ function TriggerRunModalContent({
                 <FaCodeBranch className="text-muted-foreground" size={16} />
                 From Recent Run
               </label>
-              <select
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              <Select
                 value={selectedRunId}
                 disabled={!selectedWorkflowId}
-                onChange={(e) => {
-                  const runId = e.target.value;
-                  setSelectedRunId(runId);
+                onValueChange={(value) => {
+                  setSelectedRunId(value);
                 }}
               >
-                <option value="">Select a recent run</option>
-                {recentRuns
-                  ?.filter((run) => run.workflowId === selectedWorkflowId)
-                  .map((run) => (
-                    <option key={run.metadata.id} value={run.metadata.id}>
-                      {getFriendlyWorkflowRunId(run)}
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Select a recent run" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(() => {
+                    const filteredRuns =
+                      recentRuns?.filter(
+                        (run) => run.workflowId === selectedWorkflowId,
+                      ) || [];
+
+                    if (filteredRuns.length === 0) {
+                      return (
+                        <SelectItem value="no-runs" disabled>
+                          No recent runs available
+                        </SelectItem>
+                      );
+                    }
+
+                    return filteredRuns.map((run) => (
+                      <SelectItem key={run.metadata.id} value={run.metadata.id}>
+                        {getFriendlyWorkflowRunId(run)}
+                      </SelectItem>
+                    ));
+                  })()}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

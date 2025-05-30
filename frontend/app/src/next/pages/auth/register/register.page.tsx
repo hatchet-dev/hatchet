@@ -11,19 +11,16 @@ import {
 import useUser from '@/next/hooks/use-user';
 import { ROUTES } from '@/next/lib/routes';
 import { useTenantDetails } from '@/next/hooks/use-tenant';
+import { Loading } from '@/components/ui/loading';
 
 export default function Register() {
-  const { oss: meta, isLoading } = useApiMeta();
+  const { oss, isLoading } = useApiMeta();
 
   if (isLoading) {
-    return 'Loading...'; // TODO: add loading
+    return <Loading />;
   }
 
-  if (!meta) {
-    return 'Error loading meta'; // TODO: add error
-  }
-
-  const schemes = meta.auth?.schemes || [];
+  const schemes = oss?.auth?.schemes || [];
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
@@ -52,7 +49,9 @@ export default function Register() {
       {forms.map((form, index) => (
         <React.Fragment key={index}>
           {form}
-          {index < schemes.length - 1 && <OrContinueWith />}
+          {basicEnabled && schemes.length >= 2 && index == 0 && (
+            <OrContinueWith />
+          )}
         </React.Fragment>
       ))}
       <div className="flex flex-col space-y-2">

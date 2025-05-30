@@ -9,7 +9,12 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight, Drill, Loader } from 'lucide-react';
+import {
+  ArrowDownFromLine,
+  ChevronDown,
+  ChevronRight,
+  Loader,
+} from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
@@ -885,7 +890,7 @@ const Tick = ({
                 className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
               >
                 {' '}
-                <Drill className="w-4 h-4" />
+                <ArrowDownFromLine className="w-4 h-4" />
               </Button>
             </Link>
           )}
