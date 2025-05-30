@@ -7,7 +7,7 @@ import {
 import { RunDetailProvider, useRunDetail } from '@/next/hooks/use-run-detail';
 import { TaskRunDetailPayloadContent } from './task-run-detail-payloads';
 import { RunEventLog } from '@/next/components/runs/run-event-log/run-event-log';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/next/components/ui/button';
 import { AlertCircle, ArrowUpCircle } from 'lucide-react';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
@@ -56,7 +56,7 @@ export function RunDetailSheet(props: RunDetailSheetSerializableProps) {
 
 function RunDetailSheetContent() {
   const { data } = useRunDetail();
-  const { data: selectedTask } = useTaskRunDetail();
+  const { data: selectedTask, attempt } = useTaskRunDetail();
   const { open: openSheet } = useSidePanel();
 
   const selectedTaskId = data?.run.metadata.id;
@@ -64,8 +64,6 @@ function RunDetailSheetContent() {
   const latestTask = useMemo(() => {
     return data?.tasks.find((task) => task.metadata.id === selectedTaskId);
   }, [data, selectedTaskId]);
-
-  const attempt = latestTask?.attempt || 1;
 
   const populatedAttempt = useMemo(() => {
     return attempt || latestTask?.attempt;
