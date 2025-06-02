@@ -75,7 +75,7 @@ type ServerConfigFile struct {
 
 	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
 
-	OLAP ConfigFileOLAP `mapstructure:"olap" json:"olap,omitempty"`
+	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -94,12 +94,12 @@ type ConfigFileSampling struct {
 	SamplingRate float64 `mapstructure:"samplingRate" json:"samplingRate,omitempty" default:"1.0"`
 }
 
-type ConfigFileOLAP struct {
-	// OpsJitter is the jitter duration for OLAP operations in milliseconds
-	OpsJitter int `mapstructure:"opsJitter" json:"opsJitter,omitempty" default:"1500"`
+type ConfigFileOperations struct {
+	// Jitter is the jitter duration for operations pools in milliseconds
+	Jitter int `mapstructure:"jitter" json:"jitter,omitempty" default:"1500"`
 
-	// OpsPollInterval is the polling interval for OLAP operations in seconds
-	OpsPollInterval int `mapstructure:"opsPollInterval" json:"opsPollInterval,omitempty" default:"2"`
+	// PollInterval is the polling interval for operations in seconds
+	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"5"`
 }
 
 // General server runtime options
@@ -214,9 +214,6 @@ type ConfigFileRuntime struct {
 
 	// DefaultEngineVersion is the default engine version to use for new tenants
 	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V0"`
-
-	// OperationsJitter is the jitter duration for operations in milliseconds
-	OperationsJitter int `mapstructure:"operationsJitter" json:"operationsJitter,omitempty" default:"1500"`
 }
 
 type InternalClientTLSConfigFile struct {
@@ -538,7 +535,7 @@ type ServerConfig struct {
 
 	Sampling ConfigFileSampling
 
-	OLAP ConfigFileOLAP
+	Operations ConfigFileOperations
 
 	Version string
 }
@@ -581,7 +578,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
 	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
-	_ = v.BindEnv("runtime.operationsJitter", "SERVER_OPERATIONS_JITTER")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -774,7 +770,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("sampling.enabled", "SERVER_SAMPLING_ENABLED")
 	_ = v.BindEnv("sampling.samplingRate", "SERVER_SAMPLING_RATE")
 
-	// olap options
-	_ = v.BindEnv("olap.opsJitter", "SERVER_OLAP_OPS_JITTER")
-	_ = v.BindEnv("olap.opsPollInterval", "SERVER_OLAP_OPS_POLL_INTERVAL")
+	// operations options
+	_ = v.BindEnv("operations.jitter", "SERVER_OPERATIONS_JITTER")
+	_ = v.BindEnv("operations.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
 }

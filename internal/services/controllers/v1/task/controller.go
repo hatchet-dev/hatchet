@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
@@ -58,16 +59,17 @@ type TasksControllerImpl struct {
 type TasksControllerOpt func(*TasksControllerOpts)
 
 type TasksControllerOpts struct {
-	mq             msgqueue.MessageQueue
-	l              *zerolog.Logger
-	repo           repository.EngineRepository
-	repov1         v1.Repository
-	dv             datautils.DataDecoderValidator
-	alerter        hatcheterrors.Alerter
-	p              *partition.Partition
-	queueLogger    *zerolog.Logger
-	pgxStatsLogger *zerolog.Logger
-	opsPoolJitter  time.Duration
+	mq                  msgqueue.MessageQueue
+	l                   *zerolog.Logger
+	repo                repository.EngineRepository
+	repov1              v1.Repository
+	dv                  datautils.DataDecoderValidator
+	alerter             hatcheterrors.Alerter
+	p                   *partition.Partition
+	queueLogger         *zerolog.Logger
+	pgxStatsLogger      *zerolog.Logger
+	opsPoolJitter       time.Duration
+	opsPoolPollInterval time.Duration
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -78,12 +80,13 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 	pgxStatsLogger := logger.NewDefaultLogger("pgx-stats")
 
 	return &TasksControllerOpts{
-		l:              &l,
-		dv:             datautils.NewDataDecoderValidator(),
-		alerter:        alerter,
-		queueLogger:    &queueLogger,
-		pgxStatsLogger: &pgxStatsLogger,
-		opsPoolJitter:  1500 * time.Millisecond,
+		l:                   &l,
+		dv:                  datautils.NewDataDecoderValidator(),
+		alerter:             alerter,
+		queueLogger:         &queueLogger,
+		pgxStatsLogger:      &pgxStatsLogger,
+		opsPoolJitter:       1500 * time.Millisecond,
+		opsPoolPollInterval: 5 * time.Second,
 	}
 }
 
@@ -143,9 +146,10 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) TasksController
 	}
 }
 
-func WithOpsPoolJitter(jitter time.Duration) TasksControllerOpt {
+func WithOpsPoolJitter(cf server.ConfigFileOperations) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
-		opts.opsPoolJitter = jitter
+		opts.opsPoolJitter = time.Duration(cf.Jitter) * time.Millisecond
+		opts.opsPoolPollInterval = time.Duration(cf.PollInterval) * time.Second
 	}
 }
 
@@ -202,11 +206,12 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	}
 
 	jitter := opts.opsPoolJitter
+	pollInterval := opts.opsPoolPollInterval
 
-	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
-	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
-	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
-	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
+	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, pollInterval, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
+	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, pollInterval, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
+	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, pollInterval, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
+	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, pollInterval, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
 
 	return t, nil
 }
