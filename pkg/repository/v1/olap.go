@@ -223,7 +223,7 @@ type OLAPRepository interface {
 
 	GetTaskTimings(ctx context.Context, tenantId string, workflowRunId pgtype.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[string]int32, error)
 	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsParams, triggers []EventTriggersFromExternalId) error
-	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, error)
+	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error)
 }
 
 type OLAPRepositoryImpl struct {
@@ -1514,6 +1514,21 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	return nil
 }
 
-func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, error) {
-	return r.queries.ListEvents(ctx, r.readPool, opts)
+func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*sqlcv1.ListEventsRow, *int64, error) {
+	events, err := r.queries.ListEvents(ctx, r.readPool, opts)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	eventCount, err := r.queries.CountEvents(ctx, r.readPool, sqlcv1.CountEventsParams{
+		Tenantid: opts.Tenantid,
+		Keys:     opts.Keys,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return events, &eventCount, nil
 }
