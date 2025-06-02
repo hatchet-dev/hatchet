@@ -798,6 +798,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 				task.WithPartition(p),
 				task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+				task.WithOpsPoolJitter(time.Duration(sc.Runtime.OperationsJitter)*time.Millisecond),
 			)
 
 			if err != nil {

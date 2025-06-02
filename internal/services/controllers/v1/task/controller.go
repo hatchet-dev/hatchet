@@ -67,6 +67,7 @@ type TasksControllerOpts struct {
 	p              *partition.Partition
 	queueLogger    *zerolog.Logger
 	pgxStatsLogger *zerolog.Logger
+	opsPoolJitter  time.Duration
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -82,6 +83,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		alerter:        alerter,
 		queueLogger:    &queueLogger,
 		pgxStatsLogger: &pgxStatsLogger,
+		opsPoolJitter:  1500 * time.Millisecond,
 	}
 }
 
@@ -141,6 +143,12 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) TasksController
 	}
 }
 
+func WithOpsPoolJitter(jitter time.Duration) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.opsPoolJitter = jitter
+	}
+}
+
 func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	opts := defaultTasksControllerOpts()
 
@@ -193,10 +201,12 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		celParser:      cel.NewCELParser(),
 	}
 
-	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", t.processTaskTimeouts)
-	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "emit sleep step runs", t.processSleeps)
-	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "reassign step runs", t.processTaskReassignments)
-	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "retry step runs", t.processTaskRetryQueueItems)
+	jitter := opts.opsPoolJitter
+
+	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
+	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
+	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
+	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
 
 	return t, nil
 }

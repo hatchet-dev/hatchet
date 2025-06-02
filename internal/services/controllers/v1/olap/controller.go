@@ -180,11 +180,11 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	}
 
 	// Default jitter value
-	jitterMs := 1500
+	jitter := 1500 * time.Millisecond
 
 	// Override with config value if available
 	if o.olapConfig != nil && o.olapConfig.OpsJitter > 0 {
-		jitterMs = o.olapConfig.OpsJitter
+		jitter = time.Duration(o.olapConfig.OpsJitter) * time.Millisecond
 	}
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(
@@ -192,21 +192,21 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		time.Second*15,
 		"update task statuses",
 		o.updateTaskStatuses,
-	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
+	).WithJitter(jitter)
 
 	o.updateDAGStatusOperations = queueutils.NewOperationPool(
 		opts.l,
 		time.Second*15,
 		"update dag statuses",
 		o.updateDAGStatuses,
-	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
+	).WithJitter(jitter)
 
 	o.processTenantAlertOperations = queueutils.NewOperationPool(
 		opts.l,
 		time.Second*15,
 		"process tenant alerts",
 		o.processTenantAlerts,
-	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
+	).WithJitter(jitter)
 
 	return o, nil
 }
