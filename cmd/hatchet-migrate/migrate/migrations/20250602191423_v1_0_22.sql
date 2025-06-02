@@ -12,9 +12,6 @@ CREATE TABLE v1_events_olap_new (
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
 
-CREATE INDEX v1_events_olap_key_idx_new ON v1_events_olap_new (tenant_id, key);
-
-
 -- Dynamically create partitions based on existing partitions
 DO $$
 DECLARE
@@ -78,8 +75,7 @@ BEGIN
     END LOOP;
 END $$;
 
-ALTER INDEX v1_events_olap_key_idx_new
-RENAME TO v1_events_olap_key_idx;
+CREATE INDEX v1_events_olap_key_idx ON v1_events_olap (tenant_id, key);
 -- +goose StatementEnd
 
 -- +goose Down
