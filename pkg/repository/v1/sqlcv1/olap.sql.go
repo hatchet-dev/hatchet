@@ -85,6 +85,36 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 	return items, nil
 }
 
+const countEvents = `-- name: CountEvents :one
+WITH included_events AS (
+    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+    FROM v1_events_olap e
+    WHERE
+        e.tenant_id = $1
+        AND (
+            $2::TEXT[] IS NULL OR
+            "key" = ANY($2::TEXT[])
+        )
+    ORDER BY e.id DESC, e.seen_at DESC
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM included_events e
+`
+
+type CountEventsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Keys     []string    `json:"keys"`
+}
+
+func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
+	row := db.QueryRow(ctx, countEvents, arg.Tenantid, arg.Keys)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 type CreateDAGsOLAPParams struct {
 	TenantID             pgtype.UUID        `json:"tenant_id"`
 	ID                   int64              `json:"id"`
