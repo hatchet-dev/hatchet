@@ -13,9 +13,9 @@ func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) g
 
 	var nextPage int64
 	if total < offset+limit {
-		nextPage = currentPage + 1
-	} else {
 		nextPage = currentPage
+	} else {
+		nextPage = currentPage + 1
 	}
 
 	pagination := gen.PaginationResponse{
