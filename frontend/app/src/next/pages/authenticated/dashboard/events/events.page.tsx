@@ -32,7 +32,9 @@ import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional
 import { ColumnDef } from '@tanstack/react-table';
 
 function EventsContent() {
-  const { data, isLoading } = useEvents();
+  const { data, isLoading, pagination, paginationData } = useEvents();
+
+  console.log(pagination, paginationData);
 
   if (isLoading) {
     return (
@@ -201,15 +203,9 @@ export const columns = (): ColumnDef<V1Event>[] => {
 
 export default function EventsPage() {
   return (
-    <TimeFilterProvider
-      initialTimeRange={{
-        activePreset: '24h',
-      }}
-    >
-      <EventsProvider>
-        <EventsContent />
-      </EventsProvider>
-    </TimeFilterProvider>
+    <EventsProvider>
+      <EventsContent />
+    </EventsProvider>
   );
 }
 

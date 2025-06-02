@@ -2,9 +2,13 @@ import { createContext, useContext, useCallback, useMemo } from 'react';
 import api, { PaginationResponse, V1Event } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCurrentTenantId } from './use-tenant';
-import { PaginationProvider, usePagination } from './utils/use-pagination';
+import {
+  PaginationProvider,
+  PaginationProviderProps,
+  usePagination,
+} from './utils/use-pagination';
 import { FilterProvider, useFilters } from './utils/use-filters';
-import { useTimeFilters } from './utils/use-time-filters';
+import { TimeFilterProvider, useTimeFilters } from './utils/use-time-filters';
 
 interface EventsState {
   data: V1Event[];
@@ -17,6 +21,12 @@ interface EventsState {
 interface EventsProviderProps {
   children: React.ReactNode;
   refetchInterval?: number;
+  initialPagination?: PaginationProviderProps;
+  initialTimeRange?: {
+    startTime?: string;
+    endTime?: string;
+    activePreset?: '30m' | '1h' | '6h' | '24h' | '7d';
+  };
 }
 
 export interface EventsFilters {
@@ -115,11 +125,17 @@ export function EventsProvider({
 }: EventsProviderProps) {
   return (
     <FilterProvider initialFilters={{}}>
-      <PaginationProvider initialPage={1} initialPageSize={50}>
-        <EventsProviderContent refetchInterval={refetchInterval}>
-          {children}
-        </EventsProviderContent>
-      </PaginationProvider>
+      <TimeFilterProvider
+        initialTimeRange={{
+          activePreset: '24h',
+        }}
+      >
+        <PaginationProvider initialPage={1} initialPageSize={50}>
+          <EventsProviderContent refetchInterval={refetchInterval}>
+            {children}
+          </EventsProviderContent>
+        </PaginationProvider>
+      </TimeFilterProvider>
     </FilterProvider>
   );
 }
