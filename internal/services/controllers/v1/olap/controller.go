@@ -44,7 +44,7 @@ type OLAPControllerImpl struct {
 	updateDAGStatusOperations    *queueutils.OperationPool
 	processTenantAlertOperations *queueutils.OperationPool
 	samplingHashThreshold        *int64
-	olapConfig                   *server.ConfigFileOLAP
+	olapConfig                   *server.ConfigFileOperations
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -58,7 +58,7 @@ type OLAPControllerOpts struct {
 	p                     *partition.Partition
 	ta                    *alerting.TenantAlertManager
 	samplingHashThreshold *int64
-	olapConfig            *server.ConfigFileOLAP
+	olapConfig            *server.ConfigFileOperations
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -125,7 +125,7 @@ func WithSamplingConfig(c server.ConfigFileSampling) OLAPControllerOpt {
 	}
 }
 
-func WithOLAPConfig(c server.ConfigFileOLAP) OLAPControllerOpt {
+func WithOperationsConfig(c server.ConfigFileOperations) OLAPControllerOpt {
 	return func(opts *OLAPControllerOpts) {
 		opts.olapConfig = &c
 	}
@@ -180,33 +180,36 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	}
 
 	// Default jitter value
-	jitterMs := 1500
+	jitter := 1500 * time.Millisecond
 
 	// Override with config value if available
-	if o.olapConfig != nil && o.olapConfig.OpsJitter > 0 {
-		jitterMs = o.olapConfig.OpsJitter
+	if o.olapConfig != nil && o.olapConfig.Jitter > 0 {
+		jitter = time.Duration(o.olapConfig.Jitter) * time.Millisecond
 	}
+
+	// Default timeout
+	timeout := 15 * time.Second
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(
 		opts.l,
-		time.Second*15,
+		timeout,
 		"update task statuses",
 		o.updateTaskStatuses,
-	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
+	).WithJitter(jitter)
 
 	o.updateDAGStatusOperations = queueutils.NewOperationPool(
 		opts.l,
-		time.Second*15,
+		timeout,
 		"update dag statuses",
 		o.updateDAGStatuses,
-	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
+	).WithJitter(jitter)
 
 	o.processTenantAlertOperations = queueutils.NewOperationPool(
 		opts.l,
-		time.Second*15,
+		timeout,
 		"process tenant alerts",
 		o.processTenantAlerts,
-	).WithJitter(time.Duration(jitterMs) * time.Millisecond)
+	).WithJitter(jitter)
 
 	return o, nil
 }
@@ -246,8 +249,8 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	pollIntervalSec := 2
 
 	// Override with config value if available
-	if o.olapConfig != nil && o.olapConfig.OpsPollInterval > 0 {
-		pollIntervalSec = o.olapConfig.OpsPollInterval
+	if o.olapConfig != nil && o.olapConfig.PollInterval > 0 {
+		pollIntervalSec = o.olapConfig.PollInterval
 	}
 
 	_, err = o.s.NewJob(
