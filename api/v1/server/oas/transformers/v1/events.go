@@ -1,6 +1,8 @@
 package transformers
 
 import (
+	"math"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -8,7 +10,7 @@ import (
 func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) gen.V1EventList {
 	rows := make([]gen.V1Event, len(events))
 
-	numPages := (total / limit) + 1
+	numPages := int64(math.Ceil(float64(total) / float64(limit)))
 	currentPage := (offset / limit) + 1
 
 	var nextPage int64
