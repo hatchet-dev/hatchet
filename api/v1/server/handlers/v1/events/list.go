@@ -45,13 +45,19 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 		opts.Keys = keys
 	}
 
-	events, err := t.config.V1.OLAP().ListEvents(ctx.Request().Context(), opts)
+	events, maybeTotal, err := t.config.V1.OLAP().ListEvents(ctx.Request().Context(), opts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
 
-	rows := transformers.ToV1EventList(events)
+	total := int64(len(events))
+
+	if maybeTotal != nil {
+		total = *maybeTotal
+	}
+
+	rows := transformers.ToV1EventList(events, limit, offset, total)
 
 	return gen.V1EventList200JSONResponse(
 		rows,

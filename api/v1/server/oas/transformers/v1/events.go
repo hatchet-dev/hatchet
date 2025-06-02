@@ -5,10 +5,24 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func ToV1EventList(events []*sqlcv1.ListEventsRow) gen.V1EventList {
+func ToV1EventList(events []*sqlcv1.ListEventsRow, limit, offset, total int64) gen.V1EventList {
 	rows := make([]gen.V1Event, len(events))
 
-	pagination := gen.PaginationResponse{}
+	numPages := (total / limit) + 1
+	currentPage := (offset / limit) + 1
+
+	var nextPage int64
+	if total < offset+limit {
+		nextPage = currentPage + 1
+	} else {
+		nextPage = currentPage
+	}
+
+	pagination := gen.PaginationResponse{
+		CurrentPage: &currentPage,
+		NextPage:    &nextPage,
+		NumPages:    &numPages,
+	}
 
 	for i, row := range events {
 		additionalMetadata := jsonToMap(row.EventAdditionalMetadata)
