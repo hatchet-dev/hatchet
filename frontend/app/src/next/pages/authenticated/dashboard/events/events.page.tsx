@@ -31,7 +31,7 @@ import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional
 import { ColumnDef } from '@tanstack/react-table';
 
 function EventsContent() {
-  const { data, isLoading, pagination, paginationData } = useEvents();
+  const { data, isLoading } = useEvents();
 
   if (isLoading) {
     return (

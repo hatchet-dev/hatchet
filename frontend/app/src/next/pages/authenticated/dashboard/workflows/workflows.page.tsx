@@ -23,6 +23,11 @@ import { HeadlineActions } from '@/next/components/ui/page-header';
 import { PageTitle } from '@/next/components/ui/page-header';
 import BasicLayout from '@/next/components/layouts/basic.layout';
 import { Headline } from '@/next/components/ui/page-header';
+import {
+  PageSelector,
+  PageSizeSelector,
+  Pagination,
+} from '@/next/components/ui/pagination';
 
 const WorkflowCard: React.FC<{ data: Workflow }> = ({ data }) => {
   const { tenantId } = useCurrentTenantId();
@@ -132,11 +137,15 @@ function WorkflowsContent() {
         emptyState
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2">
             {data.map((workflow) => (
               <WorkflowCard key={workflow.metadata?.id} data={workflow} />
             ))}
           </div>
+          <Pagination className="mt-4 justify-between flex flex-row">
+            <PageSizeSelector />
+            <PageSelector variant="dropdown" />
+          </Pagination>
         </div>
       )}
     </BasicLayout>
