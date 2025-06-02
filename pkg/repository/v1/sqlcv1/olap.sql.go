@@ -100,7 +100,7 @@ WITH included_events AS (
             $4::TIMESTAMPTZ IS NULL OR
             e.seen_at <= $4::TIMESTAMPTZ
         )
-    ORDER BY e.id DESC, e.seen_at DESC
+    ORDER BY e.seen_at DESC, e.id
     LIMIT 20000
 )
 
@@ -596,7 +596,7 @@ WITH included_events AS (
             $4::TIMESTAMPTZ IS NULL OR
             e.seen_at <= $4::TIMESTAMPTZ
         )
-    ORDER BY e.id DESC, e.seen_at DESC
+    ORDER BY e.seen_at DESC, e.id
     OFFSET
         COALESCE($5::BIGINT, 0)
     LIMIT
