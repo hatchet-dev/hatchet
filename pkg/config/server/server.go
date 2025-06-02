@@ -99,7 +99,7 @@ type ConfigFileOperations struct {
 	Jitter int `mapstructure:"jitter" json:"jitter,omitempty" default:"1500"`
 
 	// PollInterval is the polling interval for operations in seconds
-	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"5"`
+	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
 }
 
 // General server runtime options

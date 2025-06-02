@@ -50,6 +50,8 @@ type TasksControllerImpl struct {
 	a                      *hatcheterrors.Wrapped
 	p                      *partition.Partition
 	celParser              *cel.CELParser
+	opsPoolPollInterval    time.Duration
+	opsPoolJitter          time.Duration
 	timeoutTaskOperations  *queueutils.OperationPool
 	reassignTaskOperations *queueutils.OperationPool
 	retryTaskOperations    *queueutils.OperationPool
@@ -86,7 +88,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		queueLogger:         &queueLogger,
 		pgxStatsLogger:      &pgxStatsLogger,
 		opsPoolJitter:       1500 * time.Millisecond,
-		opsPoolPollInterval: 5 * time.Second,
+		opsPoolPollInterval: 2 * time.Second,
 	}
 }
 
@@ -191,21 +193,23 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
 	t := &TasksControllerImpl{
-		mq:             opts.mq,
-		pubBuffer:      pubBuffer,
-		l:              opts.l,
-		queueLogger:    opts.queueLogger,
-		pgxStatsLogger: opts.pgxStatsLogger,
-		repo:           opts.repo,
-		repov1:         opts.repov1,
-		dv:             opts.dv,
-		s:              s,
-		a:              a,
-		p:              opts.p,
-		celParser:      cel.NewCELParser(),
+		mq:                  opts.mq,
+		pubBuffer:           pubBuffer,
+		l:                   opts.l,
+		queueLogger:         opts.queueLogger,
+		pgxStatsLogger:      opts.pgxStatsLogger,
+		repo:                opts.repo,
+		repov1:              opts.repov1,
+		dv:                  opts.dv,
+		s:                   s,
+		a:                   a,
+		p:                   opts.p,
+		celParser:           cel.NewCELParser(),
+		opsPoolJitter:       opts.opsPoolJitter,
+		opsPoolPollInterval: opts.opsPoolPollInterval,
 	}
 
-	jitter := opts.opsPoolJitter
+	jitter := t.opsPoolJitter
 	timeout := time.Second * 5
 
 	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
@@ -238,7 +242,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
 			tc.runTenantTimeoutTasks(ctx),
 		),
@@ -250,7 +254,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
 			tc.runTenantSleepEmitter(ctx),
 		),
@@ -262,7 +266,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
 			tc.runTenantReassignTasks(ctx),
 		),
@@ -274,7 +278,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = tc.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+		gocron.DurationJob(tc.opsPoolPollInterval),
 		gocron.NewTask(
 			tc.runTenantRetryQueueItems(ctx),
 		),

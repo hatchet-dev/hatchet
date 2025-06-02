@@ -187,7 +187,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		jitter = time.Duration(o.olapConfig.Jitter) * time.Millisecond
 	}
 
-	// Default poll interval
+	// Default timeout
 	timeout := 15 * time.Second
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(
