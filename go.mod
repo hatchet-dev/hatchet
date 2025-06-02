@@ -25,7 +25,7 @@ require (
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
-	github.com/posthog/posthog-go v1.5.9
+	github.com/posthog/posthog-go v1.5.11
 	github.com/pressly/goose/v3 v3.24.3
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.9.1
@@ -41,7 +41,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.36.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/time v0.11.0
-	google.golang.org/api v0.234.0
+	google.golang.org/api v0.235.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250519155744-55703ea1f237
 	k8s.io/api v0.33.1
 	k8s.io/apimachinery v0.33.1

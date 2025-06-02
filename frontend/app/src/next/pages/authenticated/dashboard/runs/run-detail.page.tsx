@@ -38,7 +38,7 @@ import RelativeDate from '@/next/components/ui/relative-date';
 import { WorkflowDetailsProvider } from '@/next/hooks/use-workflow-details';
 import WorkflowGeneralSettings from '../workflows/settings';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { useSideSheet } from '@/next/hooks/use-side-sheet';
+import { useSidePanel } from '@/next/hooks/use-side-panel';
 
 export default function RunDetailPage() {
   const { workflowRunId } = useParams<{
@@ -64,17 +64,19 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
   const { data, isLoading, error, cancel, replay } = useRunDetail();
 
   const [showTriggerModal, setShowTriggerModal] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string>();
 
   const workflow = data?.run;
   const tasks = data?.tasks;
 
-  const { open: openSheet, sheet } = useSideSheet();
+  const { open: openSheet } = useSidePanel();
 
   const handleTaskSelect = useCallback(
     (taskId: string, childWorkflowRunId?: string) => {
+      setSelectedTaskId(taskId);
       openSheet({
-        type: 'task-detail',
-        props: {
+        type: 'run-details',
+        content: {
           pageWorkflowRunId: workflowRunId!,
           selectedWorkflowRunId: childWorkflowRunId || taskId,
           selectedTaskId: taskId,
@@ -83,13 +85,6 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
     },
     [openSheet, workflowRunId],
   );
-
-  const selectedTaskId = useMemo(() => {
-    if (sheet?.openProps?.type === 'task-detail') {
-      return sheet?.openProps?.props.selectedTaskId;
-    }
-    return undefined;
-  }, [sheet]);
 
   const canCancel = useMemo(() => {
     return (
@@ -317,8 +312,8 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
               workflow={workflow}
               onTaskSelect={(event) => {
                 openSheet({
-                  type: 'task-detail',
-                  props: {
+                  type: 'run-details',
+                  content: {
                     selectedWorkflowRunId: workflowRunId!,
                     selectedTaskId: event.taskId,
                     attempt: event.attempt,

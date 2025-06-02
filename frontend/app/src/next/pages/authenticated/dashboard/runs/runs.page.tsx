@@ -13,35 +13,30 @@ import { Separator } from '@/next/components/ui/separator';
 import docs from '@/next/lib/docs';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { V1TaskSummary } from '@/lib/api';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { useSideSheet } from '@/next/hooks/use-side-sheet';
+import { useSidePanel } from '@/next/hooks/use-side-panel';
 
 export default function RunsPage() {
   const [showTriggerModal, setShowTriggerModal] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string>();
 
-  const { open: openSideSheet, sheet } = useSideSheet();
+  const { open: openSidePanel } = useSidePanel();
 
   const handleRowClick = (task: V1TaskSummary) => {
-    openSideSheet({
-      type: 'task-detail',
-      props: {
+    setSelectedTaskId(task.taskExternalId);
+    openSidePanel({
+      type: 'run-details',
+      content: {
         selectedWorkflowRunId: task.workflowRunExternalId,
         selectedTaskId: task.taskExternalId,
         pageWorkflowRunId: '',
       },
     });
   };
-
-  const selectedTaskId = useMemo(() => {
-    if (sheet?.openProps?.type === 'task-detail') {
-      return sheet?.openProps?.props.selectedTaskId;
-    }
-    return undefined;
-  }, [sheet]);
 
   return (
     <BasicLayout>

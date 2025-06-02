@@ -33,8 +33,9 @@ import { cn } from '@/next/lib/utils';
 export const columns = (
   rowClicked?: (row: V1TaskSummary) => void,
   selectAll?: boolean,
-): ColumnDef<V1TaskSummary>[] => [
-  {
+  allowSelection: boolean = true,
+): ColumnDef<V1TaskSummary>[] => {
+  const selectCheckboxColumn: ColumnDef<V1TaskSummary> = {
     id: 'select',
     header: ({ table }) => (
       <Checkbox
@@ -83,166 +84,173 @@ export const columns = (
     ),
     enableSorting: false,
     enableHiding: false,
-  },
-  {
-    accessorKey: 'status',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="" />,
-    cell: ({ row }) => {
-      const status = row.getValue('status') as V1TaskStatus;
-      return (
-        <div className="flex items-center justify-center h-full">
-          <RunsBadge variant="xs" status={status} />
-        </div>
-      );
-    },
-    filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id));
-    },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'runId',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Run ID" />
-    ),
-    cell: ({ row }) => {
-      const url = ROUTES.runs.detailWithSheet(
-        row.original.tenantId,
-        row.original.workflowRunExternalId || '',
-        {
-          type: 'task-detail',
-          props: {
-            selectedWorkflowRunId: row.original.workflowRunExternalId || '',
-            selectedTaskId: row.original.taskExternalId,
-          },
-        },
-      );
+  };
 
-      return (
-        <div className="flex items-center gap-2">
-          <RunId
-            taskRun={row.original}
-            onClick={() => {
-              rowClicked?.(row.original);
-            }}
-          />
-          {url && (
-            <Link
-              to={url}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Button variant="link" tooltip="Drill down into run" size="icon">
-                <ArrowDownFromLine className="w-4 h-4" />
-              </Button>
-            </Link>
-          )}
-        </div>
-      );
+  const contentColumns: ColumnDef<V1TaskSummary>[] = [
+    {
+      accessorKey: 'status',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="" />
+      ),
+      cell: ({ row }) => {
+        const status = row.getValue('status') as V1TaskStatus;
+        return (
+          <div className="flex items-center justify-center h-full">
+            <RunsBadge variant="xs" status={status} />
+          </div>
+        );
+      },
+      filterFn: (row, id, value) => {
+        return value.includes(row.getValue(id));
+      },
+      enableSorting: false,
+      enableHiding: false,
     },
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'workflowName',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Definition" />
-    ),
-    cell: ({ row }) => <div>{row.getValue('workflowName')}</div>,
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'createdAt',
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Created"
-        orderBy={WorkflowRunOrderByField.CreatedAt}
-      />
-    ),
-    cell: ({ row }) => (
-      <Time
-        date={row.getValue('createdAt')}
-        variant="timeSince"
-        tooltipVariant="timestamp"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: true,
-  },
-  {
-    accessorKey: 'startedAt',
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Started"
-        orderBy={WorkflowRunOrderByField.StartedAt}
-      />
-    ),
-    cell: ({ row }) => {
-      const startedAt = row.getValue('startedAt') as string | null;
-      if (!startedAt) {
-        return <span>-</span>;
-      }
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Time date={startedAt} variant="timeSince" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="bg-muted">
-              <Time
-                date={startedAt}
-                variant="timestamp"
-                asChild
-                className="font-mono text-foreground"
-              />
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
+    {
+      accessorKey: 'runId',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Run ID" />
+      ),
+      cell: ({ row }) => {
+        const url = ROUTES.runs.detail(
+          row.original.tenantId,
+          row.original.workflowRunExternalId || '',
+        );
+        return (
+          <div className="flex items-center gap-2">
+            <RunId
+              taskRun={row.original}
+              onClick={() => {
+                rowClicked?.(row.original);
+              }}
+            />
+            {url && (
+              <Link
+                to={url}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Button
+                  variant="link"
+                  tooltip="Drill down into run"
+                  size="icon"
+                >
+                  <ArrowDownFromLine className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
+          </div>
+        );
+      },
+      enableSorting: false,
+      enableHiding: false,
     },
-    enableSorting: false,
-    enableHiding: true,
-  },
-  {
-    accessorKey: 'duration',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Duration" />
-    ),
-    cell: ({ row }) => {
-      const startedAt = row.getValue('startedAt') as string | null;
-      const finishedAt = row.original.finishedAt as string | null;
-      const status = row.getValue('status') as V1TaskStatus;
-
-      return (
-        <Duration
-          start={startedAt}
-          end={finishedAt}
-          status={status}
-          variant="compact"
+    {
+      accessorKey: 'workflowName',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Definition" />
+      ),
+      cell: ({ row }) => <div>{row.getValue('workflowName')}</div>,
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'createdAt',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title="Created"
+          orderBy={WorkflowRunOrderByField.CreatedAt}
         />
-      );
+      ),
+      cell: ({ row }) => (
+        <Time
+          date={row.getValue('createdAt')}
+          variant="timeSince"
+          tooltipVariant="timestamp"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: true,
     },
-    enableSorting: false,
-    enableHiding: true,
-  },
-  {
-    accessorKey: 'additionalMetadata',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Metadata" />
-    ),
-    cell: ({ row }) => {
-      return <AdditionalMetadataCell row={row} />;
+    {
+      accessorKey: 'startedAt',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title="Started"
+          orderBy={WorkflowRunOrderByField.StartedAt}
+        />
+      ),
+      cell: ({ row }) => {
+        const startedAt = row.getValue('startedAt') as string | null;
+        if (!startedAt) {
+          return <span>-</span>;
+        }
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Time date={startedAt} variant="timeSince" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-muted">
+                <Time
+                  date={startedAt}
+                  variant="timestamp"
+                  asChild
+                  className="font-mono text-foreground"
+                />
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      },
+      enableSorting: false,
+      enableHiding: true,
     },
-    enableSorting: false,
-    enableHiding: true,
-  },
-];
+    {
+      accessorKey: 'duration',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Duration" />
+      ),
+      cell: ({ row }) => {
+        const startedAt = row.getValue('startedAt') as string | null;
+        const finishedAt = row.original.finishedAt as string | null;
+        const status = row.getValue('status') as V1TaskStatus;
+
+        return (
+          <Duration
+            start={startedAt}
+            end={finishedAt}
+            status={status}
+            variant="compact"
+          />
+        );
+      },
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
+      accessorKey: 'additionalMetadata',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Metadata" />
+      ),
+      cell: ({ row }) => {
+        return <AdditionalMetadataCell row={row} />;
+      },
+      enableSorting: false,
+      enableHiding: true,
+    },
+  ];
+
+  if (allowSelection) {
+    return [selectCheckboxColumn, ...contentColumns];
+  }
+
+  return contentColumns;
+};
 
 function AdditionalMetadataCell({ row }: { row: Row<V1TaskSummary> }) {
   const {

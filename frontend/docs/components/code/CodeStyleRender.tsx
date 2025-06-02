@@ -41,11 +41,13 @@ const CodeStyleRender = ({ parsed, language }: CodeStyleRenderProps) => {
 export default CodeStyleRender;
 
 function dedent(code: string) {
-  const lines = code.split("\n");
+  const trimmedCode = code.replace(/^\n+|\n+$/g, "");
+
+  const lines = trimmedCode.split("\n");
   const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
 
   if (nonEmptyLines.length === 0) {
-    return code;
+    return trimmedCode;
   }
 
   const minIndent = Math.min(
@@ -67,5 +69,5 @@ function dedent(code: string) {
       .join("\n");
   }
 
-  return code;
+  return trimmedCode;
 }

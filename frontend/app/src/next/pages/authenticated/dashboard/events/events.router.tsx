@@ -10,13 +10,4 @@ export const eventsRoutes = [
         };
       }),
   },
-  {
-    path: ROUTES.events.detail(':tenantId', ':eventId'),
-    lazy: () =>
-      import('./events-detail.page').then((res) => {
-        return {
-          Component: res.default,
-        };
-      }),
-  },
 ];
