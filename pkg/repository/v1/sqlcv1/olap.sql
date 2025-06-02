@@ -1385,6 +1385,11 @@ WITH included_events AS (
             sqlc.narg('keys')::TEXT[] IS NULL OR
             "key" = ANY(sqlc.narg('keys')::TEXT[])
         )
+        AND e.seen_at >= @since::TIMESTAMPTZ
+        AND (
+            sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
+        )
     ORDER BY e.id DESC, e.seen_at DESC
     OFFSET
         COALESCE(sqlc.narg('offset')::BIGINT, 0)
@@ -1439,6 +1444,11 @@ WITH included_events AS (
         AND (
             sqlc.narg('keys')::TEXT[] IS NULL OR
             "key" = ANY(sqlc.narg('keys')::TEXT[])
+        )
+        AND e.seen_at >= @since::TIMESTAMPTZ
+        AND (
+            sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
         )
     ORDER BY e.id DESC, e.seen_at DESC
     LIMIT 20000

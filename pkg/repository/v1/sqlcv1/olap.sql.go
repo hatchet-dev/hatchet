@@ -95,6 +95,11 @@ WITH included_events AS (
             $2::TEXT[] IS NULL OR
             "key" = ANY($2::TEXT[])
         )
+        AND e.seen_at >= $3::TIMESTAMPTZ
+        AND (
+            $4::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= $4::TIMESTAMPTZ
+        )
     ORDER BY e.id DESC, e.seen_at DESC
     LIMIT 20000
 )
@@ -104,12 +109,19 @@ FROM included_events e
 `
 
 type CountEventsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Keys     []string    `json:"keys"`
+	Tenantid pgtype.UUID        `json:"tenantid"`
+	Keys     []string           `json:"keys"`
+	Since    pgtype.Timestamptz `json:"since"`
+	Until    pgtype.Timestamptz `json:"until"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
-	row := db.QueryRow(ctx, countEvents, arg.Tenantid, arg.Keys)
+	row := db.QueryRow(ctx, countEvents,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Since,
+		arg.Until,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -579,11 +591,16 @@ WITH included_events AS (
             $2::TEXT[] IS NULL OR
             "key" = ANY($2::TEXT[])
         )
+        AND e.seen_at >= $3::TIMESTAMPTZ
+        AND (
+            $4::TIMESTAMPTZ IS NULL OR
+            e.seen_at <= $4::TIMESTAMPTZ
+        )
     ORDER BY e.id DESC, e.seen_at DESC
     OFFSET
-        COALESCE($3::BIGINT, 0)
+        COALESCE($5::BIGINT, 0)
     LIMIT
-        COALESCE($4::BIGINT, 50)
+        COALESCE($6::BIGINT, 50)
 ), status_counts AS (
     SELECT
         e.tenant_id,
@@ -625,10 +642,12 @@ ORDER BY e.seen_at DESC
 `
 
 type ListEventsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Keys     []string    `json:"keys"`
-	Offset   pgtype.Int8 `json:"offset"`
-	Limit    pgtype.Int8 `json:"limit"`
+	Tenantid pgtype.UUID        `json:"tenantid"`
+	Keys     []string           `json:"keys"`
+	Since    pgtype.Timestamptz `json:"since"`
+	Until    pgtype.Timestamptz `json:"until"`
+	Offset   pgtype.Int8        `json:"offset"`
+	Limit    pgtype.Int8        `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -650,6 +669,8 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	rows, err := db.Query(ctx, listEvents,
 		arg.Tenantid,
 		arg.Keys,
+		arg.Since,
+		arg.Until,
 		arg.Offset,
 		arg.Limit,
 	)
