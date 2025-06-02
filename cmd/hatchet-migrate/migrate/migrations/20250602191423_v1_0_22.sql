@@ -1,5 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
+
 -- +goose NO TRANSACTION
 
 DO $$
