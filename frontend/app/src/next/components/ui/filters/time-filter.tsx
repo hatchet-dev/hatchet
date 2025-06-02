@@ -20,8 +20,8 @@ import {
 } from '@/next/components/ui/tooltip';
 import { TbSnowflake, TbSnowflakeOff } from 'react-icons/tb';
 import { SplitButton } from '../split-button';
-import { useRuns } from '@/next/hooks/use-runs';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 interface TimeFilterProps {
   startField?: string;
   endField?: string;
@@ -51,7 +51,7 @@ export function TimeFilterGroup({
 }
 
 export function TogglePause() {
-  const { refetch, isRefetching } = useRuns();
+  const queryClient = useQueryClient();
   const { pause, resume, isPaused } = useTimeFilters();
 
   const [refetchDisabled, setRefetchDisabled] = useState(false);
@@ -87,18 +87,29 @@ export function TogglePause() {
                     <RefreshCw
                       className={cn(
                         'h-4 w-4',
-                        isRefetching || (refetchDisabled && 'animate-spin'),
+                        refetchDisabled && 'animate-spin',
                       )}
                     />
                     <span className="text-xs">Refresh</span>
                   </div>
                 ),
-                disabled: isRefetching || refetchDisabled,
-                onClick: (e) => {
+                disabled: refetchDisabled,
+                onClick: async (e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setRefetchDisabled(true);
-                  refetch();
+
+                  await Promise.all(
+                    [
+                      'v1:workflow-run:metrics',
+                      'v1:workflow-run:metrics',
+                      'v1:workflow-run:list',
+                    ].map((key) =>
+                      queryClient.invalidateQueries({
+                        queryKey: [key],
+                      }),
+                    ),
+                  );
                   setTimeout(() => {
                     // Slow down the spamming of the refresh button
                     setRefetchDisabled(false);

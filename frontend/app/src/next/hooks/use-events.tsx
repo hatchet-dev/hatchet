@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCurrentTenantId } from './use-tenant';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 import { FilterProvider, useFilters } from './utils/use-filters';
+import { useTimeFilters } from './utils/use-time-filters';
 
 interface EventsState {
   data: V1Event[];
@@ -37,9 +38,16 @@ function EventsProviderContent({ children }: EventsProviderProps) {
   const queryClient = useQueryClient();
   const pagination = usePagination();
   const filters = useFilters<EventsFilters>();
+  const timeFilters = useTimeFilters();
 
   const eventsQuery = useQuery({
-    queryKey: ['v1:events:list', tenantId, pagination, filters],
+    queryKey: [
+      'v1:events:list',
+      tenantId,
+      pagination,
+      filters,
+      timeFilters.filters,
+    ],
     queryFn: async () => {
       try {
         return (
@@ -47,6 +55,8 @@ function EventsProviderContent({ children }: EventsProviderProps) {
             offset: pagination.pageSize * (pagination.currentPage - 1),
             limit: pagination.pageSize,
             keys: filters.filters.keys,
+            since: timeFilters.filters.startTime,
+            until: timeFilters.filters.endTime,
           })
         ).data;
       } catch (error) {

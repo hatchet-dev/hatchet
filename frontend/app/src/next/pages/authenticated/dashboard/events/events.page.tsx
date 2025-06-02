@@ -5,6 +5,7 @@ import { DataTableColumnHeader } from '@/next/components/runs/runs-table/data-ta
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { DataTable } from '@/next/components/ui/data-table';
 import { DocsButton } from '@/next/components/ui/docs-button';
+import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import {
   Headline,
   HeadlineActionItem,
@@ -25,6 +26,7 @@ import {
 } from '@/next/components/ui/tooltip';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import { RunsProvider } from '@/next/hooks/use-runs';
+import { TimeFilterProvider } from '@/next/hooks/utils/use-time-filters';
 import docs from '@/next/lib/docs';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
@@ -53,6 +55,8 @@ function EventsContent() {
         </HeadlineActions>
       </Headline>
       <Separator className="my-4" />
+      <TimeFilters />
+
       <DataTable
         columns={columns()}
         data={data || []}
@@ -197,9 +201,15 @@ export const columns = (): ColumnDef<V1Event>[] => {
 
 export default function EventsPage() {
   return (
-    <EventsProvider>
-      <EventsContent />
-    </EventsProvider>
+    <TimeFilterProvider
+      initialTimeRange={{
+        activePreset: '24h',
+      }}
+    >
+      <EventsProvider>
+        <EventsContent />
+      </EventsProvider>
+    </TimeFilterProvider>
   );
 }
 
