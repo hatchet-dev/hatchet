@@ -100,14 +100,11 @@ export function TogglePause() {
                   setRefetchDisabled(true);
 
                   await Promise.all(
-                    [
-                      'v1:workflow-run:metrics',
-                      'v1:workflow-run:metrics',
-                      'v1:workflow-run:list',
-                    ].map((key) =>
-                      queryClient.invalidateQueries({
-                        queryKey: [key],
-                      }),
+                    ['v1:workflow-run:metrics', 'v1:workflow-run:list'].map(
+                      (key) =>
+                        queryClient.invalidateQueries({
+                          queryKey: [key],
+                        }),
                     ),
                   );
                   setTimeout(() => {
