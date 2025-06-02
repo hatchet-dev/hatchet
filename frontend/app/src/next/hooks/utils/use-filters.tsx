@@ -47,24 +47,26 @@ export function FilterProvider<T extends Record<string, any>>({
 }: FilterProviderProps<T>) {
   const [filters, setFilters] = React.useState<T>(initialFilters);
 
-  const setFilter = React.useCallback(
-    (key: keyof T, value: T[keyof T]) => {
-      filters.setValue(key as string, value);
-    },
-    [filters],
-  );
-  const clearFilter = React.useCallback(
-    (key: keyof T) => {
-      filters.setValue(key as string, undefined as any);
-    },
-    [filters],
-  );
+  const setFilter = React.useCallback((key: keyof T, value: T[keyof T]) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  }, []);
+
+  const clearFilter = React.useCallback((key: keyof T) => {
+    setFilters((prev) => ({
+      ...prev,
+      [key]: undefined as any,
+    }));
+  }, []);
 
   const clearAllFilters = React.useCallback(() => {
-    const currentFilters = filters.getValues();
-    Object.keys(currentFilters).forEach((key) => {
-      filters.setValue(key, undefined as any);
-    });
+    const clearedFilters = Object.keys(filters).reduce((acc, key) => {
+      acc[key as keyof T] = undefined as any;
+      return acc;
+    }, {} as T);
+    setFilters(clearedFilters);
   }, [filters]);
 
   const value = React.useMemo(

@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { WorkersProvider } from '@/next/hooks/use-workers';
 import { Separator } from '@/next/components/ui/separator';
@@ -15,39 +14,36 @@ import BasicLayout from '@/next/components/layouts/basic.layout';
 import { RunsProvider } from '@/next/hooks/use-runs';
 import { RunsTable } from '@/next/components/runs/runs-table/runs-table';
 import { V1TaskSummary } from '@/lib/api';
-import { useSideSheet } from '@/next/hooks/use-side-sheet';
 import { RunsMetricsView } from '@/next/components/runs/runs-metrics/runs-metrics';
 import { TimeFilters } from '@/next/components/ui/filters/time-filter-group';
 import { useWorker } from '@/next/hooks/use-worker';
 import { Spinner } from '@/next/components/ui/spinner';
 import { WorkerActions } from './components/actions';
+import { useSidePanel } from '@/next/hooks/use-side-panel';
+import { useState } from 'react';
 
 function WorkerDetailPageContent() {
+  const [selectedTaskId, setSelectedTaskId] = useState<string>();
+
   const { workerId } = useParams();
 
   const { data: workerDetails, isLoading: isWorkerLoading } = useWorker({
     workerId: workerId || '',
   });
 
-  const { open: openSideSheet, sheet } = useSideSheet();
+  const { open: openSideSheet } = useSidePanel();
 
   const handleRowClick = (task: V1TaskSummary) => {
+    setSelectedTaskId(task.taskExternalId);
     openSideSheet({
-      type: 'task-detail',
-      props: {
+      type: 'run-details',
+      content: {
         selectedWorkflowRunId: task.workflowRunExternalId,
         selectedTaskId: task.taskExternalId,
         pageWorkflowRunId: '',
       },
     });
   };
-
-  const selectedTaskId = useMemo(() => {
-    if (sheet?.openProps?.type === 'task-detail') {
-      return sheet?.openProps?.props.selectedTaskId;
-    }
-    return undefined;
-  }, [sheet]);
 
   if (isWorkerLoading) {
     return <Spinner />;
@@ -57,12 +53,10 @@ function WorkerDetailPageContent() {
     return <div>Worker not found</div>;
   }
 
-  const description = `Viewing tasks executed by worker ${workerId}`;
-
   return (
     <BasicLayout>
       <Headline>
-        <PageTitle description={description}>
+        <PageTitle description={`Viewing tasks executed by worker ${workerId}`}>
           {workerDetails.name} <Badge variant="outline">Self-hosted</Badge>
         </PageTitle>
         <HeadlineActions>

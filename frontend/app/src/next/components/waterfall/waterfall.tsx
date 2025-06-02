@@ -9,7 +9,12 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { ChevronDown, ChevronRight, Drill, Loader } from 'lucide-react';
+import {
+  ArrowDownFromLine,
+  ChevronDown,
+  ChevronRight,
+  Loader,
+} from 'lucide-react';
 
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { V1TaskStatus, V1TaskTiming } from '@/lib/api';
@@ -633,7 +638,14 @@ export function Waterfall({
         />
       );
     },
-    [workflowRunId, selectedTaskId, handleBarClick, toggleTask, processedData],
+    [
+      workflowRunId,
+      selectedTaskId,
+      handleBarClick,
+      toggleTask,
+      processedData,
+      tenantId,
+    ],
   );
 
   // Handle loading or error states
@@ -845,13 +857,7 @@ const Tick = ({
             task.taskExternalId === workflowRunId &&
             task.parentId && (
               <Link
-                to={ROUTES.runs.detailWithSheet(tenantId, task.parentId, {
-                  type: 'task-detail',
-                  props: {
-                    selectedWorkflowRunId: task.workflowRunId,
-                    selectedTaskId: task.id,
-                  },
-                })}
+                to={ROUTES.runs.detail(tenantId, task.parentId)}
                 onClick={(e) => e.stopPropagation()}
               >
                 <Button
@@ -866,17 +872,7 @@ const Tick = ({
             )}
           {task.hasChildren && (
             <Link
-              to={ROUTES.runs.detailWithSheet(
-                tenantId,
-                task.workflowRunId || task.id,
-                {
-                  type: 'task-detail',
-                  props: {
-                    selectedWorkflowRunId: task.workflowRunId || task.id,
-                    selectedTaskId: task.id,
-                  },
-                },
-              )}
+              to={ROUTES.runs.detail(tenantId, task.workflowRunId || task.id)}
             >
               <Button
                 tooltip="Drill into child task"
@@ -885,7 +881,7 @@ const Tick = ({
                 className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
               >
                 {' '}
-                <Drill className="w-4 h-4" />
+                <ArrowDownFromLine className="w-4 h-4" />
               </Button>
             </Link>
           )}
