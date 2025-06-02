@@ -60,7 +60,7 @@ function EventsProviderContent({ children }: EventsProviderProps) {
     ],
     queryFn: async () => {
       try {
-        return (
+        const result = (
           await api.v1EventList(tenantId, {
             offset: pagination.pageSize * (pagination.currentPage - 1),
             limit: pagination.pageSize,
@@ -69,6 +69,10 @@ function EventsProviderContent({ children }: EventsProviderProps) {
             until: timeFilters.filters.endTime,
           })
         ).data;
+
+        pagination.setNumPages(result.pagination?.num_pages || 1);
+
+        return result;
       } catch (error) {
         const pagination: PaginationResponse = {
           current_page: 1,

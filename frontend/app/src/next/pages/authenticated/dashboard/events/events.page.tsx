@@ -26,15 +26,12 @@ import {
 } from '@/next/components/ui/tooltip';
 import { EventsProvider, useEvents } from '@/next/hooks/use-events';
 import { RunsProvider } from '@/next/hooks/use-runs';
-import { TimeFilterProvider } from '@/next/hooks/utils/use-time-filters';
 import docs from '@/next/lib/docs';
 import { AdditionalMetadata } from '@/pages/main/v1/events/components/additional-metadata';
 import { ColumnDef } from '@tanstack/react-table';
 
 function EventsContent() {
   const { data, isLoading, pagination, paginationData } = useEvents();
-
-  console.log(pagination, paginationData);
 
   if (isLoading) {
     return (
