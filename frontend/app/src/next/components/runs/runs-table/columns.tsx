@@ -116,7 +116,6 @@ export const columns = (
           row.original.tenantId,
           row.original.workflowRunExternalId || '',
         );
-
         return (
           <div className="flex items-center gap-2">
             <RunId
