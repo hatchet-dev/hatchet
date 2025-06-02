@@ -70,12 +70,14 @@ function EventsProviderContent({ children }: EventsProviderProps) {
           })
         ).data;
       } catch (error) {
+        const pagination: PaginationResponse = {
+          current_page: 1,
+          num_pages: 1,
+        };
+
         return {
           rows: [],
-          pagination: {
-            current_page: 1,
-            num_pages: 1,
-          } as PaginationResponse,
+          pagination,
         };
       }
     },
@@ -87,21 +89,18 @@ function EventsProviderContent({ children }: EventsProviderProps) {
     });
   }, [queryClient, tenantId, pagination, filters]);
 
-  const value = useMemo(
-    () => ({
+  const value = useMemo(() => {
+    return {
       data: eventsQuery.data?.rows || [],
-      paginationData:
-        eventsQuery.data?.pagination ||
-        ({
-          current_page: 1,
-          num_pages: 1,
-        } as PaginationResponse),
+      paginationData: eventsQuery.data?.pagination || {
+        current_page: 1,
+        num_pages: 1,
+      },
       isLoading: eventsQuery.isLoading,
       invalidate,
       pagination,
-    }),
-    [eventsQuery.data, eventsQuery.isLoading, invalidate, pagination],
-  );
+    };
+  }, [eventsQuery.data, eventsQuery.isLoading, invalidate, pagination]);
 
   return (
     <EventsContext.Provider
