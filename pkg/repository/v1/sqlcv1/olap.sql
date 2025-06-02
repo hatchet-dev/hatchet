@@ -1390,7 +1390,7 @@ WITH included_events AS (
             sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
             e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
         )
-    ORDER BY e.id DESC, e.seen_at DESC
+    ORDER BY e.seen_at DESC, e.id
     OFFSET
         COALESCE(sqlc.narg('offset')::BIGINT, 0)
     LIMIT
@@ -1450,7 +1450,7 @@ WITH included_events AS (
             sqlc.narg('until')::TIMESTAMPTZ IS NULL OR
             e.seen_at <= sqlc.narg('until')::TIMESTAMPTZ
         )
-    ORDER BY e.id DESC, e.seen_at DESC
+    ORDER BY e.seen_at DESC, e.id
     LIMIT 20000
 )
 
