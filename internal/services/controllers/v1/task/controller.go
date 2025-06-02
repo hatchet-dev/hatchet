@@ -206,12 +206,12 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	}
 
 	jitter := opts.opsPoolJitter
-	pollInterval := opts.opsPoolPollInterval
+	timeout := time.Second * 5
 
-	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, pollInterval, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
-	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, pollInterval, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
-	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, pollInterval, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
-	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, pollInterval, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
+	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "timeout step runs", t.processTaskTimeouts).WithJitter(jitter)
+	t.emitSleepOperations = queueutils.NewOperationPool(opts.l, timeout, "emit sleep step runs", t.processSleeps).WithJitter(jitter)
+	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "reassign step runs", t.processTaskReassignments).WithJitter(jitter)
+	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, timeout, "retry step runs", t.processTaskRetryQueueItems).WithJitter(jitter)
 
 	return t, nil
 }

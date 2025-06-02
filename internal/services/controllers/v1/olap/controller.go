@@ -188,30 +188,25 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	}
 
 	// Default poll interval
-	pollInterval := 15 * time.Second
-
-	// Override with config value if available
-	if o.olapConfig != nil && o.olapConfig.PollInterval > 0 {
-		pollInterval = time.Second * time.Duration(o.olapConfig.PollInterval)
-	}
+	timeout := 15 * time.Second
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(
 		opts.l,
-		pollInterval,
+		timeout,
 		"update task statuses",
 		o.updateTaskStatuses,
 	).WithJitter(jitter)
 
 	o.updateDAGStatusOperations = queueutils.NewOperationPool(
 		opts.l,
-		pollInterval,
+		timeout,
 		"update dag statuses",
 		o.updateDAGStatuses,
 	).WithJitter(jitter)
 
 	o.processTenantAlertOperations = queueutils.NewOperationPool(
 		opts.l,
-		pollInterval,
+		timeout,
 		"process tenant alerts",
 		o.processTenantAlerts,
 	).WithJitter(jitter)
