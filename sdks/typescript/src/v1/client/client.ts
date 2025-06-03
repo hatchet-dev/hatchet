@@ -109,7 +109,8 @@ export class HatchetClient implements IHatchetClient {
     }
 
     try {
-      this.tenant.get()
+      this.tenant
+        .get()
         .then((tenant) => {
           if (tenant.version !== 'V1') {
             this.config
