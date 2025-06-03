@@ -37,9 +37,9 @@ Agents typically have a number of shared characteristics when they start to scal
 1. They are long-running — anywhere from seconds to minutes to hours.
 2. Each execution is expensive — not just the LLM calls, but the nature of the agent is to replace something that would typically require a human operator. Development environments, browser infrastructure, large document processing — these all cost $$$.
 3. They often involve input from a user (or another agent!) at some point in their execution cycle.
-4. They spend a lot of time (a)waiting i/o or a human.
+4. They spend a lot of time awaiting i/o or a human.
 
-Let's translate this set of characteristics into something that resembles architecture. We're going to end up with a bunch of lightweight processes that are running concurrently, each representing the execution of an agent. Each process can be in a given state (for example, “Searching files,” “Generating code,” “Test”). Note that the ordering of states is not the same in for different agent executions.
+Let's translate this set of characteristics into runtime. We're going to end up with a bunch of lightweight processes that are running concurrently, each representing the execution of an agent. Each process can be in a given state (for example, “Searching files,” “Generating code,” “Test”). Note that the ordering of states is not the same in for different agent executions.
 
 <img
   src="/agent_architecture.png"
@@ -80,7 +80,8 @@ But this paradigm is useful when modeling agents, because an agent often needs t
 To make this more concrete, let's write some example code to represent the core of an agentic loop:
 
 ```go
-// NOTE: in a real-world example, we'd want a mechanism to gracefully shut down the loop and protect against channel
+// NOTE: in a real-world example, we'd want a mechanism to gracefully
+// shut down the loop and protect against channel
 // closure; this is a simplified example.
 func Agent(in <-chan Message, out chan<- Output, status chan<- State) {
 	internal := make(chan Message, 10)
@@ -132,7 +133,7 @@ It turns out, cancelling long-running work in Node.js and Python is incredibly d
 1. Libraries can't agree on a shared mechanism to actually cancel work — while both languages have support for abort signals and controllers, it doesn't guarantee that your third-party library calls will respect those signals.
 2. If that fails, forcefully terminating threads [is a miserable process](https://stackoverflow.com/questions/323972/is-there-any-way-to-kill-a-thread) and can cause thread leakage or corrupted resources.
 
-Luckily, Go's adoption of `context.Context` makes it arbitrary to cancel work, because the vast majority of libraries expect and respect this pattern. And even if they don't: because there's only one concurrency model in Go, there's a bunch of tooling like `goleak` which makes it much easier to catch leaking goroutines and problematic libraries.
+Luckily, Go's adoption of `context.Context` makes it trivial to cancel work, because the vast majority of libraries expect and respect this pattern. And even if they don't: because there's only one concurrency model in Go, there's a bunch of tooling like `goleak` which makes it much easier to catch leaking goroutines and problematic libraries.
 
 ## Expansive standard library
 
