@@ -109,15 +109,19 @@ export class HatchetClient implements IHatchetClient {
     }
 
     try {
-      this.tenant.get().then((tenant) => {
-        if (tenant.version !== 'V1') {
-          this.config
-            .logger('client-init', LogLevel.INFO)
-            .warn(
-              '🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️'
-            );
-        }
-      });
+      this.tenant.get()
+        .then((tenant) => {
+          if (tenant.version !== 'V1') {
+            this.config
+              .logger('client-init', LogLevel.INFO)
+              .warn(
+                '🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️'
+              );
+          }
+        })
+        .catch((error) => {
+          // Do nothing here
+        });
     } catch (e) {
       // Do nothing here
     }
