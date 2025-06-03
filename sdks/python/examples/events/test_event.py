@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator, cast
 from uuid import uuid4
 
+from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import BaseModel
 
@@ -90,7 +91,9 @@ async def wait_for_result(
 ) -> dict[ProcessedEvent, list[V1TaskSummary]]:
     await asyncio.sleep(3)
 
-    persisted = (await hatchet.event.aio_list(limit=100)).rows or []
+    since = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
+
+    persisted = (await hatchet.event.aio_list(limit=100, since=since)).rows or []
 
     assert {e.eventId for e in events}.issubset({e.metadata.id for e in persisted})
 
@@ -236,11 +239,7 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
         ),
     ]
 
-    print("Events:", events)
-
     result = await hatchet.event.aio_bulk_push(events)
-
-    print("Result:", result)
 
     runs = await wait_for_result(hatchet, result)
 
@@ -382,6 +381,7 @@ async def test_event_payload_filtering_with_payload_match(
             ),
         )
         runs = await wait_for_result(hatchet, [event])
+
         assert len(runs) == 1
 
 
