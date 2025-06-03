@@ -76,6 +76,35 @@ BEGIN
     END LOOP;
 
     ALTER INDEX v1_events_olap_key_idx_new RENAME TO v1_events_olap_key_idx;
+
+    CREATE OR REPLACE FUNCTION v1_events_lookup_table_olap_insert_function()
+    RETURNS TRIGGER AS
+    $BODY$
+    BEGIN
+        INSERT INTO v1_event_lookup_table_olap (
+            tenant_id,
+            external_id,
+            event_id,
+            event_seen_at
+        )
+        SELECT
+            tenant_id,
+            external_id,
+            id,
+            seen_at
+        FROM new_rows
+        ON CONFLICT (tenant_id, external_id, event_seen_at) DO NOTHING;
+
+        RETURN NULL;
+    END;
+    $BODY$
+    LANGUAGE plpgsql;
+
+    CREATE TRIGGER v1_event_lookup_table_olap_insert_trigger
+    AFTER INSERT ON v1_events_olap
+    REFERENCING NEW TABLE AS new_rows
+    FOR EACH STATEMENT
+    EXECUTE FUNCTION v1_events_lookup_table_olap_insert_function();
 END $$;
 
 -- +goose StatementEnd
