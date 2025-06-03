@@ -44,7 +44,7 @@ WITH inputs AS (
 SELECT workflow_id, COUNT(*)
 FROM v1_filter
 WHERE
-    tenat_id = @tenantId::UUID
+    tenant_id = @tenantId::UUID
     AND workflow_id = ANY(@workflowIds::UUID[])
 GROUP BY workflow_id
 ;

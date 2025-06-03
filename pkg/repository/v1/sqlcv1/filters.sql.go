@@ -132,7 +132,7 @@ WITH inputs AS (
 SELECT workflow_id, COUNT(*)
 FROM v1_filter
 WHERE
-    tenat_id = $1::UUID
+    tenant_id = $1::UUID
     AND workflow_id = ANY($2::UUID[])
 GROUP BY workflow_id
 `
