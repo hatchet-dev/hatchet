@@ -458,8 +458,6 @@ async def test_key_wildcards(hatchet: Hatchet, test_run_id: str) -> None:
             for key in keys
         ]
 
-        print("Events:", events)
-
         event_to_runs = await wait_for_result(hatchet, events)
 
         for event, runs in event_to_runs.items():
