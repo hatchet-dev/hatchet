@@ -652,6 +652,39 @@ func (r *tenantEngineRepository) ListTenantsBySchedulerPartition(ctx context.Con
 	})
 }
 
+func (r *tenantEngineRepository) V1ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string, filters repository.TenantSchedulerFilter) ([]*dbsqlc.Tenant, error) {
+
+	tenants, err := r.queriesV1.V1ListTenantsBySchedulerPartitionId(ctx, r.pool, sqlcv1.V1ListTenantsBySchedulerPartitionIdParams{
+		SchedulerPartitionId: schedulerPartitionId,
+		WithFilter:           filters.WithFilter,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list v1 tenants by scheduler partition: %w", err)
+	}
+
+	// Convert sqlcv1.Tenant to dbsqlc.Tenant
+	result := make([]*dbsqlc.Tenant, len(tenants))
+	for i, tenant := range tenants {
+		result[i] = &dbsqlc.Tenant{
+			ID:                    tenant.ID,
+			CreatedAt:             tenant.CreatedAt,
+			UpdatedAt:             tenant.UpdatedAt,
+			DeletedAt:             tenant.DeletedAt,
+			Slug:                  tenant.Slug,
+			Name:                  tenant.Name,
+			ControllerPartitionId: tenant.ControllerPartitionId,
+			WorkerPartitionId:     tenant.WorkerPartitionId,
+			SchedulerPartitionId:  tenant.SchedulerPartitionId,
+			DataRetentionPeriod:   tenant.DataRetentionPeriod,
+			AnalyticsOptOut:       tenant.AnalyticsOptOut,
+			AlertMemberEmails:     tenant.AlertMemberEmails,
+		}
+	}
+
+	return result, nil
+}
+
 func (r *tenantEngineRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {
 
 	partition, err := r.queries.CreateSchedulerPartition(ctx, r.pool, getPartitionName())

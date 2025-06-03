@@ -50,3 +50,29 @@ WHERE
             )
         )
     );
+
+
+-- name: V1ListTenantsBySchedulerPartitionId :many
+SELECT
+    *
+FROM
+    "Tenant" as tenants
+WHERE
+    "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
+    AND (
+        sqlc.arg('withFilter')::boolean = false
+        OR (
+            EXISTS (
+                SELECT 1
+                FROM v1_queue_item vqi
+                WHERE vqi.tenant_id = tenants.id
+            )
+            AND EXISTS (
+                 SELECT 1
+                 FROM "Worker" w
+                 WHERE w."tenantId" = tenants.id
+                     AND w."lastHeartbeatAt" >= NOW() - INTERVAL '30 seconds'
+             )
+        )
+    );

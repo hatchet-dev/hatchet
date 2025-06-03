@@ -16,11 +16,11 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -39,6 +39,8 @@ type SchedulerOpts struct {
 	p           *partition.Partition
 	queueLogger *zerolog.Logger
 	pool        *v1.SchedulingPool
+
+	opsTenantFilters bool
 }
 
 func defaultSchedulerOpts() *SchedulerOpts {
@@ -48,10 +50,11 @@ func defaultSchedulerOpts() *SchedulerOpts {
 	queueLogger := logger.NewDefaultLogger("queue")
 
 	return &SchedulerOpts{
-		l:           &l,
-		dv:          datautils.NewDataDecoderValidator(),
-		alerter:     alerter,
-		queueLogger: &queueLogger,
+		l:                &l,
+		dv:               datautils.NewDataDecoderValidator(),
+		alerter:          alerter,
+		queueLogger:      &queueLogger,
+		opsTenantFilters: false,
 	}
 }
 
@@ -110,6 +113,12 @@ func WithSchedulerPool(s *v1.SchedulingPool) SchedulerOpt {
 	}
 }
 
+func WithOperationsConfig(cf server.ConfigFileOperations) SchedulerOpt {
+	return func(opts *SchedulerOpts) {
+		opts.opsTenantFilters = cf.UseTenantFilters
+	}
+}
+
 type Scheduler struct {
 	mq        msgqueue.MessageQueue
 	pubBuffer *msgqueue.MQPubBuffer
@@ -125,6 +134,8 @@ type Scheduler struct {
 	ql *zerolog.Logger
 
 	pool *v1.SchedulingPool
+
+	opsTenantFilters bool
 }
 
 func New(
@@ -168,17 +179,18 @@ func New(
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
 	q := &Scheduler{
-		mq:        opts.mq,
-		pubBuffer: pubBuffer,
-		l:         opts.l,
-		repo:      opts.repo,
-		repov1:    opts.repov1,
-		dv:        opts.dv,
-		s:         s,
-		a:         a,
-		p:         opts.p,
-		ql:        opts.queueLogger,
-		pool:      opts.pool,
+		mq:               opts.mq,
+		pubBuffer:        pubBuffer,
+		l:                opts.l,
+		repo:             opts.repo,
+		repov1:           opts.repov1,
+		dv:               opts.dv,
+		s:                s,
+		a:                a,
+		p:                opts.p,
+		ql:               opts.queueLogger,
+		pool:             opts.pool,
+		opsTenantFilters: opts.opsTenantFilters,
 	}
 
 	return q, nil
@@ -337,10 +349,14 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message)
 
 func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	return func() {
-		s.l.Debug().Msgf("partition: checking step run requeue")
+		s.l.Debug().Msgf("scheduler-partition(%s): setting tenants. filtered (%t)", s.p.GetSchedulerPartitionId(), s.opsTenantFilters)
 
 		// list all tenants
-		tenants, err := s.repo.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), dbsqlc.TenantMajorEngineVersionV1)
+		tenants, err := s.p.V1ListTenantsForScheduler(ctx, repository.TenantSchedulerFilter{
+			WithFilter: s.opsTenantFilters,
+		})
+
+		s.l.Debug().Msgf("scheduler-partition(%s): %d tenants", s.p.GetSchedulerPartitionId(), len(tenants))
 
 		if err != nil {
 			s.l.Err(err).Msg("could not list tenants")

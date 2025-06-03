@@ -253,6 +253,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+			schedulerv1.WithOperationsConfig(sc.Operations),
 		)
 
 		if err != nil {
@@ -1062,6 +1063,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+			schedulerv1.WithOperationsConfig(sc.Operations),
 		)
 
 		if err != nil {

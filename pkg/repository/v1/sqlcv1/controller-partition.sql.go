@@ -114,3 +114,70 @@ func (q *Queries) V1ListTenantsByControllerPartitionId(ctx context.Context, db D
 	}
 	return items, nil
 }
+
+const v1ListTenantsBySchedulerPartitionId = `-- name: V1ListTenantsBySchedulerPartitionId :many
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1"
+FROM
+    "Tenant" as tenants
+WHERE
+    "schedulerPartitionId" = $1::text
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
+    AND (
+        $2::boolean = false
+        OR (
+            EXISTS (
+                SELECT 1
+                FROM v1_queue_item vqi
+                WHERE vqi.tenant_id = tenants.id
+            )
+            AND EXISTS (
+                 SELECT 1
+                 FROM "Worker" w
+                 WHERE w."tenantId" = tenants.id
+                     AND w."lastHeartbeatAt" >= NOW() - INTERVAL '30 seconds'
+             )
+        )
+    )
+`
+
+type V1ListTenantsBySchedulerPartitionIdParams struct {
+	SchedulerPartitionId string `json:"schedulerPartitionId"`
+	WithFilter           bool   `json:"withFilter"`
+}
+
+func (q *Queries) V1ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, arg V1ListTenantsBySchedulerPartitionIdParams) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, v1ListTenantsBySchedulerPartitionId, arg.SchedulerPartitionId, arg.WithFilter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Tenant
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.UiVersion,
+			&i.Name,
+			&i.Slug,
+			&i.AnalyticsOptOut,
+			&i.AlertMemberEmails,
+			&i.ControllerPartitionId,
+			&i.WorkerPartitionId,
+			&i.DataRetentionPeriod,
+			&i.SchedulerPartitionId,
+			&i.CanUpgradeV1,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
