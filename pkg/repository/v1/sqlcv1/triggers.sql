@@ -13,7 +13,15 @@ WITH latest_versions AS (
         workflow."tenantId" = @tenantId::uuid
         AND workflowVersions."deletedAt" IS NULL
     ORDER BY "workflowId", "order" DESC
+), event_keys AS (
+    SELECT
+        REPLACE(
+            UNNEST(@eventKeys::TEXT[]),
+            '*',
+            '%'
+        ) AS event_key
 )
+
 -- select the workflow versions that have the event trigger
 SELECT
     latest_versions."workflowVersionId",
@@ -26,8 +34,12 @@ JOIN
     "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
-WHERE
-    eventRef."eventKey" = ANY(@eventKeys::text[]);
+WHERE EXISTS (
+    SELECT 1
+    FROM event_keys k
+    WHERE eventRef."eventKey" LIKE k.event_key
+)
+;
 
 -- name: ListWorkflowsByNames :many
 SELECT DISTINCT ON("workflowId")
