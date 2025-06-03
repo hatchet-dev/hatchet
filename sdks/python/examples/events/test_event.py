@@ -368,8 +368,10 @@ async def test_event_payload_filtering(hatchet: Hatchet, test_run_id: str) -> No
             ),
         )
 
-        runs = await wait_for_result(hatchet, [event])
-        assert len(runs) == 0
+        event_to_runs = await wait_for_result(hatchet, [event])
+
+        for event, runs in event_to_runs.items():
+            await assert_event_runs_processed(event, runs)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -394,8 +396,11 @@ async def test_event_payload_filtering_with_payload_match(
                 },
             ),
         )
-        runs = await wait_for_result(hatchet, [event])
-        assert len(runs) == 1
+
+        event_to_runs = await wait_for_result(hatchet, [event])
+
+        for event, runs in event_to_runs.items():
+            await assert_event_runs_processed(event, runs)
 
 
 @pytest.mark.asyncio(loop_scope="session")
