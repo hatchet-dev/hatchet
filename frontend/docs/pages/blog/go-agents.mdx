@@ -110,7 +110,7 @@ func processMessage(msg Message, internal chan<- Message, out chan<- Output, sta
 
 (Note that the `<-chan` means that the receiver can _only read_ from the channel, while the `chan<-` means that the receiver can _only write_ to the channel.)
 
-This agent is essentially long-running process which waits for messages to arrive on the `in` channel, processes the message, and then asynchronously sends the result to the `out` channel. The `status` channel is used to send updates about the agent's state, which can be useful for monitoring or sending incremental results to a user, while the `internal` channel is used to handle internal agent loops. For example, the internal loop could implement the "Until tests pass" loop in the diagram below:
+This agent is a long-running process which waits for messages to arrive on the `in` channel, processes the message, and then asynchronously sends the result to the `out` channel. The `status` channel is used to send updates about the agent's state, which can be useful for monitoring or sending incremental results to a user, while the `internal` channel is used to handle internal agent loops. For example, the internal loop could implement the "Until tests pass" loop in the diagram below:
 
 <img
   src="/anthropic_agent_call_graph.png"
@@ -141,7 +141,7 @@ When you start working in Go, you'll immediately notice that the Go standard lib
 
 There's also an implicit assumption that all i/o is blocking within a goroutine — again, because there's only one way to run work concurrently — which encourages the core of your business logic to be written as [straight-line programs](https://en.wikipedia.org/wiki/Straight-line_program). You don't need to worry about deferring execution to the scheduler with an `await` wrapping each function call.
 
-Contrast this with Python: developers need to think about asyncio, multithreading, multiprocessing, eventlet, gevent, and some other patterns, and it's nearly impossible to support all concurrency models equally. As a result, if you're writing your agent in Python, you'll need to research each library's support for your concurrency model, and potentially adopt multiple patterns if your third-party libraries don't support exactly what you'd like.
+Contrast this with Python: library developers need to think about asyncio, multithreading, multiprocessing, eventlet, gevent, and some other patterns, and it's nearly impossible to support all concurrency models equally. As a result, if you're writing your agent in Python, you'll need to research each library's support for your concurrency model, and potentially adopt multiple patterns if your third-party libraries don't support exactly what you'd like.
 
 (The story is much better in Node.js, though the addition of other runtimes like Bun and Deno has added some layers of incompatibility.)
 
@@ -162,7 +162,7 @@ Given all of these benefits, there are still a lot of reasons not to use Go for 
 1. Third-party support still lags behind Python and Typescript
 2. Using Go for anything that involves real machine learning is nearly impossible
 3. If you're looking for the _best performance possible_, there are better languages like Rust and C++
-4. You're a maverick and don't like to handle errors
+4. You're a maverick and don't like to handle errors ([you're not alone](https://go.dev/blog/error-syntax))
 
 ---
 
