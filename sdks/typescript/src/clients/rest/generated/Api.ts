@@ -102,6 +102,7 @@ import {
   V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
+  V1WorkflowRunStatus,
   WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
   WebhookWorkerListResponse,
@@ -332,6 +333,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       triggering_event_external_id?: string;
+      /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
+      include_payloads?: boolean;
     },
     params: RequestParams = {}
   ) =>
@@ -403,6 +406,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   v1WorkflowRunGet = (v1WorkflowRun: string, params: RequestParams = {}) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the status of a workflow run.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunGetStatus
+   * @summary Get workflow run status
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/status
+   * @secure
+   */
+  v1WorkflowRunGetStatus = (v1WorkflowRun: string, params: RequestParams = {}) =>
+    this.request<V1WorkflowRunStatus, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/status`,
       method: 'GET',
       secure: true,
       format: 'json',
