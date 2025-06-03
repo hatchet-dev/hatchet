@@ -14,6 +14,7 @@ import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
 import { z } from 'zod';
+import { LogLevel } from '@hatchet-dev/typescript-sdk/clients/event/event-client';
 import {
   CreateTaskWorkflowOpts,
   CreateWorkflow,
@@ -38,6 +39,7 @@ import { AdminClient } from './admin';
 import { FiltersClient } from './features/filters';
 import { ScheduleClient } from './features/schedules';
 import { CronClient } from './features/crons';
+import { TenantClient } from './features/tenant';
 
 /**
  * HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
@@ -104,6 +106,20 @@ export class HatchetClient implements IHatchetClient {
         throw new Error(`Invalid client config: ${e.message}`);
       }
       throw e;
+    }
+
+    try {
+      this.tenant.get().then((tenant) => {
+        if (tenant.version !== 'V1') {
+          this.config
+            .logger('client-init', LogLevel.INFO)
+            .warn(
+              '🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️'
+            );
+        }
+      });
+    } catch (e) {
+      // Do nothing here
     }
   }
 
@@ -378,6 +394,18 @@ export class HatchetClient implements IHatchetClient {
       this._filters = new FiltersClient(this);
     }
     return this._filters;
+  }
+
+  private _tenant: TenantClient | undefined;
+  /**
+   * Get the tenant client for managing tenants
+   * @returns A tenant client instance
+   */
+  get tenant() {
+    if (!this._tenant) {
+      this._tenant = new TenantClient(this);
+    }
+    return this._tenant;
   }
 
   private _ratelimits: RatelimitsClient | undefined;
