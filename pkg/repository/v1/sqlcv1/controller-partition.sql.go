@@ -26,7 +26,7 @@ WHERE
                     SELECT 1
                     FROM v1_task_runtime vtr
                     WHERE vtr.tenant_id = tenants.id
-                    AND vtr.timeout_at <= NOW() + INTERVAL '30 seconds'
+                        AND vtr.timeout_at <= NOW() + INTERVAL '5 seconds' -- NOTE: this is a 5 second buffer to "look ahead" to account for poll interval
                 )
             )
             AND (
@@ -35,7 +35,7 @@ WHERE
                     SELECT 1
                     FROM v1_durable_sleep vds
                     WHERE vds.tenant_id = tenants.id
-                    AND vds.sleep_until <= CURRENT_TIMESTAMP + INTERVAL '30 seconds'
+                        AND vds.sleep_until <= CURRENT_TIMESTAMP + INTERVAL '5 seconds' -- NOTE: this is a 5 second buffer to "look ahead" to account for poll interval
                 )
             )
             AND (
@@ -44,7 +44,7 @@ WHERE
                     SELECT 1
                     FROM v1_retry_queue_item rqi
                     WHERE rqi.tenant_id = tenants.id
-                    AND rqi.retry_after <= NOW() + INTERVAL '30 seconds'
+                        AND rqi.retry_after <= NOW() + INTERVAL '5 seconds' -- NOTE: this is a 5 second buffer to "look ahead" to account for poll interval
                     ORDER BY
                         rqi.task_id, rqi.task_inserted_at, rqi.task_retry_count
                 )
@@ -52,17 +52,11 @@ WHERE
             AND (
                 $6::boolean = false
                 OR EXISTS (
-                    SELECT
-                        runtime.task_id,
-                        runtime.task_inserted_at,
-                        runtime.retry_count
-                    FROM
-                        "Worker" w
-                    JOIN
-                        v1_task_runtime runtime ON w."id" = runtime.worker_id
-                    WHERE
-                        w."tenantId" = tenants.id
-                        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+                    SELECT 1
+                    FROM "Worker" w
+                    JOIN  v1_task_runtime runtime ON w."id" = runtime.worker_id
+                    WHERE w."tenantId" = tenants.id
+                        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds' -- NOTE: this is 30 seconds should match the heartbeat check
                 )
             )
         )
