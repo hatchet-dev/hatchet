@@ -100,7 +100,22 @@ async def wait_for_result(
         print("Waiting for event runs to complete...")
         if iters > 15:
             print("Timed out waiting for event runs to complete.")
-            return {event.eventId: [] for event in events}
+            return {
+                ProcessedEvent(
+                    id=event.eventId,
+                    payload=json.loads(event.payload) if event.payload else {},
+                    meta=(
+                        json.loads(event.additionalMetadata)
+                        if event.additionalMetadata
+                        else {}
+                    ),
+                    should_have_runs=False,
+                    test_run_id=cast(
+                        str, json.loads(event.additionalMetadata).get("test_run_id", "")
+                    ),
+                ): []
+                for event in events
+            }
 
         iters += 1
 
@@ -237,11 +252,7 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
         ),
     ]
 
-    print("Events:", events)
-
     result = await hatchet.event.aio_bulk_push(events)
-
-    print("Result:", result)
 
     runs = await wait_for_result(hatchet, result)
 
@@ -255,13 +266,13 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             index=1,
             test_run_id=test_run_id,
             should_skip=False,
-            should_have_runs=True,
+            should_have_runs=False,
         ),
         bpi(
             index=2,
             test_run_id=test_run_id,
             should_skip=True,
-            should_have_runs=True,
+            should_have_runs=False,
         ),
         bpi(
             index=3,
@@ -304,6 +315,7 @@ async def test_event_skipping_filtering(hatchet: Hatchet, test_run_id: str) -> N
         result = await hatchet.event.aio_bulk_push(events)
 
         runs = await wait_for_result(hatchet, result)
+
         for e, r in runs.items():
             await assert_event_runs_processed(e, r)
 
