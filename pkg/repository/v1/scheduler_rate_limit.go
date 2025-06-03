@@ -23,6 +23,13 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 }
 
 func (d *rateLimitRepository) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, *time.Time, error) {
+	// Check if context is already canceled before starting database operations
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	default:
+	}
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
 	if err != nil {
