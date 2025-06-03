@@ -171,7 +171,7 @@ class Hatchet:
         try:
             return self._client.tenant.get().version
         except Exception:
-            ## Nothing we can do here - if this fails, it'sp probably
+            ## Nothing we can do here - if this fails, it's probably
             ## because they don't have this endpoint yet, so we need to just
             ## assume V1 to swallow the warning.
             return TenantVersion.V1
