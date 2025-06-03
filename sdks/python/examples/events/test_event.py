@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from examples.events.worker import (
     EVENT_KEY,
     SECONDARY_KEY,
+    WILDCARD_KEY,
     EventWorkflowInput,
     event_workflow,
 )
@@ -99,7 +100,7 @@ async def wait_for_result(
         print("Waiting for event runs to complete...")
         if iters > 15:
             print("Timed out waiting for event runs to complete.")
-            return {}
+            return {event.eventId: [] for event in events}
 
         iters += 1
 
@@ -422,6 +423,44 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
         )
 
         event_to_runs = await wait_for_result(hatchet, [event_1, event_2])
+
+        for event, runs in event_to_runs.items():
+            await assert_event_runs_processed(event, runs)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_key_wildcards(hatchet: Hatchet, test_run_id: str) -> None:
+    keys = [
+        WILDCARD_KEY.replace("*", "1"),
+        WILDCARD_KEY.replace("*", "2"),
+        "foobar",
+        EVENT_KEY,
+    ]
+
+    async with event_filter(
+        hatchet,
+        test_run_id,
+    ):
+        events = [
+            await hatchet.event.aio_push(
+                event_key=key,
+                payload={
+                    "should_skip": False,
+                },
+                options=PushEventOptions(
+                    scope=test_run_id,
+                    additional_metadata={
+                        "should_have_runs": key != "foobar",
+                        "test_run_id": test_run_id,
+                    },
+                ),
+            )
+            for key in keys
+        ]
+
+        print("Events:", events)
+
+        event_to_runs = await wait_for_result(hatchet, events)
 
         for event, runs in event_to_runs.items():
             await assert_event_runs_processed(event, runs)
