@@ -31,6 +31,7 @@ from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRu
 from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import (
     V1WorkflowRunDisplayNameList,
 )
+from hatchet_sdk.clients.rest.models.v1_workflow_run_status import V1WorkflowRunStatus
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -916,6 +917,284 @@ class WorkflowRunsApi:
         )
 
     @validate_call
+    def v1_workflow_run_get_status(
+        self,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get the status for",
+            ),
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> V1WorkflowRunStatus:
+        """Get workflow run status
+
+        Get the status of a workflow run.
+
+        :param v1_workflow_run: The workflow run id to get the status for (required)
+        :type v1_workflow_run: str
+        :param _request_timeout: timeout setting for this request. If one
+                                 number provided, it will be total request
+                                 timeout. It can also be a pair (tuple) of
+                                 (connection, read) timeouts.
+        :type _request_timeout: int, tuple(int, int), optional
+        :param _request_auth: set to override the auth_settings for an a single
+                              request; this effectively ignores the
+                              authentication in the spec for a single request.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: set to override the headers for a single
+                         request; this effectively ignores the headers
+                         in the spec for a single request.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._v1_workflow_run_get_status_serialize(
+            v1_workflow_run=v1_workflow_run,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "V1WorkflowRunStatus",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
+        }
+        response_data = self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call
+    def v1_workflow_run_get_status_with_http_info(
+        self,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get the status for",
+            ),
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[V1WorkflowRunStatus]:
+        """Get workflow run status
+
+        Get the status of a workflow run.
+
+        :param v1_workflow_run: The workflow run id to get the status for (required)
+        :type v1_workflow_run: str
+        :param _request_timeout: timeout setting for this request. If one
+                                 number provided, it will be total request
+                                 timeout. It can also be a pair (tuple) of
+                                 (connection, read) timeouts.
+        :type _request_timeout: int, tuple(int, int), optional
+        :param _request_auth: set to override the auth_settings for an a single
+                              request; this effectively ignores the
+                              authentication in the spec for a single request.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: set to override the headers for a single
+                         request; this effectively ignores the headers
+                         in the spec for a single request.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._v1_workflow_run_get_status_serialize(
+            v1_workflow_run=v1_workflow_run,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "V1WorkflowRunStatus",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
+        }
+        response_data = self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call
+    def v1_workflow_run_get_status_without_preload_content(
+        self,
+        v1_workflow_run: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The workflow run id to get the status for",
+            ),
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Get workflow run status
+
+        Get the status of a workflow run.
+
+        :param v1_workflow_run: The workflow run id to get the status for (required)
+        :type v1_workflow_run: str
+        :param _request_timeout: timeout setting for this request. If one
+                                 number provided, it will be total request
+                                 timeout. It can also be a pair (tuple) of
+                                 (connection, read) timeouts.
+        :type _request_timeout: int, tuple(int, int), optional
+        :param _request_auth: set to override the auth_settings for an a single
+                              request; this effectively ignores the
+                              authentication in the spec for a single request.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: set to override the headers for a single
+                         request; this effectively ignores the headers
+                         in the spec for a single request.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._v1_workflow_run_get_status_serialize(
+            v1_workflow_run=v1_workflow_run,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "V1WorkflowRunStatus",
+            "400": "APIErrors",
+            "403": "APIErrors",
+            "404": "APIErrors",
+            "501": "APIErrors",
+        }
+        response_data = self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    def _v1_workflow_run_get_status_serialize(
+        self,
+        v1_workflow_run,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        if v1_workflow_run is not None:
+            _path_params["v1-workflow-run"] = v1_workflow_run
+        # process the query parameters
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/stable/workflow-runs/{v1-workflow-run}/status",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call
     def v1_workflow_run_get_timings(
         self,
         v1_workflow_run: Annotated[
@@ -1264,6 +1543,12 @@ class WorkflowRunsApi:
                 description="The external id of the event that triggered the workflow run"
             ),
         ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1304,6 +1589,8 @@ class WorkflowRunsApi:
         :type parent_task_external_id: str
         :param triggering_event_external_id: The external id of the event that triggered the workflow run
         :type triggering_event_external_id: str
+        :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+        :type include_payloads: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1339,6 +1626,7 @@ class WorkflowRunsApi:
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
+            include_payloads=include_payloads,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1411,6 +1699,12 @@ class WorkflowRunsApi:
                 description="The external id of the event that triggered the workflow run"
             ),
         ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1451,6 +1745,8 @@ class WorkflowRunsApi:
         :type parent_task_external_id: str
         :param triggering_event_external_id: The external id of the event that triggered the workflow run
         :type triggering_event_external_id: str
+        :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+        :type include_payloads: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1486,6 +1782,7 @@ class WorkflowRunsApi:
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
+            include_payloads=include_payloads,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1558,6 +1855,12 @@ class WorkflowRunsApi:
                 description="The external id of the event that triggered the workflow run"
             ),
         ] = None,
+        include_payloads: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1598,6 +1901,8 @@ class WorkflowRunsApi:
         :type parent_task_external_id: str
         :param triggering_event_external_id: The external id of the event that triggered the workflow run
         :type triggering_event_external_id: str
+        :param include_payloads: A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
+        :type include_payloads: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1633,6 +1938,7 @@ class WorkflowRunsApi:
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
+            include_payloads=include_payloads,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1664,6 +1970,7 @@ class WorkflowRunsApi:
         worker_id,
         parent_task_external_id,
         triggering_event_external_id,
+        include_payloads,
         _request_auth,
         _content_type,
         _headers,
@@ -1750,6 +2057,10 @@ class WorkflowRunsApi:
             _query_params.append(
                 ("triggering_event_external_id", triggering_event_external_id)
             )
+
+        if include_payloads is not None:
+
+            _query_params.append(("include_payloads", include_payloads))
 
         # process the header parameters
         # process the form parameters

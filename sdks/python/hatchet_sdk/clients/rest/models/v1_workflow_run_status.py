@@ -19,45 +19,21 @@ import pprint
 import re  # noqa: F401
 from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.tenant_ui_version import TenantUIVersion
-from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
-class Tenant(BaseModel):
+class V1WorkflowRunStatus(BaseModel):
     """
-    Tenant
+    V1WorkflowRunStatus
     """  # noqa: E501
 
+    status: V1TaskStatus
     metadata: APIResourceMeta
-    name: StrictStr = Field(description="The name of the tenant.")
-    slug: StrictStr = Field(description="The slug of the tenant.")
-    analytics_opt_out: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether the tenant has opted out of analytics.",
-        alias="analyticsOptOut",
-    )
-    alert_member_emails: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether to alert tenant members.",
-        alias="alertMemberEmails",
-    )
-    version: TenantVersion = Field(description="The version of the tenant.")
-    ui_version: Optional[TenantUIVersion] = Field(
-        default=None, description="The UI of the tenant.", alias="uiVersion"
-    )
-    __properties: ClassVar[List[str]] = [
-        "metadata",
-        "name",
-        "slug",
-        "analyticsOptOut",
-        "alertMemberEmails",
-        "version",
-        "uiVersion",
-    ]
+    __properties: ClassVar[List[str]] = ["status", "metadata"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -76,7 +52,7 @@ class Tenant(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of Tenant from a JSON string"""
+        """Create an instance of V1WorkflowRunStatus from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -103,7 +79,7 @@ class Tenant(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of Tenant from a dict"""
+        """Create an instance of V1WorkflowRunStatus from a dict"""
         if obj is None:
             return None
 
@@ -112,17 +88,12 @@ class Tenant(BaseModel):
 
         _obj = cls.model_validate(
             {
+                "status": obj.get("status"),
                 "metadata": (
                     APIResourceMeta.from_dict(obj["metadata"])
                     if obj.get("metadata") is not None
                     else None
                 ),
-                "name": obj.get("name"),
-                "slug": obj.get("slug"),
-                "analyticsOptOut": obj.get("analyticsOptOut"),
-                "alertMemberEmails": obj.get("alertMemberEmails"),
-                "version": obj.get("version"),
-                "uiVersion": obj.get("uiVersion"),
             }
         )
         return _obj
