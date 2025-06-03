@@ -135,9 +135,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		wg.Add(1)
 		defer wg.Done()
 
-		workflowRunIds := acks.getNonAckdWorkflowRunsMap()
-
-		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, workflowRunIds); ok {
+		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
 				s.l.Error().Err(err).Msg("could not iterate over workflow runs")
 			}
@@ -1002,17 +1000,19 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 	return matches, nil
 }
 
-func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, workflowRunIds map[string]bool) ([]string, bool) {
+func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]string, bool) {
 	switch msg.ID {
 	case "workflow-run-finished":
 		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
 		res := make([]string, 0)
 
+		acks.mu.RLock()
 		for _, payload := range payloads {
-			if _, ok := workflowRunIds[payload.ExternalId]; ok {
+			if _, ok := acks.acks[payload.ExternalId]; ok {
 				res = append(res, payload.ExternalId)
 			}
 		}
+		acks.mu.RUnlock()
 
 		if len(res) == 0 {
 			return nil, false
@@ -1023,11 +1023,13 @@ func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, workflow
 		payloads := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
 		res := make([]string, 0)
 
+		acks.mu.RLock()
 		for _, payload := range payloads {
-			if _, ok := workflowRunIds[payload.WorkflowRunId]; ok {
+			if _, ok := acks.acks[payload.WorkflowRunId]; ok {
 				res = append(res, payload.WorkflowRunId)
 			}
 		}
+		acks.mu.RUnlock()
 
 		if len(res) == 0 {
 			return nil, false

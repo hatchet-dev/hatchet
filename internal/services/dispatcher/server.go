@@ -808,10 +808,7 @@ type workflowRunAcks struct {
 func (w *workflowRunAcks) addWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	if _, exists := w.acks[id]; !exists {
-		w.acks[id] = time.Now()
-	}
+	delete(w.acks, id)
 }
 
 func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
@@ -821,21 +818,12 @@ func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
 	ids := make([]string, 0, len(w.acks))
 
 	for id := range w.acks {
-		ids = append(ids, id)
+		if _, exists := w.acks[id]; !exists {
+			ids = append(ids, id)
+		}
 	}
 
 	return ids
-}
-
-func (w *workflowRunAcks) getNonAckdWorkflowRunsMap() map[string]bool {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	acks := make(map[string]bool, len(w.acks))
-	for id := range w.acks {
-		acks[id] = false
-	}
-	return acks
 }
 
 func (w *workflowRunAcks) ackWorkflowRun(id string) {
