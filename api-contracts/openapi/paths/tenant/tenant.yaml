@@ -76,6 +76,50 @@ updateTenants:
     summary: Update tenant
     tags:
       - Tenant
+  get:
+    x-resources: ["tenant"]
+    description: Get the details of a tenant
+    operationId: tenant:get
+    parameters:
+      - description: The tenant id to get details for
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Tenant"
+        description: Successfully created the tenant
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Tenant does not exist
+    summary: Get tenant
+    tags:
+      - Tenant
+
+
 tenantAlertingSettings:
   get:
     x-resources: ["tenant"]
