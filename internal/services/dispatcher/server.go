@@ -801,7 +801,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 // map of workflow run ids to whether the workflow runs are finished and have sent a message
 // that the workflow run is finished
 type workflowRunAcks struct {
-	acks map[string]time.Time
+	acks map[string]bool
 	mu   sync.RWMutex
 }
 
@@ -809,9 +809,7 @@ func (w *workflowRunAcks) addWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if _, exists := w.acks[id]; !exists {
-		w.acks[id] = time.Now()
-	}
+	w.acks[id] = false
 }
 
 func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
@@ -821,7 +819,9 @@ func (w *workflowRunAcks) getNonAckdWorkflowRuns() []string {
 	ids := make([]string, 0, len(w.acks))
 
 	for id := range w.acks {
-		ids = append(ids, id)
+		if !w.acks[id] {
+			ids = append(ids, id)
+		}
 	}
 
 	return ids
@@ -831,9 +831,12 @@ func (w *workflowRunAcks) getNonAckdWorkflowRunsMap() map[string]bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
+	// copy ids to a new map
 	acks := make(map[string]bool, len(w.acks))
-	for id := range w.acks {
-		acks[id] = false
+	for id, ack := range w.acks {
+		if !ack {
+			acks[id] = ack
+		}
 	}
 	return acks
 }
@@ -842,31 +845,7 @@ func (w *workflowRunAcks) ackWorkflowRun(id string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	delete(w.acks, id)
-}
-
-// cleanupStaleEntries removes workflow runs that have been pending for too long
-func (w *workflowRunAcks) cleanupStaleEntries(maxAge time.Duration) int {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	cutoff := time.Now().Add(-maxAge)
-	var removed int
-
-	for id, addedAt := range w.acks {
-		if addedAt.Before(cutoff) {
-			delete(w.acks, id)
-			removed++
-		}
-	}
-
-	return removed
-}
-
-func (w *workflowRunAcks) size() int {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-	return len(w.acks)
+	w.acks[id] = true
 }
 
 type sendTimeFilter struct {
@@ -960,7 +939,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV0(server contracts.Dispatcher_S
 	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
 
 	acks := &workflowRunAcks{
-		acks: make(map[string]time.Time),
+		acks: make(map[string]bool),
 	}
 
 	ctx, cancel := context.WithCancel(server.Context())
@@ -1085,9 +1064,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV0(server contracts.Dispatcher_S
 	// new goroutine to poll every second for finished workflow runs which are not ackd
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
-		cleanupTicker := time.NewTicker(30 * time.Second) // Cleanup every 30 seconds
-		defer ticker.Stop()
-		defer cleanupTicker.Stop()
 
 		for {
 			select {
@@ -1106,18 +1082,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV0(server contracts.Dispatcher_S
 
 				if err := iter(workflowRunIds); err != nil {
 					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
-				}
-			case <-cleanupTicker.C:
-				// Clean up workflow runs that have been pending for more than 1 minute
-				removed := acks.cleanupStaleEntries(1 * time.Minute)
-				if removed > 0 {
-					s.l.Debug().Msgf("cleaned up %d stale workflow run entries for tenant %s", removed, tenantId)
-				}
-
-				// Log current tracking size for monitoring
-				size := acks.size()
-				if size > 100000 {
-					s.l.Warn().Msgf("workflow run acks map is large (%d entries) for tenant %s", size, tenantId)
 				}
 			}
 		}

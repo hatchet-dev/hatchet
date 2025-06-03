@@ -35,7 +35,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
 
 	acks := &workflowRunAcks{
-		acks: make(map[string]time.Time),
+		acks: make(map[string]bool),
 	}
 
 	ctx, cancel := context.WithCancel(server.Context())
