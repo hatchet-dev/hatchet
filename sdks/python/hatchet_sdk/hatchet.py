@@ -37,7 +37,6 @@ from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike
 from hatchet_sdk.worker.worker import LifespanFn, Worker
-from hatchet_sdk.logger import logger
 
 
 class Hatchet:
