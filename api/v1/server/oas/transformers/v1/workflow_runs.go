@@ -261,3 +261,14 @@ func ToWorkflowRunDisplayNamesList(
 		},
 	}
 }
+
+func ToWorkflowRunStatus(run v1.V1WorkflowRunPopulator) gen.V1WorkflowRunStatus {
+	return gen.V1WorkflowRunStatus{
+		Metadata: gen.APIResourceMeta{
+			Id:        sqlchelpers.UUIDToStr(run.WorkflowRun.ExternalID),
+			CreatedAt: run.WorkflowRun.InsertedAt.Time,
+			UpdatedAt: run.WorkflowRun.InsertedAt.Time,
+		},
+		Status: gen.V1TaskStatus(run.WorkflowRun.ReadableStatus),
+	}
+}

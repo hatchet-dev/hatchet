@@ -327,6 +327,12 @@ getWorkflowRunStatus:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Could not find the workflow run
       "501":
         content:
           application/json:

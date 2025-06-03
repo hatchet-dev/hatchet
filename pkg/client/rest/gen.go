@@ -12006,6 +12006,7 @@ type V1WorkflowRunGetStatusResponse struct {
 	JSON200      *V1WorkflowRunStatus
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON404      *APIErrors
 	JSON501      *APIErrors
 }
 
@@ -16552,6 +16553,13 @@ func ParseV1WorkflowRunGetStatusResponse(rsp *http.Response) (*V1WorkflowRunGetS
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
