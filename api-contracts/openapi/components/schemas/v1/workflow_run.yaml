@@ -127,6 +127,16 @@ V1WorkflowRunDetails:
     - shape
     - tasks
 
+V1WorkflowRunStatus:
+  properties:
+    status:
+      $ref: "./task.yaml#/V1TaskStatus"
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+  required:
+    - metadata
+    - status
+
 V1TriggerWorkflowRunRequest:
   properties:
     workflowName:
