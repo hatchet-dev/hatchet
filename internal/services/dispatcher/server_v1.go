@@ -992,7 +992,7 @@ func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *wo
 		res := make([]string, 0)
 
 		for _, payload := range payloads {
-			if _, ok := acks.acks[payload.ExternalId]; ok {
+			if acks.hasWorkflowRun(payload.ExternalId) {
 				res = append(res, payload.ExternalId)
 			}
 		}
@@ -1007,7 +1007,7 @@ func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *wo
 		res := make([]string, 0)
 
 		for _, payload := range payloads {
-			if _, ok := acks.acks[payload.WorkflowRunId]; ok {
+			if acks.hasWorkflowRun(payload.WorkflowRunId) {
 				res = append(res, payload.WorkflowRunId)
 			}
 		}

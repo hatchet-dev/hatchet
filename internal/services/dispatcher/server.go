@@ -834,6 +834,14 @@ func (w *workflowRunAcks) ackWorkflowRun(id string) {
 	w.acks[id] = true
 }
 
+func (w *workflowRunAcks) hasWorkflowRun(id string) bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	_, ok := w.acks[id]
+	return ok
+}
+
 type sendTimeFilter struct {
 	mu sync.Mutex
 }
