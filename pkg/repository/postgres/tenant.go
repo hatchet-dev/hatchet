@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -378,22 +379,25 @@ func (r *tenantAPIRepository) GetQueueMetrics(ctx context.Context, tenantId stri
 }
 
 type tenantEngineRepository struct {
-	cache   cache.Cacheable
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *dbsqlc.Queries
+	cache     cache.Cacheable
+	pool      *pgxpool.Pool
+	v         validator.Validator
+	l         *zerolog.Logger
+	queries   *dbsqlc.Queries
+	queriesV1 *sqlcv1.Queries
 }
 
 func NewTenantEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cache cache.Cacheable) repository.TenantEngineRepository {
 	queries := dbsqlc.New()
+	queriesV1 := sqlcv1.New()
 
 	return &tenantEngineRepository{
-		cache:   cache,
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
+		cache:     cache,
+		pool:      pool,
+		v:         v,
+		l:         l,
+		queries:   queries,
+		queriesV1: queriesV1,
 	}
 }
 
@@ -504,6 +508,41 @@ func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Co
 		ControllerPartitionId: controllerPartitionId,
 		Majorversion:          majorVersion,
 	})
+}
+
+func (r *tenantEngineRepository) V1ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, filters repository.TenantControllerFilter) ([]*dbsqlc.Tenant, error) {
+
+	tenants, err := r.queriesV1.V1ListTenantsByControllerPartitionId(ctx, r.pool, sqlcv1.V1ListTenantsByControllerPartitionIdParams{
+		ControllerPartitionId: controllerPartitionId,
+		WithFilter:            filters.WithFilter,
+		WithTimeoutTasks:      filters.WithTimeoutTasks,
+		WithExpiredSleeps:     filters.WithExpiredSleeps,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list v1 tenants by controller partition: %w", err)
+	}
+
+	// Convert sqlcv1.Tenant to dbsqlc.Tenant
+	result := make([]*dbsqlc.Tenant, len(tenants))
+	for i, tenant := range tenants {
+		result[i] = &dbsqlc.Tenant{
+			ID:                    tenant.ID,
+			CreatedAt:             tenant.CreatedAt,
+			UpdatedAt:             tenant.UpdatedAt,
+			DeletedAt:             tenant.DeletedAt,
+			Slug:                  tenant.Slug,
+			Name:                  tenant.Name,
+			ControllerPartitionId: tenant.ControllerPartitionId,
+			WorkerPartitionId:     tenant.WorkerPartitionId,
+			SchedulerPartitionId:  tenant.SchedulerPartitionId,
+			DataRetentionPeriod:   tenant.DataRetentionPeriod,
+			AnalyticsOptOut:       tenant.AnalyticsOptOut,
+			AlertMemberEmails:     tenant.AlertMemberEmails,
+		}
+	}
+
+	return result, nil
 }
 
 func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {

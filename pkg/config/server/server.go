@@ -75,7 +75,7 @@ type ServerConfigFile struct {
 
 	Sampling ConfigFileSampling `mapstructure:"sampling" json:"sampling,omitempty"`
 
-	OLAP ConfigFileOperations `mapstructure:"olap" json:"olap,omitempty"`
+	Operations ConfigFileOperations `mapstructure:"operations" json:"operations,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -100,6 +100,9 @@ type ConfigFileOperations struct {
 
 	// PollInterval is the polling interval for operations in seconds
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
+
+	// UseTenantFilters controls whether the server uses tenant filters for operations
+	UseTenantFilters bool `mapstructure:"useTenantFilters" json:"useTenantFilters,omitempty" default:"false"`
 }
 
 // General server runtime options
@@ -773,4 +776,5 @@ func BindAllEnv(v *viper.Viper) {
 	// operations options
 	_ = v.BindEnv("operations.jitter", "SERVER_OPERATIONS_JITTER")
 	_ = v.BindEnv("operations.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
+	_ = v.BindEnv("operations.useTenantFilters", "SERVER_OPERATIONS_USE_TENANT_FILTERS")
 }

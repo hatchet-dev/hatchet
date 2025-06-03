@@ -5,21 +5,26 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (tc *TasksControllerImpl) runTenantSleepEmitter(ctx context.Context) func() {
 	return func() {
-		tc.l.Debug().Msgf("partition: running sleep emitter for tasks")
+		tc.l.Debug().Msgf("partition(%s): running sleep emitter for tasks", tc.p.GetControllerPartitionId())
 
 		// list all tenants
-		tenants, err := tc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+		tenants, err := tc.p.V1ListTenantsForController(ctx, repository.TenantControllerFilter{
+			WithFilter:        tc.opsTenantFilters,
+			WithExpiredSleeps: true,
+		})
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not list tenants")
+			tc.l.Error().Err(err).Msg("could not list tenants with expired sleeps")
 			return
 		}
+
+		tc.l.Debug().Msgf("partition(%s): tenants with expired sleeps: %d", tc.p.GetControllerPartitionId(), len(tenants))
 
 		tc.emitSleepOperations.SetTenants(tenants)
 

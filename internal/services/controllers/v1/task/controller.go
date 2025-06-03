@@ -52,6 +52,7 @@ type TasksControllerImpl struct {
 	celParser              *cel.CELParser
 	opsPoolPollInterval    time.Duration
 	opsPoolJitter          time.Duration
+	opsTenantFilters       bool
 	timeoutTaskOperations  *queueutils.OperationPool
 	reassignTaskOperations *queueutils.OperationPool
 	retryTaskOperations    *queueutils.OperationPool
@@ -72,6 +73,7 @@ type TasksControllerOpts struct {
 	pgxStatsLogger      *zerolog.Logger
 	opsPoolJitter       time.Duration
 	opsPoolPollInterval time.Duration
+	opsTenantFilters    bool
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -87,6 +89,7 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 		alerter:             alerter,
 		queueLogger:         &queueLogger,
 		pgxStatsLogger:      &pgxStatsLogger,
+		opsTenantFilters:    false,
 		opsPoolJitter:       1500 * time.Millisecond,
 		opsPoolPollInterval: 2 * time.Second,
 	}
@@ -148,10 +151,11 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) TasksController
 	}
 }
 
-func WithOpsPoolJitter(cf server.ConfigFileOperations) TasksControllerOpt {
+func WithOperationsConfig(cf server.ConfigFileOperations) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.opsPoolJitter = time.Duration(cf.Jitter) * time.Millisecond
 		opts.opsPoolPollInterval = time.Duration(cf.PollInterval) * time.Second
+		opts.opsTenantFilters = cf.UseTenantFilters
 	}
 }
 
@@ -207,6 +211,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		celParser:           cel.NewCELParser(),
 		opsPoolJitter:       opts.opsPoolJitter,
 		opsPoolPollInterval: opts.opsPoolPollInterval,
+		opsTenantFilters:    opts.opsTenantFilters,
 	}
 
 	jitter := t.opsPoolJitter

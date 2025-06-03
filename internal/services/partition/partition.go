@@ -176,6 +176,10 @@ func (p *Partition) ListTenantsForController(ctx context.Context, majorVersion d
 	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId(), majorVersion)
 }
 
+func (p *Partition) V1ListTenantsForController(ctx context.Context, filters repository.TenantControllerFilter) ([]*dbsqlc.Tenant, error) {
+	return p.repo.V1ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId(), filters)
+}
+
 func (p *Partition) ListTenantsForScheduler(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
 	return p.repo.ListTenantsBySchedulerPartition(ctx, p.GetSchedulerPartitionId(), majorVersion)
 }

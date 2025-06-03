@@ -106,6 +106,14 @@ type TenantAPIRepository interface {
 	GetQueueMetrics(ctx context.Context, tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
 }
 
+type TenantControllerFilter struct {
+	WithFilter          bool `default:"false"`
+	WithTimeoutTasks    bool `default:"false"`
+	WithExpiredSleeps   bool `default:"false"`
+	WithRetryQueueItems bool `default:"false"`
+	WithReassignTasks   bool `default:"false"`
+}
+
 type TenantEngineRepository interface {
 	// ListTenants lists all tenants in the instance
 	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
@@ -116,6 +124,8 @@ type TenantEngineRepository interface {
 
 	// ListTenantsByPartition lists all tenants in the given partition
 	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
+
+	V1ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, filters TenantControllerFilter) ([]*dbsqlc.Tenant, error)
 
 	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
