@@ -102,7 +102,6 @@ import {
   V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
-  V1WorkflowRunStatus,
   WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
   WebhookWorkerListResponse,
@@ -421,7 +420,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1WorkflowRunGetStatus = (v1WorkflowRun: string, params: RequestParams = {}) =>
-    this.request<V1WorkflowRunStatus, APIErrors>({
+    this.request<V1TaskStatus, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/status`,
       method: 'GET',
       secure: true,

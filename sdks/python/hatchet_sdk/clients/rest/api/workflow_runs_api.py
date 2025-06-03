@@ -31,7 +31,6 @@ from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRu
 from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import (
     V1WorkflowRunDisplayNameList,
 )
-from hatchet_sdk.clients.rest.models.v1_workflow_run_status import V1WorkflowRunStatus
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -939,7 +938,7 @@ class WorkflowRunsApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> V1WorkflowRunStatus:
+    ) -> V1TaskStatus:
         """Get workflow run status
 
         Get the status of a workflow run.
@@ -977,7 +976,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1WorkflowRunStatus",
+            "200": "V1TaskStatus",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -1015,7 +1014,7 @@ class WorkflowRunsApi:
         _content_type: Optional[StrictStr] = None,
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
-    ) -> ApiResponse[V1WorkflowRunStatus]:
+    ) -> ApiResponse[V1TaskStatus]:
         """Get workflow run status
 
         Get the status of a workflow run.
@@ -1053,7 +1052,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1WorkflowRunStatus",
+            "200": "V1TaskStatus",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
@@ -1129,7 +1128,7 @@ class WorkflowRunsApi:
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "V1WorkflowRunStatus",
+            "200": "V1TaskStatus",
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",

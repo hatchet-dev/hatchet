@@ -1807,11 +1807,6 @@ export interface V1WorkflowRunDetails {
   tasks: V1TaskSummary[];
 }
 
-export interface V1WorkflowRunStatus {
-  status: V1TaskStatus;
-  metadata: APIResourceMeta;
-}
-
 export interface V1TriggerWorkflowRunRequest {
   /** The name of the workflow. */
   workflowName: string;

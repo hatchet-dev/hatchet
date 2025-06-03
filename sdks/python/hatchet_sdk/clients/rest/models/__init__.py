@@ -234,7 +234,6 @@ from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name import (
 from hatchet_sdk.clients.rest.models.v1_workflow_run_display_name_list import (
     V1WorkflowRunDisplayNameList,
 )
-from hatchet_sdk.clients.rest.models.v1_workflow_run_status import V1WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.v1_workflow_type import V1WorkflowType
 from hatchet_sdk.clients.rest.models.webhook_worker import WebhookWorker
 from hatchet_sdk.clients.rest.models.webhook_worker_create_request import (

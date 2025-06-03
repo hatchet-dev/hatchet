@@ -137,11 +137,7 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         with self.client() as client:
-            return (
-                self._wra(client)
-                .v1_workflow_run_get_status(str(workflow_run_id))
-                .status
-            )
+            return self._wra(client).v1_workflow_run_get_status(str(workflow_run_id))
 
     async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
