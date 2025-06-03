@@ -96,7 +96,7 @@ type ConfigFileSampling struct {
 
 type ConfigFileOperations struct {
 	// Jitter is the jitter duration for operations pools in milliseconds
-	Jitter int `mapstructure:"jitter" json:"jitter,omitempty" default:"1500"`
+	Jitter int `mapstructure:"jitter" json:"jitter,omitempty" default:"0"`
 
 	// PollInterval is the polling interval for operations in seconds
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
