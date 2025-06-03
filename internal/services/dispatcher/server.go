@@ -801,7 +801,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 // map of workflow run ids to whether the workflow runs are finished and have sent a message
 // that the workflow run is finished
 type workflowRunAcks struct {
-	acks map[string]time.Time // Changed to track insertion time for cleanup
+	acks map[string]time.Time
 	mu   sync.RWMutex
 }
 
@@ -863,7 +863,6 @@ func (w *workflowRunAcks) cleanupStaleEntries(maxAge time.Duration) int {
 	return removed
 }
 
-// size returns the current number of tracked workflow runs
 func (w *workflowRunAcks) size() int {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
