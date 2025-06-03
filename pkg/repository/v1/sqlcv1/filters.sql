@@ -35,3 +35,16 @@ FROM v1_filter
 WHERE
     tenant_id = @tenantId::UUID
     AND id = @id::UUID;
+
+-- name: ListFilterCountsForWorkflows :many
+WITH inputs AS (
+    SELECT UNNEST(@workflowIds::UUID[]) AS workflow_id
+)
+
+SELECT workflow_id, COUNT(*)
+FROM v1_filter
+WHERE
+    tenat_id = @tenantId::UUID
+    AND workflow_id = ANY(@workflowIds::UUID[])
+GROUP BY workflow_id
+;

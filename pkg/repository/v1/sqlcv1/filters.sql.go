@@ -123,3 +123,46 @@ func (q *Queries) GetFilter(ctx context.Context, db DBTX, arg GetFilterParams) (
 	)
 	return &i, err
 }
+
+const listFilterCountsForWorkflows = `-- name: ListFilterCountsForWorkflows :many
+WITH inputs AS (
+    SELECT UNNEST($2::UUID[]) AS workflow_id
+)
+
+SELECT workflow_id, COUNT(*)
+FROM v1_filter
+WHERE
+    tenat_id = $1::UUID
+    AND workflow_id = ANY($2::UUID[])
+GROUP BY workflow_id
+`
+
+type ListFilterCountsForWorkflowsParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Workflowids []pgtype.UUID `json:"workflowids"`
+}
+
+type ListFilterCountsForWorkflowsRow struct {
+	WorkflowID pgtype.UUID `json:"workflow_id"`
+	Count      int64       `json:"count"`
+}
+
+func (q *Queries) ListFilterCountsForWorkflows(ctx context.Context, db DBTX, arg ListFilterCountsForWorkflowsParams) ([]*ListFilterCountsForWorkflowsRow, error) {
+	rows, err := db.Query(ctx, listFilterCountsForWorkflows, arg.Tenantid, arg.Workflowids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListFilterCountsForWorkflowsRow
+	for rows.Next() {
+		var i ListFilterCountsForWorkflowsRow
+		if err := rows.Scan(&i.WorkflowID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
