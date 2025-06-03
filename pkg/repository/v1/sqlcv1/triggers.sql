@@ -15,11 +15,7 @@ WITH latest_versions AS (
     ORDER BY "workflowId", "order" DESC
 ), event_keys AS (
     SELECT
-        REPLACE(
-            UNNEST(@eventKeys::TEXT[]),
-            '*',
-            '%'
-        ) AS event_key
+        UNNEST(@eventKeys::TEXT[]) AS event_key
 )
 
 -- select the workflow versions that have the event trigger
@@ -37,7 +33,7 @@ JOIN
 WHERE EXISTS (
     SELECT 1
     FROM event_keys k
-    WHERE eventRef."eventKey" LIKE k.event_key
+    WHERE k.event_key LIKE eventRef."eventKey"
 )
 ;
 

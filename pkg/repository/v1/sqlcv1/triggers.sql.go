@@ -74,11 +74,7 @@ WITH latest_versions AS (
     ORDER BY "workflowId", "order" DESC
 ), event_keys AS (
     SELECT
-        REPLACE(
-            UNNEST($2::TEXT[]),
-            '*',
-            '%'
-        ) AS event_key
+        UNNEST($2::TEXT[]) AS event_key
 )
 
 SELECT
@@ -95,7 +91,7 @@ JOIN
 WHERE EXISTS (
     SELECT 1
     FROM event_keys k
-    WHERE eventRef."eventKey" LIKE k.event_key
+    WHERE k.event_key LIKE eventRef."eventKey"
 )
 `
 
