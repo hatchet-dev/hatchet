@@ -182,6 +182,9 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	// new goroutine to poll every second for finished workflow runs which are not ackd
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
+		cleanupTicker := time.NewTicker(30 * time.Second) // Cleanup every 30 seconds
+		defer ticker.Stop()
+		defer cleanupTicker.Stop()
 
 		for {
 			select {
@@ -196,6 +199,18 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 
 				if err := iter(workflowRunIds); err != nil {
 					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+				}
+			case <-cleanupTicker.C:
+				// Clean up workflow runs that have been pending for more than 1 minute
+				removed := acks.cleanupStaleEntries(1 * time.Minute)
+				if removed > 0 {
+					s.l.Debug().Msgf("cleaned up %d stale workflow run entries for tenant %s", removed, tenantId)
+				}
+
+				// Log current tracking size for monitoring
+				size := acks.size()
+				if size > 100000 {
+					s.l.Warn().Msgf("workflow run acks map is large (%d entries) for tenant %s", size, tenantId)
 				}
 			}
 		}
