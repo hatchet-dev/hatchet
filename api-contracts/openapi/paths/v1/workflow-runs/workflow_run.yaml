@@ -313,7 +313,7 @@ getWorkflowRunStatus:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunStatus"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
         description: Successfully listed the tasks
       "400":
         content:

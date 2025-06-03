@@ -326,8 +326,6 @@ V1WorkflowRun:
   $ref: "./v1/workflow_run.yaml#/V1WorkflowRun"
 V1WorkflowRunDetails:
   $ref: "./v1/workflow_run.yaml#/V1WorkflowRunDetails"
-V1WorkflowRunStatus:
-  $ref: "./v1/workflow_run.yaml#/V1WorkflowRunStatus"
 V1TaskRunStatus:
   $ref: "./workflow_run.yaml#/V1TaskRunStatus"
 V1TriggerWorkflowRunRequest:

@@ -85,7 +85,7 @@ export class RunsClient {
     const runId = typeof run === 'string' ? run : await run.getWorkflowRunId();
 
     const { data } = await this.api.v1WorkflowRunGetStatus(runId);
-    return data.status;
+    return data;
   }
 
   async list(opts?: Partial<ListRunsOpts>) {
