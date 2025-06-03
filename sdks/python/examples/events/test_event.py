@@ -146,6 +146,13 @@ async def wait_for_result(
     return event_id_to_runs
 
 
+async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> None:
+    event_to_runs = await wait_for_result(hatchet, events)
+
+    for event, runs in event_to_runs.items():
+        await assert_event_runs_processed(event, runs)
+
+
 async def assert_event_runs_processed(
     event: ProcessedEvent,
     runs: list[V1TaskSummary],
@@ -254,10 +261,7 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 
     result = await hatchet.event.aio_bulk_push(events)
 
-    runs = await wait_for_result(hatchet, result)
-
-    for event, r in runs.items():
-        await assert_event_runs_processed(event, r)
+    await wait_for_result_and_assert(hatchet, result)
 
 
 def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
@@ -314,10 +318,7 @@ async def test_event_skipping_filtering(hatchet: Hatchet, test_run_id: str) -> N
 
         result = await hatchet.event.aio_bulk_push(events)
 
-        runs = await wait_for_result(hatchet, result)
-
-        for e, r in runs.items():
-            await assert_event_runs_processed(e, r)
+        await wait_for_result_and_assert(hatchet, result)
 
 
 async def bulk_to_single(hatchet: Hatchet, event: BulkPushEventWithMetadata) -> Event:
@@ -342,9 +343,7 @@ async def test_event_skipping_filtering_no_bulk(
             *[bulk_to_single(hatchet, event) for event in raw_events]
         )
 
-        result = await wait_for_result(hatchet, events)
-        for event, runs in result.items():
-            await assert_event_runs_processed(event, runs)
+        await wait_for_result_and_assert(hatchet, events)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -368,10 +367,7 @@ async def test_event_payload_filtering(hatchet: Hatchet, test_run_id: str) -> No
             ),
         )
 
-        event_to_runs = await wait_for_result(hatchet, [event])
-
-        for event, runs in event_to_runs.items():
-            await assert_event_runs_processed(event, runs)
+        await wait_for_result_and_assert(hatchet, [event])
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -397,10 +393,7 @@ async def test_event_payload_filtering_with_payload_match(
             ),
         )
 
-        event_to_runs = await wait_for_result(hatchet, [event])
-
-        for event, runs in event_to_runs.items():
-            await assert_event_runs_processed(event, runs)
+        await wait_for_result_and_assert(hatchet, [event])
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -439,10 +432,7 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
             ),
         )
 
-        event_to_runs = await wait_for_result(hatchet, [event_1, event_2])
-
-        for event, runs in event_to_runs.items():
-            await assert_event_runs_processed(event, runs)
+        await wait_for_result_and_assert(hatchet, [event_1, event_2])
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -475,7 +465,4 @@ async def test_key_wildcards(hatchet: Hatchet, test_run_id: str) -> None:
             for key in keys
         ]
 
-        event_to_runs = await wait_for_result(hatchet, events)
-
-        for event, runs in event_to_runs.items():
-            await assert_event_runs_processed(event, runs)
+        await wait_for_result_and_assert(hatchet, events)
