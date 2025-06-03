@@ -12,27 +12,27 @@ WHERE
             (
                 sqlc.arg('withTimeoutTasks')::boolean = false
                 OR EXISTS (
-                    SELECT 1 
+                    SELECT 1
                     FROM v1_task_runtime vtr
-                    WHERE vtr.tenant_id = tenants.id 
+                    WHERE vtr.tenant_id = tenants.id
                         AND vtr.timeout_at <= NOW() + INTERVAL '5 seconds' -- NOTE: this is a 5 second buffer to "look ahead" to account for poll interval
                 )
             )
             AND (
                 sqlc.arg('withExpiredSleeps')::boolean = false
                 OR EXISTS (
-                    SELECT 1 
+                    SELECT 1
                     FROM v1_durable_sleep vds
-                    WHERE vds.tenant_id = tenants.id 
+                    WHERE vds.tenant_id = tenants.id
                         AND vds.sleep_until <= CURRENT_TIMESTAMP + INTERVAL '5 seconds' -- NOTE: this is a 5 second buffer to "look ahead" to account for poll interval
                 )
             )
             AND (
                 sqlc.arg('withRetryQueueItems')::boolean = false
                 OR EXISTS (
-                    SELECT 1 
+                    SELECT 1
                     FROM v1_retry_queue_item rqi
-                    WHERE rqi.tenant_id = tenants.id 
+                    WHERE rqi.tenant_id = tenants.id
                         AND rqi.retry_after <= NOW() + INTERVAL '5 seconds' -- NOTE: this is a 5 second buffer to "look ahead" to account for poll interval
                     ORDER BY
                         rqi.task_id, rqi.task_inserted_at, rqi.task_retry_count

@@ -23,27 +23,27 @@ WHERE
             (
                 $3::boolean = false
                 OR EXISTS (
-                    SELECT 1 
+                    SELECT 1
                     FROM v1_task_runtime vtr
-                    WHERE vtr.tenant_id = tenants.id 
+                    WHERE vtr.tenant_id = tenants.id
                     AND vtr.timeout_at <= NOW() + INTERVAL '30 seconds'
                 )
             )
             AND (
                 $4::boolean = false
                 OR EXISTS (
-                    SELECT 1 
+                    SELECT 1
                     FROM v1_durable_sleep vds
-                    WHERE vds.tenant_id = tenants.id 
+                    WHERE vds.tenant_id = tenants.id
                     AND vds.sleep_until <= CURRENT_TIMESTAMP + INTERVAL '30 seconds'
                 )
             )
             AND (
                 $5::boolean = false
                 OR EXISTS (
-                    SELECT 1 
+                    SELECT 1
                     FROM v1_retry_queue_item rqi
-                    WHERE rqi.tenant_id = tenants.id 
+                    WHERE rqi.tenant_id = tenants.id
                     AND rqi.retry_after <= NOW() + INTERVAL '30 seconds'
                     ORDER BY
                         rqi.task_id, rqi.task_inserted_at, rqi.task_retry_count
