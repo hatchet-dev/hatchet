@@ -37,6 +37,7 @@ from hatchet_sdk.runnables.workflow import BaseWorkflow, Workflow
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike
 from hatchet_sdk.worker.worker import LifespanFn, Worker
+from hatchet_sdk.logger import logger
 
 
 class Hatchet:
@@ -59,6 +60,11 @@ class Hatchet:
         self._client = (
             client if client else Client(config=config or ClientConfig(), debug=debug)
         )
+
+        if self.tenant_engine_version != TenantVersion.V1:
+            logger.warning(
+                "🚨⚠️‼️ YOU ARE USING A V0 ENGINE WITH A V1 SDK, WHICH IS NOT SUPPORTED. PLEASE UPGRADE YOUR ENGINE TO V1.🚨⚠️‼️"
+            )
 
     @property
     def cron(self) -> CronClient:
