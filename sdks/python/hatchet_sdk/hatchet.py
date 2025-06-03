@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import timedelta
+from functools import cached_property
 from typing import Any, Callable, Type, Union, cast, overload
 
 from hatchet_sdk import Context, DurableContext
@@ -8,6 +9,7 @@ from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.filters import FiltersClient
@@ -155,6 +157,13 @@ class Hatchet:
         The current namespace you're interacting with.
         """
         return self._client.config.namespace
+
+    @cached_property
+    def tenant_engine_version(self) -> TenantVersion:
+        """
+        Get the version of the Hatchet engine running in your tenant.
+        """
+        return self._client.tenant.get().version
 
     def worker(
         self,
