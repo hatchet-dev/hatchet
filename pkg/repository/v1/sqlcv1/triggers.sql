@@ -30,11 +30,7 @@ JOIN
     "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
-WHERE EXISTS (
-    SELECT 1
-    FROM event_keys k
-    WHERE k.event_key LIKE eventRef."eventKey"
-)
+JOIN event_keys k ON k.event_key LIKE REPLACE(eventRef."eventKey", '*', '%')
 ;
 
 -- name: ListWorkflowsByNames :many

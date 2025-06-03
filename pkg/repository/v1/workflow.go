@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -487,14 +486,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	for _, eventTrigger := range opts.EventTriggers {
-		wildcardEnabledTrigger := strings.ReplaceAll(eventTrigger, "*", "%")
-
 		_, err := r.queries.CreateWorkflowTriggerEventRef(
 			ctx,
 			tx,
 			sqlcv1.CreateWorkflowTriggerEventRefParams{
 				Workflowtriggersid: sqlcWorkflowTriggers.ID,
-				Eventtrigger:       wildcardEnabledTrigger,
+				Eventtrigger:       eventTrigger,
 			},
 		)
 
