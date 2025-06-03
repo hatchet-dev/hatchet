@@ -124,23 +124,47 @@ type TriggerDecision struct {
 	FilterPayload []byte
 }
 
-func (r *TriggerRepositoryImpl) makeTriggerDecision(ctx context.Context, filters []*sqlcv1.V1Filter, opt EventTriggerOpts) TriggerDecision {
-	if len(filters) == 0 {
-		// If no filters were found, we should trigger the workflow
-		return TriggerDecision{
-			ShouldTrigger: true,
-			FilterPayload: nil,
+func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filters []*sqlcv1.V1Filter, hasAnyFilters bool, opt EventTriggerOpts) []TriggerDecision {
+	// Cases to handle:
+	// 1. If there are no filters that exist for the workflow, we should trigger it.
+	// 2. If there _are_ filters that exist, but the list is empty, then there were no scope matches so we should _not_ trigger.
+	// 3. If there _are_ filters that exist and the list is non-empty, then we should loop through the list and evaluate each expression, and trigger if the expression evaluates to `true`.
+
+	// Case 1 - no filters exist for the workflow
+	if !hasAnyFilters {
+		return []TriggerDecision{
+			TriggerDecision{
+				ShouldTrigger: true,
+				FilterPayload: nil,
+			},
 		}
 	}
 
-	for _, filterPtr := range filters {
-		if filterPtr == nil {
+	// Case 2 - no filters were found matching the provided scope,
+	// so we should not trigger the workflow
+	if len(filters) == 0 {
+		return []TriggerDecision{
+			TriggerDecision{
+				ShouldTrigger: false,
+				FilterPayload: nil,
+			},
+		}
+	}
+
+	// Case 3 - we have filters, so we should evaluate each expression and return a list of decisions
+	decisions := make([]TriggerDecision, 0, len(filters))
+
+	for _, filter := range filters {
+		if filter == nil {
 			continue
 		}
 
-		filter := *filterPtr
-
-		if filter.Expression != "" {
+		if filter.Expression == "" {
+			decisions = append(decisions, TriggerDecision{
+				ShouldTrigger: false,
+				FilterPayload: filter.Payload,
+			})
+		} else {
 			shouldTrigger, err := r.processWorkflowExpression(ctx, filter.Expression, opt, filter.Payload)
 
 			if err != nil {
@@ -151,27 +175,20 @@ func (r *TriggerRepositoryImpl) makeTriggerDecision(ctx context.Context, filters
 
 				// If we fail to parse the expression, we should not run the workflow.
 				// See: https://github.com/hatchet-dev/hatchet/pull/1676#discussion_r2073790939
-				return TriggerDecision{
+				decisions = append(decisions, TriggerDecision{
 					ShouldTrigger: false,
 					FilterPayload: filter.Payload,
-				}
+				})
 			}
 
-			if shouldTrigger {
-				return TriggerDecision{
-					ShouldTrigger: true,
-					FilterPayload: filter.Payload,
-				}
-			}
+			decisions = append(decisions, TriggerDecision{
+				ShouldTrigger: shouldTrigger,
+				FilterPayload: filter.Payload,
+			})
 		}
 	}
 
-	// If we reach here, we haven't returned yet meaning we haven't found
-	// an expression that evaluates to `true`.
-	return TriggerDecision{
-		ShouldTrigger: false,
-		FilterPayload: nil,
-	}
+	return decisions
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
@@ -244,6 +261,21 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		workflowIdToFilters[filter.WorkflowID.String()] = append(workflowIdToFilters[filter.WorkflowID.String()], filter)
 	}
 
+	filterCounts, err := r.queries.ListFilterCountsForWorkflows(ctx, r.pool, sqlcv1.ListFilterCountsForWorkflowsParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Workflowids: workflowIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list filter counts: %w", err)
+	}
+
+	workflowIdToCount := make(map[string]int64)
+
+	for _, count := range filterCounts {
+		workflowIdToCount[sqlchelpers.UUIDToStr(count.WorkflowID)] = count.Count
+	}
+
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0)
 
@@ -255,35 +287,40 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		}
 
 		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
+		numFilters := workflowIdToCount[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
+
+		hasAnyFilters := numFilters > 0
 
 		for _, opt := range opts {
-			triggerDecision := r.makeTriggerDecision(ctx, filters, opt)
+			triggerDecisions := r.makeTriggerDecisions(ctx, filters, hasAnyFilters, opt)
 
-			if !triggerDecision.ShouldTrigger {
-				continue
+			for _, decision := range triggerDecisions {
+				if !decision.ShouldTrigger {
+					continue
+				}
+
+				triggerConverter := &TriggeredByEvent{
+					l:        r.l,
+					eventID:  opt.ExternalId,
+					eventKey: workflow.EventKey,
+				}
+
+				additionalMetadata := triggerConverter.ToMetadata(opt.AdditionalMetadata)
+				externalId := uuid.NewString()
+
+				triggerOpts = append(triggerOpts, triggerTuple{
+					workflowVersionId:  sqlchelpers.UUIDToStr(workflow.WorkflowVersionId),
+					workflowId:         sqlchelpers.UUIDToStr(workflow.WorkflowId),
+					workflowName:       workflow.WorkflowName,
+					externalId:         externalId,
+					input:              opt.Data,
+					additionalMetadata: additionalMetadata,
+					priority:           opt.Priority,
+					filterPayload:      decision.FilterPayload,
+				})
+
+				externalIdToEventId[externalId] = opt.ExternalId
 			}
-
-			triggerConverter := &TriggeredByEvent{
-				l:        r.l,
-				eventID:  opt.ExternalId,
-				eventKey: workflow.EventKey,
-			}
-
-			additionalMetadata := triggerConverter.ToMetadata(opt.AdditionalMetadata)
-			externalId := uuid.NewString()
-
-			triggerOpts = append(triggerOpts, triggerTuple{
-				workflowVersionId:  sqlchelpers.UUIDToStr(workflow.WorkflowVersionId),
-				workflowId:         sqlchelpers.UUIDToStr(workflow.WorkflowId),
-				workflowName:       workflow.WorkflowName,
-				externalId:         externalId,
-				input:              opt.Data,
-				additionalMetadata: additionalMetadata,
-				priority:           opt.Priority,
-				filterPayload:      triggerDecision.FilterPayload,
-			})
-
-			externalIdToEventId[externalId] = opt.ExternalId
 		}
 	}
 
