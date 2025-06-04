@@ -18,19 +18,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'Cross-Origin-Resource-Policy',
-            value: 'same-site',
-          },
-        ],
-      },
-    ]
-  },
   async redirects() {
     return [
       {
