@@ -229,26 +229,17 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 
 	workflowEventKeyToIncomingEventKey := make(map[string]string)
 
-	for _, workflow := range workflowVersionIdsAndEventKeys {
-		workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern] = workflow.IncomingEventKey
-	}
-
 	workflowIds := make([]pgtype.UUID, 0)
 	scopes := make([]*string, 0)
 
 	externalIdToEventId := make(map[string]string)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
-		incomingEventKey, ok := workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern]
+		workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern] = workflow.IncomingEventKey
+
+		opts, ok := eventKeysToOpts[workflow.IncomingEventKey]
 
 		if !ok {
-			continue
-		}
-
-		opts, ok := eventKeysToOpts[incomingEventKey]
-
-		if !ok {
-			r.l.Debug().Msg(err.Error())
 			continue
 		}
 
