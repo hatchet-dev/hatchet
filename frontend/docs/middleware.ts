@@ -4,9 +4,9 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   // Get the host header (the domain being requested)
   const host = request.headers.get('host')
-  
+
   const allowedDomains = ['staging.hatchet-tools.com', '*.onhatchet.run', '*.hatchet.run']
-  
+
   // Check if host is allowed for CORS
   const isHostAllowed = host && allowedDomains.some(domain => {
     if (domain.startsWith('*.')) {
@@ -15,18 +15,18 @@ export function middleware(request: NextRequest) {
     }
     return domain === host
   })
-  
+
   // Handle preflight requests
   if (request.method === 'OPTIONS') {
     const response = new NextResponse(null, { status: 200 })
-    
+
     if (isHostAllowed) {
       response.headers.set('Access-Control-Allow-Origin', `https://${host}`)
       response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
       response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
       response.headers.set('Access-Control-Max-Age', '86400')
     }
-    
+
     return response
   }
 
