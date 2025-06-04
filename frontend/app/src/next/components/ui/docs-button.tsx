@@ -25,7 +25,9 @@ interface DocsButtonProps
   titleOverride?: string;
 }
 
-export const baseDocsUrl = 'https://docs.hatchet.run';
+export const baseDocsUrl = import.meta.env.VITE_DOCS_ONHATCHET
+  ? 'https://docs.onhatchet.run'
+  : 'https://docs.hatchet.run';
 
 export function DocsButton({
   doc,
