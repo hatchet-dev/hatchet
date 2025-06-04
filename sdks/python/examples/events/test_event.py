@@ -74,14 +74,19 @@ async def fetch_runs_for_event(
         cast(dict[str, str | bool], json.loads(event.payload)) if event.payload else {}
     )
 
+    processed_event = ProcessedEvent(
+        id=event.eventId,
+        payload=payload,
+        meta=meta,
+        should_have_runs=meta.get("should_have_runs", False) is True,
+        test_run_id=cast(str, meta["test_run_id"]),
+    )
+
+    if not all([r.output for r in runs.rows]):
+        return (processed_event, [])
+
     return (
-        ProcessedEvent(
-            id=event.eventId,
-            payload=payload,
-            meta=meta,
-            should_have_runs=meta.get("should_have_runs", False) is True,
-            test_run_id=cast(str, meta["test_run_id"]),
-        ),
+        processed_event,
         runs.rows or [],
     )
 
@@ -266,18 +271,21 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
 
 def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
     return [
+        ## No scope, so it shouldn't have any runs
         bpi(
             index=1,
             test_run_id=test_run_id,
             should_skip=False,
             should_have_runs=False,
         ),
+        ## No scope, so it shouldn't have any runs
         bpi(
             index=2,
             test_run_id=test_run_id,
             should_skip=True,
             should_have_runs=False,
         ),
+        ## Scope is set and `shouldSkip` is False, so it should have runs
         bpi(
             index=3,
             test_run_id=test_run_id,
@@ -285,6 +293,7 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             should_have_runs=True,
             scope=test_run_id,
         ),
+        ## Scope is set and `shouldSkip` is True, so it shouldn't have runs
         bpi(
             index=4,
             test_run_id=test_run_id,
@@ -292,6 +301,7 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             should_have_runs=False,
             scope=test_run_id,
         ),
+        ## Scope is set, `shouldSkip` is False, but key is different, so it shouldn't have runs
         bpi(
             index=5,
             test_run_id=test_run_id,
@@ -300,6 +310,7 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             scope=test_run_id,
             key="thisisafakeeventfoobarbaz",
         ),
+        ## Scope is set, `shouldSkip` is False, but key is different, so it shouldn't have runs
         bpi(
             index=6,
             test_run_id=test_run_id,
@@ -466,3 +477,38 @@ async def test_key_wildcards(hatchet: Hatchet, test_run_id: str) -> None:
         ]
 
         await wait_for_result_and_assert(hatchet, events)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_multiple_runs_for_multiple_scope_matches(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
+    async with event_filter(
+        hatchet, test_run_id, payload={"filter_id": "1"}, expression="1 == 1"
+    ):
+        async with event_filter(
+            hatchet, test_run_id, payload={"filter_id": "2"}, expression="2 == 2"
+        ):
+            event = await hatchet.event.aio_push(
+                event_key=EVENT_KEY,
+                payload={
+                    "should_skip": False,
+                },
+                options=PushEventOptions(
+                    scope=test_run_id,
+                    additional_metadata={
+                        "should_have_runs": True,
+                        "test_run_id": test_run_id,
+                    },
+                ),
+            )
+
+            event_to_runs = await wait_for_result(hatchet, [event])
+
+            assert len(event_to_runs.keys()) == 1
+
+            runs = list(event_to_runs.values())[0]
+
+            assert len(runs) == 2
+
+            assert {r.output.get("filter_id") for r in runs} == {"1", "2"}

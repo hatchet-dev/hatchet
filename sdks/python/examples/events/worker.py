@@ -22,8 +22,10 @@ event_workflow = hatchet.workflow(
 
 
 @event_workflow.task()
-def task(input: EventWorkflowInput, ctx: Context) -> None:
+def task(input: EventWorkflowInput, ctx: Context) -> dict[str, str]:
     print("event received")
+
+    return dict(ctx.filter_payload)
 
 
 def main() -> None:
