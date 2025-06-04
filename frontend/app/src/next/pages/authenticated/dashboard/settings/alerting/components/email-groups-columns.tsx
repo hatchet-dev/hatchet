@@ -22,7 +22,7 @@ export const emailGroupColumns = ({
       ),
       cell: ({ row }) => (
         <div>
-          {row.original.metadata.id == 'default' && (
+          {row.original.metadata.id === 'default' && (
             <Badge className="mr-2" variant="secondary">
               All Tenant Members
             </Badge>

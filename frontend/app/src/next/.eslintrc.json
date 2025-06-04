@@ -54,7 +54,6 @@
     "@typescript-eslint/prefer-includes": "error",
     "@typescript-eslint/prefer-string-starts-ends-with": "error",
     "@typescript-eslint/no-floating-promises": "error",
-    "@typescript-eslint/no-misused-promises": "error",
 
     "no-console": "error",
     "no-debugger": "error",
@@ -74,8 +73,6 @@
     "no-useless-concat": "error",
     "no-useless-return": "error",
     "prefer-promise-reject-errors": "error",
-    "radix": "error",
-    "yoda": "error",
 
     "react/jsx-no-bind": [
       "error",

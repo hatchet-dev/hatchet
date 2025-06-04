@@ -49,7 +49,7 @@ export default function Register() {
       {forms.map((form, index) => (
         <React.Fragment key={index}>
           {form}
-          {basicEnabled && schemes.length >= 2 && index == 0 ? (
+          {basicEnabled && schemes.length >= 2 && index === 0 ? (
             <OrContinueWith />
           ) : null}
         </React.Fragment>

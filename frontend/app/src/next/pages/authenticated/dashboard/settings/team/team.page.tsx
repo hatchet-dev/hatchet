@@ -30,6 +30,23 @@ export default function MembersPage() {
   );
 }
 
+const InviteMemberButton = ({
+  canInvite,
+  setShowInviteDialog,
+}: {
+  canInvite: boolean;
+  setShowInviteDialog: (show: boolean) => void;
+}) => (
+  <Button
+    key="invite-member"
+    onClick={() => setShowInviteDialog(true)}
+    disabled={!canInvite}
+  >
+    <UserPlus className="mr-2 h-4 w-4" />
+    Invite
+  </Button>
+);
+
 function MembersContent() {
   const { canWithReason } = useCan();
   const { allowed: canViewMembers, message: canViewMembersMessage } =
@@ -42,24 +59,16 @@ function MembersContent() {
     members.invite(TenantMemberRole.MEMBER),
   );
 
-  const InviteMemberButton = () => (
-    <Button
-      key="invite-member"
-      onClick={() => setShowInviteDialog(true)}
-      disabled={!canInvite}
-    >
-      <UserPlus className="mr-2 h-4 w-4" />
-      Invite
-    </Button>
-  );
-
   return (
     <BasicLayout>
       <Headline>
         <PageTitle description="Manage your team">Team</PageTitle>
         <HeadlineActions>
           <HeadlineActionItem>
-            <InviteMemberButton />
+            <InviteMemberButton
+              canInvite={canInvite}
+              setShowInviteDialog={setShowInviteDialog}
+            />
           </HeadlineActionItem>
         </HeadlineActions>
       </Headline>
@@ -86,7 +95,12 @@ function MembersContent() {
                 <p className="text-sm text-muted-foreground">
                   No members found. Invite members to get started.
                 </p>
-                {canInvite ? <InviteMemberButton /> : null}
+                {canInvite ? (
+                  <InviteMemberButton
+                    canInvite={canInvite}
+                    setShowInviteDialog={setShowInviteDialog}
+                  />
+                ) : null}
               </div>
             }
           />

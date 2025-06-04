@@ -54,5 +54,5 @@ export function SignInRequiredAction({
     return <div className={className}>{content}</div>;
   }
 
-  return <>{children}</>;
+  return { children };
 }

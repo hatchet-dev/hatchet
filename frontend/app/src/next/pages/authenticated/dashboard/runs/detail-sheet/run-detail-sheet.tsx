@@ -212,7 +212,7 @@ function RunDetailSheetContent() {
                       .map((i) => (
                         <SelectItem key={i} value={(i + 1).toString()}>
                           Attempt {i + 1}{' '}
-                          {i + 1 == latestTask.attempt ? ' (Current)' : ''}
+                          {i + 1 === latestTask.attempt ? ' (Current)' : ''}
                         </SelectItem>
                       ))}
                   </SelectContent>

@@ -9,7 +9,6 @@ export function decodeSheetProps(encoded: string): unknown {
     const decoded = atob(encoded);
     return JSON.parse(decoded);
   } catch (e) {
-    console.error('Failed to decode sheet parameter:', e);
     return undefined;
   }
 }

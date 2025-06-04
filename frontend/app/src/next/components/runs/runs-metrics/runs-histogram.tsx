@@ -15,7 +15,7 @@ function GetWorkflowChart() {
         kind="bar"
         data={
           histogram.data?.results?.map(
-            (result: any): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
+            (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
               date: result.time,
               SUCCEEDED: result.SUCCEEDED,
               FAILED: result.FAILED,

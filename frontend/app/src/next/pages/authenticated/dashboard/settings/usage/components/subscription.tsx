@@ -187,7 +187,7 @@ export const Subscription: React.FC = () => {
                 {(
                   plan.amount_cents /
                   100 /
-                  (plan.period == 'yearly' ? 12 : 1)
+                  (plan.period === 'yearly' ? 12 : 1)
                 ).toLocaleString()}{' '}
                 per month billed {plan.period}*
               </CardDescription>

@@ -83,16 +83,14 @@ export default function InvitesPage() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <>
-            {invites.list.length > 0 && (
-              <div className="flex flex-col gap-4 mb-8">
-                <h2 className="text-xl font-semibold">Pending Invites</h2>
-                {invites.list.map((invite) => (
-                  <InviteCard key={invite.metadata.id} invite={invite} />
-                ))}
-              </div>
-            )}
-          </>
+          invites.list.length > 0 && (
+            <div className="flex flex-col gap-4 mb-8">
+              <h2 className="text-xl font-semibold">Pending Invites</h2>
+              {invites.list.map((invite) => (
+                <InviteCard key={invite.metadata.id} invite={invite} />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

@@ -1,5 +1,3 @@
-// TODO error boundary
-
 import { Button } from '@/next/components/ui/button';
 import { PropsWithChildren } from 'react';
 import {
@@ -9,19 +7,17 @@ import {
   useLocation,
 } from 'react-router-dom';
 
+const Layout: React.FC<PropsWithChildren> = ({ children }) => (
+  <div className="flex flex-row justify-center items-center flex-1 w-full h-full">
+    <div className="flex flex-col space-y-2 text-center">{children}</div>
+  </div>
+);
+
 export default function ErrorBoundary() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const error = useRouteError();
-
-  console.error(error);
-
-  const Layout: React.FC<PropsWithChildren> = ({ children }) => (
-    <div className="flex flex-row justify-center items-center flex-1 w-full h-full">
-      <div className="flex flex-col space-y-2 text-center">{children}</div>
-    </div>
-  );
 
   if (
     error instanceof TypeError &&

@@ -258,7 +258,7 @@ export function RunsTable({
             <div className="flex gap-2">
               <Button
                 tooltip={
-                  numSelectedRows == 0
+                  numSelectedRows === 0
                     ? 'No runs selected'
                     : canReplay
                       ? 'Replay the selected runs'
@@ -276,7 +276,7 @@ export function RunsTable({
               </Button>
               <Button
                 tooltip={
-                  numSelectedRows == 0
+                  numSelectedRows === 0
                     ? 'No runs selected'
                     : canCancel
                       ? 'Cancel the selected runs'

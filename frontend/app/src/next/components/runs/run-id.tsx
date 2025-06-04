@@ -35,7 +35,7 @@ export function RunId({
 
   const url = !isTaskRun
     ? ROUTES.runs.detail(tenantId, wfRun?.metadata.id || id || '')
-    : taskRun?.type == V1WorkflowType.TASK
+    : taskRun?.type === V1WorkflowType.TASK
       ? undefined
       : ROUTES.runs.detail(tenantId, taskRun?.workflowRunExternalId || '');
 
