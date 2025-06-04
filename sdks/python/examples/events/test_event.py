@@ -55,9 +55,10 @@ async def event_filter(
         payload={"test_run_id": test_run_id, **payload},
     )
 
-    yield
-
-    await hatchet.filters.aio_delete(f.metadata.id)
+    try:
+        yield
+    finally:
+        await hatchet.filters.aio_delete(f.metadata.id)
 
 
 async def fetch_runs_for_event(
