@@ -39,7 +39,6 @@ type rateLimiter struct {
 	dbRateLimits   rateLimitSet
 
 	cleanup func()
-	wg      sync.WaitGroup
 }
 
 func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
@@ -55,7 +54,6 @@ func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
 	ctx, cancel := context.WithCancel(context.Background())
 	rl.cleanup = cancel
 
-	rl.wg.Add(1)
 	go rl.loopFlush(ctx)
 
 	return rl
@@ -63,14 +61,10 @@ func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
 
 func (r *rateLimiter) Cleanup() {
 	r.cleanup()
-	r.wg.Wait()
 }
 
 func (r *rateLimiter) loopFlush(ctx context.Context) {
-	defer r.wg.Done()
-
 	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -178,7 +172,7 @@ func (r *rateLimiter) shouldRefill() bool {
 		return false
 	}
 
-	return time.Now().UTC().After(*r.nextRefillAt)
+	return r.nextRefillAt.After(time.Now().UTC())
 }
 
 func (r *rateLimiter) copyDbRateLimits() rateLimitSet {
@@ -277,13 +271,6 @@ func (r *rateLimiter) nack(taskId int64) {
 // flushToDatabase involves writing the rate limits and reading new rate limits from the
 // database
 func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
-	// Check if we're shutting down before attempting database operations
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
 	r.unflushedMu.Lock()
 	defer r.unflushedMu.Unlock()
 
@@ -295,11 +282,6 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 
 	for k, v := range r.unflushed {
 		updates[k] = v.val
-	}
-
-	// If no updates to flush, return early
-	if len(updates) == 0 {
-		return nil
 	}
 
 	newRateLimits, nextRefillAt, err := r.rateLimitRepo.UpdateRateLimits(ctx, r.tenantId, updates)
