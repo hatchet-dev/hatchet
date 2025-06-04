@@ -36,7 +36,7 @@ export function middleware(request: NextRequest) {
   if (isHostAllowed) {
     response.headers.set('Access-Control-Allow-Origin', `https://${host}`)
     response.headers.set('Access-Control-Allow-Credentials', 'true')
-    
+
     // Set Cross-Origin-Resource-Policy based on the host
     if (host.includes('staging.hatchet-tools.com')) {
       response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin')
