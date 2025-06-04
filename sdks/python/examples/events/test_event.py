@@ -162,6 +162,12 @@ async def assert_event_runs_processed(
     event: ProcessedEvent,
     runs: list[V1TaskSummary],
 ) -> None:
+    runs = [
+        run
+        for run in runs
+        if (run.additional_metadata or {}).get("hatchet__event_id") == event.id
+    ]
+
     if event.should_have_runs:
         assert len(runs) > 0
 
