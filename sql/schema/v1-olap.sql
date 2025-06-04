@@ -382,6 +382,7 @@ CREATE TABLE v1_events_olap (
     key TEXT NOT NULL,
     payload JSONB NOT NULL,
     additional_metadata JSONB,
+    scope TEXT,
 
     PRIMARY KEY (tenant_id, id, seen_at)
 ) PARTITION BY RANGE(seen_at);

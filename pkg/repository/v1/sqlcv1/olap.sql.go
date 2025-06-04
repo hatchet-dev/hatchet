@@ -38,7 +38,7 @@ INSERT INTO v1_events_olap (
 )
 SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata
 FROM to_insert
-RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope
 `
 
 type BulkCreateEventsParams struct {
@@ -74,6 +74,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 			&i.Key,
 			&i.Payload,
 			&i.AdditionalMetadata,
+			&i.Scope,
 		); err != nil {
 			return nil, err
 		}
@@ -541,7 +542,7 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 
 const listEvents = `-- name: ListEvents :many
 WITH included_events AS (
-    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata
+    SELECT tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope
     FROM v1_events_olap e
     WHERE
         e.tenant_id = $1
