@@ -75,6 +75,25 @@ BEGIN
         EXECUTE rename_sql;
     END LOOP;
 
+    FOR partition_record IN
+        SELECT
+            c.relname as partition_name,
+            i.relname as index_name
+        FROM pg_class c
+        JOIN pg_inherits inh ON c.oid = inh.inhrelid
+        JOIN pg_class parent ON inh.inhparent = parent.oid
+        JOIN pg_index idx ON c.oid = idx.indrelid
+        JOIN pg_class i ON idx.indexrelid = i.oid
+        WHERE parent.relname = 'v1_events_olap'
+        AND i.relname LIKE '%_new_%'
+        ORDER BY c.relname, i.relname
+    LOOP
+        old_name := partition_record.index_name;
+        new_name := regexp_replace(old_name, '_new_', '_');
+        rename_sql := format('ALTER INDEX %I RENAME TO %I', old_name, new_name);
+        EXECUTE rename_sql;
+    END LOOP;
+
     ALTER INDEX v1_events_olap_key_idx_new RENAME TO v1_events_olap_key_idx;
 
     CREATE OR REPLACE FUNCTION v1_events_lookup_table_olap_insert_function()
