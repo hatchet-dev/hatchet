@@ -5,8 +5,7 @@ export function middleware(request: NextRequest) {
   // Get the host header (the domain being requested)
   const host = request.headers.get('host')
   
-  const allowedHosts = ['staging.hatchet-tools.com', 'hatchet-tools.com']
-  const allowedDomains = ['staging.hatchet-tools.com', '*.onhatchet.run', '*.hatchet.run', '056cb5059de2.ngrok.app']
+  const allowedDomains = ['staging.hatchet-tools.com', '*.onhatchet.run', '*.hatchet.run']
   
   // Check if host is allowed for CORS
   const isHostAllowed = host && allowedDomains.some(domain => {
