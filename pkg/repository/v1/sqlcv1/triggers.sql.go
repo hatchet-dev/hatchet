@@ -81,7 +81,8 @@ SELECT
     latest_versions."workflowVersionId",
     latest_versions."workflowId",
     latest_versions."workflowName",
-    eventRef."eventKey" as "eventKey"
+    eventRef."eventKey" as "workflowTriggeringEventKeyPattern",
+    k.event_key::TEXT as "incomingEventKey"
 FROM
     latest_versions
 JOIN
@@ -97,10 +98,11 @@ type ListWorkflowsForEventsParams struct {
 }
 
 type ListWorkflowsForEventsRow struct {
-	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
-	WorkflowId        pgtype.UUID `json:"workflowId"`
-	WorkflowName      string      `json:"workflowName"`
-	EventKey          string      `json:"eventKey"`
+	WorkflowVersionId                 pgtype.UUID `json:"workflowVersionId"`
+	WorkflowId                        pgtype.UUID `json:"workflowId"`
+	WorkflowName                      string      `json:"workflowName"`
+	WorkflowTriggeringEventKeyPattern string      `json:"workflowTriggeringEventKeyPattern"`
+	IncomingEventKey                  string      `json:"incomingEventKey"`
 }
 
 // Get all of the latest workflow versions
@@ -118,7 +120,8 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 			&i.WorkflowVersionId,
 			&i.WorkflowId,
 			&i.WorkflowName,
-			&i.EventKey,
+			&i.WorkflowTriggeringEventKeyPattern,
+			&i.IncomingEventKey,
 		); err != nil {
 			return nil, err
 		}

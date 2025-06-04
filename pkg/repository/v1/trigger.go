@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -192,34 +191,6 @@ func (r *TriggerRepositoryImpl) makeTriggerDecisions(ctx context.Context, filter
 	return decisions
 }
 
-func getOpts(eventKeysToOpts map[string][]EventTriggerOpts, workflow *sqlcv1.ListWorkflowsForEventsRow) (*[]EventTriggerOpts, error) {
-	opts, ok := eventKeysToOpts[workflow.EventKey]
-
-	if ok {
-		return &opts, nil
-	}
-
-	matchingOpts := make([]EventTriggerOpts, 0)
-
-	re, err := regexp.Compile(workflow.EventKey)
-
-	if err != nil {
-		return nil, fmt.Errorf("no matching opts found for event key %s", workflow.EventKey)
-	}
-
-	for eventKey, opt := range eventKeysToOpts {
-		if re.MatchString(eventKey) {
-			matchingOpts = append(matchingOpts, opt...)
-		}
-	}
-
-	if len(matchingOpts) == 0 {
-		return nil, fmt.Errorf("no matching opts found for event key %s", workflow.EventKey)
-	}
-
-	return &matchingOpts, nil
-}
-
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
 	pre, post := r.m.Meter(ctx, dbsqlc.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
@@ -256,21 +227,30 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
+	workflowEventKeyToIncomingEventKey := make(map[string]string)
+
+	for _, workflow := range workflowVersionIdsAndEventKeys {
+		workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern] = workflow.IncomingEventKey
+	}
+
 	workflowIds := make([]pgtype.UUID, 0)
 	scopes := make([]*string, 0)
 
 	externalIdToEventId := make(map[string]string)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
-		// Need to wildcard match on keys here
-		matchingOpts, err := getOpts(eventKeysToOpts, workflow)
+		incomingEventKey, ok := workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern]
 
-		if err != nil || matchingOpts == nil {
-			r.l.Debug().Msg(err.Error())
+		if !ok {
 			continue
 		}
 
-		opts = *matchingOpts
+		opts, ok := eventKeysToOpts[incomingEventKey]
+
+		if !ok {
+			r.l.Debug().Msg(err.Error())
+			continue
+		}
 
 		for _, opt := range opts {
 			workflowIds = append(workflowIds, workflow.WorkflowId)
@@ -313,14 +293,17 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	triggerOpts := make([]triggerTuple, 0)
 
 	for _, workflow := range workflowVersionIdsAndEventKeys {
-		matchingOpts, err := getOpts(eventKeysToOpts, workflow)
+		incomingEventKey, ok := workflowEventKeyToIncomingEventKey[workflow.WorkflowTriggeringEventKeyPattern]
 
-		if err != nil || matchingOpts == nil {
-			r.l.Debug().Msg(err.Error())
+		if !ok {
 			continue
 		}
 
-		opts = *matchingOpts
+		opts, ok := eventKeysToOpts[incomingEventKey]
+
+		if !ok {
+			continue
+		}
 
 		filters := workflowIdToFilters[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
 		numFilters := workflowIdToCount[sqlchelpers.UUIDToStr(workflow.WorkflowId)]
