@@ -45,14 +45,14 @@ async def event_filter(
 ) -> AsyncGenerator[None, None]:
     expression = (
         expression
-        or f"input.should_skip == false && payload.testRunId == '{test_run_id}'"
+        or f"input.should_skip == false && payload.test_run_id == '{test_run_id}'"
     )
 
     f = await hatchet.filters.aio_create(
         workflow_id=event_workflow.id,
         expression=expression,
         scope=test_run_id,
-        payload={"testRunId": test_run_id, **payload},
+        payload={"test_run_id": test_run_id, **payload},
     )
 
     yield
@@ -164,6 +164,10 @@ async def assert_event_runs_processed(
 ) -> None:
     if event.should_have_runs:
         assert len(runs) > 0
+
+        for run in runs:
+            assert run.status == V1TaskStatus.COMPLETED
+            assert run.output.get("test_run_id") == event.test_run_id
     else:
         assert len(runs) == 0
 
@@ -285,7 +289,7 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             should_skip=True,
             should_have_runs=False,
         ),
-        ## Scope is set and `shouldSkip` is False, so it should have runs
+        ## Scope is set and `should_skip` is False, so it should have runs
         bpi(
             index=3,
             test_run_id=test_run_id,
@@ -293,7 +297,7 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             should_have_runs=True,
             scope=test_run_id,
         ),
-        ## Scope is set and `shouldSkip` is True, so it shouldn't have runs
+        ## Scope is set and `should_skip` is True, so it shouldn't have runs
         bpi(
             index=4,
             test_run_id=test_run_id,
@@ -301,7 +305,7 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             should_have_runs=False,
             scope=test_run_id,
         ),
-        ## Scope is set, `shouldSkip` is False, but key is different, so it shouldn't have runs
+        ## Scope is set, `should_skip` is False, but key is different, so it shouldn't have runs
         bpi(
             index=5,
             test_run_id=test_run_id,
@@ -310,7 +314,7 @@ def gen_bulk_events(test_run_id: str) -> list[BulkPushEventWithMetadata]:
             scope=test_run_id,
             key="thisisafakeeventfoobarbaz",
         ),
-        ## Scope is set, `shouldSkip` is False, but key is different, so it shouldn't have runs
+        ## Scope is set, `should_skip` is False, but key is different, so it shouldn't have runs
         bpi(
             index=6,
             test_run_id=test_run_id,
