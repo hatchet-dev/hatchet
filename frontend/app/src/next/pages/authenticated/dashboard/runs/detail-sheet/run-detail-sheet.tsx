@@ -347,7 +347,7 @@ function RunDetailSheetContent() {
           >
             <RunDataCard
               title="Raw"
-              output={selectedTask || data}
+              output={selectedTask?.output || data?.run.output}
               variant="input"
             />
           </TabsContent>

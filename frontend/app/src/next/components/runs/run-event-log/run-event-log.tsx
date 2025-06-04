@@ -243,7 +243,7 @@ const EventMessage = ({ event, onTaskSelect }: EventMessageProps) => {
     let error = { message: 'Unknown error' };
     try {
       error = event.errorMessage
-        ? JSON.parse(event.errorMessage)
+        ? (JSON.parse(event.errorMessage) as { message: string })
         : { message: 'Unknown error' };
     } catch {
       error = { message: 'Unknown error' };
@@ -594,7 +594,7 @@ function RunEventLogContent({
                       <p className="text-gray-500 shrink-0">
                         {tasks?.[event.taskId] ? (
                           <RunId
-                            taskRun={tasks[event.taskId] as any}
+                            taskRun={tasks[event.taskId]}
                             attempt={event.attempt}
                           />
                         ) : null}

@@ -55,7 +55,7 @@
     "@typescript-eslint/prefer-string-starts-ends-with": "error",
     "@typescript-eslint/no-floating-promises": "error",
 
-    "no-console": "error",
+    "no-console": ["error", { "allow": ["warn", "error"] }],
     "no-debugger": "error",
     "no-alert": "error",
     "no-var": "error",

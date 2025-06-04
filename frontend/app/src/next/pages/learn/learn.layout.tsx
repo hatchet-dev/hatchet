@@ -50,7 +50,7 @@ export function LearnLayout() {
                       variant="ghost"
                       className="flex items-center gap-2 p-1 px-2"
                     >
-                      <UserBlock />
+                      <UserBlock userData={userData} />
                       <ChevronsUpDown className="ml-auto size-4" />
                     </Button>
                   </DropdownMenuTrigger>

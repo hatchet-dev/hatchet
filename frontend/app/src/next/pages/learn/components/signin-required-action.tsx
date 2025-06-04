@@ -28,9 +28,11 @@ function DefaultActions() {
   );
 }
 
+const defaultActions = <DefaultActions />;
+
 export function SignInRequiredAction({
   children,
-  actions = <DefaultActions />,
+  actions = defaultActions,
   variant = 'default',
   className,
   title = 'Sign into Hatchet Cloud to follow along.',
@@ -54,5 +56,5 @@ export function SignInRequiredAction({
     return <div className={className}>{content}</div>;
   }
 
-  return { children };
+  return <div>{children}</div>;
 }

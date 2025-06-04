@@ -74,8 +74,7 @@ export default function useApiTokens({
     ],
     queryFn: async () => {
       try {
-        // Build query params
-        const queryParams: Record<string, any> = {
+        const queryParams: Record<string, string | number> = {
           limit: pagination?.pageSize || 10,
           offset: (pagination?.currentPage - 1) * pagination?.pageSize || 0,
         };
@@ -87,7 +86,6 @@ export default function useApiTokens({
 
         const res = await api.apiTokenList(tenantId, queryParams);
 
-        // Client-side filtering for search if API doesn't support it
         let filteredRows = res.data.rows || [];
         if (filters.search) {
           const searchLower = filters.search.toLowerCase();
@@ -96,7 +94,6 @@ export default function useApiTokens({
           );
         }
 
-        // Client-side date filtering
         if (filters.fromDate) {
           const fromDate = new Date(filters.fromDate);
           filteredRows = filteredRows.filter((token) => {
@@ -171,8 +168,8 @@ export default function useApiTokens({
         throw error;
       }
     },
-    onSuccess: () => {
-      listTokensQuery.refetch();
+    onSuccess: async () => {
+      await listTokensQuery.refetch();
     },
   });
 

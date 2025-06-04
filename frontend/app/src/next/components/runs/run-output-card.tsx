@@ -22,7 +22,7 @@ type RunOutputCardVariant = 'input' | 'output' | 'metadata';
 interface RunOutputCardProps {
   title: string;
   description?: string;
-  output?: any;
+  output?: object;
   status?: V1TaskStatus;
   variant: RunOutputCardVariant;
   error?: string;

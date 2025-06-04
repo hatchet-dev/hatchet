@@ -14,7 +14,7 @@ import useUser from '@/next/hooks/use-user';
 import { Button } from '@/next/components/ui/button';
 import { Logo } from '@/next/components/ui/logo';
 import { ROUTES } from '@/next/lib/routes';
-import { UserBlock } from '../dashboard/components/sidebar/user-dropdown';
+import { UserBlock } from '../../learn/learn.layout';
 
 export function OnboardingLayout() {
   const { toggleTheme, theme } = useTheme();

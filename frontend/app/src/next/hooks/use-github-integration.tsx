@@ -42,11 +42,16 @@ interface GithubIntegrationState {
   };
   linkInstallation: UseMutationResult<
     void,
-    AxiosError<unknown, any>,
+    AxiosError<unknown, unknown>,
     string,
     unknown
   >;
-  startOAuth: UseMutationResult<void, AxiosError<unknown, any>, void, unknown>;
+  startOAuth: UseMutationResult<
+    void,
+    AxiosError<unknown, unknown>,
+    void,
+    unknown
+  >;
   selectedInstallation: string | undefined;
   setSelectedInstallation: (installationId: string | undefined) => void;
   selectedRepo: GithubRepo | undefined;

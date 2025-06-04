@@ -106,7 +106,7 @@ function ManagedComputeProviderContent({
 
       try {
         // Build query params
-        const queryParams: Record<string, any> = {
+        const queryParams: Record<string, number | string> = {
           page: pagination.currentPage,
           limit: pagination.pageSize,
         };
@@ -147,8 +147,8 @@ function ManagedComputeProviderContent({
         // Client-side sorting if API doesn't support it
         if (filters.filters.sortBy) {
           filteredRows.sort((a: ManagedWorker, b: ManagedWorker) => {
-            let valueA: any;
-            let valueB: any;
+            let valueA: string | number;
+            let valueB: string | number;
 
             switch (filters.filters.sortBy) {
               case 'name':
@@ -216,8 +216,8 @@ function ManagedComputeProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listManagedComputeQuery.refetch();
+    onSuccess: async () => {
+      await listManagedComputeQuery.refetch();
     },
   });
 
@@ -248,8 +248,8 @@ function ManagedComputeProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listManagedComputeQuery.refetch();
+    onSuccess: async () => {
+      await listManagedComputeQuery.refetch();
     },
   });
 
@@ -270,8 +270,8 @@ function ManagedComputeProviderContent({
         throw error;
       }
     },
-    onSuccess: () => {
-      listManagedComputeQuery.refetch();
+    onSuccess: async () => {
+      await listManagedComputeQuery.refetch();
     },
   });
 

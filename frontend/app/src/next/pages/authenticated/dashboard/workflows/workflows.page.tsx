@@ -75,9 +75,11 @@ function WorkflowsContent() {
     return (
       <div className="flex flex-1 flex-col gap-4 p-4 pt-16">
         <div className="grid auto-rows-min gap-4 md:grid-cols-3">
-          {Array.from({ length: 9 }).map((_, ix) => (
-            <Skeleton key={ix} className="h-40 rounded-md" />
-          ))}
+          {Array.from({ length: 9 })
+            .map((_, ix) => ix.toString())
+            .map((key) => (
+              <Skeleton key={key} className="h-40 rounded-md" />
+            ))}
         </div>
       </div>
     );
@@ -121,7 +123,7 @@ function WorkflowsContent() {
               className="h-8 px-2 lg:px-3"
               size="sm"
               onClick={async () => {
-                invalidate();
+                await invalidate();
                 setRotate(!rotate);
               }}
               variant={'outline'}
