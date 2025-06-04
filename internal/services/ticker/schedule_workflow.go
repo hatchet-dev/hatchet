@@ -88,8 +88,10 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 		return nil
 	}
 
+	duration := time.Until(triggerAt)
+
 	// create a cancellation context for this specific scheduled workflow
-	cancelCtx, cancel := context.WithCancel(context.Background())
+	cancelCtx, cancel := context.WithTimeout(context.Background(), duration*2)
 
 	// store the cancel function so we can cancel this scheduled workflow later
 	t.scheduledWorkflows.Store(key, cancel)
@@ -99,12 +101,11 @@ func (t *TickerImpl) handleScheduleWorkflow(ctx context.Context, scheduledWorkfl
 		defer cancel()
 		defer t.scheduledWorkflows.Delete(key)
 
-		duration := time.Until(triggerAt)
 		timer := time.After(duration)
 
 		select {
 		case <-cancelCtx.Done():
-			t.l.Debug().Msgf("ticker: scheduled workflow %s was cancelled", scheduledWorkflowId)
+			t.l.Debug().Msgf("ticker: scheduled workflow %s was cancelled", key)
 			return
 		case <-timer:
 			t.runScheduledWorkflow(tenantId, workflowVersionId, scheduledWorkflowId, scheduledWorkflow)()
