@@ -215,7 +215,7 @@ export const Subscription: React.FC = () => {
           </Card>
         ))}
       </div>
-      {active?.note && <p className="mt-4">{active?.note}</p>}
+      {active?.note ? <p className="mt-4">{active?.note}</p> : null}
       <p className="text-sm text-gray-500 mt-4">
         * subscription fee billed upfront {showAnnual ? 'yearly' : 'monthly'},
         overages billed at the end of each month for usage in that month

@@ -92,20 +92,18 @@ function RunDetailSheetContent() {
                 });
               }}
             />
-            {isDAG && selectedTask && <>/</>}
+            {isDAG && selectedTask ? <>/</> : null}
           </div>
-          {isDAG && selectedTask && (
+          {isDAG && selectedTask ? (
             <div className="flex flex-row items-center gap-2">
               <RunsBadge status={selectedTask?.status} variant="xs" />
               <RunId wfRun={selectedTask} onClick={() => {}} />
             </div>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {isDAG ? (
-            <>
-              <Badge variant="outline">DAG</Badge>
-            </>
+            <Badge variant="outline">DAG</Badge>
           ) : (
             <Badge variant="outline">Standalone</Badge>
           )}
@@ -138,7 +136,7 @@ function RunDetailSheetContent() {
             }
           />
         </div>
-        {latestTask?.attempt && populatedAttempt && (
+        {latestTask?.attempt && populatedAttempt ? (
           <div className="z-10 bg-slate-100 dark:bg-slate-900 px-4 py-2 flex items-center justify-between text-sm">
             <div
               className={cn(
@@ -182,7 +180,7 @@ function RunDetailSheetContent() {
                   <ArrowUpCircle className="h-4 w-4" />
                 </Button>
               )}
-              {selectedTask && (
+              {selectedTask ? (
                 <Select
                   value={populatedAttempt?.toString() || '0'}
                   onValueChange={(value) => {
@@ -219,10 +217,10 @@ function RunDetailSheetContent() {
                       ))}
                   </SelectContent>
                 </Select>
-              )}
+              ) : null}
             </div>
           </div>
-        )}
+        ) : null}
         <Tabs
           defaultValue="payload"
           className="w-full flex-1 flex flex-col min-h-0"
@@ -237,11 +235,11 @@ function RunDetailSheetContent() {
             <TabsTrigger variant="underlined" value="activity">
               Activity
             </TabsTrigger>
-            {selectedTask && (
+            {selectedTask ? (
               <TabsTrigger variant="underlined" value="worker">
                 Worker
               </TabsTrigger>
-            )}
+            ) : null}
             <TabsTrigger variant="underlined" value="raw">
               Raw
             </TabsTrigger>
@@ -249,7 +247,7 @@ function RunDetailSheetContent() {
           <TabsContent value="activity" className="flex-1 min-h-0">
             <div className="h-full overflow-y-auto px-4">
               <div className="pt-4 pb-4">
-                {data?.run && (
+                {data?.run ? (
                   <RunEventLog
                     workflow={data.run}
                     showNextButton={
@@ -319,7 +317,7 @@ function RunDetailSheetContent() {
                       });
                     }}
                   />
-                )}
+                ) : null}
               </div>
             </div>
           </TabsContent>

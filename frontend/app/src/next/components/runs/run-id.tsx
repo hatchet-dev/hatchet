@@ -78,7 +78,7 @@ export function RunId({
                 onDoubleClick={handleDoubleClick}
               >
                 {name}
-                {displayAttempt && `/${displayAttempt}`}
+                {displayAttempt ? `/${displayAttempt}` : null}
               </span>
             )}
           </span>
@@ -87,7 +87,7 @@ export function RunId({
           <div className="font-mono text-foreground">
             Run Id: {wfRun?.metadata.id || taskRun?.metadata.id || id || ''}
             <br />
-            {displayAttempt && `Attempt: ${displayAttempt}`}
+            {displayAttempt ? `Attempt: ${displayAttempt}` : null}
           </div>
         </TooltipContent>
       </Tooltip>

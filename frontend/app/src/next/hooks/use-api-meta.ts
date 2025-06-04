@@ -82,7 +82,6 @@ export default function useApiMeta() {
 
           variant: 'destructive',
         });
-        return;
       }
     },
     staleTime: 1000 * 60,

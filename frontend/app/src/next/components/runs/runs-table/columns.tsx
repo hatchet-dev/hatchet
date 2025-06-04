@@ -124,7 +124,7 @@ export const columns = (
                 rowClicked?.(row.original);
               }}
             />
-            {url && (
+            {url ? (
               <Link
                 to={url}
                 className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
@@ -138,7 +138,7 @@ export const columns = (
                   <ArrowDownFromLine className="w-4 h-4" />
                 </Button>
               </Link>
-            )}
+            ) : null}
           </div>
         );
       },
@@ -183,7 +183,7 @@ export const columns = (
         />
       ),
       cell: ({ row }) => {
-        const startedAt = row.getValue('startedAt') as string | null;
+        const startedAt = row.getValue('startedAt');
         if (!startedAt) {
           return <span>-</span>;
         }
@@ -216,7 +216,7 @@ export const columns = (
         <DataTableColumnHeader column={column} title="Duration" />
       ),
       cell: ({ row }) => {
-        const startedAt = row.getValue('startedAt') as string | null;
+        const startedAt = row.getValue('startedAt');
         const finishedAt = row.original.finishedAt as string | null;
         const status = row.getValue('status') as V1TaskStatus;
 

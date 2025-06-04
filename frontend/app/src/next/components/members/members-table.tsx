@@ -91,7 +91,7 @@ export function MembersTable({ emptyState }: MembersTableProps) {
           </TableBody>
         </Table>
       </div>
-      {invites && invites.length > 0 && (
+      {invites && invites.length > 0 ? (
         <>
           <Separator className="my-8" />
 
@@ -113,9 +113,9 @@ export function MembersTable({ emptyState }: MembersTableProps) {
             }
           />
         </>
-      )}
+      ) : null}
 
-      {removeMember && (
+      {removeMember ? (
         <RemoveMemberForm
           member={removeMember}
           close={() => {
@@ -123,16 +123,16 @@ export function MembersTable({ emptyState }: MembersTableProps) {
             refetch();
           }}
         />
-      )}
+      ) : null}
 
-      {revokeInvite && (
+      {revokeInvite ? (
         <RevokeInviteForm
           invite={revokeInvite}
           close={() => {
             setRevokeInvite(null);
           }}
         />
-      )}
+      ) : null}
     </>
   );
 }

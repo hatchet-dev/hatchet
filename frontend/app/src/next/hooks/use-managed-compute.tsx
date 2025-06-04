@@ -14,13 +14,12 @@ import {
 } from '@tanstack/react-query';
 import { WorkerType } from '@/lib/api';
 import { Worker } from '@/lib/api/generated/data-contracts';
-import { WorkerPool } from './use-workers';
+import { WorkerPool, useWorkers } from './use-workers';
 import { useCurrentTenantId } from './use-tenant';
 import { createContext, useContext, PropsWithChildren, useMemo } from 'react';
 import { FilterProvider, useFilters } from './utils/use-filters';
 import { PaginationProvider, usePagination } from './utils/use-pagination';
 import useApiMeta from './use-api-meta';
-import { useWorkers } from './use-workers';
 import { useToast } from './utils/use-toast';
 
 interface ManagedComputeFilters {

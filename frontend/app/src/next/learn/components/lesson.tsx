@@ -81,13 +81,13 @@ function LessonContent<
             {/* TODO: Add highlight strings */}
             <Card className="shadow-none border-none bg-transparent">
               <CardContent className="space-y-6 py-0 px-0">
-                {typedStep.code?.[language as SupportedLanguage] && (
+                {typedStep.code?.[language as SupportedLanguage] ? (
                   <Snippet
                     // highlightLines={highlights[key as S]?.lines}
                     // highlightStrings={highlights[key as S]?.strings}
                     src={typedStep.code?.[language as SupportedLanguage]}
                   />
-                )}
+                ) : null}
               </CardContent>
             </Card>
           </div>

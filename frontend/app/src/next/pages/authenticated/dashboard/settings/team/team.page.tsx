@@ -64,7 +64,7 @@ function MembersContent() {
         </HeadlineActions>
       </Headline>
 
-      {(canViewMembersMessage || canInviteMessage) && (
+      {canViewMembersMessage || canInviteMessage ? (
         <Alert variant="warning">
           <Lock className="w-4 h-4 mr-2" />
           <AlertTitle>Role required</AlertTitle>
@@ -72,8 +72,8 @@ function MembersContent() {
             {canViewMembersMessage || canInviteMessage}
           </AlertDescription>
         </Alert>
-      )}
-      {canViewMembers && (
+      ) : null}
+      {canViewMembers ? (
         <>
           <Separator className="my-4" />
 
@@ -86,18 +86,18 @@ function MembersContent() {
                 <p className="text-sm text-muted-foreground">
                   No members found. Invite members to get started.
                 </p>
-                {canInvite && <InviteMemberButton />}
+                {canInvite ? <InviteMemberButton /> : null}
               </div>
             }
           />
         </>
-      )}
+      ) : null}
 
-      {showInviteDialog && (
+      {showInviteDialog ? (
         <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
           <CreateInviteForm close={() => setShowInviteDialog(false)} />
         </Dialog>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }

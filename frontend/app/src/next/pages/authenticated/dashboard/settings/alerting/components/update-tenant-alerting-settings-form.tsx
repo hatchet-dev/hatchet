@@ -173,7 +173,7 @@ export function UpdateTenantAlertingSettings({
         </div>
 
         <div className="flex flex-col gap-4">
-          {enabledWorkflowAlerting && (
+          {enabledWorkflowAlerting ? (
             <div className="grid gap-2">
               <Label htmlFor="maxAlertingFrequency">
                 Max Run Failure Alerting Frequency
@@ -187,14 +187,14 @@ export function UpdateTenantAlertingSettings({
                   );
                 }}
               />
-              {freqError && (
+              {freqError ? (
                 <div className="text-sm text-red-500">{freqError}</div>
-              )}
+              ) : null}
             </div>
-          )}
-          {hasChanges && (
+          ) : null}
+          {hasChanges ? (
             <Button loading={props.isLoading}>Save Changes</Button>
-          )}
+          ) : null}
         </div>
       </form>
     </div>

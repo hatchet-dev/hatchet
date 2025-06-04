@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { ChevronsUpDown, UserIcon } from 'lucide-react';
+import { ChevronsUpDown, UserIcon, Sun, Moon, LogOut } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from '@/next/components/ui/dropdown-menu';
 import { useTheme } from '@/next/components/theme-provider';
-import { Sun, Moon, LogOut } from 'lucide-react';
 import useUser from '@/next/hooks/use-user';
 import { Button } from '@/next/components/ui/button';
 import { Logo } from '@/next/components/ui/logo';

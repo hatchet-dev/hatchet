@@ -144,12 +144,8 @@ export function TimeFilter({ className }: TimeFilterProps) {
     isPaused,
   } = useTimeFilters();
 
-  const startDate = filters.startTime
-    ? new Date(filters.startTime as string)
-    : undefined;
-  const endDate = filters.endTime
-    ? new Date(filters.endTime as string)
-    : undefined;
+  const startDate = filters.startTime ? new Date(filters.startTime) : undefined;
+  const endDate = filters.endTime ? new Date(filters.endTime) : undefined;
 
   return (
     <div className={cn('flex flex-col', className)}>

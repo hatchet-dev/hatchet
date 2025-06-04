@@ -39,17 +39,13 @@ export function SignInRequiredAction({
   const { data: user } = useUser();
 
   if (!user) {
-    const content = (
-      <>
-        <div>{actions}</div>
-      </>
-    );
+    const content = <div>{actions}</div>;
 
     if (variant === 'card') {
       return (
         <Card className={cn('p-8 bg-card/50 border-muted', className)}>
           <h2 className="text-lg font-semibold mb-6">{title}</h2>
-          {description && <p className="mb-6">{description}</p>}
+          {description ? <p className="mb-6">{description}</p> : null}
           {content}
         </Card>
       );

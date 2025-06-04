@@ -1,6 +1,5 @@
 import { Skeleton } from '@/next/components/ui/skeleton';
-import { DataPoint } from '@/next/components/ui/charts/zoomable';
-import { ZoomableChart } from '@/next/components/ui/charts/zoomable';
+import { DataPoint, ZoomableChart } from '@/next/components/ui/charts/zoomable';
 import { useRuns } from '@/next/hooks/use-runs';
 
 function GetWorkflowChart() {

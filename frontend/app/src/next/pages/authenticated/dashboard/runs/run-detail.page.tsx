@@ -10,15 +10,14 @@ import { Skeleton } from '@/next/components/ui/skeleton';
 import { useMemo, useCallback, useState } from 'react';
 import { RunId } from '@/next/components/runs/run-id';
 import { RunsBadge } from '@/next/components/runs/runs-badge';
-import { MdOutlineReplay } from 'react-icons/md';
-import { MdOutlineCancel } from 'react-icons/md';
+import { MdOutlineReplay, MdOutlineCancel } from 'react-icons/md';
 import { SplitButton } from '@/next/components/ui/split-button';
 import {
   HeadlineActionItem,
   HeadlineActions,
   PageTitle,
+  Headline,
 } from '@/next/components/ui/page-header';
-import { Headline } from '@/next/components/ui/page-header';
 import { Duration } from '@/next/components/ui/duration';
 import {
   V1TaskStatus,

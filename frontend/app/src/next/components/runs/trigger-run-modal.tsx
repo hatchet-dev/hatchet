@@ -300,14 +300,14 @@ function TriggerRunModalContent({
         </DialogHeader>
 
         <div className="space-y-4">
-          {selectedRunId && !disabledCapabilities.includes('fromRecent') && (
+          {selectedRunId && !disabledCapabilities.includes('fromRecent') ? (
             <RunDetailProvider runId={selectedRunId}>
               <WithPreviousInput
                 setInput={setInput}
                 setAddlMeta={setAddlMeta}
               />
             </RunDetailProvider>
-          )}
+          ) : null}
           {!disabledCapabilities.includes('workflow') && (
             <div>
               <label className="text-sm font-medium">Workflow</label>

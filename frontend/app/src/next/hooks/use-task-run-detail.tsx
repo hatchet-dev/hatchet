@@ -7,9 +7,8 @@ import {
   useRef,
 } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { V1TaskSummary } from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
-import { V1TaskSummary } from '@/lib/api';
 import { useToast } from './utils/use-toast';
 import { AxiosError } from 'axios';
 

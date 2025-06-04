@@ -139,7 +139,7 @@ function WorkerDetailsContent({
                   Worker ID: {currentWorker.metadata.id}
                 </CardDescription>
               </div>
-              {showActions && (
+              {showActions ? (
                 <div className="flex gap-2">
                   <div className="flex items-center gap-2">
                     <WorkerStatusBadge
@@ -170,7 +170,7 @@ function WorkerDetailsContent({
                     )}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           </CardHeader>
           <CardContent>

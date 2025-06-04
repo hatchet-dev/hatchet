@@ -35,21 +35,21 @@ export const TaskRunSummaryTable = ({
                 <RunsBadge status={status} variant="default" />
               </TableCell>
             </TableRow>
-            {workflowRunId && (
+            {workflowRunId ? (
               <TableRow className="border-none">
                 <TableCell className="pr-4 text-muted-foreground w-[140px]">
                   Workflow Run ID
                 </TableCell>
                 <TableCell>{workflowRunId}</TableCell>
               </TableRow>
-            )}
+            ) : null}
             <TableRow className="border-none">
               <TableCell className="pr-4 text-muted-foreground w-[140px]">
                 Task Run ID
               </TableCell>
               <TableCell>{taskRunId}</TableCell>
             </TableRow>
-            {detailsLink && (
+            {detailsLink ? (
               <TableRow className="border-none hover:cursor-pointer">
                 <TableCell className="pr-4 text-muted-foreground w-[140px]">
                   <Link
@@ -61,7 +61,7 @@ export const TaskRunSummaryTable = ({
                   </Link>
                 </TableCell>
               </TableRow>
-            )}
+            ) : null}
           </TableBody>
         </Table>
       </div>

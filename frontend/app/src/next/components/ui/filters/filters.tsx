@@ -197,12 +197,12 @@ export function FilterSelect<T, A>({
                         : 'opacity-50 [&_svg]:invisible',
                     )}
                   >
-                    {multi && <Check className="h-4 w-4" />}
+                    {multi ? <Check className="h-4 w-4" /> : null}
                   </div>
                   <span>{option.text || option.label}</span>
                 </div>
 
-                {multi && only && (
+                {multi && only ? (
                   <Badge
                     variant="outline"
                     className="ml-auto opacity-0 group-hover:opacity-100"
@@ -213,7 +213,7 @@ export function FilterSelect<T, A>({
                   >
                     Only
                   </Badge>
-                )}
+                ) : null}
               </CommandItem>
             ))}
           </CommandGroup>

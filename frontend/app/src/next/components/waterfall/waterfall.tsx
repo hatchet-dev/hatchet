@@ -76,7 +76,7 @@ const CustomTooltip = (props: {
 }) => {
   const { active, payload } = props;
 
-  if (active && payload && payload.length) {
+  if (active && payload?.length) {
     // Filter out any offset entries from the tooltip
     const filteredPayload = payload.filter(
       (entry) => entry.dataKey !== 'offset' && entry.name !== 'Offset',
@@ -613,7 +613,7 @@ export function Waterfall({
   // Handler for bar click events
   const handleBarClick = useCallback(
     (data: any) => {
-      if (data && data.id) {
+      if (data?.id) {
         // Handle task selection for sidebar
         if (handleTaskSelect) {
           handleTaskSelect(data.id, data.workflowRunId);
@@ -840,12 +840,13 @@ const Tick = ({
               toggleTask(task.id, task.hasChildren, task.depth)
             }
           >
-            {task.hasChildren &&
-              (task.isExpanded ? (
+            {task.hasChildren ? (
+              task.isExpanded ? (
                 <ChevronDown size={14} />
               ) : (
                 <ChevronRight size={14} />
-              ))}
+              )
+            ) : null}
           </div>
 
           {/* Task label */}
@@ -862,23 +863,23 @@ const Tick = ({
             />
           </div>
           {workflowRunId === task.workflowRunId &&
-            task.taskExternalId === workflowRunId &&
-            task.parentId && (
-              <Link
-                to={ROUTES.runs.detail(tenantId, task.parentId)}
-                onClick={(e) => e.stopPropagation()}
+          task.taskExternalId === workflowRunId &&
+          task.parentId ? (
+            <Link
+              to={ROUTES.runs.detail(tenantId, task.parentId)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Button
+                tooltip="Zoom out to parent task"
+                variant="link"
+                size="icon"
+                className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
               >
-                <Button
-                  tooltip="Zoom out to parent task"
-                  variant="link"
-                  size="icon"
-                  className="group-hover:opacity-100 opacity-0 transition-opacity duration-200"
-                >
-                  <BsArrowUpLeftCircle className="w-4 h-4 transform" />
-                </Button>
-              </Link>
-            )}
-          {task.hasChildren && (
+                <BsArrowUpLeftCircle className="w-4 h-4 transform" />
+              </Button>
+            </Link>
+          ) : null}
+          {task.hasChildren ? (
             <Link
               to={ROUTES.runs.detail(tenantId, task.workflowRunId || task.id)}
             >
@@ -892,7 +893,7 @@ const Tick = ({
                 <ArrowDownFromLine className="w-4 h-4" />
               </Button>
             </Link>
-          )}
+          ) : null}
           {task.queuedDuration === null && (
             <TooltipProvider>
               <BaseTooltip>

@@ -48,20 +48,20 @@ export default function SettingsOverviewPage() {
       </Headline>
       <Separator className="my-4" />
       <UpdateTenant />
-      {isCloud && (
+      {isCloud ? (
         <>
           <Separator className="my-4" />
           <AnalyticsOptOut />
         </>
-      )}
+      ) : null}
       <Separator className="my-4" />
       <TenantVersionSwitcher />
-      {hasUIVersionFlag && (
+      {hasUIVersionFlag ? (
         <>
           <Separator className="my-4" />
           <UIVersionSwitcher />
         </>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }
@@ -131,7 +131,7 @@ function AnalyticsOptOut() {
           Analytics Opt-Out
         </Label>
       </div>
-      {changed && (
+      {changed ? (
         <Button
           onClick={save}
           className="w-fit mt-2"
@@ -139,7 +139,7 @@ function AnalyticsOptOut() {
         >
           Save
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -228,7 +228,7 @@ function UIVersionSwitcher() {
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const navigate = useNavigate();
 
-  if (!tenant || !tenant.uiVersion || tenant.uiVersion === TenantUIVersion.V0) {
+  if (!tenant?.uiVersion || tenant.uiVersion === TenantUIVersion.V0) {
     return (
       <div>
         This is a V0 tenant. Please upgrade to V1 or use V0 from the frontend.

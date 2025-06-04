@@ -49,7 +49,7 @@ export function RevokeInviteForm({ invite, close }: RevokeInviteFormProps) {
             Are you sure you want to revoke the invitation for{' '}
             <strong>{invite.email}</strong>? This action cannot be undone.
           </AlertDialogDescription>
-          {error && <p className="text-destructive mt-2">{error}</p>}
+          {error ? <p className="text-destructive mt-2">{error}</p> : null}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel asChild>

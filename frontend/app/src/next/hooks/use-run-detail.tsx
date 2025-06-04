@@ -1,8 +1,12 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import api, { V1TaskTimingList } from '@/lib/api';
+import api, {
+  V1TaskTimingList,
+  V1TaskSummary,
+  V1WorkflowRunDetails,
+  V1TaskEvent,
+} from '@/lib/api';
 import { RunsProvider, useRuns } from '@/next/hooks/use-runs';
-import { V1TaskSummary, V1WorkflowRunDetails, V1TaskEvent } from '@/lib/api';
 import { useToast } from './utils/use-toast';
 
 interface RunDetailState {

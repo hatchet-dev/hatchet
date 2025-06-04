@@ -220,21 +220,19 @@ export function RunsTable({
       <div className="flex items-center justify-between">
         <div className="flex-1 text-sm text-muted-foreground">
           {numSelectedRows > 0 || selectAll ? (
-            <>
-              <span className="text-muted-foreground">
-                {selectAll
-                  ? count.toLocaleString()
-                  : numSelectedRows.toLocaleString()}{' '}
-                of {count.toLocaleString()} runs selected
-              </span>
-            </>
+            <span className="text-muted-foreground">
+              {selectAll
+                ? count.toLocaleString()
+                : numSelectedRows.toLocaleString()}{' '}
+              of {count.toLocaleString()} runs selected
+            </span>
           ) : (
             <span className="text-muted-foreground">
               {count.toLocaleString()} runs
             </span>
           )}
 
-          {count > 0 && !selectAll && allowSelection && (
+          {count > 0 && !selectAll && allowSelection ? (
             <Button
               variant="ghost"
               size="sm"
@@ -243,8 +241,8 @@ export function RunsTable({
             >
               Select All
             </Button>
-          )}
-          {(numSelectedRows > 0 || selectAll) && (
+          ) : null}
+          {numSelectedRows > 0 || selectAll ? (
             <Button
               variant="ghost"
               size="sm"
@@ -253,10 +251,10 @@ export function RunsTable({
             >
               Clear Selection
             </Button>
-          )}
+          ) : null}
         </div>
-        {showActions &&
-          (!selectAll ? (
+        {showActions ? (
+          !selectAll ? (
             <div className="flex gap-2">
               <Button
                 tooltip={
@@ -316,7 +314,8 @@ export function RunsTable({
                 Cancel All
               </Button>
             </div>
-          ))}
+          )
+        ) : null}
       </div>
       <DataTable
         columns={columns(onRowClick, selectAll, allowSelection)}
@@ -333,7 +332,7 @@ export function RunsTable({
                 <Plus className="h-4 w-4 mr-2" />
                 Trigger Run
               </Button>
-              {hasFilters && (
+              {hasFilters ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -341,7 +340,7 @@ export function RunsTable({
                 >
                   Clear Filters
                 </Button>
-              )}
+              ) : null}
               <DocsButton
                 doc={docs.home.running_tasks}
                 titleOverride="Running Tasks"
@@ -358,12 +357,12 @@ export function RunsTable({
         selectAll={selectAll}
         getSubRows={(row) => row.children || []}
       />
-      {showPagination && (
+      {showPagination ? (
         <Pagination className="justify-between flex flex-row">
           <PageSizeSelector />
           <PageSelector variant="dropdown" />
         </Pagination>
-      )}
+      ) : null}
 
       <RunsBulkActionDialog
         open={!!showBulkActionDialog}

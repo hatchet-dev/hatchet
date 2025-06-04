@@ -40,7 +40,7 @@ export default function CronJobsPage() {
           <HeadlineActionItem>
             <DocsButton doc={docs.home.cron_runs} size="icon" />
           </HeadlineActionItem>
-          {canManage && (
+          {canManage ? (
             <HeadlineActionItem>
               <Button
                 className="w-full md:w-auto"
@@ -50,19 +50,19 @@ export default function CronJobsPage() {
                 Create Cron Job
               </Button>
             </HeadlineActionItem>
-          )}
+          ) : null}
         </HeadlineActions>
       </Headline>
 
-      {canManageMessage && (
+      {canManageMessage ? (
         <Alert variant="warning">
           <Lock className="w-4 h-4 mr-2" />
           <AlertTitle>Role required</AlertTitle>
           <AlertDescription>{canManageMessage}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
-      {canManage && (
+      {canManage ? (
         <div className="space-y-4">
           <Separator className="my-4" />
           <CronsProvider>
@@ -77,7 +77,7 @@ export default function CronJobsPage() {
             defaultTimingOption="cron"
           />
         </div>
-      )}
+      ) : null}
     </BasicLayout>
   );
 }

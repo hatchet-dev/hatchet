@@ -18,11 +18,13 @@ import {
 } from '@/next/components/ui/card';
 import { DocsButton } from '@/next/components/ui/docs-button';
 import docs from '@/next/lib/docs';
-import { HeadlineActionItem } from '@/next/components/ui/page-header';
-import { HeadlineActions } from '@/next/components/ui/page-header';
-import { PageTitle } from '@/next/components/ui/page-header';
+import {
+  HeadlineActionItem,
+  HeadlineActions,
+  PageTitle,
+  Headline,
+} from '@/next/components/ui/page-header';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { Headline } from '@/next/components/ui/page-header';
 import {
   PageSelector,
   PageSizeSelector,

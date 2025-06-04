@@ -5,11 +5,13 @@ import { PaymentMethods } from './components/payment-methods';
 import { DataTable } from '@/next/components/ui/data-table';
 import { columns } from './components/resource-limit-columns';
 import { Subscription } from './components/subscription';
-import { HeadlineActionItem } from '@/next/components/ui/page-header';
-import { HeadlineActions } from '@/next/components/ui/page-header';
-import { PageTitle } from '@/next/components/ui/page-header';
+import {
+  HeadlineActionItem,
+  HeadlineActions,
+  PageTitle,
+  Headline,
+} from '@/next/components/ui/page-header';
 import BasicLayout from '@/next/components/layouts/basic.layout';
-import { Headline } from '@/next/components/ui/page-header';
 import { Button } from '@/next/components/ui/button';
 import { ArrowUpRight } from 'lucide-react';
 import { ROUTES } from '@/next/lib/routes';
@@ -37,7 +39,7 @@ export default function UsagePage() {
         </HeadlineActions>
       </Headline>
       <div className="flex-grow h-full w-full">
-        {cloud?.canBill && (
+        {cloud?.canBill ? (
           <>
             <Separator className="my-4" />
             <PaymentMethods />
@@ -45,7 +47,7 @@ export default function UsagePage() {
             <Subscription />
             <Separator className="my-4" />
           </>
-        )}
+        ) : null}
 
         <div className="flex flex-row justify-between items-center">
           <h3 className="text-xl font-semibold leading-tight text-foreground">

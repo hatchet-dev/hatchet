@@ -69,9 +69,9 @@ export function RunDataCard({
                 <CardTitle className="text-sm font-medium">
                   {error ? 'Error' : title}
                 </CardTitle>
-                {variant === 'output' && status && (
+                {variant === 'output' && status ? (
                   <RunsBadge status={status} variant="xs" />
-                )}
+                ) : null}
               </div>
               {actions}
             </div>

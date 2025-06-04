@@ -64,10 +64,10 @@ export function Duration({
 
   const content = (
     <span className="flex items-center gap-1">
-      {showIcon && <Clock className="h-3.5 w-3.5" />}
+      {showIcon ? <Clock className="h-3.5 w-3.5" /> : null}
       <span className={isRunning ? 'animate-pulse' : ''}>
         {formatDuration(duration, rawDuration)}
-        {isRunning && '...'}
+        {isRunning ? '...' : null}
       </span>
     </span>
   );

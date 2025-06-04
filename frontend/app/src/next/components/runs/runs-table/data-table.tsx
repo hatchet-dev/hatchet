@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -26,7 +26,6 @@ import {
   TableRow,
 } from '@/next/components/ui/table';
 import { cn } from '@/next/lib/utils';
-import React from 'react';
 
 const styles = {
   status: 'p-0 w-[40px]',

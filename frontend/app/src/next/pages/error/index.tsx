@@ -2,8 +2,12 @@
 
 import { Button } from '@/next/components/ui/button';
 import { PropsWithChildren } from 'react';
-import { ErrorResponse, useNavigate, useRouteError } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
+import {
+  ErrorResponse,
+  useNavigate,
+  useRouteError,
+  useLocation,
+} from 'react-router-dom';
 
 export default function ErrorBoundary() {
   const navigate = useNavigate();
@@ -58,11 +62,11 @@ export default function ErrorBoundary() {
 
   return (
     <Layout>
-      {(error as ErrorResponse).status && (
+      {(error as ErrorResponse).status ? (
         <h1 className="text-2xl font-semibold tracking-tight">
           {(error as ErrorResponse).status}
         </h1>
-      )}
+      ) : null}
       <h2 className="text-xl font-semibold tracking-tight">
         {(error as ErrorResponse).statusText || 'Something went wrong'}
       </h2>

@@ -40,15 +40,13 @@ export default function AuthenticatedGuard() {
   }
   return (
     <>
-      {user && (
-        <>
-          <AnalyticsProvider>
-            <SupportChat>
-              <Outlet />
-            </SupportChat>
-          </AnalyticsProvider>
-        </>
-      )}
+      {user ? (
+        <AnalyticsProvider>
+          <SupportChat>
+            <Outlet />
+          </SupportChat>
+        </AnalyticsProvider>
+      ) : null}
     </>
   );
 }
