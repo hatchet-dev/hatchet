@@ -44,7 +44,7 @@ export const emailGroupColumns = ({
       ),
       cell: ({ row }) => (
         <div>
-          {row.original.metadata.id != 'default' && (
+          {row.original.metadata.id !== 'default' && (
             <RelativeDate date={row.original.metadata.createdAt} />
           )}
         </div>
@@ -54,7 +54,7 @@ export const emailGroupColumns = ({
       id: 'enabled',
       cell: ({ row }) => (
         <div className="flex items-center space-x-2 justify-end">
-          {row.original.metadata.id != 'default' || alertTenantEmailsSet ? (
+          {row.original.metadata.id !== 'default' || alertTenantEmailsSet ? (
             <Badge variant="successful">Enabled</Badge>
           ) : (
             <Badge variant="destructive">Disabled</Badge>
@@ -69,7 +69,7 @@ export const emailGroupColumns = ({
           <DataTableRowActions
             row={row}
             actions={[
-              row.original.metadata.id != 'default'
+              row.original.metadata.id !== 'default'
                 ? {
                     label: 'Delete',
                     onClick: () => onDeleteClick(row.original),

@@ -162,7 +162,9 @@ export function WorkerTable({ poolName }: WorkerTableProps) {
           workerId,
           data: { isPaused },
         });
-      } catch {}
+      } catch {
+        console.error(`Failed to ${action} worker ${workerId}`);
+      }
     }
 
     // Clear selection after bulk action
@@ -263,8 +265,7 @@ export function WorkerTable({ poolName }: WorkerTableProps) {
             {isLoading ? (
               Array(5)
                 .fill(0)
-                .map((_, index) => index.toString())
-                .map((key) => <TableRowSkeleton key={key} />)
+                .map((_, i) => <TableRowSkeleton key={i} />)
             ) : filteredWorkers?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">

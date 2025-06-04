@@ -297,8 +297,7 @@ function WorkerContext() {
     if (isLoading) {
       return Array(5)
         .fill(null)
-        .map((_, i) => i.toString())
-        .map((i) => <SkeletonRow key={i} />);
+        .map((_, i) => <SkeletonRow key={i} />);
     }
 
     if (!pools || pools.length === 0) {

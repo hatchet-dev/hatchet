@@ -88,11 +88,11 @@ function UpdateTenant() {
 
 function AnalyticsOptOut() {
   const { tenant, update } = useTenantDetails();
-  const [checkedState, setChecked] = useState(false);
+  const [checkedState, setCheckedState] = useState(false);
   const [changed, setChanged] = useState(false);
 
   useEffect(() => {
-    setChecked(!!tenant?.analyticsOptOut);
+    setCheckedState(!!tenant?.analyticsOptOut);
     setChanged(false);
   }, [tenant]);
 
@@ -102,7 +102,7 @@ function AnalyticsOptOut() {
 
   // Set initial state based on tenant data
   if (checkedState !== !!tenant.analyticsOptOut && !changed) {
-    setChecked(!!tenant.analyticsOptOut);
+    setCheckedState(!!tenant.analyticsOptOut);
   }
 
   const save = () => {
@@ -123,7 +123,7 @@ function AnalyticsOptOut() {
           id="analytics-opt-out"
           checked={checkedState}
           onCheckedChange={() => {
-            setChecked(!checkedState);
+            setCheckedState(!checkedState);
             setChanged(true);
           }}
         />

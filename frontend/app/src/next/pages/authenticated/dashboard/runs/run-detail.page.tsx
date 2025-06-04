@@ -49,13 +49,13 @@ export default function RunDetailPage() {
       runId={workflowRunId || ''}
       defaultRefetchInterval={1000}
     >
-      <RunDetailPageContent workflowRunId={workflowRunId} />
+      <RunDetailPageContent workflowRunId={workflowRunId || ''} />
     </RunDetailProvider>
   );
 }
 
 type RunDetailPageProps = {
-  workflowRunId?: string;
+  workflowRunId: string;
   taskId?: string;
 };
 
@@ -76,7 +76,7 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
       openSheet({
         type: 'run-details',
         content: {
-          pageWorkflowRunId: workflowRunId!,
+          pageWorkflowRunId: workflowRunId,
           selectedWorkflowRunId: childWorkflowRunId || taskId,
           selectedTaskId: taskId,
         },
@@ -292,7 +292,7 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
 
       <Separator className="my-4" />
       <Waterfall
-        workflowRunId={workflowRunId!}
+        workflowRunId={workflowRunId}
         selectedTaskId={selectedTaskId}
         handleTaskSelect={handleTaskSelect}
       />
@@ -313,7 +313,7 @@ function RunDetailPageContent({ workflowRunId }: RunDetailPageProps) {
                 openSheet({
                   type: 'run-details',
                   content: {
-                    selectedWorkflowRunId: workflowRunId!,
+                    selectedWorkflowRunId: workflowRunId,
                     selectedTaskId: event.taskId,
                     attempt: event.attempt,
                   },

@@ -151,27 +151,25 @@ function MembersTableSkeleton() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {Array.from({ length: 5 })
-            .map((_, ix) => ix.toString())
-            .map((key) => (
-              <TableRow key={key}>
-                <TableCell>
-                  <Skeleton className="h-5 w-[150px]" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-[200px]" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-[100px]" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-[120px]" />
-                </TableCell>
-                <TableCell className="text-right">
-                  <Skeleton className="h-8 w-[80px] ml-auto" />
-                </TableCell>
-              </TableRow>
-            ))}
+          {Array.from({ length: 5 }).map((_, key) => (
+            <TableRow key={key}>
+              <TableCell>
+                <Skeleton className="h-5 w-[150px]" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-[200px]" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-[100px]" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-[120px]" />
+              </TableCell>
+              <TableCell className="text-right">
+                <Skeleton className="h-8 w-[80px] ml-auto" />
+              </TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
     </div>

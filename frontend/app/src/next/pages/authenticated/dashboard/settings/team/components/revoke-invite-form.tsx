@@ -30,11 +30,11 @@ export function RevokeInviteForm({ invite, close }: RevokeInviteFormProps) {
     mutationFn: async () => {
       await api.tenantInviteDelete(tenantId, invite.metadata.id);
     },
-    onSuccess: () => {
-      refetchInvites();
+    onSuccess: async () => {
+      await refetchInvites();
       close();
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       setError('Failed to revoke invite. Please try again.');
       console.error('Error revoking invite:', err);
     },

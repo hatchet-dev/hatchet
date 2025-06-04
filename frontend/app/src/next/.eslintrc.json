@@ -85,7 +85,9 @@
     ],
     "react/jsx-no-leaked-render": "error",
     "react/jsx-no-useless-fragment": "error",
-    "react/no-array-index-key": "error",
+
+    // We should turn this on later
+    // "react/no-array-index-key": "error",
     "react/no-object-type-as-default-prop": "error",
     "react/hook-use-state": "error",
     "react/jsx-pascal-case": "error",

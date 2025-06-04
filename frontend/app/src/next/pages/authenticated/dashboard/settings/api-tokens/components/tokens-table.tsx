@@ -1,3 +1,5 @@
+/* eslint-disable react/no-unstable-nested-components */
+
 import { useState } from 'react';
 import {
   flexRender,

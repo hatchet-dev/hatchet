@@ -31,15 +31,19 @@ export default function ApiTokensPage() {
   );
 }
 
+const CreateTokenButton = ({
+  setShowTokenDialog,
+}: {
+  setShowTokenDialog: (show: boolean) => void;
+}) => (
+  <Button key="create-api-token" onClick={() => setShowTokenDialog(true)}>
+    Create API Token
+  </Button>
+);
+
 function ApiTokensContent() {
   const { canWithReason } = useCan();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
-
-  const CreateTokenButton = () => (
-    <Button key="create-api-token" onClick={() => setShowTokenDialog(true)}>
-      Create API Token
-    </Button>
-  );
 
   const { allowed: canManage, message: canManageMessage } = canWithReason(
     apiTokens.manage(),
@@ -57,7 +61,9 @@ function ApiTokensContent() {
           </HeadlineActionItem>
           {canManage ? (
             <HeadlineActionItem>
-              {canManage ? <CreateTokenButton /> : null}
+              {canManage ? (
+                <CreateTokenButton setShowTokenDialog={setShowTokenDialog} />
+              ) : null}
             </HeadlineActionItem>
           ) : null}
         </HeadlineActions>
@@ -80,7 +86,9 @@ function ApiTokensContent() {
                 <p className="text-sm text-muted-foreground">
                   Create a new API token to get started.
                 </p>
-                {canManage ? <CreateTokenButton /> : null}
+                {canManage ? (
+                  <CreateTokenButton setShowTokenDialog={setShowTokenDialog} />
+                ) : null}
                 <DocsButton doc={docs.home.setup} />
               </div>
             }

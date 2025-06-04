@@ -120,8 +120,8 @@ export function CreateTokenDialog({
             <Button
               variant="default"
               type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(token);
+              onClick={async () => {
+                await navigator.clipboard.writeText(token);
                 close();
               }}
             >
